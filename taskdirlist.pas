@@ -1,0 +1,80 @@
+unit taskdirlist;
+interface
+
+uses tasksunit;
+
+type TDirlistTask = class(TTask)
+       forcecwd: Boolean;
+       dir: string;
+       constructor Create(const netname, channel: string;site: string; dir: string; forcecwd: Boolean = False);
+       function Execute(slot: Pointer): Boolean; override;
+       function Name: string; override;
+     end;
+
+implementation
+
+uses sitesunit, SysUtils, mystrings, DebugUnit;
+
+const section = 'dirlist';
+
+{ TLoginTask }
+
+constructor TDirlistTask.Create(const netname, channel: string;site: string; dir: string; forcecwd: Boolean = False);
+begin
+  self.dir:= dir;
+  self.forcecwd:= forcecwd;
+  inherited Create(netname, channel, site);
+end;
+
+function TDirlistTask.Execute(slot: Pointer): Boolean;
+label ujra;
+var s: TSiteSlot;
+    numerrors: Integer;
+begin
+  Result:= False;
+  s:= slot;
+  Debug(dpMessage, section, Name);
+  numerrors:=0;
+  
+ujra:
+  inc(numerrors);
+  if numerrors > 3 then
+  begin
+    readyerror:= True;
+    exit;
+  end;
+  
+  if s.status <> ssOnline then
+    if not s.ReLogin then
+    begin
+      readyerror:= True;
+      exit;
+    end;
+
+
+  if (not s.Dirlist(dir, forcecwd)) then
+  begin
+    if s.status <> ssOnline then
+      goto ujra;
+    // ha nem megszakadtunk hanem nem letezik a dir...
+   // but if it is not broke do not exist in the dir ...
+    readyerror:= True;
+    exit;
+  end;
+  response:= s.lastResponse;
+
+  Result:= True;
+  ready:= True;
+end;
+
+function TDirlistTask.Name: string;
+begin
+  try
+    Result:= Format('<b>DIRLIST:</b> %s @ %s',[dir,site1]);
+  except
+    Result:= 'DIRLIST';
+  end;
+end;
+
+end.
+
