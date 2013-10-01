@@ -1,0 +1,111 @@
+unit knowngroups;
+
+interface
+
+type
+  TKnownGroup = (grp_known, grp_unknown, grp_notconfigured);
+
+procedure KnowngroupsInit;
+procedure KnowngroupsUnInit;
+procedure KnowngroupsStart;
+function IsKnownGroup(section, groupname: string): TKnownGroup;
+
+implementation
+
+uses Classes, SysUtils, StrUtils, configunit, regexpr;
+
+var kg: TStringList;
+
+procedure KnowngroupsInit;
+begin
+  kg:= TStringList.Create;
+end;
+procedure KnowngroupsUnInit;
+begin
+  kg.Free;
+end;
+
+procedure KnowngroupsStart;
+var f: TextFile;
+    s, section: string;
+    i: Integer;
+begin
+  kg.clear;
+  s:= ExtractFilePath(ParamStr(0))+'slftp.knowngroups';
+  if FileExists(s) then
+  begin
+    AssignFile(f, s);
+    Reset(f);
+    while not Eof(f) do
+    begin
+      ReadLn(f,s);
+      i:= Pos('=', s);
+      if i > 1 then
+      begin
+        section:=  UpperCase(Copy(s, 1, i-1));
+        kg.Values[section]:= ' '+kg.Values[section]+' '+Copy(s, i+1, length(s))+' ';
+      end;
+    end;
+
+    CloseFile(f);
+  end;
+end;
+
+
+function RemoveINT(grp:string):string;
+var  r:TRegexpr;
+begin
+  result:= grp;
+  try
+    r:=TRegexpr.Create;
+    try
+      r.ModifierI:=True;
+      r.Expression:='[\-\_]int$';
+      result:=r.Replace(grp,'');
+    finally
+      r.free;
+    end;
+  except
+    result:= grp;
+  end;
+end;
+
+function RemoveWEB(grp:string):string;
+var  r:TRegexpr;
+begin
+  result:=grp;
+  try
+    r:=TRegexpr.Create;;
+    try
+      r.ModifierI:=True;
+      r.Expression:='[\-\_]web$';
+      result:=r.Replace(grp,'');
+    finally
+      r.free;
+    end;
+  except
+    result:=grp;
+  end;
+end;
+
+function IsKnownGroup(section, groupname: string): TKnownGroup;
+var s: string;
+begin
+  Result:= grp_notconfigured;
+  try
+    if config.ReadBool('kb','remove_internal_tag_on_knowgroup',False) then groupname:=  RemoveINT(groupname);
+    if config.ReadBool('kb','remove_web_tag_on_knowgroup',False) then groupname:=  RemoveWEB(groupname);
+
+    s:= kg.Values[section];
+    if s = '' then exit;
+
+    if AnsiContainsText(s, ' '+groupname+' ') then
+      Result:= grp_known
+    else
+      Result:= grp_unknown;
+  except
+    Result:= grp_notconfigured;
+  end;
+end;
+
+end.
