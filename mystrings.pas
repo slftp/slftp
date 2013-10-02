@@ -265,7 +265,7 @@ begin
         exit;
       end;
 
-      akts:= Copy(akts, i+l, 10000);
+      akts:= Copy(akts, i+l, 100000);
       inc(sz);
     end else
     begin
@@ -989,7 +989,7 @@ function ParsePasvString(s: string; var host: string; var port: Integer): boolea
 begin
   Result:= False;
 
-  s:= Copy(s, Pos('(', s)+1, 10000);
+  s:= Copy(s, Pos('(', s)+1, 100000);
   s:= Copy(s, 1, Pos(')', s)-1);
   if s = '' then exit;
   
