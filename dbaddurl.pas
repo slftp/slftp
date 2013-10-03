@@ -127,7 +127,7 @@ var rr: TRegexpr;
 begin
   rr:=TRegexpr.Create;
   rr.ModifierI:=True;
-  rr.Expression:='tt(\d{5,7})';
+  rr.Expression:='tt(\d{6,7})';
   if rr.exec(url) then
   begin
     imdb_id:='tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
