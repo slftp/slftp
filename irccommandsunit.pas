@@ -5905,7 +5905,7 @@ begin
   if CheckForBadAssGroup(dir) then
     irc_addtext(Netname, Channel, 'Bad group found...')
   else
-    irc_addtext(Netname, Channel, 'Bag  group check passed!');
+    irc_addtext(Netname, Channel, 'Bag group check passed!');
 
   try
     // i:= kb_add(netname, channel, '', section, '', 'NEWDIR', dir, '', True);

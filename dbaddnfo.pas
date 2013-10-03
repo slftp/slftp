@@ -13,9 +13,11 @@ type
   end;
 
 function dbaddnfo_Process(net, chan, nick, msg: string): Boolean;
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);  overload;
+procedure dbaddnfo_SaveNfo(rls,section ,nfo_name, nfo_data: string);  overload;
 procedure dbaddnfo_addnfo(params: string);
-procedure dbaddnfo_ParseNfo(rls, nfo_data: string);
+procedure dbaddnfo_ParseNfo(rls, nfo_data: string);overload;
+procedure dbaddnfo_ParseNfo(rls,section, nfo_data: string);overload;
 
 function dbaddnfo_Status: string;
 
@@ -30,7 +32,7 @@ implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpnfo,
-  dbaddurl;
+  dbaddurl, pazo;
 
 const
   section = 'dbaddnfo';
@@ -104,7 +106,35 @@ begin
   end;
 end;
 
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);
+
+procedure dbaddnfo_SaveNfo(rls, section ,nfo_name, nfo_data: string);  overload;
+var
+  i: Integer;
+  db_nfo: TDbNfo;
+begin
+  i:= last_addnfo.IndexOf(rls);
+  if i = -1 then
+  begin
+    db_nfo:= TDbNfo.Create(rls, nfo_name);
+    last_addnfo.AddObject(rls, db_nfo);
+
+    irc_AddInfo(Format('<c7>[NFO]</c> for <b>%s</b> : %s', [rls, nfo_name]));
+
+    dbaddnfo_ParseNfo(rls,section ,nfo_data);
+
+    i:= last_addnfo.Count;
+    if i > 125 then
+    begin
+      while i > 100 do
+      begin
+        last_addnfo.Delete(0);
+        i:= last_addnfo.Count - 1;
+      end;
+    end;
+  end;
+end;
+
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);  overload;
 var
   i: Integer;
   db_nfo: TDbNfo;
@@ -131,7 +161,28 @@ begin
   end;
 end;
 
-procedure dbaddnfo_ParseNfo(rls, nfo_data: string);
+
+procedure dbaddnfo_ParseNfo(rls,section, nfo_data: string);overload;
+var URLTemplate : String;
+    url : string;
+    imdburl:boolean;
+    sec:TCRelease;
+    r:TRegExpr;
+begin
+sec:=FindSectionHandler(section);
+r:=TRegExpr.Create;
+if sec.ClassName = 'TIMDBRelease' then begin
+r.Expression:='tt\d{5,7}';
+if r.Exec(nfo_data) then
+dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/'+r.Match[0]+'/');
+r.free;
+Exit;
+end;
+
+dbaddnfo_ParseNfo(rls, nfo_data);
+end;
+
+procedure dbaddnfo_ParseNfo(rls, nfo_data: string);overload;
 var URLTemplate : String;
     url : string;
 begin

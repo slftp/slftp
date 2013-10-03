@@ -199,7 +199,10 @@ ujra:
   end;
 
   try
-    dbaddnfo_SaveNfo(mainpazo.rls.rlsname, nfofile, ss.DataString);
+
+
+
+    dbaddnfo_SaveNfo(mainpazo.rls.rlsname,  mainpazo.rls.section,nfofile, ss.DataString);
     Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
   except
     on e: Exception do

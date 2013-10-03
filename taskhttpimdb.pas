@@ -256,7 +256,6 @@ begin
     imdb_country:='';
     imdb_counline:='';
     imdb_region:='';
-    rlang:='';
 
 
     if config.ReadBool('kb','use_new_language_base',False) then begin
@@ -303,35 +302,43 @@ begin
     if not imdb_stv then begin
         rr.ModifierI:=True;
 
-//New regex since rev.314 09.06.2013
+
+//New regex since rev.327 03.10.2013
+rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\w\s\d]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
+(* //New regex since rev.314 09.06.2013
 rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
+*)
+
 //        rr.Expression:='<tr><td><b><a href\=\"\/calendar\/\?region\='+imdb_region+'\">'+imdb_country+'<\/a><\/b><\/td>[\s\n]*?<td align\=\"right\"><a href\=\"\/date\/([\d\-]*?)\/\">\d{1,2} [\w]*?<\/a> <a href\=\"\/year\/\d{4}\/\">(\d{4})<\/a><\/td>[\n\s]*?<td><\/td><\/tr>';
         if rr.Exec(text) then begin
-            imdbdata.imdb_stvs:='looks like cine...';
+            imdb_date:=Format('%s %s',[rr.Match[2],rr.Match[3]]);
+            imdbdata.imdb_stvs:='Cinedate: '+imdb_date;
             imdbdata.imdb_stvm:=False;
             imdb_stv:=False;
             (*  Fetching Cinedate for imdb_country  *)
-            imdb_date:=Format('%s %s',[rr.Match[2],rr.Match[3]]);
 
-            imdbdata.imdb_cineyear:=Strtointdef(rr.Match[2],-1);
+
+            imdbdata.imdb_cineyear:=Strtointdef(rr.Match[3],-1);
         end else begin
             imdbdata.imdb_stvs:='No infos around for '+imdb_country+' so it is STV?!';
             imdbdata.imdb_stvm:=True;
             imdb_stv:=True;
         end;
     end;
-
+//New regex since rev.327 03.10.2013
+rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\d\s\w]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td>(.*?)<\/td>[\s\n]*?<\/tr>';
+(*
 //New regex since rev.314 09.06.2013
 rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
 ///    rr.Expression:='<tr><td><b><a href\=\"\/calendar\/\?region\='+imdb_region+'\">'+imdb_country+'<\/a><\/b><\/td>[\s\n]*?<td align\=\"right\"><a href\=\"\/date\/([\d\-]*?)\/\">\d{1,2} [\w]*?<\/a> <a href\=\"\/year\/\d{4}\/\">(\d{4})<\/a><\/td>[\n\s]*?<td>(.*?)<\/td><\/tr>';
-
+*)
     if rr.Exec(text) then begin
         s:=rr.Match[4];
         if s <> '' then begin
             rr2.ModifierI:=True;
-            rr2.Expression:='DVD\s?premiere';
+            rr2.Expression:='(DVD|video)\s?premiere';
             if rr2.Exec(s) then begin
-                imdbdata.imdb_stvs:=Format('%s (%s%s%d)',[rr2.Match[0],imdb_date,'.',imdbdata.imdb_cineyear]);
+                imdbdata.imdb_stvs:=Format('%s (%s %s)',[rr2.Match[0],rr.Match[2],rr.Match[3]]);
                 imdb_stv:=True;
             end;
             (*  Fetching Festival infos for imdb_country  *)
@@ -379,6 +386,7 @@ rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?regio
     imdbdata.imdb_id:= imdb_id;
     imdbdata.imdb_year:= imdb_year;
     imdbdata.imdb_stvm:=imdb_stv;
+
 
     ir.Free;
 
