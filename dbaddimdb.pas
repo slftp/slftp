@@ -134,6 +134,8 @@ begin
   imdb_id := '';
   imdb_id := SubString(params, ' ', 2);
 
+//  irc_addtext('CONSOLE','ADMIN',imdb_id);
+
   if ((rls <> '') and (imdb_id <> '')) then
   begin
     i:= last_addimdb.IndexOf(rls);
