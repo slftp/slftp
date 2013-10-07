@@ -55,7 +55,7 @@ uses pretimeunit, ident,slmysql2, mysqlutilunit, eprecatcher, tasksunit,
      notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot,
      speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
      backupunit,taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils,
-     dbaddpre, dbaddnfo, dbaddurl, dbaddimdb, dbaddtvrage, globalskipunit, slhttp
+     dbaddpre, dbaddnfo, dbaddurl, dbaddimdb, dbaddtvrage, globalskipunit, slhttp, dbaddgenre
 {$IFNDEF MSWINDOWS}
      , slconsole
 {$ENDIF}
@@ -166,6 +166,7 @@ begin
   dbaddpreInit;
   dbaddnfoInit;
   dbaddurlInit;
+  dbaddgenreInit;
   dbaddimdbInit;
   dbaddtvrageInit;
 
@@ -343,6 +344,7 @@ begin
   dbaddpreStart;
   dbaddnfoStart;
   dbaddurlStart;
+  dbaddgenreStart;
   dbaddimdbStart;
   dbaddtvrageStart;
 
@@ -443,6 +445,7 @@ begin
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
+  dbaddgenreUnInit;
   dbaddimdbUnInit;
   dbaddtvrageUnInit;
 
