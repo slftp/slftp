@@ -157,12 +157,12 @@ var
   irc_queue_nets: TStringList;
 
   const
-  irc_chanroleindex = 18;
+  irc_chanroleindex = 19;
   irc_chanroles:array [0..irc_chanroleindex] of string = (
   'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'ADDPRE',
   'ADDNFO', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
   'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-  'KB'
+  'KB', 'GN'
 );
 
 
@@ -170,7 +170,8 @@ implementation
 
 uses debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
      socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
-     sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbaddnfo, dbaddurl, dbaddimdb;
+     sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbaddnfo, dbaddurl, dbaddimdb,
+     dbaddgenre;
 
 const section = 'irc';
 
@@ -871,6 +872,23 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] in dbaddimdb_Process: : %s', [e.Message]));
+        exit;
+      end;
+    end;
+  end;
+
+  if (b.HasKey('GN')) then
+  begin
+    try
+      if dbaddgenre_Process(netname, channel, nick, msg) then
+      begin
+        Debug(dpSpam, section, '<-- '+channel+' '+nick+' '+msg);
+        Exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] in dbaddgenre_Process: : %s', [e.Message]));
         exit;
       end;
     end;
