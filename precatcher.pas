@@ -260,22 +260,15 @@ begin
     try x:= mappingslist[i] as TMap; except Break; end;
 
     try
-      if ((x.origsection = '') or (x.origsection = Result)) then
+      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
       begin
         MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
         if (x.mask.Matches(rls)) then
         begin
           if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
           begin
-            if (x.origsection = '') then
-            begin
-              Result:= x.newsection;
-              MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
-              exit;
-            end else begin
-              Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
-              exit;
-            end;
+            Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
+            exit;
           end else begin
             Result:= x.newsection;
             MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
