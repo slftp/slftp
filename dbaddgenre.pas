@@ -68,10 +68,15 @@ var
   genre: string;
   i: Integer;
 begin
+  if (Count(' ', params) > 1) then begin
+    //irc_AddInfo(Format('<c7>[GENRE]</c> rejected <b>%s</b> because it contains more than 2 parameters', [params]));
+    exit;
+  end;
+
   rls := '';
   rls := SubString(params, ' ', 1);
   genre := '';
-  genre := SubString(params, ' ', 2);
+  genre := StringReplace(SubString(params, ' ', 2), '_', ' ', [rfReplaceAll]);
 
   if ((rls <> '') and (genre <> '')) then
   begin
@@ -80,7 +85,7 @@ begin
     begin
       exit;
     end;
-    
+
     try
       dbaddgenre_SaveGenre(rls, genre);
     except
@@ -105,31 +110,29 @@ begin
     begin
       db_genre:= TDbGenre.Create(rls, genre);
       last_addgenre.AddObject(rls, db_genre);
-
-      //irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, genre]));
     end else begin
       exit;
     end;
 
-
     last_addgenre.BeginUpdate;
-try
-    i:= last_addgenre.Count;
-    if i > 75 then begin
-      while i > 50 do  begin
-        last_addgenre.Delete(0);
-        i:= last_addgenre.Count - 1;
+    try
+      i:= last_addgenre.Count;
+      if i > 75 then begin
+        while i > 50 do  begin
+          last_addgenre.Delete(0);
+          i:= last_addgenre.Count - 1;
+        end;
       end;
+    finally
+      last_addgenre.EndUpdate;
     end;
-finally
-  last_addgenre.EndUpdate;
-end;
   end;
 end;
 
 function dbaddgenre_ParseGenre(rls, genre: string): Boolean;
 var p: TPazo;
     mp3genre: string;
+    ss: string;
     i: Integer;
 begin
   Result:=False;
@@ -141,15 +144,24 @@ begin
       mp3genre:='';
       for i:=0 to mp3genres.Count-1 do
       begin
-        if AnsiContainsText(genre, mp3genres[i]) then
+        if (0 = AnsiCompareText(genre, mp3genres[i])) then
         begin
           mp3genre:= mp3genres[i];
+          if i > 0 then
+          begin
+            ss:= Csere(mp3genres[i-1], ' ', '');
+            if (0 = AnsiCompareText(ss, mp3genre)) then
+            begin
+              mp3genre:= mp3genres[i-1];
+            end;
+          end;
           Break;
         end;
       end;
       if (mp3genre <> '') then
       begin
         kb_add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), p.rls.section, mp3genre, 'UPDATE', p.rls.rlsname, '');
+        //irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, mp3genre]));
         Result:=True;
       end;
     end;
