@@ -28,8 +28,8 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, StrUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, debugunit, pazo;
+uses SysUtils, StrUtils, configunit, mystrings, irccommandsunit,
+  sitesunit, queueunit, debugunit, pazo;
 
 const
   section = 'dbaddgenre';
@@ -111,15 +111,19 @@ begin
       exit;
     end;
 
+
+    last_addgenre.BeginUpdate;
+try
     i:= last_addgenre.Count;
-    if i > 75 then
-    begin
-      while i > 50 do
-      begin
+    if i > 75 then begin
+      while i > 50 do  begin
         last_addgenre.Delete(0);
         i:= last_addgenre.Count - 1;
       end;
     end;
+finally
+  last_addgenre.EndUpdate;
+end;
   end;
 end;
 

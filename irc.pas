@@ -5,6 +5,11 @@ interface
 uses Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp;
  
 type
+TIRCChannroles = record
+  Name:string;
+  Description:string;
+end;
+
   TMyIrcThread = class(TslTCPThread)
   private
 
@@ -158,11 +163,37 @@ var
 
   const
   irc_chanroleindex = 19;
+(*  
+ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
+(Name:'ADMIN',Description:'Give an IRC Chanel Admin privilege'),
+(Name:'KB',Description:'Allows u to send kb commands'),
+(Name:'STATS',Description:'Announces new KB hits and status message'),
+(Name:'ERROR',Description:'Send Error messages.'),
+(Name:'INFO',Description:'Announces --'),
+(Name:'INDEXER',Description:'Announces Autoindexer process'),
+(Name:'GROUP',Description:'Give an IRC Chanel Group privilege, pre, spread, check and so on.'),
+(Name:'NUKE',Description:'Give an IRC Chanel Nuke privilege, nuke and unnuke'),
+(Name:'SPEEDSTATS',Description:'Announces --'),
+(Name:'RACETATS',Description:'Announces --'),
+(Name:'RANKSTATS',Description:'Announces --'),
+(Name:'PRECATCHSTATS',Description:'Announces --'),
+(Name:'ROUTEINFO',Description:'Announces --'),
+(Name:'SKIPLOG',Description:'Announces --'),
+(Name:'ADDPRE',Description:'Give an IRC Chanel ADDPRE privilege, allows you to fill the internal dupedb.'),
+(Name:'ADDNFO',Description:'Give an IRC Chanel ADDNFO privilege, -- gone?'),
+(Name:'ADDURL',Description:'Give an IRC Chanel ADDURL privilege'),
+(Name:'ADDIMDB',Description:''),
+(Name:'ADDPREECHO',Description:''),
+(Name:'ADDGN',Description:'')
+);
+*)
+
+
   irc_chanroles:array [0..irc_chanroleindex] of string = (
   'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'ADDPRE',
   'ADDNFO', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
   'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-  'KB', 'GN'
+  'KB', 'ADDGN'
 );
 
 
@@ -877,7 +908,7 @@ begin
     end;
   end;
 
-  if (b.HasKey('GN')) then
+  if (b.HasKey('ADDGN')) then
   begin
     try
       if dbaddgenre_Process(netname, channel, nick, msg) then
