@@ -220,6 +220,7 @@ function IrcDelayUpload(const netname, channel: string;params: string): Boolean;
 
 function IrcTweak(const netname, channel: string;params: string): Boolean;
 
+
 {=====- mR.dOH mODz =================================================----- -- -}
 
 ///  plz be cool and let it in! add a own section for your mods thx!
@@ -5211,11 +5212,12 @@ begin
   *)
 
   if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
-    (event <> 'NUKE')) then
+    (event <> 'NUKE') and (event <> 'REQUEST')) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;
   end;
+
 
   if nil = FindSiteByName(Netname, sitename) then
   begin
@@ -9098,7 +9100,8 @@ end;
 
 function IrcTweak(const Netname, Channel: string; params: string): Boolean;
 var
-  s1, s2, s3: string;
+ s1, s2, s3: string;
+
   x: TRegExpr;
 begin
   s1 := SubString(params, ' ', 1);
@@ -9107,13 +9110,15 @@ begin
 
   x := TRegExpr.Create;
   x.ModifierI := True;
-  x.Expression := '(site\-|ircnet\-|mysql)';
+  x.Expression := '(site\-|ircnet\-|mysql\-)(.*?)$';
   if not x.Exec(s1) then
   begin
     x.free;
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
-  end;
+  end else
+    s1:=x.Match[1]+uppercase(x.Match[1]);
+
   x.free;
 
   if s3 = '' then

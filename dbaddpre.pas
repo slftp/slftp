@@ -35,7 +35,7 @@ var
   sql_countrlz: Psqlite3_stmt = nil;
   sql_gettime: Psqlite3_stmt = nil;
 
-  addprecmd: string;
+  addprecmd: TStringlist;
   kbadd_addpre: Boolean;
 
   addpre_lock: TCriticalSection;
@@ -294,13 +294,26 @@ begin
     Result := Format('%2.2d Sec', [preage mod 60]);
 end;
 
+
 function dbaddpre_Process(net, chan, nick, msg: string): Boolean;
+var
+ii:integer;
 begin
   Result := False;
-  if (1 = Pos(addprecmd, msg)) then
+
+  try
+  ii:=addprecmd.IndexOf(substring(msg,' ',1));
+  except
+  on e: Exception do
+  Debug(dpError, section, Format('[EXCEPTION] dbaddpre_Process: %s ', [e.Message]));
+  end;
+
+
+  if ii > -1 then
+//  if (1 = Pos(addprecmd, msg)) then
   begin
     Result := True;
-    msg := Copy(msg, length(addprecmd + ' ') + 1, 1000);
+    msg := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
     try
       addpre_lock.Enter;
       try
@@ -338,7 +351,7 @@ end;
 procedure dbaddpreInit;
 begin
   addpre_lock:= TCriticalSection.Create;
-
+  addprecmd:=TStringlist.Create;
   last_addpre:= THashedStringList.Create;
   last_addpre.Duplicates:= dupIgnore;
   last_addpre.CaseSensitive:= false;
@@ -349,7 +362,8 @@ procedure dbaddpreStart;
 var
   db_pre_name: string;
 begin
-  addprecmd := config.ReadString(section, 'addprecmd', '!addpre');
+
+  addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre,!sitepre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
 
   if slsqlite_inited then
@@ -375,6 +389,7 @@ end;
 
 procedure dbaddpreUninit;
 begin
+  addprecmd.free;
   addpre_lock.Free;
   last_addpre.Free;
   if addpreDB <> nil then
