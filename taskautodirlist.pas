@@ -291,14 +291,20 @@ end;
 procedure TReqFillerThread.Execute;
 var rt: TRawTask;
 begin
-irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,p.srcsite,p.dstsite,irccmdprefix,p.pazo_id]));
+//irc_addtext('','','<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]);
+//irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,p.srcsite,p.dstsite,irccmdprefix,p.pazo_id]));
+irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]));
 //msg that the traanfs. has be starrted...
   while(true)do
   begin
-    if p.readyerror then Break;
- 
+    if p.readyerror then begin
+        irc_addtext('','','readyWithError %s',[p.errorreason]);
+    Break;
+    end;
+
     if p.ready then
     begin
+    irc_addtext('','','Request is ready?');
       // kesz! mehet a reqfill.
       rt:= TRawTask.Create('', '', TPazoSite(p.sites[0]).name, secdir, 'SITE REQFILLED '+rlsname);
       rt.startat:= IncSecond(now, config.ReadInteger(rsections, 'reqfill_delay', 60));

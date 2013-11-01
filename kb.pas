@@ -327,6 +327,8 @@ var
      *)
   );
 
+  addpreechocmd:string;
+
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
   kb_latest: THashedStringList;
@@ -676,7 +678,7 @@ begin
       if event = 'PRE' then
       begin
         r:= rc.Create(rls, section,True,DateTimeToUnix(Now()));
-        irc_SendAddPre(format('!addpre %s %s',[rls,section]));
+        irc_SendAddPre(format('%s %s %s',[addpreechocmd,rls,section]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
           try
@@ -2471,6 +2473,9 @@ begin
 //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
   noannouncesections:= TStringList.Create;
   noannouncesections.DelimitedText:= config.ReadString(rsections, 'noannouncesection', '');
+
+
+  addpreechocmd:=config.ReadString('dbaddpre','addpreechocmd','!sitepre');
 
   kb_lock:= TCriticalSection.Create;
 

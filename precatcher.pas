@@ -312,7 +312,7 @@ begin
       MyDebug('ProcessDoReplace %s to %s', [replacefrom[i], replaceto[i]]);
       rep_s:= Csere(rep_s, replacefrom[i], replaceto[i]);
     end;
-  end;
+  end else Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
   result:= rep_s;
 end;
 
@@ -376,6 +376,10 @@ begin
     end;
 *)
 
+
+if event <> 'REQUEST' then begin
+
+
     for i:= 0 to ignorelista.Count -1 do
     begin
       if AnsiContainsText(s, ignorelista[i]) then
@@ -397,6 +401,9 @@ begin
       //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Bad Group detected', [FormatDateTime('hh:nn:ss', Now)]));
       exit;
     end;
+
+
+end;
 
     // removing double spaces
     s:= ts_data.DelimitedText;
@@ -428,6 +435,8 @@ begin
     *)
 
     MyDebug('Section: %s', [section]);
+
+
 
     oldsection:= section;
     try
