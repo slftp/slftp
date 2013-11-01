@@ -275,6 +275,7 @@ begin
   addimdbcmd := config.ReadString(section, 'addimdbcmd', '!addimdb');
 end;
 
+
 procedure dbaddimdbUninit;
 begin
   last_addimdb.Free;
