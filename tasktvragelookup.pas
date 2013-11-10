@@ -169,7 +169,7 @@ x.free;
 
 
 	{###Read  ShowID  ###}
-	x.Expression:='Show ID\@(\d{4,7})$';
+	x.Expression:='Show ID\@(\d+)$';
 	if x.Exec(response) then
 		cur_id:= x.Match[1];
 
