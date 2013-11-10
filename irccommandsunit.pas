@@ -11110,7 +11110,7 @@ begin
     try
       try
         { ###Read  ShowID  ### }
-        x.Expression := 'Show ID\@(\d{4,7})$';
+        x.Expression := 'Show ID\@(\d+)$';
         if x.Exec(response) then
           tvr.tv_showid := x.Match[1];
 
