@@ -2662,8 +2662,9 @@ begin
   kbevent.Free;
 end;
 
+
 function TKBThread.AddCompleteTransfers(pazo: Pointer): Boolean;
-var i: Integer;
+var j,k,i: Integer;
     ps, pss: TPazoSite;
     p: TPazo;
     inc_srcsite, inc_dstsite: TSite;
@@ -2683,6 +2684,22 @@ begin
     if ((ps.status = rssAllowed) and (not ps.Complete) and (not ps.error)) then
     begin
       pss:= nil;
+
+try
+if Precatcher_Sitehasachan(ps.name) then begin
+	pss:= nil;
+       	for j:= 0 to p.sites.Count -1 do
+          begin
+       	    pss:= TPazoSite(p.sites[j]);
+            if not pss.Complete then Continue;
+             for k := 0 to pss.destinations.Count - 1 do
+              if TSite(pss.destinations.Items[k]).name = ps.name then break;
+          end;
+  end;
+
+          except on E: Exception do
+         Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.findCompleteSourceSite: %s', [e.Message]));
+          end;
 
       if ((pss <> nil) and (pss.Complete)) then
       begin
@@ -2728,6 +2745,7 @@ begin
   end;
   Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
 end;
+
 
 procedure TKBThread.Execute;
 var i, j: Integer;
