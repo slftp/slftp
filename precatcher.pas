@@ -830,7 +830,7 @@ begin
     if sc.sitename = sitename then
     begin
       Result:= True;
-      exit;
+      break;
     end;
   end;
 end;
