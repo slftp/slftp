@@ -1603,6 +1603,7 @@ begin
     exit;
   end;
 
+
   (* most leellenorizzuk a routingot *)
   added := True;
   addednumber := 0;
@@ -1629,6 +1630,8 @@ begin
   // recurrere run, so we can use y.text to check! or?
   Routeable(sitename, y);
 
+
+
   if y.Text = '' then
   begin
     irc_addtext(Netname, Channel, 'No Routeable sites found!');
@@ -1645,6 +1648,8 @@ begin
         '<c8><b>INFO</c></b>: we skip %s for spread ', [ps.name]);
       Continue;
     end;
+
+
 
     FireRuleSet(p, ps);
     FireRules(p, ps);

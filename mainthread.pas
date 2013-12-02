@@ -108,6 +108,7 @@ begin
 {$ENDIF}
 {$IFDEF LINUX}
     ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
+    ss:=ss+#10#13+'Check the wiki for more infos about openssl +1.*.*';
 {$ENDIF}
     result:=ss;
     exit;

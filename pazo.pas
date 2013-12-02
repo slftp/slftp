@@ -419,7 +419,7 @@ begin
       begin
         if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
         begin
-          // addolnunk kell TPazoMkdir taszkot dst-re dir-rel
+          // addolnunk kell TPazoMkdir taszkot dst-re dir-rel  -- Add link must Tazo Mkdir tasks dst-redir-rel
           Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Adding MKDIR task on %s', [pazo.rls.rlsname, name, dst.name, dst.name]);
 
           pm:= TPazoMkdirTask.Create(netname, channel, dst.name, pazo, dir);
@@ -476,7 +476,9 @@ begin
               Continue;
           end;
 
-          if ((dstdl.parent <> nil) and (dstdl.parent.Sample) and (dstdl.entries.Count > 0)) then Continue;
+//   bis rev 335       if ((dstdl.parent <> nil) and (dstdl.parent.Sample) and (dstdl.entries.Count > 0)) then Continue;
+
+          if ((dstdl.parent <> nil) and (dstdl.entries.Count > 0)) then Continue;
 
           //if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 10))) then Continue;
 
@@ -1302,10 +1304,10 @@ begin
       dl.LastChanged:= Now();
       Result:= True;
     end;
-
+(*
     if ((dl.parent <> nil) and (dl.parent.Sample)) then
       dl.cache_completed:= True;
-
+  *)
     //inc(de.tradeCount);
 
     if (AnsiLowerCase(de.Extension) = '.sfv') then

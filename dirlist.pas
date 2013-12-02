@@ -4,9 +4,6 @@ interface
 
 uses Classes, Contnrs, SyncObjs, skiplists;
 
-//to use the newstyle change OLDDIRLIST to NEWDIRLIST
-{$Define NEWDIRLIST}
-
 type
   TdlSFV = (dlSFVUnknown, dlSFVNoNeed, dlSFVFound, dlSFVNotFound);
 
@@ -160,18 +157,21 @@ var i: Integer;
     d: TDirlistEntry;
     files, size: Integer;
 begin
+ Result:= False;
   if cache_completed then
   begin
     Result:= True;
     exit;
   end;
 
+(*
   if error then
   begin
     Result:= True;
     cache_completed:= Result;
     exit;
   end;
+  *)
 
   if parent <> nil then
   begin
@@ -197,13 +197,13 @@ begin
       begin
         Result:= True;
 
-{$IfDef NEWDIRLIST}
         for i:= entries.Count -1 downto 0 do
         begin
           try if i < 0 then Break; except Break; end;
           try
             d:= TDirlistEntry(entries[i]);
-            if ((d.cdno > 0) and (not d.skiplisted) and (not d.Sample) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
+            if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then            
+//            if ((d.cdno > 0) and (not d.skiplisted) and (not d.Sample) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
 //            if ((d.cdno > 0) and (d.subdirlist <> nil) and (not d.subdirlist.Complete)) then
             begin
               Result:= False;
@@ -213,23 +213,6 @@ begin
             Continue;
           end;
         end;
-{$Else}
-        for i:= 0 to entries.Count -1 do
-        begin
-          try
-            d:= TDirlistEntry(entries[i]);
-            if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
-//          if ((d.cdno > 0) and (d.subdirlist <> nil) and (not d.subdirlist.Complete)) then
-            begin
-              Result:= False;
-              break;
-            end;
-          except
-            Result:= False;
-            Break;
-          end;
-        end;
-{$EndIf}
 
       end;
     end;
@@ -347,7 +330,7 @@ begin
     Result:= False;
     s:= '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
-{$IfDef NEWDIRLIST}
+
     for i:= entries.Count -1 downto 0 do
     begin
       try if i < 0 then Break; except Break; end;
@@ -366,25 +349,6 @@ begin
         Continue;
       end;
     end;
-{$Else}
-    for i:= 0 to entries.Count -1 do
-    begin
-      try
-        de:= TDirListEntry(entries[i]);
-
-        if de.cdno <> 0 then
-        begin
-          Result:= True;
-          s:= s + IntToStr(de.cdno);
-
-          if de.cdno > biggestcd then
-            biggestcd:= de.cdno;
-        end;
-      except
-        Break;
-      end;
-    end;
-{$EndIf}
 
     if biggestcd > 1 then
     begin
@@ -411,7 +375,7 @@ function TDirList.No_Raceable: Integer;
 var i: Integer;
 begin
   Result:= 0;
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -424,19 +388,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      if ((not TDirListEntry(entries[i]).skiplisted) and (not TDirListEntry(entries[i]).done)) then
-      begin
-        inc(Result);
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 
 end;
 
@@ -444,7 +395,7 @@ function TDirList.No_Skiplisted: Integer;
 var i: Integer;
 begin
   Result:= 0;
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -457,19 +408,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      if TDirListEntry(entries[i]).skiplisted then
-      begin
-        inc(Result);
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 end;
 
 class function TDirlist.Timestamp(ts: string): TDateTime;
@@ -550,7 +488,7 @@ begin
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -561,36 +499,23 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      de.megvanmeg:= False;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 
   rrgx:=TRegExpr.Create;
   rrgx.ModifierI:=True;
   rrgx.Expression:=global_skip;
   splx:=TRegExpr.Create;
   splx.ModifierI:=True;
-  splx.Expression:='^sample|cover?|sub?|proof$';
+//  splx.Expression:='^sample|cover?|sub?|proof$';
+  splx.Expression:='^sample$';
 
   lines_read:= 0;
   while(true) do
   begin
     tmp:= trim(Elsosor(s));
-{$IfDef NEWDIRLIST}
+
     if tmp = '' then break;
     Inc(lines_read);
     if (lines_read > 2000) then break;
-{$Else}
-    if tmp = '' then break;
-{$EndIf}
 
 //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 
@@ -614,13 +539,13 @@ begin
 
       if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then continue;
 
-{$IfDef NEWDIRLIST}
+
       if rrgx.Exec(filename) then
       begin
         //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
        Continue;
       end;
-{$EndIf}
+
 
       // Dont add complet tag to dirlist entries
       if ((dirmaszk[1] = 'd') or (filesize = 0)) then
@@ -635,7 +560,7 @@ begin
 
       if (skiped.IndexOf(filename) <> -1) then
         Continue;
-        
+
       if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
       begin
         Continue;
@@ -724,7 +649,7 @@ begin
         begin
           LastChanged:= Now();
         end;
-        
+
         de.filesize:= filesize;
         de.timestamp:= akttimestamp;
         de.username:= username;
@@ -745,29 +670,6 @@ begin
   end;
 *)
 
-{$IfDef NEWDIRLIST}
-  // do nothing
-{$Else}
-  i:= 0;
-  while(i < entries.Count) do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if (not de.megvanmeg) then
-      begin
-        entries.Remove(de);
-        Continue;
-      end;
-    except
-      on E: Exception do
-      begin
-        inc(i);
-        Continue;
-      end;
-    end;
-    inc(i);
-  end;
-{$EndIf}
 
   if parent = nil then // megvaltozhatott a MULTI CD statusz = changed the status MULTI CD
   begin
@@ -816,7 +718,7 @@ begin
   Result:= False;
   if skiplist = nil then exit;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -828,23 +730,13 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count-1 do
-  begin
-    try
-      ld:= TDirListEntry(entries[i]);
-      if ld.RegenerateSkiplist then
-        Result:= True;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 end;
 
 function DirListSorter(Item1, Item2: Pointer): Integer;
 var i1, i2: TDirlistEntry;
     c1, c2: Integer;
+    srx:TRegexpr;
 begin
 // compare: -1 bekenhagyas, jo a sorrend ~ bekenhagyas, good order
 // compare:  1 csere  = replacement
@@ -859,6 +751,50 @@ begin
       exit;
     end;
     if ((AnsiLowerCase(i1.Extension) <> '.sfv') and (AnsiLowerCase(i2.Extension) = '.sfv')) then
+    begin
+      Result:= 1;
+      exit;
+    end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.mkv') and (AnsiLowerCase(i2.Extension) <> '.mkv')) then
+    begin
+      Result:= -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.mkv') and (AnsiLowerCase(i2.Extension) = '.mkv')) then
+    begin
+      Result:= 1;
+      exit;
+    end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.mp4') and (AnsiLowerCase(i2.Extension) <> '.mp4')) then
+    begin
+      Result:= -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.mp4') and (AnsiLowerCase(i2.Extension) = '.mp4')) then
+    begin
+      Result:= 1;
+      exit;
+    end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.avi') and (AnsiLowerCase(i2.Extension) <> '.avi')) then
+    begin
+      Result:= -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.avi') and (AnsiLowerCase(i2.Extension) = '.avi')) then
+    begin
+      Result:= 1;
+      exit;
+    end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
+    begin
+      Result:= -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
     begin
       Result:= 1;
       exit;
@@ -975,7 +911,7 @@ begin
   files:= 0;
   size:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -998,28 +934,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count-1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.skiplisted then Continue;
-      if de.Useful then
-      begin
-        inc(files);
-        inc(size, de.filesize);
-      end;
-      if ((de.directory) and (de.subdirlist <> nil)) then
-      begin
-        de.subdirlist.Usefulfiles(afile, asize);
-        inc(files, afile);
-        inc(size, asize);
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 end;
 
 function TDirList.Find(filename: string): TDirListEntry;
@@ -1030,7 +945,6 @@ begin
   if entries.Count = 0 then
     exit;
 
-{$IfDef NEWDIRLIST}
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1045,21 +959,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirListEntry(entries[i]);
-      if de.filename = filename then
-      begin
-        Result:= de;
-        Break;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 end;
 
 procedure TDirList.SetLastChanged(value: TDateTime);
@@ -1130,7 +1030,7 @@ var de: TDirlistEntry;
 begin
   Result:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1145,21 +1045,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.skiplisted then Continue;
 
-      if de.done then inc(Result);
-      if ((de.directory) and (de.subdirlist <> nil)) then
-        inc(Result, de.subdirlist.Done);
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 end;
 
 function TDirList.RacedByMe(only_useful: boolean = False): Integer;
@@ -1168,7 +1054,7 @@ var de: TDirlistEntry;
 begin
   Result:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1188,19 +1074,7 @@ begin
       Break;
     end;
   end ;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.racedbyme then inc(Result);
-      if ((de.directory) and (de.subdirlist <> nil)) then
-        inc(Result, de.subdirlist.RacedbyMe(only_useful));
-    except
-      Break;
-    end;
-  end ;
-{$EndIf}
+
 end;
 
 function TDirList.SizeRacedByMe(only_useful: boolean = False):Int64;
@@ -1209,7 +1083,7 @@ var de: TDirlistEntry;
 begin
   Result:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1227,19 +1101,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.racedbyme then inc(result,de.filesize);
-
-      if ((de.directory) and (de.subdirlist <> nil)) then inc(result,de.subdirlist.SizeRacedByMe(only_useful));
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 
 end;
 
@@ -1255,7 +1116,7 @@ begin
     exit;
   end;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1270,22 +1131,7 @@ begin
       Break;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count-1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.Extension = '.sfv' then
-      begin
-        Result:= True;
-        Self.cache_hassfv:= True;
-        exit;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 end;
 
 function TDirList.hasnfo: boolean;
@@ -1299,7 +1145,7 @@ begin
     exit;
   end;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1315,22 +1161,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count-1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.Extension = '.nfo' then
-      begin
-        Result:= True;
-        Self.cache_hasnfo:= True;
-        exit;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 end;
 
 
@@ -1340,7 +1171,7 @@ begin
   allcdshere:= False;
   fLastChanged:= 0;
   biggestcd:= 0;
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1351,16 +1182,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  try
-    entries.Clear;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TDirList.Clear: %s', [e.Message]));
-    end;
-  end;
-{$EndIf}
+
 end;
 
 procedure TDirList.SortByModify;
@@ -1374,7 +1196,6 @@ var de: TDirlistEntry;
 begin
   Result:= nil;
 
-{$IfDef NEWDIRLIST}
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1388,21 +1209,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if ((de.Extension = '.nfo') and (de.filesize > 0)) then
-      begin
-        Result:= de;
-        exit;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 
 end;
 
@@ -1412,7 +1218,7 @@ var i: Integer;
 begin
   Result:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1424,18 +1230,7 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if ((de.directory) and (not de.skiplisted) and (de.timestamp <> 0)) then
-        inc(result);
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
+
 
 end;
 
@@ -1445,8 +1240,6 @@ var i: Integer;
     t: TDateTime;
 begin
   REsult:= 0;
-
-{$IfDef NEWDIRLIST}
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1468,28 +1261,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if (de.timestamp <> 0) and (not de.skiplisted) then
-      begin
-        if ((Result= 0) or (Result > de.timestamp)) then
-          Result:= de.timestamp;
-
-        if ((de.Directory) and (de.subdirlist <> nil)) then
-        begin
-          t:= de.subdirlist.firstfile;
-          if ((t <> 0) and (Result > t)) then
-            Result:= t;
-        end;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 end;
 
 function TDirList.lastfile: TDateTime;
@@ -1499,7 +1270,7 @@ var i: Integer;
 begin
   Result:= 0;
 
-{$IfDef NEWDIRLIST}
+
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1521,28 +1292,6 @@ begin
       Continue;
     end;
   end;
-{$Else}
-  for i:= 0 to entries.Count -1 do
-  begin
-    try
-      de:= TDirlistEntry(entries[i]);
-      if (de.timestamp <> 0) and (not de.skiplisted) then
-      begin
-        if ((Result= 0) or (Result < de.timestamp)) then
-          Result:= de.timestamp;
-
-        if ((de.Directory) and (de.subdirlist <> nil)) then
-        begin
-          t:= de.subdirlist.lastfile;
-          if ((t <> 0) and (Result < t)) then
-            Result:= t;
-        end;
-      end;
-    except
-      Break;
-    end;
-  end;
-{$EndIf}
 end;
 
 { TDirListEntry }
@@ -1732,11 +1481,6 @@ end;
 
 procedure DirlistInit;
 begin
-{$IfDef NEWDIRLIST}
-  Console_Addline('', 'DirlistInit : NEWDIRLIST...');
-{$Else}
-  Console_Addline('', 'DirlistInit : OLD...');
-{$EndIf}
   global_skip:= config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.');
   useful_skip:= config.ReadString(section, 'useful_skip', '\.nfo|\.sfv|\.m3u|\.cue|\.jpg|\.jpeg|\.gif|\.png|\.avi|\.mkv|\.vob|\.mp4|\.wmv');
 end;

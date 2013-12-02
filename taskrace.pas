@@ -164,6 +164,7 @@ begin
   Result:= False;
   s:= slot;
   tname:= Name;
+  voltadd:= False;
 
   if mainpazo.stopped then
   begin
@@ -180,7 +181,17 @@ ujra:
   if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (kilepes)) then
   begin
     readyerror:= True;
+
+    if ps1.error then
     mainpazo.errorreason:='ERROR PS1';
+
+    if ps1.dirlistgaveup then
+    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
+
+    if ps1.status = rssNuked then
+    mainpazo.errorreason:='ERROR PS1: status = Nuked';
+
+
     Debug(dpSpam, c_section, '<-- '+tname);
     exit;
   end;
@@ -224,6 +235,29 @@ ujra:
     end;
   end;
 
+
+(* Old code!
+  mainpazo.cs.Enter;
+  // ha nem minket osztott ki a sors a globalis dirlist keszitesere akkor kilepunk
+  //if we do not split the fate of the global dirlist preparation also exits
+  if ((pre) and (mainpazo.dirlist <> nil) and (mainpazo.dirlist <> ps1.dirlist)) then
+  begin
+
+    if ps1.CopyMainDirlist(netname, channel, dir) then
+      goto folytatas;
+
+  end;
+
+
+  if ((pre) and (mainpazo.dirlist = nil)) then
+    mainpazo.dirlist:= ps1.dirlist;
+  mainpazo.cs.Leave;
+
+  *)
+
+
+
+
   if ((not ps1.midnightdone) and (IsMidnight(mainpazo.rls.section))) then
   begin
     if not s.Cwd(ps1.maindir, True) then
@@ -232,7 +266,8 @@ ujra:
         goto ujra;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason:=ps1.name+' is marked as fail';
+      //mainpazo.errorreason:=ps1.name+' is marked as fail';
+      mainpazo.errorreason:= 'Section dir on '+site1+' does not exist, marked as fail';
       readyerror:= true;
       Debug(dpMessage, c_section, '<-- '+tname);
       exit;
@@ -244,7 +279,8 @@ ujra:
         goto ujra;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason:=ps1.name+' is marked as fail';
+//      mainpazo.errorreason:=ps1.name+' is marked as fail';
+      mainpazo.errorreason:= 'Section dir on '+site1+ ' does not exist, marked as fail';
       readyerror:= true;
       Debug(dpMessage, c_section, '<-- '+tname);
       exit;
@@ -255,6 +291,7 @@ ujra:
 
   if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir)+MyIncludeTrailingSlash(mainpazo.rls.rlsname)+dir) then
   begin
+   mainpazo.errorreason:= 'Src dir on '+site1+' does not exist';
     if ((s.lastResponseCode = 550) and (0 <> Pos('FileNotFound', s.lastResponse))) then
     begin
       // do nothing
@@ -274,7 +311,7 @@ ujra:
 
     debug(dpSpam, c_section, 'ParseDirlist profiling 1');
     try
-      ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
+    voltadd:= ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
       on e: Exception do
       begin
@@ -301,6 +338,7 @@ ujra:
 
           if ((de.directory) and (not de.skiplisted)) then
           begin
+//            if ((de.subdirlist <> nil) and (de.subdirlist.Complete)) then Continue; // kihagyjuk...
             if ((de.subdirlist <> nil) and (de.subdirlist.dirlistadded)) then Continue;
 
             //tpazodirlisttask addolasa de.filename -mel bovitve dir-t
@@ -954,6 +992,7 @@ ujra:
     if ((lastResponseCode = 500) and (0 <> Pos('You need to use a client supporting PRET', lastResponse))) then
     begin
       ssrc.site.sw:= sswDrftpd;
+      ssrc.site.legacydirlist:=True;
     end;
 
     if ((kellssl) and (lastResponseCode = 500) and (0 < Pos('understood', lastResponse))) then
