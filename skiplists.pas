@@ -45,7 +45,7 @@ function SkiplistCount:integer;
 
 implementation
 
-uses slmasks, mystrings, SysUtils, DebugUnit, irc;
+uses slmasks, mystrings, SysUtils, DebugUnit, irc, console;
 
 const section: string = 'skiplists';
 
@@ -58,15 +58,20 @@ var f: TextFile;
     akt: TSkipList;
     addhere: TObjectList;
     i: Integer;
+  isdupe:boolean;
 begin
-  for i:= 0 to skiplist.Count -1 do
-    skiplist_to_clean.Add(skiplist[i]);
+
+skiplist_to_clean.Clear;
+//more memory frinedly
+skiplist_to_clean.Assign(skiplist);
+
+//  for i:= 0 to skiplist.Count -1 do skiplist_to_clean.Add(skiplist[i]);
   skiplist.Clear;
   addhere:= nil;
   akt:= nil;
   AssignFile(f, ExtractFilePath(ParamStr(0))+'slftp.skip');
   Reset(f);
-
+  console_addline('','Lade Skipliste');
   while not eof(f) do
   begin
     readln(f,s);
@@ -77,6 +82,7 @@ begin
     if Copy(s, 2, 8) = 'skiplist' then
     begin
       akt:= TSkiplist.Create(Copy(s, 11, Length(s)-11));
+      //dupe check?
       skiplist.Add(akt);
     end
     else

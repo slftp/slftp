@@ -299,9 +299,8 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
 taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
 rulesunit, Math,  DateUtils, StrUtils, precatcher, tasktvragelookup,
 slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
-sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit, mrdohutils,
-ranksunit, statsunit,
-dbaddnfo
+sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
+mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
 ;
 
 type
@@ -464,6 +463,13 @@ begin
         Result:=True;
 end;
 
+
+function trimmedShitChecker(section,rls:string):boolean;
+begin
+
+end;
+
+
 function kb_AddB(const netname, channel: string; sitename, section, genre, event, rls, cdno: string; dontFire: Boolean = False; forceFire: Boolean = False; ts: TDateTime = 0): Integer;//forceRebuild: Boolean = False;
 var i, j, len: Integer;
     r: TRelease;
@@ -476,6 +482,7 @@ var i, j, len: Integer;
     rule_result: TRuleAction;
     rlz,grp:string;
     dlt: TPazoDirlistTask;
+    l: TLoginTask;
 begin
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, event, rls, cdno, Integer(dontFire), Integer(forceFire)]);
 
@@ -810,22 +817,19 @@ begin
 
   Result:= p.pazo_id;
   if p.sites.Count = 0 then exit;
-  
 
   if (event <> 'ADDPRE') then
   begin
     psource:= p.FindSite(sitename);
     if psource = nil then
     begin
+     s:= FindSiteByName(netname, sitename);
+
       // si not found in pazo but we got an event ...
       if spamcfg.ReadBool('kb','dont_match_rls',True) then
       begin
-        if ((event = 'COMPLETE') or (event = 'NUKE')) then
-        begin
-          exit;
-        end;
+       if event = 'NUKE' then exit;
 
-        s:= FindSiteByName(netname, sitename);
         if (s = nil) then
         begin
           irc_Addstats(Format('<c7>[SITE NOT FOUND]</c> : %s %s', [netname, sitename]));
@@ -852,7 +856,18 @@ begin
 
         irc_Addstats(Format('<c7>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
-      exit;
+
+  if ((s <> nil) and (not s.markeddown) and (s.working = sstDown) and ((event='COMPLETE')or(event='PRE'))) then
+    begin
+try
+      l:= TLoginTask.Create(netname, channel, sitename, False, False);
+      l.noannounce:= True;
+      AddTask(l);
+except on E: Exception do
+Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE loginTask : %s', [e.Message]);
+end;
+end;
+     exit;
     end;
 
     s:= FindSiteByName(netname, psource.name);
@@ -897,14 +912,14 @@ begin
       end;
     end;
   end;
-  
+
   if not p.rls.aktualizalva then
   begin
     p.rls.Aktualizal(p);
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
-  if ((event <> 'PRE') and (event <> 'NUKE') and (event <> 'ADDPRE')) then
+  if ((event <> 'NUKE') and (event <> 'ADDPRE')) then
   begin
     kb_lock.Enter;
     try
@@ -976,7 +991,7 @@ begin
   begin
     psource.Status:= rssNotAllowedButItsThere;
   end;
-  
+
   // now add dirlist
   try
     if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE')) then
@@ -986,8 +1001,7 @@ begin
         try if i < 0 then Break; except Break; end;
         try
           ps:= TPazoSite(p.sites[i]);
-
-          if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and (ps.status in [rssShouldPre, rssRealPre])) then
+         if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and (ps.status in [rssShouldPre, rssRealPre])) then
           begin
             dlt:=TPazoDirlistTask.Create(netname, channel,ps.name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB RLZ]</c> %s %s Dirlist added to : %s', [section, rls, ps.name]));
@@ -2336,7 +2350,7 @@ begin
   kb_lock.Enter;
   x:= TEncStringlist.Create(passphrase);
   try
-    Console_Addline('', 'Loading KB entries...');
+//    Console_Addline('', 'Loading KB entries...');
     x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.kb');
     last:= Now;
     for i:= 0 to x.Count -1 do
@@ -2357,13 +2371,13 @@ begin
   
   x:= TEncStringlist.Create(passphrase);
   try
-    Console_Addline('', 'Loading KB renames...');
+//    Console_Addline('', 'Loading KB renames...');
     x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.renames');
     for i:= 0 to x.Count -1 do
     begin
       kb_skip.Insert(0, x[i]);
     end;
-    Console_Addline('', Format('Ok loaded %d KB renames.', [kb_skip.Count]));
+//    Console_Addline('', Format('Ok loaded %d KB renames.', [kb_skip.Count]));
   finally
     x.Free;
   end;
@@ -2664,7 +2678,7 @@ end;
 
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): Boolean;
-var j,k,i: Integer;
+var si, j,k,i: Integer;
     ps, pss: TPazoSite;
     p: TPazo;
     inc_srcsite, inc_dstsite: TSite;
@@ -2674,6 +2688,7 @@ var j,k,i: Integer;
     inc_p: TPazo;
     inc_ps: TPazoSite;
     inc_pd: TPazoDirlistTask;
+    sfound:Boolean;
 begin
   Result:= False;
   p:= TPazo(pazo);
@@ -2688,12 +2703,21 @@ begin
 try
 if Precatcher_Sitehasachan(ps.name) then begin
 	pss:= nil;
+  sfound:=False;
        	for j:= 0 to p.sites.Count -1 do
           begin
        	    pss:= TPazoSite(p.sites[j]);
             if not pss.Complete then Continue;
              for k := 0 to pss.destinations.Count - 1 do
-              if TSite(pss.destinations.Items[k]).name = ps.name then break;
+              if TSite(pss.destinations.Items[k]).name = ps.name then begin
+              if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
+              sfound:=TSite(pss).isRouteableTo(ps.name);
+              if sfound then break else continue;
+              end else
+              sfound:=True;
+              break;
+              end;
+             if sfound then break else continue;
           end;
   end;
 
@@ -2701,7 +2725,7 @@ if Precatcher_Sitehasachan(ps.name) then begin
          Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.findCompleteSourceSite: %s', [e.Message]));
           end;
 
-      if ((pss <> nil) and (pss.Complete)) then
+      if ((ps.status = rssNotAllowed) and  (pss <> nil) and (pss.Complete)) then
       begin
         // ok, megvan minden.
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, ps.name, pss.name]);
@@ -2728,7 +2752,7 @@ if Precatcher_Sitehasachan(ps.name) then begin
 
           inc_ps:= inc_p.FindSite(inc_srcsite.name);
           inc_ps.dirlist.dirlistadded:= True;
-          inc_pd:= TPazoDirlistTask.Create('', '', inc_ps.name, inc_p, '', False);
+          inc_pd:= TPazoDirlistTask.Create('', '', inc_ps.name, inc_p, '', True);
           irc_addtext(inc_pd, Format('<c11>[iNC RLS]</c> Trying to complete %s on %s from %s', [p.rls.rlsname, ps.name, pss.name]));
           AddTask(inc_pd);
           QueueFire;
@@ -2770,7 +2794,10 @@ begin
 
           if enable_try_to_complete then
           begin
-            if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+
+
+           if ((not p.completezve) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+//            if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
             begin
               RemovePazo(p.pazo_id);
               while (not (p.queuenumber.ActValue <= 0)) do
@@ -2786,7 +2813,7 @@ begin
           if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
           begin
             RemovePazo(p.pazo_id);
-            
+
             try
               RanksProcess(p);
             except

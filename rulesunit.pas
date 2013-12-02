@@ -1029,9 +1029,12 @@ end;
 { TIntEqualOperator }
 
 function TIntEqualOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= GetOperandValue = GetSupplyValue(p);
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if vr = 0 then
+   Result:= True else Result:= False;
   except
     on e: Exception do
     begin
@@ -1049,9 +1052,12 @@ end;
 { TIntNotEqualOperator }
 
 function TIntNotEqualOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= not inherited Match(p);
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if vr <> 0 then
+   Result:= True else Result:= False;
   except
     on e: Exception do
     begin
@@ -1069,9 +1075,12 @@ end;
 { TIntBiggerOrEqualThanOperator }
 
 function TIntBiggerOrEqualThanOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= GetSupplyValue(p) >= GetOperandValue;
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if ((vr = 0) or (vr = 1))  then
+   Result:= True else Result:= False;
   except
     on e: Exception do
     begin
@@ -1089,9 +1098,13 @@ end;
 { TIntBiggerThanOperator }
 
 function TIntBiggerThanOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= GetSupplyValue(p) > GetOperandValue;
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if vr = 1  then
+   Result:= True else Result:= False;
+
   except
     on e: Exception do
     begin
@@ -1109,9 +1122,12 @@ end;
 { TIntLowerThanOperator }
 
 function TIntLowerThanOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= GetSupplyValue(p) < GetOperandValue;
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if vr =  -1 then
+   Result:= True else Result:= False;
   except
     on e: Exception do
     begin
@@ -1129,9 +1145,12 @@ end;
 { TIntLowerOrEqualThanOperator }
 
 function TIntLowerOrEqualThanOperator.Match(p: TPazo): Boolean;
+var vr:integer;
 begin
-  try
-    Result:= GetSupplyValue(p) <= GetOperandValue;
+ try
+  vr:=CompareValue(GetSupplyValue(p),GetOperandValue);
+  if ((vr = 0) or (vr = -1))  then
+   Result:= True else Result:= False;
   except
     on e: Exception do
     begin

@@ -17,6 +17,11 @@ var tags_complete: TStringList = nil;
     tags_incomplete: TStringList= nil;
 
 
+
+
+
+
+
 // 1 ha complete
 // -1 ha incomplete
 // 0 egyebkent  = Ich benutze

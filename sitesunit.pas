@@ -158,6 +158,10 @@ type
 
     function GetIRCNick:string;
     procedure SetIRCNick(value:string);
+
+
+
+
   public
     emptyQueue: Boolean;
     markeddown: Boolean;
@@ -222,6 +226,10 @@ type
 
     function IsPretimeOk(section: string; rlz_pretime: TDateTime): boolean;
     function GetPretime(section: string): string;
+
+
+    function isRouteableTo(sitename:string):boolean;
+    function isRouteableFrom(sitename:string):boolean;
 
     property sections: string read GetSections write SettSections;
     property leechers: string read GetLeechers write SettLeechers;
@@ -487,6 +495,7 @@ begin
   debug(dpSpam, section, 'Slot %s has created', [name]);
   inherited Create(False);
 end;
+
 
 function TSiteSlot.Name: string;
 begin
@@ -1399,6 +1408,35 @@ begin
 
   debug(dpSpam, section, 'Site %s has created', [name]);
 end;
+
+
+
+function TSite.isRouteableTo(sitename:string):boolean;
+var i:integer; y:TStringlist;
+begin
+y:=TStringlist.Create;
+try
+y.Sorted:=True;
+sitesdat.ReadSection('speed-to-' + self.name, y);
+if y.IndexOf(sitename) = -1 then result:=False else result:=True;
+finally
+y.free;
+end;
+end;
+
+function TSite.isRouteableFrom(sitename:string):boolean;
+var i:integer; y:TStringlist;
+begin
+y:=TStringlist.Create;
+try
+y.Sorted:=True;
+sitesdat.ReadSection('speed-from-' + self.name, y);
+if y.IndexOf(sitename) = -1 then result:=False else result:=True;
+finally
+y.free;
+end;
+end;
+
 
 procedure TSiteSlot.Stop;
 begin

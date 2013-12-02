@@ -17,7 +17,7 @@ uses sitesunit, SysUtils, mystrings, DebugUnit;
 
 const section = 'dirlist';
 
-{ TLoginTask }
+{ TDirlistTask }
 
 constructor TDirlistTask.Create(const netname, channel: string;site: string; dir: string; forcecwd: Boolean = False);
 begin
@@ -40,10 +40,11 @@ ujra:
   inc(numerrors);
   if numerrors > 3 then
   begin
+Debug(dpError, 'dirlist','numerrors > 3 for %s @ %s',[dir,s.Name]);
     readyerror:= True;
     exit;
   end;
-  
+
   if s.status <> ssOnline then
     if not s.ReLogin then
     begin

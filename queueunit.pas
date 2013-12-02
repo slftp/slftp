@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo
-     , taskidle, taskquit, tasklogin
+     , taskidle, taskquit, tasklogin , regexpr
      , sitesunit;
 
 type
@@ -85,6 +85,7 @@ var i1, i2: TTask;
     tp1, tp2: TPazoTask;
     tpm1, tpm2: TPazoMkdirTask;
     tpr1, tpr2: TPazoRaceTask;
+    rsp:TRegexpr;
 begin
 // compare:  1 Item1 is before Item2
 // compare: -1 Item1 is after Item2
@@ -175,7 +176,7 @@ begin
       tpr1:= TPazoRaceTask(Item1);
       tpr2:= TPazoRaceTask(Item2);
 
-      // Give priority to sfv
+// Give priority to sfv
       if ((tpr1.IsSfv) and (not tpr2.IsSfv)) then
       begin
         Result:= -1;
@@ -191,6 +192,48 @@ begin
         Result:= CompareValue(tpr2.rank, tpr1.rank);
         exit;
       end;
+
+
+
+// Give priority to sample
+
+    rsp:=TRegexpr.create;
+try
+    rsp.Expression:='\.(mp4|mkv|vob|avi)$';
+
+      if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
+        rsp.free;
+        result:=-1;
+        Exit;
+      end;
+
+      if ((not rsp.Exec(tpr1.filename)) and (rsp.Exec(tpr2.filename))) then begin
+        rsp.free;
+        result:=1;
+        Exit;
+      end;
+
+// Give priority to nfo
+
+    rsp.Expression:='\.nfo$';
+
+      if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
+        rsp.free;
+        result:=-1;
+        Exit;
+      end;
+
+      if ((not rsp.Exec(tpr1.filename)) and (rsp.Exec(tpr2.filename))) then
+      begin
+        rsp.free;
+        result:=1;
+        Exit;
+    end;
+finally
+rsp.free;
+end;
+
+
 
       Result:= CompareValue(tpr2.rank, tpr1.rank);
       if (Result <> 0) then exit;
