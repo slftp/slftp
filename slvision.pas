@@ -2667,22 +2667,25 @@ end;
 function TslCommandEdit.KeyEvent(c: Char; extended: Boolean): Boolean;
 begin
   Result:= True;
-  if ((extended) and (c = #72)) then // felfele nyil
+  if ((extended) and (c = #72)) then // felfele nyil -- up arrow
   begin
+
     if lastCommandIndex <= 0 then
-      lastCommandIndex:= fCommands.Count-1
-    else
+       lastCommandIndex:= fCommands.Count-1
+        else
       dec(lastCommandIndex);
     if lastCommandIndex < 0 then exit;
 
     Text:= fCommands[lastCommandIndex];
   end
   else
-  if ((extended) and (c = #80)) then // lefele nyil
+  if ((extended) and (c = #80)) then // lefele nyil  -- down Arrow
   begin
+    if lastCommandIndex >= fCommands.Count then begin
+     Text:='';
+     exit;
+    end;
     inc(lastCommandIndex);
-    if lastCommandIndex >= fCommands.Count then
-      lastCommandIndex:= 0;
 
     if lastCommandIndex >= fCommands.Count then
       exit;
