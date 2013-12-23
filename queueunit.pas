@@ -198,7 +198,7 @@ begin
 // Give priority to sample
 
     rsp:=TRegexpr.create;
-try
+
     rsp.Expression:='\.(mp4|mkv|vob|avi)$';
 
       if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
@@ -213,8 +213,9 @@ try
         Exit;
       end;
 
-// Give priority to nfo
 
+
+// Give priority to nfo
     rsp.Expression:='\.nfo$';
 
       if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
@@ -229,9 +230,7 @@ try
         result:=1;
         Exit;
     end;
-finally
-rsp.free;
-end;
+
 
 
 

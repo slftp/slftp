@@ -84,6 +84,7 @@ var
   precatcher_debug_lock: TCriticalSection;
 
   ValidChars: Set of Char = ['0'..'9','A'..'Z','a'..'z','?','.','>','<','+','-','~','!','@','#','$','%','&','*','(',')','_','=','{','}','[',']','|','\','/',':',';',' '];
+StrippingChars: Set of Char = ['(', ')', '_', '-', '.', '&','*'];
 
 procedure mydebug(s: string); overload;
 var nowstr: string;
@@ -173,7 +174,7 @@ begin
            or
            Szam(s[i])
            or
-           (s[i] in ['(', ')', '_', '-', '.', '&'])
+           (s[i] in StrippingChars)
           )
           then
             Result:= Result + s[i]
