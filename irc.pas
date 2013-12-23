@@ -1093,7 +1093,10 @@ begin
         chan:= SubString(s, ' ', 3);
         nick:= SubString(s, ' ', 4);
         if (nick <> irc_nick) then
+        begin
+            irc_addinfo(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s',[netname, chan, nick, snick]));
             console_addline(netname+' '+chan, Format('--> KICK %s by %s <--', [nick, snick]));
+        end;
         chanpart(chan, nick);
       end
       else
@@ -1101,9 +1104,13 @@ begin
       if (s2 = 'JOIN') then
       begin
         chan:= Copy(SubString(s, ' ', 3), 2, 1000);
- 
+        snick:= Copy(s, 2, Pos('!', s)-2);
         console_add_ircwindow(netname+' '+chan);
         console_addline(netname+' '+chan, Format('--> JOIN %s <--', [snick]));
+        if (snick <> irc_nick) then
+        begin
+          irc_addinfo(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s',[netname, chan, snick]));
+        end;
  
         chanjoin(chan, snick);
       end else
@@ -1111,9 +1118,19 @@ begin
       if (s2 = 'PART') then
       begin
         chan:= SubString(s, ' ', 3);
+        snick:= Copy(s, 2, Pos('!', s)-2);
         if (snick <> irc_nick) then
+        begin
+            irc_addinfo(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s',[netname, chan, snick]));
             console_addline(netname+' '+chan, Format('--> PART %s <--', [snick]));
+        end;
         chanpart(chan, snick);
+      end else
+      if (s2 = 'TOPIC') then
+      begin
+        s1:= Copy(s, Pos(':', s)+1, MaxInt);
+        chan:= SubString(s, ' ', 3);
+        irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
       end else
       //:rsc!i=rsctm@catv-80-98-106-242.catv.broadband.hu QUIT :Client Quit
       if ((s2 = 'QUIT') and (snick <> irc_nick)) then
