@@ -1132,6 +1132,14 @@ begin
         chan:= SubString(s, ' ', 3);
         irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
       end else
+      if (s2 = 'NICK') then
+      begin
+        snick:= Copy(s, 2, Pos('!', s)-2);
+        if (snick <> irc_nick) then
+        begin
+          irc_addinfo(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s',[netname, snick, Copy(s, RPos(':', s)+1, MaxInt)]));
+        end;
+      end else
       //:rsc!i=rsctm@catv-80-98-106-242.catv.broadband.hu QUIT :Client Quit
       if ((s2 = 'QUIT') and (snick <> irc_nick)) then
       begin
