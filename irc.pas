@@ -1021,10 +1021,12 @@ begin
 end;
  
 function TMyIrcThread.IrcProcessLine(s: string): Boolean;
-var nick, snick, s1, s2, chan: string;
+var msg,nick, snick, s1, s2, chan: string;
     b: TIrcBlowkey;
     i: Integer;
+    crypted:boolean;
 begin
+crypted:=false;
   console_addline(netname, s);
   if s = '' then
   begin
@@ -1130,7 +1132,32 @@ begin
       begin
         s1:= Copy(s, Pos(':', s)+1, MaxInt);
         chan:= SubString(s, ' ', 3);
-        irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
+        msg:=Copy(s1, Pos(':', s1)+1, MaxInt);
+        //irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
+        if (1 = Pos('+OK ', msg)) then begin
+        try
+        crypted:=True;
+    irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, msg)]));
+    except
+      on e: Exception do begin
+        Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+      end;
+    end;
+
+  end
+  else
+  if (1 = Pos('mcps ', msg)) then
+  begin
+    try
+    crypted:=True;
+    irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, msg)]));
+    except
+      on e: Exception do begin
+        Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+      end;
+    end;
+  end;
+     if not crypted then irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,msg]));
       end else
       if (s2 = 'NICK') then
       begin
