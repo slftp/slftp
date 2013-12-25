@@ -230,8 +230,8 @@ function IrcKillAll(const netname, channel: string;params: string): Boolean;
 function IrcNetNoSocks5(const netname, channel: string;params: string): Boolean;
 function IrcSetMYIrcNick(const netname, channel: string;params: string): Boolean;
 function IrcInviteMyIRCNICK(const netname, channel: string;params: string): Boolean;
-function IrcNetAddBNC(const netname, channel: string;params: string): Boolean;
-function IrcNettweakBNC(const netname, channel: string;params: string): Boolean;
+//function IrcNetAddBNC(const netname, channel: string;params: string): Boolean;
+//function IrcNettweakBNC(const netname, channel: string;params: string): Boolean;
 //function IrcNetBotNick(const netname, channel: string;params: string): Boolean;
 
 //Site_stuff
@@ -335,7 +335,7 @@ procedure IrcCommandUninit;
 
 const
 
-      irccommands : array[1..239] of TIrcCommand = (
+      irccommands : array[1..237] of TIrcCommand = (
         (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'$$$'),
         (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp:'main'),
         (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp:'main'),
@@ -479,7 +479,7 @@ const
         (cmd: 'ircoper'; hnd: IrcOper; minparams: 1; maxparams: 3; hlpgrp:''),
         (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:''),
         (cmd: 'ircnet'; hnd: IrcShownet; minparams: 1; maxparams: 2; hlpgrp:''),
-        (cmd: 'ircnetadd'; hnd: IrcAddnet; minparams: 3; maxparams: 4; hlpgrp:''),
+        (cmd: 'ircnetadd'; hnd: IrcAddnet; minparams: 3; maxparams: 7; hlpgrp:''),
         (cmd: 'ircnetmod'; hnd: IrcModnet; minparams: 2; maxparams: 3; hlpgrp:''),
         (cmd: 'ircnetdel'; hnd: IrcDelnet; minparams: 1; maxparams: 1; hlpgrp:''),
         (cmd: 'ircnetaddserver'; hnd: Ircnetaddserver; minparams: 2; maxparams: 2; hlpgrp:''),
@@ -578,8 +578,8 @@ const
         (cmd: 'listaffils'; hnd:Irclistaffils; minparams: 1; maxparams: 1; hlpgrp:'doh'),
         (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: -1; hlpgrp:'@doh_irc'),
         (cmd: '- IRCBouncers -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'@doh_irc'),
-        (cmd: 'ircnetaddbnc'; hnd: IrcNetAddBNC; minparams: 7; maxparams: 7; hlpgrp:'doh_irc'),
-        (cmd: 'ircnettweakbnc'; hnd: IrcNettweakBNC; minparams: 2; maxparams:2; hlpgrp:'doh_irc'),
+//        (cmd: 'ircnetaddbnc'; hnd: IrcNetAddBNC; minparams: 7; maxparams: 7; hlpgrp:'doh_irc'),
+//        (cmd: 'ircnettweakbnc'; hnd: IrcNettweakBNC; minparams: 2; maxparams:2; hlpgrp:'doh_irc'),
         (cmd: 'ircnetnosocks5'; hnd: IrcNetNoSocks5; minparams: 2; maxparams:2; hlpgrp:'doh_irc'),
         (cmd: '- Socks5 -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'@doh_socks5'),
         (cmd: 'addsocks5'; hnd: IrcAddSocks5; minparams: 3; maxparams:5; hlpgrp:'doh_socks5'),
@@ -3900,132 +3900,6 @@ begin
   Result := True;
 end;
 
-(*
-  function IrcBnctest(const netname, channel: string;params: string): Boolean;
-  var s: TSite;
-  x: TStringList;
-  tn: TTaskNotify;
-  added: Boolean;
-  i: Integer;
-  db: Integer;
-  begin
-  Result:= False;
-  added:= False;
-  x:= TStringList.Create;
-  x.Delimiter:= ' ';
-  x.DelimitedText:= UpperCase(params);
-
-  db:= 0;
-
-
-  if x.Count > 0 then
-  begin
-
-
-  db:= x.Count;
-  for i:= 0 to x.Count -1 do
-  begin
-  added:=False;
-  tn:= AddNotify;
-  s:= FindSiteByName(netname, x[i]);
-  if s = nil then begin
-  if x.Count > 1 then
-  irc_addtext(netname, channel, 'Site %s not found, try next one', [x[i]]) else
-  irc_addtext(netname, channel, 'Site %s not found', [x[i]]);
-  continue;
-  end;
-
-  if (s.name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then begin
-  continue;
-  end;
-
-  if s.PermDown then begin
-  irc_addtext(netname, channel,'Site %s is perm. down.',[s.name]);
-  continue;
-  end;
-
-  if BncTest(netname, channel, s, tn) then added:=True;
-
-  if added then QueueFire;
-
-  if added then
-  tn.event.WaitFor($FFFFFFFF);
-
-  if (db > 1) then
-  Sitesb(netname, channel);
-
-  s.RemoveAutoIndex;
-  s.RemoveAutoBnctest;
-  s.RemoveAutoRules;
-  s.RemoveAutoNuke;
-  s.RemoveAutoDirlist;
-  //    s.RemoveAutoCrawler;
-
-  if s.RCInteger('autonuke',0) <> 0 then s.AutoNuke;
-  if s.RCInteger('autoindex',0) <> 0 then s.AutoIndex;
-  //if s.RCString('autologin','-1') <> '-1' then
-  if s.RCInteger('autobnctest',0) <> 0 then s.AutoBnctest;
-  if s.RCInteger('autorules',0) <> 0 then s.AutoRules;
-
-  RemoveTN(tn);
-
-
-  end;
-
-  end else begin
-
-  for i:= 0 to sites.Count -1 do begin
-  added:=False;
-  tn:= AddNotify;
-  s:= TSite(sites[i]);
-
-  if (s.name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then begin
-  continue;
-  end;
-
-  if s.PermDown then begin
-  irc_addtext(netname, channel,'Site %s is perm. down.',[s.name]);
-  continue;
-  end;
-
-  inc(db);
-  if BncTest(netname, channel, s, tn) then
-  added:= True;
-
-  if added then
-  QueueFire;
-
-  if added then
-  tn.event.WaitFor($FFFFFFFF);
-
-  if (db > 1) then
-  Sitesb(netname, channel);
-
-  s.RemoveAutoIndex;
-  s.RemoveAutoBnctest;
-  s.RemoveAutoRules;
-  s.RemoveAutoNuke;
-  s.RemoveAutoDirlist;
-  //    s.RemoveAutoCrawler;
-
-  if s.RCInteger('autonuke',0) <> 0 then s.AutoNuke;
-  if s.RCInteger('autoindex',0) <> 0 then s.AutoIndex;
-  //if s.RCString('autologin','-1') <> '-1' then
-  if s.RCInteger('autobnctest',0) <> 0 then s.AutoBnctest;
-  if s.RCInteger('autorules',0) <> 0 then s.AutoRules;
-  x.Free;
-
-  RemoveTN(tn);
-
-  end;
-
-  end;
-
-  Result:= True;
-  end;
-
-*)
-
 function IrcBnctest(const Netname, Channel: string; params: string): Boolean;
 var
   s: TSite;
@@ -4243,7 +4117,7 @@ end;
 
 function IrcAddnet(const Netname, Channel: string; params: string): Boolean;
 var
-  nn, host, password: string;
+  nn, host, password,user, pw, ident, nick: string;
   port: integer;
   ssl: integer;
 begin
@@ -4283,10 +4157,18 @@ begin
     exit;
   end;
 
+  nick := SubString(params, ' ', 5);
+  ident := SubString(params, ' ', 6);
+  user := SubString(params, ' ', 7);
+
   sitesdat.WriteString('ircnet-' + nn, 'host', host);
   sitesdat.WriteInteger('ircnet-' + nn, 'port', port);
   sitesdat.WriteBool('ircnet-' + nn, 'ssl', Boolean(ssl));
   sitesdat.WriteString('ircnet-' + nn, 'password', password);
+  sitesdat.WriteString('ircnet-' + nn, 'nick', nick);
+  sitesdat.WriteString('ircnet-' + nn, 'anick', '_' + nick);
+  sitesdat.WriteString('ircnet-' + nn, 'ident', ident + '@soulless.ftp');
+  sitesdat.WriteString('ircnet-' + nn, 'username', user);
 
   myIrcThreads.Add(TMyIrcThread.Create(nn));
 
@@ -9312,7 +9194,7 @@ begin
   sitesdat.WriteBool('ircnet-' + nname, 'nosocks5', status);
   Result := True;
 end;
-
+(*
 function IrcNetAddBNC(const Netname, Channel: string; params: string): Boolean;
 var
   nname, sslmodes, host, port, hopo, user, pw, ident, nick: string;
@@ -9402,9 +9284,7 @@ begin
     Result := True;
   end;
 end;
-
-(* NOT READY!!! plz dudes done play with this i have my system and dont like it
-  if anyone touch my code... respect it! *)
+ *)
 
 function IrcTweakSocks5(const Netname, Channel: string; params: string)
   : Boolean;
