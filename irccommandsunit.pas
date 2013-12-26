@@ -8987,13 +8987,15 @@ end;
 
 function IrcTweak(const Netname, Channel: string; params: string): Boolean;
 var
- s1, s2, s3: string;
+ss1,ss2, s1, s2, s3: string;
 
   x: TRegExpr;
 begin
   s1 := SubString(params, ' ', 1);
   s2 := SubString(params, ' ', 2);
   s3 := RightStrV2(params, length(s1) + 1 + length(s2) + 1);
+  ss1:=SubString(s1, '-', 1);
+  ss2:=SubString(s1, '-', 2);
 
   x := TRegExpr.Create;
   x.ModifierI := True;
@@ -9004,8 +9006,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end else
-    s1:=x.Match[1]+uppercase(x.Match[1]);
-
+    s1:=lowercase(ss1)+'-'+uppercase(ss2);
   x.free;
 
   if s3 = '' then
@@ -9013,7 +9014,16 @@ begin
       (s1, s2, ''))
   else
   begin
-    sitesdat.WriteString(s1, s2, s3);
+
+  try
+   sitesdat.WriteString(s1, s2, s3);
+   except on E: Exception do begin
+   Debug(dpError, rsections, '[EXCEPTION] IrcTweak : %s', [e.Message]);
+   Result:=false;
+   Exit;
+  end;
+  end;
+
     // irc_addtext(netname, channel, 'New value is: '+sitesdat.ReadString(s1, s2, ''));
   end;
   Result := True;
