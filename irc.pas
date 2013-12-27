@@ -604,7 +604,12 @@ begin
       irc_lock.Leave;
     end;
     //if not hide then Debug(dpSpam, section, netname+'>> '+s);
+    try
     console_addline(netname, s);
+    except on E: Exception do
+    Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite(console_addline) : %s', [e.Message]);
+    end;
+
   except
     on e: Exception do
     begin
@@ -612,6 +617,7 @@ begin
     end;
   end;
 end;
+
 function TMyIrcThread.IrcConnect: Boolean;
 var LOurAddr: string;
 begin

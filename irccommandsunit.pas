@@ -9018,7 +9018,7 @@ begin
   try
    sitesdat.WriteString(s1, s2, s3);
    except on E: Exception do begin
-   Debug(dpError, rsections, '[EXCEPTION] IrcTweak : %s', [e.Message]);
+   Debug(dpError, section, '[EXCEPTION] IrcTweak : %s', [e.Message]);
    Result:=false;
    Exit;
   end;
