@@ -254,11 +254,11 @@ begin
 
   w:= windowtitle;
   if w = '' then w:= 'Admin';
-
+(*
   if (no_console_msg and (UpperCase(w) <> 'ADMIN') and (UpperCase(w) <> 'QUEUE') and (UpperCase(w) <> 'SLOTS')) then exit;
   if (no_console_queue and (UpperCase(w) = 'QUEUE')) then exit;
   if (no_console_slot and (UpperCase(w) = 'SLOTS')) then exit;
-
+*)
   try
     if add_time_stamp then
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now),msg])))
