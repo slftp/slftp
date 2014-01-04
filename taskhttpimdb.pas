@@ -36,7 +36,7 @@ end;
 
 function TPazoHTTPImdbTask.Execute(slot: Pointer): Boolean;
 var imdb_stv:boolean;
-    imdb_year:Integer;
+    imdb_year,imdb_screens:Integer;
     imdbdata:TDbImdbData;
     rr, rr2:TRegexpr;
     text: String;
@@ -352,11 +352,21 @@ rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?regio
     (*  Get BOX/Business Infos  *)
     text:= slUrlGet('http://www.imdb.com/title/' + imdb_id + '/business', '');
 
-    rr.Expression:='\(([\d\,\.]+)\s?Screens\)';
-    if rr.Exec(text) then s:=rr.Match[1];
-    s:= Csere(s, ',', '');
-    s:= Csere(s, '.', '');
-    imdbdata.imdb_screens:= StrToIntDef(s, 0);
+    rr.Expression:='\((USA|UK)\)[^\n]*?\(([\d\,\.]+)\s?Screens\)';
+
+    imdb_screens:=0;
+    if rr.Exec(text) then
+    begin
+      repeat
+        s:= Csere(rr.Match[2], ',', '');
+        s:= Csere(s, '.', '');
+        Debug(dpError, section, Format('TPazoHTTPImdbTask dbaddimdb_SaveImdb: match=%s', [rr.Match[0]]));
+        if StrToIntDef(s, 0) > imdb_screens then
+            imdb_screens:=StrToIntDef(s, 0)
+      UNTIL  not rr.ExecNext;
+    end;
+
+    imdbdata.imdb_screens:= imdb_screens;
 
     imdbdata.imdb_wide:=False;
     imdbdata.imdb_ldt:=False;
