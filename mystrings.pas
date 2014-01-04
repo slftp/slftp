@@ -1135,7 +1135,7 @@ begin
   Result:= False;
 end;
 
-
+{$WARNINGS OFF}
 function DateTimeAsString(const aThen:TDateTime; padded: Boolean = False):string;
 var
 i,seci,mini,houri,dayi,weeki,monthi,yeari:Int64;
@@ -1145,7 +1145,6 @@ result:='-1';
 if (aThen = 0) then
   exit;
 
-i:=0;
 seci:=SecondsBetween(now,aThen);
 mini:=MinutesBetween(now,aThen);
 houri:=HoursBetween(now,aThen);
@@ -1180,7 +1179,6 @@ weeki:=dayi div 7;
 dayi:=dayi-(weeki * 7);
 end else dayi:=dayi;
 *)
-i:=0;
 if dayi > 7 then begin
 weeki:=dayi div 7;
 i:=weeki * 7;
@@ -1188,7 +1186,6 @@ if dayi <> i then dayi:=dayi-(weeki * 7) else dayi:=0;
 end else dayi:=dayi;
 if dayi = 7 then dayi:=0;
 
-i:=0;
 //week
 if weeki > 4 then begin
 monthi:=weeki div 4;
@@ -1237,7 +1234,7 @@ finally
 result:=imsg;
 end;
 end;
-
+{$WARNINGS ON}
 
 function WhenDidThisHappen(SecondsElapsed:int64):TDateTime;
 var dtsec : TDateTime;

@@ -24,7 +24,7 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags,
      configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit, Regexpr;
 
 const
@@ -129,7 +129,7 @@ y.Text:=text;
 rrx:=TRegexpr.Create;
 rrx.Expression:='^\;';
 
-irc_addtext('','',y.Text+'  '+inttostr(y.Count));
+//irc_addtext('','',y.Text+'  '+inttostr(y.Count));
 
 for I := 0 to y.Count - 1 do
 if not rrx.Exec(y.Strings[i]) then inc(countz);

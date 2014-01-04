@@ -193,50 +193,45 @@ begin
         exit;
       end;
 
+// Give priority to nfo
+      if ((tpr1.IsNfo) and (not tpr2.IsNfo)) then
+      begin
+        Result:= -1;
+        exit;
+      end;
+      if ((not tpr1.IsNfo) and (tpr2.IsNfo)) then
+      begin
+        Result:= 1;
+        exit;
+      end;
+      if ((tpr1.IsNfo) and (tpr2.IsNfo)) then
+      begin
+        Result:= CompareValue(tpr2.rank, tpr1.rank);
+        exit;
+      end;
 
 
 // Give priority to sample
-
-    rsp:=TRegexpr.create;
-
-    rsp.Expression:='\.(mp4|mkv|vob|avi)$';
-
-      if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
-        rsp.free;
-        result:=-1;
-        Exit;
-      end;
-
-      if ((not rsp.Exec(tpr1.filename)) and (rsp.Exec(tpr2.filename))) then begin
-        rsp.free;
-        result:=1;
-        Exit;
-      end;
-
-
-
-// Give priority to nfo
-    rsp.Expression:='\.nfo$';
-
-      if ((rsp.Exec(tpr1.filename)) and (not rsp.Exec(tpr2.filename))) then begin
-        rsp.free;
-        result:=-1;
-        Exit;
-      end;
-
-      if ((not rsp.Exec(tpr1.filename)) and (rsp.Exec(tpr2.filename))) then
+      if ((tpr1.isSample) and (not tpr2.IsSample)) then
       begin
-        rsp.free;
-        result:=1;
-        Exit;
-    end;
-
-
+        Result:= -1;
+        exit;
+      end;
+      if ((not tpr1.IsSample) and (tpr2.IsSample)) then
+      begin
+        Result:= 1;
+        exit;
+      end;
+      if ((tpr1.IsSample) and (tpr2.IsSample)) then
+      begin
+        Result:= CompareValue(tpr2.rank, tpr1.rank);
+        exit;
+      end;
 
 
       Result:= CompareValue(tpr2.rank, tpr1.rank);
       if (Result <> 0) then exit;
-      
+
       Result:= CompareValue(tpr2.filesize, tpr1.filesize);
       exit;
     end;

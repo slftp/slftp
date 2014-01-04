@@ -1415,8 +1415,8 @@ function TSite.isRouteableTo(sitename:string):boolean;
 var i:integer; y:TStringlist;
 begin
 y:=TStringlist.Create;
-try
 y.Sorted:=True;
+try
 sitesdat.ReadSection('speed-to-' + self.name, y);
 if y.IndexOf(sitename) = -1 then result:=False else result:=True;
 finally
@@ -1428,8 +1428,8 @@ function TSite.isRouteableFrom(sitename:string):boolean;
 var i:integer; y:TStringlist;
 begin
 y:=TStringlist.Create;
-try
 y.Sorted:=True;
+try
 sitesdat.ReadSection('speed-from-' + self.name, y);
 if y.IndexOf(sitename) = -1 then result:=False else result:=True;
 finally

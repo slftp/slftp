@@ -71,7 +71,6 @@ skiplist_to_clean.Assign(skiplist);
   akt:= nil;
   AssignFile(f, ExtractFilePath(ParamStr(0))+'slftp.skip');
   Reset(f);
-  console_addline('','Lade Skipliste');
   while not eof(f) do
   begin
     readln(f,s);

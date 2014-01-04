@@ -2700,8 +2700,9 @@ begin
     begin
       pss:= nil;
 
-try
+
 if Precatcher_Sitehasachan(ps.name) then begin
+try
 	pss:= nil;
   sfound:=False;
        	for j:= 0 to p.sites.Count -1 do
@@ -2710,6 +2711,7 @@ if Precatcher_Sitehasachan(ps.name) then begin
             if not pss.Complete then Continue;
              for k := 0 to pss.destinations.Count - 1 do
               if TSite(pss.destinations.Items[k]).name = ps.name then begin
+
               if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
               sfound:=TSite(pss).isRouteableTo(ps.name);
               if sfound then break else continue;
@@ -2717,10 +2719,9 @@ if Precatcher_Sitehasachan(ps.name) then begin
               sfound:=True;
               break;
               end;
+
              if sfound then break else continue;
           end;
-  end;
-
           except on E: Exception do
          Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.findCompleteSourceSite: %s', [e.Message]));
           end;
@@ -2734,7 +2735,7 @@ if Precatcher_Sitehasachan(ps.name) then begin
           inc_dstsite:= FindSiteByName('', ps.name);
           inc_srcdir:= inc_srcsite.sectiondir[p.rls.section];
           inc_dstdir:= inc_dstsite.sectiondir[p.rls.section];
-          
+
           inc_rc:= FindSectionHandler(p.rls.section);
           inc_rls:= inc_rc.Create(p.rls.rlsname, p.rls.section);
           inc_p:= PazoAdd(inc_rls);
@@ -2768,6 +2769,7 @@ if Precatcher_Sitehasachan(ps.name) then begin
     end;
   end;
   Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
+  end;
 end;
 
 
