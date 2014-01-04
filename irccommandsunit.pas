@@ -5691,10 +5691,12 @@ begin
   end;
   ss := s.SetAffils(section, affils, True);
   if ss <> '' then
-    irc_addtext(Netname, Channel, ss);
-
+  IrcLineBreak(Netname, Channel,ss,' ',Format('<b>%s</b>@%s : ',[section,sitename]),12);
   Result := True;
 end;
+
+
+
 
 function IrcIdent(const Netname, Channel: string; params: string): Boolean;
 var
