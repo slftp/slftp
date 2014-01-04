@@ -45,6 +45,8 @@ type
        rank: Integer;
        filesize: Integer;
        isSfv: Boolean;
+       isSample:boolean;
+       isNFO:boolean;
        dontRemoveOtherSources: Boolean;
        dst: TWaitTask;
        constructor Create(const netname, channel: string; site1: string;site2: string; pazo: TPazo; dir, filename: string; filesize, rank: Integer);
