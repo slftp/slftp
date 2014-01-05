@@ -1100,10 +1100,15 @@ crypted:=false;
       begin
         chan:= SubString(s, ' ', 3);
         nick:= SubString(s, ' ', 4);
+
+
+
         if (nick <> irc_nick) then
         begin
-            irc_addinfo(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s',[netname, chan, nick, snick]));
-            console_addline(netname+' '+chan, Format('--> KICK %s by %s <--', [nick, snick]));
+        if config.ReadBool(section,'echo_kick_events',False) then begin
+         irc_addinfo(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s',[netname, chan, nick, snick]));
+         console_addline(netname+' '+chan, Format('--> KICK %s by %s <--', [nick, snick]));
+        end;
         end;
         chanpart(chan, nick);
       end
@@ -1114,12 +1119,14 @@ crypted:=false;
         chan:= Copy(SubString(s, ' ', 3), 2, 1000);
         snick:= Copy(s, 2, Pos('!', s)-2);
         console_add_ircwindow(netname+' '+chan);
-        console_addline(netname+' '+chan, Format('--> JOIN %s <--', [snick]));
-        if (snick <> irc_nick) then
+         if (snick <> irc_nick) then
         begin
+        if config.ReadBool(section,'echo_join_part_events',False) then begin
           irc_addinfo(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s',[netname, chan, snick]));
+         console_addline(netname+' '+chan, Format('--> JOIN %s <--', [snick]));
         end;
- 
+        end;
+
         chanjoin(chan, snick);
       end else
       //:rsctm!rsctm@catv-80-98-130-97.catv.broadband.hu PART #akela :
@@ -1129,8 +1136,9 @@ crypted:=false;
         snick:= Copy(s, 2, Pos('!', s)-2);
         if (snick <> irc_nick) then
         begin
+        console_addline(netname+' '+chan, Format('--> PART %s <--', [snick]));
+        if config.ReadBool(section,'echo_join_part_events',False) then
             irc_addinfo(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s',[netname, chan, snick]));
-            console_addline(netname+' '+chan, Format('--> PART %s <--', [snick]));
         end;
         chanpart(chan, snick);
       end else
