@@ -2676,9 +2676,8 @@ begin
   kbevent.Free;
 end;
 
-
 function TKBThread.AddCompleteTransfers(pazo: Pointer): Boolean;
-var si, j,k,i: Integer;
+var si,j,k,i: Integer;
     ps, pss: TPazoSite;
     p: TPazo;
     inc_srcsite, inc_dstsite: TSite;
@@ -2693,41 +2692,38 @@ begin
   Result:= False;
   p:= TPazo(pazo);
   Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
+
   for i:= 0 to p.sites.Count -1 do
   begin
     ps:= TPazoSite(p.sites[i]);
     if ((ps.status = rssAllowed) and (not ps.Complete) and (not ps.error)) then
     begin
+
+if Precatcher_Sitehasachan(ps.name) then
+      begin
       pss:= nil;
+      sfound:=False;
 
-
-if Precatcher_Sitehasachan(ps.name) then begin
-try
-	pss:= nil;
-  sfound:=False;
        	for j:= 0 to p.sites.Count -1 do
           begin
        	    pss:= TPazoSite(p.sites[j]);
             if not pss.Complete then Continue;
-             for k := 0 to pss.destinations.Count - 1 do
+             for k := 0 to pss.destinations.Count - 1 do begin
               if TSite(pss.destinations.Items[k]).name = ps.name then begin
-
               if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
               sfound:=TSite(pss).isRouteableTo(ps.name);
               if sfound then break else continue;
-              end else
+              end else begin//if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
               sfound:=True;
               break;
               end;
-
+              end;//if TSite(pss.destinations.Items[k]).name = ps.name then begin
+              if sfound then break else continue;
+             end;//for k := 0 to pss.destinations.Count - 1 do begin
              if sfound then break else continue;
-          end;
-          except on E: Exception do
-         Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.findCompleteSourceSite: %s', [e.Message]));
-          end;
+          end;//for j:= 0 to p.sites.Count -1 do
 
-      if ((ps.status = rssNotAllowed) and  (pss <> nil) and (pss.Complete)) then
-      begin
+
         // ok, megvan minden.
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, ps.name, pss.name]);
         try
@@ -2735,7 +2731,7 @@ try
           inc_dstsite:= FindSiteByName('', ps.name);
           inc_srcdir:= inc_srcsite.sectiondir[p.rls.section];
           inc_dstdir:= inc_dstsite.sectiondir[p.rls.section];
-
+          
           inc_rc:= FindSectionHandler(p.rls.section);
           inc_rls:= inc_rc.Create(p.rls.rlsname, p.rls.section);
           inc_p:= PazoAdd(inc_rls);
@@ -2753,7 +2749,7 @@ try
 
           inc_ps:= inc_p.FindSite(inc_srcsite.name);
           inc_ps.dirlist.dirlistadded:= True;
-          inc_pd:= TPazoDirlistTask.Create('', '', inc_ps.name, inc_p, '', True);
+          inc_pd:= TPazoDirlistTask.Create('', '', inc_ps.name, inc_p, '', False);
           irc_addtext(inc_pd, Format('<c11>[iNC RLS]</c> Trying to complete %s on %s from %s', [p.rls.rlsname, ps.name, pss.name]));
           AddTask(inc_pd);
           QueueFire;
@@ -2769,8 +2765,8 @@ try
     end;
   end;
   Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
-  end;
 end;
+
 
 
 procedure TKBThread.Execute;
