@@ -2707,6 +2707,7 @@ if Precatcher_Sitehasachan(ps.name) then
        	for j:= 0 to p.sites.Count -1 do
           begin
        	    pss:= TPazoSite(p.sites[j]);
+            if pss.name = ps.name then Continue;
             if not pss.Complete then Continue;
              for k := 0 to pss.destinations.Count - 1 do begin
               if TSite(pss.destinations.Items[k]).name = ps.name then begin
