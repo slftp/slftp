@@ -595,6 +595,31 @@ end;
 function TMyIrcThread.IrcWrite(s: string; hide:boolean = False): Boolean;
 begin
   Result:= False;
+    irc_lock.Enter;
+  try
+    irc_last_read:= Now();
+    try
+    Result:= WriteLn(Copy(s,1, MaxInt));
+    except on E: Exception do
+    Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite : %s', [e.Message]);
+    end;
+  finally
+  irc_lock.Leave;
+  end;
+
+    try
+    console_addline(netname, s);
+    except on E: Exception do
+    Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite(console_addline) : %s', [e.Message]);
+    end;
+
+end;
+
+(*
+
+function TMyIrcThread.IrcWrite(s: string; hide:boolean = False): Boolean;
+begin
+  Result:= False;
   try
     irc_last_read:= Now();
     irc_lock.Enter;
@@ -617,6 +642,8 @@ begin
     end;
   end;
 end;
+
+*)
 
 function TMyIrcThread.IrcConnect: Boolean;
 var LOurAddr: string;
