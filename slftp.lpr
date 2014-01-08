@@ -1,45 +1,47 @@
-{*****************************************************************************
-
- - Soulless robotic engine aka SLFTP  Version 1.4
- 
- - Remarks:          Freeware, Copyright must be included
- 
- - Original Author:  believe                   
-                    
- ****************************************************************************
-
- * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS       *
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED        *
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE       *
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE        *
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR      *
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF     *
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR          *
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,    *
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE     *
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,        *
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                       *
-
-*****************************************************************************}
-
 program slftp;
-
 {$MODE Delphi}
-
 {$APPTYPE CONSOLE}
+{*******************************************************************************\
 
+ Freeware, Copyright              .
+ must be included GLP3            ;    .
+ it under the terms of the GNU   01.   .
+ General Public License as       01;, .:
+ as published by the             0100 11
+ Free Software Foundation;       1010 01
+ either version 1 or any later   0100 01
+ version....                   : 1001 00 :
+                               :   `0 01 :
+         _______     _         :  _____._:___              _
+        /      /    / \___     __/          /             / \________
+       /  ,___/____/     /     \    _      / \___________/          /
+    ___\____      /     /______/    /_____/             /    _     /
+   /__     /     /     /      /     ___/ /____      ___/     /    /
+     /    /     /     /      /     /2o!  :   /     /  /     _____/
+    /     _____/_____       /__   /     .:  /     /  /__   /
+   /__   /          /___   /...\_/....:::: /__   /  .   \_/
+      \_.001.  1    .100._/            ...    \_/   .
+         01    10      10               ::          :
+        `10.11 .0  11.01'                `          :
+          1000.  .  .000'                 ........  :
+          `'`101. .101'`1.......:.........:      :..'
+            . `10100'.:         :         :      :
+     --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
+            1:   .`10f.         :         `......:
+            01  .1  `00r.       :.............'
+            00  0:  .100'       :...100100...:'
+            01  01.101'
+            10  0101' .   This program is distributed in the hope that it will be useful,
+            01  01'  .1   but WITHOUT ANY WARRANTY; without even the implied warranty of
+            0:  10   00   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+            :.  1    10   GNU General Public License for more details.
+            .   1    0:
+                0.    :.
+                .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
+
+\*******************************************************************************}
 uses
-{$IFDEF FPC}
- {$ifdef unix}
-   cthreads,
-   cmem, // the c memory manager is on some systems much faster for multithreading
- {$endif}
-{$ENDIF}
-  console;
-
-// {$R *.res}
-
-
+{$IFDEF FPC}{$ifdef unix}cthreads, cmem,{$endif}{$ENDIF}console;
 begin
   ConsoleStart;
 end.
