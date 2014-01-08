@@ -1296,16 +1296,18 @@ begin
           end;
         end;
       end;
- 
+
+      (* no idea what this is here for, parting channels w/o blowkeys does not really make sense and the code doesn't work either
       // itt pedig azt nezzuk kell e valahonnan partolni
       for i:= 0 to channels.Count -1 do
         if nil = FindIrcBlowfish(netname, channels[i], False) then begin
-                  debug(dpSpam, section, '%s: Parting %s because blowkey is nil', [netname, b.channel]);
+          debug(dpSpam, section, '%s: Parting %s because blowkey is nil', [netname, b.channel]);
           if not WriteLn('PART '+channels[i]) then
           begin
             exit;
           end;
-                end;
+      end;
+      *)
 
       added:= False;
       for i:= 0 to sites.Count -1 do
