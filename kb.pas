@@ -570,7 +570,7 @@ begin
               begin
                 if spamcfg.readbool(rsections,'renamed_release',True) then
                   irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!',[rls,sitename,kb_latest[i]]));
-                
+
                 kb_latest.Insert(0, rls); // gonna insert this anyway, because there are sometimes renames of renames
                 kb_skip.Insert(0, rls);
                 kb_lock.Leave;
@@ -885,7 +885,7 @@ end;
       begin
         if (s <> nil) then
         begin
-          if (not s.IsAffil(section, r.groupname)) then
+          if ((not s.IsAffil(section, r.groupname)) and (config.ReadBool(rsections,'auto_add_affils',False))) then
             s.SetAffils(section, r.groupname, False);
         end;
       end;
