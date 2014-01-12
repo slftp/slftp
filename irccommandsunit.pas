@@ -177,6 +177,7 @@ function IrcIrcNames(const netname, channel: string;params: string): Boolean;
 
 function DirlistB(const netname, channel: string;sitename, dir: string; SpeedTest:boolean = False): TDirList;
 procedure RawB(const netname, channel: string; sitename, dir, command: string;AnnounceSitename:boolean = false);
+function RawC(const Netname, Channel: string; sitename, dir, command: string;AnnounceSitename: Boolean = False):string;
 
 function IrcNuke(const netname, channel: string;params: string): Boolean;
 function IrcUnnuke(const netname, channel: string;params: string): Boolean;
@@ -303,6 +304,9 @@ function IrcAnnounceIMDBInfo(const netname, channel: string;params: string): Boo
 function IrcAddTVRagetoDB(const netname, channel: string;params: string): Boolean;
 
 
+function IrcShowSiteNukes(const netname, channel: string;params: string): Boolean;
+
+
 
 //function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
 
@@ -335,7 +339,7 @@ procedure IrcCommandUninit;
 
 const
 
-      irccommands : array[1..237] of TIrcCommand = (
+      irccommands : array[1..238] of TIrcCommand = (
         (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'$$$'),
         (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp:'main'),
         (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp:'main'),
@@ -589,6 +593,7 @@ const
         (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams:3; hlpgrp:'doh_socks5'),
         (cmd: '- Sites -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'@doh_sites'),
         (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams:2; hlpgrp:'doh_sites'),
+        (cmd: 'nukes'; hnd: IrcShowSiteNukes; minparams: 1; maxparams:2; hlpgrp:'doh_sites'),
         (cmd: '- Pretime -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:'@doh_preurls'),
         (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams:1; hlpgrp:'doh_preurls'),
         (cmd: 'pretime'; hnd: IrcFindPretime; minparams: 1; maxparams:1; hlpgrp:'doh_preurls'),
@@ -3514,6 +3519,43 @@ begin
   Result := True;
 end;
 
+
+function RawC(const Netname, Channel: string; sitename, dir, command: string;AnnounceSitename: Boolean = False):string;
+var
+  r: TRawTask;
+  tn: TTaskNotify;
+  i: integer;
+  ss: string;
+
+begin
+  r := TRawTask.Create(Netname, Channel, sitename, dir, command);
+  tn := AddNotify;
+  tn.tasks.Add(r);
+  AddTask(r);
+  QueueFire;
+
+  tn.event.WaitFor($FFFFFFFF);
+
+  if tn.responses.Count = 1 then
+  begin
+    i := 1;
+    while (True) do
+    begin
+      ss := SubString(TSiteResponse(tn.responses[0]).response, slEOL, i);
+      if ss = '' then
+        break;
+      if AnnounceSitename then
+      result:=result+Format('<b>%s</b>: %s %s', [sitename, ss,#10#13])
+      else
+        result:=result+ ss+#10#13;
+      inc(i);
+    end;
+  end;
+  RemoveTN(tn);
+
+end;
+
+
 procedure RawB(const Netname, Channel: string; sitename, dir, command: string;
   AnnounceSitename: Boolean = False);
 var
@@ -5677,6 +5719,8 @@ function IrcAffils(const Netname, Channel: string; params: string): Boolean;
 var
   ss, sitename, affils, section: string;
   s: TSite;
+  y:TStringlist;
+  i:Integer;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -5686,9 +5730,10 @@ begin
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
+    irc_addtext(Netname, Channel, '<ERROR -> Site %s not found.', [sitename]);
     exit;
   end;
+
   ss := s.SetAffils(section, affils, True);
   if ss <> '' then
   IrcLineBreak(Netname, Channel,ss,' ',Format('<b>%s</b>@%s : ',[section,sitename]),12);
@@ -11149,6 +11194,76 @@ begin
     queue_lock.Leave;
   end;
   Result := True;
+end;
+
+
+
+function IrcShowSiteNukes(const netname, channel: string;params: string): Boolean;
+label startOver;
+var username, ss, sitename:string; r:TRegexpr;   site: TSite;
+begin
+  sitename := UpperCase(SubString(params, ' ', 1));
+  site := FindSiteByName(Netname, sitename);
+
+
+  if site = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    result:=False;
+    exit;
+  end;
+
+if ((site.working = sstUnknown) or (site.working = sstDown)) then begin
+TSiteSlot(site.slots.Items[site.slots.Count-1]).ReLogin();
+irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!', [sitename]);
+end;
+
+  if site.GetSw <> sswGlftpd then
+  begin
+    irc_addtext(Netname, Channel, 'This command is currently only for GrayLine FTPD%ss.', [chr(39)]);
+    result:=False;
+    exit;
+end;
+
+
+username:= site.RCString('username','slFtp');
+if username = 'slFtp' then begin
+    irc_addtext(Netname, Channel, 'No vailed username found for %s', [site.name]);
+    result:=False;
+    exit;
+end;
+
+try
+ss:=RawC(Netname,Channel,site.name,'','site nukes');
+except on E: Exception do begin
+irc_addtext(Netname, Channel,'<c4>[Exception]</c> in IrcShowSiteNukes; %s',[E.Message]);
+result:=False;
+Exit;
+end;
+end;
+
+
+r:=TRegexpr.Create;
+r.Expression:='foo nukes';
+r.ModifierI:=True;
+if r.Exec(ss) then begin
+    irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
+    result:=False;
+    r.free;
+    exit;
+end;
+
+r.Expression:='200- ';
+ss:=r.Replace(ss,'');
+
+r.Expression:=Format('\|.*?\|\s*%s\s*\|\s(\d+)x\s*([\d\,\.]+M?)\s*\|(.*?)\|[\r\n\s]+\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',[username]);
+
+if not r.Exec(ss) then irc_addtext(Netname,Channel,'No Nukes found, good boy!') else repeat
+irc_addtext(Netname,Channel,'%s x%s for: %s (%sM) %s ago.',[Trim(r.Match[5]),Trim(r.Match[1]),Trim(r.Match[3]),Trim(r.Match[2]),Trim(r.Match[4])]);
+until not r.ExecNext;
+
+r.free;
+result:=True;
 end;
 
 /// dOH mODz  eNDz
