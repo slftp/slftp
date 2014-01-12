@@ -40,7 +40,7 @@ program slftp;
 \*******************************************************************************}
 
 uses console;
-
+{$APPTYPE CONSOLE}
 begin
   ConsoleStart;
 end.

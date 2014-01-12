@@ -68,6 +68,7 @@ type
     function bnc: string;
     function Cwd(dir: string; force: Boolean = False): Boolean;
     function Dirlist(dir: string; forcecwd: Boolean=False; fulldirlist: Boolean= False): Boolean;
+//    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
     function RemoveFile(dir, filename: string): Boolean;
     function RemoveDir(dir: string): Boolean;
     function SendProtP: Boolean;
@@ -1291,6 +1292,16 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then exit;
 
+      if config.ReadBool('indexer','use_custom_dirlist_command',False) then begin
+    if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
+      cmd:= config.ReadString('indexer','custom_dirlist_command','list -al')
+    else
+    if dir[1] = '/' then
+      cmd:= config.ReadString('indexer','custom_dirlist_command','list -al')+' '+MyIncludeTrailingSlash(dir)
+    else
+      cmd:= config.ReadString('indexer','custom_dirlist_command','list -al')+' '+aktdir+MyIncludeTrailingSlash(dir);
+
+      end else begin
     if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
       cmd:= 'STAT -l'+kapcsolo
     else
@@ -1298,6 +1309,7 @@ begin
       cmd:= 'STAT -l'+kapcsolo+' '+MyIncludeTrailingSlash(dir)
     else
       cmd:= 'STAT -l'+kapcsolo+' '+aktdir+MyIncludeTrailingSlash(dir);
+      end;
 
     if not Send(cmd) then exit;
     if not Read('Dirlist') then exit;
