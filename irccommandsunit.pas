@@ -11197,6 +11197,8 @@ begin
 *)
 
   Count := UpperCase(SubString(params, ' ', 2));
+if count = '' then Count := '35';
+
   site  := FindSiteByName(Netname, sitename);
 
 
