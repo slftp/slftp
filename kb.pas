@@ -2696,8 +2696,12 @@ begin
   for i:= 0 to p.sites.Count -1 do
   begin
     ps:= TPazoSite(p.sites[i]);
-    if ((ps.status = rssAllowed) and (not ps.Complete) and (not ps.error)) then
-    begin
+
+
+if not ps.Complete then Continue;
+if not ps.error then Continue;
+if ps.status = rssAllowed then Continue;
+
 
 if Precatcher_Sitehasachan(ps.name) then
       begin
@@ -2760,11 +2764,10 @@ if Precatcher_Sitehasachan(ps.name) then
           begin
             Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
             Result:= False;
-          end;
-        end;
-      end;
-    end;
-  end;
+         end;
+       end;
+     end;
+   end;
   Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
 end;
 
@@ -2795,8 +2798,8 @@ begin
           begin
 
 
-           if ((not p.completezve) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
-//            if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+//           if ((not p.completezve) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+           if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
             begin
               RemovePazo(p.pazo_id);
               while (not (p.queuenumber.ActValue <= 0)) do
