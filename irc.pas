@@ -1179,6 +1179,7 @@ crypted:=false;
         if (1 = Pos('+OK ', msg)) then begin
             try
                 crypted:=True;
+                if config.ReadBool(section,'echo_topic_change_events',False) then
                 irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
             except
                 on e: Exception do begin
@@ -1190,6 +1191,7 @@ crypted:=false;
         begin
             try
                 crypted:=True;
+                if config.ReadBool(section,'echo_topic_change_events',False) then
                 irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
             except
                 on e: Exception do begin
@@ -1197,13 +1199,17 @@ crypted:=false;
                 end;
             end;
         end;
-        if not crypted then irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,msg]));
+        if not crypted then begin
+        if config.ReadBool(section,'echo_topic_change_events',False) then
+        irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,msg]));
+        end;
       end else
       if (s2 = 'NICK') then
       begin
         snick:= Copy(s, 2, Pos('!', s)-2);
         if (snick <> irc_nick) then
         begin
+             if config.ReadBool(section,'echo_nick_change_events',False) then
           irc_addinfo(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s',[netname, snick, Copy(s, RPos(':', s)+1, MaxInt)]));
         end;
       end else
