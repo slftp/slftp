@@ -445,7 +445,7 @@ end;
 procedure irc_SendIRCEvent(msgirc: string);
 begin
   if (msgirc = '') then exit;
-  irc_Addtext_by_key('IRCEVNT', msgirc);
+  irc_Addtext_by_key('IRCEVENT', msgirc);
 end;
 
 procedure irc_SendAddPre(msgirc: string);
