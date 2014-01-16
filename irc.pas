@@ -142,7 +142,7 @@ procedure irc_SendINDEXER(msgirc: string);
 procedure irc_SendRANKSTATS(msgirc: string);
 procedure irc_SendROUTEINFOS(msgirc: string);
 procedure irc_SendRACESTATS(msgirc: string);
-
+procedure irc_SendIRCEvent(msgirc: string);
 
 function FindIrcnetwork(netname: string): TMyIrcThread;
 
@@ -162,7 +162,7 @@ var
   irc_queue_nets: TStringList;
 
   const
-  irc_chanroleindex = 19;
+  irc_chanroleindex = 20;
 (*  
 ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
 (Name:'ADMIN',Description:'Give an IRC Chanel Admin privilege'),
@@ -173,6 +173,7 @@ ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
 (Name:'INDEXER',Description:'Announces Autoindexer process'),
 (Name:'GROUP',Description:'Give an IRC Chanel Group privilege, pre, spread, check and so on.'),
 (Name:'NUKE',Description:'Give an IRC Chanel Nuke privilege, nuke and unnuke'),
+(Name:'IRCEVENT',Description:'Give an IRC Chanel Nuke privilege, nuke and unnuke'),
 (Name:'SPEEDSTATS',Description:'Announces --'),
 (Name:'RACETATS',Description:'Announces --'),
 (Name:'RANKSTATS',Description:'Announces --'),
@@ -190,7 +191,7 @@ ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
 
 
   irc_chanroles:array [0..irc_chanroleindex] of string = (
-  'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'ADDPRE',
+  'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT',  'ADDPRE',
   'ADDNFO', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
   'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
   'KB', 'ADDGN'
@@ -438,6 +439,13 @@ begin
       Debug(dpError, section, '[EXCEPTION] irc_AddINFO: %s', [e.Message]);
     end;
   end;
+end;
+
+
+procedure irc_SendIRCEvent(msgirc: string);
+begin
+  if (msgirc = '') then exit;
+  irc_Addtext_by_key('IRCEVNT', msgirc);
 end;
 
 procedure irc_SendAddPre(msgirc: string);
@@ -1133,7 +1141,7 @@ crypted:=false;
         if (nick <> irc_nick) then
         begin
         if config.ReadBool(section,'echo_kick_events',False) then begin
-         irc_addinfo(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s',[netname, chan, nick, snick]));
+         irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s',[netname, chan, nick, snick]));
          console_addline(netname+' '+chan, Format('--> KICK %s by %s <--', [nick, snick]));
         end;
         end;
@@ -1149,7 +1157,7 @@ crypted:=false;
          if (snick <> irc_nick) then
         begin
         if config.ReadBool(section,'echo_join_part_events',False) then begin
-          irc_addinfo(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s',[netname, chan, snick]));
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s',[netname, chan, snick]));
          console_addline(netname+' '+chan, Format('--> JOIN %s <--', [snick]));
         end;
         end;
@@ -1165,7 +1173,7 @@ crypted:=false;
         begin
         console_addline(netname+' '+chan, Format('--> PART %s <--', [snick]));
         if config.ReadBool(section,'echo_join_part_events',False) then
-            irc_addinfo(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s',[netname, chan, snick]));
+           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s',[netname, chan, snick]));
         end;
         chanpart(chan, snick);
       end else
@@ -1180,7 +1188,7 @@ crypted:=false;
             try
                 crypted:=True;
                 if config.ReadBool(section,'echo_topic_change_events',False) then
-                irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
+                irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
             except
                 on e: Exception do begin
                     Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
@@ -1192,7 +1200,7 @@ crypted:=false;
             try
                 crypted:=True;
                 if config.ReadBool(section,'echo_topic_change_events',False) then
-                irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+                irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
             except
                 on e: Exception do begin
                     Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
@@ -1201,7 +1209,7 @@ crypted:=false;
         end;
         if not crypted then begin
         if config.ReadBool(section,'echo_topic_change_events',False) then
-        irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,msg]));
+        irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan,msg]));
         end;
       end else
       if (s2 = 'NICK') then
@@ -1210,7 +1218,7 @@ crypted:=false;
         if (snick <> irc_nick) then
         begin
              if config.ReadBool(section,'echo_nick_change_events',False) then
-          irc_addinfo(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s',[netname, snick, Copy(s, RPos(':', s)+1, MaxInt)]));
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s',[netname, snick, Copy(s, RPos(':', s)+1, MaxInt)]));
         end;
       end else
       //:rsc!i=rsctm@catv-80-98-106-242.catv.broadband.hu QUIT :Client Quit
