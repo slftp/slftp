@@ -4254,7 +4254,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
-  password := SubString(params, ' ', 4);
+
 
   if nil <> FindIrcnetwork(nn) then
   begin
@@ -4262,9 +4262,16 @@ begin
     exit;
   end;
 
+  password := SubString(params, ' ', 4);
   nick  := SubString(params, ' ', 5);
   ident := SubString(params, ' ', 6);
   user  := SubString(params, ' ', 7);
+
+
+  if nick = '' then nick:=config.ReadString('irc','nickname','slftp');
+  if user = '' then user:=config.ReadString('irc','username','slftp');
+  if ident = '' then ident:=config.ReadString('irc','realname','slftp');
+
 
   sitesdat.WriteString('ircnet-' + nn, 'host', host);
   sitesdat.WriteInteger('ircnet-' + nn, 'port', port);
