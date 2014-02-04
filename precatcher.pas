@@ -84,7 +84,7 @@ var
   precatcher_debug_lock: TCriticalSection;
 
   ValidChars: Set of Char = ['0'..'9','A'..'Z','a'..'z','?','.','>','<','+','-','~','!','@','#','$','%','&','*','(',')','_','=','{','}','[',']','|','\','/',':',';',' '];
-StrippingChars: Set of Char = ['(', ')', '_', '-', '.', '&','*'];
+  StrippingChars: Set of Char = ['(', ')', '_', '-', '.', '&','*','<','>'];
 
 procedure mydebug(s: string); overload;
 var nowstr: string;
@@ -306,6 +306,7 @@ var i: Integer;
     rep_s: String;
 begin
   rep_s := s;
+
   if replacefrom.Count = replaceto.Count then
   begin
     for i:= 0 to replacefrom.Count -1 do
@@ -315,6 +316,7 @@ begin
     end;
   end else Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
   result:= rep_s;
+//  Irc_AddText('','','s= %s ;; rep_s= %s',[s,rep_s]);
 end;
 
 procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: string; ts_data: TStringList);
@@ -346,14 +348,17 @@ begin
       exit;
     end;
 
-    // elso korben megnezzuk van e ignoreword ra
-    s:= Csere(ts_data.DelimitedText, rls, '');
 
-    // megcsinaljuk a [replace] szekcios csereket
+(* wadoh: i moved the replace stuff to  FoCsupaszitas, now we reraplce befor any catchline checkes.
+
+  // elso korben megnezzuk van e ignoreword ra  -- this is the first place you look at to ignoreword
+    s:= Csere(ts_data.DelimitedText, rls, '');
+    // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
     s:= ProcessDoReplace(s);
 
     ts_data.DelimitedText:= s;
 
+    *)
 (* Xperia : i dont think it can help
     // most levagjuk a sor veget ahol mar a juzer taglineja kezdodik vagyis barmi fassag lehet
     try
@@ -495,6 +500,7 @@ var i, j: Integer;
     ss: TSection;
     mind: Boolean;
     ts_data: TStringList;
+rls, chno,  s:string;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, data]);
 
@@ -513,7 +519,7 @@ begin
     ts_data.QuoteChar:= '"';
 
     try
-      data := FoCsupaszitas(data);
+      data := FoCsupaszitas(data);    //main Stripping
     except
       on e: Exception do
       begin
@@ -524,8 +530,24 @@ begin
     end;
 
     ts_data.DelimitedText:= data;
+    // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
+    chno:='0';
 
-    MyDebug('After FoCsupaszitas line is: %s', [data]);
+  try
+    rls:= KibontasRiliz('SLFTP', chno, ts_data);
+  except
+    exit;
+  end;
+
+    s:= Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
+
+    s:= ProcessDoReplace(s);
+
+    s:=Csere(s,'${RELEASENAMEPLACEHOLDER}$',rls);
+    ts_data.DelimitedText:= s;
+
+
+    MyDebug('After FoCsupaszitas line is: %s', [ts_data.DelimitedText]);
 
     for i:= 0 to sc.sections.Count -1 do
     begin
@@ -536,6 +558,7 @@ begin
         if (ts_data.IndexOf(ss.words[j]) = -1) then
         begin
           mind:= False;
+          Irc_AddText('','','count: %d',[j]);
           Break;
         end;
       end;
