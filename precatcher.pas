@@ -84,7 +84,7 @@ var
   precatcher_debug_lock: TCriticalSection;
 
   ValidChars: Set of Char = ['0'..'9','A'..'Z','a'..'z','?','.','>','<','+','-','~','!','@','#','$','%','&','*','(',')','_','=','{','}','[',']','|','\','/',':',';',' '];
-  StrippingChars: Set of Char = ['(', ')', '_', '-', '.', '&','*','<','>'];
+  StrippingChars: Set of Char = ['(', ')', '_','-', '.', '&','*','<','>'];
 
 procedure mydebug(s: string); overload;
 var nowstr: string;
@@ -558,7 +558,7 @@ begin
         if (ts_data.IndexOf(ss.words[j]) = -1) then
         begin
           mind:= False;
-          Irc_AddText('','','count: %d',[j]);
+         // Irc_AddText('','','count: %d',[j]);
           Break;
         end;
       end;
