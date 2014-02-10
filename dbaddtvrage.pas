@@ -19,6 +19,7 @@ type
     tv_runtime: Integer;
     tv_endedyear: Integer;
     tv_running : Boolean;
+    last_updated:integer;
     constructor Create(rls_showname :string);//overload;
     destructor Destroy; override;
     function Name: string;
@@ -72,6 +73,7 @@ constructor TDbTVRage.Create(rls_showname:string);
 begin
   self.rls_showname := rls_showname;
   self.tv_genres:= TStringList.Create;
+  self.tv_genres.QuoteChar:='"';
 end;
 
 destructor TDbTVRage.Destroy;
@@ -106,7 +108,7 @@ end;
 procedure TDbTVRage.PostResults(rls : String = '');
 begin
   try
-if rls = '' then rls:= rls_showname;
+if ((rls = '') or (tv_showid = rls)) then rls:= rls_showname;
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/',[rls,IntToStr(tv_premiered_year),tv_showid]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s',[tv_genres.CommaText,tv_classification,tv_status]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ',[tv_country,tv_network]));
@@ -122,7 +124,7 @@ end;
 procedure TDbTVRage.PostResults(Netname: string; Channel: string; rls: string = '');
 begin
   try
-    if rls = '' then rls:= rls_showname;
+if ((rls = '') or (tv_showid = rls)) then rls:= rls_showname;
     irc_AddText(Netname,CHannel,Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/',[rls,IntToStr(tv_premiered_year),tv_showid]));
     irc_AddText(Netname,CHannel,Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s',[tv_genres.CommaText,tv_classification,tv_status]));
     irc_AddText(Netname,CHannel,Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ',[tv_country,tv_network]));
@@ -200,6 +202,7 @@ begin
           tvrage.tv_runtime := StrToIntDef(addtvrageDB.column_text(gettvrage, 10),0);
           tvrage.tv_running := StrToBoolDef(addtvrageDB.column_text(gettvrage, 11), False);
           tvrage.tv_endedyear:= StrToIntDef(addtvrageDB.column_text(gettvrage, 12),-1);
+          //last_updated:=StrToIntDef(addtvrageDB.column_text(gettvrage, 13),-1);
 
  //         last_addtvrage.AddObject(rls_showname, tvrage);
           Result:= tvrage;
@@ -272,6 +275,7 @@ begin
           tvrage.tv_runtime := addtvrageDB.column_int(gettvrage, 10);
           tvrage.tv_running := StrToBoolDef(addtvrageDB.column_text(gettvrage, 11), False);
           tvrage.tv_endedyear := addtvrageDB.column_int(gettvrage, 12);
+          tvrage.last_updated := addtvrageDB.column_int(gettvrage, 13);          
 
 //          last_addtvrage.AddObject(tvrage.tv_showname, tvrage);
           Result:= tvrage;
@@ -433,14 +437,14 @@ begin
     addtvrageDB.ExecSQL(
       'CREATE TABLE IF NOT EXISTS addtvrage (rls_showname VARCHAR(255) NOT NULL, tv_showid VARCHAR(255), tv_showname VARCHAR(255),'+
       'tv_showurl VARCHAR(255), tv_premiered_year INT(10), tv_country VARCHAR(255), tv_status VARCHAR(255), tv_classification VARCHAR(255),'+
-      'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10))'
+      'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10), last_updated INT(50))'
       );
     addtvrageDB.ExecSQL(
       'CREATE UNIQUE INDEX IF NOT EXISTS addtvrage_index ON addtvrage (rls_showname)'
       );
 
-    sql_addtvrage := addtvrageDB.Open('INSERT OR IGNORE INTO addtvrage (rls_showname, tv_showid, tv_showname, tv_showurl, tv_premiered_year, tv_country, tv_status, tv_classification, tv_genres, tv_network, tv_runtime, tv_running, tv_endedyear)' +
-                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    sql_addtvrage := addtvrageDB.Open('INSERT OR IGNORE INTO addtvrage (rls_showname, tv_showid, tv_showname, tv_showurl, tv_premiered_year, tv_country, tv_status, tv_classification, tv_genres, tv_network, tv_runtime, tv_running, tv_endedyear, last_updated)' +
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     sql_counttvrage := addtvrageDB.Open('SELECT count(*) FROM addtvrage');
 
     Console_Addline('', 'Local addtvrage DB Started...');
