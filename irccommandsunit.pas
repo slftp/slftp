@@ -179,10 +179,10 @@ function IrcIrcNames(const netname, channel: string; params: string): boolean;
 
 function DirlistB(const netname, channel: string; sitename, dir: string;
   SpeedTest: boolean = False): TDirList;
-procedure RawB(const netname, channel: string;
-  sitename, dir, command: string; AnnounceSitename: boolean = False);
-function RawC(const Netname, Channel: string;
-  sitename, dir, command: string; AnnounceSitename: boolean = False): string;
+procedure RawB(const netname, channel: string; sitename, dir, command: string;
+  AnnounceSitename: boolean = False);
+function RawC(const Netname, Channel: string; sitename, dir, command: string;
+  AnnounceSitename: boolean = False): string;
 
 function IrcNuke(const netname, channel: string; params: string): boolean;
 function IrcUnnuke(const netname, channel: string; params: string): boolean;
@@ -3583,8 +3583,8 @@ begin
 end;
 
 
-function RawC(const Netname, Channel: string;
-  sitename, dir, command: string; AnnounceSitename: boolean = False): string;
+function RawC(const Netname, Channel: string; sitename, dir, command: string;
+  AnnounceSitename: boolean = False): string;
 var
   r:  TRawTask;
   tn: TTaskNotify;
@@ -4263,14 +4263,17 @@ begin
   end;
 
   password := SubString(params, ' ', 4);
-  nick  := SubString(params, ' ', 5);
-  ident := SubString(params, ' ', 6);
-  user  := SubString(params, ' ', 7);
+  nick     := SubString(params, ' ', 5);
+  ident    := SubString(params, ' ', 6);
+  user     := SubString(params, ' ', 7);
 
 
-  if nick = '' then nick:=config.ReadString('irc','nickname','slftp');
-  if user = '' then user:=config.ReadString('irc','username','slftp');
-  if ident = '' then ident:=config.ReadString('irc','realname','slftp');
+  if nick = '' then
+    nick := config.ReadString('irc', 'nickname', 'slftp');
+  if user = '' then
+    user := config.ReadString('irc', 'username', 'slftp');
+  if ident = '' then
+    ident := config.ReadString('irc', 'realname', 'slftp');
 
 
   sitesdat.WriteString('ircnet-' + nn, 'host', host);
@@ -5801,7 +5804,8 @@ begin
 
   ss := s.SetAffils(section, affils, True);
   if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', [section, sitename]), 12);
+    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+      [section, sitename]), 12);
   Result := True;
 end;
 
@@ -8053,8 +8057,8 @@ begin
     irc_addtext(Netname, Channel, 'Speedtesting %s -> %s  ->> %s',
       [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
-    t  := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p,
-      '', fsfilename, fsfilesize, 1);
+    t  := TPazoRaceTask.Create(Netname, Channel, firstsite.Name,
+      ps.Name, p, '', fsfilename, fsfilesize, 1);
     t.storfilename := speedtestfilename;
 
     tn.tasks.Add(t);
@@ -9125,10 +9129,10 @@ begin
     end;
     if ((voctime <> -99) and (vctime <> -99)) then
     begin
-      s  := format('[%d] %s', [voctime,
-        DateTimeAsString(UnixToDateTime(voctime))]) + #13#10;
-      ss := format('[%d] %s', [vctime,
-        DateTimeAsString(UnixToDateTime(vctime))]) + #13#10;
+      s  := format('[%d] %s', [voctime, DateTimeAsString(
+        UnixToDateTime(voctime))]) + #13#10;
+      ss := format('[%d] %s', [vctime, DateTimeAsString(
+        UnixToDateTime(vctime))]) + #13#10;
       s  := s + '' + DatetimetoStr(UnixToDateTime(voctime));
       ss := ss + '' + DatetimetoStr(UnixToDateTime(vctime));
     end
@@ -10962,7 +10966,7 @@ end;
 
 function IrcAddTVRagetoDB(const Netname, Channel: string; params: string): boolean;
 var
-  ss, response, uuurl, uurl, ssname, sname, sid: string;
+  tmpgen, ss, response, uuurl, uurl, ssname, sname, sid: string;
   tvr: TDbTVRage;
   x:   TRegExpr;
   sresMAXi, sresi, inn: integer;
@@ -11085,7 +11089,8 @@ begin
         { ###Read  ShowGenres  ### }
         x.Expression := '^Genres\@(.*?)$';
         if x.Exec(response) then
-          tvr.tv_genres.DelimitedText := x.Match[1];
+          tvr.tv_genres.DelimitedText := Csere(x.Match[1], '|', ',');
+
 
         { ###Read  ShowNetwork  ### }
         x.Expression := '^Network\@(.*?)$';
@@ -11204,9 +11209,10 @@ begin
 *)
 
   Count := UpperCase(SubString(params, ' ', 2));
-if count = '' then Count := '35';
+  if Count = '' then
+    Count := '35';
 
-  site  := FindSiteByName(Netname, sitename);
+  site := FindSiteByName(Netname, sitename);
 
 
   if site = nil then
@@ -11219,7 +11225,8 @@ if count = '' then Count := '35';
   if ((site.working = sstUnknown) or (site.working = sstDown)) then
   begin
     TSiteSlot(site.slots.Items[site.slots.Count - 1]).ReLogin();
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!',
+    irc_addtext(Netname, Channel,
+      'Site <b>%s</b> is offline do a bnctest.... hand a sec!',
       [sitename]);
   end;
 
@@ -11245,7 +11252,8 @@ if count = '' then Count := '35';
   except
     on E: Exception do
     begin
-      irc_addtext(Netname, Channel, '<c4>[Exception]</c> in IrcShowSiteNukes; %s', [E.Message]);
+      irc_addtext(Netname, Channel, '<c4>[Exception]</c> in IrcShowSiteNukes; %s',
+        [E.Message]);
       Result := False;
       Exit;
     end;
@@ -11275,7 +11283,8 @@ if count = '' then Count := '35';
   else
     repeat
       irc_addtext(Netname, Channel, '%s x%s for: %s (%sM) %s ago.',
-        [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]), Trim(r.Match[2]), Trim(r.Match[4])]);
+        [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]),
+        Trim(r.Match[2]), Trim(r.Match[4])]);
     until not r.ExecNext;
 
   r.Free;

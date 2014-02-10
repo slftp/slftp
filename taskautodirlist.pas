@@ -64,11 +64,14 @@ begin
   begin
     releasenametofind:= Copy(releasenametofind, 12, 1000);
   end;
- 
+
   i:= kb_list.IndexOf( 'REQUEST-'+site1+'-'+releasenametofind );
-  if i <> -1 then
-    exit;// already sending
- 
+  if i <> -1 then begin
+ irc_Addadmin('already sending');
+  exit;// already sending
+  end;
+
+
   s:= slot;
   x:= TStringList.Create;
   x.Text:= indexerQuery(releasenametofind);
@@ -83,17 +86,17 @@ begin
     sitename:= Fetch(ss,'-');
     if sitename = site1 then
     begin
-      // lolka fel van toltve helyben.
+      // lolka fel van toltve helyben.  -- Lolka is charged on site.
  
       ss:= x.Values[x.Names[i]];
       ss:= Csere(ss, '/', '_');
- 
+
       if not s.Cwd(maindir, True) then Break;
       if not s.Send('MKD Already_on_site_in_'+ss) then Break;
       if not s.Read('MKD Already_on_site_in_'+ss) then break;
       if not s.Send('SITE REQFILLED %s', [releasename]) then Break;
       if not s.Read('SITE REQFILLED') then break;
- 
+
       db:= 0;
       Break;
     end;
@@ -101,7 +104,7 @@ begin
     site:= FindSiteByName(netname, sitename);
     notdown:= ((site <> nil) and (site.working <> sstDown));
  
-    // most megnezzuk vezet a route
+    // most megnezzuk vezet a route    -- Now look at the route leads
     if ((notdown) and (0 < sitesdat.ReadInteger('speed-from-'+sitename, site1, 0))) then
     begin
       inc(db);
@@ -111,7 +114,7 @@ begin
   end;
   if db > 0 then
   begin
-    // jo, addolunk racetaskot dirlistekkel meg minden
+    // jo, addolunk racetaskot dirlistekkel meg minden   ~~ jo, addolunk racetaskot dirlistekkel all
     ss:= x.Names[0];
     Fetch(ss, '-');
  
@@ -157,7 +160,7 @@ var s: TSiteSlot;
  
   procedure UjraAddolas;
   begin
-    // megnezzuk, kell e meg a taszk
+    // megnezzuk, kell e meg a taszk -- We look at whether it should be the task
     i:= s.RCInteger('autodirlist', 0);
     if i > 0 then
     begin
@@ -181,7 +184,7 @@ begin
   s:= slot;
   debugunit.Debug(dpMessage, rsections, Name);
  
-  // megnezzuk, kell e meg a taszk
+  // megnezzuk, kell e meg a taszk -- We look at whether it should be the task
   if s.RCInteger('autodirlist', 0) = 0 then
   begin
     ready:= True;
@@ -189,10 +192,12 @@ begin
     exit;
   end;
 
+
   if s.site.working = sstDown then
   begin
     ujraaddolas();
     readyerror:= True;
+    irc_Addadmin('s.site.working = sstDown');
     exit;
   end;
 
@@ -202,6 +207,7 @@ begin
     begin
       ujraaddolas();
       readyerror:= True;
+      irc_Addadmin('s.status <> ssOnline');
       exit;
     end;
   end;
@@ -220,10 +226,11 @@ begin
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin
         readyerror:= True;
+            irc_Addadmin('daydir might have change');
         exit;
       end;
- 
-      // sikeres dirlist, fel kell dolgozni az elemeit
+
+      // dirlist successful, you must work with the elements
       dl:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
       try
         for j:= 0 to dl.entries.Count-1 do
@@ -298,14 +305,15 @@ irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, ty
   while(true)do
   begin
     if p.readyerror then begin
-        irc_addtext('','','readyWithError %s',[p.errorreason]);
+//        irc_addtext('','','readyWithError %s',[p.errorreason]);
+        irc_Addadmin('readyWithError %s',[p.errorreason]);
     Break;
     end;
 
     if p.ready then
     begin
-    irc_addtext('','','Request is ready?');
-      // kesz! mehet a reqfill.
+    irc_Addadmin('Request is ready?');
+      //Done! go to reqfill.
       rt:= TRawTask.Create('', '', TPazoSite(p.sites[0]).name, secdir, 'SITE REQFILLED '+rlsname);
       rt.startat:= IncSecond(now, config.ReadInteger(rsections, 'reqfill_delay', 60));
       try

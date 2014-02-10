@@ -2700,7 +2700,7 @@ begin
 
 if not ps.Complete then Continue;
 if not ps.error then Continue;
-if ps.status = rssAllowed then Continue;
+//if not ps.status = rssAllowed then Continue;
 
 
 if Precatcher_Sitehasachan(ps.name) then
@@ -2727,6 +2727,10 @@ if Precatcher_Sitehasachan(ps.name) then
              end;//for k := 0 to pss.destinations.Count - 1 do begin
              if sfound then break else continue;
           end;//for j:= 0 to p.sites.Count -1 do
+
+
+          if ps.name = pss.name then Exit;
+          if ((pss = nil) and (not pss.Complete)) then Exit;
 
 
         // ok, megvan minden.
