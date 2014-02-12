@@ -205,11 +205,11 @@ begin
 
   {###Read  ShowEnded  ###}
   x.Expression := '^Ended\@\w+\/(\d{4})$';
-  cur_running  := False;
+  cur_running  := True;
   cur_endyear  := -1;
   if x.Exec(response) then
   begin
-    cur_running := True;
+    cur_running := False;
     cur_endyear := strtointdef(x.Match[1], -1);
   end;
 
@@ -223,6 +223,7 @@ begin
   if x.Exec(response) then
     cur_status := x.Match[1];
 
+    if ((cur_status = 'Ended') or (cur_status = 'Canceled/Ended')) then cur_running := False;
 
   {###Read  ShowClassification  ###}
   x.Expression := '^Classification\@(.*?)$';
