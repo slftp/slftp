@@ -11069,7 +11069,17 @@ begin
 
         { ###Read  ShowEnded  ### }
         x.Expression   := '^Ended\@[^\w^\d]*?$';
-        tvr.tv_running := x.Exec(response);
+        tvr.tv_running := True;
+
+  {###Read  ShowEnded  ###}
+  x.Expression := '^Ended\@\w+\/(\d{4})$';
+    tvr.tv_running := True;
+    tvr.tv_endedyear:= -1;
+  if x.Exec(response) then
+  begin
+    tvr.tv_running := False;
+    tvr.tv_endedyear:= strtointdef(x.Match[1], -1);
+  end;
 
         { ###Read  ShowCountry  ### }
         x.Expression := '^Country\@(.*?)$';
@@ -11080,6 +11090,9 @@ begin
         x.Expression := '^Status\@(.*?)$';
         if x.Exec(response) then
           tvr.tv_status := x.Match[1];
+
+        if ((tvr.tv_status = 'Ended') or (tvr.tv_status = 'Canceled/Ended')) then
+          tvr.tv_running:= False;
 
         { ###Read  ShowClassification  ### }
         x.Expression := '^Classification\@(.*?)$';
