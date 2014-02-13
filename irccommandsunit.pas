@@ -232,6 +232,10 @@ function IrcTweak(const netname, channel: string; params: string): boolean;
 
 ///  plz be cool and let it in! add a own section for your mods thx!
 
+
+function IrcCatchMod(const netname, channel: string; params: string): boolean;
+
+
 function IrcShowAllRules(const netname, channel: string; params: string): boolean;
 function IrcKillAll(const netname, channel: string; params: string): boolean;
 function IrcNetNoSocks5(const netname, channel: string; params: string): boolean;
@@ -343,7 +347,7 @@ procedure IrcCommandUninit;
 
 const
 
-  irccommands: array[1..238] of TIrcCommand = (
+  irccommands: array[1..239] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -620,6 +624,11 @@ const
     //        (cmd: 'restart'; hnd: IrcMain_Restart; minparams: 0; maxparams: 0; hlpgrp:''),
     (cmd: '- :: dOH MODz :: -'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '@!?'),
+
+    (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7;
+    maxparams: 8; hlpgrp: 'doh'),
+
+
 
     (cmd: 'testlanguagebase'; hnd: IrcTestLanguageBase; minparams: 1;
     maxparams: 1; hlpgrp: 'doh'),
@@ -11071,15 +11080,15 @@ begin
         x.Expression   := '^Ended\@[^\w^\d]*?$';
         tvr.tv_running := True;
 
-  {###Read  ShowEnded  ###}
-  x.Expression := '^Ended\@\w+\/(\d{4})$';
-    tvr.tv_running := True;
-    tvr.tv_endedyear:= -1;
-  if x.Exec(response) then
-  begin
-    tvr.tv_running := False;
-    tvr.tv_endedyear:= strtointdef(x.Match[1], -1);
-  end;
+        {###Read  ShowEnded  ###}
+        x.Expression     := '^Ended\@\w+\/(\d{4})$';
+        tvr.tv_running   := True;
+        tvr.tv_endedyear := -1;
+        if x.Exec(response) then
+        begin
+          tvr.tv_running   := False;
+          tvr.tv_endedyear := strtointdef(x.Match[1], -1);
+        end;
 
         { ###Read  ShowCountry  ### }
         x.Expression := '^Country\@(.*?)$';
@@ -11092,7 +11101,7 @@ begin
           tvr.tv_status := x.Match[1];
 
         if ((tvr.tv_status = 'Ended') or (tvr.tv_status = 'Canceled/Ended')) then
-          tvr.tv_running:= False;
+          tvr.tv_running := False;
 
         { ###Read  ShowClassification  ### }
         x.Expression := '^Classification\@(.*?)$';
@@ -11303,6 +11312,144 @@ begin
   r.Free;
   Result := True;
 end;
+
+
+
+function IrcCatchMod(const netname, channel: string; params: string): boolean;
+var
+  index, sitename, nn, channelname, botnicks, event, words, section: string;
+begin
+  Result  := False;
+  index   := UpperCase(SubString(params, ' ', 1));
+  sitename := UpperCase(SubString(params, ' ', 2));
+  nn      := UpperCase(SubString(params, ' ', 3));
+  channelname := SubString(params, ' ', 4);
+  botnicks := SubString(params, ' ', 5);
+  event   := UpperCase(SubString(params, ' ', 6));
+  words   := SubString(params, ' ', 7);
+  section := SubString(params, ' ', 8);
+
+
+  if ((index = '') or (StrToIntDef(index, -1) = -1)) then
+  begin
+    irc_addtext(Netname, Channel, 'Syntax error, index: ' + index);
+    Exit;
+  end;
+
+  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
+    (event <> 'NUKE') and (event <> 'REQUEST')) then
+  begin
+    irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
+    exit;
+  end;
+
+  if nil = FindSiteByName(Netname, sitename) then
+  begin
+    irc_addtext(Netname, Channel, 'Site not found');
+    exit;
+  end;
+
+  if nil = FindIrcBlowfish(nn, channelname, False) then
+  begin
+    irc_addtext(Netname, Channel, 'Channel not found.');
+    exit;
+  end;
+  try
+    catcherFile.Delete(StrToInt(index));
+  except
+    on E: Exception do
+    begin
+      irc_AddAdmin(format('<c4>[Exception]</c> in IrcCatchMod.catcherFile.Delete: %s',
+        [E.Message]));
+      Exit;
+    end;
+  end;
+
+  try
+    catcherfile.Insert(StrToInt(index), format('%s;%s;%s;%s;%s;%s;%s',
+      [nn, channelname, botnicks, sitename, event, words, section]));
+  except
+    on E: Exception do
+    begin
+      irc_AddAdmin(format('<c4>[Exception]</c> in IrcCatchMod.catcherfile.Insert: %s',
+        [E.Message]));
+      Exit;
+    end;
+  end;
+  Result := True;
+end;
+
+
+
+{
+
+
+function IrcPreadd(const Netname, Channel: string; params: string): boolean;
+var
+  sitename, nn, channelname, botnicks, event, words, section: string;
+begin
+  Result  := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  nn      := UpperCase(SubString(params, ' ', 2));
+  channelname := SubString(params, ' ', 3);
+  botnicks := SubString(params, ' ', 4);
+  event   := UpperCase(SubString(params, ' ', 5));
+  words   := SubString(params, ' ', 6);
+  section := SubString(params, ' ', 7);
+  (*
+    if event = '-' then event:= '';
+    if words = '-' then words:= '';
+    if section = '-' then section:= '';
+  *)
+
+  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
+    (event <> 'NUKE') and (event <> 'REQUEST')) then
+  begin
+    irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
+    exit;
+  end;
+
+
+  if nil = FindSiteByName(Netname, sitename) then
+  begin
+    irc_addtext(Netname, Channel, 'Site not found');
+    exit;
+  end;
+
+  if nil = FindIrcBlowfish(nn, channelname, False) then
+  begin
+    irc_addtext(Netname, Channel, 'Channel not found.');
+    exit;
+  end;
+
+  catcherFile.Add(format('%s;%s;%s;%s;%s;%s;%s', [nn, channelname,
+    botnicks, sitename, event, words, section]));
+  PrecatcherRebuild;
+  Result := True;
+end;
+
+function IrcPredel(const Netname, Channel: string; params: string): boolean;
+var
+  i: integer;
+begin
+  Result := False;
+  i      := StrToIntDef(params, -1);
+  if i < 0 then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    exit;
+  end;
+  if catcherFile.Count > i then
+    catcherFile.Delete(i);
+  PrecatcherRebuild();
+  Result := True;
+end;
+
+
+}
+
+
+
 
 /// dOH mODz  eNDz
 
