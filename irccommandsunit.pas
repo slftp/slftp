@@ -11376,80 +11376,21 @@ begin
       Exit;
     end;
   end;
+
+  try
+    PrecatcherRebuild();
+  except
+    on E: Exception do
+    begin
+      irc_AddAdmin(format('<c4>[Exception]</c> in IrcCatchMod.catcherfile.Insert: %s',
+        [E.Message]));
+      Exit;
+
+    end;
+  end;
+
   Result := True;
 end;
-
-
-
-{
-
-
-function IrcPreadd(const Netname, Channel: string; params: string): boolean;
-var
-  sitename, nn, channelname, botnicks, event, words, section: string;
-begin
-  Result  := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  nn      := UpperCase(SubString(params, ' ', 2));
-  channelname := SubString(params, ' ', 3);
-  botnicks := SubString(params, ' ', 4);
-  event   := UpperCase(SubString(params, ' ', 5));
-  words   := SubString(params, ' ', 6);
-  section := SubString(params, ' ', 7);
-  (*
-    if event = '-' then event:= '';
-    if words = '-' then words:= '';
-    if section = '-' then section:= '';
-  *)
-
-  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
-    (event <> 'NUKE') and (event <> 'REQUEST')) then
-  begin
-    irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
-    exit;
-  end;
-
-
-  if nil = FindSiteByName(Netname, sitename) then
-  begin
-    irc_addtext(Netname, Channel, 'Site not found');
-    exit;
-  end;
-
-  if nil = FindIrcBlowfish(nn, channelname, False) then
-  begin
-    irc_addtext(Netname, Channel, 'Channel not found.');
-    exit;
-  end;
-
-  catcherFile.Add(format('%s;%s;%s;%s;%s;%s;%s', [nn, channelname,
-    botnicks, sitename, event, words, section]));
-  PrecatcherRebuild;
-  Result := True;
-end;
-
-function IrcPredel(const Netname, Channel: string; params: string): boolean;
-var
-  i: integer;
-begin
-  Result := False;
-  i      := StrToIntDef(params, -1);
-  if i < 0 then
-  begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-    exit;
-  end;
-  if catcherFile.Count > i then
-    catcherFile.Delete(i);
-  PrecatcherRebuild();
-  Result := True;
-end;
-
-
-}
-
-
-
 
 /// dOH mODz  eNDz
 
