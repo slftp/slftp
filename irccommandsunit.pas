@@ -329,7 +329,7 @@ function IrcShowSiteNukes(const netname, channel: string; params: string): boole
 function IrcDWherePred(const netname, channel: string; params: string): boolean;
 function IrcDelPart(const netname, channel: string; params: string): boolean;
 function IrcFakeReload(const netname, channel: string; params: string): boolean;
-function Irclistaffils(const netname, channel: string; params: string): boolean;
+
 function IrcSetPretime(const netname, channel: string; params: string): boolean;
 function IrcAnnounceTVRageInfo(const netname, channel: string; params: string): boolean;
 function IrcRebuildSlot(const netname, channel: string; params: string): boolean;
@@ -347,7 +347,7 @@ procedure IrcCommandUninit;
 
 const
 
-  irccommands: array[1..239] of TIrcCommand = (
+  irccommands: array[1..238] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -591,7 +591,7 @@ const
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: -1; hlpgrp: ''),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: -1; hlpgrp: ''),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 2; maxparams: -1; hlpgrp: ''),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: -1; hlpgrp: ''),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: -1; hlpgrp: ''),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: -1; hlpgrp: ''),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: ''),
@@ -650,7 +650,6 @@ const
     (cmd: 'config'; hnd: IrcSLFTPConfig; minparams: 0; maxparams: 3; hlpgrp: 'doh'),
     //        (cmd: 'wherepred'; hnd:IrcDWherePred; minparams: 2; maxparams: 2; hlpgrp:'doh'),
     (cmd: 'ircchanpart'; hnd: IrcDelPart; minparams: 2; maxparams: 2; hlpgrp: 'doh'),
-    (cmd: 'listaffils'; hnd: Irclistaffils; minparams: 1; maxparams: 1; hlpgrp: 'doh'),
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1;
     maxparams: -1; hlpgrp: '@doh_irc'),
     (cmd: '- IRCBouncers -'; hnd: IrcNope; minparams: 0; maxparams: 0;
@@ -5794,28 +5793,65 @@ end;
 
 function IrcAffils(const Netname, Channel: string; params: string): boolean;
 var
-  ss, sitename, affils, section: string;
+  sss, ss, sitename, affils, section: string;
   s: TSite;
   y: TStringList;
   i: integer;
+
 begin
   Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
   affils   := RightStrV2(params, length(sitename) + length(section) + 2);
 
+  if kb_sections.IndexOf(sitename) > -1 then
+  begin
+  section:=sitename;
+    for i := 0 to sites.Count - 1 do
+    begin
+      ss := '';
+      ss := TSite(sites.Items[i]).SetAffils(section, '');
+      if ss <> '' then
+        irc_addtext(Netname, Channel, '<b>%s</b> : <c7><b>%s</b></c>',
+          [TSite(sites.Items[i]).Name, ss]);
+    end;
+    Result := True;
+    Exit;
+  end;
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, '<ERROR -> Site %s not found.', [sitename]);
+    irc_addtext(Netname, Channel, '<b>ERROR</b> -> Site %s not found.', [sitename]);
     exit;
   end;
 
-  ss := s.SetAffils(section, affils, True);
+  if section = '' then
+  begin
+    y := TStringList.Create;
+    try
+      y.Delimiter:=' ';
+      y.DelimitedText:=s.sections;
+
+      for I := 0 to y.Count - 1 do begin
+ ss:='';
+ ss := s.SetAffils(y.strings[i],'');
   if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-      [section, sitename]), 12);
-  Result := True;
+      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+        [y.strings[i], sitename]), 12);
+      end;
+    finally
+      y.Free;
+    end;
+  end
+  else
+  begin
+    ss := s.SetAffils(section, affils, True);
+    if ss <> '' then
+      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+        [section, sitename]), 12);
+  end;
+    Result := True;  
 end;
 
 
@@ -10133,35 +10169,6 @@ begin
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
       [blowchannel, nn]));
   Result := True;
-end;
-
-function Irclistaffils(const Netname, Channel: string; params: string): boolean;
-var
-  i: integer;
-  s, section: string;
-begin
-  Result  := False;
-  section := UpperCase(SubString(params, ' ', 1));
-
-  if kb_sections.IndexOf(section) = -1 then
-  begin
-    irc_addtext(Netname, Channel, '<b>%s</b> is no vaied Section.', [section]);
-    Result := True;
-    exit;
-  end;
-
-  try
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := '';
-      s := TSite(sites.Items[i]).SetAffils(section, '');
-      if s <> '' then
-        irc_addtext(Netname, Channel, '<b>%s</b> : <c7><b>%s</b></c>',
-          [TSite(sites.Items[i]).Name, s]);
-    end;
-  finally
-    Result := True;
-  end;
 end;
 
 function IrcDWherePred(const Netname, Channel: string; params: string): boolean;
