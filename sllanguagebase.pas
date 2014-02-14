@@ -185,10 +185,11 @@ end;
 {SLLanguages Common Utils}
 
 procedure SLLanguages_Init;
-var i: Integer; y: TStringList;
+var i: Integer; x,y: TStringList;
 begin
 Debug(dpSpam, rsections, 'Loading Language Base....');
 sllanguages:= TObjectList.Create;
+//should we rename this file to slftp.languagebase ?
 y:= TStringList.Create;
 y.LoadFromFile(ExtractFilePath(ParamStr(0))+'languagebase.slftp');
 for I := 0 to y.Count - 1 do begin
@@ -198,32 +199,6 @@ if ((y.Strings[i][1] = '[') and (y.Strings[i][length(y.Strings[i])] = ']')) then
 sllanguages.Add(TSLLanguages.create('languages',SubString(y.Strings[i],'=',1),SubString(y.Strings[i],'=',2),i));
 end;
 
-
-
-(*
-  Debug(dpSpam, rsections, 'Loading Language Base....');
-  sllanguages:= TObjectList.Create;
-  slmp3languages:= TObjectList.Create;
-  sllanguagefile:= TIniFile.Create(ExtractFilePath(ParamStr(0))+'languagebase.slftp');
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('languages', x[i], '');
-    sllanguages.Add(TSLLanguages.create('languages', x[i],s,i));
-  end;
-  x.Free;
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('mp3languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('mp3languages', x[i], '');
-    slmp3languages.Add(TSLLanguages.create('mp3languages', x[i],s,i));
-  end;
-
-  *)
   y.free;
   
   Debug(dpSpam, rsections, 'Done! '+inttostr(sllanguages.Count));
