@@ -97,8 +97,6 @@ type
     function GetPermDownStatus:boolean;
     procedure SetPermDownStatus(value:boolean);
 
-
-
     function Software: TSiteSW;
 
     procedure SetWorking(value: TSiteStatus);
@@ -2047,7 +2045,7 @@ begin
   x.Free;
 end;
 
-function TSite.SetAffils(section, affils: string; remove: Boolean): string;
+function TSite.SetAffils(section, affils: string; remove: Boolean = False): string;
 var x: TStringList;
     ss: string;
     i: Integer;
