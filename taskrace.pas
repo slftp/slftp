@@ -1404,18 +1404,18 @@ brokentransfer:
       if (fs > 0) and (time_race > 0) then
       begin
 
-      racebw:= fs * 1000 / time_race / 1024 / 1024;
-      fsize:= fs / 1024 / 1024;
+      racebw:= fs * 1000 / time_race / 1024;// / 1024;
+      fsize:= fs / 1024 ;
 
 
       if ((filesize > 1024) and (racebw > 1024)) then
-      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize, racebw]);
+      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024]);
 
       if ((filesize > 1024) and (racebw < 1024)) then
-      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize, racebw]);
+      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
 
       if ((filesize < 1024) and (racebw > 1024)) then
-      speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw]);
+      speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024]);
 
       if ((filesize < 1024) and (racebw < 1024)) then
       speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
@@ -1426,6 +1426,12 @@ brokentransfer:
         else
           speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fs / 1024, fs * 1000 / time_race / 1024]);
 *)
+
+//back to megabyte
+      racebw:= fs * 1000 / time_race / 1024 / 1024;
+      fsize:= fs / 1024 / 1024;
+
+
       end;
       irc_SendRACESTATS(tname+' '+speed_stat);
       //irc_addtext('CONSOLE', 'Trades', tname);
