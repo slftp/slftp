@@ -804,6 +804,7 @@ var ssrc, sdst: TSiteSlot;
     rrgx: TRegExpr;
     lastResponseCode: Integer;
     lastResponse: String;
+ fsize,  racebw:double;
 begin
   Result:= False;
   ssrc:= slot1;
@@ -1372,7 +1373,7 @@ brokentransfer:
     exit;
   end;
 
-  ps2.ParseDupe(netname, channel, dir, filename, byme); // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal
+  ps2.ParseDupe(netname, channel, dir, filename, byme); // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
 
   if (byme and (time_race > 0)) then
   begin
@@ -1393,6 +1394,7 @@ brokentransfer:
   // echo race info
   try
     rrgx:=TRegExpr.Create;
+    try
     rrgx.ModifierI:=True;
     rrgx.Expression:=config.ReadString('dirlist', 'useful_skip', '\.nfo|\.sfv|\.m3u|\.cue|\.jpg|\.jpeg|\.gif|\.png|\.avi|\.mkv|\.vob|\.mp4|\.wmv');
     if not rrgx.Exec(filename) then
@@ -1401,10 +1403,29 @@ brokentransfer:
       fs:= mainpazo.PFileSize(dir, filename);
       if (fs > 0) and (time_race > 0) then
       begin
+
+      racebw:= fs * 1000 / time_race / 1024 / 1024;
+      fsize:= fs / 1024 / 1024;
+
+
+      if ((filesize > 1024) and (racebw > 1024)) then
+      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize, racebw]);
+
+      if ((filesize > 1024) and (racebw < 1024)) then
+      speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize, racebw]);
+
+      if ((filesize < 1024) and (racebw > 1024)) then
+      speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw]);
+
+      if ((filesize < 1024) and (racebw < 1024)) then
+      speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+
+(*
         if filesize > 1024 then
           speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fs / 1024 / 1024, fs * 1000 / time_race / 1024 / 1024])
         else
           speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fs / 1024, fs * 1000 / time_race / 1024]);
+*)
       end;
       irc_SendRACESTATS(tname+' '+speed_stat);
       //irc_addtext('CONSOLE', 'Trades', tname);
@@ -1412,7 +1433,9 @@ brokentransfer:
       // add stats
       statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, IntToStr(filesize));
     end;
-    rrgx.Free;
+    finally
+ rrgx.Free;
+    end;
   except
     on e: Exception do
     begin
