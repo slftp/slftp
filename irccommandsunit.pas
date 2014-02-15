@@ -3839,35 +3839,6 @@ end;
   end;
 *)
 
-(* over stinglist to get the count easy :) up.count+1
-
-  procedure SitesC(const netname, channel: string);
-  var up, down, unk: Tstringlist;
-  i: Integer;
-  s: TSite;
-  begin
-  up:= Tstringlist.Create;
-  down:= Tstringlist.Create;
-  unk:= Tstringlist.Create;
-  for i:= 0 to sites.Count -1 do
-  begin
-  s:= TSite(sites[i]);
-  if ((netname <> 'CONSOLE') and (netname <> '') and (s.noannounce)) then Continue;
-  case s.working of
-  sstUp: begin if up <> '' then up:= up+', '; up:= up + '<b>'+s.name+'</b>' end;
-  sstDown: begin if down <> '' then down:= down+', '; down:= down + '<b>'+s.name+'</b>' end;
-  sstUnknown: begin if unk <> '' then unk:= unk+', '; unk:= unk + '<b>'+s.name+'</b>' end;
-  end;
-  end;
-
-  if up <> '' then
-  irc_addtext(netname, channel, 'UP: '+up);
-  if down <> '' then
-  irc_addtext(netname, channel, 'DN: '+down);
-  if unk <> '' then
-  irc_addtext(netname, channel, '??: '+unk);
-  end;
-*)
 
 procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
   out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
