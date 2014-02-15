@@ -1546,6 +1546,8 @@ begin
   unknown:= 0;
   for i:= 0 to sites.Count -1 do
   begin
+if TSite(sites[i]).name = 'SLFTP' then continue;
+
     case TSite(sites[i]).working of
       sstUnknown: inc(unknown);
       sstUp: inc(upsites);

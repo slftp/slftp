@@ -5478,131 +5478,29 @@ end;
 function IrcSites(const Netname, Channel: string; params: string): boolean;
 var
   spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
+  scount:integer;
 begin
   Result := False;
+scount:= sites.Count - 2;
   sup    := TStringList.Create;
   spd    := TStringList.Create;
   sdn    := TStringList.Create;
   suk    := TStringList.Create;
   SitesD(Netname, Channel, sup, sdn, suk, spd);
 
-  (*
-    ii:=1;
-    s:='';
-
-
-    for I := 0 to sup.Count - 1 do begin
-    if ii > 9 then begin
-    s:=s+#13#10+'UP('+inttostr(sup.count)+'/'+inttostr(sites.Count)+'): ';
-    ii:=1;
-    end;
-    s:=s+sup.Strings[i]+', ';
-    inc(ii);
-    end;
-    Delete(s,length(s)-1,2);
-    if sup.Text <> '' then
-    begin
-    s:='UP('+inttostr(sup.count)+'/'+inttostr(sites.Count)+'): '+s;
-    for i:= 1 to 1000 do
-    begin
-    ss:= SubString(s, #13#10, i);
-    if ss = '' then break;
-    irc_addtext(netname, channel, '%s', [ss]);
-    end;
-    end;
-
-    ii:=1;
-    s:='';
-    for I := 0 to sdn.Count - 1 do begin
-    if ii > 9 then begin
-    s:=s+#13#10+'DN('+inttostr(sdn.count)+'/'+inttostr(sites.Count)+'): ';
-
-    ii:=1;
-    end;
-    s:=s+sdn.Strings[i]+', ';
-    inc(ii);
-    end;
-    Delete(s,length(s)-1,2);
-    if sdn.Text <> '' then
-    begin
-
-    s:='DN('+inttostr(sdn.count)+'/'+inttostr(sites.Count)+'): '+s;
-    for i:= 1 to 1000 do
-    begin
-    ss:= SubString(s, #13#10, i);
-    if ss = '' then break;
-    irc_addtext(netname, channel, '%s', [ss]);
-    end;
-    end;
-
-    ii:=1;
-    s:='';
-    for I := 0 to suk.Count - 1 do begin
-    if ii > 9 then begin
-    s:=s+#13#10+'??('+inttostr(suk.count)+'/'+inttostr(sites.Count)+'): ';
-    ii:=1;
-    end;
-    s:=s+suk.Strings[i]+', ';
-    inc(ii);
-    end;
-    Delete(s,length(s)-1,2);
-    if suk.Text <> '' then
-    begin
-    s:='??('+inttostr(suk.count)+'/'+inttostr(sites.Count)+'): '+s;
-    for i:= 1 to 1000 do
-    begin
-    ss:= SubString(s, #13#10, i);
-    if ss = '' then break;
-    irc_addtext(netname, channel, '%s', [ss]);
-    end;
-    end;
-
-    ii:=1;
-    s:='';
-    for I := 0 to spd.Count - 1 do begin
-    if ii > 9 then begin
-    s:=s+#13#10+'PD('+inttostr(spd.count)+'/'+inttostr(sites.Count)+'): ';
-    ii:=1;
-    end;
-    s:=s+spd.Strings[i]+', ';
-    inc(ii);
-    end;
-    Delete(s,length(s)-1,2);
-    if spd.Text <> '' then
-    begin
-    s:='PD('+inttostr(spd.count)+'/'+inttostr(sites.Count)+'): '+s;
-    for i:= 1 to 1000 do
-    begin
-    ss:= SubString(s, #13#10, i);
-    if ss = '' then break;
-    irc_addtext(netname, channel, '%s', [ss]);
-    end;
-    end;
-
-  *)
-  // remove one from the count, SLFTP is no real site so its shopuld not listed in the count :)
   IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
-    'UP(' + IntToStr(sup.Count) + '/' + IntToStr(sites.Count - 1) + '): ');
+    'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
   IrcLineBreak(Netname, Channel, sdn.commatext, char('"'),
-    'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(sites.Count - 1) + '): ');
+    'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
   IrcLineBreak(Netname, Channel, suk.commatext, char('"'),
-    '??(' + IntToStr(suk.Count) + '/' + IntToStr(sites.Count - 1) + '): ');
+    '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
   IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
-    'PD(' + IntToStr(spd.Count) + '/' + IntToStr(sites.Count - 1) + '): ');
-
-
-  // irc_addtext(netname, channel, '##: %d UP:%d DN:%d ??:%d ',[sites.Count,sup.Count,sdn.Count,suk.Count]);
+    'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
 
   sup.Free;
   sdn.Free;
   suk.Free;
   spd.Free;
-  (*
-    if ((params = '-new') or (params = '-n') or (params = '--n')) then
-    Sitesc(netname, channel)
-    else
-    Sitesb(netname, channel);
-  *)
   Result := True;
 end;
 
