@@ -385,19 +385,6 @@ begin
 
 if event <> 'REQUEST' then begin
 
-
-    for i:= 0 to ignorelista.Count -1 do
-    begin
-      if AnsiContainsText(s, ignorelista[i]) then
-      begin
-        MyDebug('Nukeword '+ignorelista[i]+' found in '+rls);
-        Debug(dpSpam, rsections, 'Nukeword '+ignorelista[i]+' found in '+rls);
-        skiprlses.Add(rls);
-        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
-        exit;
-      end;
-    end;
-
     if CheckForBadAssGroup(rls) then
     begin
       MyDebug('<c4>[Bad Group]</c> detected!: '+rls);
@@ -538,6 +525,19 @@ begin
   except
     exit;
   end;
+
+    for i:= 0 to ignorelista.Count -1 do
+    begin
+      if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
+      begin
+        MyDebug('Nukeword '+ignorelista[i]+' found in '+rls);
+        Debug(dpSpam, rsections, 'Nukeword '+ignorelista[i]+' found in '+rls);
+        skiprlses.Add(rls);
+        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
+        exit;
+      end;
+    end;
+
 
     s:= Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
 
