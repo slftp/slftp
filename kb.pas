@@ -2926,10 +2926,9 @@ begin
     ps := TPazoSite(p.sites[i]);
 
 
-    if not ps.Complete then
-      Continue;
-    if not ps.error then
-      Continue;
+    if ps.Complete then Continue; // Release is allready filled and complete!
+    if ps.error then Continue; //There is some error we need to check in later revs!
+
     //if not ps.status = rssAllowed then Continue;
 
 
