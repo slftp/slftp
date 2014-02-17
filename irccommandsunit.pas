@@ -1,4 +1,4 @@
-unit irccommandsunit;
+ï»¿unit irccommandsunit;
 
 interface
 
@@ -723,7 +723,8 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile,
   ircblowfish, precatcher, rulesunit, mainthread, taskspeedtest, taskfilesize,
   statsunit, skiplists, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake,
-  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbaddtvrage, globalskipunit;
+  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbaddtvrage,
+  globalskipunit, xmlwrapper;
 
 const
   section = 'irccommands';
@@ -5449,10 +5450,10 @@ end;
 function IrcSites(const Netname, Channel: string; params: string): boolean;
 var
   spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
-  scount:integer;
+  scount: integer;
 begin
   Result := False;
-scount:= sites.Count - 2;
+  scount := sites.Count - 2;
   sup    := TStringList.Create;
   spd    := TStringList.Create;
   sdn    := TStringList.Create;
@@ -5495,10 +5496,10 @@ begin
   x := TStringList.Create;
 
   irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
-  irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s',
+  irc_addtext(Netname, Channel, ' name/speed/location/size:Â %s / %s / %s / %s',
     [s.RCString('name', ''), s.RCString('link', ''), s.RCString('country', ''),
     s.RCString('size', '')]);
-  irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
+  irc_addtext(Netname, Channel, ' sections:Â %s', [s.sections]);
 
   sitesdat.ReadSection('site-' + sitename, x);
   x.Sort;
@@ -5512,10 +5513,10 @@ begin
   end;
 
   x.DelimitedText := s.leechers;
-  irc_addtext(Netname, Channel, ' leechers (%d/%d): %s',
+  irc_addtext(Netname, Channel, ' leechers (%d/%d):Â %s',
     [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
   x.DelimitedText := s.traders;
-  irc_addtext(Netname, Channel, ' traders (%d/%d): %s',
+  irc_addtext(Netname, Channel, ' traders (%d/%d):Â %s',
     [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
 
   if s.RCString('notes', '') <> '' then
@@ -5675,7 +5676,7 @@ begin
 
   if kb_sections.IndexOf(sitename) > -1 then
   begin
-  section:=sitename;
+    section := sitename;
     for i := 0 to sites.Count - 1 do
     begin
       ss := '';
@@ -5699,15 +5700,16 @@ begin
   begin
     y := TStringList.Create;
     try
-      y.Delimiter:=' ';
-      y.DelimitedText:=s.sections;
+      y.Delimiter     := ' ';
+      y.DelimitedText := s.sections;
 
-      for I := 0 to y.Count - 1 do begin
- ss:='';
- ss := s.SetAffils(y.strings[i],'');
-  if ss <> '' then
-      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-        [y.strings[i], sitename]), 12);
+      for I := 0 to y.Count - 1 do
+      begin
+        ss := '';
+        ss := s.SetAffils(y.strings[i], '');
+        if ss <> '' then
+          IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+            [y.strings[i], sitename]), 12);
       end;
     finally
       y.Free;
@@ -5720,7 +5722,7 @@ begin
       IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
         [section, sitename]), 12);
   end;
-    Result := True;  
+  Result := True;
 end;
 
 
@@ -10854,8 +10856,9 @@ var
   tmpgen, ss, response, uuurl, uurl, ssname, sname, sid: string;
   tvr: TDbTVRage;
   x:   TRegExpr;
-  sresMAXi, sresi, inn: integer;
-  y:   TStringList;
+  gc, i, sresMAXi, sresi, inn: integer;
+  xml: TSLXMLDocument;
+  nnn, nn, n: TSLXMLNode;
 begin
   Result := False;
   sid    := UpperCase(SubString(params, ' ', 1));
@@ -10869,69 +10872,114 @@ begin
 
     sid := '';
     sresi := 0;
-    sresMAXi := 5;
+    sresMAXi := strtointdef(config.ReadString(
+      'tasktvrage', 'max_sid_lookup_results', '5'), 5);
     // strtointdef(config.ReadString('tasktvrage','max_sid_lookup_results','5'),5);
     x := TRegExpr.Create;
-    y := TStringList.Create;
-    x.ModifierI := True;
-    x.ModifierM := True;
-
-    x.Expression := '\s\-c\:(\d+)';
-    // \s is importent for the right announce later...
-
-    if x.Exec(params) then
-      sresMAXi := StrToIntDef(x.Match[1], 5);
-    sname := x.Replace(params, '');
-
-    x.Expression := '(\s|\_|\.)';
-    ssname := x.Replace(sname, '+');
-
-    uurl := 'show=' + ssname;
-
-    response := slUrlGet('http://services.tvrage.com/feeds/search.php', uurl);
-
-    if response = '' then
-      irc_addtext(Netname, Channel, 'Search response is empty.');
-
-    x.Expression :=
-      '<show>.*?<showid>(.*?)<\/showid>.*?<name>(.*?)<\/name>.*?<link>(.*?)<\/link>.*?<\/show>';
-
-    if x.Exec(response) then
-    begin
-      repeat
-        Inc(sresi);
-        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvrageinfo %s %s',
-          [x.Match[2], x.Match[3], irccmdprefix, x.Match[1], sname]);
-        // y.Add(Format('<b>%s</b>: %s -- %saddtvrageinfo %s %s',[x.Match[2],x.Match[3],irccmdprefix,x.Match[1],sname]));
-        // y.Values[x.Match[2]:=Format('<b>%s</b>: %s -- %saddtvrageinfo %s %s',[x.Match[2],x.Match[3],irccmdprefix,x.Match[1],sname]);
-        if sresi >= sresMAXi then
-          break;
-      until not x.ExecNext;
-    end
-    else
-    begin
-      irc_addtext(Netname, Channel, 'No Results found.');
-      y.Free;
+    try
+      x.ModifierI  := True;
+      x.ModifierM  := True;
+      x.Expression := '\s\-c\:(\d+)';
+      // \s is importent for the right announce later...
+      if x.Exec(params) then
+        sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
+      sname := x.Replace(params, '');
+      x.Expression := '(\s|\_|\.)';
+      ssname := x.Replace(sname, '+');
+      uurl   := 'http://services.tvrage.com/feeds/search.php?show=' + ssname;
+    finally
       x.Free;
-      Result := True;
-      exit;
     end;
 
-    x.Free;
-    y.Free;
+    xml := TSLXMLDocument.Create;
+    try
+      xml.LoadFromWeb(uurl);
+      n  := xml.GetDocumentElement;
+      for i := 0 to xml.GetChildNodeCount(n) - 1 do
+      begin
+        nn := xml.GetChildNodeItem(n, i);
+        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvrageinfo %s %s',
+          [xml.GetNodeValue(xml.FindChildNode(nn, 'name')), xml.GetNodeValue(
+          xml.FindChildNode(nn, 'link')), irccmdprefix, xml.GetNodeValue(
+          xml.FindChildNode(nn, 'showid')), sname]);
+        if i-1 >= sresMAXi then
+          break;
+      end;
+    finally
+      xml.Free;
+    end;
   end
   else
   begin // if inn = -1 then begin
 
     tvr := TDbTVRage.Create(sname);
-    uurl := 'sid=' + sid;
-    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
+    //    uurl := 'sid=' + sid;
+    //        response := slUrlGet('http://services.tvrage.com/feeds/showinfo.php', uurl);
+    //    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
+    xml := TSLXMLDocument.Create;
+    try
+      try
+        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
+        n := xml.GetDocumentElement;
+
+        nn := xml.FindChildNode(n, 'showid');
+        tvr.tv_showid := xml.GetNodeValue(nn);
+
+        nn := xml.FindChildNode(n, 'showname');
+        tvr.tv_showname := xml.GetNodeValue(nn);
+
+        nn := xml.FindChildNode(n, 'showlink');
+        tvr.tv_showurl := xml.GetNodeValue(nn);
+
+        nn := xml.FindChildNode(n, 'started');
+        tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1);
+
+        nn := xml.FindChildNode(n, 'status');
+        tvr.tv_status := xml.GetNodeValue(nn);
+        if ((Uppercase(tvr.tv_status) = 'ENDED') or (Uppercase(tvr.tv_status) =
+          'CANCELED/ENDED')) then
+          tvr.tv_running := False
+        else
+          tvr.tv_running := True;
+
+        nn := xml.FindChildNode(n, 'classification');
+        tvr.tv_classification := xml.GetNodeValue(nn);
+
+        nn := xml.FindChildNode(n, 'runtime');
+        tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
+
+//        nn := xml.FindChildNode(n, 'seasons');
+//        tvr.tv_seasons := StrToIntDef(xml.GetNodeValue(nn), -1);
+        tvr.tv_running := True;
+
+        nn := xml.FindChildNode(n, 'ended');
+        tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
+        if tvr.tv_endedyear <> -1 then
+          tvr.tv_running := False;
+
+        tvr.tv_genres.Clear;
+        nn := xml.FindChildNode(n, 'genres');
+        gc := xml.GetChildNodeCount(nn);
+        for i := 0 to gc - 1 do
+        begin
+          nnn := xml.GetChildNodeItem(nn, i);
+          tvr.tv_genres.Add(xml.GetNodeValue(nnn));
+        end;
+
+        nn  := xml.FindChildNode(n, 'network');
+        nnn := xml.GetAttributeNodeByIndex(nn, 0);
+        // we need to know the excat pos. of the attribute!
+        if xml.GetNodeValue(nnn) = 'US' then
+          tvr.tv_country := 'USA'
+        else
+          tvr.tv_country := xml.GetNodeValue(nnn);
+        tvr.tv_network := xml.GetNodeValue(nn);
+(*
     x := TRegExpr.Create;
     x.ModifierI := True;
     x.ModifierM := True;
 
-    try
-      try
+
         { ###Read  ShowID  ### }
         x.Expression := 'Show ID\@(\d+)$';
         if x.Exec(response) then
@@ -10999,8 +11047,9 @@ begin
         x.Expression := '^Runtime\@(.*?)$';
         if x.Exec(response) then
           tvr.tv_runtime := StrToIntDef(x.Match[1], 0);
-
+*)
         tvr.Save;
+
       except
         on E: Exception do
           irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
@@ -11009,8 +11058,15 @@ begin
       end;
     finally
       tvr.PostResults(Netname, Channel);
-      x.Free;
+      xml.Free;
       tvr.Free;
+      (*  we have to keep an eye
+      {$IFDEF FPC}
+       n:=nil;
+       nn:=nil;
+       nnn:=nil;
+      {$ENDIF}
+      *)
     end;
 
   end; // end else begin              //if inn = -1 then begin

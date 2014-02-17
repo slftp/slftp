@@ -19,8 +19,8 @@ uses configunit,sysutils;
 function ShowSLFTPVerison:string;
 begin
 if sl_rev = '' then
-result:='slFtp v'+SL_VERSION else
-result:='slFtp v'+SL_VERSION+' rev'+sl_rev;
+Result:=Format('slFtp v%s',[SL_VERSION]) else
+Result:=Format('slFtp v%s (git# %s)',[SL_VERSION,sl_rev]);
 end;
 
 

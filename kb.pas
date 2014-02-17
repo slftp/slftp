@@ -192,7 +192,7 @@ type
     genres:     TStringList;
     network:    string;
     runtime:    integer;
-
+    seasons: integer;
     status:  string;
     running: boolean;
     showid:  string;
