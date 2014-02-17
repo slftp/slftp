@@ -111,6 +111,13 @@ try
   x.Expression:='^Runtime\@(.*?)$';
   if x.Exec(response) then
     tvrage.tv_runtime:=StrToIntDef(x.Match[1], 0);
+(*
+   {###Read  ShowSeasons  ###}
+  x.Expression:='^seasons\@(.*?)$';
+  if x.Exec(response) then
+    tvrage.tv_seasons:=StrToIntDef(x.Match[1], 0);
+*)
+
 
 finally
   x.free;
