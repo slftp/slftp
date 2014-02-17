@@ -19,6 +19,7 @@ type
     tv_runtime: Integer;
     tv_endedyear: Integer;
     tv_running : Boolean;
+//    tv_seasons:integer;
     last_updated:integer;
     constructor Create(rls_showname :string);//overload;
     destructor Destroy; override;
@@ -95,7 +96,7 @@ procedure TDbTVRage.Save;
 begin
   try
     addtvrageDB.ExecSQL( sql_addtvrage, [rls_showname, tv_showid, tv_showname, tv_showurl, IntToStr(tv_premiered_year),
-                       tv_country, tv_status, tv_classification, tv_genres.DelimitedText, tv_network, IntToStr(tv_runtime), BoolToStr(tv_running), InttoStr(tv_endedyear)]);
+                       tv_country, tv_status, tv_classification, tv_genres.DelimitedText, tv_network, IntToStr(tv_runtime), BoolToStr(tv_running), InttoStr(tv_endedyear)]);//, IntToStr(tv_seasons)]);
   except
     on e: Exception do
     begin
@@ -150,6 +151,7 @@ begin
   tr.runtime := tv_runtime;
   tr.running := tv_running;
   tr.ended_year:= tv_endedyear;
+//  tr.season:= tv_seasons;
   if tv_classification = 'Scripted' then tr.scripted:=True;
   PostResults(tr.rlsname);
 end;
@@ -202,7 +204,8 @@ begin
           tvrage.tv_runtime := StrToIntDef(addtvrageDB.column_text(gettvrage, 10),0);
           tvrage.tv_running := StrToBoolDef(addtvrageDB.column_text(gettvrage, 11), False);
           tvrage.tv_endedyear:= StrToIntDef(addtvrageDB.column_text(gettvrage, 12),-1);
-          //last_updated:=StrToIntDef(addtvrageDB.column_text(gettvrage, 13),-1);
+//          tvrage.tv_seasons:= StrToIntDef(addtvrageDB.column_text(gettvrage, 13),-1);
+        //last_updated:=StrToIntDef(addtvrageDB.column_text(gettvrage, 14),-1);
 
  //         last_addtvrage.AddObject(rls_showname, tvrage);
           Result:= tvrage;
@@ -275,7 +278,8 @@ begin
           tvrage.tv_runtime := addtvrageDB.column_int(gettvrage, 10);
           tvrage.tv_running := StrToBoolDef(addtvrageDB.column_text(gettvrage, 11), False);
           tvrage.tv_endedyear := addtvrageDB.column_int(gettvrage, 12);
-          tvrage.last_updated := addtvrageDB.column_int(gettvrage, 13);          
+//          tvrage.tv_seasons := addtvrageDB.column_int(gettvrage, 13);
+//          tvrage.last_updated := addtvrageDB.column_int(gettvrage, 14);
 
 //          last_addtvrage.AddObject(tvrage.tv_showname, tvrage);
           Result:= tvrage;
@@ -437,14 +441,14 @@ begin
     addtvrageDB.ExecSQL(
       'CREATE TABLE IF NOT EXISTS addtvrage (rls_showname VARCHAR(255) NOT NULL, tv_showid VARCHAR(255), tv_showname VARCHAR(255),'+
       'tv_showurl VARCHAR(255), tv_premiered_year INT(10), tv_country VARCHAR(255), tv_status VARCHAR(255), tv_classification VARCHAR(255),'+
-      'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10), last_updated INT(50))'
+      'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10))'//, tv_seasons INT(5), last_updated INT(50))'
       );
     addtvrageDB.ExecSQL(
       'CREATE UNIQUE INDEX IF NOT EXISTS addtvrage_index ON addtvrage (rls_showname)'
       );
 
-    sql_addtvrage := addtvrageDB.Open('INSERT OR IGNORE INTO addtvrage (rls_showname, tv_showid, tv_showname, tv_showurl, tv_premiered_year, tv_country, tv_status, tv_classification, tv_genres, tv_network, tv_runtime, tv_running, tv_endedyear, last_updated)' +
-                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    sql_addtvrage := addtvrageDB.Open('INSERT OR IGNORE INTO addtvrage (rls_showname, tv_showid, tv_showname, tv_showurl, tv_premiered_year, tv_country, tv_status, tv_classification, tv_genres, tv_network, tv_runtime, tv_running, tv_endedyear)'+//, tv_seasons ,last_updated)' +
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');//, ?, ?)');
     sql_counttvrage := addtvrageDB.Open('SELECT count(*) FROM addtvrage');
 
     Console_Addline('', 'Local addtvrage DB Started...');
