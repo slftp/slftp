@@ -117,7 +117,7 @@ procedure TSLXMLDocument.LoadFromStream(XMLFile: TStream);
 begin
 XMLFile.Position:=0;
 {$IFDEF FPC}
- ReadXMLFile(self.xmlFile,sxmlFile);
+ ReadXMLFile(self.xmlFile,xmlFile);
 {$ELSE}
 self.xmlFile.LoadFromStream(xmlfile);
 {$ENDIF}
