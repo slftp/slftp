@@ -2916,6 +2916,7 @@ var
   inc_ps: TPazoSite;
   inc_pd: TPazoDirlistTask;
   sfound: boolean;
+  site:TSite;
 begin
   Result := False;
   p      := TPazo(pazo);
@@ -2928,6 +2929,12 @@ begin
 
     if ps.Complete then Continue; // Release is allready filled and complete!
     if ps.error then Continue; //There is some error we need to check in later revs!
+    if ps.name = 'SLFTP' then Continue;
+    site:= FindSiteByName('',ps.name);
+    if site = nil then Continue;
+    if site.PermDown then Continue;
+    
+    
 
     //if not ps.status = rssAllowed then Continue;
 
@@ -3009,8 +3016,8 @@ begin
         inc_ps.dirlist.dirlistadded := True;
         inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
         irc_addtext(inc_pd, Format(
-          '<c11>[iNC RLS]</c> Trying to complete %s on %s from %s',
-          [p.rls.rlsname, ps.Name, pss.Name]));
+          '<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+          [p.rls.section,p.rls.rlsname, ps.Name, pss.Name]));
         AddTask(inc_pd);
         QueueFire;
         Result := True;
@@ -3072,7 +3079,7 @@ begin
                 p.queuenumber.Decrease;
               end;
               p.completezve := True;
-              Debug(dpMessage, rsections, 'Looking for incomplete sites of %s',
+              Debug(dpSpam, rsections, 'Looking for incomplete sites of %s',
                 [p.rls.rlsname]);
               AddCompleteTransfers(p);
             end;
