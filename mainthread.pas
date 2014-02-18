@@ -152,7 +152,7 @@ begin
 {$ENDIF}
 
   sltcp_onwaitingforsocket:= @kilepescsekker;
-  AutoCrawlerInit;
+//  AutoCrawlerInit;
   StatsInit;
   IndexerInit;
   Socks5Init;
@@ -332,7 +332,7 @@ begin
 {$ENDIF}
 
   if slsqlite_inited then
-    Debug(dpError, section, 'SQLITE: '+slSqliteVersion)
+    Debug(dpMessage, section, 'SQLITE: '+slSqliteVersion)
   else
     Debug(dpError, section, 'Could not init sqlite: '+slsqlite_error);
 

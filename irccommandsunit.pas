@@ -10902,7 +10902,7 @@ begin
           [xml.GetNodeValue(xml.FindChildNode(nn, 'name')), xml.GetNodeValue(
           xml.FindChildNode(nn, 'link')), irccmdprefix, xml.GetNodeValue(
           xml.FindChildNode(nn, 'showid')), sname]);
-        if i-1 >= sresMAXi then
+        if i+1 >= sresMAXi then
           break;
       end;
     finally
@@ -10913,8 +10913,6 @@ begin
   begin // if inn = -1 then begin
 
     tvr := TDbTVRage.Create(sname);
-    //    uurl := 'sid=' + sid;
-    //        response := slUrlGet('http://services.tvrage.com/feeds/showinfo.php', uurl);
     //    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
     xml := TSLXMLDocument.Create;
     try
@@ -10972,82 +10970,9 @@ begin
         if xml.GetNodeValue(nnn) = 'US' then
           tvr.tv_country := 'USA'
         else
-          tvr.tv_country := xml.GetNodeValue(nnn);
+        tvr.tv_country := xml.GetNodeValue(nnn);
         tvr.tv_network := xml.GetNodeValue(nn);
-(*
-    x := TRegExpr.Create;
-    x.ModifierI := True;
-    x.ModifierM := True;
 
-
-        { ###Read  ShowID  ### }
-        x.Expression := 'Show ID\@(\d+)$';
-        if x.Exec(response) then
-          tvr.tv_showid := x.Match[1];
-
-        { ###Read  ShowName  ### }
-        x.Expression := '^Show Name\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_showname := x.Match[1];
-
-        { ###Read  ShowURL  ### }
-        x.Expression := '^Show URL\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_showurl := x.Match[1];
-
-        { ###Read  ShowPremiered  ### }
-        x.Expression := '^Premiered\@(\d{4})$';
-        if x.Exec(response) then
-          tvr.tv_premiered_year := StrToInt(x.Match[1]);
-
-        { ###Read  ShowEnded  ### }
-        x.Expression   := '^Ended\@[^\w^\d]*?$';
-        tvr.tv_running := True;
-
-        {###Read  ShowEnded  ###}
-        x.Expression     := '^Ended\@\w+\/(\d{4})$';
-        tvr.tv_running   := True;
-        tvr.tv_endedyear := -1;
-        if x.Exec(response) then
-        begin
-          tvr.tv_running   := False;
-          tvr.tv_endedyear := strtointdef(x.Match[1], -1);
-        end;
-
-        { ###Read  ShowCountry  ### }
-        x.Expression := '^Country\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_country := x.Match[1];
-
-        { ###Read  ShowStatusAsString  ### }
-        x.Expression := '^Status\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_status := x.Match[1];
-
-        if ((tvr.tv_status = 'Ended') or (tvr.tv_status = 'Canceled/Ended')) then
-          tvr.tv_running := False;
-
-        { ###Read  ShowClassification  ### }
-        x.Expression := '^Classification\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_classification := x.Match[1];
-
-        { ###Read  ShowGenres  ### }
-        x.Expression := '^Genres\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_genres.DelimitedText := Csere(x.Match[1], '|', ',');
-
-
-        { ###Read  ShowNetwork  ### }
-        x.Expression := '^Network\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_network := x.Match[1];
-
-        { ###Read  ShowRuntime  ### }
-        x.Expression := '^Runtime\@(.*?)$';
-        if x.Exec(response) then
-          tvr.tv_runtime := StrToIntDef(x.Match[1], 0);
-*)
         tvr.Save;
 
       except
