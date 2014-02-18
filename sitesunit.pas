@@ -483,8 +483,8 @@ begin
   begin
     if not site.PermDown then
     begin
-      // ha autologin be van kapcsolva akkor
-      if ((autologin) or (RCBool('autologin', False))) then
+      // ha autologin be van kapcsolva akkor -- If auto login is enabled then
+      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
         AddLoginTask;
       //self.socks5
 
@@ -2132,6 +2132,7 @@ var t: TLoginTask;
 begin
   t:= FetchAutoBnctest;
   if t <> nil then exit;
+  if PermDown then Exit;
 
   // nincs, addolni kell.
   t:= TLoginTask.Create('', '', name, False, True);
@@ -2151,7 +2152,7 @@ var t: TRulesTask;
 begin
   t:= FetchAutoRules;
   if t <> nil then exit;
-
+  if PermDown then Exit;
   // nincs, addolni kell.
   t:= TRulesTask.Create('', '', name);
   t.dontremove:= True;
@@ -2170,7 +2171,7 @@ var t: TAutoDirlistTask;
 begin
   t:= FetchAutoDirlist;
   if t <> nil then exit;
-
+  if PermDown then Exit;
   // nincs, addolni kell.
   t:= TAutoDirlistTask.Create('', '', name);
   t.startat:= RcDateTime('nextautodirlist', 0);
@@ -2190,7 +2191,7 @@ var t: TAutoCrawlerTask;
 begin
   t:= FetchAutoCrawler;
   if t <> nil then exit;
-
+  if PermDown then Exit;
   // nincs, addolni kell.
   t:= TAutoCrawlerTask.Create('', '', name);
   t.startat:= RcDateTime('nextautocrawler', 0);
@@ -2211,7 +2212,7 @@ var t: TAutoNukeTask;
 begin
   t:= FetchAutoNuke;
   if t <> nil then exit;
-
+  if PermDown then Exit;
   // nincs, addolni kell.
   t:= TAutoNukeTask.Create('', '', name);
   t.startat:= RcDateTime('nextautonuke', 0);
@@ -2223,7 +2224,7 @@ procedure TSite.AutoIndex;
 var t: TAutoIndexTask;
 begin
   if nil <> FetchAutoIndex then exit;
-
+   if PermDown then Exit;
   // nincs, addolni kell.
   t:= TAutoIndexTask.Create('', '', name);
   t.startat:= RcDateTime('nextautoindex', 0);
