@@ -178,7 +178,7 @@ ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
 (Name:'RACETATS',Description:'Announces --'),
 (Name:'RANKSTATS',Description:'Announces --'),
 (Name:'PRECATCHSTATS',Description:'Announces --'),
-(Name:'ROUTEINFO',Description:'Announces --'),
+(Name:'ROUTEINFOS',Description:'Announces --'),
 (Name:'SKIPLOG',Description:'Announces --'),
 (Name:'ADDPRE',Description:'Give an IRC Chanel ADDPRE privilege, allows you to fill the internal dupedb.'),
 (Name:'ADDNFO',Description:'Give an IRC Chanel ADDNFO privilege, -- gone?'),
