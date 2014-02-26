@@ -3059,8 +3059,8 @@ begin
         inc_ps.dirlist.dirlistadded := True;
         inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
 
-        irc_Addstats('<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
-          [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]);
+        irc_Addstats(Format('<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+          [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
 (*
         irc_addtext(inc_pd, Format(
           '<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
