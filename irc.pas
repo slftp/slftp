@@ -284,7 +284,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] irc_Addtext: %s', [e.Message]);
+      Debug(dpError, section, '[EXCEPTION] irc_Addtext.irc_addtext_b: %s', [e.Message]);
     end;
   end;
 end;
@@ -295,7 +295,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] irc_Addtext: %s', [e.Message]);
+      Debug(dpError, section, '[EXCEPTION] irc_Addtext.netname_channel: %s', [e.Message]);
     end;
   end;
 end;
@@ -315,7 +315,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] irc_Addtext: %s', [e.Message]);
+      Debug(dpError, section, '[EXCEPTION] irc_Addtext.Task: %s', [e.Message]);
     end;
   end;
 end;
