@@ -204,8 +204,10 @@ type
   TWaitingForSocket = function(socket: TslTCPSocket): Boolean;
 
 {$IFDEF FPC}
+{$IFDEF LINUX}
 Const clib = 'c';
 function sendfile64(__out_fd:longint; __in_fd:longint; offset:Pointer; __count:size_t):ssize_t;cdecl;external clib name 'sendfile64';
+{$ENDIF}
 {$ENDIF}
 
 var
@@ -981,11 +983,11 @@ begin
 end;
 function TslTCPSocket.SendStream(s: TStream; timeout: Integer = slDefaultTimeout; maxsend: Int64 = 0): Boolean;
 {$IFDEF FPC}
-var fh: THandleStream;     
+var fh: THandleStream;
 {$ENDIF}
 begin
   try
-{$IFDEF FPC}
+{$IFDEF LINUX}
     if ((s is THandleStream) and (fSSL <> nil)) then
     begin
       Result:= False;
