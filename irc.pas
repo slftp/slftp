@@ -806,6 +806,7 @@ begin
 
   if channel = irc_nick then // nickname az a sajat nickem amivel ircen vagyok
   begin
+  try
     //privat uzenet, ki kell hamozni a nikket
     channel:= nick;
     msg:= RightStrv2(s, Pos(' ', s));
@@ -817,6 +818,9 @@ begin
       adminnet.IrcWrite('PRIVMSG '+config.ReadString(section, 'admin_nick', 'slftp')+' :'+ ReplaceThemeMSG('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg) );
     end;
     exit;
+  except on E: Exception do
+  Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite: %s', [e.Message]));
+  end;
   end;
   msg:= RightStrv2(s, Pos(' ', s));
   msg:= RightStrv2(msg, Pos(':', msg));
