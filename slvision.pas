@@ -655,7 +655,8 @@ begin
   except
     on E: Exception do
       Debug(dpError, 'slvision', Format(
-        '[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s', [e.Message]));
+        '[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s',
+        [e.Message]));
   end;
 
 
@@ -889,8 +890,22 @@ begin
   try
     slvision_lock.Enter();
     try
-      fConsoleTasks.Add(t);
-      t.OnConleTaskAdded(fConsoleTasks);
+
+      try
+        fConsoleTasks.Add(t);
+      except
+        on E: Exception do
+          Debug(dpError, 'slvision', Format(
+            '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleTasks.Add: %s', [e.Message]));
+      end;
+
+      try
+        t.OnConleTaskAdded(fConsoleTasks);
+      except
+        on E: Exception do
+          Debug(dpError, 'slvision', Format(
+            '[EXCEPTION] TslApplication.AddConsoleTask.t.OnConleTaskAdded: %s', [e.Message]));
+      end;
       if t is TslTextBoxTask then
       begin
         with TslTextBoxTask(t) do
@@ -900,10 +915,29 @@ begin
             begin
               i := fConsoleToUpdate.IndexOf(windowTitle);
               if i >= 0 then
-                fConsoleToUpdate.Delete(i);
+              begin
+                try
+                  fConsoleToUpdate.Delete(i);
+                except
+                  on E: Exception do
+                    Debug(dpError, 'slvision',
+                      Format('[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.Delete: %s',
+                      [e.Message]));
+                end;
+              end;
             end
             else
-              fConsoleToUpdate.AddObject(windowTitle, textBox);
+            begin
+              try
+                fConsoleToUpdate.AddObject(windowTitle, textBox);
+              except
+                on E: Exception do
+                  Debug(dpError, 'slvision',
+                    Format('[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.AddObject: %s',
+                    [e.Message]));
+              end;
+
+            end;
           end;
       end;
     finally
@@ -912,8 +946,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.AddConsoleTask: %s',
-        [e.Message]));
+      Debug(dpError, 'slvision',
+        Format('[EXCEPTION] TslApplication.AddConsoleTask: %s', [e.Message]));
     end;
   end;
 end;
@@ -1710,7 +1744,8 @@ begin
 
     l_infos.Caption := Format(
       'KB: %d / IRC: %d net, %d chan / Rules: %s / Stats: %d speed, %d ranks',
-      [kb_list.Count, myIrcThreads.Count, i_chans, s_rules, speedstats.Count, ranks.Count]);
+      [kb_list.Count, myIrcThreads.Count, i_chans, s_rules, speedstats.Count,
+      ranks.Count]);
   except
     // dont know
   end;
@@ -2327,8 +2362,8 @@ begin
   Result := ca.Width;
 end;
 
-procedure TslScrollArea.Write(ca: TslRect; const x, y: integer;
-  s: string; hossz: integer);
+procedure TslScrollArea.Write(ca: TslRect; const x, y: integer; s: string;
+  hossz: integer);
 var
   nx, ny: integer;
 begin
