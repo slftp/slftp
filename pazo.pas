@@ -121,12 +121,12 @@ type
     completezve: Boolean;
 
     autodirlist: Boolean;
-    srcsite: string; // <- ez a szabalyok tuzelgetesehez kell
-    dstsite: string; // <- ez a szabalyok tuzelgetesehez kell
+    srcsite: string; // <- ez a szabalyok tuzelgetesehez kell    -- This rule should tuzelgetesehez
+    dstsite: string; // <- ez a szabalyok tuzelgetesehez kell   -- This rule should tuzelgetesehez
     rls: TRelease;
 
     stopped: Boolean;
-    ready: Boolean; // minden sikeres mindenhol minden complete
+    ready: Boolean; // successfully complete all all all
     readyerror: Boolean;
     errorreason: string;
     readyat: TDateTime;
@@ -137,7 +137,7 @@ type
 
     added: TDateTime;
 
-    main_dirlist: TDirlist; // ez a globalis dirlist
+    main_dirlist: TDirlist; // ez a globalis dirlist   //it is also the global dirlist
 
      // vagyis ha tobb presite van es egyik vegez akkor ez a valtozo initelve
      // lesz es akkor a tobbi szal nem baszkural dirlistelessel

@@ -2944,8 +2944,13 @@ begin
       Continue; // Release is allready filled and complete!
     if ps.error then
       Continue; //There is some error we need to check in later revs!
-    if ps.Name = 'SLFTP' then
+    if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
       Continue;
+//rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
+      if ps.status <> rssAllowed then Continue;
+
+
+
     site := FindSiteByName('', ps.Name);
     if site = nil then
       Continue;
@@ -2970,6 +2975,15 @@ begin
         if not pss.Complete then
           Continue;
 
+
+if pss.destinations.IndexOf(ps) = -1 then continue;
+
+if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete', False) then begin
+sfound := TSite(pss).isRouteableTo(ps.Name);
+end;
+
+
+(*
         for k := 0 to pss.destinations.Count - 1 do
         begin
           if TSite(pss.destinations.Items[k]).Name = ps.Name then
@@ -2994,6 +3008,7 @@ begin
           else
             continue;
         end;//for k := 0 to pss.destinations.Count - 1 do begin
+*)
         if sfound then
           break
         else
@@ -3011,9 +3026,15 @@ begin
         Exit; // Release is allready filled and complete!
       if ps.error then
         Exit; //There is some error we need to check in later revs!
-      if ps.Name = 'SLFTP' then
+
+    if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
+      Continue;
+//rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
+      if ps.status <> rssAllowed then Continue;
+
+      if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
         Exit;
-      if pss.Name = 'SLFTP' then
+      if pss.Name = config.ReadString('sites','admin_sitename','SLFTP') then
         Exit;
       site := FindSiteByName('', ps.Name);
       if site = nil then

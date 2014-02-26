@@ -1546,7 +1546,7 @@ begin
   unknown:= 0;
   for i:= 0 to sites.Count -1 do
   begin
-if TSite(sites[i]).name = 'SLFTP' then continue;
+if TSite(sites[i]).name = admin_sitename then continue;
 
     case TSite(sites[i]).working of
       sstUnknown: inc(unknown);
@@ -1576,7 +1576,7 @@ begin
   begin
     fWorking:= value;
 
-  if name = 'SLFTP' then begin
+  if name = admin_sitename then begin
     markeddown:= False;
     Exit;
   end;
