@@ -1918,7 +1918,7 @@ begin
 
         if ps.Name = ssite then
           Continue;
-        if ps.Name = 'SLFTP' then
+        if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
           Continue;
 
         if ps.dirlist = nil then
@@ -3795,7 +3795,7 @@ function Bnctest(const Netname, Channel: string; s: TSite; tn: TTaskNotify;
 var
   l: TLoginTask;
 begin
-  if UpperCase(s.Name) = 'SLFTP' then
+  if UpperCase(s.Name) = uppercase(config.ReadString('sites','admin_sitename','SLFTP')) then
     exit;
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
@@ -3856,7 +3856,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites[i]);
-      if UpperCase(s.Name) = 'SLFTP' then
+      if UpperCase(s.Name) = uppercase(config.ReadString('sites','admin_sitename','SLFTP')) then
         Continue;
 
       if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
@@ -3893,7 +3893,7 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-    if UpperCase(s.Name) = 'SLFTP' then
+    if UpperCase(s.Name) = UpperCase(config.ReadString('sites','admin_sitename','SLFTP')) then
       Continue;
     if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
       Continue;
@@ -3932,7 +3932,7 @@ begin
     s := TSite(sites[i]);
     if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
       Continue;
-    if UpperCase(s.Name) = 'SLFTP' then
+    if UpperCase(s.Name) = Uppercase(config.ReadString('sites','admin_sitename','SLFTP')) then
       Continue;
     case s.working of
       sstUp:
