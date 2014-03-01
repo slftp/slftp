@@ -187,8 +187,8 @@ ujra:
     if ps1.error then
     mainpazo.errorreason:='ERROR PS1';
 
-    if ps1.dirlistgaveup then
-    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
+//    if ps1.dirlistgaveup then
+//    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
 
     if ps1.status = rssNuked then
     mainpazo.errorreason:='ERROR PS1: status = Nuked';
@@ -383,42 +383,53 @@ ujra:
       ps1.status:= rssComplete;
     end;
   end;
-  
+
+
+
+if d.entries = nil then Irc_AddAdmin('DEBUG:: d.entries = nil');
+if d.entries.Count <= 0 then Irc_AddAdmin('DEBUG:: d.entries.Count <= 0');
+
+
   // check if need to give up
   if ((d <> nil) and (not d.Complete)) then
   begin
     if ((d.entries <> nil) and (d.entries.Count = 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_empty', 60))) then
     begin
       if spamcfg.readbool(c_section,'incomplete',True) then
-        irc_Addstats(Format('<c11>[EMPTY RLS]</c> %s: %s %s is still empty, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname + ' ' + dir]));
+        irc_Addstats(Format('<c11>[EMPTY RLS]</c> %s: %s %s %s is still empty, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname,dir]));
       ps1.dirlistgaveup:= True;
+      mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_empty(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_empty', 60)]);
     end;
 
     if ((d.entries <> nil) and (d.entries.Count > 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_unchanged', 60))) then
     begin
       if spamcfg.readbool(c_section,'incomplete',True) then
-        irc_Addstats(Format('<c11>[iNC RLS]</c> %s: %s %s is still incomplete, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname + ' ' + dir]));
+        irc_Addstats(Format('<c11>[iNC RLS]</c> %s: %s %s %s is still incomplete, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname,dir]));
       ps1.dirlistgaveup:= True;
+      mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
     end;
   end;
 
   if ((not is_pre) and (d.entries <> nil) and (d.date_started <> 0) and (SecondsBetween(Now, d.date_started) > config.ReadInteger(c_section, 'newdir_max_created', 600))) then
   begin
     if spamcfg.readbool(c_section,'incomplete',True) then
-      irc_Addstats(Format('<c11>[LONG RLS]</c> %s: %s %s, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname + ' ' + dir]));
+      irc_Addstats(Format('<c11>[LONG RLS]</c> %s: %s %s %s, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname,dir]));
     ps1.dirlistgaveup:= True;
+//  mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
   end;
   if ((not is_pre) and (d.entries <> nil) and (d.date_completed <> 0) and (SecondsBetween(Now, d.date_completed) > config.ReadInteger(c_section, 'newdir_max_completed', 300))) then
   begin
     if spamcfg.readbool(c_section,'incomplete',True) then
-      irc_Addstats(Format('<c11>[FULL RLS]</c> %s: %s %s is complete, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname + ' ' + dir]));
+      irc_Addstats(Format('<c11>[FULL RLS]</c> %s: %s %s %s is complete, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname,dir]));
     ps1.dirlistgaveup:= True;
+//  mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
   end;
   if ((is_pre) and (d.entries <> nil) and (d.date_completed <> 0) and (SecondsBetween(Now, d.date_completed) > config.ReadInteger(c_section, 'newdir_max_completed', 300))) then
   begin
     if spamcfg.readbool(c_section,'incomplete',True) then
-      irc_Addstats(Format('<c11>[PRE RLS]</c> %s: %s %s, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname + ' ' + dir]));
+      irc_Addstats(Format('<c11>[PRE RLS]</c> %s: %s %s %s, giving up...',[site1, mainpazo.rls.section, mainpazo.rls.rlsname,dir]));
     ps1.dirlistgaveup:= True;
+//  mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
   end;
 
   // check if need more dirlist
@@ -453,7 +464,7 @@ ujra:
 
         try
           ps:= TPazoSite(ps1.destinations[i]);
-          
+
           if (ps.error) then Continue;
           if (ps.dirlistgaveup) then Continue;
 
