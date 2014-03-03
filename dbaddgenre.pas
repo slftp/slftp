@@ -29,7 +29,8 @@ var
 implementation
 
 uses SysUtils, StrUtils, configunit, mystrings, irccommandsunit,
-  sitesunit, queueunit, debugunit, pazo;
+  sitesunit, queueunit, debugunit, pazo {$IFDEF MSWINDOWS},Windows{$ENDIF}
+  ;
 
 const
   section = 'dbaddgenre';

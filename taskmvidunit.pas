@@ -90,7 +90,7 @@ end;
 function TPazoMVIDTask.FetchGenre(text: string):string;
 var i: Integer;
     s: string;
-    rrx:TRegexpr;
+//    rrx:TRegexpr;
 begin
   Result:= '';
   i:= Pos('genre', LowerCase(text));
@@ -150,7 +150,7 @@ var s: TSiteSlot;
     d: TDirList;
 regiono,sfvfile, nfofile, genre: string;
 //    re:TRegexpr;
-    fcount:integer;
+//    fcount:integer;
     mvr:TMVIDRelease;
 begin
   Result:= False;
@@ -164,17 +164,6 @@ begin
   end;
 
   Debug(dpMessage, section, Name);
-
-  if (mainpazo.rls is TMVIDRelease) then
-  begin
-  mvr:=TMVIDRelease(mainpazo.rls);
-    if ((mvr.mvid_genre.text <> '') and (mvr.FileCount > 0))  then
-    begin
-      Result:= True;
-      ready:= True;
-      exit;
-    end;
-  end; // else mas nem nagyon lehet...
 
 
 ujra:
@@ -195,7 +184,7 @@ ujra:
 
 
     j:= 0;
-    fcount:=-1;
+//    fcount:=-1;
     filecount:=0;
     nfofile:= '';
     sfvfile:= '';
@@ -270,6 +259,19 @@ regiono:=GetVideoRegion(ss.DataString);
 //Irc_Addtext('','','NFO Coneten: %s',[ss.DataString]);
 //Irc_Addtext('','','SFV Coneten: %s',[ss1.DataString]);
 
+(*
+  if (mainpazo.rls is TMVIDRelease) then
+  begin
+  mvr:=TMVIDRelease(mainpazo.rls);
+    if ((mvr.mvid_genre.text <> '') and (mvr.FileCount > 0))  then
+    begin
+      Result:= True;
+      ready:= True;
+      exit;
+    end;
+  end; // else mas nem nagyon lehet...
+                                  *)
+  mvr:=TMVIDRelease(mainpazo.rls);
 
 mvr.FileCount:=filecount;
 mvr.mvid_Genre.add(Genre);

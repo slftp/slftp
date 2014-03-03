@@ -68,7 +68,7 @@ var
 begin
   tr := TTvRelease(mainpazo.rls);
 
-  db_tvrage := nil;
+//  db_tvrage := nil;
   try
     db_tvrage := dbaddtvrage_gettvrage_show(tr.showname);
     if (db_tvrage <> nil) then
@@ -81,7 +81,7 @@ begin
   except
     on e: Exception do
     begin
-      db_tvrage := nil;
+   //   db_tvrage := nil;
       Debug(dpError, section, Format('Exception in dbaddtvrage_gettvrage_show: %s',
         [e.Message]));
 
@@ -159,6 +159,7 @@ begin
           irc_Adderror(Format('<c4>[Exception]</c> in TPazoTvRageLookupTask AddTask %s',
             [e.Message]));
           readyerror := True;
+          result:=True;
           x.Free;
           exit;
         end;
@@ -201,7 +202,7 @@ begin
   {###Read  ShowPremiered  ###}
   x.Expression := '^Premiered\@(\d{4})$';
   if x.Exec(response) then
-    cur_premyear := StrToInt(x.Match[1]);
+    cur_premyear := StrToInt(x.Match[1]) else cur_premyear :=  -1; 
 
   {###Read  ShowEnded  ###}
   x.Expression := '^Ended\@\w+\/(\d{4})$';
@@ -332,6 +333,8 @@ begin
       begin
         Debug(dpError, section, Format('Exception in dbaddtvrage_SaveTVRage: %s',
           [e.Message]));
+          result:=True;
+          readyerror := True;
         exit;
       end;
     end;

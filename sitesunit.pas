@@ -1422,7 +1422,7 @@ end;
 
 
 function TSite.isRouteableTo(sitename:string):boolean;
-var i:integer; y:TStringlist;
+var y:TStringlist;
 begin
 y:=TStringlist.Create;
 y.Sorted:=True;
@@ -1435,7 +1435,7 @@ end;
 end;
 
 function TSite.isRouteableFrom(sitename:string):boolean;
-var i:integer; y:TStringlist;
+var y:TStringlist;
 begin
 y:=TStringlist.Create;
 y.Sorted:=True;
@@ -2187,8 +2187,14 @@ begin
 end;
 
 procedure TSite.AutoCrawler;
-var t: TAutoCrawlerTask;
+//var t: TAutoCrawlerTask;
 begin
+
+//there is no code for this stuff so wie can remiove it or?
+
+Exit;
+
+(*
   t:= FetchAutoCrawler;
   if t <> nil then exit;
   if PermDown then Exit;
@@ -2204,6 +2210,7 @@ begin
       Debug(dpError, section, Format('[EXCEPTION] TSite.AutoCrawler AddTask: %s', [e.Message]));
     end;
   end;
+*)
 end;
 
 
