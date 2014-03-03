@@ -43,7 +43,7 @@ var imdb_stv:boolean;
     imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang, imdb_genr, imdb_countr, imdb_lang, imdb_region:string;
     ir: TImdbRelease;
 begin
-    Result:=False;
+//    Result:=False;
     text := '';
 
     if (rls = '') then

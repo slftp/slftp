@@ -11,8 +11,8 @@ type
     ss1: TStringStream;
     attempt: Integer;
     function FetchGenre(text: string): string;
-    function GetVideoSource(text:string):string;
-    function GetFileCount(text:string):integer;
+//    function GetVideoSource(text:string):string;
+//    function GetFileCount(text:string):integer;
     function GetVideoRegion(text:string):string;
   public
     constructor Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
@@ -74,7 +74,7 @@ rrx.free;
 exit;
 end;
 end;
-
+(*
 function TPazoMVIDTask.GetVideoSource(text: string):string;
 var
 rrx:TRegexpr;
@@ -85,6 +85,7 @@ rrx.Expression:=config.ReadString('kb','mvidsource','');
 if rrx.Exec(text) then result:=rrx.Match[0];
 rrx.free;
 end;
+*)
 
 function TPazoMVIDTask.FetchGenre(text: string):string;
 var i: Integer;
@@ -116,6 +117,7 @@ begin
   Result:= Trim(Result);
 end;
 
+(*
 function TPazoMVIDTask.GetFileCount(text: string):integer;
 var i: Integer;
     y: TStringlist;
@@ -138,16 +140,16 @@ if countz >= 1 then result:=countz;
 rrx.Free;
 y.free;
 end;
-
+*)
 function TPazoMVIDTask.Execute(slot: Pointer):boolean;
 label ujra;
 var s: TSiteSlot;
-   filecount, ii,i, j, k: Integer;
+   filecount, i, j, k: Integer;
     de: TDirListEntry;
     r: TPazoMVIDTask;
     d: TDirList;
-vidsrc,regiono,ss0,ss2,sfvfile, event, nfofile, genre: string;
-    re:TRegexpr;
+regiono,sfvfile, nfofile, genre: string;
+//    re:TRegexpr;
     fcount:integer;
     mvr:TMVIDRelease;
 begin

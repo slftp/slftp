@@ -98,7 +98,6 @@ end;
 
 function RanksReload:boolean;
 begin
-  result:=False;
   try
     rankslock.Enter;
     try
