@@ -157,7 +157,6 @@ var i: Integer;
     d: TDirlistEntry;
     files, size: Integer;
 begin
- Result:= False;
   if cache_completed then
   begin
     Result:= True;
@@ -736,7 +735,6 @@ end;
 function DirListSorter(Item1, Item2: Pointer): Integer;
 var i1, i2: TDirlistEntry;
     c1, c2: Integer;
-    srx:TRegexpr;
 begin
 // compare: -1 bekenhagyas, jo a sorrend ~ bekenhagyas, good order
 // compare:  1 csere  = replacement

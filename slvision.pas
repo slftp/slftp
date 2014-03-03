@@ -652,6 +652,50 @@ begin
 
   try
     k := slScreen.keypressed;
+
+    if k then
+    begin
+      extended := False;
+      c := slScreen.ReadKey;
+      if c = #0 then
+      begin
+        c := slScreen.ReadKey;
+        extended := True;
+      end;
+
+      if ((extended) and (c = #45)) then // alt+x
+      begin
+        shouldquit := True;
+        exit;
+      end;
+      try
+        KeyEvent(c, extended);
+      except
+        on E: Exception do
+          Debug(dpError, 'slvision', Format(
+            '[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
+      end;
+
+    end;
+
+    try
+      for i := 0 to timers.Count - 1 do
+      begin
+        TslTimer(timers[i]).Tick;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, 'slvision',
+          Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
+      end;
+    end;
+
+    if not k then
+    begin
+      Sleep(slVisionFrequency);
+    end;
+
   except
     on E: Exception do
       Debug(dpError, 'slvision', Format(
@@ -659,50 +703,6 @@ begin
         [e.Message]));
   end;
 
-
-
-  if k then
-  begin
-    extended := False;
-    c := slScreen.ReadKey;
-    if c = #0 then
-    begin
-      c := slScreen.ReadKey;
-      extended := True;
-    end;
-
-    if ((extended) and (c = #45)) then // alt+x
-    begin
-      shouldquit := True;
-      exit;
-    end;
-    try
-      KeyEvent(c, extended);
-    except
-      on E: Exception do
-        Debug(dpError, 'slvision', Format(
-          '[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
-    end;
-
-  end;
-
-  try
-    for i := 0 to timers.Count - 1 do
-    begin
-      TslTimer(timers[i]).Tick;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, 'slvision',
-        Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
-    end;
-  end;
-
-  if not k then
-  begin
-    Sleep(slVisionFrequency);
-  end;
 end;
 
 procedure TslApplication.Run;
@@ -896,7 +896,8 @@ begin
       except
         on E: Exception do
           Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleTasks.Add: %s', [e.Message]));
+            '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleTasks.Add: %s',
+            [e.Message]));
       end;
 
       try
@@ -904,7 +905,8 @@ begin
       except
         on E: Exception do
           Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.AddConsoleTask.t.OnConleTaskAdded: %s', [e.Message]));
+            '[EXCEPTION] TslApplication.AddConsoleTask.t.OnConleTaskAdded: %s',
+            [e.Message]));
       end;
       if t is TslTextBoxTask then
       begin
@@ -921,7 +923,8 @@ begin
                 except
                   on E: Exception do
                     Debug(dpError, 'slvision',
-                      Format('[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.Delete: %s',
+                      Format(
+                      '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.Delete: %s',
                       [e.Message]));
                 end;
               end;
@@ -933,7 +936,8 @@ begin
               except
                 on E: Exception do
                   Debug(dpError, 'slvision',
-                    Format('[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.AddObject: %s',
+                    Format(
+                    '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.AddObject: %s',
                     [e.Message]));
               end;
 
@@ -2362,8 +2366,8 @@ begin
   Result := ca.Width;
 end;
 
-procedure TslScrollArea.Write(ca: TslRect; const x, y: integer; s: string;
-  hossz: integer);
+procedure TslScrollArea.Write(ca: TslRect; const x, y: integer;
+  s: string; hossz: integer);
 var
   nx, ny: integer;
 begin

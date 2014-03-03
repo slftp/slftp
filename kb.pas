@@ -316,7 +316,9 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvragelookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo;
+  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo,
+{$IFDEF MSWINDOWS}Windows{$ENDIF}
+  ;
 
 type
   TSectionRelease = record
@@ -491,7 +493,7 @@ end;
 
 function trimmedShitChecker(section, rls: string): boolean;
 begin
-
+result:=False;
 end;
 
 
@@ -707,7 +709,7 @@ begin
       end;
     end;
 
-    i := -1;
+  i := -1;
   finally
     kb_lock.Leave;
   end;
@@ -1955,7 +1957,7 @@ begin
 
   pazo := TPazo(p); // ugly shit
 
-  db_tvrage := nil;
+//  db_tvrage := nil;
   try
     db_tvrage := dbaddtvrage_gettvrage_show(self.showname);
   except
@@ -2077,7 +2079,7 @@ begin
 
   if (showname <> '') then
   begin
-    db_tvrage := nil;
+//    db_tvrage := nil;
     try
       db_tvrage := dbaddtvrage_gettvrage_show(showname);
       if (db_tvrage <> nil) then
@@ -2625,7 +2627,7 @@ begin
   Debug(dpSpam, rsections, 'kb_Save');
   seconds := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
   x := TEncStringList.Create(passphrase);
-  p := nil;
+//  p := nil;
 
   try
     for i := 0 to kb_list.Count - 1 do
@@ -2633,7 +2635,7 @@ begin
       try
         p := TPazo(kb_list.Objects[i]);
       except
-        p := nil;
+//        p := nil;
         Continue;
       end;
       if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
@@ -2691,13 +2693,12 @@ function kb_reloadsections: boolean;
 var
   xin: Tinifile;
 begin
-  Result := False;
+//  Result := False;
   kb_sections.Free;
   kb_sections := TStringList.Create;
+  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
   try
     //  sections.DelimitedText:= config.ReadString(rsections, 'sections', '');
-
-    xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
     xin.ReadSection('sections', kb_sections);
   finally
     xin.Free;
@@ -2823,7 +2824,11 @@ begin
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
+      {$IFDEF MSWINDOWS}
+      DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+      {$ELSE}
       DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
+      {$ENDIF}
     finally
       x.Free;
     end;
@@ -2918,7 +2923,7 @@ end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
-  si, j, k, i: integer;
+  j, i: integer;
   ps, pss: TPazoSite;
   p:      TPazo;
   inc_srcsite, inc_dstsite: TSite;

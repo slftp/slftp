@@ -108,8 +108,8 @@ end;
 
 
 function ReadPretimeOverSQLITE(rls:string):TDateTime;
-var time:int64;
-    rlz_timestamp: String;
+var //time:int64;
+//    rlz_timestamp: String;
     i: Integer;
 begin
   Result := UnixToDateTime(0);
@@ -300,7 +300,7 @@ var
 ii:integer;
 begin
   Result := False;
-
+ ii:=-1;
   try
   ii:=addprecmd.IndexOf(substring(msg,' ',1));
   except
