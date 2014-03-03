@@ -316,8 +316,8 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvragelookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo,
-{$IFDEF MSWINDOWS}Windows{$ENDIF}
+  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
+{$IFDEF MSWINDOWS},Windows{$ENDIF}
   ;
 
 type
