@@ -166,7 +166,7 @@ begin
   Result:= False;
   s:= slot;
   tname:= Name;
-  voltadd:= False;
+//  voltadd:= False;
 
   if mainpazo.stopped then
   begin
@@ -1439,8 +1439,8 @@ brokentransfer:
 *)
 
 //back to megabyte
-      racebw:= fs * 1000 / time_race / 1024 / 1024;
-      fsize:= fs / 1024 / 1024;
+//      racebw:= fs * 1000 / time_race / 1024 / 1024;
+//      fsize:= fs / 1024 / 1024;
 
 
       end;

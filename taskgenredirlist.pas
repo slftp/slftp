@@ -106,7 +106,7 @@ ujra:
     end;
   end;
 
-  j:= 0;
+
   tagfile:= '';
   try
       d:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);

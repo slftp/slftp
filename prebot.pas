@@ -593,6 +593,8 @@ begin
   exit;
   *)
 
+  ps:=nil;
+
   if ((genre = '') and (0 = Pos('dirfix', LowerCase(dir))) and
     (0 = Pos('nfofix', LowerCase(dir)))) then
   begin
@@ -617,6 +619,13 @@ begin
       begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
         irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no vailed site!',
           [ps.Name]);
+        exit;
+      end;
+
+      if ps = nil then
+      begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no vailed pazosite!');
+
         exit;
       end;
 
@@ -688,8 +697,8 @@ begin
   end; //  for i:= 0 to p.sites.Count-1 do begin
 
   irc_addText(netname, channel, 'Changing working directory to the predir...');
-  try
     elozo := Now;
+  try
     QueueFire;
     queue_lock.Leave;
 
@@ -1190,7 +1199,7 @@ var
   s:   TSite;
   sttr, aksizestring, sizestring, predir, section, sitename, dir: string;
   tn:  TTaskNotify;
-  nfofound, added: boolean;
+ nfofound, added: boolean;
   sr:  TSiteResponse;
   d:   TDirList;
   failed, perfect, aktfiles, aktsize, addednumber, i, files, size: integer;
@@ -1313,6 +1322,7 @@ begin
   begin
     added    := False;
     nfofound := False;
+    sized:=0;
     for i := 0 to tn.responses.Count - 1 do
     begin
       sr := TSiteResponse(tn.responses[i]);
@@ -1354,7 +1364,11 @@ begin
     if (not nfofound) then
     begin
       irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c>',
+        ['No NFO on src ' + sitename + '...']);
+    (*
+      irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c>',
         ['Durex check failed on src ' + sitename + '...']);
+        *)
       added := False;
     end;
 
@@ -1376,7 +1390,7 @@ begin
 
           d := TDirList.Create(sr.sitename, nil, nil, sr.response);
           d.UsefulFiles(aktfiles, aktsize);
-          nfofound := d.hasnfo;
+//          nfofound := d.hasnfo;
 
           aksizestring := 'byte';
           aksized      := aktsize;
@@ -1485,17 +1499,17 @@ var
   plist: TStringList;
 
 begin
-  Result := False;
+//  Result := False;
   rip    := params;
   plist  := TStringList.Create;
   SOK    := '';
   SBAD   := '';
 
-  queue_lock.Enter;
-
+//  queue_lock.Enter;
   for I := 0 to sites.Count - 1 do
   begin
     s := TSite(sites.Items[i]);
+
     if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
       continue;
 
@@ -1508,7 +1522,8 @@ begin
     predir := s.sectiondir['PRE'];
     if predir = '' then
       Continue;
-    queue_lock.Leave;
+
+//    queue_lock.Leave;
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
     if d <> nil then
     begin

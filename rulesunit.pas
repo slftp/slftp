@@ -298,7 +298,10 @@ var rules: TObjectList;
 
 implementation
 
-uses SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit, knowngroups, DateUtils;
+uses SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit,
+configunit, knowngroups, DateUtils
+{$IFDEF MSWINDOWS},Windows{$ENDIF}
+;
 
 const dsection = 'rules';
 
@@ -942,6 +945,7 @@ begin
   except
     on e: Exception do
     begin
+      result:=nil;
       Debug(dpError, 'rules', 'TInOperator.GetOperandValue : %s', [e.Message]);
     end;
   end;
@@ -1241,6 +1245,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, 'rules', 'TMaskOperator.GetOperandValue : %s', [e.Message]);
+      result:=nil;
     end;
   end;
 end;
@@ -1768,6 +1773,7 @@ var i: Integer;
     ra: TRuleAction;
 begin
   Result:= raDontmatch;
+  ra:=result;
   try
     for i:= 0 to rtpl.Count -1 do
     begin
@@ -2190,7 +2196,14 @@ begin
 
     intFound := FindNext(SearchRec);
   end;
+
+  {$IFDEF MSWINDOWS}
+ SysUtils.FindClose(SearchRec);
+  {$ELSE}
   FindClose(SearchRec);
+  {$ENDIF}
+
+
 end;
 
 procedure RulesStart;
@@ -3704,6 +3717,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, 'rules', 'TMultiInOperator.GetOperandValue : %s', [e.Message]);
+          result:=nil;
     end;
   end;
 end;

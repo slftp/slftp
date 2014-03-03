@@ -37,9 +37,9 @@ end;
 function TPazoHTTPTVRageTask.Execute(slot: Pointer): Boolean;
 var tvrage: TDbTVRage;
     uurl: String;
-xx,    x:TRegExpr;
+    x:TRegExpr;
 begin
-  Result:=False;
+//  Result:=False;
 
   tvrage:= TDbTVRage.Create(tv_showid);
 
