@@ -15,7 +15,7 @@ uses
   {$ENDIF}
 {$ELSE}
   {$IFDEF MSWINDOWS}
-    slWinSock2
+  Windows,  slWinSock2
   {$ELSE}
     Libc
   {$ENDIF}

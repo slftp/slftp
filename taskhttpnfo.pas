@@ -38,7 +38,7 @@ end;
 function TPazoHTTPNfoTask.Execute(slot: Pointer): Boolean;
 var nfo_data: String;
 begin
-  Result:= False;
+//  Result:= False;
 
   try
     nfo_data:= slUrlGet(nfo_url);

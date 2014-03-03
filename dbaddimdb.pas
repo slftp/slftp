@@ -183,7 +183,7 @@ end;
 
 procedure dbaddimdb_SaveImdbData(rls: string; imdbdata: TDbImdbData);
 var i: Integer;
-    p : TPazo;
+//    p : TPazo;
 begin
   i:= last_imdbdata.IndexOf(rls);
   if i = -1 then

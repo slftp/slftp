@@ -175,13 +175,15 @@ end;
 
 function FakesRehash:boolean;
 begin
-  result:= False;
-  fakes.Clear;
-  try
-    ReadFakeSettings;
-  finally
     result:=True;
-  end;
+    fakes.Clear;
+try
+    ReadFakeSettings;
+except on E: Exception do
+result:=False;
+end;
+
+
 end;
 
 

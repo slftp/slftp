@@ -36,8 +36,8 @@ end;
 function Rehashglobalskiplist:boolean;
 var x:TStringlist;
 begin
-  result:=False;
   x:=TStringlist.Create;
+  try
   x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.skipgroups');
   globalgroupskip.Clear;
   globalgroupskip.Delimiter:=' ';
@@ -45,6 +45,9 @@ begin
   x.free;
   result:=True;
  Debug(dpSpam, 'global_skip_group', 'Stoped!');
+  except on E: Exception do
+  result:=False;
+  end;
 end;
 
 function CheckForBadAssGroup(rls:string):boolean;

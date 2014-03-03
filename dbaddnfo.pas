@@ -6,18 +6,18 @@ uses Classes, IniFiles, irc, kb, Contnrs, encinifile;
 
 type
   TDbNfo = class
-    rls: String;
-    nfo_name: String;
+    rls:      string;
+    nfo_name: string;
     constructor Create(rls, nfo_name: string);
     destructor Destroy; override;
   end;
 
-function dbaddnfo_Process(net, chan, nick, msg: string): Boolean;
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);  overload;
-procedure dbaddnfo_SaveNfo(rls,section ,nfo_name, nfo_data: string);  overload;
+function dbaddnfo_Process(net, chan, nick, msg: string): boolean;
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string); overload;
+procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: string); overload;
 procedure dbaddnfo_addnfo(params: string);
-procedure dbaddnfo_ParseNfo(rls, nfo_data: string);overload;
-procedure dbaddnfo_ParseNfo(rls,section, nfo_data: string);overload;
+procedure dbaddnfo_ParseNfo(rls, nfo_data: string); overload;
+procedure dbaddnfo_ParseNfo(rls, section, nfo_data: string); overload;
 
 function dbaddnfo_Status: string;
 
@@ -44,7 +44,7 @@ var
 { TDbNfo }
 constructor TDbNfo.Create(rls, nfo_name: string);
 begin
-  self.rls := rls;
+  self.rls      := rls;
   self.nfo_name := nfo_name;
 end;
 
@@ -55,7 +55,7 @@ end;
 
 { Proc/Func }
 
-function dbaddnfo_Process(net, chan, nick, msg: string): Boolean;
+function dbaddnfo_Process(net, chan, nick, msg: string): boolean;
 begin
   Result := False;
   if (1 = Pos(addnfocmd, msg)) then
@@ -77,29 +77,30 @@ var
   rls: string;
   nfo_url: string;
   nfo_name: string;
-  i: Integer;
+  i: integer;
 begin
-  rls := '';
-  rls := SubString(params, ' ', 1);
-  nfo_url := '';
-  nfo_url := SubString(params, ' ', 2);
+  rls      := '';
+  rls      := SubString(params, ' ', 1);
+  nfo_url  := '';
+  nfo_url  := SubString(params, ' ', 2);
   nfo_name := '';
   nfo_name := SubString(params, ' ', 3);
 
   if ((rls <> '') and (nfo_url <> '') and (nfo_name <> '')) then
   begin
-    i:= last_addnfo.IndexOf(rls);
+    i := last_addnfo.IndexOf(rls);
     if i <> -1 then
     begin
       exit;
     end;
-    
+
     try
       AddTask(TPazoHTTPNfoTask.Create(rls, nfo_url, nfo_name));
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in dbaddnfo_addnfo AddTask: %s', [e.Message]));
+        Debug(dpError, section, Format('Exception in dbaddnfo_addnfo AddTask: %s',
+          [e.Message]));
         exit;
       end;
     end;
@@ -107,112 +108,118 @@ begin
 end;
 
 
-procedure dbaddnfo_SaveNfo(rls, section ,nfo_name, nfo_data: string);  overload;
+procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: string); overload;
 var
-  i: Integer;
+  i:      integer;
   db_nfo: TDbNfo;
 begin
-  i:= last_addnfo.IndexOf(rls);
+  i := last_addnfo.IndexOf(rls);
   if i = -1 then
   begin
-    db_nfo:= TDbNfo.Create(rls, nfo_name);
+    db_nfo := TDbNfo.Create(rls, nfo_name);
     last_addnfo.AddObject(rls, db_nfo);
 
     irc_AddInfo(Format('<c7>[NFO]</c> for <b>%s</b> : %s', [rls, nfo_name]));
 
-    dbaddnfo_ParseNfo(rls,section ,nfo_data);
+    dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    i:= last_addnfo.Count;
+    i := last_addnfo.Count;
     if i > 125 then
     begin
       while i > 100 do
       begin
         last_addnfo.Delete(0);
-        i:= last_addnfo.Count - 1;
+        i := last_addnfo.Count - 1;
       end;
     end;
   end;
 end;
 
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string);  overload;
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: string); overload;
 var
-  i: Integer;
+  i:      integer;
   db_nfo: TDbNfo;
 begin
-  i:= last_addnfo.IndexOf(rls);
+  i := last_addnfo.IndexOf(rls);
   if i = -1 then
   begin
-    db_nfo:= TDbNfo.Create(rls, nfo_name);
+    db_nfo := TDbNfo.Create(rls, nfo_name);
     last_addnfo.AddObject(rls, db_nfo);
 
     irc_AddInfo(Format('<c7>[NFO]</c> for <b>%s</b> : %s', [rls, nfo_name]));
 
     dbaddnfo_ParseNfo(rls, nfo_data);
 
-    i:= last_addnfo.Count;
+    i := last_addnfo.Count;
     if i > 125 then
     begin
       while i > 100 do
       begin
         last_addnfo.Delete(0);
-        i:= last_addnfo.Count - 1;
+        i := last_addnfo.Count - 1;
       end;
     end;
   end;
 end;
 
 
-procedure dbaddnfo_ParseNfo(rls,section, nfo_data: string);overload;
-var URLTemplate : String;
-    url : string;
-    imdburl:boolean;
-    sec:TCRelease;
-    r:TRegExpr;
+procedure dbaddnfo_ParseNfo(rls, section, nfo_data: string); overload;
+var //URLTemplate : String;
+    //url : string;
+    //imdburl:boolean;
+  sec: TCRelease;
+  r:   TRegExpr;
 begin
-sec:=FindSectionHandler(section);
-r:=TRegExpr.Create;
-if sec.ClassName = 'TIMDBRelease' then begin
-r.Expression:='tt\d{5,7}';
-if r.Exec(nfo_data) then
-dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/'+r.Match[0]+'/');
-r.free;
-Exit;
+  sec := FindSectionHandler(section);
+  r   := TRegExpr.Create;
+  if sec.ClassName = 'TIMDBRelease' then
+  begin
+    r.Expression := 'tt\d{5,7}';
+    if r.Exec(nfo_data) then
+      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + r.Match[0] + '/');
+    r.Free;
+    Exit;
+  end;
+
+  dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
-dbaddnfo_ParseNfo(rls, nfo_data);
-end;
-
-procedure dbaddnfo_ParseNfo(rls, nfo_data: string);overload;
-var URLTemplate : String;
-    url : string;
+procedure dbaddnfo_ParseNfo(rls, nfo_data: string); overload;
+var
+  URLTemplate: string;
+  url: string;
 begin
   // Search URL
   URLTemplate :=
-   ''
-   + '('
-   + '([fF][tT][pP]|[hH][tT][tT][pP])://'                  // Protocol
-   + '|[wW]{3}\.)'                                         // trick to catch links without
-                                                           // protocol - by detecting of starting 'www.'
-   + '([\w\d\-]+(\.[\w\d\-]+)+)'                           // TCP addr or domain name
-   + '(:\d\d?\d?\d?\d?)?'                                  // port number
-   + '(((/[%+\w\d\-\\\.]*)+)*)'                            // unix path
-   + '(\?[^\s=&]+=[^\s=&]+(&[^\s=&]+=[^\s=&]+)*)?'         // request (GET) params
-   + '(#[\w\d\-%+]+)?';                                    // bookmark
+    '' + '(' + '([fF][tT][pP]|[hH][tT][tT][pP])://'                  // Protocol
+    + '|[wW]{3}\.)'
+    // trick to catch links without
+    // protocol - by detecting of starting 'www.'
+    + '([\w\d\-]+(\.[\w\d\-]+)+)'                           // TCP addr or domain name
+    + '(:\d\d?\d?\d?\d?)?'                                  // port number
+    + '(((/[%+\w\d\-\\\.]*)+)*)'                            // unix path
+    + '(\?[^\s=&]+=[^\s=&]+(&[^\s=&]+=[^\s=&]+)*)?'         // request (GET) params
+    + '(#[\w\d\-%+]+)?';                                    // bookmark
 
-  with TRegExpr.Create do try
-    Expression := URLTemplate;
-    if Exec (nfo_data) then
-     REPEAT
-      if (CompareText(Match[1], 'www.') = 0) then begin
-        url := 'http://' + Match [0];
-      end else begin
-        url := Match [0];
-      end;
+  with TRegExpr.Create do
+    try
+      Expression := URLTemplate;
+      if Exec(nfo_data) then
+        repeat
+          if (CompareText(Match[1], 'www.') = 0) then
+          begin
+            url := 'http://' + Match[0];
+          end
+          else
+          begin
+            url := Match[0];
+          end;
 
-      dbaddurl_SaveUrl(rls, url);
-    UNTIL not ExecNext;
-   finally Free;
-  end;
+          dbaddurl_SaveUrl(rls, url);
+        until not ExecNext;
+    finally
+      Free;
+    end;
 end;
 
 { Status }
@@ -221,16 +228,16 @@ function dbaddnfo_Status: string;
 begin
   Result := '';
 
-  Result:= Format('<b>Nfo</b>: %d',[last_addnfo.Count]);
+  Result := Format('<b>Nfo</b>: %d', [last_addnfo.Count]);
 end;
 
 { Init }
 
 procedure dbaddnfoInit;
 begin
-  last_addnfo:= TStringList.Create;
-  last_addnfo.CaseSensitive:= False;
-  last_addnfo.Duplicates:= dupIgnore;
+  last_addnfo := TStringList.Create;
+  last_addnfo.CaseSensitive := False;
+  last_addnfo.Duplicates := dupIgnore;
 end;
 
 procedure dbaddnfoStart;

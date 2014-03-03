@@ -2,7 +2,7 @@ unit ircblowfish;
 
 interface
 
-uses Contnrs, delphiblowfish;
+uses Contnrs, delphiblowfish{$IFDEF MSWINDOWS},Windows{$ENDIF};
 type
   TIrcBlowkey = class
   private
