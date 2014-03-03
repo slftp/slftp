@@ -41,10 +41,11 @@ begin
 end;
 
 function TPazoGameTask.Parse(text: string):boolean;
-var pgrx2,pgrx1,pgrx,pgrg:TRegExpr;
-ss,s:string;
+//var pgrx2,pgrx1,pgrx,pgrg:TRegExpr;
+//ss,s:string;
 //rg:TGameRelease;
 begin
+result:=False;
 (*
 pgrx:=TRegExpr.Create;
 pgrx.ModifierI:=True;

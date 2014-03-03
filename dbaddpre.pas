@@ -92,12 +92,15 @@ begin
         vctime:=PrepareTimestamp(strtoint(prex.Match[2]));
         result:=UnixToDateTime(vctime);
 
-        if (DaysBetween(Now(), Result) > 30) then begin
-        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
+
+
+
+        if ((DaysBetween(Now(), Result) > 30) and config.ReadBool('kb','skip_rip_older_then_one_month',False)) then begin
+//        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
           Result := UnixToDateTime(0);
         end;
       end else begin
-      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
+//      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
         Result := UnixToDateTime(0);
       end;
     end;
