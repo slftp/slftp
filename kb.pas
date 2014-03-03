@@ -317,8 +317,7 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
-{$IFDEF MSWINDOWS},Windows{$ENDIF}
-  ;
+{$IFDEF MSWINDOWS}, Windows{$ENDIF}  ;
 
 type
   TSectionRelease = record
@@ -493,7 +492,7 @@ end;
 
 function trimmedShitChecker(section, rls: string): boolean;
 begin
-result:=False;
+  Result := False;
 end;
 
 
@@ -518,9 +517,12 @@ begin
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d',
     [sitename, section, event, rls, cdno, integer(dontFire), integer(forceFire)]);
 
+
+
   Result := -1;
 
   kb_lock.Enter;
+      psource :=nil;
   try
     // check if rls already skiped
     if kb_skip.IndexOf(rls) <> -1 then
@@ -709,12 +711,11 @@ begin
       end;
     end;
 
-  i := -1;
   finally
     kb_lock.Leave;
   end;
-
-  added := False;
+  //  i := -1;
+  //  added := False;
 
   kb_lock.Enter;
   try
@@ -1602,7 +1603,8 @@ constructor TMP3Release.Create(rlsname, section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
-  kezdoindex, szoindex, kotojelekszama: integer;
+  //kezdoindex,szoindex,
+  kotojelekszama: integer;
   types: integer;
   j:     integer;
   szo, szamoknelkul: string;
@@ -1657,19 +1659,19 @@ begin
         mp3lng := 'EN';
 
       // most atkonvertaljuk evszamindexet a words szarnak megfelelore
-      Inc(evszamindex, words.Count - tags.Count);
+//      Inc(evszamindex, words.Count - tags.Count);
 
       //megkeressuk masodik kotojel utani szo indexet
-      szoindex := 0;
+//      szoindex := 0;
       kotojelekszama := 0;
       for i := 1 to length(rlsname) do
       begin
-        if rlsname[i] = '_' then
-          Inc(szoindex)
-        else
+//        if rlsname[i] = '_' then
+//          Inc(szoindex)
+//        else
         if rlsname[i] = '-' then
         begin
-          Inc(szoindex);
+//          Inc(szoindex);
           Inc(kotojelekszama);
           if (kotojelekszama = 2) then
             Break;
@@ -1678,11 +1680,11 @@ begin
 
       if kotojelekszama < 2 then
         exit;
-
+(*
       kezdoindex := Min(szoindex, words.Count - 1);
       kezdoindex := Min(kezdoindex, evszamindex - 3);
       kezdoindex := Max(kezdoindex, 0);
-
+*)
       types := 0;
       mp3_numdisks := 1;
 
@@ -1957,7 +1959,7 @@ begin
 
   pazo := TPazo(p); // ugly shit
 
-//  db_tvrage := nil;
+  //  db_tvrage := nil;
   try
     db_tvrage := dbaddtvrage_gettvrage_show(self.showname);
   except
@@ -2079,7 +2081,7 @@ begin
 
   if (showname <> '') then
   begin
-//    db_tvrage := nil;
+    //    db_tvrage := nil;
     try
       db_tvrage := dbaddtvrage_gettvrage_show(showname);
       if (db_tvrage <> nil) then
@@ -2622,49 +2624,44 @@ var
   x: TEncStringList;
   p: TPazo;
 begin
-  // itt kell elmenteni az slftp.kb -t
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
   seconds := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
   x := TEncStringList.Create(passphrase);
-//  p := nil;
-
   try
-    for i := 0 to kb_list.Count - 1 do
-    begin
-      try
-        p := TPazo(kb_list.Objects[i]);
-      except
-//        p := nil;
-        Continue;
-      end;
-      if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-        (1 <> Pos('REQUEST-', kb_list[i])) and
-        (SecondsBetween(Now, p.added) < seconds)) then
+    try
+      for i := 0 to kb_list.Count - 1 do
       begin
-        x.Add(GetKbPazo(p));
+        p := TPazo(kb_list.Objects[i]);
+        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
+          (1 <> Pos('REQUEST-', kb_list[i])) and (SecondsBetween(Now, p.added) < seconds)) then
+          x.Add(GetKbPazo(p));
       end;
+    except
+      exit;
     end;
-  except
-    exit;
+    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
+  finally
+    x.Free;
   end;
-  x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-  x.Free;
 
   debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
   x := TEncStringList.Create(passphrase);
   try
-    for i := 0 to kb_skip.Count - 1 do
-    begin
-      if i > 249 then
-        break;
-      x.Add(kb_skip[i]);
+    try
+      for i := 0 to kb_skip.Count - 1 do
+      begin
+        if i > 249 then
+          break;
+        x.Add(kb_skip[i]);
+      end;
+    except
+      exit;
     end;
-  except
-    exit;
+    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+  finally
+    x.Free;
   end;
-  x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
-  x.Free;
 end;
 
 procedure kb_FreeList;
@@ -2693,7 +2690,7 @@ function kb_reloadsections: boolean;
 var
   xin: Tinifile;
 begin
-//  Result := False;
+  //  Result := False;
   kb_sections.Free;
   kb_sections := TStringList.Create;
   xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
@@ -2923,7 +2920,7 @@ end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
-  j, i: integer;
+  j, i:   integer;
   ps, pss: TPazoSite;
   p:      TPazo;
   inc_srcsite, inc_dstsite: TSite;
@@ -2949,10 +2946,11 @@ begin
       Continue; // Release is allready filled and complete!
     if ps.error then
       Continue; //There is some error we need to check in later revs!
-    if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
+    if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
       Continue;
-//rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-      if ps.status <> rssAllowed then Continue;
+    //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
+    if ps.status <> rssAllowed then
+      Continue;
 
 
 
@@ -2981,11 +2979,13 @@ begin
           Continue;
 
 
-if pss.destinations.IndexOf(ps) = -1 then continue;
+        if pss.destinations.IndexOf(ps) = -1 then
+          continue;
 
-if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete', False) then begin
-sfound := TSite(pss).isRouteableTo(ps.Name);
-end;
+        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
+        begin
+          sfound := TSite(pss).isRouteableTo(ps.Name);
+        end;
 
 
 (*
@@ -3032,14 +3032,15 @@ end;
       if ps.error then
         Exit; //There is some error we need to check in later revs!
 
-    if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
-      Continue;
-//rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-      if ps.status <> rssAllowed then Continue;
+      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        Continue;
+      //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
+      if ps.status <> rssAllowed then
+        Continue;
 
-      if ps.Name = config.ReadString('sites','admin_sitename','SLFTP') then
+      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
         Exit;
-      if pss.Name = config.ReadString('sites','admin_sitename','SLFTP') then
+      if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
         Exit;
       site := FindSiteByName('', ps.Name);
       if site = nil then
@@ -3085,7 +3086,8 @@ end;
         inc_ps.dirlist.dirlistadded := True;
         inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
 
-        irc_Addstats(Format('<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+        irc_Addstats(Format(
+          '<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
           [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
 (*
         irc_addtext(inc_pd, Format(

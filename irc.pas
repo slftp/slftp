@@ -203,7 +203,9 @@ implementation
 uses debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
      socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
      sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbaddnfo, dbaddurl, dbaddimdb,
-     dbaddgenre;
+     dbaddgenre
+     {$IFDEF MSWINDOWS},Windows{$ENDIF}
+     ;
 
 const section = 'irc';
 
@@ -1078,7 +1080,7 @@ crypted:=false;
     Result:= True;
     exit;
   end;
-  Result:= False;
+//  Result:= False;
  
   irc_last_read:= Now();
   //Debug(dpSpam, section, netname+'<< '+s);
@@ -1580,12 +1582,12 @@ end;
 
 function IrcRestart:boolean;
 begin
-  result:=False;
   try
   ircStop;
   IrcStart;
-  finally
-    result:=True;
+   result:=True;
+  except
+  result:=False;
   end;
 end;
 

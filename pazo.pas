@@ -616,7 +616,7 @@ function TPazo.PRegisterFile(dir, filename: string; filesize: Integer): Integer;
 var i: Integer;
     cache_file: TCacheFile;
 begin
-  Result:= filesize;
+//  Result:= filesize;
   try
     cs.Enter;
     try
@@ -803,19 +803,18 @@ begin
 end;
 
 function TPazo.Stats(console: Boolean; withdirlist: Boolean = True):  string;
-var i,ii: Integer;
+var i: Integer;
     ps: TPazoSite;
     s: TSite;
 begin
   Result:= '';
 
-  ii:=0;
+//  ii:=0;
   for i:= 0 to sites.Count -1 do
   begin
-    try ps:= TPazoSite(sites[i]); except continue; end;
-
     try
-      if ps.status = rssNotAllowed then Continue;
+    ps:= TPazoSite(sites[i]);
+    if ps.status = rssNotAllowed then Continue;
       s:= FindSiteByName('', ps.name);
       if s = nil then Continue;
       if s.noannounce and not console then Continue;
@@ -827,7 +826,7 @@ begin
         Result:=  Result + '"'+ps.Stats+'"'
       else
         Result:= Result + '"'+ps.Stats+'"';
-      inc(ii);
+     // inc(ii);
     except
       Continue;
     end;
@@ -1152,7 +1151,7 @@ end;
 function TPazoSite.MkdirError(dir: string): Boolean;
 var d: TDirList;
 begin
-  Result:= False;
+//  Result:= False;
 
   d:= dirlist.FindDirlist(dir);
   if d <> nil then
@@ -1231,7 +1230,7 @@ begin
           if Tuzelj(netname, channel, dir, de) then
           begin
             QueueFire;
-            Result:= True;
+            //Result:= True;
           end;
         finally
           pazo.cs.Leave;
