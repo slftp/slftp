@@ -2931,7 +2931,7 @@ var
   inc_ps: TPazoSite;
   inc_pd: TPazoDirlistTask;
   sfound: boolean;
-  site:   TSite;
+tts,ts,  site:   TSite;
 begin
   Result := False;
   p      := TPazo(pazo);
@@ -2984,7 +2984,9 @@ begin
 
         if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
         begin
-          sfound := TSite(pss).isRouteableTo(ps.Name);
+        ts:=FindSiteByName('',ps.name);
+        tts:=FindSiteByName('',pss.name);
+        sfound := tts.isRouteableTo(ts.name);
         end;
 
 
