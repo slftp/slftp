@@ -498,8 +498,9 @@ end;
 
 function TSiteSlot.Name: string;
 begin
-  Result:= site.name+'/'+IntToStr(no);
+  Result:=Format('%s/%d',[site.name,no]);
 end;
+
 procedure TSiteSlot.DestroySocket(down: Boolean);
 begin
   try
@@ -534,11 +535,19 @@ begin
       if ((todotask <> nil) and (not queue_debug_mode)) then
       begin
         try
+        try
           tname:= todotask.Name;
+        except on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s', [tname, e.Message]));
+        end;
+
           Debug(dpSpam, section, '--> '+Format('%s', [name]));
+          try
           if todotask.Execute(self) then
             lastactivity:= Now();
-
+          except on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+          end;
           Debug(dpSpam, section, '<-- '+Format('%s', [name]));
         except
           on e: Exception do
@@ -546,6 +555,7 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute %s: %s', [tname, e.Message]));
           end;
         end;
+
 
         uploadingto:= False;
         downloadingfrom:= False;
