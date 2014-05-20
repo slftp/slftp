@@ -5936,7 +5936,7 @@ begin
   end
   else
   begin
-    irc_addtext(Netname, Channel, 'Cant found');
+    irc_addtext(Netname, Channel, 'Cant find');
     exit;
   end;
 
@@ -6801,7 +6801,7 @@ begin
     end;
   end
   else
-    irc_addtext(Netname, Channel, 'Cant found');
+    irc_addtext(Netname, Channel, 'Cant find');
 
   Result := True;
 end;

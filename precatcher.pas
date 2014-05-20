@@ -606,7 +606,7 @@ begin
   i    := cd.IndexOf(net + chan + nick);
   if i <> -1 then
   begin
-    MyDebug('Ok %s %s %s is valide for check', [net, chan, nick]);
+    MyDebug('Ok %s %s %s is valid for check', [net, chan, nick]);
     try
       sc := TSiteChan(cd.Objects[i]);
     except

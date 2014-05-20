@@ -1,7 +1,6 @@
 {(*  TODO:   *)
 # is it thread safe?
 # need encrpytion support that we can use XML as configfile?
-# test
 }
 unit xmlwrapper;
 

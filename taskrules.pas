@@ -98,14 +98,8 @@ ujra:
     inc(i);
   end;
 
-  {$IFDEF MSWINDOWS}
   rules_path:= ExtractFilePath(ParamStr(0))+'rules';
-  rules_file:= rules_path+'\'+s.site.name+'.rules';
-  {$ELSE}
-  rules_path:= ExtractFilePath(ParamStr(0))+'rules';
-  rules_file:= rules_path+'/'+s.site.name+'.rules';
-  {$ENDIF}
-
+  rules_file:= rules_path+PathDelim+s.site.name+'.rules';
   try
     ForceDirectories(rules_path);
   except on e: Exception do begin
