@@ -2163,12 +2163,7 @@ var fst: TStringList;
     SearchRec: TSearchRec;
     rules_path: String;
 begin
-  {$IFDEF MSWINDOWS}
-  rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+'\';
-  {$ELSE}
-  rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+'/';
-  {$ENDIF}
-
+  rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
   FreeAndNil(rtpl);
   rtpl:= TObjectList.Create;
 
