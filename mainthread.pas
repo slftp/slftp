@@ -43,7 +43,7 @@ procedure Main_Uninit;
 
 function Main_Restart:boolean;
 
-var kilepes: Boolean;
+var slshutdown: Boolean;
     started: TDateTime;
 
 implementation
@@ -74,7 +74,7 @@ var queue_fire: Integer;
 
 function kilepescsekker(socket: TslTCPSocket): Boolean;
 begin
-  Result:= kilepes;
+  Result:= slshutdown;
 end;
 
 function Main_Init: string;
@@ -212,7 +212,7 @@ end;
 
 procedure Main_Iter;
 begin
-  if kilepes then
+  if slshutdown then
   begin
     slapp.shouldquit:= True;
     exit;
@@ -370,7 +370,7 @@ begin
   SiteAutoStart;
   AutoCrawlerStart;
 
-  kilepes:= False;
+  slshutdown:= False;
 
   QueueStart();
 

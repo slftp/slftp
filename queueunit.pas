@@ -991,7 +991,7 @@ var i, j: Integer;
     ss: string;
     ts: TSite;
 begin
-  while ((not kilepes) and (not Terminated)) do
+  while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run:= Now();
     Debug(dpSpam, section, 'Queue Iteration begin %d', [tasks.Count]);

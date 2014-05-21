@@ -82,7 +82,7 @@ ujra:
 
 
     i:= 0;
-    while ((i < nukequeue.Count) and (not kilepes) and (not s.shouldquit)) do
+    while ((i < nukequeue.Count) and (not slshutdown) and (not s.shouldquit)) do
     begin
       n:= TNukeQueueItem(nukequeue[i]);
       if n.site = site1 then

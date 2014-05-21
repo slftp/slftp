@@ -126,8 +126,8 @@ type
     procedure SetSectionDir(name: string; const Value: string);
     function GetSectionPrecmd(name: string): string;
     procedure SetSectionPrecmd(name: string; const Value: string);
-    function GetSectionAffil(name: string): string;
-    procedure SetSectionAffil(name: string; const Value: string);
+    function GetAffils: string;
+    procedure SettAffils(Value: string);
     function GetSectionPreTime(Name: string): integer;
     procedure SetSectionPreTime(Name: string; const Value: integer);
     function GetSections: string;
@@ -217,8 +217,10 @@ type
     function SetLeechers(users: string; remove: Boolean): string;
     function SetTraders(users: string; remove: Boolean): string;
     function IsSection(section: string): Boolean;
-    function IsAffil(section, affil: string): Boolean;
-    function SetAffils(section, affils: string; remove: Boolean = False): string;
+    function IsAffil(affil: string): Boolean;
+    function AddAffil(affil: string): Boolean;
+    // TODO function DelAffil(affil: string): Boolean;
+    function SetAffils(affils: string): string;
     function IsUser(user: string): Boolean;
     function IsLeecher(user: string): Boolean;
     function IsTrader(user: string): Boolean;
@@ -236,7 +238,7 @@ type
     property users: string read GetUsers;
     property sectiondir[name: string]: string read GetSectionDir write SetSectionDir;
     property sectionprecmd[name: string]: string read GetSectionPreCmd write SetSectionPrecmd;
-    property sectionaffil[name: string]: string read GetSectionAffil write SetSectionAffil;
+    property siteaffils: string read GetAffils write SettAffils;
 
     property sectionpretime[Name: string]: integer read GetSectionPreTime write SetSectionPreTime;
 
@@ -526,7 +528,7 @@ begin
   Debug(dpSpam, section, 'Slot %s has started', [name]);
 
   console_add_sitewindow(name);
-  while ((not kilepes) and  (not shouldquit)) do// and (not False)
+  while ((not slshutdown) and  (not shouldquit)) do// and (not False)
   begin
     try
       if status = ssOnline then
@@ -579,7 +581,7 @@ begin
           end;
         end;
 
-        if ((not shouldquit) and (not kilepes)) then
+        if ((not shouldquit) and (not slshutdown)) then
         begin
           QueueFire;
         end;
@@ -899,7 +901,7 @@ begin
   Result:= False;
 
   i:= 0;
-  while ((not kilepes) and (not shouldquit)) do
+  while ((not slshutdown) and (not shouldquit)) do
   begin
     if i>20 then Break;
 
@@ -938,7 +940,7 @@ begin
     end;
   end;
 
-  if ((not kilepes) and (not shouldquit)) then
+  if ((not slshutdown) and (not shouldquit)) then
     if not Result then
     begin
       if (
@@ -974,7 +976,7 @@ begin
   end;
 
   relogins:= 0;
-  while ((relogins < l_maxrelogins) and (not kilepes) and (not shouldquit)) do
+  while ((relogins < l_maxrelogins) and (not slshutdown) and (not shouldquit)) do
   begin
     try if relogins > 10 then Break; except Break; end;
     Result:= Login(kill);
@@ -994,7 +996,7 @@ begin
     inc(relogins);
   end;
 
-  if ((not kilepes) and (not shouldquit)) then
+  if ((not slshutdown) and (not shouldquit)) then
   begin
     if not Result then
     begin
@@ -1378,7 +1380,8 @@ end;
 { TSite }
 
 constructor TSite.Create(name: string);
-var i: Integer;
+var i, j: Integer;
+    ss, affils: string;
 begin
   if (name = admin_sitename) then
   begin
@@ -1425,6 +1428,21 @@ begin
     slots.Add(TSiteSlot.Create(self, i-1));
 
   RecalcFreeslots;
+
+  for i:= 1 to 1000 do // convert section affils to new global affil format
+  begin
+    ss:= SubString(self.sections, ' ', i);
+    if ss = '' then Break;
+    affils:= RCString('affils-'+ss, '');
+    DeleteKey('affils-'+ss);
+    if affils = '' then Continue;
+    for j:= 1 to 1000 do
+    begin
+      ss:= SubString(affils, ' ', j);
+      if ss = '' then Break;
+      self.AddAffil(ss);
+    end;
+  end;
 
   debug(dpSpam, section, 'Site %s has created', [name]);
 end;
@@ -1813,19 +1831,14 @@ begin
   sitesdat.DeleteKey('site-'+self.name, name);
 end;
 
-function TSite.GetSectionAffil(name: string): string;
+function TSite.GetAffils: string;
 begin
-  Result:= RCString('affils-'+name, '')
+  Result:= RCString('affils', '')
 end;
 
-procedure TSite.SetSectionAffil(name: string; const Value: string);
+procedure TSite.SettAffils(value: string);
 begin
-  if Value <> '' then
-    WCString('affils-'+name, Value)
-  else
-  begin
-    DeleteKey('affils-'+name);
-  end;
+  WCString('affils', value);
 end;
 
 function TSite.GetSectionPreTime(Name: string): integer;
@@ -1907,13 +1920,13 @@ begin
     Result := Format('%2.2d Sec', [sec_pretime mod 60]);
 end;
 
-function TSite.IsAffil(section, affil: string): Boolean;
+function TSite.IsAffil(affil: string): Boolean;
 var x: TStringList;
 begin
   x:= TStringList.Create;
   x.Delimiter:= ' ';
   x.CaseSensitive:= False;
-  x.DelimitedText:= sectionaffil[section];
+  x.DelimitedText:= siteaffils;
   Result:= x.IndexOf(affil) <> -1;
   x.Free;
 end;
@@ -2057,31 +2070,48 @@ begin
   x.Free;
 end;
 
-function TSite.SetAffils(section, affils: string; remove: Boolean = False): string;
+function TSite.SetAffils(affils: string): string;
 var x: TStringList;
-    ss: string;
+    List: TStrings;
+    affil: string;
     i: Integer;
+begin
+  x:= TStringList.Create;
+  List := TStringList.Create;
+  x.Delimiter:= ' ';
+  x.CaseSensitive:= False;
+  ExtractStrings([' ', ',' ,'|'], [], PChar(affils), List);
+
+  for i:= 0 to List.Count - 1 do
+  begin
+    affil:= List[i];
+    if affil = '' then continue;
+    if x.IndexOf(affil) = -1 then
+      x.Add(affil);
+  end;
+  x.Sort;
+  siteaffils:= x.DelimitedText;
+  Result:= x.DelimitedText;
+  List.Free;
+  x.Free;
+end;
+
+function TSite.AddAffil(affil: string): Boolean;
+var x: TStringList;
 begin
   x:= TStringList.Create;
   x.Delimiter:= ' ';
   x.CaseSensitive:= False;
-  x.DelimitedText:= sectionaffil[section];
-  for i:= 1 to 1000 do
+  x.DelimitedText:= siteaffils;
+  if x.IndexOf(affil) = -1 then
   begin
-    ss:= SubString(affils, ' ', i);
-    if ss = '' then Break;
-
-    if x.IndexOf(ss) <> -1 then
-    begin
-      if remove then
-        x.Delete(x.IndexOf(ss))
-    end
-    else
-      x.Add(ss);
-  end;
-  x.Sort;
-  sectionaffil[section]:= x.DelimitedText;
-  Result:= x.DelimitedText;
+      x.Add(affil);
+      x.Sort;
+      siteaffils:= x.DelimitedText;
+      Result:= True;
+  end
+  else
+      Result:= False;
   x.Free;
 end;
 

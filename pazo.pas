@@ -756,7 +756,7 @@ begin
   begin
     readyat:= Now();
     ready:= True;
-    if ((not kilepes) and (rls <> nil)) then
+    if ((not slshutdown) and (rls <> nil)) then
     begin
       Debug(dpSpam, section, 'Number of pazo tasks is zero now! '+IntToStr(pazo_id));
       if not stopped then
@@ -921,7 +921,7 @@ begin
 
               ps:= TPazoSite.Create(self, s.name, sectiondir);
               ps.status:= rssNotAllowed;
-              if s.IsAffil(rls.section, rls.groupname) then
+              if s.IsAffil(rls.groupname) then
                 ps.status := rssShouldPre;
               sites.Add(ps);
             end;
@@ -934,7 +934,7 @@ begin
           //ps:= AddSite(s.name, sectiondir);
           ps:= TPazoSite.Create(self, s.name, sectiondir);
           ps.status:= rssNotAllowed;
-          if s.IsAffil(rls.section, rls.groupname) then
+          if s.IsAffil(rls.groupname) then
             ps.status := rssShouldPre;
           sites.Add(ps);
         end;
@@ -969,7 +969,7 @@ begin
     //ps:= AddSite(s.name, sectiondir);
     ps:= TPazoSite.Create(self, s.name, sectiondir);
     ps.status:= rssAllowed;//rssNotAllowed;
-    if s.IsAffil(rls.section, rls.groupname) then ps.status := rssShouldPre;
+    if s.IsAffil(rls.groupname) then ps.status := rssShouldPre;
     sites.Add(ps);
   end;
  end;

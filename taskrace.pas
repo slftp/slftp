@@ -180,7 +180,7 @@ begin
   mainpazo.lastTouch:= Now();
 
 ujra:
-  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (kilepes)) then
+  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (slshutdown)) then
   begin
     readyerror:= True;
 
@@ -572,7 +572,7 @@ begin
   mainpazo.lastTouch:= Now();
 
 ujra:
-  if ((ps1.error) or (kilepes)) then
+  if ((ps1.error) or (slshutdown)) then
   begin
     readyerror:= True;
     mainpazo.errorreason:='ERROR PS1 or PS2';
@@ -841,7 +841,7 @@ begin
   Debug(dpMessage, c_section, '--> '+tname);
 
 ujra:
-  if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (kilepes)) then
+  if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
   begin
     readyerror:= True;
     mainpazo.errorreason:='ERROR PS1 or PS2';

@@ -130,6 +130,7 @@ function IrcRulesLoad(const netname, channel: string; params: string): boolean;
 function IrcRulesReload(const netname, channel: string; params: string): boolean;
 
 function IrcAffils(const netname, channel: string; params: string): boolean;
+function IrcSetAffils(const netname, channel: string; params: string): boolean;
 function IrcSections(const netname, channel: string; params: string): boolean;
 function IrcUsers(const netname, channel: string; params: string): boolean;
 function IrcCountry(const netname, channel: string; params: string): boolean;
@@ -347,7 +348,7 @@ procedure IrcCommandUninit;
 
 const
 
-  irccommands: array[1..238] of TIrcCommand = (
+  irccommands: array[1..239] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -591,7 +592,8 @@ const
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: -1; hlpgrp: ''),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: -1; hlpgrp: ''),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: -1; hlpgrp: ''),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: -1; hlpgrp: ''),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: -1; hlpgrp: ''),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: -1; hlpgrp: ''),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: ''),
@@ -1915,7 +1917,7 @@ begin
   lastAnn := now();
   while (True) do
   begin
-    if (kilepes) then
+    if (slshutdown) then
       exit;
     Sleep(500);
 
@@ -2182,7 +2184,7 @@ begin
   lastAnn := now();
   while (True) do
   begin
-    if (kilepes) then
+    if (slshutdown) then
       exit;
     Sleep(500);
 
@@ -4270,7 +4272,7 @@ begin
   end;
   x.Free;
   i := 0;
-  while (not kilepes) do
+  while (not slshutdown) do
   begin
     host := sitesdat.ReadString('ircnet-' + nn, 'bnc_host-' + IntToStr(i), '');
     if host = '' then
@@ -5686,7 +5688,7 @@ begin
   x.Free;
 
   i := 0;
-  while (not kilepes) do
+  while (not slshutdown) do
   begin
     host := s.RCString('bnc_host-' + IntToStr(i), '');
     if host = '' then
@@ -5719,7 +5721,7 @@ begin
   irc_addtext(Netname, Channel, 'Site <b>%s</b>:', [sitename]);
 
   i := 0;
-  while (not kilepes) do
+  while (not slshutdown) do
   begin
     host := s.RCString('bnc_host-' + IntToStr(i), '');
     if host = '' then
@@ -5737,39 +5739,21 @@ end;
 function IrcDie(const Netname, Channel: string; params: string): boolean;
 begin
   try
-    kilepes := IrcSetdown(Netname, Channel, '!ALL!');
+    slshutdown := IrcSetdown(Netname, Channel, '!ALL!');
   finally
-    Result := kilepes;
+    Result := slshutdown;
   end;
 end;
 
 function IrcAffils(const Netname, Channel: string; params: string): boolean;
 var
-  ss, sitename, affils, section: string;
+  ss, sitename, affils: string;
   s: TSite;
-  y: TStringList;
-  i: integer;
 
 begin
   Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  section  := UpperCase(SubString(params, ' ', 2));
-  affils   := RightStrV2(params, length(sitename) + length(section) + 2);
-
-  if kb_sections.IndexOf(sitename) > -1 then
-  begin
-    section := sitename;
-    for i := 0 to sites.Count - 1 do
-    begin
-      ss := '';
-      ss := TSite(sites.Items[i]).SetAffils(section, '');
-      if ss <> '' then
-        irc_addtext(Netname, Channel, '<b>%s</b> : <c7><b>%s</b></c>',
-          [TSite(sites.Items[i]).Name, ss]);
-    end;
-    Result := True;
-    Exit;
-  end;
+  affils   := RightStrV2(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -5778,37 +5762,36 @@ begin
     exit;
   end;
 
-  if section = '' then
-  begin
-    y := TStringList.Create;
-    try
-      y.Delimiter     := ' ';
-      y.DelimitedText := s.sections;
-
-      for I := 0 to y.Count - 1 do
-      begin
-        ss := '';
-        ss := s.SetAffils(y.strings[i], '');
-        if ss <> '' then
-          IrcLineBreak(Netname, Channel, ss, ' ',
-            Format('<b>%s</b>@%s : ', [y.strings[i], sitename]), 12);
-      end;
-    finally
-      y.Free;
-    end;
-  end
-  else
-  begin
-    ss := s.SetAffils(section, affils, True);
-    if ss <> '' then
-      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-        [section, sitename]), 12);
-  end;
+  ss := s.siteaffils;
+  if ss <> '' then
+    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+      ['', sitename]), 12);
   Result := True;
 end;
 
+function IrcSetAffils(const Netname, Channel: string; params: string): boolean;
+var
+  ss, sitename, affils: string;
+  s: TSite;
 
+begin
+  Result   := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  affils   := RightStrV2(params, length(sitename) + 1);
 
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, '<b>ERROR</b> -> Site %s not found.', [sitename]);
+    exit;
+  end;
+
+  ss := s.SetAffils(affils);
+  if ss <> '' then
+    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+      ['', sitename]), 12);
+  Result := True;
+end;
 
 function IrcIdent(const Netname, Channel: string; params: string): boolean;
 var
@@ -6152,10 +6135,9 @@ var
   s:     TSite;
   db, i: integer;
   ss:    string;
-  section, affil: string;
+  affil: string;
 begin
-  section := UpperCase(SubString(params, ' ', 1));
-  affil   := SubString(params, ' ', 2);
+  affil   := SubString(params, ' ', 1);
 
   ss := '';
   db := 0;
@@ -6163,7 +6145,7 @@ begin
   begin
     s := TSite(sites[i]);
 
-    if s.IsAffil(section, affil) then
+    if s.IsAffil(affil) then
     begin
       ss := ss + format('<b>%s</b> (%d %d) ', [s.Name, s.FreeTraderSlots,
         s.FreeLeechSlots]);
@@ -7229,7 +7211,7 @@ begin
   try
     for i := 0 to sites.Count - 1 do
     begin
-      if TSite(sites[i]).IsAffil(section, GotGroupname(rip)) then
+      if TSite(sites[i]).IsAffil(GotGroupname(rip)) then
       begin
         irc_addtext(Netname, Channel,
           '<b>%s</b> is affil on %s we dont nuke affil!',
