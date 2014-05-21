@@ -11,7 +11,7 @@ type
     rt: LongWord;
     w: TObjectList;
     l: TCriticalSection;
-    kilepes: Boolean;
+    slshutdown: Boolean;
     name: String;
   public
     constructor Create(name: String = '');
@@ -64,7 +64,7 @@ var i: Integer;
 begin
   wait_read:= 0;
   
-  kilepes:= True;
+  slshutdown:= True;
   l.Enter;
   for i:= 0 to w.Count -1 do
     TEvent(w[i]).SetEvent;
@@ -99,7 +99,7 @@ begin
   procId:= MyGetCurrentProcessId;
 
 ujra:
-  if kilepes then exit;
+  if slshutdown then exit;
 
   l.Enter;
   if (rt = 0) then

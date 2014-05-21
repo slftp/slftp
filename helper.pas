@@ -4,7 +4,7 @@ interface
 
 function MyGetPass(prompt: string): string;
 function MyGetUsername: string;
-procedure mySleep(sec: Integer; var kilepes: Boolean);
+procedure mySleep(sec: Integer; var slshutdown: Boolean);
 function ParsePZSOutputForGenre(s: string): string;
 {$IFDEF FPC}
 function RandomRange(mmin, mmax: Integer): Integer;
@@ -112,13 +112,13 @@ begin
 end;
 {$ENDIF}
 
-procedure mySleep(sec: Integer; var kilepes: Boolean);
+procedure mySleep(sec: Integer; var slshutdown: Boolean);
 var i: integer;
 begin
   for i:= 1 to sec*2 do
   begin
     Sleep(500);
-    if kilepes then Exit;
+    if slshutdown then Exit;
   end;
 end;
 

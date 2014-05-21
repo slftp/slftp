@@ -988,9 +988,9 @@ begin
       begin
         if (s <> nil) then
         begin
-          if ((not s.IsAffil(section, r.groupname)) and
+          if ((not s.IsAffil(r.groupname)) and
             (config.ReadBool(rsections, 'auto_add_affils', False))) then
-            s.SetAffils(section, r.groupname, False);
+            s.AddAffil(r.groupname);
         end;
       end;
       psource.Status := rssRealPre;
@@ -3122,7 +3122,7 @@ var
   p:  TPazo;
   ps: TPazoSite;
 begin
-  while (not kilepes) do
+  while (not slshutdown) do
   begin
     try
       kb_lock.Enter;

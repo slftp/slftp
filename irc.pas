@@ -243,7 +243,7 @@ end;
 procedure irc_Addtext_b(const netname, channel: string; msg: string); overload;
 var direct_echo: TMyIrcThread;
 begin
-  if kilepes then exit;
+  if slshutdown then exit;
 
   if ((netname = 'CONSOLE') or (netname = '')) then
   begin

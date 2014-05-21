@@ -96,7 +96,7 @@ begin
     end;
   end;
 
-  if ((kilepes) or (s.shouldquit)) then
+  if ((slshutdown) or (s.shouldquit)) then
   begin
     Result:= -1;
     exit;
