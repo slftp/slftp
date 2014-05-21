@@ -584,7 +584,7 @@ procedure TMySlApp.MyOnExit;
 var x: TEncStringlist;
 begin
   vl.Caption:= 'slFtp exiting';
-  kilepes:= True;
+  slshutdown:= True;
 
   x:= TEncStringList.Create(passphrase);
   try
