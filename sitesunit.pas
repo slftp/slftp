@@ -923,8 +923,8 @@ begin
       begin
         if site.sw = sswGlftpd then
         begin
-          //DestroySocket(False);
-          //Result:= LoginBnc(i, true);
+          DestroySocket(False);
+          Result:= LoginBnc(i, true);
         end;
       end else begin
         irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [name, bnc, error]);
