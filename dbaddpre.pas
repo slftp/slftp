@@ -189,7 +189,7 @@ begin
   
   if (rls_section = '') then
   begin
-    irc_Addstats(Format('<c7>[ADDPRE RLZ]</c> %s %s (%s) : <b>No Sites</b>', [rls, rls_section, section]));
+    irc_Addstats(Format('<c7>[ADDPRE]</c> %s %s (%s) : <b>No Sites</b>', [rls, rls_section, section]));
     exit;
   end;
 

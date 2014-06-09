@@ -238,7 +238,7 @@ begin
         if (ps <> nil) then
         begin
           if spamcfg.ReadBool('addinfo','imdbupdate',True) then
-            irc_Addadmin(Format('<c3>[ADDIMDB RLZ]</c> %s %s now have iMDB infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
+            irc_Addadmin(Format('<c3>[ADDIMDB]</c> %s %s now has iMDB infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
           kb_Add('', '', ps.name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
         end;
       end;

@@ -725,7 +725,7 @@ begin
       if event = 'NUKE' then
       begin
         // nuking an old rls not in kb
-        irc_Addstats(Format('<c4>[NUKE RLZ]</c> %s %s @ %s (not in kb)',
+        irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
@@ -733,7 +733,7 @@ begin
       if event = 'COMPLETE' then
       begin
         // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE RLZ]</c> %s %s @ %s (not in kb)',
+        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
@@ -804,14 +804,14 @@ begin
       if (event = 'ADDPRE') then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE RLZ]</c> %s %s', [section, rls]));
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
       end
       else if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          //          irc_Addstats(Format('<c3>[PRE RLZ]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
+          //          irc_Addstats(Format('<c3>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format(
-            '<c9>[<b>%s</b> <b>PRE</b>]</c> <b>%s</b> @ <b>%s</b> <c9>[<b>%s</b> <b>PRE</b>]</c>',
+            '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b> <c9>[<b>%s</b> <b>PRE</b>]</c>',
             [section, rls, sitename, section]));
       end
       else
@@ -821,25 +821,25 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              //              irc_Addstats(Format('<c7>[NEW RLZ]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
-              irc_Addstats(Format('<c7><b>[NEW %s RLZ]</b></c> <b>%s</b> @ <b>%s</b>',
+              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
+              irc_Addstats(Format('<c7><b>[NEW %s]</b></c> <b>%s</b> @ <b>%s</b>',
                 [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              //              irc_Addstats(Format('<c7>[NEW RLZ]</c> %s %s @ %s (<c7>Not found in PreDB</c>)', [section, rls, '<b>'+sitename+'</b>']));
+              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s (<c7>Not found in PreDB</c>)', [section, rls, '<b>'+sitename+'</b>']));
               irc_Addstats(Format(
-                '<c7>[<b>NEW %s RLZ</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
+                '<c7>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
                 [section, rls, sitename]));
           end;
         end
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            //            irc_Addstats(Format('<c3>[NEW RLZ]</c> %s %s @ %s (%s) (<c3> %s ago</c>)', [section, rls, '<b>'+sitename+'</b>', p.sl.sectionname, dbaddpre_GetPreduration(r.pretime)]));
+            //            irc_Addstats(Format('<c3>[NEW]</c> %s %s @ %s (%s) (<c3> %s ago</c>)', [section, rls, '<b>'+sitename+'</b>', p.sl.sectionname, dbaddpre_GetPreduration(r.pretime)]));
             irc_Addstats(Format(
-              '<c3>[<b>NEW %s RLZ</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>)',
+              '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>)',
               [section, rls, sitename, p.sl.sectionname,
               dbaddpre_GetPreduration(r.pretime)]));
         end;
@@ -850,8 +850,8 @@ begin
       if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          //          irc_Addstats(Format('<c9>[PRE RLZ]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
-          irc_Addstats(Format('<c9>[<b>%s</b> <b>PRE</b>]</c> <b>%s</b> @ <b>%s</b>',
+          //          irc_Addstats(Format('<c9>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
+          irc_Addstats(Format('<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
             [section, rls, sitename]));
       end;
 
@@ -891,7 +891,7 @@ begin
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_Addadmin(Format(
-                '<c3>[UPDATE RLZ]</c> %s %s @ <b>%s</b> now have pretime (<c3> %s ago</c>)',
+                '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>)',
                 [section, rls, sitename, dbaddpre_GetPreduration(r.pretime)]));
             added := p.AddSites;
             if added then
@@ -1004,7 +1004,7 @@ begin
     if event = 'NUKE' then
     begin
       psource.Status := rssNuked;
-      irc_Addstats(Format('<c4>[NUKE RLZ]</c> %s %s @ <b>%s</b>',
+      irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ <b>%s</b>',
         [section, rls, sitename]));
       try
         RemovePazoMKDIR(p.pazo_id, psource.Name, rls);
@@ -1133,7 +1133,7 @@ begin
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[KB RLZ]</c> %s %s Dirlist added to : %s',
+              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
               [section, rls, ps.Name]));
 
             if (ps.dirlist <> nil) then
@@ -1146,7 +1146,7 @@ begin
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
             irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[KB RLZ]</c> %s %s Dirlist added to : %s',
+              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
               [section, rls, ps.Name]));
 
             if (ps.dirlist <> nil) then
@@ -3088,12 +3088,11 @@ begin
         inc_ps.dirlist.dirlistadded := True;
         inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
 
-        irc_Addstats(Format(
-          '<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+        irc_Addstats(Format('<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
           [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
 (*
         irc_addtext(inc_pd, Format(
-          '<c11>[<b>iNC %s RLS</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
           [p.rls.section,p.rls.rlsname, ps.Name, pss.Name]));
 *)
         AddTask(inc_pd);
