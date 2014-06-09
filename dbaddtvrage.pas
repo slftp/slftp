@@ -308,7 +308,7 @@ begin
     begin
       try
         if spamcfg.ReadBool('addinfo','tvrageupdate',True) then
-          irc_Addadmin(Format('<c3>[TVRAGE RLZ]</c> %s %s now have TVRage infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
+          irc_Addadmin(Format('<c3>[TVRAGE]</c> %s %s now has TVRage infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
         kb_Add('', '', ps.name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
       except
         on e: Exception do

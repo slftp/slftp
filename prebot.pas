@@ -130,7 +130,7 @@ begin
       s := FindSiteByName(Netname, sitename);
       if s = nil then
       begin
-        irc_addText(netname, channel, 'Site is not vailed!');
+        irc_addText(netname, channel, 'Site is not valid!');
         exit;
       end;
       irc_addtext(netname, Channel, 'SkipPre status for %s: %d', [s.Name, integer(s.SkipPre)]);
@@ -160,7 +160,7 @@ begin
     s := FindSiteByName(Netname, sitename);
     if s = nil then
     begin
-      irc_addText(netname, channel, 'Site is not vailed!');
+      irc_addText(netname, channel, 'Site is not valid!');
       exit;
     end;
     s.skippre := boolean(i);
@@ -528,7 +528,7 @@ begin
       Continue;
     if s = nil then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is no vailed site!',
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is no valid site!',
         [ps.Name]);
       queue_lock.Leave;
       exit;
@@ -617,14 +617,14 @@ begin
 
       if s = nil then
       begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no vailed site!',
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no valid site!',
           [ps.Name]);
         exit;
       end;
 
       if ps = nil then
       begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no vailed pazosite!');
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no valid pazosite!');
 
         exit;
       end;
@@ -655,14 +655,14 @@ begin
 
     if s = nil then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is no vailed site!', [ps.Name]);
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is no valid site!', [ps.Name]);
       queue_lock.Leave;
       exit;
     end;//if s = nil then begin
 
     if s.SkipPre then
     begin
-      irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is no vailed site!', [ps.Name]);
+      irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is no valid site!', [ps.Name]);
       continue;
     end;
 
@@ -1247,7 +1247,7 @@ begin
   i := kb_list.IndexOf(section + '-' + dir);
   if i = -1 then
   begin
-    irc_addtext(netname, channel, 'No vailed kbID found for %s-%s!', [section, dir]);
+    irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
     queue_lock.Leave;
     exit; // this is not possible
   end;
@@ -1272,7 +1272,7 @@ begin
 
 
     if s = nil then
-      irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no vailed site!', [ps.Name]);
+      irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
 
     if s.markeddown then
       irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
@@ -1635,7 +1635,7 @@ begin
     s := FindSiteByName(netname, params);
     if s = nil then
     begin
-      //irc_addtext(netname,channel,'site not vailed');
+      //irc_addtext(netname,channel,'site not valid');
       queue_lock.Leave;
       exit;
     end;
@@ -1650,7 +1650,7 @@ begin
     queue_lock.Leave;
     if predir = '' then
     begin
-      Irc_AddText(Netname, Channel, 'No vaild path for section %s found on %s ',
+      Irc_AddText(Netname, Channel, 'No valid path for section %s found on %s ',
         ['PRE', s.Name]);
       Exit;
     end;
