@@ -584,6 +584,10 @@ begin
                          //               DOMAINNAME:    X'03'    {Do not Localize}
                          //               IP V6 address: X'04'    {Do not Localize}
   // host name
+  if 0 = System.Pos('.', Host) then begin
+    Host := slConvertIp(Host);
+  end;
+
   tempBuffer[4] := Chr(Length(Host));
   pos := 5;
   if Length(Host) > 0 then begin

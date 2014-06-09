@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  slssl, debugunit, 
+  slssl, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -61,6 +61,7 @@ function slSetnonblocking(s: TslSocket; var error: string): Boolean;
 function slSetblocking(s: TslSocket; var error: string): Boolean;
 function slGetHostByName(AHostName: string; var error: string): string; overload;
 function slResolve(host: string; var error: string): string;
+function slConvertIp(host: string): string;
 function slBind(var slSocket: TslSocket; ip: string; port: Word; var error: string): Boolean;
 function PopulateLocalAddresses(l: TStringList; var error: string): Boolean;
 function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: string): Boolean;
@@ -332,8 +333,20 @@ begin
   end else if IsIP(host) then begin
     result := host;
   end else begin
-    result := slGetHostByName(host, error);
+    if 0 = Pos('.', host) then begin
+      result := slConvertIp(host);
+    end else begin
+      result := slGetHostByName(host, error);
+    end;
   end;
+end;
+
+function slConvertIp(host: string): string;
+var lip:LongWord;
+begin
+  host:=Csere(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
+  lip:=StrToInt64Def(host, -1);
+  Result := Format('%d.%d.%d.%d', [(lip shr 24), (lip shr 16) and $FF,(lip shr 8) and $FF, lip and $FF]);
 end;
 
 
