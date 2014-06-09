@@ -12,7 +12,7 @@ type TRulesTask = class(TTask)
 implementation
 
 uses sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit,
-encinifile, configunit, queueunit, irc;
+encinifile, configunit, queueunit, irc, mrdohutils;
 
 const section = 'taskrules';
 
@@ -187,7 +187,8 @@ ujra:
         irc_Addstats('<b>[RULES '+s.site.name+']</b> Adds: ' + inttostr(adds));
         irc_Addstats('<b>[RULES '+s.site.name+']</b> Deletes: ' + inttostr(deletes));
       end else begin
-        irc_Addstats('<b>[RULES '+s.site.name+']</b> No Changes ');
+        if spamcfg.readbool('sites','rules_nochange',True) then
+          irc_Addstats('<b>[RULES '+s.site.name+']</b> No Changes ');
       end;
     end;
     Diff.Free;

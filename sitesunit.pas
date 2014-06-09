@@ -888,7 +888,8 @@ mSLSetupSocks5(site.proxyname,self, True);
       bnccsere.Leave;
     end;
 
-    irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.name, name]));
+    if spamcfg.readbool(section,'login_logout',True) then
+      irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.name, name]));
     status:= ssOnline;
     
 end;
