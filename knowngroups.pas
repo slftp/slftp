@@ -47,6 +47,30 @@ begin
       end;
     end;
 
+    // support placeholder like TV-720=%TV-1080%
+    Reset(f);
+    while not Eof(f) do
+    begin
+      ReadLn(f,s);
+      i:= Pos('=', s);
+      if i > 1 then
+      begin
+        section:=  UpperCase(Copy(s, 1, i-1));
+        i:= Pos('%', s);
+        if i > 1 then
+        begin
+          s := Copy(s, i+1, length(s)-i);
+          i:= Pos('%', s);
+          if i > 1 then
+          begin
+            s := Copy(s, 0, i-1);
+            kg.Values[section]:= kg.Values[s];
+            s := kg.Values[section];
+          end;
+        end;
+      end;
+    end;
+
     CloseFile(f);
   end;
 end;
