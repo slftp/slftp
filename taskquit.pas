@@ -12,7 +12,7 @@ type TQuitTask = class(TTask)
 
 implementation
 
-uses sitesunit, SysUtils, DebugUnit, irc;
+uses sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
 
 { TLoginTask }
 
@@ -33,7 +33,8 @@ begin
   s.Quit;
   ready:= True;
   Debug(dpSpam, section, Name);
-  irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
+  if spamcfg.readbool(section,'login_logout',True) then
+    irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 end;
 
 function TQuitTask.Name: string;
