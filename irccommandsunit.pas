@@ -4624,7 +4624,7 @@ begin
     if r.Exec(y.Strings[i]) then begin
     s:=r.Match[1];
     if not Check_For_Vailed_Chanrole(s) then  begin
-    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> %s is no vailed chanrole.',[s]);
+    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> %s is no valid chanrole.',[s]);
     result:=False;
     r.free;
     Exit;
@@ -5107,7 +5107,7 @@ begin
     if s = nil then
     begin
       irc_addtext(Netname, Channel,
-        '<c4><b>ERROR</b></c>: %s is no vailed site!', [sitename]);
+        '<c4><b>ERROR</b></c>: %s is no valid site!', [sitename]);
       Result := False;
       exit;
     end;
@@ -5118,7 +5118,7 @@ begin
       begin
         Result := False;
         irc_addtext(Netname, Channel,
-          '<c4><b>ERROR</b></c>: %s is not vailed section!', [section]);
+          '<c4><b>ERROR</b></c>: %s is not valid section!', [section]);
         exit;
       end;
     end;
@@ -5884,7 +5884,7 @@ begin
 
   if ((dir = '') or (dir = section) or (sitename = dir)) then
   begin
-    irc_addtext(Netname, Channel, 'No vailed Rip found!');
+    irc_addtext(Netname, Channel, 'No valid Rip found!');
     exit;
   end;
 
@@ -6876,7 +6876,7 @@ begin
   rls_section := PrecatcherSectionMapping(rls, rls_section);
   if ((rls_section = '') or (rls_section = 'TRASH')) then
   begin
-    irc_addtext(Netname, Channel, 'No vaild section found (%s)', [rls_section]);
+    irc_addtext(Netname, Channel, 'No valid section found (%s)', [rls_section]);
     result:=false;
     exit;
   end;
@@ -9864,7 +9864,7 @@ begin
     ss := FindSiteByName('', sname);
     if ss = nil then
     begin
-      irc_addtext(Netname, Channel, 'No Sitename inster!');
+      irc_addtext(Netname, Channel, 'No Sitename given!');
       Result := True;
       exit;
     end;
@@ -9994,7 +9994,7 @@ begin
   begin
     vsval.Clear;
     spamcfg.ReadSectionValues(csec, vsval);
-    irc_addtext(Netname, Channel, '<b>vailed keys:</b> %s',
+    irc_addtext(Netname, Channel, '<b>valid keys:</b> %s',
       [vsecs.Strings[i], vsval.commatext]);
     vsecs.Free;
     vsval.Free;
@@ -10056,7 +10056,7 @@ var
 begin
   pt := ReadPretime(params);
   if DateTimeToUnix(pt) = 0 then
-    irc_addtext(Netname, Channel, 'No vailed pretime')
+    irc_addtext(Netname, Channel, 'No valid pretime')
   else
     irc_addtext(Netname, Channel, 'PRETIME %s ~ %s %s',
       [params, dbaddpre_GetPreduration(pt), FormatDateTime(
@@ -10497,7 +10497,7 @@ ii:=0;
   if params = '' then
   begin
     config.ReadSections(x);
-    irc_addtext(Netname, Channel, '<b>Vailed config sections</b>:');
+    irc_addtext(Netname, Channel, '<b>Valid config sections</b>:');
     for i := 0 to x.Count - 1 do
     begin
       if ii = 7 then
@@ -10527,7 +10527,7 @@ ii:=0;
 
     config.ReadSection(csec, x);
     irc_addtext(Netname, Channel,
-      '<b>Vailed config keys for section</b>: <b>%s</b>', [csec]);
+      '<b>Valid config keys for section</b>: <b>%s</b>', [csec]);
 
     for i := 0 to x.Count - 1 do
     begin
@@ -10818,7 +10818,7 @@ begin
 
   if ((ivalue > 1) or (ivalue < 0)) then
   begin
-    irc_Adderror(format('<c4><b>Syntax Error!</b></c> %d is not vailed, 1 or 0',
+    irc_Adderror(format('<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0',
       [ivalue]));
     exit;
   end;
@@ -11193,7 +11193,7 @@ begin
   username := site.RCString('username', 'slFtp');
   if username = 'slFtp' then
   begin
-    irc_addtext(Netname, Channel, 'No vailed username found for %s', [site.Name]);
+    irc_addtext(Netname, Channel, 'No valid username found for %s', [site.Name]);
     Result := False;
     exit;
   end;

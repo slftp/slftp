@@ -450,7 +450,7 @@ begin
           pd:= TPazoDirlistTask.Create(netname, channel, dst.name, pazo, dir, false);
 
           Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Dirlist added to %s', [pazo.rls.rlsname, name, dst.name, dst.name]);
-          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO RLZ]</c> %s %s Dirlist added to : %s', [pazo.rls.rlsname, pazo.rls.section, dst.name]));
+          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s Dirlist added to : %s', [pazo.rls.rlsname, pazo.rls.section, dst.name]));
           dstdl.dirlistadded:= true;
           AddTask(pd);
         except
