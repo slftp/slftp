@@ -2,15 +2,27 @@ unit dbaddpre;
 
 interface
 
-uses Classes, IniFiles, irc, slsqlite, kb;
+uses Classes, IniFiles, irc, kb;
 
-function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string): boolean;
+type
+  TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
+  
+  TDbAddPre = class
+    rls: String;
+    pretime: TDateTime;
+    constructor Create(rls: string; pretime: TDateTime);
+    destructor Destroy; override;
+  end;
+
+function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string; event: string): boolean;
+function dbaddpre_GetRlz(rls: string): TDateTime;
 function dbaddpre_InsertRlz(rls, rls_section, source: string): boolean;
 function dbaddpre_GetCount: Integer;
 function dbaddpre_GetPreduration(rlz_pretime: TDateTime): string;
 function dbaddpre_Status: string;
 
 function dbaddpre_Process(net, chan, nick, msg: string): Boolean;
+function dbsitepre_Process(net, chan, nick, msg: string): Boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
@@ -18,13 +30,17 @@ procedure dbaddpreUnInit;
 
 function ReadPretime(rlz: string): TDateTime;
 function ReadPretimeOverHTTP(rls:string):TDateTime;
+function ReadPretimeOverMYSQL(rls:string):TDateTime;
 function ReadPretimeOverSQLITE(rls:string):TDateTime;
+
+function GetPretimeMode: TPretimeLookupMOde;
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish,
-  sitesunit, queueunit, slmasks, slhttp, taskpretime, regexpr, debugunit, pazo, rulesunit, taskrace,
-  mrdohutils, precatcher, SyncObjs;
+uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
+  sitesunit, queueunit, slhttp, regexpr, debugunit, pazo, taskrace,
+  precatcher, SyncObjs, DateUnit,
+  slsqlite, mysqlutilunit, slmysql2;
 
 const
   section = 'dbaddpre';
@@ -36,11 +52,35 @@ var
   sql_gettime: Psqlite3_stmt = nil;
 
   addprecmd: TStringlist;
+  siteprecmd: string;
   kbadd_addpre: Boolean;
+  kbadd_sitepre: Boolean;
 
-  addpre_lock: TCriticalSection;
   last_addpre: THashedStringList;
+  last_addpre_lock : TCriticalSection;
 
+  dbaddpre_mode: Integer = 0;
+  dbaddpre_plm1: TPretimeLookupMOde;
+  dbaddpre_plm2: TPretimeLookupMOde;
+
+  config_taskpretime_url: String;
+
+function GetPretimeMode: TPretimeLookupMOde;
+begin
+  Result:= dbaddpre_plm1;
+end;
+
+{ TDbAddPre }
+constructor TDbAddPre.Create(rls: string; pretime: TDateTime);
+begin
+  self.rls := rls;
+  self.pretime := pretime;
+end;
+
+destructor TDbAddPre.Destroy;
+begin
+  inherited;
+end;
 
 function GetPretimeURL:string;
 begin
@@ -55,13 +95,14 @@ var
   url:string;
   i:integer;
   read_count: Integer;
+  sql: string;
 begin
   Result := UnixToDateTime(0);
   if rls = '' then irc_adderror('No Releasename as parameter!');
 
+  vctime:= 0;
 
-
-  url:= config.readString('taskpretime','url','');//GetPretimeURL;
+  url:= config_taskpretime_url;
   if url = '' then
   begin
     debug(dpSpam, section, 'URL value is empty');
@@ -79,7 +120,7 @@ begin
     inc(read_count);
     if read_count > 500 then
     begin
-    irc_addtext('CONSOLE','ADMIN','Read coount higher then 500');
+    irc_addtext('CONSOLE','ADMIN','Read count higher then 500');
       Result := UnixToDateTime(0);
       break;
     end;
@@ -89,7 +130,7 @@ begin
 
       if (StrToIntDef(prex.Match[2], 0) <> 0) and (StrToIntDef(prex.Match[2], 0) <> 1295645417) then
       begin
-        vctime:=PrepareTimestamp(strtoint(prex.Match[2]));
+        vctime:= StrToIntDef(prex.Match[2], 0);
         result:=UnixToDateTime(vctime);
 
 
@@ -107,6 +148,19 @@ begin
   end;
   prex.free;
   response.free;
+
+  if (dbaddpre_mode = 2) and (vctime <> 0) then
+  begin
+    try
+      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';
+      MySQLInsertQuery(sql, [rls, '', vctime, 'HTTP']);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz : %s', [e.Message]));
+      end;
+    end;
+  end;
 end;
 
 
@@ -134,19 +188,44 @@ begin
  end;
 end;
 
-function ReadPretime(rlz: string): TDateTime;
-var plm:TPretimeLookupMOde;
+function ReadPretimeOverMYSQL(rls:string):TDateTime;
+var time:int64;
+    rlz_timestamp: String;
+    i_rows: Integer;
+    q, mysql_err: string;
+    myRES : PMYSQL_RES;
+    myROW : MYSQL_ROW;
+    rows: integer;
 begin
-  Debug(dpSpam, section, 'GetPretime for %s with %d', [rlz, config.ReadInteger('taskpretime','mode',0)]);
+  try
+    mysql_lock.Enter;
+    try
+      q:= 'SELECT ts FROM addpre WHERE rls=''%s'';';
+      if StrToIntDef(gc(mysqldb, q, [rls]), 0) <> 0 then
+        Result := UnixUTCToDateTime(StrToIntDef(gc(mysqldb, q, [rls]), 0));
+    finally
+      mysql_lock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Result := UnixToDateTime(0);
+      exit;
+    end;
+  end;
+end;
+
+function ReadPretime(rlz: string): TDateTime;
+begin
   Result := UnixToDateTime(0);
 
   if rlz = '' then irc_adderror('GETPRETIME --> No RLZ value!');
 
 
-  plm:= TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0));
-  case plm of
+  case dbaddpre_plm1 of
     plmNone: Exit;
     plmHTTP: result:= ReadPretimeOverHTTP(rlz);
+    plmMYSQL: result:= ReadPretimeOverMYSQL(rlz);
     plmSQLITE: result:= ReadPretimeOverSQLITE(rlz);
     else begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode',0)]);
@@ -154,12 +233,12 @@ begin
     end;
   end;
 
-  if ((Result = UnixToDateTime(0)) and (config.ReadInteger('taskpretime','mode_2',0) <> 0)) then
+  if ((Result = UnixToDateTime(0)) and (dbaddpre_plm2 <> plmNone)) then
   begin
-    plm:= TPretimeLookupMOde(config.ReadInteger('taskpretime','mode_2',0));
-    case plm of
+    case dbaddpre_plm2 of
       plmNone: Exit;
       plmHTTP: result:= ReadPretimeOverHTTP(rlz);
+      plmMYSQL: result:= ReadPretimeOverMYSQL(rlz);
       plmSQLITE: result:= ReadPretimeOverSQLITE(rlz);
       else begin
         Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode',0)]);
@@ -170,10 +249,7 @@ begin
 end;
 
 
-//function ReadPretimeOverMYSQL(tls:string):TDateTime;
-
-
-function kb_Add_addpre(rls, section: string): Integer;
+function kb_Add_addpre(rls, section: string; event: string): Integer;
 var rls_section: String;
 begin
   Result:= -1;
@@ -193,20 +269,15 @@ begin
     exit;
   end;
 
-  kb_Add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), rls_section, '', 'ADDPRE', rls, '');
+  kb_Add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), rls_section, '', event, rls, '');
 end;
 
-function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string): boolean;
+function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string; event: string): boolean;
 var
   rls: string;
   rls_section: string;
 begin
   Result := False;
-
-  if addpreDB = nil then
-    exit;
-  if sql_addrlz = nil then
-    exit;
 
   rls := '';
   rls := SubString(params, ' ', 1);
@@ -214,56 +285,192 @@ begin
   rls_section := UpperCase(SubString(params, ' ', 2));
   if ((rls <> '') and (rls_section <> '') and (length(rls) > minimum_rlsname)) then
   begin
-    if dbaddpre_InsertRlz(rls, rls_section, netname+'-'+channel+'-'+nickname) then
+    dbaddpre_InsertRlz(rls, rls_section, netname+'-'+channel+'-'+nickname);
+    if (event = 'ADDPRE') and (kbadd_addpre) then
     begin
-      if kbadd_addpre then
-      begin
-        try
-          kb_Add_addpre(rls, rls_section);
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, 'kb', Format('[EXCEPTION] kb_Add_addpre: %s', [e.Message]));
-            exit;
-          end;
-        end;
-      end;
+      kb_Add_addpre(rls, rls_section, event);
+    end;
+    if (event = 'SITEPRE') and (kbadd_sitepre) then
+    begin
+      kb_Add_addpre(rls, rls_section, event);
     end;
   end;
 
   Result := True;
 end;
 
-function dbaddpre_InsertRlz(rls, rls_section, source: string): Boolean;
+function dbaddpre_GetRlz(rls: string): TDateTime;
 var i: Integer;
+    addpredata: TDbAddPre;
+    q, mysql_err: string;
+    myRES : PMYSQL_RES;
+    myROW : MYSQL_ROW;
+    rows, i_rows: integer;
 begin
-  Result:= False;
-  i:= last_addpre.IndexOfName(rls);
-  if (i = -1 ) then
+  Result := UnixToDateTime(0);
+  // stor in memory
+  if (dbaddpre_mode = 0) then
   begin
-    Result:= True;
-
-    addpreDB.ExecSQL( sql_addrlz, [rls, rls_section, DateTimeToUnix(Now()), source]);
-
     try
-      last_addpre.Add(rls+'='+IntToStr(DateTimeToUnix(Now())));
+      last_addpre_lock.Enter;
+      try
+        i:= last_addpre.IndexOf(rls);
+        if i = -1 then
+        begin
+          Result := UnixToDateTime(0);
+          exit;
+        end;
+        addpredata:= TDbAddPre(last_addpre.Objects[i]);
+      finally
+        last_addpre_lock.Leave;
+      end;
+
+      Result:= addpredata.pretime;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] last_addpre.Add: %s ', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
+        Result := UnixToDateTime(0);
+        exit;
+      end;
+    end;
+  end;
+
+  // stor in sqlite
+  if dbaddpre_mode = 1 then
+  begin
+    try
+      i:= 0;
+      addpreDB.Open(sql_gettime, [rls]);
+      while addpreDB.Step(sql_gettime) do
+      begin
+        inc(i); if i > 10 then begin Result := UnixToDateTime(0); exit; end;
+        Result := UnixToDateTime(addpreDB.column_int64(sql_gettime, 0));
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (sqlite): %s', [e.Message]));
+        Result := UnixToDateTime(0);
+        exit;
+      end;
+    end;
+  end;
+
+  // stor in mysql
+  if dbaddpre_mode = 2 then
+  begin
+    try
+      mysql_lock.Enter;
+      try
+        q:= 'SELECT ts FROM addpre WHERE rls=''%s'';';
+        if StrToIntDef(gc(mysqldb, q, [rls]), 0) <> 0 then
+          Result := UnixUTCToDateTime(StrToIntDef(gc(mysqldb, q, [rls]), 0));
+      finally
+        mysql_lock.Leave;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (mysql): %s', [e.Message]));
+        Result := UnixToDateTime(0);
+        exit;
       end;
     end;
   end;
 end;
 
+function dbaddpre_InsertRlz(rls, rls_section, source: string): Boolean;
+var i: Integer;
+    sql: string;
+    pretime: TDateTime;
+    addpredata: TDbAddPre;
+begin
+  Result:= False;
+
+  pretime:= dbaddpre_GetRlz(rls);
+  if pretime <> UnixToDateTime(0) then exit;
+
+  if (dbaddpre_mode = 0) then
+  begin
+    try
+      last_addpre_lock.Enter;
+      try
+        addpredata:= TDbAddPre.Create(rls, Now());
+        last_addpre.AddObject(rls, addpredata);
+
+        i:= last_addpre.Count;
+        if i > 150 then
+        begin
+          while i > 100 do
+          begin
+            last_addpre.Delete(0);
+            i:= last_addpre.Count - 1;
+          end;
+        end;
+      finally
+        last_addpre_lock.Leave;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+  end;
+
+  if dbaddpre_mode = 1 then
+  begin
+    try
+      pretime:= dbaddpre_GetRlz(rls);
+      if pretime <> UnixToDateTime(0) then exit;
+
+      addpreDB.ExecSQL( sql_addrlz, [rls, rls_section, DateTimeToUnix(Now()), source]);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+  end;
+
+  if dbaddpre_mode = 2 then
+  begin
+    try
+      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';  // ACAB MOD
+      MySQLInsertQuery(sql, [rls, rls_section, DateTimeToUnixUTC(Now()), source]);  // ACAB MOD
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+  end;
+
+
+  Result:= true;
+end;
+
 function dbaddpre_GetCount: Integer;
 var i: Integer;
+    q, res: string;
 begin
-  Result := 0;
+  Result:= 0;
 
-  if addpreDB = nil then exit;
-  if sql_countrlz = nil then exit;
-  try
+  if dbaddpre_mode = 0 then
+  begin
+    Result:= last_addpre.Count;
+    exit;
+  end;
+
+  if dbaddpre_mode = 1 then
+  begin
     i:= 0;
     addpreDB.Open(sql_countrlz);
     while addpreDB.Step(sql_countrlz) do
@@ -271,8 +478,20 @@ begin
       inc(i); if i > 10 then begin Result:= 0; exit; end;
       Result := addpreDB.column_int(sql_countrlz, 0);
     end;
-  except
-    Result:= 0;
+    exit;
+  end;
+
+  if dbaddpre_mode = 2 then
+  begin
+    mysql_lock.Enter;
+    try
+      q:= 'SELECT count(*) as count FROM addpre;';
+      res:= gc(mysqldb, q, []);
+      Result:= StrToIntDef(res, 0);
+    finally
+      mysql_lock.Leave;
+    end;
+    exit;
   end;
 end;
 
@@ -318,11 +537,11 @@ begin
     Result := True;
     msg := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
     try
-      addpre_lock.Enter;
+      last_addpre_lock.Enter;
       try
-        dbaddpre_ADDPRE(net, chan, nick, msg);
+        dbaddpre_ADDPRE(net, chan, nick, msg, 'ADDPRE');
       finally
-        addpre_lock.Leave;
+        last_addpre_lock.Leave;
       end;
     except
       on e: Exception do
@@ -335,25 +554,38 @@ begin
   end;
 end;
 
+function dbsitepre_Process(net, chan, nick, msg: string): Boolean;
+var rls, rls_section: String;
+begin
+  Result := False;
+  if (1 = Pos(siteprecmd, msg)) then
+  begin
+    Result := True;
+    msg := Copy(msg, length(siteprecmd + ' ') + 1, MaxInt);
+    rls := '';
+    rls := SubString(msg, ' ', 1);
+    rls_section := '';
+    rls_section := UpperCase(SubString(msg, ' ', 2));
+    try
+      dbaddpre_ADDPRE(net, chan, nick, msg, 'SITEPRE');
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbsitepre_Process: %s ', [e.Message]));
+      end;
+    end;
+  end;
+end;
+
 function dbaddpre_Status: string;
-var plm:TPretimeLookupMOde;
 begin
   Result := '';
-
-  plm:= TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0));
-  case plm of
-    plmNone: Exit;
-    plmHTTP: Exit;
-    plmSQLITE: begin
-      Result:= Format('<b>DB addpre</b>: %d (%d) rls',[dbaddpre_GetCount, last_addpre.Count]);
-    end
-    else Exit;
-  end;
+  Result:= Format('<b>DB addpre</b>: %d (%d) rls',[dbaddpre_GetCount, last_addpre.Count]);
 end;
 
 procedure dbaddpreInit;
 begin
-  addpre_lock:= TCriticalSection.Create;
+  last_addpre_lock:= TCriticalSection.Create;
   addprecmd:=TStringlist.Create;
   last_addpre:= THashedStringList.Create;
   last_addpre.Duplicates:= dupIgnore;
@@ -366,10 +598,18 @@ var
   db_pre_name: string;
 begin
 
-  addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre,!sitepre');
+  addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
+  siteprecmd := config.ReadString(section, 'siteprecmd', '!sitepre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
+  kbadd_sitepre := config.ReadBool(section, 'kbadd_sitepre', False);
 
-  if slsqlite_inited then
+  dbaddpre_mode:= config.ReadInteger(section, 'mode', 0);
+  dbaddpre_plm1:= TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0));
+  dbaddpre_plm2:= TPretimeLookupMOde(config.ReadInteger('taskpretime','mode_2',0));
+
+  config_taskpretime_url:= config.readString('taskpretime','url','');
+
+  if slsqlite_inited and (dbaddpre_mode = 1) then
   begin
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 
@@ -385,15 +625,22 @@ begin
     sql_addrlz := addpreDB.Open('INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (?, ?, ?, ?)');
     sql_countrlz := addpreDB.Open('SELECT count(*) FROM addpre');
     sql_gettime := addpreDB.Open('SELECT ts FROM addpre WHERE rlz=?');
+  end;
 
-    Console_Addline('', 'Local addpre DB Started...');
+  case dbaddpre_mode of
+    0: Console_Addline('', 'Local addpre DB Started...');
+    1: Console_Addline('', 'Local SQLITE addpre DB Started...');
+    2: Console_Addline('', 'Local MYSQL addpre DB Started...');
+    else begin
+      Console_Addline('', 'Local addpre DB NOT Started.');
+    end;
   end;
 end;
 
 procedure dbaddpreUninit;
 begin
   addprecmd.free;
-  addpre_lock.Free;
+  last_addpre_lock.Free;
   last_addpre.Free;
   if addpreDB <> nil then
   begin
