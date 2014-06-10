@@ -2,7 +2,7 @@ unit encinifile;
 
 interface
 
-uses Classes, slmd5, SyncObjs;
+uses Classes, slmd5, SyncObjs, StrUtils;
 
 type
   TEncStringlist = class(TStringList)
@@ -131,7 +131,7 @@ type
   
 implementation
 
-uses SysUtils, slblowfish;
+uses SysUtils, slblowfish, configunit;
 
 { TStringHash }
 
@@ -645,15 +645,54 @@ procedure TEncIniFile.GetStrings(List: TStrings);
 var
   I, J: Integer;
   Strings: TStrings;
+  ListSplitFile: TStringList;
+  K: Integer;
+  split_site_data: Boolean;
+  Found: Boolean;
+  S: string;
+  const splitredirectkeys : array [1..7] of string = ( 'username', 'password', 'max_dn',
+  'max_up', 'slots', 'ProxyName', 'NoLoginMSG' );
 begin
+  split_site_data := config.ReadBool('sites', 'split_site_data', False);
   List.BeginUpdate;
   try
     for I := 0 to FSections.Count - 1 do
     begin
       List.Add('[' + FSections[I] + ']');
       Strings := TStrings(FSections.Objects[I]);
+
+      if (split_site_data) then begin
+  		  if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then begin
+  			  ListSplitFile := TStringList.Create;
+    			for J := 0 to Strings.Count - 1 do begin
+    			  S := Strings.Names[J];
+	    		  Found := False;
+		    	  for K := 1 to Length(splitredirectkeys) do begin
+    		  		if S = splitredirectkeys[K] then begin
+    			  	  Found := True;
+		    		    break;
+  				    end;
+     			  end;
+	    		  if not Found then
+		      		if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+				        Found := True;
+    			  if Found then
+	      			List.Add(Strings[J])
+		  	    else
+			    	  ListSplitFile.Add(Strings[J])
+  			  end;
+  	  		S := FSections[I];
+	  	  	S := Copy(S, 6, Length(S)-5);
+  	  		S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
+  		  	ListSplitFile.SaveToFile(S);
+  			  ListSplitFile.Free;
+  		  end else begin
+  			  for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
+  		  end;
+	    end else begin
       for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
       List.Add('');
+    end;
     end;
   finally
     List.EndUpdate;
@@ -780,10 +819,19 @@ var
   I, J: Integer;
   S: string;
   Strings: TStrings;
+  ListSplitFile: TStringList;
+  split_site_data: Boolean;
 begin
   Clear;
   il.Enter;
   Strings := nil;
+
+  if config <> nil then begin
+    split_site_data := config.ReadBool('sites', 'split_site_data', False);
+  end else begin
+    split_site_data := False;
+  end;
+
   for I := 0 to List.Count - 1 do
   begin
     S := Trim(List[I]);
@@ -793,6 +841,26 @@ begin
         Delete(S, 1, 1);
         SetLength(S, Length(S)-1);
         Strings := AddSection(Trim(S));
+
+        if (split_site_data) then begin
+          if AnsiEndsText('sites.dat', FFilename) then
+          begin
+            S := Trim(S);
+            if 1 = Pos('site-', S) then
+            begin
+              S := Copy(S, 6, Length(S)-5);
+              S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
+              if FileExists(S) then
+              begin
+                ListSplitFile := TStringList.Create;
+                ListSplitFile.LoadFromFile(S);
+                for J := 0 to ListSplitFile.Count - 1 do
+                  Strings.Add(ListSplitFile[J]);
+                ListSplitFile.Free;
+              end;
+            end;
+          end;
+        end;
       end
       else
         if Strings <> nil then

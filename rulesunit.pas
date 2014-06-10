@@ -2081,7 +2081,43 @@ end;
 procedure RulesSave;
 var i: Integer;
     f: TEncStringlist;
+    a_i: Integer;
+    a_j: Integer;
+    a_sitename: String;
+    a_rules_path: String;
+    a_sites_done: TStringList;
+    a_siterules: TStringList;
+    a_r: TRule;
 begin
+  if (config.ReadBool('sites', 'split_site_data', False)) then begin
+	  a_sites_done:= TStringList.Create;
+	  try
+		a_rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+
+		for a_i:= 0 to rules.Count -1 do
+		begin
+		  a_r:= TRule(rules[a_i]);
+		  a_sitename:= a_r.sitename;
+		  if a_sites_done.IndexOf(a_sitename) <> -1 then
+			continue;
+		  a_siterules:= TStringList.Create;
+
+		  for a_j:= a_i to rules.Count -1 do
+		  begin
+			a_r:= TRule(rules[a_j]);
+			if a_r.sitename <> a_sitename then
+			  continue;
+			a_siterules.Add(a_r.AsText(True));
+		  end;
+
+		  a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
+		  a_siterules.Free();
+		  a_sites_done.Add(a_sitename);
+		end;
+	  finally
+		a_sites_done.Free;
+	  end;
+  end else begin
   f:= TEncStringlist.Create(passphrase);
   try
     for i:= 0 to rules.Count -1 do
@@ -2089,6 +2125,7 @@ begin
     f.SaveToFile(ExtractFilePath(ParamStr(0))+'slftp.rules');
   finally
     f.Free;
+    end;
   end;
 end;
 
@@ -2162,10 +2199,17 @@ var fst: TStringList;
     intFound: Integer;
     SearchRec: TSearchRec;
     rules_path: String;
+    split_site_data: Boolean;
 begin
   rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+  split_site_data := config.ReadBool('sites', 'split_site_data', False);
+  if (split_site_data) then begin
+    FreeAndNil(rules);
+    rules:= TObjectList.Create;
+  end else begin
   FreeAndNil(rtpl);
   rtpl:= TObjectList.Create;
+  end;
 
   intFound := FindFirst(rules_path + '*.rtpl', faAnyFile, SearchRec);
   while intFound = 0 do
@@ -2180,7 +2224,11 @@ begin
         r:= AddRule(fst[i], error);
         if r <> nil then
         begin
-          rtpl.Add(r);
+          if split_site_data then begin
+            rules.Add(r);
+          end else begin
+            rtpl.Add(r);
+          end;
         end else begin
           Debug(dpError, 'rules', '[ERROR] '+error+' loading '+fst[i]);
         end;
@@ -2206,6 +2254,7 @@ var f: TEncStringlist;
     i: Integer;
     r: TRule;
     error: string;
+    S: string;
 begin
   // load rules tpl
   RulesReload();
@@ -2224,6 +2273,12 @@ begin
 
   finally
     f.Free;
+  end;
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then begin
+    S := ExtractFilePath(ParamStr(0))+'slftp.rules'; // convert to split format
+    if FileExists(S) then
+      DeleteFile(PAnsiChar(S));
   end;
 end;
 
@@ -3946,7 +4001,8 @@ begin
   Result:= 'pretime';
 end;
 
-{ TConditionPretimeFound }
+
+{ TConditionPretimeFound }
 
 class function TConditionPretimeFound.Description: string;
 begin
@@ -4606,9 +4662,12 @@ end;
 
 
 
-(*
-class function TConditionIMDBGenres.Description: string;
-begin
+
+(*
+
+class function TConditionIMDBGenres.Description: string;
+
+begin
   Result:= 'Returns with the list of the movie''s genres.';
 end;
 
@@ -4622,10 +4681,13 @@ begin
   if r.rls is TIMDBRelease then
     re.Assign(TImdbRelease(r.rls).imdb_genres);
 end;
-
+
+
 *)
-{ TConditionMVIDGenre }
-
+
+{ TConditionMVIDGenre }
+
+
 
 class function TConditionMVIDGenre.Description: string;
 begin
@@ -4822,4 +4884,5 @@ begin
   end;
 end;
 
-end.
+
+end.
