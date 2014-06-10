@@ -33,7 +33,7 @@ begin
   s.Quit;
   ready:= True;
   Debug(dpSpam, section, Name);
-  if spamcfg.readbool(section,'login_logout',True) then
+  if spamcfg.readbool('sites','login_logout',True) then
     irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 end;
 
