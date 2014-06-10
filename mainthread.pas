@@ -122,15 +122,13 @@ begin
     exit;
   end;
 
-
-(*
   if InitialiseMysql then Debug(dpMessage,section,'MYSQL libs initialised..')
   else begin
     //Debug(dpError,section,'Cant initialize MYSQL libs!');
     result:='Cant initialize MYSQL libs!'+#10#13;
     {$IFNDEF MSWINDOWS}
-    //Debug(dpError,section,'Copy libmysql.dll into your slftp/nwo directory.');
-    result:=result+'Copy libmysql.dll into your slftp/nwo directory.';
+    //Debug(dpError,section,'Copy libmysql.dll into your slftp directory.');
+    result:=result+'Copy libmysql.dll into your slftp directory.';
     {$ENDIF}
     {$IFDEF LINUX}
     //Debug(dpError,section,'do as root: apt-get install -y mysql-client-5.0 mysql-client libmysqlclient15off libmysqlclient15-dev');
@@ -139,7 +137,6 @@ begin
     //result:=result+#10#13+'Cant initialize MYSQL libs!';
     exit;
   end;
-*)
 
 
 {$IFNDEF MSWINDOWS}
@@ -160,7 +157,7 @@ begin
 
 (* mR dOH mOD...*)
   InitProxys;
-//nWoMYSQLInit;
+  MySQLInit;
   SLLanguages_Init;
   InitmRdOHConfigFiles;
 
@@ -361,6 +358,7 @@ begin
   kb_Start();
   indexerStart;
   StatsStart;
+  MySQLInit;
 
   SitesStart;
   IrcStart();
@@ -390,6 +388,7 @@ begin
   kb_Save();
   kb_Stop;
   QueueFire();
+  MySQLUninit();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 

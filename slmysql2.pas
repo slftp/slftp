@@ -18,7 +18,8 @@ uses Classes, slctypes, types;
   const
     sharedsuffix = 'so';
     mysqllib = 'libmysqlclient_r.'+sharedsuffix;
-    mysqlvlib = mysqllib+'.15';
+    //mysqlvlib = mysqllib+'.15';
+    mysqlvlib = 'libmysqlclient_r.'+sharedsuffix;
 
 {$ENDIF}
 
@@ -404,7 +405,7 @@ Procedure ReleaseMysql;
 var
   MysqlLibraryHandle : Integer = 0;
   slmysql_liberror : string = '';
-  slmysql_LoadedLibrary : String;
+  slmysql_LoadedLibrary : String = '';
 
 
 
@@ -423,6 +424,7 @@ uses
   Libc
   {$ENDIF}
 {$ENDIF}
+  , debugunit
 ;
 
 var 
@@ -449,11 +451,25 @@ end;
 Function TryInitialiseMysql(Const LibraryName : String) : Integer;
 begin
   Result := 0;
+
   if (RefCount=0) then
     begin
-    MysqlLibraryHandle := loadlibrary(PChar(LibraryName));
-    if (MysqlLibraryHandle=0) then
-      Exit;
+    {$IFDEF FPC}
+    if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(ExtractFilePath(ParamStr(0))+LibraryName));
+    if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(LibraryName));
+    if (MysqlLibraryHandle = 0) then Exit;
+    {$ELSE}
+      {$IFDEF LINUX}
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(ExtractFilePath(ParamStr(0))+LibraryName));
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(LibraryName));
+        if (MysqlLibraryHandle = 0) then Exit;
+      {$ELSE}
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(LibraryName));
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(ExtractFilePath(ParamStr(0))+LibraryName));
+        if (MysqlLibraryHandle = 0) then Exit;
+      {$ENDIF}
+    {$ENDIF}
+
     slmysql_LoadedLibrary:=LibraryName;
 // Only the procedure that are given in the c-library documentation are loaded, to
 // avoid problems with 'incomplete' libraries
@@ -582,8 +598,14 @@ end;
 
 
 function mqwo(m:PMYSQL; q: string): Boolean; overload;
+var mysql_err: string;
 begin
   Result:= 0 = mysql_query(m, PChar(q));
+  mysql_err:= mysql_error(m);
+  if mysql_err <> '' then
+  begin
+    Debug(dpError, 'slmysql2', Format('[MySQL] mqwo: %s - %s', [q, mysql_err]));
+  end;
 end;
 
 function mqwo(m:PMYSQL; q: string; args: array of const): Boolean; overload;
@@ -662,11 +684,14 @@ begin
     exit;
 
   j:=  mysql_num_fields(r);
-  SetLength(res, j);
-  Pointer(row):= p;
-  for i:= 0 to j -1 do
-    res[i]:= StrPas(row[i]);
-
+  if j > 0 then
+  begin
+    SetLength(res, j);
+    Pointer(row):= p;
+    for i:= 0 to j -1 do
+      res[i]:= StrPas(row[i]);
+  end;
+  
   Pointer(row):= nil;
   Result:= True;
 end;
@@ -674,14 +699,23 @@ function gcaa(m:PMYSQL; q: string; args: array of const; var res: TStringDynArra
 var r: PMYSQL_RES;
 begin
   Result:= False;
-  SetLength(res, 0);
-  r:= myquery(m, q, args);
-  if r = nil then exit;
-  Result:= True;
+  try
+    SetLength(res, 0);
+    r:= myquery(m, q, args);
+    if r = nil then exit;
+    Result:= True;
 
-  mygetrow(r, res);
+    mygetrow(r, res);
 
-  mysql_free_result(r);
+    mysql_free_result(r);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slmysql2', Format('[EXCEPTION] gcaa : %s %s', [e.Message, q]));
+      SetLength(res, 0);
+      Result:= False;
+    end;
+  end;
 end;
 
 function gcaa(m:PMYSQL; q: string; args: array of const; res: TStringList): Boolean;
@@ -691,23 +725,31 @@ var r: PMYSQL_RES;
     i: Integer;
 begin
   Result:= False;
-  SetLength(re,0);
-  res.Clear;
-  r:= myquery(m, q, args);
-  if r = nil then exit;
-  Result:= True;
+  try
+    SetLength(re,0);
+    res.Clear;
+    r:= myquery(m, q, args);
+    if r = nil then exit;
+    Result:= True;
 
-  mygetrow(r, re);
+    mygetrow(r, re);
 
-  mf:= mysql_fetch_fields(r);
-  for i:= low(re) to high(re) do
-  begin
-    res.Values[ StrPas(mf^.name) ]:= re[i];
-    inc(mf);
+    mf:= mysql_fetch_fields(r);
+    for i:= low(re) to high(re) do
+    begin
+      res.Values[ StrPas(mf^.name) ]:= re[i];
+      inc(mf);
+    end;
+
+    mysql_free_result(r);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slmysql2', Format('[EXCEPTION] gcaa : %s %s', [e.Message, q]));
+      SetLength(re, 0);
+      Result:= False;
+    end;
   end;
-
-  mysql_free_result(r);
-
 end;
 
 
@@ -715,9 +757,17 @@ function gc(m:PMYSQL; q: string; args: array of const): string;
 var row: TStringDynArray;
 begin
   Result:= '';
-  gcaa(m, q, args, row);
-  if length(row) > 0 then
-    Result:= row[0]
+  try
+    gcaa(m, q, args, row);
+    if length(row) > 0 then
+      Result:= row[0]
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slmysql2', Format('[EXCEPTION] gc : %s %s', [e.Message, q]));
+      Result:= '';
+    end;
+  end;
 end;
 
 function slmysql_info: string;

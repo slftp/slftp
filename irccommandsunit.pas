@@ -9740,7 +9740,8 @@ end;
 
 function IrcViewMYSQLValue(const Netname, Channel: string; params: string): boolean;
 begin
-//  Result := False;
+(*
+  Result := False;
   irc_addtext(Netname, Channel, 'MYSQL Value::');
   irc_addtext(Netname, Channel, '%s:%d %s', [nwosql.MYSQLHost,
     nwosql.MYSQLPort, nwosql.MYSQLUsername]);
@@ -9759,23 +9760,23 @@ begin
     nwosql.SizeFieldName]);
   irc_addtext(Netname, Channel, '%d %s', [nwosql.NukereasonFieldNumber,
     nwosql.NukereasonFieldName]);
+*)
   Result := True;
 end;
 
 function IrcTweakMYSQL(const Netname, Channel: string; params: string): boolean;
 begin
-//  Result := False;
   Result := True;
 end;
 
 function IrcMYSQLStatus(const Netname, Channel: string; params: string): boolean;
 var
-  i: integer;
+  i, ii: integer;
   li:    longint;
   dt:    TDateTime;
 begin
   Result := False;
-
+(*
   if params = '-status' then
   begin
     irc_addtext(Netname, Channel, nwosql.StatusText);
@@ -9786,7 +9787,7 @@ begin
   if params = '-db' then
   begin
     i  := nwosql.RLSCount;
-//    ii := nwosql.NukeCount;
+    ii := nwosql.NukeCount;
     li := nwosql.FirstCTime;
     dt := UnixToDateTime(li);
     irc_addtext(Netname, Channel,
@@ -9818,6 +9819,7 @@ begin
   end;
   // irc_addtext(netname,channel,'MYSQL Status Enabled:%d',[Integer(nwosql.Enabled)]);
   // result:=true;
+*)
 end;
 
 function IrcCreateBackup(const Netname, Channel: string; params: string): boolean;
