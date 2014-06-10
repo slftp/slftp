@@ -441,8 +441,8 @@ begin
   if dbaddpre_mode = 2 then
   begin
     try
-      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';  // ACAB MOD
-      MySQLInsertQuery(sql, [rls, rls_section, DateTimeToUnixUTC(Now()), source]);  // ACAB MOD
+      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';
+      MySQLInsertQuery(sql, [rls, rls_section, DateTimeToUnixUTC(Now()), source]);
     except
       on e: Exception do
       begin
