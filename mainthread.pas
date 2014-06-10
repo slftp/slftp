@@ -122,22 +122,11 @@ begin
     exit;
   end;
 
-  if InitialiseMysql then Debug(dpMessage,section,'MYSQL libs initialised..')
-  else begin
-    //Debug(dpError,section,'Cant initialize MYSQL libs!');
-    result:='Cant initialize MYSQL libs!'+#10#13;
-    {$IFNDEF MSWINDOWS}
-    //Debug(dpError,section,'Copy libmysql.dll into your slftp directory.');
-    result:=result+'Copy libmysql.dll into your slftp directory.';
-    {$ENDIF}
-    {$IFDEF LINUX}
-    //Debug(dpError,section,'do as root: apt-get install -y mysql-client-5.0 mysql-client libmysqlclient15off libmysqlclient15-dev');
-    result:=result+'sudo apt-get install -y mysql-client-5.0 mysql-client libmysqlclient15off libmysqlclient15-dev';
-    {$ENDIF}
-    //result:=result+#10#13+'Cant initialize MYSQL libs!';
-    exit;
+  if InitialiseMysql then begin
+    Debug(dpMessage,section,'MYSQL libs initialised..')
+  end else begin
+    Debug(dpMessage,section,'Cant initialize MYSQL libs!')
   end;
-
 
 {$IFNDEF MSWINDOWS}
   s:= Ncurses_Version;
@@ -147,6 +136,11 @@ begin
     exit;
   end;
 {$ENDIF}
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then begin
+    s := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+    ForceDirectories(s);
+  end;
 
   sltcp_onwaitingforsocket:= @kilepescsekker;
 //  AutoCrawlerInit;

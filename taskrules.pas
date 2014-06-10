@@ -98,8 +98,13 @@ ujra:
     inc(i);
   end;
 
-  rules_path:= ExtractFilePath(ParamStr(0))+'rules';
-  rules_file:= rules_path+PathDelim+s.site.name+'.rules';
+  if (config.ReadBool('sites', 'split_site_data', True)) then begin
+    rules_path:= ExtractFilePath(ParamStr(0))+'rtpl';
+    rules_file:= rules_path+PathDelim+s.site.name+'.siterules';
+  end else begin
+    rules_path:= ExtractFilePath(ParamStr(0))+'rules';
+    rules_file:= rules_path+PathDelim+s.site.name+'.rules';
+  end;
   try
     ForceDirectories(rules_path);
   except on e: Exception do begin

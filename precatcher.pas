@@ -72,7 +72,9 @@ implementation
 
 uses SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
-  console, mrdohutils, SyncObjs;
+  console, mrdohutils, SyncObjs
+  {$IFDEF MSWINDOWS},Windows{$ENDIF}
+  ;
 
 const
   rsections = 'precatcher';
@@ -820,6 +822,8 @@ end;
 procedure PrecatcherRebuild();
 var
   i: integer;
+  S: string;
+  var f: TextFile;
 begin
   cdClear;
 
@@ -833,7 +837,44 @@ begin
     end;
     Inc(i);
   end;
-  catcherFile.SaveToFile(catcherFilename);
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then begin
+    for i := 0 to catcherFile.Count - 1 do  // delete all old files first
+    begin
+      S := catcherFile[i];
+      S := SubString(s, ';', 4);
+      S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.chans';
+      if FileExists(S) then
+        {$IFDEF MSWINDOWS}
+        DeleteFile(PAnsiChar(S));
+        {$ELSE}
+        DeleteFile(S);
+        {$ENDIF}
+    end;
+
+    for i := 0 to catcherFile.Count - 1 do  // create if needed and append lines
+    begin
+      S := catcherFile[i];
+      S := SubString(s, ';', 4);
+      S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.chans';
+      AssignFile(f, S);
+      if (FileExists(S)) then
+        Append(f)
+      else
+        Rewrite(f);
+      WriteLn(f, catcherFile[i]);
+      CloseFile(f);
+    end;
+
+    if FileExists(catcherFilename) then  // convert to split format
+      {$IFDEF MSWINDOWS}
+      DeleteFile(PAnsiChar(catcherFilename));
+      {$ELSE}
+      DeleteFile(catcherFilename);
+      {$ENDIF}
+  end else begin
+    catcherFile.SaveToFile(catcherFilename);
+  end;
 end;
 
 procedure ProcessRaceTool(s: string);
@@ -1164,10 +1205,45 @@ begin
   inherited;
 end;
 
+procedure LoadSplitChanFiles;
+var fst: TStringList;
+    S: string;
+    i: Integer;
+    intFound: Integer;
+    SearchRec: TSearchRec;
+    rules_path: String;
+begin
+  rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+
+  intFound := FindFirst(rules_path + '*.chans', faAnyFile, SearchRec);
+  while intFound = 0 do
+  begin
+    fst:= TStringList.Create();
+    fst.LoadFromFile(rules_path + SearchRec.Name);
+    for i := 0 to fst.Count - 1 do
+    begin
+      S := fst[i];
+      catcherFile.Add(S);
+    end;
+    fst.Free;
+    intFound := FindNext(SearchRec);
+  end;
+
+  {$IFDEF MSWINDOWS}
+ SysUtils.FindClose(SearchRec);
+  {$ELSE}
+  FindClose(SearchRec);
+  {$ENDIF}
+end;
+
 procedure PrecatcherStart;
 begin
   PrecatcherReload;
   catcherFile.LoadFromFile(catcherFileName);
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+    LoadSplitChanFiles;
+
   PrecatcherReBuild;
 end;
 
@@ -1252,6 +1328,9 @@ begin
   PrecatcherRebuild;
   catcherFile.Clear;
   catcherFile.LoadFromFile(catcherFileName);
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+    LoadSplitChanFiles;
 
   ss := 'Precatcher Rehash FAILED!';
   try
