@@ -731,7 +731,8 @@ begin
 
     end else begin
       // akarmilyen csatorna, itt mar csak a specialis csatornarol fogadunk el
-      if (b.HasKey('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news'))) then begin
+      if (b.HasKey('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news') or (cmd = 'spread') or
+         (cmd = 'stop') or (cmd = 'pre') or (cmd = 'prelist') or (cmd = 'help') )) then begin
         Result:= True;
         exit;
       end else
