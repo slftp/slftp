@@ -241,7 +241,7 @@ begin
       plmMYSQL: result:= ReadPretimeOverMYSQL(rlz);
       plmSQLITE: result:= ReadPretimeOverSQLITE(rlz);
       else begin
-        Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode',0)]);
+        Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode_2',0)]);
         Result := UnixToDateTime(0);
       end;
     end;
