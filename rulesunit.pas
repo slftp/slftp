@@ -2092,30 +2092,30 @@ begin
   if (config.ReadBool('sites', 'split_site_data', False)) then begin
 	  a_sites_done:= TStringList.Create;
 	  try
-		a_rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+  		a_rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
 
-		for a_i:= 0 to rules.Count -1 do
-		begin
-		  a_r:= TRule(rules[a_i]);
-		  a_sitename:= a_r.sitename;
-		  if a_sites_done.IndexOf(a_sitename) <> -1 then
-			continue;
-		  a_siterules:= TStringList.Create;
-
-		  for a_j:= a_i to rules.Count -1 do
+	  	for a_i:= 0 to rules.Count -1 do
 		  begin
-			a_r:= TRule(rules[a_j]);
-			if a_r.sitename <> a_sitename then
-			  continue;
-			a_siterules.Add(a_r.AsText(True));
-		  end;
+		    a_r:= TRule(rules[a_i]);
+  		  a_sitename:= a_r.sitename;
+	  	  if (a_sites_done.IndexOf(a_sitename) <> -1) or (a_sitename = '*') then
+		  	  continue;
+  		  a_siterules:= TStringList.Create;
 
-		  a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
-		  a_siterules.Free();
-		  a_sites_done.Add(a_sitename);
-		end;
+  		  for a_j:= a_i to rules.Count -1 do
+	  	  begin
+		    	a_r:= TRule(rules[a_j]);
+    			if a_r.sitename <> a_sitename then
+		    	  continue;
+    			a_siterules.Add(a_r.AsText(True));
+		    end;
+
+		    a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
+  		  a_siterules.Free();
+	  	  a_sites_done.Add(a_sitename);
+  		end;
 	  finally
-		a_sites_done.Free;
+	  	a_sites_done.Free;
 	  end;
   end else begin
   f:= TEncStringlist.Create(passphrase);
@@ -2279,6 +2279,7 @@ begin
     S := ExtractFilePath(ParamStr(0))+'slftp.rules'; // convert to split format
     if FileExists(S) then
       DeleteFile(PAnsiChar(S));
+    RulesSave; // force saving in new split format
   end;
 end;
 
