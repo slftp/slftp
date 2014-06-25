@@ -811,8 +811,8 @@ begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
           //          irc_Addstats(Format('<c3>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format(
-            '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b> <c9>[<b>%s</b> <b>PRE</b>]</c>',
-            [section, rls, sitename, section]));
+            '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
+            [section, rls, sitename]));
       end
       else
       begin
