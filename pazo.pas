@@ -904,9 +904,10 @@ begin
     try
       s:= TSite(sitesunit.sites[i]);
       if s.working = sstDown then Continue;
+      if s.PermDown then Continue;
 
       sectiondir:= s.sectiondir[rls.section];
-      if ((sectiondir <> '') and (s.working <> sstDown) and (nil = FindSite(s.name))) then
+      if ((sectiondir <> '') and (nil = FindSite(s.name))) then
       begin
         if TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0)) <> plmNone then
         begin
@@ -961,9 +962,11 @@ begin
   begin
     s:= TSite(sitesunit.sites[i]);
     if s.SkipPre then Continue;
-    
+    if s.working = sstDown then Continue;
+    if s.PermDown then Continue;
+
     sectiondir:= s.sectiondir[rls.section];
-    if ((sectiondir <> '') and (s.working <> sstDown) and (nil = FindSite(s.name))) then begin
+    if ((sectiondir <> '') and (nil = FindSite(s.name))) then begin
     sectiondir:= TodayCsere(sectiondir);
     Result:= True;
     //ps:= AddSite(s.name, sectiondir);

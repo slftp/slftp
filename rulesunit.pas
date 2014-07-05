@@ -1943,6 +1943,7 @@ begin
   ps_s:= FindSiteByName('', ps.name);
   if ps_s = nil then exit;
   if ps_s.working = sstDown then exit;
+  if ps_s.PermDown then exit;
 
   p.srcsite:= ps.name;
   Debug(dpSpam, 'rules', '-> '+Format('%s: %s %s', [ps.name, p.rls.section, p.rls.rlsname]));
@@ -1981,7 +1982,7 @@ begin
         dstps_s:= FindSiteByName('', dstps.name);
         if dstps_s = nil then Continue;
 
-        if dstps_s.working = sstDown then
+        if (dstps_s.working = sstDown) or (dstps_s.PermDown) then
         begin
           if (dstps.reason = '') then
             dstps.reason:= 'Down';
