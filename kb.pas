@@ -955,7 +955,7 @@ begin
           [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
 
-      if ((s <> nil) and (not s.markeddown) and (s.working = sstDown) and
+      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.working = sstDown) and
         ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
@@ -2941,7 +2941,6 @@ begin
   begin
     ps := TPazoSite(p.sites[i]);
 
-
     if ps.Complete then
       Continue; // Release is allready filled and complete!
     if ps.error then
@@ -2952,18 +2951,13 @@ begin
     if ps.status <> rssAllowed then
       Continue;
 
-
-
     site := FindSiteByName('', ps.Name);
     if site = nil then
       Continue;
     if site.PermDown then
       Continue;
 
-
-
     //if not ps.status = rssAllowed then Continue;
-
 
     if Precatcher_Sitehasachan(ps.Name) then
     begin
@@ -2977,7 +2971,6 @@ begin
           Continue;
         if not pss.Complete then
           Continue;
-
 
         if pss.destinations.IndexOf(ps) = -1 then
           continue;
@@ -3027,7 +3020,6 @@ begin
         Exit;
       if ((pss = nil) and (not pss.Complete)) then
         Exit;
-
 
       if ps.Complete then
         Exit; // Release is allready filled and complete!
