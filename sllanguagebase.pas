@@ -2,7 +2,7 @@ unit sllanguagebase;
 
 interface
 
-uses SysUtils, Classes, Contnrs, IniFiles;
+uses SysUtils, Classes, Contnrs, IniFiles, configunit;
 
 type
 
@@ -44,7 +44,7 @@ function FindLanguageOnDirectory(Text: string; mp3language: boolean = False): st
 
 var
   sllanguages:    TObjectList;
-  //slmp3languages: TObjectList;
+  slmp3languages: TStringList;
   sllanguagefile: TIniFile;
 
 implementation
@@ -77,25 +77,14 @@ var
   i: integer;
 begin
   Result := nil;
-(*
-  if mp3language then
-  begin
-    for I := 0 to slmp3languages.Count - 1 do
-      if TSLLanguages(slmp3languages.Items[i]).Language = Language then begin
-        result:=TSLLanguages(slmp3languages.Items[i]);
-        break;
-      end;
-  end else begin
-  *)
+
   for I := 0 to sllanguages.Count - 1 do
     if TSLLanguages(sllanguages.Items[i]).Language = Language then
     begin
       Result := TSLLanguages(sllanguages.Items[i]);
       break;
     end;
-  //end;      
 end;
-
 
 function SLLanguagesFindLanguage(Text: string; mp3language: boolean = False): string;
 var
@@ -103,23 +92,22 @@ var
   lrx:    TRegexpr;
   sllang: TSLLanguages;
 begin
-  Result := 'English';
   lrx    := TRegexpr.Create;
   lrx.ModifierI := True;
   try
-(*
+
   if mp3language then
   begin
+    Result := 'EN';
     for I := 0 to slmp3languages.Count - 1 do begin
-      sllang:=TSLLanguages(slmp3languages.Items[i]);
-      lrx.Expression:='[\-]('+sllang.Expression+')[\-]';
+      lrx.Expression := '[\-](' + slmp3languages[i] + ')[\-]';
       if lrx.Exec(text) then begin
-        result:=sllang.Language;
+        result:=slmp3languages[i];
         break;
       end;
     end;
   end else begin
-*)
+    Result := 'English';
     for I := 0 to sllanguages.Count - 1 do
     begin
       sllang := TSLLanguages(sllanguages.Items[i]);
@@ -130,7 +118,7 @@ begin
         break;
       end;
     end;
-    //  end;
+  end;
 
   finally
     lrx.Free;
@@ -143,7 +131,12 @@ var
   i: integer;
   s: string;
 begin
-  Result := 'English';
+  if mp3language then begin
+    Result := 'EN';
+  end else begin
+    Result := 'English';
+  end;
+
   for I := 0 to Text.Count - 1 do
   begin
     s := '';
@@ -164,24 +157,22 @@ var
   lrx:    TRegexpr;
   sllang: TSLLanguages;
 begin
-  Result := 'English';
   lrx    := TRegexpr.Create;
   lrx.ModifierI := True;
   try
-  (*
+
   if mp3language then
   begin
+    Result := 'EN';
     for I := 0 to slmp3languages.Count - 1 do begin
-      sllang:=TSLLanguages(slmp3languages.Items[i]);
-      lrx.Expression:='[\-]('+sllang.Expression+')[\-]';
+      lrx.Expression := '[\-](' + slmp3languages[i] + ')[\-]';
       if lrx.Exec(text) then begin
-        result:=sllang.Language;
+        result:=slmp3languages[i];
         break;
       end;
     end;
   end else begin
-  *)
-
+    Result := 'English';
     for I := 0 to sllanguages.Count - 1 do
     begin
       sllang := TSLLanguages(sllanguages.Items[i]);
@@ -193,7 +184,7 @@ begin
       end;
     end;
 
-    //  end;
+   end;
 
   finally
     lrx.Free;
@@ -211,6 +202,7 @@ begin
   Debug(dpSpam, rsections, 'Loading Language Base....');
   sllanguages := TObjectList.Create;
   //should we rename this file to slftp.languagebase ?
+
   y := TStringList.Create;
   y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
   for I := 0 to y.Count - 1 do
@@ -223,6 +215,12 @@ begin
       SubString(y.Strings[i], '=', 2), i));
   end;
 
+  slmp3languages := TStringList.Create;
+  slmp3languages.Delimiter := ' ';
+  slmp3languages.QuoteChar := '"';
+  slmp3languages.CaseSensitive := False;
+  slmp3languages.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
+
   y.Free;
 
   Debug(dpSpam, rsections, 'Done! ' + IntToStr(sllanguages.Count));
@@ -232,7 +230,7 @@ procedure SLLanguages_Uninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
   sllanguages.Free;
-  // slmp3languages.Free;
+  slmp3languages.Free;
   sllanguagefile.Free;
   Debug(dpSpam, rsections, 'Uninit2');
 end;
@@ -255,86 +253,17 @@ begin
         SubString(y.Strings[i], '=', 2), i));
       Result := Format('Reload done! %d languages loaded.', [sllanguages.Count]);
     end;
+
+  slmp3languages.Clear;
+  slmp3languages.Delimiter := ' ';
+  slmp3languages.QuoteChar := '"';
+  slmp3languages.CaseSensitive := False;
+  slmp3languages.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
+
   finally
     y.Free;
   end;
 end;
-
-{
-procedure SLLanguagesReload();
-var i: Integer; y: TStringList;
-begin
-sllanguages.Clear;
-Debug(dpSpam, rsections, 'Reload Language Base....');
-y:= TStringList.Create;
-y.LoadFromFile(ExtractFilePath(ParamStr(0))+'languagebase.slftp');
-for I := 0 to y.Count - 1 do begin
-sllanguages.Add(TSLLanguages.create('languages',SubString(y.Strings[i],'=',1),SubString(y.Strings[i],'=',2),i));
-end;
-(*
-//  slmp3languages.Clear;
-
-//  if sllanguagefile <> nil then sllanguagefile.free;
-//  sllanguagefile:= TIniFile.Create(ExtractFilePath(ParamStr(0))+ 'languagebase.slftp');
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('languages', x[i], '');
-    sllanguages.Add(TSLLanguages.create('languages', x[i],s,i));
-  end;
-  x.Free;
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('mp3languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('mp3languages', x[i], '');
-    slmp3languages.Add(TSLLanguages.create('mp3languages', x[i],s,i));
-  end;
-  *)
-  y.Free;
-end;
-
-procedure SLLanguagesReload(out status:string);
-var i: Integer; y: TStringList;
-begin
-sllanguages.Clear;
-Debug(dpSpam, rsections, 'Reload Language Base....');
-y:= TStringList.Create;
-y.LoadFromFile(ExtractFilePath(ParamStr(0))+'languagebase.slftp');
-for I := 0 to y.Count - 1 do begin
-sllanguages.Add(TSLLanguages.create('languages',SubString(y.Strings[i],'=',1),SubString(y.Strings[i],'=',2),i));
-end;
-(*
-//  slmp3languages.Clear;
-  if sllanguagefile <> nil then sllanguagefile.free;
-  sllanguagefile:= TIniFile.Create(ExtractFilePath(ParamStr(0))+'languagebase.slftp');
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('languages', x[i], '');
-    sllanguages.Add(TSLLanguages.create('languages', x[i],s,i));
-  end;
-  x.Free;
-
-  x:= TStringList.Create;
-  sllanguagefile.ReadSection('mp3languages', x);
-  for i:= 0 to x.Count -1 do
-  begin
-    s:=sllanguagefile.ReadString('mp3languages', x[i], '');
-    slmp3languages.Add(TSLLanguages.create('mp3languages', x[i],s,i));
-  end;
-*)
-  y.Free;
-
-  status:=Format('Reload done! %d languages loaded.',[sllanguages.Count]);
-end;
-
-}
 
 procedure SLLanguagesRehash(out status: string);
 var
