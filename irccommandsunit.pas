@@ -11031,11 +11031,14 @@ begin
 
         tvr.tv_genres.Clear;
         nn := xml.FindChildNode(n, 'genres');
-        gc := xml.GetChildNodeCount(nn);
-        for i := 0 to gc - 1 do
+        if (nn <> nil) then
         begin
-          nnn := xml.GetChildNodeItem(nn, i);
-          tvr.tv_genres.Add(xml.GetNodeValue(nnn));
+          gc := xml.GetChildNodeCount(nn);
+          for i := 0 to gc - 1 do
+          begin
+            nnn := xml.GetChildNodeItem(nn, i);
+            tvr.tv_genres.Add(xml.GetNodeValue(nnn));
+          end;
         end;
 
         nn  := xml.FindChildNode(n, 'network');
