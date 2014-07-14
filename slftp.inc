@@ -1,7 +1,7 @@
 CONST
-SL_VERSION:string='1.4.0.5';
+SL_VERSION:string='1.4.5.0';
 SL_REV:string = '';
-HELP_VERSION:string='0.3.0.0';
+HELP_VERSION:string='0.5.3.0';
 //CryptConf Stuff
 CC_VERSION:string='2.3.0.0';
 CC_MasterK:string='masterpass.txt';
