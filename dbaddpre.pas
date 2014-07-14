@@ -148,19 +148,6 @@ begin
   end;
   prex.free;
   response.free;
-
-  if (dbaddpre_mode = 2) and (vctime <> 0) then
-  begin
-    try
-      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';
-      MySQLInsertQuery(sql, [rls, '', vctime, 'HTTP']);
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz : %s', [e.Message]));
-      end;
-    end;
-  end;
 end;
 
 
