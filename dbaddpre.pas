@@ -39,7 +39,7 @@ implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slhttp, regexpr, debugunit, pazo, taskrace,
-  precatcher, SyncObjs, DateUnit,
+  precatcher, SyncObjs, DateUnit, taskpretime,
   slsqlite, mysqlutilunit, slmysql2;
 
 const
@@ -232,9 +232,13 @@ begin
         Result := UnixToDateTime(0);
       end;
     end;
-  end;
-end;
+   end;
 
+   if (result <> UnixToDateTime(0)) then
+   begin
+        result:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result)));
+   end;
+end;
 
 function kb_Add_addpre(rls, section: string; event: string): Integer;
 var rls_section: String;
