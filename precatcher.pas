@@ -593,7 +593,7 @@ end;
 
 procedure PrecatcherProcessB(net, chan, nick, Data: string);
 var
-  i, j:    integer;
+igindex,  i, j:    integer;
   sc:      TSiteChan;
   ss:      TSection;
   mind:    boolean;
@@ -641,6 +641,8 @@ begin
       exit;
     end;
 
+(*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
+
     for i := 0 to ignorelista.Count - 1 do
     begin
       if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
@@ -652,6 +654,19 @@ begin
         exit;
       end;
     end;
+ *)
+
+
+ for i:= 0 to ts_data.Count - 1 do begin
+    igindex:= ignorelista.IndexOf(ts_data.Strings[i]);
+      if igindex > -1 then begin
+        MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
+        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
+        skiprlses.Add(rls);
+        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
+        exit;
+   end;
+ end;
 
 
     s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
@@ -1376,4 +1391,5 @@ begin
 end;
 
 end.
+
 
