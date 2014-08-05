@@ -304,7 +304,7 @@ begin
 
 
 //New regex since rev.327 03.10.2013
-rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\w\s\d]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
+rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+"\s*>'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\w\s\d]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
 (* //New regex since rev.314 09.06.2013
 rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
 *)
@@ -326,7 +326,7 @@ rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?regio
         end;
     end;
 //New regex since rev.327 03.10.2013
-rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\d\s\w]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td>(.*?)<\/td>[\s\n]*?<\/tr>';
+rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+"\s*>'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\d\s\w]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td>(.*?)<\/td>[\s\n]*?<\/tr>';
 (*
 //New regex since rev.314 09.06.2013
 rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
