@@ -10055,14 +10055,16 @@ end;
 function IrcFindPretime(const Netname, Channel: string; params: string): boolean;
 var
   pt: TDateTime;
+resu:TPretimeResult;
 begin
-  pt := ReadPretime(params);
+resu:=getPretime(params);
+  pt := resu.pretime;
   if DateTimeToUnix(pt) = 0 then
     irc_addtext(Netname, Channel, 'No valid pretime')
   else
-    irc_addtext(Netname, Channel, 'PRETIME %s ~ %s %s',
+    irc_addtext(Netname, Channel, 'PRETIME %s ~ %s %s (%s)',
       [params, dbaddpre_GetPreduration(pt), FormatDateTime(
-      'yyyy-mm-dd hh:nn:ss', pt)]);
+      'yyyy-mm-dd hh:nn:ss', pt),resu.mode]);
   Result := True;
 end;
 

@@ -5,6 +5,12 @@ interface
 uses Classes, IniFiles, irc, kb;
 
 type
+TPretimeResult = record
+pretime:TDateTime;
+mode:string;
+end;
+
+
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
   
   TDbAddPre = class
@@ -28,12 +34,16 @@ procedure dbaddpreInit;
 procedure dbaddpreStart;
 procedure dbaddpreUnInit;
 
+
+function getPretime(rlz: string): TPretimeResult;
+
 function ReadPretime(rlz: string): TDateTime;
 function ReadPretimeOverHTTP(rls:string):TDateTime;
 function ReadPretimeOverMYSQL(rls:string):TDateTime;
 function ReadPretimeOverSQLITE(rls:string):TDateTime;
 
 function GetPretimeMode: TPretimeLookupMOde;
+function pretimeModeToString(mode:TPretimeLookupMOde):string;
 
 implementation
 
@@ -68,6 +78,16 @@ var
 function GetPretimeMode: TPretimeLookupMOde;
 begin
   Result:= dbaddpre_plm1;
+end;
+
+function pretimeModeToString(mode:TPretimeLookupMOde):string;
+begin
+case mode of
+plmNone:result:='None';
+plmHTTP:result:='HTTP';
+plmMYSQL:result:='MYSQL';
+plmSQLITE:result:='SQLite';
+end;
 end;
 
 { TDbAddPre }
@@ -200,6 +220,49 @@ begin
       exit;
     end;
   end;
+end;
+
+
+
+function getPretime(rlz: string): TPretimeResult;
+begin
+  Result.pretime:= UnixToDateTime(0);
+  Result.mode:='None';
+ if rlz = '' then irc_adderror('GETPRETIME --> No RLZ value!');
+
+   case dbaddpre_plm1 of
+    plmNone: Exit;
+    plmHTTP: Result.pretime:= ReadPretimeOverHTTP(rlz);
+    plmMYSQL: Result.pretime:= ReadPretimeOverMYSQL(rlz);
+    plmSQLITE: Result.pretime:= ReadPretimeOverSQLITE(rlz);
+    else begin
+      Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode',0)]);
+     Result.pretime:= UnixToDateTime(0);
+    end;
+
+  end;
+result.mode:=pretimeModeToString(dbaddpre_plm1);
+
+ if ((Result.pretime = UnixToDateTime(0)) and (dbaddpre_plm2 <> plmNone)) then
+  begin
+    case dbaddpre_plm2 of
+      plmNone: Exit;
+      plmHTTP: result.pretime:= ReadPretimeOverHTTP(rlz);
+      plmMYSQL: result.pretime:= ReadPretimeOverMYSQL(rlz);
+      plmSQLITE: result.pretime:= ReadPretimeOverSQLITE(rlz);
+      else begin
+        Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode_2',0)]);
+        Result.pretime := UnixToDateTime(0);
+      end;
+    result.mode:=pretimeModeToString(dbaddpre_plm2);
+    end;
+   end;
+
+   if (result.pretime <> UnixToDateTime(0)) then
+   begin
+        result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
+   end;
+
 end;
 
 function ReadPretime(rlz: string): TDateTime;

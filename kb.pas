@@ -66,6 +66,7 @@ type
     pred:     boolean;
 
     pretimefound: boolean;
+    pretimefrom:string;
 
     //fakecheckinghez
     dots: integer;
@@ -839,9 +840,9 @@ begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
             //            irc_Addstats(Format('<c3>[NEW]</c> %s %s @ %s (%s) (<c3> %s ago</c>)', [section, rls, '<b>'+sitename+'</b>', p.sl.sectionname, dbaddpre_GetPreduration(r.pretime)]));
             irc_Addstats(Format(
-              '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>)',
+              '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
               [section, rls, sitename, p.sl.sectionname,
-              dbaddpre_GetPreduration(r.pretime)]));
+              dbaddpre_GetPreduration(r.pretime),r.pretimefrom]));
         end;
       end;
     end
@@ -891,8 +892,8 @@ begin
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_Addadmin(Format(
-                '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>)',
-                [section, rls, sitename, dbaddpre_GetPreduration(r.pretime)]));
+                '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>) (%s)',
+                [section, rls, sitename, dbaddpre_GetPreduration(r.pretime),r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
@@ -1474,16 +1475,20 @@ end;
 
 
 procedure TRelease.SetPretime(TimeStamp: int64 = 0);
+var resu:TPretimeResult;
 begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
     pretime  := UnixToDateTime(TimeStamp);
     cpretime := TimeStamp;
+    pretimefrom:= 'Parameter';
   end
   else
   begin
-    pretime  := ReadPretime(rlsname);
+    resu:=getPretime(rlsname);
+    pretime  := resu.pretime;
+    pretimefrom:= resu.mode;
     cpretime := datetimetounix(pretime);
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
