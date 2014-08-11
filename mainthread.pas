@@ -122,10 +122,11 @@ begin
     exit;
   end;
 
+
   if InitialiseMysql then begin
-    Debug(dpMessage,section,'MYSQL libs initialised..')
+    Debug(dpSpam,section,'MYSQL libs initialised..');
   end else begin
-    Debug(dpMessage,section,'Cant initialize MYSQL libs!')
+    Debug(dpError,section,'Cant initialize MYSQL libs!');
   end;
 
 {$IFNDEF MSWINDOWS}
