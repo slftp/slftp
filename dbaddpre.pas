@@ -496,8 +496,8 @@ begin
   if dbaddpre_mode = 2 then
   begin
     try
-      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', %d, ''%s'');';
-      MySQLInsertQuery(sql, [rls, rls_section, DateTimeToUnixUTC(Now()), source]);
+      sql := 'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+      MySQLInsertQuery(sql, [rls, rls_section, source]);
     except
       on e: Exception do
       begin
