@@ -199,7 +199,7 @@ function ReadPretimeOverMYSQL(rls:string):TDateTime;
 var time:int64;
     rlz_timestamp: String;
     i_rows: Integer;
-    q, mysql_err: string;
+    q, mysql_err, mysql_result: string;
     myRES : PMYSQL_RES;
     myROW : MYSQL_ROW;
     rows: integer;
@@ -208,8 +208,9 @@ begin
     mysql_lock.Enter;
     try
       q:= 'SELECT ts FROM addpre WHERE rls=''%s'';';
-      if StrToIntDef(gc(mysqldb, q, [rls]), 0) <> 0 then
-        Result := UnixUTCToDateTime(StrToIntDef(gc(mysqldb, q, [rls]), 0));
+      mysql_result:= gc(mysqldb, q, [rls]);
+      if mysql_result <> '' then
+        Result := UnixUTCToDateTime(StrToIntDef(mysql_result, 0));
     finally
       mysql_lock.Leave;
     end;
