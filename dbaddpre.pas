@@ -228,9 +228,9 @@ function getPretime(rlz: string): TPretimeResult;
 begin
   Result.pretime:= UnixToDateTime(0);
   Result.mode:='None';
- if rlz = '' then irc_adderror('GETPRETIME --> No RLZ value!');
+  if rlz = '' then irc_adderror('GETPRETIME --> No RLZ value!');
 
-   case dbaddpre_plm1 of
+  case dbaddpre_plm1 of
     plmNone: Exit;
     plmHTTP: Result.pretime:= ReadPretimeOverHTTP(rlz);
     plmMYSQL: Result.pretime:= ReadPretimeOverMYSQL(rlz);
@@ -239,29 +239,31 @@ begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode',0)]);
      Result.pretime:= UnixToDateTime(0);
     end;
-
   end;
-result.mode:=pretimeModeToString(dbaddpre_plm1);
 
- if ((Result.pretime = UnixToDateTime(0)) and (dbaddpre_plm2 <> plmNone)) then
+  if (result.pretime <> UnixToDateTime(0)) then
   begin
-    case dbaddpre_plm2 of
-      plmNone: Exit;
-      plmHTTP: result.pretime:= ReadPretimeOverHTTP(rlz);
-      plmMYSQL: result.pretime:= ReadPretimeOverMYSQL(rlz);
-      plmSQLITE: result.pretime:= ReadPretimeOverSQLITE(rlz);
-      else begin
-        Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d', [config.ReadInteger('taskpretime','mode_2',0)]);
-        Result.pretime := UnixToDateTime(0);
-      end;
-    result.mode:=pretimeModeToString(dbaddpre_plm2);
-    end;
-   end;
+    result.mode:=pretimeModeToString(dbaddpre_plm1);
+    result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
+    exit;
+  end;
 
-   if (result.pretime <> UnixToDateTime(0)) then
-   begin
-        result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
-   end;
+  case dbaddpre_plm2 of
+    plmNone: Exit;
+    plmHTTP: result.pretime:= ReadPretimeOverHTTP(rlz);
+    plmMYSQL: result.pretime:= ReadPretimeOverMYSQL(rlz);
+    plmSQLITE: result.pretime:= ReadPretimeOverSQLITE(rlz);
+    else begin
+      Debug(dpMessage, section, 'GetPretime unknown pretime mode_2 : %d', [config.ReadInteger('taskpretime','mode_2',0)]);
+      Result.pretime := UnixToDateTime(0);
+    end;
+  end;
+
+  if (result.pretime <> UnixToDateTime(0)) then
+  begin
+    result.mode:=pretimeModeToString(dbaddpre_plm2);
+    result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
+  end;
 
 end;
 
