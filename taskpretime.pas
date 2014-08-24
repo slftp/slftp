@@ -35,7 +35,8 @@ type
   end;
 
 
-function PrepareTimestamp(TimeStamp: int64): int64;
+function PrepareTimestamp(TimeStamp: int64): int64;overload;
+function PrepareTimestamp(DateTime: TDateTime): TDateTime;overload;
 
 
 implementation
@@ -174,6 +175,19 @@ begin
   end;
 end;
 
+
+function PrepareTimestamp(DateTime: TDateTime): TDateTime;
+var
+  vof: TSLOffset;
+  time:int64;
+begin
+  Result := DateTime;
+  time:= DateTimeToUnix(DateTime);
+  vof    := TSLOffset.Create;
+  if vof.ReCalcTimeStamp(time) then
+    Result := UnixToDateTime(vof.NewTimeStamp);
+  vof.Free;
+end;
 
 function PrepareTimestamp(TimeStamp: int64): int64;
 var
