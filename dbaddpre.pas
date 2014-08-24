@@ -242,10 +242,12 @@ begin
     end;
   end;
 
-  if (result.pretime <> UnixToDateTime(0)) then
+
+if  datetimetounix(result.pretime) > 15 then // something bigger then 0 (1.1.1970 its the same date but 15sec later... you never will hit this value in a database execpt the pretime is empty!)
+//  if (result.pretime <> UnixToDateTime(0)) then
   begin
     result.mode:=pretimeModeToString(dbaddpre_plm1);
-    result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
+    result.pretime:=PrepareTimestamp(result.pretime);
     exit;
   end;
 
@@ -259,11 +261,11 @@ begin
       Result.pretime := UnixToDateTime(0);
     end;
   end;
-
-  if (result.pretime <> UnixToDateTime(0)) then
+if  datetimetounix(result.pretime) > 15 then // something bigger then 0 (1.1.1970 its the same date but 15sec later... you never will hit this value in a database execpt the pretime is empty!)
+//  if (result.pretime <> UnixToDateTime(0)) then
   begin
     result.mode:=pretimeModeToString(dbaddpre_plm2);
-    result.pretime:=UnixToDateTime(PrepareTimestamp(DateTimeToUnix(result.pretime)));
+    result.pretime:=DateTimeToUnix(result.pretime);
   end;
 
 end;
