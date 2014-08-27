@@ -265,7 +265,7 @@ if  datetimetounix(result.pretime) > 15 then // something bigger then 0 (1.1.197
 //  if (result.pretime <> UnixToDateTime(0)) then
   begin
     result.mode:=pretimeModeToString(dbaddpre_plm2);
-    result.pretime:=DateTimeToUnix(result.pretime);
+    result.pretime:=PrepareTimestamp(result.pretime);
   end;
 
 end;
