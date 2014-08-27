@@ -178,26 +178,35 @@ end;
 
 function PrepareTimestamp(DateTime: TDateTime): TDateTime;
 var
-  vof: TSLOffset;
-  time:int64;
+ time:int64;
 begin
   Result := DateTime;
   time:= DateTimeToUnix(DateTime);
-  vof    := TSLOffset.Create;
-  if vof.ReCalcTimeStamp(time) then
-    Result := UnixToDateTime(vof.NewTimeStamp);
-  vof.Free;
+  result:= UnixToDateTime(PrepareTimestamp(time));
+
 end;
 
 function PrepareTimestamp(TimeStamp: int64): int64;
 var
   vof: TSLOffset;
 begin
-  Result := TimeStamp;
+
   vof    := TSLOffset.Create;
+  try
+try
   if vof.ReCalcTimeStamp(TimeStamp) then
-    Result := vof.NewTimeStamp;
+    Result := vof.NewTimeStamp else   Result := TimeStamp;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section,
+        format('[EXCEPTION] PrepareTimestamp: %s',
+        [E.Message]));
+    end;
+  end;
+  finally
   vof.Free;
+ end;
 end;
 
 constructor TSLOffset.Create;
