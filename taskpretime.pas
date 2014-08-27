@@ -183,17 +183,15 @@ begin
   Result := DateTime;
   time:= DateTimeToUnix(DateTime);
   result:= UnixToDateTime(PrepareTimestamp(time));
-
 end;
 
 function PrepareTimestamp(TimeStamp: int64): int64;
 var
   vof: TSLOffset;
 begin
-
   vof    := TSLOffset.Create;
   try
-try
+  try
   if vof.ReCalcTimeStamp(TimeStamp) then
     Result := vof.NewTimeStamp else   Result := TimeStamp;
   except
