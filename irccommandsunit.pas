@@ -605,7 +605,7 @@ const
     (cmd: 'userslots'; hnd: IrcUserslots; minparams: 3; maxparams: 3; hlpgrp: ''),
     (cmd: 'freeslots'; hnd: IrcFreeslots; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 2; maxparams: 2; hlpgrp: ''),
+    (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'finduser'; hnd: IrcFindUser; minparams: 1; maxparams: 1; hlpgrp: ''),
 
@@ -1951,7 +1951,7 @@ begin
         else
           irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>',
             [dir, p.errorreason]);
-        ssss := 'stoped!';
+        ssss := 'stopped!';
         RemovePazo(p.pazo_id);
         Result := True;
       end

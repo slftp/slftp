@@ -44,7 +44,7 @@ begin
   globalgroupskip.DelimitedText:=x.text;
   x.free;
   result:=True;
- Debug(dpSpam, 'global_skip_group', 'Stoped!');
+ Debug(dpSpam, 'global_skip_group', 'Stopped!');
   except on E: Exception do
   result:=False;
   end;
