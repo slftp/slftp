@@ -10059,13 +10059,15 @@ resu:TPretimeResult;
 begin
 resu:=getPretime(params);
   pt := resu.pretime;
-  if DateTimeToUnix(pt) = 0 then
-    irc_addtext(Netname, Channel, 'No valid pretime')
-  else
+  if datetimetounix(pt) > 15 then
+  begin
     irc_addtext(Netname, Channel, 'PRETIME %s ~ %s %s (%s)',
       [params, dbaddpre_GetPreduration(pt), FormatDateTime(
       'yyyy-mm-dd hh:nn:ss', pt),resu.mode]);
-  Result := True;
+    Result := True;
+  end else begin
+    irc_addtext(Netname, Channel, 'No valid pretime')
+  end;
 end;
 
 function IrcDisplayMappings(const Netname, Channel: string; params: string): boolean;
