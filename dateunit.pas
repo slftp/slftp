@@ -2,8 +2,8 @@ unit dateunit;
 
 interface
 
-function DateTimeToUnixUTC(const AValue: TDateTime): Int64;
-function UnixUTCToDateTime(const AValue: Int64): TDateTime;
+//function DateTimeToUnixUTC(const AValue: TDateTime): Int64; 
+//function UnixUTCToDateTime(const AValue: Int64): TDateTime;
 
 implementation
 
@@ -28,7 +28,7 @@ begin
   Result:= offset;
 end;
 
-function DateTimeToUnixUTC(const AValue: TDateTime): Int64;
+function __DateTimeToUnixUTC(const AValue: TDateTime): Int64;
 var
   r: TRegexpr;
   vval: Int64;
@@ -60,7 +60,7 @@ begin
   end;
 end;
 
-function UnixUTCToDateTime(const AValue: Int64): TDateTime;
+function __UnixUTCToDateTime(const AValue: Int64): TDateTime;
 var
   r: TRegexpr;
   vval: Int64;
