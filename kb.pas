@@ -66,7 +66,7 @@ type
     pred:     boolean;
 
     pretimefound: boolean;
-    pretimefrom:string;
+    pretimefrom:  string;
 
     //fakecheckinghez
     dots: integer;
@@ -523,7 +523,7 @@ begin
   Result := -1;
 
   kb_lock.Enter;
-      psource :=nil;
+  psource := nil;
   try
     // check if rls already skiped
     if kb_skip.IndexOf(rls) <> -1 then
@@ -842,7 +842,7 @@ begin
             irc_Addstats(Format(
               '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
               [section, rls, sitename, p.sl.sectionname,
-              dbaddpre_GetPreduration(r.pretime),r.pretimefrom]));
+              dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
         end;
       end;
     end
@@ -893,7 +893,8 @@ begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_Addadmin(Format(
                 '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>) (%s)',
-                [section, rls, sitename, dbaddpre_GetPreduration(r.pretime),r.pretimefrom]));
+                [section, rls, sitename, dbaddpre_GetPreduration(
+                r.pretime), r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
@@ -956,8 +957,8 @@ begin
           [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
 
-      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.working = sstDown) and
-        ((event = 'COMPLETE') or (event = 'PRE'))) then
+      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
+        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -1475,20 +1476,21 @@ end;
 
 
 procedure TRelease.SetPretime(TimeStamp: int64 = 0);
-var resu:TPretimeResult;
+var
+  resu: TPretimeResult;
 begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime  := UnixToDateTime(TimeStamp);
-    cpretime := TimeStamp;
-    pretimefrom:= 'Parameter';
+    pretime     := UnixToDateTime(TimeStamp);
+    cpretime    := TimeStamp;
+    pretimefrom := 'Parameter';
   end
   else
   begin
-    resu:=getPretime(rlsname);
+    resu     := getPretime(rlsname);
     pretime  := resu.pretime;
-    pretimefrom:= resu.mode;
+    pretimefrom := resu.mode;
     cpretime := datetimetounix(pretime);
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
@@ -1664,19 +1666,19 @@ begin
         mp3lng := 'EN';
 
       // most atkonvertaljuk evszamindexet a words szarnak megfelelore
-//      Inc(evszamindex, words.Count - tags.Count);
+      //      Inc(evszamindex, words.Count - tags.Count);
 
       //megkeressuk masodik kotojel utani szo indexet
-//      szoindex := 0;
+      //      szoindex := 0;
       kotojelekszama := 0;
       for i := 1 to length(rlsname) do
       begin
-//        if rlsname[i] = '_' then
-//          Inc(szoindex)
-//        else
+        //        if rlsname[i] = '_' then
+        //          Inc(szoindex)
+        //        else
         if rlsname[i] = '-' then
         begin
-//          Inc(szoindex);
+          //          Inc(szoindex);
           Inc(kotojelekszama);
           if (kotojelekszama = 2) then
             Break;
@@ -2639,7 +2641,8 @@ begin
       begin
         p := TPazo(kb_list.Objects[i]);
         if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and (SecondsBetween(Now, p.added) < seconds)) then
+          (1 <> Pos('REQUEST-', kb_list[i])) and
+          (SecondsBetween(Now, p.added) < seconds)) then
           x.Add(GetKbPazo(p));
       end;
     except
@@ -2936,7 +2939,7 @@ var
   inc_ps: TPazoSite;
   inc_pd: TPazoDirlistTask;
   sfound: boolean;
-tts,ts,  site:   TSite;
+  tts, ts, site: TSite;
 begin
   Result := False;
   p      := TPazo(pazo);
@@ -2980,11 +2983,12 @@ begin
         if pss.destinations.IndexOf(ps) = -1 then
           continue;
 
-        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
+        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete',
+          False) then
         begin
-        ts:=FindSiteByName('',ps.name);
-        tts:=FindSiteByName('',pss.name);
-        sfound := tts.isRouteableTo(ts.name);
+          ts     := FindSiteByName('', ps.Name);
+          tts    := FindSiteByName('', pss.Name);
+          sfound := tts.isRouteableTo(ts.Name);
         end;
 
 
@@ -3017,9 +3021,14 @@ begin
         if sfound then
           break
         else
+        begin
+          Debug(dpMessage, rsections,
+            '--> site %s is not routable to %s for filling inc - trying next site',
+            [pss.Name, ps.Name]);
           continue;
+        end;
       end;//for j:= 0 to p.sites.Count -1 do
-
+(*
 
       if ps.Name = pss.Name then
         Exit;
@@ -3053,7 +3062,18 @@ begin
       if site.PermDown then
         Exit;
 
+  *)
 
+      site := FindSiteByName('', pss.Name);
+      if site = nil then
+        continue;
+      if site.PermDown then
+        continue;
+
+      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        continue;
+      if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        continue;
 
 
       // ok, megvan minden.
@@ -3085,7 +3105,8 @@ begin
         inc_ps.dirlist.dirlistadded := True;
         inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
 
-        irc_Addstats(Format('<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+        irc_Addstats(Format(
+          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
           [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
 (*
         irc_addtext(inc_pd, Format(
