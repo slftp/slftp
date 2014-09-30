@@ -469,7 +469,7 @@ begin
       mysql_lock.Enter;
       try
         q := Format('SELECT %s FROM %s WHERE %s ',
-          [SubString(config.ReadString('taskmysqlpretime', 'section_field', 'section;1'),
+          [SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'section;1'),
           ';', 1), config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
           SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
           ';', 1)]);
