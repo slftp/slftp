@@ -41,46 +41,51 @@ procedure Main_Iter;
 procedure Main_Stop;
 procedure Main_Uninit;
 
-function Main_Restart:boolean;
+function Main_Restart: boolean;
 
-var slshutdown: Boolean;
-    started: TDateTime;
+var
+  slshutdown: boolean;
+  started:    TDateTime;
 
 implementation
 
-uses pretimeunit, ident,slmysql2, mysqlutilunit, eprecatcher, tasksunit,
-     dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite,
-     sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo,
-     rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-     notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot,
-     speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
-     backupunit,taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils,
-     dbaddpre, dbaddnfo, dbaddurl, dbaddimdb, dbaddtvrage, globalskipunit, slhttp, dbaddgenre
+uses pretimeunit, ident, slmysql2, mysqlutilunit, eprecatcher, tasksunit,
+  dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite,
+  sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo,
+  rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
+  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot,
+  speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
+  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils,
+  dbaddpre, dbaddnfo, dbaddurl, dbaddimdb, dbaddtvrage, globalskipunit,
+  slhttp, dbaddgenre
 {$IFNDEF MSWINDOWS}
      , slconsole
 {$ENDIF}
-     , StrUtils;
+  , StrUtils;
 
-const section = 'mainthread';
+const
+  section = 'mainthread';
 
-var queue_fire: Integer;
-    queueclean_interval: Integer;
-    ranks_save_interval: Integer;
-    recalc_ranks_interval: Integer;
-    speedstats_save_interval: Integer;
-    speedstats_recalc_routes_interval: Integer;
-    backup_interval: Integer;
+var
+  queue_fire:      integer;
+  queueclean_interval: integer;
+  ranks_save_interval: integer;
+  recalc_ranks_interval: integer;
+  speedstats_save_interval: integer;
+  speedstats_recalc_routes_interval: integer;
+  backup_interval: integer;
 
 
-function kilepescsekker(socket: TslTCPSocket): Boolean;
+function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
-  Result:= slshutdown;
+  Result := slshutdown;
 end;
 
 function Main_Init: string;
-var ss, s: string;
+var
+  ss, s: string;
 begin
-  Result:= '';
+  Result := '';
 
 (*
 {$IFDEF MSWINDOWS}
@@ -97,36 +102,41 @@ begin
 
   if not sltcp_inited then
   begin
-    Result:= 'Couldnt init TCP library!';
+    Result := 'Couldnt init TCP library!';
     exit;
   end;
   if not slssl_inited then
   begin
-  	ss:='Couldnt load OpenSSL! Try to copy the libssl/libcrypto libs in slftp dir!'+#10#13;
+    ss     := 'Couldnt load OpenSSL! Try to copy the libssl/libcrypto libs in slftp dir!' +
+      #10#13;
 {$IFDEF MSWINDOWS}
-    ss:=ss+ 'Or install it from:'+#13#10+'http://www.slproweb.com/products/Win32OpenSSL.html';
+    ss     := ss + 'Or install it from:' + #13#10 +
+      'http://www.slproweb.com/products/Win32OpenSSL.html';
 {$ENDIF}
 {$IFDEF LINUX}
-    ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
+   // ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
     ss:=ss+#10#13+'Check the wiki for more infos about openssl +1.*.*';
 {$ENDIF}
-    result:=ss;
+    Result := ss;
     exit;
   end;
 
 
-  s:= OpenSSLShortVersion();
+  s := OpenSSLShortVersion();
   if (s < '0.9.8') then
   begin
-    Result:= 'OpenSSL version is unsupported! 0.9.8+ needed.';
+    Result := 'OpenSSL version is unsupported! 0.9.8+ needed.';
     exit;
   end;
 
 
-  if InitialiseMysql then begin
-    Debug(dpSpam,section,'MYSQL libs initialised..');
-  end else begin
-    Debug(dpError,section,'Cant initialize MYSQL libs!');
+  if InitialiseMysql then
+  begin
+    Debug(dpSpam, section, 'MYSQL libs initialised..');
+  end
+  else
+  begin
+    Debug(dpError, section, 'Cant initialize MYSQL libs!');
   end;
 
 {$IFNDEF MSWINDOWS}
@@ -138,19 +148,20 @@ begin
   end;
 {$ENDIF}
 
-  if (config.ReadBool('sites', 'split_site_data', False)) then begin
-    s := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+  begin
+    s := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
     ForceDirectories(s);
   end;
 
-  sltcp_onwaitingforsocket:= @kilepescsekker;
-//  AutoCrawlerInit;
+  sltcp_onwaitingforsocket := @kilepescsekker;
+  //  AutoCrawlerInit;
   StatsInit;
   IndexerInit;
   Socks5Init;
   MyCryptoInit;
 
-(* mR dOH mOD...*)
+  (* mR dOH mOD...*)
   InitProxys;
   MySQLInit;
   SLLanguages_Init;
@@ -188,25 +199,26 @@ begin
   SpeedStatsInit;
   RanksInit;
   SpeedTestInit;
-  
-  Initglobalskiplist;
-//  DupeDBInit;
-//  RehashIrcColor;
 
-  queue_fire:= config.readInteger('queue', 'queue_fire', 900);
-  queueclean_interval:= config.ReadInteger('queue', 'queueclean_interval', 1800);
-  ranks_save_interval:= config.readInteger('ranks', 'save_interval', 900);
-  recalc_ranks_interval:= config.readInteger('ranks', 'recalc_ranks_interval', 1800);
-  speedstats_save_interval:= config.readInteger('speedstats', 'save_interval', 900);
-  speedstats_recalc_routes_interval:= config.readInteger('speedstats', 'recalc_routes_interval', 3600);
-  backup_interval:= config.ReadInteger('backup', 'backup_interval', 0);
+  Initglobalskiplist;
+  //  DupeDBInit;
+  //  RehashIrcColor;
+
+  queue_fire      := config.readInteger('queue', 'queue_fire', 900);
+  queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
+  ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
+  recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
+  speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
+  speedstats_recalc_routes_interval :=
+    config.readInteger('speedstats', 'recalc_routes_interval', 3600);
+  backup_interval := config.ReadInteger('backup', 'backup_interval', 0);
 end;
 
 procedure Main_Iter;
 begin
   if slshutdown then
   begin
-    slapp.shouldquit:= True;
+    slapp.shouldquit := True;
     exit;
   end;
 
@@ -221,8 +233,9 @@ begin
       end;
     end;
   end;
-  
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
+
+  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >=
+    queueclean_interval)) then
   begin
     try
       QueueClean;
@@ -230,12 +243,13 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('Exception in QueueClean: %s', [e.Message]));
-        queueclean_last_run:= Now;
+        queueclean_last_run := Now;
       end;
     end;
   end;
 
-  if ((ranks_save_interval > 0) and (SecondsBetween(Now, ranks_last_save) >= ranks_save_interval)) then
+  if ((ranks_save_interval > 0) and (SecondsBetween(Now, ranks_last_save) >=
+    ranks_save_interval)) then
   begin
     try
       RanksSave;
@@ -243,25 +257,27 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('Exception in RanksSave: %s', [e.Message]));
-        ranks_last_save:= Now;
+        ranks_last_save := Now;
       end;
     end;
   end;
 
-  if ((recalc_ranks_interval > 0) and (SecondsBetween(Now, ranks_last_process) >= recalc_ranks_interval)) then
+  if ((recalc_ranks_interval > 0) and (SecondsBetween(Now, ranks_last_process) >=
+    recalc_ranks_interval)) then
   begin
     try
-      RanksRecalc('','');
+      RanksRecalc('', '');
     except
       on e: Exception do
       begin
         Debug(dpError, section, Format('Exception in RanksRecalc: %s', [e.Message]));
-        ranks_last_process:= Now;
+        ranks_last_process := Now;
       end;
     end;
   end;
 
-  if ((speedstats_save_interval > 0) and (SecondsBetween(Now, speedstats_last_save) >= speedstats_save_interval)) then
+  if ((speedstats_save_interval > 0) and
+    (SecondsBetween(Now, speedstats_last_save) >= speedstats_save_interval)) then
   begin
     try
       SpeedStatsSave;
@@ -269,25 +285,28 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('Exception in SpeedStatsSave: %s', [e.Message]));
-        speedstats_last_save:= Now;
+        speedstats_last_save := Now;
       end;
     end;
   end;
 
-  if ((speedstats_recalc_routes_interval > 0) and (SecondsBetween(Now, speedstats_last_recalc) >= speedstats_recalc_routes_interval)) then
+  if ((speedstats_recalc_routes_interval > 0) and
+    (SecondsBetween(Now, speedstats_last_recalc) >= speedstats_recalc_routes_interval)) then
   begin
     try
       SpeedStatsRecalc('CONSOLE', 'SPEEDSTATS');
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in SpeedStatsRecalc: %s', [e.Message]));
-        speedstats_last_recalc:= Now;
+        Debug(dpError, section, Format('Exception in SpeedStatsRecalc: %s',
+          [e.Message]));
+        speedstats_last_recalc := Now;
       end;
     end;
   end;
 
-  if ((backup_interval > 0) and (SecondsBetween(Now, backup_last_backup) >= backup_interval)) then
+  if ((backup_interval > 0) and (SecondsBetween(Now, backup_last_backup) >=
+    backup_interval)) then
   begin
     try
       BackupBackup;
@@ -296,21 +315,18 @@ begin
       begin
         Debug(dpError, section, Format('Exception in BackupBackup: %s', [e.Message]));
         irc_Adderror(Format('<c4>[Exception]</c> in BackupBackup: %s', [e.Message]));
-        backup_last_backup:= Now;
+        backup_last_backup := Now;
       end;
     end;
   end;
 
-    //CustomBackup(s);
+  //CustomBackup(s);
 
-//    if s <> '' then Debug(dpError, section, 'backup create failed: %s ', [s]);
-
-
-// Looks like a good spot to handle the rec. uptime ..
-//if SecondsBetween(Now, last_max_uptime_check) >= 3 then CheckForNewMaxUpTime;// <- broken!
+  //    if s <> '' then Debug(dpError, section, 'backup create failed: %s ', [s]);
 
 
-
+  // Looks like a good spot to handle the rec. uptime ..
+  //if SecondsBetween(Now, last_max_uptime_check) >= 3 then CheckForNewMaxUpTime;// <- broken!
 
 end;
 
@@ -324,15 +340,15 @@ begin
 {$ENDIF}
 
   if slsqlite_inited then
-    Debug(dpMessage, section, 'SQLITE: '+slSqliteVersion)
+    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
   else
-    Debug(dpError, section, 'Could not init sqlite: '+slsqlite_error);
+    Debug(dpError, section, 'Could not init sqlite: ' + slsqlite_error);
 
-  started:= Now();
+  started := Now();
   MycryptoStart(passphrase);
   StartProxys;
-//  nWoMYSQLStart;
-//RehashPreurls;
+  //  nWoMYSQLStart;
+  //RehashPreurls;
 
   dbaddpreStart;
   dbaddnfoStart;
@@ -363,7 +379,7 @@ begin
   SiteAutoStart;
   AutoCrawlerStart;
 
-  slshutdown:= False;
+  slshutdown := False;
 
   QueueStart();
 
@@ -371,8 +387,8 @@ end;
 
 procedure Main_Stop;
 begin
-// ez a fuggveny csak kiadja a megfelelo tobbszalu szaroknak a kilepesre vonatkozo dolgokat,
-// a tenyleges felszabaditasok/uninicializaciok a main_uninitben lesznek
+  // ez a fuggveny csak kiadja a megfelelo tobbszalu szaroknak a kilepesre vonatkozo dolgokat,
+  // a tenyleges felszabaditasok/uninicializaciok a main_uninitben lesznek
   Debug(dpSpam, section, 'Main_Stop begin');
   AutoCrawlerStop;
   NukeSave;
@@ -430,13 +446,13 @@ begin
   IndexerUnInit;
   StatsUninit;
   AutoCrawlerUnInit;
-//  nWoMYSQLUNinit;
+  //  nWoMYSQLUNinit;
   UnInitProxys;
   UninitmRdOHConfigFiles;
   SLLanguages_Uninit;
   UnInitglobalskiplist;
-//  DupeDBUninit;
-  
+  //  DupeDBUninit;
+
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
@@ -449,9 +465,9 @@ begin
 end;
 
 
-function Main_Restart:boolean;
+function Main_Restart: boolean;
 begin
-  result:=False;
+  Result := False;
 (*  broken anyway!
 try
     Main_Stop;
@@ -465,3 +481,4 @@ except on e: Exception do Debug(dpError, 'MainThread', '[EXCEPTION] MainThreadRe
 end;
 
 end.
+

@@ -9,14 +9,14 @@ type
     pazo_id:  integer;
     mainpazo: TPazo;
     ps1, ps2: TPazoSite;
-    constructor Create(const netname, channel: string;
-      site1: string; site2: string; pazo: TPazo);
+    constructor Create(const netname, channel: string; site1: string;
+      site2: string; pazo: TPazo);
     destructor Destroy; override;
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    constructor Create(const netname, channel: string;
-      site1: string; site2: string; pazo: TPazo);
+    constructor Create(const netname, channel: string; site1: string;
+      site2: string; pazo: TPazo);
     destructor Destroy; override;
   end;
 
@@ -45,7 +45,7 @@ type
     constructor Create(const netname, channel: string; site1: string);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
-  end;         
+  end;
 
   TPazoRaceTask = class(TPazoTask)
     dir:      string;
@@ -58,9 +58,8 @@ type
     isNFO:    boolean;
     dontRemoveOtherSources: boolean;
     dst:      TWaitTask;
-    constructor Create(const netname, channel: string;
-      site1: string; site2: string; pazo: TPazo; dir, filename: string;
-      filesize, rank: integer);
+    constructor Create(const netname, channel: string; site1: string;
+      site2: string; pazo: TPazo; dir, filename: string; filesize, rank: integer);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
   end;
@@ -68,7 +67,8 @@ type
 implementation
 
 uses StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
-  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist, midnight, speedstatsunit,// console,
+  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
+  dirlist, midnight, speedstatsunit,// console,
   rulesunit, mainthread, Regexpr, mrdohutils;
 
 const
@@ -108,8 +108,8 @@ begin
 end;
 
 
-constructor TPazoTask.Create(const netname, channel: string;
-  site1: string; site2: string; pazo: TPazo);
+constructor TPazoTask.Create(const netname, channel: string; site1: string;
+  site2: string; pazo: TPazo);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
   mainpazo.queuenumber.increase;
@@ -199,7 +199,8 @@ begin
   mainpazo.lastTouch := Now();
 
   ujra:
-    if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (slshutdown)) then
+    if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or
+    (slshutdown)) then
     begin
       readyerror := True;
 
@@ -290,7 +291,8 @@ begin
 
       ps1.MarkSiteAsFailed;
       //mainpazo.errorreason:=ps1.name+' is marked as fail';
-      mainpazo.errorreason := 'Section dir on ' + site1 + ' does not exist, marked as fail';
+      mainpazo.errorreason := 'Section dir on ' + site1 +
+        ' does not exist, marked as fail';
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -303,7 +305,8 @@ begin
 
       ps1.MarkSiteAsFailed;
       //      mainpazo.errorreason:=ps1.name+' is marked as fail';
-      mainpazo.errorreason := 'Section dir on ' + site1 + ' does not exist, marked as fail';
+      mainpazo.errorreason := 'Section dir on ' + site1 +
+        ' does not exist, marked as fail';
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -452,8 +455,8 @@ begin
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
         irc_Addstats(Format(
-          '<c11>[iNC]</c> %s: %s %s %s is still incomplete, giving up...', [site1,
-          mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+          '<c11>[iNC]</c> %s: %s %s %s is still incomplete, giving up...',
+          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       ps1.dirlistgaveup    := True;
       mainpazo.errorreason :=
         Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',
@@ -466,8 +469,8 @@ begin
     'newdir_max_created', 600))) then
   begin
     if spamcfg.readbool(c_section, 'incomplete', True) then
-      irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up...', [site1,
-        mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+      irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up...',
+        [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
     ps1.dirlistgaveup := True;
     //  mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
   end;
@@ -486,8 +489,8 @@ begin
     'newdir_max_completed', 300))) then
   begin
     if spamcfg.readbool(c_section, 'incomplete', True) then
-      irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up...', [site1,
-        mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+      irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up...',
+        [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
     ps1.dirlistgaveup := True;
     //  mainpazo.errorreason:= Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',[d.LastChanged,config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
   end;
@@ -544,8 +547,8 @@ begin
             // dirlisst more
             r     := TPazoDirlistTask.Create(netname, channel, ps1.Name,
               mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section,
-              'newdir_dirlist_readd', 1000));
+            r.startat := IncMilliSecond(Now(),
+              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name,
               mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(),
@@ -572,8 +575,8 @@ begin
             // dirlisst more
             r     := TPazoDirlistTask.Create(netname, channel, ps1.Name,
               mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section,
-              'newdir_dirlist_readd', 1000));
+            r.startat := IncMilliSecond(Now(),
+              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name,
               mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(),
@@ -610,10 +613,12 @@ begin
   try
     if is_pre then
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' + dir + ' ' + ScheduleText
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
+        dir + ' ' + ScheduleText
     else
-      Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' + mainpazo.rls.section +
-        ' ' + mainpazo.rls.rlsname + ' ' + dir + ' ' + ScheduleText;
+      Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
+        dir + ' ' + ScheduleText;
   except
     Result := 'PDIRLIST';
   end;
@@ -711,7 +716,8 @@ begin
     on e: Exception do
     begin
       Debug(dpError, c_section,
-        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s', [e.Message]));
+        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s',
+        [e.Message]));
       readyerror := True;
       exit;
     end;
@@ -763,7 +769,8 @@ begin
     begin
       hiba := False;
     end
-    else if ((s.lastResponseCode = 550) and (0 <> Pos('Dupe detected', s.lastResponse))) then
+    else if ((s.lastResponseCode = 550) and
+      (0 <> Pos('Dupe detected', s.lastResponse))) then
     begin
       hiba := False;
     end
@@ -909,7 +916,10 @@ begin
   self.dir      := dir;
   self.rank     := rank;
   self.filename := filename;
-  self.storfilename := filename;
+  if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
+    self.storfilename := lowercase(filename)
+  else
+    self.storfilename := filename;
   self.filesize := filesize;
 end;
 
@@ -1179,8 +1189,8 @@ begin
       goto ujra;
   end;
 
-  if not sdst.Send('PORT %s,%d,%d', [Csere(host, '.', ','), port div 256,
-    port mod 256]) then
+  if not sdst.Send('PORT %s,%d,%d', [Csere(host, '.', ','), port div
+    256, port mod 256]) then
     goto ujra;
   if not sdst.Read('PORT') then
     goto ujra;
@@ -1275,7 +1285,8 @@ begin
     begin
       readyerror := True;
       ps2.SetFileError(netname, channel, dir, filename);
-      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + lastResponse + ' ' + tname);
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' +
+        lastResponse + ' ' + tname);
       exit;
     end;
 
@@ -1412,8 +1423,7 @@ begin
     else
     if (((lastResponseCode = 425) and
       (0 < Pos('t open data connection', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < Pos('Read timed out', lastResponse))))
-    then
+      ((lastResponseCode = 426) and (0 < Pos('Read timed out', lastResponse)))) then
     begin
       if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s',
@@ -1593,7 +1603,8 @@ begin
 
 
           if ((filesize > 1024) and (racebw > 1024)) then
-            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024]);
+            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s',
+              [fsize / 1024, racebw / 1024]);
 
           if ((filesize > 1024) and (racebw < 1024)) then
             speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
@@ -1644,11 +1655,11 @@ function TPazoRaceTask.Name: string;
 begin
   try
     if mainpazo.rls = nil then
-      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s (%d)', [pazo_id,
-        site1, site2, filename, rank])
+      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s (%d)',
+        [pazo_id, site1, site2, filename, rank])
     else
-      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s %s (%d)', [pazo_id,
-        site1, site2, mainpazo.rls.rlsname, filename, rank]);
+      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s %s (%d)',
+        [pazo_id, site1, site2, mainpazo.rls.rlsname, filename, rank]);
   except
     Result := 'RACE';
   end;
