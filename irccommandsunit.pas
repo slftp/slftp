@@ -10042,6 +10042,8 @@ function IrcSetupPretimeMode(const Netname, Channel: string; params: string): bo
 var
   pmode: integer;
 begin
+
+
   //  Result := False;
   pmode := StrToIntDef(params, -1);
   if pmode >= 0 then
@@ -10049,8 +10051,8 @@ begin
     config.WriteInteger('taskpretime', 'mode', pmode);
     config.UpdateFile;
   end;
-  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b>',
-    [config.ReadInteger('taskpretime', 'mode', 0)]);
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
+    [config.ReadInteger('taskpretime', 'mode', 0),pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
   Result := True;
 end;
 
@@ -10070,7 +10072,7 @@ begin
   end
   else
   begin
-    irc_addtext(Netname, Channel, 'No valid pretime');
+    irc_addtext(Netname, Channel, 'No valid pretime -> '+IntToStr(datetimetounix(pt)));
   end;
 end;
 
