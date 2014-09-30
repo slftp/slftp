@@ -38,7 +38,7 @@ procedure dbaddpreUnInit;
 
 function getPretime(rlz: string): TPretimeResult;
 
-function ReadPretime(rlz: string): TDateTime;
+//function ReadPretime(rlz: string): TDateTime;
 function ReadPretimeOverHTTP(rls: string): TDateTime;
 function ReadPretimeOverMYSQL(rls: string): TDateTime;
 function ReadPretimeOverSQLITE(rls: string): TDateTime;
@@ -224,7 +224,7 @@ begin
     mysql_lock.Enter;
     try
 
-      q := Format('SELECT ts FROM addpre WHERE rls',
+      q := Format('SELECT %s FROM %s WHERE %s',
         [SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
         ';', 1), config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
         SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
@@ -559,7 +559,23 @@ begin
   if dbaddpre_mode = 2 then
   begin
     try
-      sql := Format('INSERT IGNORE INTO %s(%s, %s, %s, %s) ',
+
+    if config.ReadString('taskmysqlpretime','source_field', '-1') = '-1'  then begin
+
+
+      sql := Format('INSERT IGNORE INTO %s (%s, %s, %s) ',
+        [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
+        SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
+        ';', 1), SubString(config.ReadString('taskmysqlpretime',
+        'section_field', 'section;1'), ';', 1),
+        SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
+        ';', 1)]);
+
+
+      //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+      sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
+    end else begin
+            sql := Format('INSERT IGNORE INTO %s (%s, %s, %s, %s) ',
         [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
         SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
         ';', 1), SubString(config.ReadString('taskmysqlpretime',
@@ -571,6 +587,7 @@ begin
 
       //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
       sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+    end;
       MySQLInsertQuery(sql, [rls, rls_section, Source]);
     except
       on e: Exception do
