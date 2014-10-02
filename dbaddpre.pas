@@ -224,12 +224,12 @@ begin
     mysql_lock.Enter;
     try
 
-      q := Format('SELECT %s FROM %s WHERE %s',
+      q := Format('SELECT `%s` FROM `%s` WHERE `%s`',
         [SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
         ';', 1), config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
         SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
         ';', 1)]);
-      q := q + '=''%s'';';
+      q := q + ' = ''%s'';';
       mysql_result := gc(mysqldb, q, [rls]);
       if mysql_result <> '' then
         Result := UnixToDateTime(StrToIntDef(mysql_result, 0));
@@ -468,13 +468,13 @@ begin
     try
       mysql_lock.Enter;
       try
-        q := Format('SELECT %s FROM %s WHERE %s ',
+        q := Format('SELECT `%s` FROM `%s` WHERE `%s` ',
           [SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'section;1'),
           ';', 1), config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
           SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
           ';', 1)]);
 
-        q := q + '=''%s'';';
+        q := q + ' = ''%s'';';
         mysql_result := gc(mysqldb, q, [rls]);
         if mysql_result <> '' then
           Result := UnixToDateTime(StrToIntDef(mysql_result, 0));
@@ -560,34 +560,36 @@ begin
   begin
     try
 
-    if config.ReadString('taskmysqlpretime','source_field', '-1') = '-1'  then begin
+      if config.ReadString('taskmysqlpretime', 'source_field', '-1') = '-1' then
+      begin
+
+        sql := Format('INSERT IGNORE INTO `%s` (`%s`, `%s`, `%s`) ',
+          [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
+          SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
+          ';', 1), SubString(config.ReadString('taskmysqlpretime',
+          'section_field', 'section;1'), ';', 1),
+          SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
+          ';', 1)]);
 
 
-      sql := Format('INSERT IGNORE INTO %s (%s, %s, %s) ',
-        [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-        SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-        ';', 1), SubString(config.ReadString('taskmysqlpretime',
-        'section_field', 'section;1'), ';', 1),
-        SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-        ';', 1)]);
+        //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+        sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
+      end
+      else
+      begin
+        sql := Format('INSERT IGNORE INTO %s (`%s`, `%s`, `%s`, `%s`) ',
+          [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
+          SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
+          ';', 1), SubString(config.ReadString('taskmysqlpretime',
+          'section_field', 'section;1'), ';', 1),
+          SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
+          ';', 1), SubString(config.ReadString('taskmysqlpretime',
+          'source_field', 'source;4'), ';', 1)]);
 
 
-      //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-      sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
-    end else begin
-            sql := Format('INSERT IGNORE INTO %s (%s, %s, %s, %s) ',
-        [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-        SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-        ';', 1), SubString(config.ReadString('taskmysqlpretime',
-        'section_field', 'section;1'), ';', 1),
-        SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-        ';', 1), SubString(config.ReadString('taskmysqlpretime',
-        'source_field', 'source;4'), ';', 1)]);
-
-
-      //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-      sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-    end;
+        //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+        sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+      end;
       MySQLInsertQuery(sql, [rls, rls_section, Source]);
     except
       on e: Exception do
@@ -638,7 +640,8 @@ begin
   begin
     mysql_lock.Enter;
     try
-      q      := 'SELECT count(*) as count FROM addpre;';
+      q      := 'SELECT count(*) as count FROM ' + config.ReadString(
+        'taskmysqlpretime', 'tablename', 'addpre') + ';';
       res    := gc(mysqldb, q, []);
       Result := StrToIntDef(res, 0);
     finally
@@ -793,7 +796,7 @@ begin
   case dbaddpre_mode of
     0: Console_Addline('', 'Local addpre DB Started...');
     1: Console_Addline('', 'Local SQLITE addpre DB Started...');
-    2: Console_Addline('', 'Local MYSQL addpre DB Started...');
+    2: Console_Addline('', 'Connected to MYSQL DupeDB...');
     else
     begin
       Console_Addline('', 'Local addpre DB NOT Started.');
