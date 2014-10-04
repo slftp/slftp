@@ -10949,7 +10949,7 @@ begin
   sname := RightStrV2(params, length(sid) + 1);
 
 
-  if ((sid = '--search') or (sid = '--s') or (sid = '-search') or (sid = '-s')) then
+  if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S')) then
     //  inn := StrToIntDef(sid, -1);
     // we try to find the right Show ID
     //  if inn = -1 then
@@ -10980,6 +10980,7 @@ begin
     try
       xml.LoadFromWeb(uurl);
       n := xml.GetDocumentElement;
+      Delete(sname,1,3);
       for i := 0 to xml.GetChildNodeCount(n) - 1 do
       begin
         nn := xml.GetChildNodeItem(n, i);
@@ -10993,9 +10994,11 @@ begin
     finally
       xml.Free;
     end;
-  end
-  else
-  begin // if inn = -1 then begin
+    Result:=True;
+    Exit;
+  end;
+
+if StrToIntDef(sid, -1) > -1 then begin // if inn = -1 then begin
     tvr := TDbTVRage.Create(sname);
     //    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
     xml := TSLXMLDocument.Create;
@@ -11081,11 +11084,10 @@ begin
       *)
     end;
 
-  end; // end else begin              //if inn = -1 then begin
+  end else
+       irc_Adderror('<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
 
-  // dbaddtvrage_addtvrage(sname+' '+sid);
   Result := True;
-
 end;
 
 (*
