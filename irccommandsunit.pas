@@ -10935,12 +10935,13 @@ end;
 
 function IrcAddTVRagetoDB(const Netname, Channel: string; params: string): boolean;
 var
-  uurl, ssname, sname, sid: string;
+ respons, uurl, ssname, sname, sid: string;
   tvr: TDbTVRage;
   x:   TRegExpr;
   gc, i, sresMAXi, inn: integer;
   xml: TSLXMLDocument;
   nnn, nn, n: TSLXMLNode;
+  st:TStream;
 begin
   //  Result := False;
   sid   := UpperCase(SubString(params, ' ', 1));
@@ -10998,23 +10999,31 @@ begin
 
   if StrToIntDef(sid, -1) > -1 then
   begin // if inn = -1 then begin
-    tvr := TDbTVRage.Create(sname);
+    //tvr := TDbTVRage.Create(sname);
     xml := TSLXMLDocument.Create;
+//    respons:=slUrlGet('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
+//    st:=TStringStream.Create(respons);
+//    st.Position:=0;
     try
       try
         xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
+
+     //   if xml = nil then irc_addtext(netname,channel,'XML is nil');
         tvr := ParseTVRageXML(xml, sname);
+
+//        irc_addtext(netname,channel,'');
         tvr.Save;
+    tvr.PostResults(Netname, Channel);
       except
         on E: Exception do
-          irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
+          irc_Addtext(netname,channel,format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
             [E.Message]));
 
       end;
     finally
-      tvr.PostResults(Netname, Channel);
-      xml.Free;
-      tvr.Free;
+
+//      xml.Free;
+//      tvr.Free;
       (*  we have to keep an eye
       {$IFDEF FPC}
        n:=nil;
@@ -11026,8 +11035,7 @@ begin
 
   end
   else
-    irc_Adderror('<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
-
+    irc_Addtext(netname,channel,'<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
   Result := True;
 end;
 
