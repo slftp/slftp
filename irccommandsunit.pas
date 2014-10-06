@@ -314,6 +314,7 @@ function IrcAnnounceIMDBInfo(const netname, channel: string; params: string): bo
 
 //function IrcAddTVRageValue(const netname, channel: string;params: string): Boolean;
 function IrcAddTVRagetoDB(const netname, channel: string; params: string): boolean;
+function IrcUpdateTVRageInfo(const Netname, Channel: string; params: string): boolean;
 
 
 function IrcShowSiteNukes(const netname, channel: string; params: string): boolean;
@@ -348,7 +349,7 @@ procedure IrcCommandUninit;
 
 const
 
-  irccommands: array[1..239] of TIrcCommand = (
+  irccommands: array[1..240] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -707,6 +708,8 @@ const
     (cmd: 'tvrageinfo'; hnd: IrcAnnounceTVRageInfo; minparams: 1;
     maxparams: -1; hlpgrp: ''),
     (cmd: 'addtvrageinfo'; hnd: IrcAddTVRagetoDB; minparams: 1;
+    maxparams: -1; hlpgrp: ''),
+    (cmd: 'updatetvrageinfo'; hnd: IrcUpdateTVRageInfo; minparams: 1;
     maxparams: -1; hlpgrp: ''),
     (cmd: '- :: other MODz :: -'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '@$!')
@@ -10933,15 +10936,73 @@ begin
   Result     := True;
 end;
 
+
+
+
+function IrcUpdateTVRageInfo(const Netname, Channel: string; params: string): boolean;
+var
+  xml: TSLXMLDocument;
+  otvr, tvr: TDbTVRage;
+begin
+  xml := TSLXMLDocument.Create;
+  try
+    xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + params);
+    try
+    otvr   := dbaddtvrage_gettvrage_id(params);
+    tvr    := ParseTVRageXML(xml, otvr.rls_showname);
+    Result := dbaddtvrage_update_show(tvr);
+    tvr.PostResults(otvr.rls_showname);
+    finally
+      otvr.free;
+      tvr.free;
+    end;
+  finally
+    xml.Free;
+
+  end;
+end;
+
+
+(*
+
+
+xml := TSLXMLDocument.Create;
+try
+  if strtointdef(params,-1) = -1 then begin
+  try
+    otvr:=dbaddtvrage_gettvrage_id(params);
+    tvr := ParseTVRageXML(xml, otvr.rls_showname);
+    result:=dbaddtvrage_update_show(tvr);
+  finally
+    otvr.free;
+    tvr.free;
+  end;
+  end else begin
+    try
+      otvr:=dbaddtvrage_gettvrage_show(params);
+      xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + otvr.tv_showid);
+      tvr := ParseTVRageXML(xml, params);
+result:=dbaddtvrage_update_show(tvr);
+finally
+tvr.free;
+otvr.free;
+end;
+
+end;
+finally
+  xml.free;
+end;
+
+*)
+
 function IrcAddTVRagetoDB(const Netname, Channel: string; params: string): boolean;
 var
- respons, uurl, ssname, sname, sid: string;
+  uurl, ssname, sname, sid: string;
   tvr: TDbTVRage;
   x:   TRegExpr;
   gc, i, sresMAXi, inn: integer;
   xml: TSLXMLDocument;
   nnn, nn, n: TSLXMLNode;
-  st:TStream;
 begin
   //  Result := False;
   sid   := UpperCase(SubString(params, ' ', 1));
@@ -10999,31 +11060,31 @@ begin
 
   if StrToIntDef(sid, -1) > -1 then
   begin // if inn = -1 then begin
-    //tvr := TDbTVRage.Create(sname);
+        //tvr := TDbTVRage.Create(sname);
     xml := TSLXMLDocument.Create;
-//    respons:=slUrlGet('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
-//    st:=TStringStream.Create(respons);
-//    st.Position:=0;
+    //    respons:=slUrlGet('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
+    //    st:=TStringStream.Create(respons);
+    //    st.Position:=0;
     try
       try
         xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
 
-     //   if xml = nil then irc_addtext(netname,channel,'XML is nil');
+        //   if xml = nil then irc_addtext(netname,channel,'XML is nil');
         tvr := ParseTVRageXML(xml, sname);
 
-//        irc_addtext(netname,channel,'');
+        //        irc_addtext(netname,channel,'');
         tvr.Save;
-    tvr.PostResults(Netname, Channel);
+        tvr.PostResults(Netname, Channel);
       except
         on E: Exception do
-          irc_Addtext(netname,channel,format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
-            [E.Message]));
+          irc_Addtext(netname, channel,
+            format('<c4>[Exception]</c> in ADDTVRageInfo: %s', [E.Message]));
 
       end;
     finally
 
-//      xml.Free;
-//      tvr.Free;
+      //      xml.Free;
+      //      tvr.Free;
       (*  we have to keep an eye
       {$IFDEF FPC}
        n:=nil;
@@ -11035,7 +11096,8 @@ begin
 
   end
   else
-    irc_Addtext(netname,channel,'<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+    irc_Addtext(netname, channel,
+      '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
   Result := True;
 end;
 

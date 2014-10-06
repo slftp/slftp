@@ -36,6 +36,9 @@ function dbaddtvrage_gettvrage_show(rls_showname: string): TDbTVRage;
 function dbaddtvrage_gettvrage_rls(rls: string): TDbTVRage;
 function dbaddtvrage_gettvrage_id(tv_showid: string): TDbTVRage;
 
+function dbaddtvrage_update_show(tvs: TDbTVRage): boolean;
+
+
 procedure dbaddtvrage_FireKbAdd(rls: string);
 
 function dbaddtvrage_Process(net, chan, nick, msg: string): boolean;
@@ -63,7 +66,7 @@ const
 
 var
   addtvrageDB:     TslSqliteDB = nil;
-  sql_addtvrage: Psqlite3_stmt = nil;
+  sql_addtvrage:   Psqlite3_stmt = nil;
   sql_counttvrage: Psqlite3_stmt = nil;
 
   addtvragecmd: string;
@@ -189,12 +192,10 @@ begin
   end;
 
   try
-    addtvrageDB.Open(Format(
-      'UPDATE addtvrage SET tv_showid="%s", tv_showname="%s", tv_showurl="%s", tv_premiered_year="%s", tv_country="%s", tv_status="%s",' +
-      ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%s", tv_running="%s", tv_endedyear="%s" WHERE rls_showname="%s";',
-      [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year,
-      tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres,
-      tvs.tv_network, tvs.tv_runtime, tvs.tv_running, tvs.tv_endedyear, tvs.rls_showname]));
+    addtvrageDB.ExecSQL(Format(
+      'UPDATE addtvrage SET tv_showid="%s", tv_showname="%s", tv_showurl="%s", tv_premiered_year="%d", tv_country="%s", tv_status="%s",'
+      +
+      ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname="%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
     Result := True;
   except
     on e: Exception do
@@ -209,7 +210,7 @@ end;
 
 function dbaddtvrage_delete_show(tvs: TDbTVRage): boolean;
 begin
-  result:=false;
+  Result := False;
 
 end;
 
@@ -254,7 +255,8 @@ begin
         tvrage.tv_showid := addtvrageDB.column_text(gettvrage, 1);
         tvrage.tv_showname := addtvrageDB.column_text(gettvrage, 2);
         tvrage.tv_showurl := addtvrageDB.column_text(gettvrage, 3);
-        tvrage.tv_premiered_year := StrToIntDef(addtvrageDB.column_text(gettvrage, 4), 0);
+        tvrage.tv_premiered_year :=
+          StrToIntDef(addtvrageDB.column_text(gettvrage, 4), 0);
         tvrage.tv_country := addtvrageDB.column_text(gettvrage, 5);
         tvrage.tv_status := addtvrageDB.column_text(gettvrage, 6);
         tvrage.tv_classification := addtvrageDB.column_text(gettvrage, 7);
@@ -498,8 +500,7 @@ function dbaddtvrage_Status: string;
 begin
   Result := '';
 
-  Result := Format('<b>TVRAGE.db</b>: %d tvrage infos',
-    [dbaddtvrage_GetCount]);
+  Result := Format('<b>TVRAGE.db</b>: %d tvrage infos', [dbaddtvrage_GetCount]);
 end;
 
 procedure dbaddtvrageInit;
@@ -524,10 +525,7 @@ begin
       config.ReadString(section, 'pragma', ''));
     addtvrageDB.ExecSQL(
       'CREATE TABLE IF NOT EXISTS addtvrage (rls_showname VARCHAR(255) NOT NULL, tv_showid VARCHAR(255), tv_showname VARCHAR(255),'
-      +
-      'tv_showurl VARCHAR(255), tv_premiered_year INT(10), tv_country VARCHAR(255), tv_status VARCHAR(255), tv_classification VARCHAR(255),'
-      +
-      'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10))'
+      + 'tv_showurl VARCHAR(255), tv_premiered_year INT(10), tv_country VARCHAR(255), tv_status VARCHAR(255), tv_classification VARCHAR(255),' + 'tv_genres VARCHAR(255), tv_network VARCHAR(255), tv_runtime INT(10), tv_running VARCHAR(5), tv_endedyear INT(10))'
       //, tv_seasons INT(5), last_updated INT(50))'
       );
     addtvrageDB.ExecSQL(
