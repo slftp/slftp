@@ -44,7 +44,7 @@ function LeftStr(const Source: string; Count: integer): string;
 function RightStr(const Source: string; Count: integer): string;
 function MinMax(aValue, minimal, maximum: integer): integer;
 function SubString(const s, seperator: string; index: integer): string;
-function Csere(const Source, mit, mire: string): string;
+function Csere(const Source, old, new: string): string;
 function AtConvert(Source: string; style: integer): string;
 function RightStrv2(const Source: string; Count: integer): string;
 function myEncode(what: string): string;//spaceket  csereli at
@@ -290,9 +290,9 @@ begin
   until False;
 end;
 
-function Csere(const Source, mit, mire: string): string;
+function Csere(const Source, old, new: string): string;
 begin
-  Result := StringReplace(Source, mit, mire, [rfReplaceAll, rfIgnoreCase]);
+  Result := StringReplace(Source, old, new, [rfReplaceAll, rfIgnoreCase]);
 end;
 
 function AtConvert(Source: string; style: integer): string;
@@ -309,8 +309,8 @@ begin
       nemkell := False;
       for i := 1 to length(Source) do
       begin
-        if (i + 1 <= length(Source)) and
-          (Source[i] in [' ', '-', '.', '_', '(', '?', '!']) then
+        if (i + 1 <= length(Source)) and (Source[i] in
+          [' ', '-', '.', '_', '(', '?', '!']) then
         begin
           Result  := Result + Source[i];
           Source[i + 1] := AnsiUpperCase(Source[i + 1])[1];
@@ -535,8 +535,7 @@ begin
   if Length(DecodedStr) > 0 then
     for I := 1 to Length(DecodedStr) do
     begin
-      if not (DecodedStr[I] in ['0'..'9', 'a'..'z',
-        'A'..'Z', ' ']) then
+      if not (DecodedStr[I] in ['0'..'9', 'a'..'z', 'A'..'Z', ' ']) then
         Result := Result + '%' + IntToHex(Ord(DecodedStr[I]), 2)
       else if not (DecodedStr[I] = ' ') then
         Result := Result + DecodedStr[I]
@@ -903,7 +902,8 @@ begin
     exit;
   end;
   nCDV := StrToInt(copy(cTemp, 10, 2));
-  if not (((nCDV > 1) and (nCDV < 21)) or ((nCDV > 21) and (nCDV < 45)) or (nCDV = 51)) then
+  if not (((nCDV > 1) and (nCDV < 21)) or ((nCDV > 21) and (nCDV < 45)) or
+    (nCDV = 51)) then
   begin
     Result := -4;
     exit;
@@ -1063,8 +1063,8 @@ begin
   if s = '' then
     exit;
 
-  host := Fetch(s, ',') + '.' + Fetch(s, ',') + '.' + Fetch(s, ',') + '.' +
-    Fetch(s, ',');
+  host := Fetch(s, ',') + '.' + Fetch(s, ',') + '.' + Fetch(s, ',') +
+    '.' + Fetch(s, ',');
   if s = '' then
     exit;
 
