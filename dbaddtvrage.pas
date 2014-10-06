@@ -37,6 +37,7 @@ function dbaddtvrage_gettvrage_rls(rls: string): TDbTVRage;
 function dbaddtvrage_gettvrage_id(tv_showid: string): TDbTVRage;
 
 function dbaddtvrage_update_show(tvs: TDbTVRage): boolean;
+function dbaddtvrage_delete_show(show:string): boolean;
 
 
 procedure dbaddtvrage_FireKbAdd(rls: string);
@@ -192,7 +193,7 @@ begin
   end;
 
   try
-    addtvrageDB.ExecSQL(Format(
+    result:= addtvrageDB.ExecSQL(Format(
       'UPDATE addtvrage SET tv_showid="%s", tv_showname="%s", tv_showurl="%s", tv_premiered_year="%d", tv_country="%s", tv_status="%s",'
       +
       ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname="%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
@@ -208,9 +209,18 @@ begin
 
 end;
 
-function dbaddtvrage_delete_show(tvs: TDbTVRage): boolean;
+function dbaddtvrage_delete_show(show:string): boolean;
 begin
-  Result := False;
+try
+  Result := addtvrageDB.ExecSQL(Format('DELETE FROM addtvrage WHERE rls_showname="%s";',[show]));
+  except
+    on e: Exception do
+    begin
+      Result := False;
+      Debug(dpError, section, Format('[EXCEPTION] dbaddtvrage_delete_show: %s ',
+        [e.Message]));
+    end;
+  end;
 
 end;
 
