@@ -51,10 +51,10 @@ var
   i, gc: integer;
   s:     string;
 begin
-  try
-    s   := Csere(Showname, ' ', '.');
-    tvr := TDbTVRage.Create(s);
+    s   := Csere(Showname, '.', ' ');
+     tvr := TDbTVRage.Create(s);
     try
+
       n := xml.GetDocumentElement;
 
       nn := xml.FindChildNode(n, 'showid');
@@ -116,15 +116,12 @@ begin
       //   tvr.Save;
       //   tvr.PostResults(Netname, Channel);
       Result := tvr;
+      
     except
       on E: Exception do
         irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
           [E.Message]));
     end;
-  finally
-    xml.Free;
-    tvr.Free;
-  end;
 end;
 
 function ParseTVRageXML(content: string; Showname: string = ''): TDbTVRage;
