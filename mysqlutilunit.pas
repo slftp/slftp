@@ -2,7 +2,7 @@ unit mysqlutilunit;
 
 interface
 
-uses slmysql2,sysutils,classes,syncobjs,kb, regexpr;
+uses slmysql2, SysUtils, Classes, syncobjs, kb, regexpr;
 
 type
   TMySQLThread = class(TThread)
@@ -12,29 +12,30 @@ type
   end;
 
 var
-  mysqldb: PMYSQL;
-  mysql_lock: TCriticalSection;
+  mysqldb:    PMYSQL;
+  mysql_lock: TCriticalSection = nil;
 
 procedure MySQLInit;
 procedure MySQLUninit;
 procedure MySQLStart;
 
-function MySQLConnected:boolean;
-function MySQLInsertQuery(sql: string; args: array of const):boolean;
+function MySQLConnected: boolean;
+function MySQLInsertQuery(sql: string; args: array of const): boolean;
 
 implementation
 
 uses configunit, mainthread, debugunit
-     , irc;
+  , irc;
 
-const section = 'mysql';
+const
+  section = 'mysql';
 
 var
-  mysqlth: TMySQLThread;
-  mysqlevent: TEvent;
+  mysqlth:    TMySQLThread;
+  mysqlevent: TEvent = nil;
 
-  mysql_host, mysql_user, mysql_pass, mysql_dbname: String;
-  mysql_port, mysql_ping: Integer;
+  mysql_host, mysql_user, mysql_pass, mysql_dbname: string;
+  mysql_port, mysql_ping: integer;
 
 procedure MySQLInit;
 begin
@@ -42,16 +43,16 @@ begin
     exit;
 
   // config
-  mysql_host:= config.ReadString(section,'host','');
-  mysql_port:= config.ReadInteger(section,'port',0);
-  mysql_user:= config.ReadString(section,'user','');
-  mysql_pass:= config.ReadString(section,'pass','');
-  mysql_dbname:= config.ReadString(section,'dbname','');
+  mysql_host   := config.ReadString(section, 'host', '');
+  mysql_port   := config.ReadInteger(section, 'port', 0);
+  mysql_user   := config.ReadString(section, 'user', '');
+  mysql_pass   := config.ReadString(section, 'pass', '');
+  mysql_dbname := config.ReadString(section, 'dbname', '');
 
-  mysql_ping:= config.ReadInteger(section,'ping',0);
+  mysql_ping := config.ReadInteger(section, 'ping', 0);
 
   // lock
-  mysql_lock:= TCriticalSection.Create;
+  mysql_lock := TCriticalSection.Create;
 
   // mysql
   mysqldb := mysql_init(nil);
@@ -60,27 +61,41 @@ begin
     Debug(dpError, section, '[ERROR] mysql_init', []);
     exit;
   end;
-  if slmysql2.mysql_real_connect(mysqldb, pChar(mysql_host), pChar(mysql_user), pChar(mysql_pass), pChar(mysql_dbname), mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
+  if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
+    PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname), mysql_port,
+    nil, CLIENT_MULTI_STATEMENTS) = nil then
   begin
     Debug(dpError, section, '[ERROR] mysql_real_connect: %s', [mysql_error(mysqldb)]);
-  end else begin
+  end
+  else
+  begin
     slmysql2.mysql_options(mysqldb, MYSQL_OPT_RECONNECT, 'true');
     slmysql2.mysql_options(mysqldb, MYSQL_OPT_COMPRESS, 0);
   end;
 
   // event
-  mysqlevent:= TEvent.Create(nil, False, False, 'mysql');
-  
+  mysqlevent := TEvent.Create(nil, False, False, 'mysql');
+
   // thread
-  mysqlth:= TMySQLThread.Create;
-  mysqlth.FreeOnTerminate:= True;
+  mysqlth := TMySQLThread.Create;
+  mysqlth.FreeOnTerminate := True;
 end;
 
 procedure MySQLUninit;
 begin
-  mysqlevent.Free;
+  if mysqlevent <> nil then
+  begin
+    mysqlevent.Free;
+    mysqlevent := nil;
+  end;
 
-  mysql_lock.Free;
+  if mysql_lock <> nil then
+  begin
+    mysql_lock.Free;
+    mysql_lock := nil;
+
+  end;
+
 end;
 
 procedure MySQLStart;
@@ -88,11 +103,14 @@ begin
 
 end;
 
-function MySQLConnected:boolean;
+function MySQLConnected: boolean;
 begin
-  Result:= False;
+  Result := False;
   try
-    if slmysql2.mysql_ping(mysqldb) = 0 then Result:= True else Result:= False;
+    if slmysql2.mysql_ping(mysqldb) = 0 then
+      Result := True
+    else
+      Result := False;
   except
     on E: Exception do
     begin
@@ -103,9 +121,10 @@ begin
 end;
 
 function MySQLInsertQuery(sql: string; args: array of const): boolean;
-var mysql_err: string;
+var
+  mysql_err: string;
 begin
-  Result:= False;
+  Result := False;
   try
     mysql_lock.Enter;
     try
@@ -116,7 +135,8 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] MySQLInsertQuery : %s %s', [e.Message, sql]));
+      Debug(dpError, section, Format('[EXCEPTION] MySQLInsertQuery : %s %s',
+        [e.Message, sql]));
       exit;
     end;
   end;
@@ -152,12 +172,17 @@ begin
             mysqldb := mysql_init(nil);
             if mysqldb <> nil then
             begin
-              if slmysql2.mysql_real_connect(mysqldb, pChar(mysql_host), pChar(mysql_user), pChar(mysql_pass), pChar(mysql_dbname), mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
+              if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
+                PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname), mysql_port,
+                nil, CLIENT_MULTI_STATEMENTS) = nil then
               begin
-                Debug(dpError, section, '[ERROR] mysql_real_connect: %s', [mysql_error(mysqldb)]);
-              end else begin
+                Debug(dpError, section, '[ERROR] mysql_real_connect: %s',
+                  [mysql_error(mysqldb)]);
+              end
+              else
+              begin
                 slmysql2.mysql_options(mysqldb, MYSQL_OPT_RECONNECT, 'true');
-                slmysql2.mysql_options(mysqldb, MYSQL_OPT_COMPRESS, 0);
+                slmysql2.mysql_options(mysqldb, MYSQL_OPT_COMPRESS, nil);
               end;
             end;
           end;
@@ -176,3 +201,4 @@ begin
 end;
 
 end.
+

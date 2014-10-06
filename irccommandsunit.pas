@@ -726,7 +726,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile,
   statsunit, skiplists, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake,
   taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbaddtvrage,
-  globalskipunit, xmlwrapper;
+  globalskipunit, xmlwrapper, tasktvragelookup;
 
 const
   section = 'irccommands';
@@ -10043,7 +10043,6 @@ var
   pmode: integer;
 begin
 
-
   //  Result := False;
   pmode := StrToIntDef(params, -1);
   if pmode >= 0 then
@@ -10052,7 +10051,8 @@ begin
     config.UpdateFile;
   end;
   irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
-    [config.ReadInteger('taskpretime', 'mode', 0),pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
+    [config.ReadInteger('taskpretime', 'mode', 0), pretimeModeToString(
+    TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
   Result := True;
 end;
 
@@ -10072,7 +10072,7 @@ begin
   end
   else
   begin
-    irc_addtext(Netname, Channel, 'No valid pretime -> '+IntToStr(datetimetounix(pt)));
+    irc_addtext(Netname, Channel, 'No valid pretime -> ' + IntToStr(datetimetounix(pt)));
   end;
 end;
 
@@ -10738,10 +10738,8 @@ function IrcAnnounceTVRageInfo(const Netname, Channel: string; params: string): 
 var
   db_tvrage: TDbTVRage;
 begin
-  //  db_tvrage := nil;
-
   try
-    db_tvrage := dbaddtvrage_gettvrage_rls(params);
+    db_tvrage := dbaddtvrage_gettvrage_show(params);
   except
     on E: Exception do
     begin
@@ -10980,7 +10978,7 @@ begin
     try
       xml.LoadFromWeb(uurl);
       n := xml.GetDocumentElement;
-      Delete(sname,1,3);
+      Delete(sname, 1, 3);
       for i := 0 to xml.GetChildNodeCount(n) - 1 do
       begin
         nn := xml.GetChildNodeItem(n, i);
@@ -10994,77 +10992,19 @@ begin
     finally
       xml.Free;
     end;
-    Result:=True;
+    Result := True;
     Exit;
   end;
 
-if StrToIntDef(sid, -1) > -1 then begin // if inn = -1 then begin
+  if StrToIntDef(sid, -1) > -1 then
+  begin // if inn = -1 then begin
     tvr := TDbTVRage.Create(sname);
-    //    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
     xml := TSLXMLDocument.Create;
     try
       try
         xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' + sid);
-        n := xml.GetDocumentElement;
-
-        nn := xml.FindChildNode(n, 'showid');
-        tvr.tv_showid := xml.GetNodeValue(nn);
-
-        nn := xml.FindChildNode(n, 'showname');
-        tvr.tv_showname := xml.GetNodeValue(nn);
-
-        nn := xml.FindChildNode(n, 'showlink');
-        tvr.tv_showurl := xml.GetNodeValue(nn);
-
-        nn := xml.FindChildNode(n, 'started');
-        tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1);
-
-        nn := xml.FindChildNode(n, 'status');
-        tvr.tv_status := xml.GetNodeValue(nn);
-        if ((Uppercase(tvr.tv_status) = 'ENDED') or
-          (Uppercase(tvr.tv_status) = 'CANCELED/ENDED')) then
-          tvr.tv_running := False
-        else
-          tvr.tv_running := True;
-
-        nn := xml.FindChildNode(n, 'classification');
-        tvr.tv_classification := xml.GetNodeValue(nn);
-
-        nn := xml.FindChildNode(n, 'runtime');
-        tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
-
-        //        nn := xml.FindChildNode(n, 'seasons');
-        //        tvr.tv_seasons := StrToIntDef(xml.GetNodeValue(nn), -1);
-        tvr.tv_running := True;
-
-        nn := xml.FindChildNode(n, 'ended');
-        tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
-        if tvr.tv_endedyear <> -1 then
-          tvr.tv_running := False;
-
-        tvr.tv_genres.Clear;
-        nn := xml.FindChildNode(n, 'genres');
-        if (nn <> nil) then
-        begin
-          gc := xml.GetChildNodeCount(nn);
-          for i := 0 to gc - 1 do
-          begin
-            nnn := xml.GetChildNodeItem(nn, i);
-            tvr.tv_genres.Add(xml.GetNodeValue(nnn));
-          end;
-        end;
-
-        nn  := xml.FindChildNode(n, 'network');
-        nnn := xml.GetAttributeNodeByIndex(nn, 0);
-        // we need to know the excat pos. of the attribute!
-        if xml.GetNodeValue(nnn) = 'US' then
-          tvr.tv_country := 'USA'
-        else
-          tvr.tv_country := xml.GetNodeValue(nnn);
-        tvr.tv_network := xml.GetNodeValue(nn);
-
+        tvr := ParseTVRageXML(xml, sname);
         tvr.Save;
-
       except
         on E: Exception do
           irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
@@ -11084,8 +11024,9 @@ if StrToIntDef(sid, -1) > -1 then begin // if inn = -1 then begin
       *)
     end;
 
-  end else
-       irc_Adderror('<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+  end
+  else
+    irc_Adderror('<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
 
   Result := True;
 end;
