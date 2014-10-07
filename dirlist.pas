@@ -206,14 +206,8 @@ begin
       begin
         Result := True;
 
-        for i := entries.Count - 1 downto 0 do
+        for i := 0 to entries.Count - 1 do
         begin
-          try
-            if i < 0 then
-              Break;
-          except
-            Break;
-          end;
           try
             d := TDirlistEntry(entries[i]);
             if ((d.cdno > 0) and (not d.skiplisted) and
@@ -225,7 +219,13 @@ begin
               break;
             end;
           except
-            Continue;
+            on E: Exception do
+            begin
+              irc_adderror(Format('[EXCEPTION] TDirList.Complete: %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] TDirList.Complete: %s',
+                [e.Message]));
+              Continue;
+            end;
           end;
         end;
 
@@ -349,22 +349,16 @@ var
 begin
   if parent = nil then
   begin
+
     biggestcd := 0;
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
 
-    for i := entries.Count - 1 downto 0 do
+    for i := 0 to entries.Count - 1 do
     begin
       try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      try
         de := TDirListEntry(entries[i]);
-
         if de.cdno <> 0 then
         begin
           Result := True;
@@ -374,7 +368,13 @@ begin
             biggestcd := de.cdno;
         end;
       except
-        Continue;
+        on E: Exception do
+        begin
+          irc_adderror(Format('[EXCEPTION] TDirList.MultiCD: %s', [e.Message]));
+          Debug(dpError, section, Format('[EXCEPTION] TDirList.MultiCD: %s',
+            [e.Message]));
+          Continue;
+        end;
       end;
     end;
 
@@ -406,14 +406,8 @@ var
 begin
   Result := 0;
 
-  for i := entries.Count - 1 downto 0 do
+  for i := 0 to entries.Count - 1 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
     try
       if ((not TDirListEntry(entries[i]).skiplisted) and
         (not TDirListEntry(entries[i]).done)) then
@@ -421,7 +415,13 @@ begin
         Inc(Result);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        irc_adderror(Format('[EXCEPTION] TDirList.No_Raceable: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TDirList.No_Raceable: %s',
+          [e.Message]));
+        Continue;
+      end;
     end;
   end;
 
@@ -433,21 +433,21 @@ var
 begin
   Result := 0;
 
-  for i := entries.Count - 1 downto 0 do
+  for i := 0 to entries.Count - 1 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
     try
       if TDirListEntry(entries[i]).skiplisted then
       begin
         Inc(Result);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        irc_adderror(Format('[EXCEPTION] TDirList.No_Skiplisted: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TDirList.No_Skiplisted: %s',
+          [e.Message]));
+        Continue;
+      end;
     end;
   end;
 end;
@@ -527,27 +527,21 @@ var
   dirmaszk, username, groupname, datum, filename: string;
   filesize: integer;
   i, j:     integer;
-  lines_read: integer;
+//  lines_read: integer;
   rrgx, splx: TRegExpr;
 begin
   added := False;
 
-  if cache_completed then
-    exit;
+  //  if cache_completed then
+  //    exit;
 
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)',
     [entries.Count]));
 
 
-  for i := entries.Count - 1 downto 0 do
+  for i := 0 to entries.Count - 1 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
     try
       de := TDirlistEntry(entries[i]);
       de.megvanmeg := False;
@@ -564,21 +558,15 @@ begin
   //  splx.Expression:='^sample|cover?|sub?|proof$';
   splx.Expression := '^sample$';
 
-  lines_read := 0;
+//  lines_read := 0;
   while (True) do
   begin
     tmp := trim(Elsosor(s));
 
     if tmp = '' then
       break;
-    Inc(lines_read);
-    if (lines_read > 2000) then
-      break;
 
     //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-
-
-
 
     if (length(tmp) > 11) then
     begin
@@ -597,13 +585,15 @@ begin
       if filename = '' then
         Continue;
 
-      if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
+      if ((filename = '.') or (filename = '..')) then
         continue;
+      continue;
 
 
       if rrgx.Exec(filename) then
       begin
-        //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
+        debugunit.Debug(dpSpam, section, Format('[iNFO] --> ParseDirlist skip: %s',
+          [filename]));
         Continue;
       end;
 
@@ -636,12 +626,12 @@ begin
 
         if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
         begin
-          de.Free;
+          //de.Free;
           Continue;
         end;
         if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
         begin
-          de.Free;
+          //de.Free;
           Continue;
         end;
 
@@ -663,13 +653,13 @@ begin
 
         if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
         begin
-          de.Free;
+          //de.Free;
           Continue;
         end;
 
         if ((not de.Directory) and (not (de.filesize > 0))) then
         begin
-          de.Free;
+          //de.Free;
           Continue;
         end;
 
@@ -693,6 +683,8 @@ begin
         if (de.Directory) then
         begin
           de.subdirlist := TDirlist.Create(site_name, de, skiplist);
+          if ((de.Sample) and (de.subdirlist.entries.Count > 0)) then
+            de.subdirlist.cache_completed:=True;
         end;
 
         if (self.date_started = 0) then
@@ -706,13 +698,9 @@ begin
         added := True;
       end
       else
-      if (de.filesize <> filesize) then
+      if ((de.filesize < filesize) or (de.timestamp <> akttimestamp)) then
       begin
-        if ((de.filesize <> filesize) or (de.username <> username)) then
-        begin
-          LastChanged := Now();
-        end;
-
+        LastChanged  := Now();
         de.filesize  := filesize;
         de.timestamp := akttimestamp;
         de.username  := username;
@@ -769,6 +757,7 @@ begin
       end;
     end;
 
+
     // now sort
     //Sort;
   end;
@@ -787,20 +776,17 @@ begin
     exit;
 
 
-  for i := entries.Count - 1 downto 0 do
+  for i := 0 to entries.Count - 1 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
     try
       ld := TDirListEntry(entries[i]);
       if ld.RegenerateSkiplist then
         Result := True;
-    except
+    except  on E: Exception do begin
+debugunit.Debug(dpError, section, 'TDirList.RegenerateSkiplist exception : %s',
+            [e.Message]);
       Continue;
+    end;
     end;
   end;
 
@@ -830,6 +816,21 @@ begin
       Result := 1;
       exit;
     end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.nfo') and
+      (AnsiLowerCase(i2.Extension) <> '.nfo')) then
+    begin
+      Result := -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and
+      (AnsiLowerCase(i2.Extension) = '.nfo')) then
+    begin
+      Result := 1;
+      exit;
+    end;
+
+(*      maybe its for sample first. i'm not sure right now
 
     if ((AnsiLowerCase(i1.Extension) = '.mkv') and
       (AnsiLowerCase(i2.Extension) <> '.mkv')) then
@@ -870,19 +871,8 @@ begin
       exit;
     end;
 
-    if ((AnsiLowerCase(i1.Extension) = '.nfo') and
-      (AnsiLowerCase(i2.Extension) <> '.nfo')) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and
-      (AnsiLowerCase(i2.Extension) = '.nfo')) then
-    begin
-      Result := 1;
-      exit;
-    end;
 
+   *)
     if ((i1.skiplisted) and (i2.skiplisted)) then
       exit;
 
@@ -938,8 +928,12 @@ begin
       Result := -1
     else
       Result := 1; //i1 = file, jo a sorrend = good order
-  except
-    Result := 0;
+    except  on E: Exception do begin
+debugunit.Debug(dpError, section, 'DirListSorter exception : %s',
+            [e.Message]);
+//Exit;
+    end;
+
   end;
 end;
 
@@ -1404,14 +1398,8 @@ var
   t:  TDateTime;
 begin
   Result := 0;
-  for i := entries.Count - 1 downto 0 do
+  for i := 0 to entries.Count - 1 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
     try
       de := TDirlistEntry(entries[i]);
       if (de.timestamp <> 0) and (not de.skiplisted) then
@@ -1443,13 +1431,7 @@ begin
 
   for i := entries.Count - 1 downto 0 do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-    try
+     try
       de := TDirlistEntry(entries[i]);
       if (de.timestamp <> 0) and (not de.skiplisted) then
       begin
@@ -1471,8 +1453,8 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(filename: string;
-  dirlist: TDirList; SpeedTest: boolean = False);
+constructor TDirListEntry.Create(filename: string; dirlist: TDirList;
+  SpeedTest: boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1491,8 +1473,8 @@ begin
   cdno := 0;
 end;
 
-constructor TDirListEntry.Create(de: TDirlistEntry;
-  dirlist: TDirList; SpeedTest: boolean = False);
+constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList;
+  SpeedTest: boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1614,14 +1596,13 @@ begin
       l := length(filename);
       if l > length(Extension) + 6 then
       begin
-        if ((filename[l - 6] = '(') and
-          (filename[l - 4] = ')') and
+        if ((filename[l - 6] = '(') and (filename[l - 4] = ')') and
           (filename[l - 5] in ['0'..'9'])) then
         begin
           skiplisted := True;
           irc_Addtext_by_key('SKIPLOG',
-            Format('<c2>[SKIP]</c> (?) file %s %s %s : %s', [dirlist.site_name,
-            dirlist.skiplist.sectionname, s, filename]));
+            Format('<c2>[SKIP]</c> (?) file %s %s %s : %s',
+            [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
           exit;
         end;
       end;
@@ -1665,8 +1646,8 @@ begin
       else
       begin
         irc_Addtext_by_key('SKIPLOG',
-          Format('<c2>[SKIP]</c> dirdepth %s %s : %s', [dirlist.site_name,
-          dirlist.skiplist.sectionname, filename]));
+          Format('<c2>[SKIP]</c> dirdepth %s %s : %s',
+          [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
         skiplisted := True;
       end;
     end;
