@@ -6,9 +6,20 @@ uses slmysql2, SysUtils, Classes, syncobjs, kb, regexpr;
 
 type
   TMySQLThread = class(TThread)
+  protected
+  (* place holder for future mods like imdb over mysql....
+  host:string;
+  username:string;
+  passw:string;
+  dbname:string;
+  tablename:string;
+  port: integer;
+  ping: integer;
+  *)
+  procedure Execute; override;
+  public
     constructor Create;
     destructor Destroy; override;
-    procedure Execute; override;
   end;
 
 var
@@ -43,13 +54,17 @@ begin
     exit;
 
   // config
-  mysql_host   := config.ReadString(section, 'host', '');
+  mysql_host   := config.ReadString(section, 'host', '0');
   mysql_port   := config.ReadInteger(section, 'port', 0);
   mysql_user   := config.ReadString(section, 'user', '');
   mysql_pass   := config.ReadString(section, 'pass', '');
   mysql_dbname := config.ReadString(section, 'dbname', '');
 
   mysql_ping := config.ReadInteger(section, 'ping', 0);
+
+  if mysql_host = '0' then
+    exit; //we dont use mysql...
+
 
   // lock
   mysql_lock := TCriticalSection.Create;
@@ -62,8 +77,8 @@ begin
     exit;
   end;
   if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
-    PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname), mysql_port,
-    nil, CLIENT_MULTI_STATEMENTS) = nil then
+    PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname),
+    mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
   begin
     Debug(dpError, section, '[ERROR] mysql_real_connect: %s', [mysql_error(mysqldb)]);
   end
@@ -173,8 +188,8 @@ begin
             if mysqldb <> nil then
             begin
               if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
-                PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname), mysql_port,
-                nil, CLIENT_MULTI_STATEMENTS) = nil then
+                PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname),
+                mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
               begin
                 Debug(dpError, section, '[ERROR] mysql_real_connect: %s',
                   [mysql_error(mysqldb)]);
