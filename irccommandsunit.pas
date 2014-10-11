@@ -10794,8 +10794,8 @@ begin
         //        db_tvrage := nil;
         Debug(dpError, section, format('Exception in SetTVRageRelease: %s',
           [E.Message]));
-        irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in SetTVRageRelease: %s',
-          [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in SetTVRageRelease: %s', [E.Message]));
         Result := True;
         exit;
       end;
@@ -10821,8 +10821,7 @@ begin
   if ((ivalue > 1) or (ivalue < 0)) then
   begin
     irc_AddText(Netname, Channel, format(
-      '<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0',
-      [ivalue]));
+      '<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0', [ivalue]));
     exit;
   end;
 
@@ -10860,8 +10859,8 @@ begin
       // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in rewrite value: %s',
-          [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in rewrite value: %s', [E.Message]));
     end;
 
     try
@@ -10874,8 +10873,8 @@ begin
       // sitesdat.UpdateFile;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in delete old value: %s',
-          [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in delete old value: %s', [E.Message]));
     end;
   end
   else
@@ -10918,8 +10917,8 @@ begin
       s.AutoCrawler;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in start auto tasks: %s',
-          [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
     end;
   end;
 
@@ -11157,8 +11156,8 @@ begin
       RulesSave;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in IrcRuleCopy: %s',
-          [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in IrcRuleCopy: %s', [E.Message]));
     end;
   finally
     queue_lock.Leave;
