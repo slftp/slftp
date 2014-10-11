@@ -469,11 +469,6 @@ begin
       end;
     end;
 
-    if (rls <> '') then
-    begin
-      dbaddtvrage_FireKbAdd(rls);
-    end;
-
     try
       save_tvrage.Save;
     except
@@ -482,6 +477,14 @@ begin
         Debug(dpError, section, Format('[EXCEPTION] tvrage.Save: %s ', [e.Message]));
       end;
     end;
+
+    
+
+    if (rls <> '') then
+    begin
+      dbaddtvrage_FireKbAdd(rls);
+    end;
+
   end;
 end;
 

@@ -51,77 +51,77 @@ var
   i, gc: integer;
   s:     string;
 begin
-    s   := Csere(Showname, '.', ' ');
-     tvr := TDbTVRage.Create(s);
-    try
+  s   := Csere(Showname, '.', ' ');
+  tvr := TDbTVRage.Create(s);
+  try
 
-      n := xml.GetDocumentElement;
+    n := xml.GetDocumentElement;
 
-      nn := xml.FindChildNode(n, 'showid');
-      tvr.tv_showid := xml.GetNodeValue(nn);
+    nn := xml.FindChildNode(n, 'showid');
+    tvr.tv_showid := xml.GetNodeValue(nn);
 
-      nn := xml.FindChildNode(n, 'showname');
-      tvr.tv_showname := xml.GetNodeValue(nn);
+    nn := xml.FindChildNode(n, 'showname');
+    tvr.tv_showname := xml.GetNodeValue(nn);
 
-      nn := xml.FindChildNode(n, 'showlink');
-      tvr.tv_showurl := xml.GetNodeValue(nn);
+    nn := xml.FindChildNode(n, 'showlink');
+    tvr.tv_showurl := xml.GetNodeValue(nn);
 
-      nn := xml.FindChildNode(n, 'started');
-      tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1);
+    nn := xml.FindChildNode(n, 'started');
+    tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1);
 
-      nn := xml.FindChildNode(n, 'status');
-      tvr.tv_status := xml.GetNodeValue(nn);
-      if ((Uppercase(tvr.tv_status) = 'ENDED') or
-        (Uppercase(tvr.tv_status) = 'CANCELED/ENDED')) then
-        tvr.tv_running := False
-      else
-        tvr.tv_running := True;
-
-      nn := xml.FindChildNode(n, 'classification');
-      tvr.tv_classification := xml.GetNodeValue(nn);
-
-      nn := xml.FindChildNode(n, 'runtime');
-      tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
-
-      //        nn := xml.FindChildNode(n, 'seasons');
-      //        tvr.tv_seasons := StrToIntDef(xml.GetNodeValue(nn), -1);
+    nn := xml.FindChildNode(n, 'status');
+    tvr.tv_status := xml.GetNodeValue(nn);
+    if ((Uppercase(tvr.tv_status) = 'ENDED') or
+      (Uppercase(tvr.tv_status) = 'CANCELED/ENDED')) then
+      tvr.tv_running := False
+    else
       tvr.tv_running := True;
 
-      nn := xml.FindChildNode(n, 'ended');
-      tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
-      if tvr.tv_endedyear <> -1 then
-        tvr.tv_running := False;
+    nn := xml.FindChildNode(n, 'classification');
+    tvr.tv_classification := xml.GetNodeValue(nn);
 
-      tvr.tv_genres.Clear;
-      nn := xml.FindChildNode(n, 'genres');
-      if (nn <> nil) then
+    nn := xml.FindChildNode(n, 'runtime');
+    tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
+
+    //        nn := xml.FindChildNode(n, 'seasons');
+    //        tvr.tv_seasons := StrToIntDef(xml.GetNodeValue(nn), -1);
+    tvr.tv_running := True;
+
+    nn := xml.FindChildNode(n, 'ended');
+    tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
+    if tvr.tv_endedyear <> -1 then
+      tvr.tv_running := False;
+
+    tvr.tv_genres.Clear;
+    nn := xml.FindChildNode(n, 'genres');
+    if (nn <> nil) then
+    begin
+      gc := xml.GetChildNodeCount(nn);
+      for i := 0 to gc - 1 do
       begin
-        gc := xml.GetChildNodeCount(nn);
-        for i := 0 to gc - 1 do
-        begin
-          nnn := xml.GetChildNodeItem(nn, i);
-          tvr.tv_genres.Add(xml.GetNodeValue(nnn));
-        end;
+        nnn := xml.GetChildNodeItem(nn, i);
+        tvr.tv_genres.Add(xml.GetNodeValue(nnn));
       end;
-
-      nn  := xml.FindChildNode(n, 'network');
-      nnn := xml.GetAttributeNodeByIndex(nn, 0);
-      // we need to know the excat pos. of the attribute!
-      if xml.GetNodeValue(nnn) = 'US' then
-        tvr.tv_country := 'USA'
-      else
-        tvr.tv_country := xml.GetNodeValue(nnn);
-      tvr.tv_network := xml.GetNodeValue(nn);
-
-      //   tvr.Save;
-      //   tvr.PostResults(Netname, Channel);
-      Result := tvr;
-      
-    except
-      on E: Exception do
-        irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
-          [E.Message]));
     end;
+
+    nn  := xml.FindChildNode(n, 'network');
+    nnn := xml.GetAttributeNodeByIndex(nn, 0);
+    // we need to know the excat pos. of the attribute!
+    if xml.GetNodeValue(nnn) = 'US' then
+      tvr.tv_country := 'USA'
+    else
+      tvr.tv_country := xml.GetNodeValue(nnn);
+    tvr.tv_network := xml.GetNodeValue(nn);
+
+    //   tvr.Save;
+    //   tvr.PostResults(Netname, Channel);
+    Result := tvr;
+
+  except
+    on E: Exception do
+      irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
+        [E.Message]));
+  end;
 end;
 
 function ParseTVRageXML(content: string; Showname: string = ''): TDbTVRage;
@@ -193,12 +193,14 @@ var
   response, ssec, uurl: string;
   alle: boolean;
   xs:   TStringList;
-  x:    TRegExpr;
+//  x:    TRegExpr;
   cur_running: boolean;
   db_tvrage: TDbTVRage;
   ps:   TPazoSite;
-  xml:  TSLXMLDocument;
+  sxml, xml: TSLXMLDocument;
   st:   TStream;
+  nnn, nn, n: TSLXMLNode;
+  sid:  string;
 begin
   tr := TTvRelease(mainpazo.rls);
 
@@ -225,16 +227,73 @@ begin
   end;
 
   ss_show := tr.showname;
-
+  ss_show := Csere(ss_show,' ','+');
+  ss_show := Csere(ss_show,'.','+');
+  uurl := 'show=' + ss_show;
+(*
   x    := TRegexpr.Create;
   x.ModifierI := True;
   x.ModifierM := True;
   x.Expression := '[\s\.]';
   ss_show := x.Replace(tr.showname, '+');
-  uurl := 'show=' + ss_show;
   alle := config.ReadBool('tasktvrage', 'all_exact', False);
   ssec := config.readstring('tasktvrage', 'exact_sections', 'NONO');
+*)
 
+  //For XML feeds we need a vailed id.. lets search for it
+
+  sxml := TSLXMLDocument.Create;
+
+  sid  := '-1';
+  try
+    try
+      response := slUrlGet('http://services.tvrage.com/feeds/search.php', uurl);
+
+
+
+      try
+        st := TStringStream.Create(response);
+        st.Position := 0;
+        sxml.LoadFromStream(st);
+      finally
+        st.Free;
+      end;
+
+      //  sxml.LoadFromWeb('http://services.tvrage.com/feeds/search.php?show=' + ss_show);
+      n := sxml.GetDocumentElement;
+      for i := 0 to sxml.GetChildNodeCount(n) - 1 do
+      begin
+        nn := xml.GetChildNodeItem(n, i);
+        if Uppercase(xml.GetNodeValue(sxml.FindChildNode(nn, 'name'))) =
+          UpperCase(tr.showname) then
+        begin
+          sid := sxml.GetNodeValue(xml.FindChildNode(nn, 'showid'));
+          break;
+        end;
+        if sid = '-1' then
+        begin
+          irc_addadmin('<c4><b>ERROR</c> No TVRage ID found for %s</b>',
+            [ss_show]);
+          if config.ReadBool(section, 'stop_on_englishcheck', True) then
+          begin
+            Result := True;
+            ready  := True;
+            exit;
+          end;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        //   db_tvrage := nil;
+        Debug(dpError, section, Format(
+          'Exception TPazoTvRageLookupTask.Execute(search): %s', [e.Message]));
+      end;
+    end;
+  finally
+    sxml.Free;
+  end;
+(*
   if not alle then
   begin
     xs := TStringList.Create;
@@ -245,20 +304,27 @@ begin
     begin
       if tr.section = xs.Strings[i] then
       begin
-        uurl := 'show=' + ss_show + '&exact=1';
+        uurl := 'sid=' + sid + '&exact=1';
         break;
       end;
     end;
     xs.Free;
   end
   else
-    uurl := 'show=' + tr.showname + '&exact=1';
+  *)
+
+
+  irc_addtext('CONSOLE', 'ADMIN', sid);
+
+
+  uurl := 'sid=' + sid;
 
 
   try
     xml      := TSLXMLDocument.Create;
     //xml.LoadFromWeb(Format('http://services.tvrage.com/tools/quickinfo.php?%s', [uurl]));
-    response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
+    response := slUrlGet('http://services.tvrage.com/feeds/showinfo.php', uurl);
+    irc_addtext('', '', response);
   except
     on e: Exception do
     begin
@@ -268,7 +334,7 @@ begin
         '<c4>[EXCEPTION]</c> TPazoTvRageLookupTask slUrlGet: Exception : %s', [e.Message]));
       Result := True;
       ready  := True;
-      x.Free;
+//      x.Free;
       exit;
     end;
   end;
@@ -293,7 +359,7 @@ begin
             [e.Message]));
           readyerror := True;
           Result     := True;
-          x.Free;
+//          x.Free;
           exit;
         end;
       end;
@@ -305,7 +371,7 @@ begin
     ready  := True;
     Result := True;
     exit;
-    x.Free;
+//    x.Free;
   end;
   debug(dpSpam, section, 'TVRage results for %s' + #13#10 + '%s',
     [tr.showname, response]);
@@ -318,7 +384,7 @@ begin
     st.Free;
   end;
 
-  db_tvrage := ParseTVRageXML(xml, ss_show);
+  db_tvrage := ParseTVRageXML(xml, tr.showname);
 
   if csakangolabc(db_tvrage.tv_showname) = csakangolabc(tr.showname) then
   begin
@@ -436,7 +502,8 @@ begin
       //    episode  := StrToIntDef(rx.Match[3], 0);
     end;
 
-    rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+    rx.Expression :=
+      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
     if rx.Exec(rls) then
     begin
       sname := rx.Match[1];
@@ -451,7 +518,7 @@ begin
   end;
 
   uurl     := 'sid=' + tv_showid;
-  response := slUrlGet('http://services.tvrage.com/tools/quickinfo.php', uurl);
+  response := slUrlGet('http://services.tvrage.com/feeds/showinfo.php', uurl);
 
   if response <> '' then
   begin
@@ -567,7 +634,7 @@ begin
 
   if response = '' then
   begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    if attempt < config.readInteger(section, 'readd_attempts', 5) then                          
     begin
       debug(dpSpam, section, 'READD: retrying tv rage lookup for %s later',
         [tr.showname]);
