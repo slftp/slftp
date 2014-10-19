@@ -1591,13 +1591,16 @@ end;
 
 function TSite.isRouteableTo(sitename: string): boolean;
 var
+  idx:Integer;
   y: TStringList;
 begin
   y := TStringList.Create;
   y.Sorted := True;
   try
-    sitesdat.ReadSection('speed-to-' + self.Name, y);
-    if y.IndexOf(sitename) = -1 then
+    sitesdat.ReadSection('speed-to-' + sitename, y);
+    idx:=y.IndexOf(self.Name);
+//    irc_addstats(Format('speed-to-%s (from %s = %d) y.Count = %d ',[sitename,self.Name,idx,y.Count]));
+    if idx = -1 then
       Result := False
     else
       Result := True;
@@ -1868,7 +1871,7 @@ end;
 
 function TSite.Getsslmethod: TSSLMethods;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsSSLv23)));
+  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1)));
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);
