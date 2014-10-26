@@ -23,27 +23,27 @@ const
   OPENSSL_SSL_ERROR_WANT_X509_LOOKUP = 4;
   OPENSSL_SSL_ERROR_ZERO_RETURN = 6;
 
-  OPENSSL_SSL_OP_ALL = $000FFFFF;
+  OPENSSL_SSL_OP_ALL = $00000FFF;
   OPENSSL_SSL_OP_EPHEMERAL_RSA = $00200000;
   OPENSSL_SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER = $00000020;
   OPENSSL_SSL_OP_MICROSOFT_SESS_ID_BUG = $00000001;
   OPENSSL_SSL_OP_MSIE_SSLV2_RSA_PADDING = $00000040;
   OPENSSL_SSL_OP_NETSCAPE_CA_DN_BUG = $20000000;
   OPENSSL_SSL_OP_NETSCAPE_CHALLENGE_BUG = $00000002;
-  OPENSSL_SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG = $80000000;
+  OPENSSL_SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG = $40000000;
   OPENSSL_SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG = $00000008;
-  OPENSSL_SSL_OP_NON_EXPORT_FIRST = $40000000;
+  //OPENSSL_SSL_OP_NON_EXPORT_FIRST = $40000000;
   OPENSSL_SSL_OP_NO_SSLv2 = $01000000;
   OPENSSL_SSL_OP_NO_SSLv3 = $02000000;
   OPENSSL_SSL_OP_NO_TLSv1 = $04000000;
-  OPENSSL_SSL_OP_PKCS1_CHECK_1 = $08000000;
-  OPENSSL_SSL_OP_PKCS1_CHECK_2 = $10000000;
+  OPENSSL_SSL_OP_PKCS1_CHECK_1 = $00;
+  OPENSSL_SSL_OP_PKCS1_CHECK_2 = $00;
   OPENSSL_SSL_OP_SINGLE_DH_USE = $00100000;
   OPENSSL_SSL_OP_SSLEAY_080_CLIENT_DH_BUG = $00000080;
   OPENSSL_SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG = $00000010;
   OPENSSL_SSL_OP_TLS_BLOCK_PADDING_BUG = $00000200;
   OPENSSL_SSL_OP_TLS_D5_BUG = $00000100;
-  OPENSSL_SSL_OP_TLS_ROLLBACK_BUG = $00000400;
+  OPENSSL_SSL_OP_TLS_ROLLBACK_BUG = $00800000;
 
   OPENSSL_SSL_MODE_ENABLE_PARTIAL_WRITE = $00000001;
   OPENSSL_SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER = $00000002;
@@ -110,6 +110,7 @@ var slssl_inited: Boolean = False;
     slssl_error: string;
     slssl_ctx_sslv23_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_client: PSSL_CTX = nil;
+    slssl_ctx_tlsv1_2_client: PSSL_CTX = nil;
 
 
   slRAND_Screen : procedure cdecl = nil;
@@ -145,6 +146,10 @@ var slssl_inited: Boolean = False;
   slTLSv1_method : function:PSSL_METHOD cdecl = nil;
   slTLSv1_server_method : function:PSSL_METHOD cdecl = nil;
   slTLSv1_client_method : function:PSSL_METHOD cdecl = nil;
+
+  slTLSv1_2_method : function:PSSL_METHOD cdecl = nil;
+  slTLSv1_2_server_method : function:PSSL_METHOD cdecl = nil;
+  slTLSv1_2_client_method : function:PSSL_METHOD cdecl = nil;
 
   slSSL_library_init: procedure cdecl = nil;
   slENGINE_load_builtin_engines: procedure cdecl = nil;
@@ -270,6 +275,11 @@ const
   fn_TLSv1_method = 'TLSv1_method';  {Do not localize}
   fn_TLSv1_server_method = 'TLSv1_server_method';  {Do not localize}
   fn_TLSv1_client_method = 'TLSv1_client_method';  {Do not localize}
+
+  fn_TLSv1_2_method = 'TLSv1_2_method';  {Do not localize}
+  fn_TLSv1_2_server_method = 'TLSv1_2_server_method';  {Do not localize}
+  fn_TLSv1_2_client_method = 'TLSv1_2_client_method';  {Do not localize}
+
 
   fn_SSL_CTX_set_default_verify_paths = 'SSL_CTX_set_default_verify_paths';  {Do not localize}
   fn_SSL_CTX_set_options = 'SSL_CTX_set_options';  {Do not localize}
@@ -590,6 +600,10 @@ begin
   if not slSsl_LoadProc(h_libssl, fn_TLSv1_server_method, @slTLSv1_server_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_TLSv1_client_method, @slTLSv1_client_method) then exit;
 
+  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_method, @slTLSv1_2_method) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_server_method, @slTLSv1_2_server_method) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_client_method, @slTLSv1_2_client_method) then exit;
+
   slSsl_LoadProc(h_libcrypto, fn_ENGINE_load_builtin_engines, @slENGINE_load_builtin_engines);
   if not slSsl_LoadProc(h_libssl, fn_SSL_library_init, @slSSL_library_init) then exit;
   if not slSsl_LoadProc(h_libcrypto, fn_ERR_error_string, @slERR_error_string) then exit;
@@ -691,6 +705,27 @@ begin
   slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_client, slssl_default_cipher_list );
 //----------------- tlsv1 end
 
+
+
+//----------------- tlsv1_2 start
+  slSSL_CTX_tlsv1_2_client:= slSSL_CTX_new(slTLSv1_2_client_method());
+	if (slSSL_CTX_tlsv1_2_client = nil) then
+  begin
+    slssl_error:= slssl_LastError();
+    exit;
+  end;
+
+	slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_2_client);
+  if @slSSL_CTX_set_options <> nil then
+  	slSSL_CTX_set_options(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_OP_ALL);
+  if @slSSL_CTX_set_mode <> nil then
+	  slSSL_CTX_set_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_MODE_AUTO_RETRY);
+  if @slSSL_CTX_set_session_cache_mode <> nil then
+  	slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_SESS_CACHE_OFF);
+
+  slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_2_client, slssl_default_cipher_list );
+//----------------- tlsv1 end
+
   slssl_error:= '';
   slssl_inited:= True;
 end;
@@ -704,6 +739,12 @@ begin
     slSSL_CTX_free(slSSL_CTX_tlsv1_client);
     slSSL_CTX_tlsv1_client:= nil;
   end;
+  
+  if slSSL_CTX_tlsv1_2_client <> nil then
+  begin
+    slSSL_CTX_free(slSSL_CTX_tlsv1_2_client);
+    slSSL_CTX_tlsv1_2_client:= nil;
+  end;  
 
   if slSSL_CTX_sslv23_client <> nil then
   begin

@@ -570,7 +570,7 @@ begin
                 [tname, e.Message]));
           end;
 
-          Debug(dpSpam, section, '--> ' + Format('%s', [Name]));
+          Debug(dpSpam, section, Format('--> %s', [Name]));
           try
             if todotask.Execute(self) then
               lastactivity := Now();
@@ -579,7 +579,7 @@ begin
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
           end;
-          Debug(dpSpam, section, '<-- ' + Format('%s', [Name]));
+          Debug(dpSpam, section, Format('<-- %s', [Name]));
         except
           on e: Exception do
           begin

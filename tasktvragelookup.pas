@@ -119,7 +119,7 @@ begin
 
   except
     on E: Exception do
-      irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo: %s',
+      irc_Adderror(format('<c4>[Exception]</c> in ADDTVRageInfo.ParseTVRageXML: %s',
         [E.Message]));
   end;
 end;
@@ -132,8 +132,9 @@ var
 begin
   Result := nil;
   xml    := TSLXMLDocument.Create;
-  s      := Csere(Showname, ' ', '.');
-  st     := TStringStream.Create(content);
+
+  s  := Csere(Showname, ' ', '.');
+  st := TStringStream.Create(content);
   st.Position := 0;
   try
     xml.LoadFromStream(st);
@@ -193,7 +194,7 @@ var
   response, ssec, uurl: string;
   alle: boolean;
   xs:   TStringList;
-//  x:    TRegExpr;
+  //  x:    TRegExpr;
   cur_running: boolean;
   db_tvrage: TDbTVRage;
   ps:   TPazoSite;
@@ -227,9 +228,9 @@ begin
   end;
 
   ss_show := tr.showname;
-  ss_show := Csere(ss_show,' ','+');
-  ss_show := Csere(ss_show,'.','+');
-  uurl := 'show=' + ss_show;
+  ss_show := Csere(ss_show, ' ', '+');
+  ss_show := Csere(ss_show, '.', '+');
+  uurl    := 'show=' + ss_show;
 (*
   x    := TRegexpr.Create;
   x.ModifierI := True;
@@ -244,10 +245,46 @@ begin
 
   sxml := TSLXMLDocument.Create;
 
-  sid  := '-1';
+  sid := '-1';
   try
     try
       response := slUrlGet('http://services.tvrage.com/feeds/search.php', uurl);
+
+
+      if response = '' then
+      begin
+        if attempt < config.readInteger(section, 'readd_attempts', 5) then
+        begin
+          debug(dpSpam, section, 'READD: retrying tv rage lookup for %s later',
+            [tr.showname]);
+          r := TPazoTvRageLookupTask.Create(netname, channel, initial_site,
+            mainpazo, attempt + 1);
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          try
+            AddTask(r);
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section,
+                Format('[Exception] in TPazoTvRageLookupTask Search %s', [e.Message]));
+              irc_Adderror(Format('<c4>[Exception]</c> in TPazoTvRageLookupTask Search %s',
+                [e.Message]));
+              readyerror := True;
+              Result     := True;
+              //          x.Free;
+              exit;
+            end;
+          end;
+        end
+        else
+        begin
+          debug(dpSpam, section, 'READD: no more attempts...');
+        end;
+        ready  := True;
+        Result := True;
+        exit;
+        //    x.Free;
+      end;
 
 
 
@@ -255,8 +292,14 @@ begin
         st := TStringStream.Create(response);
         st.Position := 0;
         sxml.LoadFromStream(st);
-      finally
-        st.Free;
+      except
+        on e: Exception do
+        begin
+          //   db_tvrage := nil;
+          Debug(dpError, section, Format(
+            'Exception TPazoTvRageLookupTask.Execute(search)1: %s', [e.Message]));
+          st.Free;
+        end;
       end;
 
       //  sxml.LoadFromWeb('http://services.tvrage.com/feeds/search.php?show=' + ss_show);
@@ -287,7 +330,7 @@ begin
       begin
         //   db_tvrage := nil;
         Debug(dpError, section, Format(
-          'Exception TPazoTvRageLookupTask.Execute(search): %s', [e.Message]));
+          'Exception TPazoTvRageLookupTask.Execute(search)2: %s', [e.Message]));
       end;
     end;
   finally
@@ -314,7 +357,7 @@ begin
   *)
 
 
-  irc_addtext('CONSOLE', 'ADMIN', sid);
+  //  irc_addtext('CONSOLE', 'ADMIN', sid);
 
 
   uurl := 'sid=' + sid;
@@ -334,7 +377,7 @@ begin
         '<c4>[EXCEPTION]</c> TPazoTvRageLookupTask slUrlGet: Exception : %s', [e.Message]));
       Result := True;
       ready  := True;
-//      x.Free;
+      //      x.Free;
       exit;
     end;
   end;
@@ -359,7 +402,7 @@ begin
             [e.Message]));
           readyerror := True;
           Result     := True;
-//          x.Free;
+          //          x.Free;
           exit;
         end;
       end;
@@ -371,7 +414,7 @@ begin
     ready  := True;
     Result := True;
     exit;
-//    x.Free;
+    //    x.Free;
   end;
   debug(dpSpam, section, 'TVRage results for %s' + #13#10 + '%s',
     [tr.showname, response]);

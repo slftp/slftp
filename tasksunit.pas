@@ -89,6 +89,7 @@ begin
   self.netname:= netname;
   self.channel:= channel;
   ido:= 0;
+  TryToAssign := 0;
 
   response:= '';
   wantedslot:= '';
@@ -146,8 +147,8 @@ var s_dep:string;
 begin
   try
     s_dep:=Format('[%s]',[dependencies.DelimitedText]);
-
     Result:=format('#%d (%s): %s [%d] %s',[uid, site1 ,name, TryToAssign, s_dep]);
+//    Result:=format('#%d (%s): %s %s',[uid, site1 ,name,s_dep]);
   except
     Result:= 'TTask';
   end;

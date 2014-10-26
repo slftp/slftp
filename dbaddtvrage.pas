@@ -37,7 +37,7 @@ function dbaddtvrage_gettvrage_rls(rls: string): TDbTVRage;
 function dbaddtvrage_gettvrage_id(tv_showid: string): TDbTVRage;
 
 function dbaddtvrage_update_show(tvs: TDbTVRage): boolean;
-function dbaddtvrage_delete_show(show:string): boolean;
+function dbaddtvrage_delete_show(Show: string): boolean;
 
 
 procedure dbaddtvrage_FireKbAdd(rls: string);
@@ -193,10 +193,9 @@ begin
   end;
 
   try
-    result:= addtvrageDB.ExecSQL(Format(
+    Result := addtvrageDB.ExecSQL(Format(
       'UPDATE addtvrage SET tv_showid="%s", tv_showname="%s", tv_showurl="%s", tv_premiered_year="%d", tv_country="%s", tv_status="%s",'
-      +
-      ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname="%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
+      + ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname="%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
     Result := True;
   except
     on e: Exception do
@@ -209,10 +208,11 @@ begin
 
 end;
 
-function dbaddtvrage_delete_show(show:string): boolean;
+function dbaddtvrage_delete_show(Show: string): boolean;
 begin
-try
-  Result := addtvrageDB.ExecSQL(Format('DELETE FROM addtvrage WHERE rls_showname="%s";',[show]));
+  try
+    Result := addtvrageDB.ExecSQL(
+      Format('DELETE FROM addtvrage WHERE rls_showname="%s";', [Show]));
   except
     on e: Exception do
     begin
@@ -478,7 +478,7 @@ begin
       end;
     end;
 
-    
+
 
     if (rls <> '') then
     begin
