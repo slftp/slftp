@@ -1304,7 +1304,7 @@ begin
   if m = slSSLv23 then
     fSSLCTX:= slSSL_CTX_sslv23_client
   else
-    fSSLCTX:= slSSL_CTX_tlsv1_client;
+    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
 end;
 
 function TslTCPSocket.connected: Boolean;
