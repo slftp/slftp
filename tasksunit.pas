@@ -26,7 +26,7 @@ type
 
     created: TDateTime;// ez ugyanaz mint az added
     assigned: TDateTime;
-    startat: TDateTime;// ennel elobb nem kezdodhet
+    startat: TDateTime;// ennel elobb nem kezdodhet -- not begin with a primary
 
     response: string;
     announce: string;
