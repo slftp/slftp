@@ -9,7 +9,9 @@ uses Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr,
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
   TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
-    sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1, sslImplicitTLSv1);
+    sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
+    sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+
   TSiteSw     = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
   TProtection = (prNone, prProtP, prProtC);
   TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds,
@@ -297,6 +299,9 @@ function GiveSiteLastStart: TDateTime;
 function SiteSoftWareToSTring(sitename: string): string; overload;
 function SiteSoftWareToSTring(site: TSite): string; overload;
 
+function sslMethodToSTring(sitename: string): string; overload;
+function sslMethodToSTring(site: TSite): string; overload;
+
 
 var
   sitesdat: TEncIniFile = nil;
@@ -337,6 +342,30 @@ begin
     sswGlftpd: Result  := 'GlFTPD';
     sswDrftpd: Result  := 'DrFTPD';
     sswIoftpd: Result  := 'ioFTPD';
+  end;
+end;
+
+function sslMethodToSTring(sitename: string): string;
+begin
+result:=sslMethodToSTring(FindSiteByName('', sitename));
+end;
+
+function sslMethodToSTring(site: TSite): string;
+begin
+  Result := 'Unknown';
+  case TSite(site).sslmethod of
+    sslNone: Result := ' no encryption used';
+    sslImplicitSSLv23: Result :=
+        ' implicit ssl handshake using SSLv23 after TCP connection was established';
+    sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
+    sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
+    sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
+    sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
+    sslImplicitTLSv1: Result :=
+        ' implicit ssl handshake using TLSv1 after TCP connection was established';
+    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv12';
+    sslImplicitTLSv1_2: Result :=
+        ' implicit ssl handshake using TLSv12 after TCP connection was established';
   end;
 end;
 
@@ -816,9 +845,12 @@ begin
 
   sslm := TSSLMethods(site.sslmethod);
 
-  if sslm in [sslImplicitSSLv23, sslImplicitTLSv1] then
+  if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
   begin
-    SetSSLContext(slTLSv1);
+    if sslm = sslImplicitTLSv1_2 then
+      SetSSLContext(slTLSv1_2)
+    else
+      SetSSLContext(slTLSv1);
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
   end;
@@ -835,12 +867,17 @@ begin
   end;
 
   if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23,
-    sslAuthTlsTLSv1]) then
+    sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
   begin
     if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
-      SetSSLContext(slSslv23)
-    else
+      SetSSLContext(slSslv23);
+
+    if sslm in [sslAuthTlsTLSv1] then
       SetSSLContext(slTLSv1);
+
+    if sslm in [sslAuthTlsTLSv1_2] then
+      SetSSLContext(slTLSv1_2);
+
 
     if sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1] then
       tmp := 'AUTH SSL'
@@ -1591,15 +1628,15 @@ end;
 
 function TSite.isRouteableTo(sitename: string): boolean;
 var
-  idx:Integer;
-  y: TStringList;
+  idx: integer;
+  y:   TStringList;
 begin
   y := TStringList.Create;
   y.Sorted := True;
   try
     sitesdat.ReadSection('speed-to-' + sitename, y);
-    idx:=y.IndexOf(self.Name);
-//    irc_addstats(Format('speed-to-%s (from %s = %d) y.Count = %d ',[sitename,self.Name,idx,y.Count]));
+    idx := y.IndexOf(self.Name);
+    //    irc_addstats(Format('speed-to-%s (from %s = %d) y.Count = %d ',[sitename,self.Name,idx,y.Count]));
     if idx = -1 then
       Result := False
     else
@@ -1871,7 +1908,7 @@ end;
 
 function TSite.Getsslmethod: TSSLMethods;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1)));
+  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1_2)));
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);

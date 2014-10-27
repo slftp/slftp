@@ -2282,7 +2282,7 @@ begin
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       v := StrToIntDef(SubString(params, ' ', 2), integer(s.sslmethod));
-      if ((v >= 0) and (v <= 6)) then
+      if ((v >= 0) and (v <= 8)) then
         s.sslmethod := TSSLMethods(v);
     end;
   end
@@ -2300,7 +2300,7 @@ begin
         Continue;
       end;
       v := StrToIntDef(SubString(params, ' ', 2), integer(s.sslmethod));
-      if ((v >= 0) and (v <= 6)) then
+      if ((v >= 0) and (v <= 8)) then
         s.sslmethod := TSSLMethods(v);
     end;
   end;
@@ -5635,7 +5635,12 @@ begin
     if (Copy(x[i], 1, 3) = 'bnc') then
       Continue;
 
-    ;
+      if x.Strings[i] = 'sslmethod' then begin
+            irc_addtext(Netname, Channel, ' %s: %s (%s)',
+        [x[i], s.RCString(x[i], ''),       sslMethodToSTring(s)]);
+      Continue;
+      end;
+
     if x.Strings[i] = 'sw' then
       irc_addtext(Netname, Channel, ' %s: %s (%s)',
         [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)])
