@@ -259,6 +259,7 @@ type
   private
     kbevent: TEvent;
     function AddCompleteTransfers(pazo: Pointer): boolean;
+    function AddCompleteTransfersv2(pazo: Pointer): boolean;
   public
     constructor Create;
     procedure Execute; override;
@@ -2928,6 +2929,94 @@ end;
 
 
 
+function TKBThread.AddCompleteTransfersv2(pazo: Pointer): boolean;
+var
+  i, j: integer;
+  psrc, pdest: TPazoSite;
+  sdest, ssrc: TSite;
+  p:    TPazo;
+  ssrc_found: boolean;
+
+begin
+  Result := False;
+  p      := TPazo(pazo);
+  Debug(dpMessage, rsections, '<!--START AddCompleteTransfers %s', [p.rls.rlsname]);
+  //irc_Addstats(Format('--> AddCompleteTransfers %s (%d)', [p.rls.rlsname, p.sites.Count]));
+  for i := 0 to p.sites.Count - 1 do
+  begin
+    pdest := TPazoSite(p.sites[i]);
+    if pdest.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      Continue;
+    if pdest.Complete then
+      Continue;  //will be true if release is complete on site
+    if pdest.status <> rssAllowed then
+      Continue;
+    sdest := TSite(FindSiteByName('', pdest.Name));
+    if sdest = nil then
+      Continue;
+    if sdest.PermDown then
+      Continue;
+    //checking if a irc chan is added for the site
+    if Precatcher_Sitehasachan(pdest.Name) then
+    begin
+      for j := 0 to p.sites.Count - 1 do
+      begin
+        psrc := nil;
+        ssrc := nil;
+        ssrc_found := False;
+        psrc := TPazoSite(p.sites[j]);
+        if psrc = nil then
+          Continue;
+        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+          Continue;
+        if pdest.Name = psrc.Name then
+          Continue;
+        if not psrc.Complete then
+          Continue;
+
+        ssrc := TSite(FindSiteByName('', psrc.Name));
+        if ssrc = nil then
+          Continue;
+        if ssrc.PermDown then
+          Continue;
+
+        if config.ReadBool(rsections,
+          'only_use_routable_sites_on_try_to_complete', False) then
+          ssrc_found := ssrc.isRouteableTo(sdest.Name)
+        else
+          ssrc_found := True;
+        if ssrc_found then
+          break;
+      end;
+
+      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
+        [p.rls.rlsname, pdest.Name, psrc.Name]);
+      try
+        pdest.Clear;
+        AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
+        Result := True;
+        irc_Addstats(Format(
+          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+          [p.rls.section, p.rls.rlsname, pdest.Name, psrc.Name]));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections,
+            Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+            [e.Message]));
+          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+            [e.Message]));
+          //for debug
+          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
+            [e.Message]));
+          Result := False;
+        end;
+      end;
+    end;
+  end;
+  Debug(dpMessage, rsections, 'AddCompleteTransfers %s -->', [p.rls.rlsname]);
+  irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
+end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
@@ -2948,11 +3037,13 @@ begin
   p      := TPazo(pazo);
 
   Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
-  irc_Addstats(Format('--> AddCompleteTransfers %s (%d)', [p.rls.rlsname, p.sites.Count]));
+  irc_Addstats(Format('--> AddCompleteTransfers %s (%d)',
+    [p.rls.rlsname, p.sites.Count]));
 
   for i := 0 to p.sites.Count - 1 do
   begin
     ps := TPazoSite(p.sites[i]);
+
     irc_Addstats(Format('doing %s - status: %s error: %s',
       [ps.Name, ps.StatusText, BooltoStr(ps.error)]));
 
@@ -2986,7 +3077,8 @@ begin
     //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
     if ps.status <> rssAllowed then //ps.status != rssAllowed
     begin
-      irc_Addstats(Format('<c4>site %s is not rssAllowed (%s)</c>', [ps.Name, ps.StatusText]));
+      irc_Addstats(Format('<c4>site %s is not rssAllowed (%s)</c>',
+        [ps.Name, ps.StatusText]));
       Continue;
     end;
 
@@ -3010,7 +3102,8 @@ begin
       begin
         pss := TPazoSite(p.sites[j]);
         irc_Addstats(Format('do %s (%s) - status: %s error: %s Complete: %s',
-          [pss.Name, ps.Name, pss.StatusText, BooltoStr(pss.error), BooltoStr(pss.Complete)]));
+          [pss.Name, ps.Name, pss.StatusText, BooltoStr(pss.error),
+          BooltoStr(pss.Complete)]));
 
         if pss.Name = ps.Name then  //set pss := nil; too
         begin
@@ -3040,7 +3133,8 @@ begin
         begin
           ts     := FindSiteByName('', ps.Name);
           tts    := FindSiteByName('', pss.Name);
-          sfound := tts.isRouteableTo(ts.Name); //TSite.isRouteableFrom check sitesunit.pas
+          sfound := tts.isRouteableTo(ts.Name);
+          //TSite.isRouteableFrom check sitesunit.pas
           irc_Addstats(Format('routable part: %s (%s) <- %s - sfound: %s',
             [ps.Name, ts.Name, pss.Name, BooltoStr(sfound)]));
         end
@@ -3081,7 +3175,8 @@ begin
           Debug(dpMessage, rsections,
             '--> site %s is not routable to %s for filling inc - trying next site',
             [pss.Name, ps.Name]);
-          irc_Addstats(Format('site %s is not routable to %s for filling inc - trying next site',
+          irc_Addstats(Format(
+            'site %s is not routable to %s for filling inc - trying next site',
             [pss.Name, ps.Name]));
           pss := nil;
           continue;
@@ -3195,7 +3290,8 @@ begin
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
+            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
+            [e.Message]));
           irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
             [e.Message]));
           Result := False;
@@ -3465,7 +3561,7 @@ begin
               p.completezve := True;
               Debug(dpSpam, rsections, 'Looking for incomplete sites of %s',
                 [p.rls.rlsname]);
-              AddCompleteTransfers(p);
+              AddCompleteTransfersv2(p);
             end;
           end;
 

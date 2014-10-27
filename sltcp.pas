@@ -22,7 +22,7 @@ const
 
 
 type
-  TslSSLMethod = (slSSLv23, slTLSv1);
+  TslSSLMethod = (slSSLv23, slTLSv1,slTLSv1_2);
 
   TslSocks5 = class
     enabled: Boolean;
@@ -1302,9 +1302,10 @@ end;
 procedure TslTCPSocket.SetSSLContext(m: TslSSLMethod);
 begin
   if m = slSSLv23 then
-    fSSLCTX:= slSSL_CTX_sslv23_client
-  else
-    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
+    fSSLCTX:= slSSL_CTX_sslv23_client;
+if m = slTLSv1 then    fSSLCTX:= slSSL_CTX_tlsv1_client;
+if m = slTLSv1_2 then    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
+
 end;
 
 function TslTCPSocket.connected: Boolean;
@@ -1872,3 +1873,4 @@ initialization
 finalization
   sltcp_Uninit;
 end.
+
