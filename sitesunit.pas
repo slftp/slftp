@@ -579,7 +579,7 @@ var
   tname: string;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
-
+  tname:='nil';
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do// and (not False)
   begin
