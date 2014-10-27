@@ -2989,9 +2989,9 @@ begin
           break;
       end;
 
-      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
+     try
+        Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
         [p.rls.rlsname, pdest.Name, psrc.Name]);
-      try
         pdest.Clear;
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
         Result := True;
@@ -3015,7 +3015,7 @@ begin
     end;
   end;
   Debug(dpMessage, rsections, 'AddCompleteTransfers %s -->', [p.rls.rlsname]);
-  irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
+  //irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
 end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
