@@ -58,6 +58,10 @@ function IrcSlotsShow(const netname, channel: string; params: string): boolean;
 
 function IrcAddSite(const netname, channel: string; params: string): boolean;
 
+function IrcAddSiteInfos(const netname, channel: string; params: string): boolean;
+
+
+
 function IrcAddBnc(const netname, channel: string; params: string): boolean;
 function IrcDelBnc(const netname, channel: string; params: string): boolean;
 
@@ -272,6 +276,8 @@ function IrcPreURLList(const netname, channel: string; params: string): boolean;
 
 function IrcSetupOffset(const netname, channel: string; params: string): boolean;
 function IrcSetupPretimeMode(const netname, channel: string; params: string): boolean;
+function IrcSetupPretimeMode2(const netname, channel: string; params: string): boolean;
+function IrcSetupADDPreMode(const netname, channel: string; params: string): boolean;
 
 function IrcFindPretime(const netname, channel: string; params: string): boolean;
 
@@ -337,7 +343,7 @@ function IrcDelTVRageInfo(const Netname, Channel: string; params: string): boole
 
 const
 
-  irccommands: array[1..241] of TIrcCommand = (
+  irccommands: array[1..244] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -351,6 +357,7 @@ const
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'sites'; hnd: IrcSites; minparams: 0; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'site'; hnd: IrcSite; minparams: 1; maxparams: 1; hlpgrp: 'site'),
+    (cmd: 'siteinfo'; hnd: IrcAddSiteInfos; minparams: 1; maxparams: -1; hlpgrp: 'site'),
     (cmd: 'bnc'; hnd: IrcBnc; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'addsite'; hnd: IrcAddsite; minparams: 4; maxparams: -1; hlpgrp: 'site'),
     (cmd: 'delsite'; hnd: IrcDelsite; minparams: 1; maxparams: 1; hlpgrp: 'site'),
@@ -671,6 +678,12 @@ const
     hlpgrp: '@doh_preurls'),
     (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0;
     maxparams: 1; hlpgrp: 'doh_preurls'),
+    (cmd: 'pretimemode2'; hnd: IrcSetupPretimeMode2; minparams: 0;
+    maxparams: 1; hlpgrp: 'doh_preurls'),
+    (cmd: 'addpremode'; hnd: IrcSetupADDPreMode; minparams: 0;
+    maxparams: 1; hlpgrp: 'doh_preurls'),
+
+
     (cmd: 'pretime'; hnd: IrcFindPretime; minparams: 1; maxparams: 1;
     hlpgrp: 'doh_preurls'),
     (cmd: 'setpretime'; hnd: IrcSetPretime; minparams: 2; maxparams: 3;
@@ -5555,6 +5568,36 @@ begin
   Result := True;
 end;
 
+
+function IrcAddSiteInfos(const netname, channel: string; params: string): boolean;
+var
+  s: TSite;
+  Text, sitename: string;
+begin
+  sitename := SubString(params, ' ', 1);
+  Text := RightStrV2(params, length(sitename) + 2);
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    result:=False;
+    exit;
+  end;
+
+  if Text = '' then
+  begin
+  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.Name]);
+  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.SiteInfos]);
+  end
+  else
+  begin
+  s.SiteInfos:=Text;
+  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.Name]);
+  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.SiteInfos]);
+  end;
+  result:=true;
+end;
+
 function IrcInfo(const Netname, Channel: string; params: string): boolean;
 var
   i: integer;
@@ -5576,8 +5619,8 @@ begin
 
   irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
   irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s',
-    [s.RCString('name', ''), s.RCString('link', ''), s.RCString('country', ''),
-    s.RCString('size', '')]);
+    [s.RCString('name', '??'), s.RCString('link', '??'), s.RCString('country', '??'),
+    s.RCString('size', '??')]);
   irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
   sitesdat.ReadSection('site-' + sitename, x);
@@ -5635,11 +5678,12 @@ begin
     if (Copy(x[i], 1, 3) = 'bnc') then
       Continue;
 
-      if x.Strings[i] = 'sslmethod' then begin
-            irc_addtext(Netname, Channel, ' %s: %s (%s)',
-        [x[i], s.RCString(x[i], ''),       sslMethodToSTring(s)]);
+    if x.Strings[i] = 'sslmethod' then
+    begin
+      irc_addtext(Netname, Channel, ' %s: %s (%s)',
+        [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
       Continue;
-      end;
+    end;
 
     if x.Strings[i] = 'sw' then
       irc_addtext(Netname, Channel, ' %s: %s (%s)',
@@ -10047,6 +10091,7 @@ begin
   if pmode >= 0 then
   begin
     config.WriteInteger('taskpretime', 'mode', pmode);
+    setPretimeMode_One(TPretimeLookupMOde(pmode));
     config.UpdateFile;
   end;
   irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
@@ -10054,6 +10099,45 @@ begin
     TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
   Result := True;
 end;
+
+
+function IrcSetupPretimeMode2(const netname, channel: string; params: string): boolean;
+var
+  pmode: integer;
+begin
+
+  //  Result := False;
+  pmode := StrToIntDef(params, -1);
+  if pmode >= 0 then
+  begin
+    config.WriteInteger('taskpretime', 'mode_2', pmode);
+    setPretimeMode_Two(TPretimeLookupMOde(pmode));
+    config.UpdateFile;
+  end;
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
+    [config.ReadInteger('taskpretime', 'mode_2', 0), pretimeModeToString(
+    TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0)))]);
+  Result := True;
+end;
+
+function IrcSetupADDPreMode(const netname, channel: string; params: string): boolean;
+var
+  pmode: integer;
+begin
+  //  Result := False;
+  pmode := StrToIntDef(params, -1);
+  if pmode >= 0 then
+  begin
+    config.WriteInteger('dbaddpre', 'mode', pmode);
+    setAddPretimeMode(TAddPreMode(pmode));
+    config.UpdateFile;
+  end;
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
+    [config.ReadInteger('dbaddpre', 'mode', 0), addPreModeToString(
+    TAddPreMode(config.ReadInteger('dbaddpre', 'mode', 0)))]);
+  Result := True;
+end;
+
 
 function IrcFindPretime(const Netname, Channel: string; params: string): boolean;
 var
@@ -10251,6 +10335,7 @@ begin
   Result := True;
 end;
 
+
 function IrcShowCredits(const Netname, Channel: string; params: string): boolean;
 var
   ss, creds, ratio, sitename: string;
@@ -10431,6 +10516,7 @@ begin
   x.Free;
   Result := True;
 end;
+
 
 function IrcShowAppStatus(const Netname, Channel: string; params: string): boolean;
 var

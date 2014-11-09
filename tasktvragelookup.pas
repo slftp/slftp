@@ -367,7 +367,7 @@ begin
     xml      := TSLXMLDocument.Create;
     //xml.LoadFromWeb(Format('http://services.tvrage.com/tools/quickinfo.php?%s', [uurl]));
     response := slUrlGet('http://services.tvrage.com/feeds/showinfo.php', uurl);
-    irc_addtext('', '', response);
+   // irc_addtext('', '', response);
   except
     on e: Exception do
     begin

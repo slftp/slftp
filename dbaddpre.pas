@@ -12,6 +12,7 @@ type
 
 
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
+  TAddPreMode = (apmMem, apmSQLITE, apmMYSQL);
 
   TDbAddPre = class
     rls:     string;
@@ -45,6 +46,13 @@ function ReadPretimeOverSQLITE(rls: string): TDateTime;
 
 function GetPretimeMode: TPretimeLookupMOde;
 function pretimeModeToString(mode: TPretimeLookupMOde): string;
+function addPreModeToString(mode: TAddPreMode): string;
+
+
+procedure setPretimeMode_One(mode: TPretimeLookupMOde);
+procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
+
+procedure setAddPretimeMode(mode: TAddPreMode);
 
 implementation
 
@@ -70,11 +78,28 @@ var
   last_addpre:      THashedStringList;
   last_addpre_lock: TCriticalSection;
 
-  dbaddpre_mode: integer = 0;
+  dbaddpre_mode: TAddPreMode = TAddPreMode(1);
+//  integer = 1;
   dbaddpre_plm1: TPretimeLookupMOde;
   dbaddpre_plm2: TPretimeLookupMOde;
 
   config_taskpretime_url: string;
+
+
+procedure setPretimeMode_One(mode: TPretimeLookupMOde);
+begin
+dbaddpre_plm1:=mode;
+end;
+
+procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
+begin
+dbaddpre_plm2:=mode;
+end;
+
+procedure setAddPretimeMode(mode: TAddPreMode);
+begin
+ dbaddpre_mode:=mode;
+end;
 
 function GetPretimeMode: TPretimeLookupMOde;
 begin
@@ -88,6 +113,16 @@ begin
     plmHTTP: Result   := 'HTTP';
     plmMYSQL: Result  := 'MYSQL';
     plmSQLITE: Result := 'SQLite';
+  end;
+end;
+
+
+function addPreModeToString(mode: TAddPreMode): string;
+begin
+  case mode of
+  apmMem: Result:='Memory';
+  apmSQLITE:Result:='SQLITE';
+  apmMYSQL:Result:='MYSQL';
   end;
 end;
 
@@ -407,7 +442,7 @@ var
 begin
   Result := UnixToDateTime(0);
   // stor in memory
-  if (dbaddpre_mode = 0) then
+  if (dbaddpre_mode = apmMem) then
   begin
     try
       last_addpre_lock.Enter;
@@ -436,7 +471,7 @@ begin
   end;
 
   // stor in sqlite
-  if dbaddpre_mode = 1 then
+  if dbaddpre_mode = apmSQLITE then
   begin
     try
       i := 0;
@@ -463,7 +498,7 @@ begin
   end;
 
   // stor in mysql
-  if dbaddpre_mode = 2 then
+  if dbaddpre_mode = apmMYSQL then
   begin
     try
       mysql_lock.Enter;
@@ -506,7 +541,7 @@ begin
   if pretime <> UnixToDateTime(0) then
     exit;
 
-  if (dbaddpre_mode = 0) then
+  if (dbaddpre_mode = apmMem) then
   begin
     try
       last_addpre_lock.Enter;
@@ -537,7 +572,7 @@ begin
     end;
   end;
 
-  if dbaddpre_mode = 1 then
+  if dbaddpre_mode = apmSQLITE then
   begin
     try
       pretime := dbaddpre_GetRlz(rls);
@@ -556,7 +591,7 @@ begin
     end;
   end;
 
-  if dbaddpre_mode = 2 then
+  if dbaddpre_mode = apmMYSQL then
   begin
     try
 
@@ -613,13 +648,13 @@ var
 begin
   Result := 0;
 
-  if dbaddpre_mode = 0 then
+  if dbaddpre_mode = apmMem then
   begin
     Result := last_addpre.Count;
     exit;
   end;
 
-  if dbaddpre_mode = 1 then
+  if dbaddpre_mode = apmSQLITE then
   begin
     i := 0;
     addpreDB.Open(sql_countrlz);
@@ -636,7 +671,7 @@ begin
     exit;
   end;
 
-  if dbaddpre_mode = 2 then
+  if dbaddpre_mode = apmMYSQL then
   begin
     mysql_lock.Enter;
     try
@@ -767,13 +802,13 @@ begin
   kbadd_addpre  := config.ReadBool(section, 'kbadd_addpre', False);
   kbadd_sitepre := config.ReadBool(section, 'kbadd_sitepre', False);
 
-  dbaddpre_mode := config.ReadInteger(section, 'mode', 0);
+  dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 1));
   dbaddpre_plm1 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
   dbaddpre_plm2 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
 
-  if slsqlite_inited and (dbaddpre_mode = 1) then
+  if slsqlite_inited and (dbaddpre_mode = apmSQLITE) then
   begin
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 
@@ -793,8 +828,8 @@ begin
     sql_gettime  := addpreDB.Open('SELECT ts FROM addpre WHERE rlz=?');
   end;
 
-  case dbaddpre_mode of
-    0: Console_Addline('', 'Local addpre DB Started...');
+  case Integer(dbaddpre_mode) of
+    0: Console_Addline('', 'Local addpre List Started...');
     1: Console_Addline('', 'Local SQLITE addpre DB Started...');
     2: Console_Addline('', 'Connected to MYSQL DupeDB...');
     else
