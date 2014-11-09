@@ -169,6 +169,11 @@ type
     procedure SetIRCNick(Value: string);
 
 
+    function GetSiteInfos: string;
+    procedure SetSiteInfos(Value: string);
+
+    function GetLastKnownCredits: Int64;
+    procedure SetLastKnownCredits(Value: Int64);
 
 
   public
@@ -279,6 +284,10 @@ type
 
     property PermDown: boolean Read GetPermDownStatus Write SetPermDownStatus;
     property SkipPre: boolean Read GetSkipPreStatus Write SetSkipPreStatus;
+
+    property SiteInfos:string  read GetSiteInfos  write SetSiteInfos;
+    property LastCrdits:Int64 read GetLastKnownCredits write SetLastKnownCredits;
+
 
   end;
 
@@ -1133,6 +1142,16 @@ begin
         site.working := sstDown;
         exit;
       end;
+
+      if ((lastResponseCode = 234) and
+        (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
+      begin
+//      site.Setsslmethod(TSSLmethods(sslAuthTlsTLSv1_2);
+      irc_addtext(todotask,'<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLSv1.2? ',[site.Name]);
+        site.working := sstDown;
+        exit;
+      end;
+
       irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s %d %s',
         [site.Name, s_message, lastResponseCode, lastResponse]);
       for i := 0 to site.slots.Count - 1 do
@@ -2969,6 +2988,27 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+
+function TSite.GetSiteInfos: string;
+begin
+Result:=RCString('SiteInfos', '');
+end;
+
+procedure TSite.SetSiteInfos(Value: string);
+begin
+WCString('SiteInfos', Value);
+end;
+
+function TSite.GetLastKnownCredits: Int64;
+begin
+ result:= -1;
+end;
+
+procedure TSite.SetLastKnownCredits(Value: Int64);
+begin
+//
 end;
 
 procedure TSite.SetIRCNick(Value: string);
