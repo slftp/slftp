@@ -1394,6 +1394,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+      if (TSite(sites.Items[i]).PermDown) then Continue;
+
       s := FindSiteByName(Netname, TSite(sites.Items[i]).Name);
       if s = nil then
       begin
@@ -3776,6 +3778,7 @@ begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
         Continue;
       end;
+      if (s.PermDown) then Continue;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
     end;
   finally
@@ -3801,6 +3804,9 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+
+      if (TSite(sites.Items[i]).PermDown) then Continue;
+
       s := TSite(sites.Items[i]);
       RawB(Netname, Channel, s.Name, '', command, True);
 
@@ -4191,6 +4197,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+      if (TSite(sites.Items[i]).PermDown) then Continue;
+
       s := TSite(sites[i]);
       s.markeddown := True;
       s.working := sstDown;
@@ -4214,6 +4222,8 @@ begin
       end;
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
+
+      if (s.PermDown) then Continue;
       s.markeddown := True;
       s.working    := sstDown;
       s.markeddown := True;
@@ -6344,6 +6354,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+      if (TSite(sites.Items[i]).PermDown) then Continue;
       TSite(sites.Items[i]).WCInteger('autologin', status);
       irc_addtext(Netname, Channel, 'Autologin of %s is: %d',
         [TSite(sites.Items[i]).Name,
@@ -6358,6 +6369,11 @@ begin
     for i := 0 to x.Count - 1 do
     begin
       s := FindSiteByName(Netname, x.Strings[i]);
+      if (s.PermDown) then begin
+irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
+          [x.Strings[i]]);
+      Continue;
+      end;
       if s = nil then
       begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
@@ -6398,6 +6414,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+      if (TSite(sites.Items[i]).PermDown) then Continue;
+
       kell := False;
       if status > -1 then
       begin
@@ -6438,6 +6456,13 @@ begin
 
           Continue;
         end;
+
+        if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
+            [x.Strings[i]]);
+        Continue;
+        end;
+
         kell := False;
         if status > -1 then
         begin
@@ -6488,6 +6513,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+       if (TSite(sites.Items[i]).PermDown) then Continue;
       kell := False;
       if status > -1 then
       begin
@@ -6528,6 +6554,8 @@ begin
 
           Continue;
         end;
+
+
         kell := False;
         if status > -1 then
         begin
@@ -6577,6 +6605,11 @@ begin
   begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
+  end;
+
+  if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
   end;
 
   if ((status > -1) and (status <> 0)) then
@@ -6646,7 +6679,10 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
   end;
-
+  if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
+  end;
   if ((status > -1) and (status <> 0)) then
   begin
     // hitelesitjuk a szekciokat
@@ -6714,7 +6750,10 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
   end;
-
+  if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
+  end;
   if ((status > -1) and (status <> 0)) then
   begin
     // hitelesitjuk a szekciokat
@@ -6776,6 +6815,11 @@ begin
   begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
+  end;
+
+    if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
   end;
 
   kell := False;
@@ -7730,6 +7774,14 @@ begin
       irc_addtext(Netname, Channel, 'Site %s not found.', [ss]);
       exit;
     end;
+
+
+      if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
+  end;
+
+
     if s.working = sstDown then
     begin
       irc_addtext(Netname, Channel, 'Site %s is down.', [ss]);
@@ -7952,6 +8004,12 @@ begin
       irc_addtext(Netname, Channel, 'Site %s not found.', [ss]);
       exit;
     end;
+
+  if (s.PermDown) then begin
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+Exit;
+  end;
+
     if s.working = sstDown then
     begin
       irc_addtext(Netname, Channel, 'Site %s is down.', [ss]);
@@ -9720,6 +9778,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+
         RulesRemove(TSite(sites.Items[i]).Name, '');
       end;
     end
@@ -10365,6 +10424,8 @@ begin
       begin
         Continue;
       end;
+       if (TSite(sites.Items[i]).PermDown) then Continue;
+
 
       if s.working <> sstUp then
       begin
