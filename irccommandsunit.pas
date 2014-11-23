@@ -7777,7 +7777,7 @@ begin
 
 
       if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.name]);
 Exit;
   end;
 
@@ -8006,7 +8006,7 @@ begin
     end;
 
   if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.Name]);
 Exit;
   end;
 
