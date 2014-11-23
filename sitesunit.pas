@@ -172,8 +172,8 @@ type
     function GetSiteInfos: string;
     procedure SetSiteInfos(Value: string);
 
-    function GetLastKnownCredits: Int64;
-    procedure SetLastKnownCredits(Value: Int64);
+    function GetLastKnownCredits: int64;
+    procedure SetLastKnownCredits(Value: int64);
 
 
   public
@@ -285,8 +285,8 @@ type
     property PermDown: boolean Read GetPermDownStatus Write SetPermDownStatus;
     property SkipPre: boolean Read GetSkipPreStatus Write SetSkipPreStatus;
 
-    property SiteInfos:string  read GetSiteInfos  write SetSiteInfos;
-    property LastCrdits:Int64 read GetLastKnownCredits write SetLastKnownCredits;
+    property SiteInfos: string Read GetSiteInfos Write SetSiteInfos;
+    property LastCrdits: int64 Read GetLastKnownCredits Write SetLastKnownCredits;
 
 
   end;
@@ -356,7 +356,7 @@ end;
 
 function sslMethodToSTring(sitename: string): string;
 begin
-result:=sslMethodToSTring(FindSiteByName('', sitename));
+  Result := sslMethodToSTring(FindSiteByName('', sitename));
 end;
 
 function sslMethodToSTring(site: TSite): string;
@@ -588,7 +588,7 @@ var
   tname: string;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
-  tname:='nil';
+  tname := 'nil';
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do// and (not False)
   begin
@@ -609,9 +609,12 @@ begin
           end;
 
           Debug(dpSpam, section, Format('--> %s', [Name]));
+
+
           try
             if todotask.Execute(self) then
               lastactivity := Now();
+
           except
             on E: Exception do
               Debug(dpError, section,
@@ -1146,8 +1149,9 @@ begin
       if ((lastResponseCode = 234) and
         (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
-//      site.Setsslmethod(TSSLmethods(sslAuthTlsTLSv1_2);
-      irc_addtext(todotask,'<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLSv1.2? ',[site.Name]);
+        //      site.Setsslmethod(TSSLmethods(sslAuthTlsTLSv1_2);
+        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLSv1.2? ',
+          [site.Name]);
         site.working := sstDown;
         exit;
       end;
@@ -1647,7 +1651,7 @@ end;
 
 function TSite.isRouteableTo(sitename: string): boolean;
 var
-  y:   TStringList;
+  y: TStringList;
 begin
   y := TStringList.Create;
   y.Sorted := True;
@@ -2990,22 +2994,22 @@ end;
 
 function TSite.GetSiteInfos: string;
 begin
-Result:=RCString('SiteInfos', '');
+  Result := RCString('SiteInfos', '');
 end;
 
 procedure TSite.SetSiteInfos(Value: string);
 begin
-WCString('SiteInfos', Value);
+  WCString('SiteInfos', Value);
 end;
 
-function TSite.GetLastKnownCredits: Int64;
+function TSite.GetLastKnownCredits: int64;
 begin
- result:= -1;
+  Result := -1;
 end;
 
-procedure TSite.SetLastKnownCredits(Value: Int64);
+procedure TSite.SetLastKnownCredits(Value: int64);
 begin
-//
+
 end;
 
 procedure TSite.SetIRCNick(Value: string);

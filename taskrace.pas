@@ -358,8 +358,13 @@ begin
   end;
 
   try
-    d := ps1.dirlist.FindDirlist(dir);
 
+try
+    d := ps1.dirlist.FindDirlist(dir);
+    except
+      on e: Exception do
+        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
+      end;
     // Search for sub dir
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
@@ -444,9 +449,6 @@ begin
         irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...',
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       ps1.dirlistgaveup    := True;
-      mainpazo.errorreason :=
-        Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_empty(%d)',
-        [d.LastChanged, config.ReadInteger(c_section, 'newdir_max_empty', 60)]);
     end;
 
     if ((d.entries <> nil) and (d.entries.Count > 0) and
@@ -458,9 +460,11 @@ begin
           '<c11>[iNC]</c> %s: %s %s %s is still incomplete, giving up...',
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       ps1.dirlistgaveup    := True;
+      (*
       mainpazo.errorreason :=
         Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',
         [d.LastChanged, config.ReadInteger(c_section, 'newdir_max_unchanged', 60)]);
+        *)
     end;
   end;
 
@@ -613,12 +617,12 @@ begin
   try
     if is_pre then
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
-        dir + ' ' + ScheduleText
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
+        dir + ' ' *)+ ScheduleText
     else
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
-        dir + ' ' + ScheduleText;
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
+        dir + ' ' *)+ ScheduleText;
   except
     Result := 'PDIRLIST';
   end;
