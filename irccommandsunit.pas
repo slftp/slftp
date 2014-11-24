@@ -10884,6 +10884,7 @@ function IrcAnnounceTVRageInfo(const Netname, Channel: string; params: string): 
 var
   db_tvrage: TDbTVRage;
 begin
+  db_tvrage:= nil;
   try
     db_tvrage := dbaddtvrage_gettvrage_show(params);
   except
@@ -10903,7 +10904,7 @@ begin
   if db_tvrage = nil then
   begin
     try
-      db_tvrage := dbaddtvrage_gettvrage_show(params);
+      db_tvrage := dbaddtvrage_gettvrage_rls(params);
     except
       on E: Exception do
       begin
@@ -10935,7 +10936,7 @@ begin
       end;
     end;
   end;
-
+  
   if (db_tvrage <> nil) then
   begin
     try
@@ -10955,6 +10956,7 @@ begin
   end
   else
     irc_addtext(Netname, Channel, format('Nothing found for: %s', [params]));
+
   Result := True;
 end;
 

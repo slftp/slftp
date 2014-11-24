@@ -69,7 +69,10 @@ constructor TSLXMLDocument.Create;
 begin
   inherited;
 {$IFDEF FPC}
-  xmlFile := TXMLDocument.Create;
+//  xmlFile := TXMLDocument.Create;
+  xmlFile := NewXMLDocument;
+  xmlFile.Options := [doNodeAutoCreate, doAttrNull, doAutoPrefix, doNamespaceDecl,
+doNodeAutoIndent];
 {$ELSE}
   CoInitialize(nil);
   xmlFile := TXMLDocument.Create(nil);
@@ -156,7 +159,7 @@ begin
     xmlFile.Free;
     xmlFile := nil;  
   {$ELSE}
-  xmlFile := nil;
+ // xmlFile := nil;
   CoUninitialize;
   {$ENDIF}
   inherited;
