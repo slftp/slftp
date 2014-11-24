@@ -1394,7 +1394,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-      if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
 
       s := FindSiteByName(Netname, TSite(sites.Items[i]).Name);
       if s = nil then
@@ -3778,7 +3779,8 @@ begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
         Continue;
       end;
-      if (s.PermDown) then Continue;
+      if (s.PermDown) then
+        Continue;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
     end;
   finally
@@ -3805,7 +3807,8 @@ begin
         'admin_sitename', 'SLFTP')) then
         Continue;
 
-      if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
 
       s := TSite(sites.Items[i]);
       RawB(Netname, Channel, s.Name, '', command, True);
@@ -4197,7 +4200,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-      if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
 
       s := TSite(sites[i]);
       s.markeddown := True;
@@ -4223,7 +4227,8 @@ begin
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
 
-      if (s.PermDown) then Continue;
+      if (s.PermDown) then
+        Continue;
       s.markeddown := True;
       s.working    := sstDown;
       s.markeddown := True;
@@ -5590,22 +5595,22 @@ begin
   if s = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-    result:=False;
+    Result := False;
     exit;
   end;
 
   if Text = '' then
   begin
-  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.Name]);
-  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.SiteInfos]);
+    irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39), s.Name]);
+    irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39), s.SiteInfos]);
   end
   else
   begin
-  s.SiteInfos:=Text;
-  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.Name]);
-  irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39),s.SiteInfos]);
+    s.SiteInfos := Text;
+    irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39), s.Name]);
+    irc_addtext(Netname, Channel, '<b>Info%ss for Site</b> %s:', [chr(39), s.SiteInfos]);
   end;
-  result:=true;
+  Result := True;
 end;
 
 function IrcInfo(const Netname, Channel: string; params: string): boolean;
@@ -5629,8 +5634,8 @@ begin
 
   irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
   irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s',
-    [s.RCString('name', '??'), s.RCString('link', '??'), s.RCString('country', '??'),
-    s.RCString('size', '??')]);
+    [s.RCString('name', '??'), s.RCString('link', '??'),
+    s.RCString('country', '??'), s.RCString('size', '??')]);
   irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
   sitesdat.ReadSection('site-' + sitename, x);
@@ -6354,7 +6359,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-      if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
       TSite(sites.Items[i]).WCInteger('autologin', status);
       irc_addtext(Netname, Channel, 'Autologin of %s is: %d',
         [TSite(sites.Items[i]).Name,
@@ -6369,10 +6375,11 @@ begin
     for i := 0 to x.Count - 1 do
     begin
       s := FindSiteByName(Netname, x.Strings[i]);
-      if (s.PermDown) then begin
-irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
+      if (s.PermDown) then
+      begin
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
           [x.Strings[i]]);
-      Continue;
+        Continue;
       end;
       if s = nil then
       begin
@@ -6414,7 +6421,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-      if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
 
       kell := False;
       if status > -1 then
@@ -6457,10 +6465,11 @@ begin
           Continue;
         end;
 
-        if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
+        if (s.PermDown) then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
             [x.Strings[i]]);
-        Continue;
+          Continue;
         end;
 
         kell := False;
@@ -6513,7 +6522,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-       if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
       kell := False;
       if status > -1 then
       begin
@@ -6607,9 +6617,10 @@ begin
     exit;
   end;
 
-  if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-Exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+    Exit;
   end;
 
   if ((status > -1) and (status <> 0)) then
@@ -6679,9 +6690,10 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
   end;
-  if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-Exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+    Exit;
   end;
   if ((status > -1) and (status <> 0)) then
   begin
@@ -6750,9 +6762,10 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
   end;
-  if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-Exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+    Exit;
   end;
   if ((status > -1) and (status <> 0)) then
   begin
@@ -6817,9 +6830,10 @@ begin
     exit;
   end;
 
-    if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-Exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+    Exit;
   end;
 
   kell := False;
@@ -7776,10 +7790,11 @@ begin
     end;
 
 
-      if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.name]);
-Exit;
-  end;
+    if (s.PermDown) then
+    begin
+      irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.Name]);
+      Exit;
+    end;
 
 
     if s.working = sstDown then
@@ -8005,10 +8020,11 @@ begin
       exit;
     end;
 
-  if (s.PermDown) then begin
-  irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.Name]);
-Exit;
-  end;
+    if (s.PermDown) then
+    begin
+      irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [s.Name]);
+      Exit;
+    end;
 
     if s.working = sstDown then
     begin
@@ -10101,7 +10117,7 @@ begin
     vsval.Clear;
     spamcfg.ReadSectionValues(csec, vsval);
     irc_addtext(Netname, Channel, '<b>valid keys:</b> %s',
-      [vsecs.Strings[i], vsval.commatext]);
+      [csec, vsval.commatext]);
     vsecs.Free;
     vsval.Free;
     Result := True;
@@ -10110,8 +10126,11 @@ begin
 
   if cvalue = '' then
   begin
-    irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = %d',
-      [csec, ckey, spamcfg.ReadInteger(csec, ckey, 0)]);
+
+    if spamcfg.ReadBool(csec, ckey, True) then
+      irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 1 (Announce)', [csec, ckey])
+    else
+      irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 0 (Skip)', [csec, ckey]);
     vsecs.Free;
     vsval.Free;
     Result := True;
@@ -10122,8 +10141,12 @@ begin
 
   spamcfg.WriteInteger(csec, ckey, StrToIntDef(cvalue, 0));
   spamcfg.UpdateFile;
-  irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = %d',
-    [csec, ckey, spamcfg.ReadInteger(csec, ckey, 0)]);
+
+  if spamcfg.ReadBool(csec, ckey, True) then
+    irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 1 (Announce)', [csec, ckey])
+  else
+    irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 0 (Skip)', [csec, ckey]);
+
   Result := True;
 end;
 
@@ -10424,7 +10447,8 @@ begin
       begin
         Continue;
       end;
-       if (TSite(sites.Items[i]).PermDown) then Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
 
 
       if s.working <> sstUp then
@@ -10884,7 +10908,7 @@ function IrcAnnounceTVRageInfo(const Netname, Channel: string; params: string): 
 var
   db_tvrage: TDbTVRage;
 begin
-  db_tvrage:= nil;
+  db_tvrage := nil;
   try
     db_tvrage := dbaddtvrage_gettvrage_show(params);
   except
@@ -10936,7 +10960,7 @@ begin
       end;
     end;
   end;
-  
+
   if (db_tvrage <> nil) then
   begin
     try
