@@ -79,34 +79,64 @@ begin
     tvr.tv_showurl := xml.GetNodeValue(nn);
 
     nn := xml.FindChildNode(n, 'started');
-    tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1);
+    if nn <> nil then
+      tvr.tv_premiered_year := StrToIntDef(xml.GetNodeValue(nn), -1)
+    else
+      tvr.tv_premiered_year := -1;
+
 
     nn := xml.FindChildNode(n, 'status');
-    tvr.tv_status := xml.GetNodeValue(nn);
-    if ((Uppercase(tvr.tv_status) = 'ENDED') or
-      (Uppercase(tvr.tv_status) = 'CANCELED/ENDED')) then
-      tvr.tv_running := False
+    if nn <> nil then
+    begin
+      tvr.tv_status := xml.GetNodeValue(nn);
+      if ((Uppercase(tvr.tv_status) = 'ENDED') or
+        (Uppercase(tvr.tv_status) = 'CANCELED/ENDED')) then
+        tvr.tv_running := False
+      else
+        tvr.tv_running := True;
+    end
     else
-      tvr.tv_running := True;
+    begin
+      tvr.tv_status  := 'not found.';
+      tvr.tv_running := False;
+    end;
 
     nn := xml.FindChildNode(n, 'classification');
-    tvr.tv_classification := xml.GetNodeValue(nn);
+    if nn <> nil then
+      tvr.tv_classification := xml.GetNodeValue(nn)
+    else
+      tvr.tv_classification := 'not found.';
 
     nn := xml.FindChildNode(n, 'runtime');
-    tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
+    if nn <> nil then
+    begin
+      tvr.tv_runtime := StrToIntDef(xml.GetNodeValue(nn), -1);
+
+    end
+    else
+      tvr.tv_runtime := -1;
+
 
     //        nn := xml.FindChildNode(n, 'seasons');
     //        tvr.tv_seasons := StrToIntDef(xml.GetNodeValue(nn), -1);
-    tvr.tv_running := True;
+
 
     nn := xml.FindChildNode(n, 'ended');
-    tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
-    if tvr.tv_endedyear <> -1 then
-      tvr.tv_running := False;
-
+    if nn <> nil then
+    begin
+      tvr.tv_running   := True;
+      tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
+      if tvr.tv_endedyear <> -1 then
+        tvr.tv_running := False;
+    end
+    else
+    begin
+      tvr.tv_running   := False;
+      tvr.tv_endedyear := -1;
+    end;
     tvr.tv_genres.Clear;
     nn := xml.FindChildNode(n, 'genres');
-    if (nn <> nil) then
+    if nn <> nil then
     begin
       gc := xml.GetChildNodeCount(nn);
       for i := 0 to gc - 1 do
@@ -116,17 +146,22 @@ begin
       end;
     end;
 
-    nn  := xml.FindChildNode(n, 'network');
-    nnn := xml.GetAttributeNodeByIndex(nn, 0);
-    // we need to know the excat pos. of the attribute!
-    if xml.GetNodeValue(nnn) = 'US' then
-      tvr.tv_country := 'USA'
+    nn := xml.FindChildNode(n, 'network');
+    if nn <> nil then
+    begin
+      nnn := xml.GetAttributeNodeByIndex(nn, 0);
+      if xml.GetNodeValue(nnn) = 'US' then
+        tvr.tv_country := 'USA'
+      else
+        tvr.tv_country := xml.GetNodeValue(nnn);
+      tvr.tv_network := xml.GetNodeValue(nn);
+    end
     else
-      tvr.tv_country := xml.GetNodeValue(nnn);
-    tvr.tv_network := xml.GetNodeValue(nn);
+    begin
+      tvr.tv_country := 'not found.';
+      tvr.tv_network := 'not found.';
+    end;
 
-    // tvr.Save;
-    //   tvr.PostResults(Netname, Channel);
     Result := tvr;
 
   except
@@ -221,9 +256,9 @@ begin
   st  := TStringStream.Create(response);
   xml := TSLXMLDocument.Create;
   try
-  st.Position := 0;
-  xml.LoadFromStream(st);
-   n := xml.GetDocumentElement;
+    st.Position := 0;
+    xml.LoadFromStream(st);
+    n := xml.GetDocumentElement;
     for i := 0 to xml.GetChildNodeCount(n) - 1 do
     begin
 
@@ -238,7 +273,6 @@ begin
   finally
     st.Free;
     {$IFDEF FPC}
-
     xml.Free;
     {$ENDIF}
   end;
