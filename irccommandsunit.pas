@@ -10100,8 +10100,10 @@ begin
       vsval.Clear;
       spamcfg.ReadSection(vsecs.Strings[i], vsval);
       // spamcfg.ReadSectionValues(vsecs.Strings[i],vsval);
-      irc_addtext(Netname, Channel, '<b>%s:</b> %s',
-        [vsecs.Strings[i], vsval.commatext]);
+      //      irc_addtext(Netname, Channel, '<b>%s:</b> %s',[vsecs.Strings[i], vsval.commatext]);
+
+      IrcLineBreak(netname, channel, vsval.CommaText, '"', '<b>' + vsecs.Strings[i] + ':</b> ', 9);
+
     end;
     vsecs.Free;
     vsval.Free;
@@ -10115,9 +10117,12 @@ begin
   if ckey = '' then
   begin
     vsval.Clear;
-    spamcfg.ReadSectionValues(csec, vsval);
-    irc_addtext(Netname, Channel, '<b>valid keys:</b> %s',
-      [csec, vsval.commatext]);
+    //    spamcfg.ReadSectionValues(csec, vsval);
+    spamcfg.ReadSection(csec, vsval);
+    //    irc_addtext(Netname, Channel, ' %s',[vsval.commatext]);
+
+    IrcLineBreak(netname, channel, vsval.CommaText, '"', '<b>valid keys:</b> ', 9);
+
     vsecs.Free;
     vsval.Free;
     Result := True;
