@@ -293,15 +293,38 @@ begin
   end;
 end;
 
+
 function dbaddtvrage_gettvrage_rls(rls: string): TDbTVRage;
 var
   showname: string;
-  tvr:      TTVRelease;
+  //  tvr:      TTVRelease;
+  rx: TRegexpr;
 begin
   Result := nil;
 
-  tvr      := TTVRelease.Create(rls, '');
-  showname := tvr.showname;
+
+  rx := TRegexpr.Create;
+  try
+    rx.ModifierI := True;
+
+    rx.Expression := '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
+    if rx.Exec(rls) then
+    begin
+      showname := rx.Match[1];
+    end;
+
+    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
+    if rx.Exec(rls) then
+      showname := rx.Match[1];
+
+    rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+    if rx.Exec(rls) then
+      showname := rx.Match[1];
+    rx.Expression := '[\.\_]';
+    showname := rx.Replace(showname, ' ');
+  finally
+    rx.Free;
+  end;
 
   if (showname <> '') then
   begin
