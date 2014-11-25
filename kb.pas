@@ -2988,6 +2988,8 @@ begin
         if ssrc_found then
           break;
       end;
+        //if the last item of p.sites.Count is the same as source, it will contiune but never start over, becuz the index count is hit?!!
+        if pdest.Name = psrc.Name then Continue;
 
      try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
