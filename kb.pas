@@ -1426,9 +1426,12 @@ begin
 
 
 
-    if (languages.Count = 0) then begin
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then languages.Add('EN') else
-      languages.Add('English');
+    if (languages.Count = 0) then
+    begin
+      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        languages.Add('EN')
+      else
+        languages.Add('English');
     end;
 
 
@@ -2936,7 +2939,6 @@ begin
 end;
 
 
-
 function TKBThread.AddCompleteTransfersv2(pazo: Pointer): boolean;
 var
   i, j: integer;
@@ -2956,14 +2958,24 @@ begin
     if pdest.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
       Continue;
     if pdest.Complete then
-      Continue;  //will be true if release is complete on site
+      Continue;
     if pdest.status <> rssAllowed then
       Continue;
+
+    if pdest.error then
+    begin
+      Debug(dpMessage, rsections, 'Error for %s: %s',
+        [pdest.Name, pdest.reason]);
+      Continue;
+    end;
+
+
     sdest := TSite(FindSiteByName('', pdest.Name));
     if sdest = nil then
       Continue;
     if sdest.PermDown then
       Continue;
+
     //checking if a irc chan is added for the site
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
@@ -2977,10 +2989,20 @@ begin
           Continue;
         if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
           Continue;
-        if pdest.Name = psrc.Name then
+        if psrc.Name = pdest.Name then
           Continue;
+
+
+        if psrc.error then
+        begin
+          Debug(dpMessage, rsections, 'Error for %s: %s',
+            [psrc.Name, psrc.reason]);
+          Continue;
+        end;
+
         if not psrc.Complete then
           Continue;
+
 
         ssrc := TSite(FindSiteByName('', psrc.Name));
         if ssrc = nil then
@@ -2988,20 +3010,24 @@ begin
         if ssrc.PermDown then
           Continue;
 
-        if config.ReadBool(rsections,
-          'only_use_routable_sites_on_try_to_complete', False) then
+        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
           ssrc_found := True;
         if ssrc_found then
           break;
-      end;
-        //if the last item of p.sites.Count is the same as source, it will contiune but never start over, becuz the index count is hit?!!
-        if pdest.Name = psrc.Name then Continue;
 
-     try
+      end;
+
+      //if the last item of p.sites.Count is the same as source, it will contiune but never start over, becuz the index count is hit?!!
+      if pdest.Name = psrc.Name then Continue;
+
+      if not ssrc_found then //will continue with next site if ssrc_found is FALSE
+      continue;
+
+      try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
-        [p.rls.rlsname, pdest.Name, psrc.Name]);
+          [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
         Result := True;
