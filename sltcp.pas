@@ -263,7 +263,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slSSL_CTX_sslv23_client;
+  fSSLCTX:= slssl_ctx_tlsv1_2_client;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -290,7 +290,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slSSL_CTX_sslv23_client;
+  fSSLCTX:= slssl_ctx_tlsv1_2_client;
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
@@ -1492,7 +1492,7 @@ begin
 
   FreeCTX;
 
-  fsslctx:= slSSL_CTX_new(slSSLv23_server_method());
+  fsslctx:= slSSL_CTX_new(slTLSv1_2_server_method());
   if nil = fsslctx then
 	begin
     error:= slSSL_LastError();
