@@ -1383,7 +1383,7 @@ begin
     if not use_new_language_base then
     begin
 
-      if (Self is TMVIDRelease) then
+      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
       begin
 
         for I := 0 to mp3languages.Count - 1 do
@@ -1423,6 +1423,14 @@ begin
       if vlang <> '' then
         languages.Add(vlang);
     end;
+
+
+
+    if (languages.Count = 0) then begin
+      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then languages.Add('EN') else
+      languages.Add('English');
+    end;
+
 
     knowngroup := IsKnownGroup(section, groupname);
 
