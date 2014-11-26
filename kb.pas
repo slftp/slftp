@@ -3010,7 +3010,8 @@ begin
         if ssrc.PermDown then
           Continue;
 
-        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
+        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete',
+          False) then
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
           ssrc_found := True;
@@ -3019,11 +3020,8 @@ begin
 
       end;
 
-      //if the last item of p.sites.Count is the same as source, it will contiune but never start over, becuz the index count is hit?!!
-      if pdest.Name = psrc.Name then Continue;
-
       if not ssrc_found then //will continue with next site if ssrc_found is FALSE
-      continue;
+        continue;
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
@@ -3032,7 +3030,7 @@ begin
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
         Result := True;
         irc_Addstats(Format(
-          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
+          '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, pdest.Name, psrc.Name]));
       except
         on e: Exception do
@@ -3043,14 +3041,14 @@ begin
           irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
             [e.Message]));
           //for debug
-          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
+          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
             [e.Message]));
           Result := False;
         end;
       end;
     end;
   end;
-  Debug(dpMessage, rsections, 'AddCompleteTransfers %s -->', [p.rls.rlsname]);
+  Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s', [p.rls.rlsname]);
   //irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
 end;
 
