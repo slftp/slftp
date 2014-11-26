@@ -359,12 +359,13 @@ begin
 
   try
 
-try
-    d := ps1.dirlist.FindDirlist(dir);
+    try
+      d := ps1.dirlist.FindDirlist(dir);
     except
       on e: Exception do
-        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
-      end;
+        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s',
+          [e.Message]);
+    end;
     // Search for sub dir
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
@@ -448,7 +449,7 @@ try
       if spamcfg.readbool(c_section, 'incomplete', True) then
         irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...',
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
-      ps1.dirlistgaveup    := True;
+      ps1.dirlistgaveup := True;
     end;
 
     if ((d.entries <> nil) and (d.entries.Count > 0) and
@@ -459,7 +460,7 @@ try
         irc_Addstats(Format(
           '<c11>[iNC]</c> %s: %s %s %s is still incomplete, giving up...',
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
-      ps1.dirlistgaveup    := True;
+      ps1.dirlistgaveup := True;
       (*
       mainpazo.errorreason :=
         Format('<c4><b>ERROR</c> PS1</b>: LastChange(%d) > newdir_max_unchanged(%d)',
@@ -618,11 +619,11 @@ begin
     if is_pre then
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
         mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
-        dir + ' ' *)+ ScheduleText
+        dir + ' ' *) + ScheduleText
     else
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
         mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
-        dir + ' ' *)+ ScheduleText;
+        dir + ' ' *) + ScheduleText;
   except
     Result := 'PDIRLIST';
   end;
@@ -1606,6 +1607,26 @@ begin
           fsize  := fs / 1024;
 
 
+          if (filesize > 1024) then
+          begin
+            if (racebw > 1024) then
+              speed_stat :=
+                Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
+            else
+              speed_stat :=
+                Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+          end
+          else
+          begin
+            if (racebw > 1024) then
+              speed_stat :=
+                Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
+            else
+              speed_stat :=
+                Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+          end;
+(*
+
           if ((filesize > 1024) and (racebw > 1024)) then
             speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s',
               [fsize / 1024, racebw / 1024]);
@@ -1619,16 +1640,7 @@ begin
           if ((filesize < 1024) and (racebw < 1024)) then
             speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
 
-(*
-        if filesize > 1024 then
-          speed_stat:= Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fs / 1024 / 1024, fs * 1000 / time_race / 1024 / 1024])
-        else
-          speed_stat:= Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fs / 1024, fs * 1000 / time_race / 1024]);
 *)
-
-          //back to megabyte
-          //      racebw:= fs * 1000 / time_race / 1024 / 1024;
-          //      fsize:= fs / 1024 / 1024;
 
         end;
         irc_SendRACESTATS(tname + ' ' + speed_stat);
