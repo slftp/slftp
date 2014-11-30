@@ -266,8 +266,12 @@ begin
         ';', 1)]);
       q := q + ' = ''%s'';';
       mysql_result := gc(mysqldb, q, [rls]);
-      if mysql_result <> '' then
+      if mysql_result <> '' then begin
         Result := UnixToDateTime(StrToIntDef(mysql_result, 0));
+      end
+      else begin
+        Result := UnixToDateTime(0);
+      end;
     finally
       mysql_lock.Leave;
     end;
@@ -302,10 +306,7 @@ begin
     end;
   end;
 
-
-  if datetimetounix(Result.pretime) > 15 then
-    // something bigger then 0 (1.1.1970 its the same date but 15sec later... you never will hit this value in a database execpt the pretime is empty!)
-    //  if (result.pretime <> UnixToDateTime(0)) then
+  if (result.pretime <> UnixToDateTime(0)) then
   begin
     Result.mode    := pretimeModeToString(dbaddpre_plm1);
     Result.pretime := PrepareTimestamp(Result.pretime);
