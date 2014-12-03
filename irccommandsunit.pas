@@ -10903,7 +10903,7 @@ begin
   end
   else
   begin
-    imdbdata := TDbImdbData(last_imdbdata[i]);
+    imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
     imdbdata.PostResults(Netname, Channel, params);
   end;
   Result := True;
@@ -11647,8 +11647,8 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section,
-        format('[EXCEPTION] TIRCCommandThread.Execute: %s (%s %s %s)',
-        [E.Message, Netname, Channel, params]));
+        format('[EXCEPTION] TIRCCommandThread.Execute: %s (%s %s %s %s)',
+        [E.Message, Netname, Channel,cmd ,params]));
     end;
   end;
 end;
