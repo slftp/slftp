@@ -743,6 +743,7 @@ begin
     i1:= TDirlistEntry(Item1);
     i2:= TDirlistEntry(Item2);
 
+
     if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
     begin
       Result:= -1;
@@ -753,6 +754,21 @@ begin
       Result:= 1;
       exit;
     end;
+
+    if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
+    begin
+      Result:= -1;
+      exit;
+    end;
+    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
+    begin
+      Result:= 1;
+      exit;
+    end;
+    
+
+      if config.ReadBool('queue', 'sample_first', True) then
+      begin
 
     if ((AnsiLowerCase(i1.Extension) = '.mkv') and (AnsiLowerCase(i2.Extension) <> '.mkv')) then
     begin
@@ -787,16 +803,8 @@ begin
       exit;
     end;
 
-    if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
+      end;
+
 
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
     

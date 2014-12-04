@@ -125,7 +125,7 @@ begin
     if nn <> nil then
     begin
       tvr.tv_running   := True;
-      tvr.tv_endedyear := StrToIntDef(xml.GetNodeValue(nn), -1);
+      tvr.tv_endedyear := StrToIntDef(Copy(xml.GetNodeValue(nn),8,4), -1);
       if tvr.tv_endedyear <> -1 then
         tvr.tv_running := False;
     end
