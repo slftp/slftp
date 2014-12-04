@@ -263,7 +263,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_tlsv1_2_client;
+  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -290,7 +290,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_tlsv1_2_client;
+  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
