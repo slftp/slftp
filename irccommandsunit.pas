@@ -9634,7 +9634,7 @@ begin
       irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [vname]);
       exit;
     end;
-    if vvalue = '0' then
+    if vvalue = '-1' then
       vsite.ProxyName := '!!NOIN!!'
     else
       vsocks := FindProxyByName(vvalue);
