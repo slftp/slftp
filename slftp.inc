@@ -1,5 +1,5 @@
 CONST
-SL_VERSION:string='1.5.0.3';
+SL_VERSION:string='1.5.0.4';
 SL_REV:string = '';
 HELP_VERSION:string='0.5.3.0';
 //CryptConf Stuff
