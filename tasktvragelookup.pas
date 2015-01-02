@@ -251,6 +251,10 @@ begin
   sname    := Csere(sname, '.', '+');
   url      := 'show=' + sname;
   response := slUrlGet('http://services.tvrage.com/feeds/search.php', url);
+
+
+  Irc_AddText('','',url);
+
   if response = '' then
     Exit;
   st  := TStringStream.Create(response);
@@ -262,8 +266,11 @@ begin
     for i := 0 to xml.GetChildNodeCount(n) - 1 do
     begin
 
-      if Uppercase(xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
-        'name'))) = UpperCase(showname) then
+    irc_addtext('','',csakangolabc(xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
+        'name'))));
+
+      if csakangolabc(xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
+        'name'))) = csakangolabc(showname) then
       begin
         Result := xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
           'showid'));
