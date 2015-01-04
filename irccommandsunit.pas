@@ -852,6 +852,11 @@ begin
     exit;
   end;
 
+  if section = 'REQUESTS' then begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b></c>, use REQUEST as section name.');
+    exit;
+  end;
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin

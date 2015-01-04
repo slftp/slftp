@@ -535,6 +535,8 @@ begin
 
 
 
+    if section <> 'REQUEST' then begin
+
     oldsection := section;
     try
       section := PrecatcherSectionMapping(rls, section);
@@ -545,6 +547,8 @@ begin
         Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s',
           [e.Message]));
       end;
+    end;
+
     end;
     if oldsection <> section then
     begin
@@ -693,6 +697,8 @@ begin
         end;
       end;
 
+      if ss.section = 'REQUESTS' then exit;
+
       if (mind) then
       begin
         try
@@ -748,7 +754,6 @@ procedure PrecatcherProcess(net, chan, nick, Data: string);
 begin
   if not precatcherauto then
     Exit;
-
   try
     PrecatcherProcessB(net, chan, nick, Data);
   except

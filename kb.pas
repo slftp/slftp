@@ -38,6 +38,9 @@ uses Classes, SyncObjs, encinifile, IniFiles, knowngroups;
 
 type
   TRelease = class
+
+  incompleteFiller:boolean;
+
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
     rlsname:   string;
@@ -1283,7 +1286,7 @@ var
 begin
   try
     aktualizalva := False;
-
+    incompleteFiller:=Flase;
     languages := TStringList.Create;
 
     tags := TStringList.Create;
@@ -3027,6 +3030,7 @@ begin
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
           [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
+        p.rls.incompleteFiller:=True;
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
         Result := True;
         irc_Addstats(Format(
