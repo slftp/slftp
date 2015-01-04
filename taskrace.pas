@@ -438,6 +438,7 @@ begin
   //if d.entries = nil then Irc_AddAdmin('DEBUG:: d.entries = nil');
   //if d.entries.Count <= 0 then Irc_AddAdmin('DEBUG:: d.entries.Count <= 0'); 
 
+  //Hiere den incompleteFiller chek adden?
 
   // check if need to give up
   if ((d <> nil) and (not d.Complete)) then
