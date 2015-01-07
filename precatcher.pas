@@ -431,12 +431,20 @@ begin
   // megvan, mar csak ki kell bontani a riliznevet
   try
     rls := KibontasRiliz(sitename, cdno, ts_data);
-  except
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
+          [e.Message]));
+        exit;
+      end;
+    end;
+
+
+  if (Trim(rls) = '') then begin
+    Debug(dpError, rsections, '[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
     exit;
   end;
-
-  if (Trim(rls) = '') then
-    exit;
 
 
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
