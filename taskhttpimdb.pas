@@ -257,16 +257,15 @@ begin
     imdb_counline:='';
     imdb_region:='';
 
-
+(*
     if config.ReadBool('kb','use_new_language_base',False) then begin
     if uppercase(ir.languages.text) <> 'ENGLISH' then rlang:='USA' else rlang:=ir.languages.Strings[0];
     end else begin
     if ir.languages.text <> '' then rlang:=ir.languages.Strings[0] else rlang:='USA';
     end;
+*)
 
-
-
-
+    if uppercase(ir.languages.text) <> 'ENGLISH' then rlang:='USA' else rlang:=ir.languages.Strings[0];
     imdb_counline:=imdbcountries.ReadString('COMMON',rlang,'');
     imdb_region:=SubString(imdb_counline,',',1);
     imdb_country:=SubString(imdb_counline,',',2);
