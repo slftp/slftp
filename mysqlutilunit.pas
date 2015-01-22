@@ -157,6 +157,7 @@ begin
   end;
 end;
 
+
 constructor TMySQLThread.Create;
 begin
   inherited Create(False);

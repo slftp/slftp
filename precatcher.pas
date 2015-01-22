@@ -7,8 +7,8 @@ uses Classes, Contnrs, slmasks, encinifile;
 type
   TSection = class
     eventtype: string;
-    section:   string;
-    words:     TStringList;
+    section: string;
+    words: TStringList;
 
     constructor Create;
     destructor Destroy; override;
@@ -34,7 +34,6 @@ type
     destructor Destroy; override;
   end;
 
-
 function precatcherauto: boolean;
 
 function Precatcher_Sitehasachan(sitename: string): boolean;
@@ -48,14 +47,13 @@ procedure PrecatcherProcess(net, chan, nick, Data: string);
 function precatcher_logfilename: string;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
-function PrecatcherSectionMapping(rls, section: string; x_count: integer = 0): string;
+function PrecatcherSectionMapping(rls, section: string; x_count: integer = 0):
+  string;
 
 function FindSection(section: string): boolean;
 
 function KibontasSection(s, section: string): string;
 function ProcessDoReplace(s: string): string;
-
-
 
 var
   precatcher_debug: boolean = False;
@@ -63,9 +61,9 @@ var
   precatcher_spamevents: TStringList;
   precatcher_debug_netname, precatcher_debug_channel: string;
   //  precatcher_auto: Boolean;
-  catcherFile:     TEncStringlist;
-  mappingslist:    TObjectList;
-  sectionlist:     TStringList;
+  catcherFile: TEncStringlist;
+  mappingslist: TObjectList;
+  sectionlist: TStringList;
   minimum_rlsname: integer = 10;
 
 implementation
@@ -73,26 +71,24 @@ implementation
 uses SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
   console, mrdohutils, SyncObjs
-  {$IFDEF MSWINDOWS},Windows{$ENDIF}
+{$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
   rsections = 'precatcher';
 
-
-
 var
   catcherFilename, replacefromline: string;
   cd, skiprlses: THashedStringList;
   tagline, ignorelista, replacefrom, replaceto: TStringList;
-  huntartunk:    huntartunk_tipus;
+  huntartunk: huntartunk_tipus;
 
   debug_f: TextFile;
   precatcher_debug_lock: TCriticalSection;
 
-  ValidChars:     set of char = ['0'..'9', 'A'..'Z', 'a'..'z', '?',
-  '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*',
-  '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
+  ValidChars: set of char = ['0'..'9', 'A'..'Z', 'a'..'z', '?',
+    '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*',
+    '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
   StrippingChars: set of char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 procedure mydebug(s: string); overload;
@@ -116,7 +112,8 @@ begin
       begin
         Debug(dpError, rsections, Format('[EXCEPTION] mydebug: Exception : %s',
           [e.Message]));
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> mydebug: Exception : %s', [e.Message]));
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> mydebug: Exception : %s',
+          [e.Message]));
       end;
     end;
   end;
@@ -131,9 +128,8 @@ begin
   myDebug(Format(s, args));
 end;
 
-
-
-function KibontasRiliz(sitename: string; var cdno: string; ts_data: TStringList): string;
+function KibontasRiliz(sitename: string; var cdno: string; ts_data:
+  TStringList): string;
 var
   k, i: integer;
   maxi: integer;
@@ -166,18 +162,16 @@ begin
   if ts_data.Count = 0 then
     exit;
 
-
   Result := trim(Result);
 end;
 
-
 function csupaszit(s: string): string;
 var
-  i:    integer;
+  i: integer;
   skip: integer;
 begin
   Result := '';
-  skip   := 0;
+  skip := 0;
   for i := 1 to length(s) do
     if (skip = 0) then
     begin
@@ -235,7 +229,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s',
+        [e.Message]));
       irc_Adderror(Format('<c4>[EXCEPTION]</c> csupaszit : %s', [e.Message]));
       Result := '';
       exit;
@@ -246,22 +241,24 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s',
+        [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s',
+        [e.Message]));
       Result := '';
       exit;
     end;
   end;
 end;
 
-
-
-function PrecatcherSectionMapping(rls, section: string; x_count: integer = 0): string;
+function PrecatcherSectionMapping(rls, section: string; x_count: integer = 0):
+  string;
 var
   i: integer;
   x: TMap;
 begin
-  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
+  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls,
+    section]));
 
   Inc(x_count);
   if (x_count > 500) then
@@ -279,7 +276,8 @@ begin
       if i > mappingslist.Count then
         Break;
       x := mappingslist[i] as TMap;
-      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
+      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result))
+        then
       begin
         MyDebug(Format('PrecatcherSectionMapping testing %s for %s',
           [rls, x.newsection]));
@@ -303,7 +301,8 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
+        Debug(dpError, rsections,
+          Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
           [e.Message]));
         break;
       end;
@@ -312,73 +311,71 @@ begin
 
 end;
 
-
- {
+{
 function PrecatcherSectionMapping(rls, section: string; x_count : Integer = 0): string;
 var i: Integer;
-    x: TMap;
+   x: TMap;
 begin
-  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
+ MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
 
-  inc(x_count);
-  if (x_count > 500) then
-  begin
-    Debug(dpError, rsections, Format('[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
-    Result:= '';
-    exit;
-  end;
+ inc(x_count);
+ if (x_count > 500) then
+ begin
+   Debug(dpError, rsections, Format('[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
+   Result:= '';
+   exit;
+ end;
 
-  Result:= section;
-  for i:= 0 to mappingslist.Count -1 do
-  begin
+ Result:= section;
+ for i:= 0 to mappingslist.Count -1 do
+ begin
 
-  if i > mappingslist.Count then Break;
-  x:= mappingslist[i] as TMap;
+ if i > mappingslist.Count then Break;
+ x:= mappingslist[i] as TMap;
 if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
-      begin
-        MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
-        if (x.mask.Matches(rls)) then
-        begin
-          if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
-          begin
-            Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
-            exit;
-          end else begin
-            Result:= x.newsection;
-            MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
-            exit;
-          end;
-        end;
-      end;
-
-
+     begin
+       MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
+       if (x.mask.Matches(rls)) then
+       begin
+         if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
+         begin
+           Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
+           exit;
+         end else begin
+           Result:= x.newsection;
+           MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
+           exit;
+         end;
+       end;
+     end;
 
 //    try if i > mappingslist.Count then Break; except Break; end;
 //    try x:= mappingslist[i] as TMap; except Break; end;
 
-    try
-      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
-      begin
-        MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
-        if (x.mask.Matches(rls)) then
-        begin
-          if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
-          begin
-            Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
-            exit;
-          end else begin
-            Result:= x.newsection;
-            MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
-            exit;
-          end;
-        end;
-      end
-    except
-      Break;
-    end;
-  end;
+   try
+     if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
+     begin
+       MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
+       if (x.mask.Matches(rls)) then
+       begin
+         if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
+         begin
+           Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
+           exit;
+         end else begin
+           Result:= x.newsection;
+           MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
+           exit;
+         end;
+       end;
+     end
+   except
+     Break;
+   end;
+ end;
 end;
 }
+
 function KibontasSection(s, section: string): string;
 var
   i: integer;
@@ -400,7 +397,7 @@ end;
 
 function ProcessDoReplace(s: string): string;
 var
-  i:     integer;
+  i: integer;
   rep_s: string;
 begin
   rep_s := s;
@@ -423,29 +420,30 @@ procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: string;
   ts_data: TStringList);
 var
   oldsection: string;
-  rls:  string;
+  rls: string;
   //    i: Integer;
   cdno: string;
-  s:    string;
+  s: string;
 begin
   // megvan, mar csak ki kell bontani a riliznevet
   try
     rls := KibontasRiliz(sitename, cdno, ts_data);
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
-          [e.Message]));
-        exit;
-      end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, rsections,
+        Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
+        [e.Message]));
+      exit;
     end;
-
-
-  if (Trim(rls) = '') then begin
-    Debug(dpError, rsections, '[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
-    exit;
   end;
 
+  if (Trim(rls) = '') then
+  begin
+    Debug(dpError, rsections,
+      '[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
+    exit;
+  end;
 
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s',
@@ -459,40 +457,38 @@ begin
       exit;
     end;
 
+    (* wadoh: i moved the replace stuff to  FoCsupaszitas, now we reraplce befor any catchline checkes.
 
-(* wadoh: i moved the replace stuff to  FoCsupaszitas, now we reraplce befor any catchline checkes.
+      // elso korben megnezzuk van e ignoreword ra  -- this is the first place you look at to ignoreword
+        s:= Csere(ts_data.DelimitedText, rls, '');
+        // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
+        s:= ProcessDoReplace(s);
 
-  // elso korben megnezzuk van e ignoreword ra  -- this is the first place you look at to ignoreword
-    s:= Csere(ts_data.DelimitedText, rls, '');
-    // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
-    s:= ProcessDoReplace(s);
+        ts_data.DelimitedText:= s;
 
-    ts_data.DelimitedText:= s;
-
-    *)
-(* Xperia : i dont think it can help
-    // most levagjuk a sor veget ahol mar a juzer taglineja kezdodik vagyis barmi fassag lehet
-    try
-      j:= -1;
-      for i:= 0 to tagline.Count -1 do
-      begin
-        j:= ts_data.IndexOf(tagline[i]);
-        if j <> -1 then
-          Break;
-      end;
-      if j <> -1 then
-      begin
-        k:= ts_data.Count - j;
-        for i:= 1 to k do
-        begin
-          ts_data.Delete(j);
+        *)
+    (* Xperia : i dont think it can help
+        // most levagjuk a sor veget ahol mar a juzer taglineja kezdodik vagyis barmi fassag lehet
+        try
+          j:= -1;
+          for i:= 0 to tagline.Count -1 do
+          begin
+            j:= ts_data.IndexOf(tagline[i]);
+            if j <> -1 then
+              Break;
+          end;
+          if j <> -1 then
+          begin
+            k:= ts_data.Count - j;
+            for i:= 1 to k do
+            begin
+              ts_data.Delete(j);
+            end;
+          end;
+        except
+          exit;
         end;
-      end;
-    except
-      exit;
-    end;
-*)
-
+    *)
 
     if event <> 'REQUEST' then
     begin
@@ -541,21 +537,21 @@ begin
 
     MyDebug('Section: %s', [section]);
 
+    if section <> 'REQUEST' then
+    begin
 
-
-    if section <> 'REQUEST' then begin
-
-    oldsection := section;
-    try
-      section := PrecatcherSectionMapping(rls, section);
-    except
-      on e: Exception do
-      begin
-        section := '';
-        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s',
-          [e.Message]));
+      oldsection := section;
+      try
+        section := PrecatcherSectionMapping(rls, section);
+      except
+        on e: Exception do
+        begin
+          section := '';
+          Debug(dpError, rsections,
+            Format('[EXCEPTION] PrecatcherSectionMapping: %s',
+            [e.Message]));
+        end;
       end;
-    end;
 
     end;
     if oldsection <> section then
@@ -587,13 +583,15 @@ begin
         if (precatcher_spamevents.IndexOf(event) <> -1) then
         begin
           irc_Addtext_by_key('PRECATCHSTATS',
-            Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
+            Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls,
+            sitename]));
         end;
         kb_Add('', '', sitename, section, '', event, rls, '');
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVege kb_Add: %s',
+          Debug(dpError, rsections,
+            Format('[EXCEPTION] ProcessReleaseVege kb_Add: %s',
             [e.Message]));
         end;
       end;
@@ -605,19 +603,19 @@ end;
 
 procedure PrecatcherProcessB(net, chan, nick, Data: string);
 var
-igindex,  i, j:    integer;
-  sc:      TSiteChan;
-  ss:      TSection;
-  mind:    boolean;
+  igindex, i, j: integer;
+  sc: TSiteChan;
+  ss: TSection;
+  mind: boolean;
   ts_data: TStringList;
   rls, chno, s: string;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
-  net  := UpperCase(net);
+  net := UpperCase(net);
   chan := LowerCase(chan);
   nick := LowerCase(nick);
-  i    := cd.IndexOf(net + chan + nick);
+  i := cd.IndexOf(net + chan + nick);
   if i <> -1 then
   begin
     MyDebug('Ok %s %s %s is valid for check', [net, chan, nick]);
@@ -633,11 +631,12 @@ begin
     ts_data.QuoteChar := '"';
 
     try
-      Data := FoCsupaszitas(Data);    //main Stripping
+      Data := FoCsupaszitas(Data); //main Stripping
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s',
+          [e.Message]));
         ts_data.Free;
         exit;
       end;
@@ -653,33 +652,34 @@ begin
       exit;
     end;
 
-(*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
+    (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
 
-    for i := 0 to ignorelista.Count - 1 do
+        for i := 0 to ignorelista.Count - 1 do
+        begin
+          if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
+          begin
+            MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
+            Debug(dpSpam, rsections, 'Nukeword ' + ignorelista[i] + ' found in ' + rls);
+            skiprlses.Add(rls);
+            //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
+            exit;
+          end;
+        end;
+     *)
+
+    for i := 0 to ts_data.Count - 1 do
     begin
-      if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
+      igindex := ignorelista.IndexOf(ts_data.Strings[i]);
+      if igindex > -1 then
       begin
         MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista[i] + ' found in ' + rls);
+        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] +
+          ' found in ' + rls);
         skiprlses.Add(rls);
         //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
         exit;
       end;
     end;
- *)
-
-
- for i:= 0 to ts_data.Count - 1 do begin
-    igindex:= ignorelista.IndexOf(ts_data.Strings[i]);
-      if igindex > -1 then begin
-        MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
-        skiprlses.Add(rls);
-        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
-        exit;
-   end;
- end;
-
 
     s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
 
@@ -688,12 +688,11 @@ begin
     s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
     ts_data.DelimitedText := s;
 
-
     MyDebug('After FoCsupaszitas line is: %s', [ts_data.DelimitedText]);
 
     for i := 0 to sc.sections.Count - 1 do
     begin
-      ss   := TSection(sc.sections[i]);
+      ss := TSection(sc.sections[i]);
       mind := True;
       for j := 0 to ss.words.Count - 1 do
       begin
@@ -705,7 +704,8 @@ begin
         end;
       end;
 
-      if ss.section = 'REQUESTS' then exit;
+      if ss.section = 'REQUESTS' then
+        exit;
 
       if (mind) then
       begin
@@ -716,7 +716,8 @@ begin
           on e: Exception do
           begin
             MyDebug('[EXCEPTION] ProcessReleaseVege : %s', [e.Message]);
-            Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVege : %s',
+            Debug(dpError, rsections,
+              Format('[EXCEPTION] ProcessReleaseVege : %s',
               [e.Message]));
             ts_data.Free;
             exit;
@@ -735,7 +736,8 @@ begin
         on e: Exception do
         begin
           MyDebug('[EXCEPTION] ProcessReleaseVege : %s', [e.Message]);
-          Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVege : %s',
+          Debug(dpError, rsections,
+            Format('[EXCEPTION] ProcessReleaseVege : %s',
             [e.Message]));
           irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVege : %s',
             [e.Message]));
@@ -776,12 +778,12 @@ end;
 function ProcessChannels(s: string): boolean;
 var
   network, chan, nick, sitename, words: string;
-  sci:     integer;
-  sc:      TSiteChan;
+  sci: integer;
+  sc: TSiteChan;
   section: TSection;
-  i, j:    integer;
-  nickc:   integer;
-  nickt:   string;
+  i, j: integer;
+  nickc: integer;
+  nickt: string;
 begin
   Result := False;
   if (length(s) = 0) then
@@ -790,10 +792,9 @@ begin
   if (Count(';', s) < 3) then
     exit;
 
-
-  network  := UpperCase(SubString(s, ';', 1));
-  chan     := LowerCase(SubString(s, ';', 2));
-  nickt    := LowerCase(SubString(s, ';', 3));
+  network := UpperCase(SubString(s, ';', 1));
+  chan := LowerCase(SubString(s, ';', 2));
+  nickt := LowerCase(SubString(s, ';', 3));
   sitename := SubString(s, ';', 4);
 
   if (chan[1] <> '#') then
@@ -804,7 +805,7 @@ begin
   for j := 1 to nickc + 1 do
   begin
     nick := SubString(nickt, ',', j);
-    sci  := cd.IndexOf(network + chan + nick);
+    sci := cd.IndexOf(network + chan + nick);
     if (sci = -1) then
     begin
       sc := TSiteChan.Create();
@@ -851,7 +852,8 @@ procedure PrecatcherRebuild();
 var
   i: integer;
   S: string;
-  var f: TextFile;
+var
+  f: TextFile;
 begin
   cdClear;
 
@@ -866,25 +868,26 @@ begin
     Inc(i);
   end;
 
-  if (config.ReadBool('sites', 'split_site_data', False)) then begin
-    for i := 0 to catcherFile.Count - 1 do  // delete all old files first
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+  begin
+    for i := 0 to catcherFile.Count - 1 do // delete all old files first
     begin
       S := catcherFile[i];
       S := SubString(s, ';', 4);
-      S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.chans';
+      S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.chans';
       if FileExists(S) then
-        {$IFDEF MSWINDOWS}
+{$IFDEF MSWINDOWS}
         DeleteFile(PAnsiChar(S));
-        {$ELSE}
+{$ELSE}
         DeleteFile(S);
-        {$ENDIF}
+{$ENDIF}
     end;
 
-    for i := 0 to catcherFile.Count - 1 do  // create if needed and append lines
+    for i := 0 to catcherFile.Count - 1 do // create if needed and append lines
     begin
       S := catcherFile[i];
       S := SubString(s, ';', 4);
-      S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.chans';
+      S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.chans';
       AssignFile(f, S);
       if (FileExists(S)) then
         Append(f)
@@ -894,13 +897,15 @@ begin
       CloseFile(f);
     end;
 
-    if FileExists(catcherFilename) then  // convert to split format
-      {$IFDEF MSWINDOWS}
+    if FileExists(catcherFilename) then // convert to split format
+{$IFDEF MSWINDOWS}
       DeleteFile(PAnsiChar(catcherFilename));
-      {$ELSE}
+{$ELSE}
       DeleteFile(catcherFilename);
-      {$ENDIF}
-  end else begin
+{$ENDIF}
+  end
+  else
+  begin
     catcherFile.SaveToFile(catcherFilename);
   end;
 end;
@@ -915,8 +920,7 @@ procedure ProcessIgnoreList(s: string);
 begin
   if (SubString(s, '=', 1) = 'nukewords') then
     ignorelista.DelimitedText := SubString(s, '=', 2)
-  else
-  if (SubString(s, '=', 1) = 'tagline') then
+  else if (SubString(s, '=', 1) = 'tagline') then
     tagline.DelimitedText := SubString(s, '=', 2);
 
 end;
@@ -925,7 +929,7 @@ procedure ProcessReplace(s: string);
 var
   i, db: integer;
   replacetoline: string;
-  rx:    TRegexpr;
+  rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
   rx.ModifierI := True;
@@ -940,8 +944,7 @@ begin
 
   if (SubString(s, '=', 1) = 'replacefrom') then
     replacefromline := trim(SubString(s, '=', 2))
-  else
-  if (SubString(s, '=', 1) = 'replaceto') then
+  else if (SubString(s, '=', 1) = 'replaceto') then
   begin
     replacetoline := trim(SubString(s, '=', 2));
     replacetoline := Csere(replacetoline, '[:space:]', ' ');
@@ -953,7 +956,6 @@ begin
     end;
   end;
 end;
-
 
 procedure ProcessSections(s: string);
 var
@@ -989,8 +991,8 @@ end;
 procedure ProcessMappings(s: string);
 var
   db, i: integer;
-  ss:    string;
-  rx:    TRegexpr;
+  ss: string;
+  rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
   rx.ModifierI := True;
@@ -1024,29 +1026,21 @@ begin
   rx.Free;
 end;
 
-
-
 procedure ProcessConfigLine(s: string);
 begin
   if s = '[racetool]' then
     huntartunk := racetool
-  else
-  if s = '[ignorelist]' then
+  else if s = '[ignorelist]' then
     huntartunk := ignorelist
-  else
-  if s = '[replace]' then
+  else if s = '[replace]' then
     huntartunk := replace
-  else
-  if s = '[sections]' then
+  else if s = '[sections]' then
     huntartunk := hunsections
-  else
-  if s = '[mappings]' then
+  else if s = '[mappings]' then
     huntartunk := mappings
-  else
-  if s = '[channels]' then
+  else if s = '[channels]' then
     huntartunk := channels
-  else
-  if s = '[pretime]' then
+  else if s = '[pretime]' then
     huntartunk := pretime;
 
   case huntartunk of
@@ -1060,7 +1054,7 @@ end;
 
 function Precatcher_Sitehasachan(sitename: string): boolean;
 var
-  i:  integer;
+  i: integer;
   sc: TSiteChan;
 begin
   Result := False;
@@ -1117,7 +1111,8 @@ end;
 
 function precatcher_logfilename: string;
 begin
-  Result := config.ReadString(rsections, 'debugfile', ExtractFilePath(ParamStr(0)) +
+  Result := config.ReadString(rsections, 'debugfile',
+    ExtractFilePath(ParamStr(0)) +
     'precatcher.log');
 end;
 
@@ -1126,26 +1121,26 @@ begin
   cd := THashedStringList.Create;
   cd.CaseSensitive := False;
 
-  ignorelista  := TStringList.Create;
+  ignorelista := TStringList.Create;
   ignorelista.Delimiter := ' ';
   ignorelista.QuoteChar := '"';
-  tagline      := TStringList.Create;
+  tagline := TStringList.Create;
   tagline.Delimiter := ' ';
   tagline.QuoteChar := '"';
-  sectionlist  := TStringList.Create;
+  sectionlist := TStringList.Create;
   mappingslist := TObjectList.Create;
-  skiprlses    := THashedStringList.Create;
+  skiprlses := THashedStringList.Create;
 
   replacefrom := TStringList.Create;
   replacefrom.Duplicates := dupAccept;
-  replaceto   := TStringList.Create;
+  replaceto := TStringList.Create;
   replaceto.Duplicates := dupAccept;
 
   huntartunk := sehun;
 
   // ezt itt most csak azert hogy jo sorrendben hivodjanak meg az inicializaciok
   catcherFilename := ExtractFilePath(ParamStr(0)) + 'slftp.chans';
-  catcherFile     := TEncStringList.Create(passphrase);
+  catcherFile := TEncStringList.Create(passphrase);
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
 
@@ -1195,7 +1190,6 @@ begin
   Debug(dpSpam, rsections, 'Uninit2');
 end;
 
-
 { TMap }
 
 constructor TMap.Create(origsection, newsection, mask: string);
@@ -1234,19 +1228,20 @@ begin
 end;
 
 procedure LoadSplitChanFiles;
-var fst: TStringList;
-    S: string;
-    i: Integer;
-    intFound: Integer;
-    SearchRec: TSearchRec;
-    rules_path: String;
+var
+  fst: TStringList;
+  S: string;
+  i: Integer;
+  intFound: Integer;
+  SearchRec: TSearchRec;
+  rules_path: string;
 begin
-  rules_path:= ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim;
+  rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
 
   intFound := FindFirst(rules_path + '*.chans', faAnyFile, SearchRec);
   while intFound = 0 do
   begin
-    fst:= TStringList.Create();
+    fst := TStringList.Create();
     fst.LoadFromFile(rules_path + SearchRec.Name);
     for i := 0 to fst.Count - 1 do
     begin
@@ -1257,11 +1252,11 @@ begin
     intFound := FindNext(SearchRec);
   end;
 
-  {$IFDEF MSWINDOWS}
- SysUtils.FindClose(SearchRec);
-  {$ELSE}
+{$IFDEF MSWINDOWS}
+  SysUtils.FindClose(SearchRec);
+{$ELSE}
   FindClose(SearchRec);
-  {$ENDIF}
+{$ENDIF}
 end;
 
 procedure PrecatcherStart;
@@ -1274,7 +1269,6 @@ begin
 
   PrecatcherReBuild;
 end;
-
 
 function precatcher_auto: boolean;
 begin
@@ -1325,7 +1319,7 @@ begin
 
   //catcherFile.LoadFromFile(catcherFileName);
   AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  {$I-}
+{$I-}
   Reset(f);
 {$I+}
   if IOResult = 0 then
@@ -1343,7 +1337,7 @@ end;
 
 procedure PrecatcherReload(out status: string);
 var
-  f:     TextFile;
+  f: TextFile;
   ss, s: string;
   //    i: Integer;
 begin
@@ -1363,7 +1357,7 @@ begin
   ss := 'Precatcher Rehash FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-    {$I-}
+{$I-}
     Reset(f);
 {$I+}
     if IOResult = 0 then
@@ -1380,29 +1374,26 @@ begin
     ss := 'Precatcher Rehash Complete....' + #13#10;
     ss := ss + 'Minimum_rlsname:' + IntToStr(minimum_rlsname) + #13#10;
     //ss:=ss+'COUNTS:'+#13#10;
-    ss := ss + Format('Sections(%d) Mapping(%d) Replace|from/to:(%d/%d) Ignorlist(%d)',
-      [sectionlist.Count, mappingslist.Count, replacefrom.Count,
+    ss := ss +
+      Format('Sections(%d) Mapping(%d) Replace|from/to:(%d/%d) Ignorlist(%d)',
+      [kb_sections.Count, mappingslist.Count, replacefrom.Count,
       replaceto.Count, ignorelista.Count]);
   end;
   status := ss;
 end;
-
-
 
 function precatcherauto: boolean;
 begin
   Result := sitesdat.ReadBool('precatcher', 'auto', False);
 end;
 
-
 function FindSection(section: string): boolean;
 begin
   Result := False;
-  if -1 = sectionlist.IndexOf(UpperCase(section)) then
+  if - 1 = sectionlist.IndexOf(UpperCase(section)) then
     exit;
   Result := True;
 end;
 
 end.
-
 
