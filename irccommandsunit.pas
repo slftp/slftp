@@ -442,7 +442,7 @@ const
     //(cmd: 'setspeedtesttopredir'; hnd: IrcSetSpeedtesttoPredir; minparams: 0; maxparams: 1; hlpgrp:''),
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp:
       'site'),
-    (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 2;
+    (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 1;
     maxparams: 2; hlpgrp: 'site'),
 
     (cmd: '- Auto:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
@@ -11210,7 +11210,14 @@ begin
   Result := False;
   sname := UpperCase(SubString(params, ' ', 1));
   svalue := UpperCase(SubString(params, ' ', 2));
-  ivalue := StrToIntDef(svalue, 0);
+  if svalue = '' then
+  begin
+    ivalue := 1 // default value if no parameter is given
+  end
+  else
+  begin
+    ivalue := StrToIntDef(svalue, 0);
+  end;
 
   if ((ivalue > 1) or (ivalue < 0)) then
   begin
