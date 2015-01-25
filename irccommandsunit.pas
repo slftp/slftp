@@ -3924,8 +3924,11 @@ begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
         Continue;
       end;
-      if (s.PermDown) then
-        Continue;
+      if s.PermDown then
+      begin
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+        continue;
+      end;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
     end;
   finally
@@ -3951,11 +3954,9 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
-
-      if (TSite(sites.Items[i]).PermDown) then
-        Continue;
-
       s := TSite(sites.Items[i]);
+      if (s.PermDown) then
+        Continue;
       RawB(Netname, Channel, s.Name, '', command, True);
 
     end;
@@ -3969,10 +3970,16 @@ begin
       irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
       exit;
     end;
-
-    RawB(Netname, Channel, sitename, '', command);
-
-    Result := True;
+    if not s.PermDown then
+    begin
+      RawB(Netname, Channel, sitename, '', command);
+      Result := True;
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -3995,6 +4002,12 @@ begin
     if s.markeddown then
     begin
       irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.',
+        [s.Name]);
+      Continue;
+    end;
+    if (s.PermDown) then
+    begin
+      irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.',
         [s.Name]);
       Continue;
     end;
@@ -6715,8 +6728,12 @@ begin
         begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
             [x.Strings[i]]);
-
           Continue;
+        end;
+        if s.PermDown then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+          continue;
         end;
 
         kell := False;
@@ -6987,7 +7004,6 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
     exit;
   end;
-
   if (s.PermDown) then
   begin
     irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
@@ -9551,6 +9567,8 @@ begin
       end
       else
       begin
+        if (s.PermDown) then
+          Continue;
         mnick := s.ircnick;
         if mnick = '' then
         begin
@@ -10662,7 +10680,7 @@ begin
       begin
         Continue;
       end;
-      if (TSite(sites.Items[i]).PermDown) then
+      if (s.PermDown) then
         Continue;
 
       if s.working <> sstUp then
@@ -11593,6 +11611,13 @@ begin
   if site = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    Result := False;
+    exit;
+  end;
+
+  if site.PermDown then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
     Result := False;
     exit;
   end;
