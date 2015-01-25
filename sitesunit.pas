@@ -2426,11 +2426,11 @@ procedure TSite.AutoBnctest;
 var
   t: TLoginTask;
 begin
+  if PermDown then
+    Exit;
   t := FetchAutoBnctest;
   if t <> nil then
     exit;
-  if PermDown then
-    Exit;
 
   // nincs, addolni kell.
   t := TLoginTask.Create('', '', Name, False, True);
@@ -2450,11 +2450,11 @@ procedure TSite.AutoRules;
 var
   t: TRulesTask;
 begin
+  if PermDown then
+    Exit;
   t := FetchAutoRules;
   if t <> nil then
     exit;
-  if PermDown then
-    Exit;
   // nincs, addolni kell.
   t := TRulesTask.Create('', '', Name);
   t.dontremove := True;
@@ -2473,11 +2473,11 @@ procedure TSite.AutoDirlist;
 var
   t: TAutoDirlistTask;
 begin
+  if PermDown then
+    Exit;
   t := FetchAutoDirlist;
   if t <> nil then
     exit;
-  if PermDown then
-    Exit;
   // nincs, addolni kell.
   t := TAutoDirlistTask.Create('', '', Name);
   t.startat := RcDateTime('nextautodirlist', 0);
@@ -2525,11 +2525,11 @@ procedure TSite.AutoNuke;
 var
   t: TAutoNukeTask;
 begin
+  if PermDown then
+    Exit;
   t := FetchAutoNuke;
   if t <> nil then
     exit;
-  if PermDown then
-    Exit;
   // nincs, addolni kell.
   t := TAutoNukeTask.Create('', '', Name);
   t.startat := RcDateTime('nextautonuke', 0);
@@ -2541,10 +2541,10 @@ procedure TSite.AutoIndex;
 var
   t: TAutoIndexTask;
 begin
-  if nil <> FetchAutoIndex then
-    exit;
   if PermDown then
     Exit;
+  if nil <> FetchAutoIndex then
+    exit;
   // nincs, addolni kell.
   t := TAutoIndexTask.Create('', '', Name);
   t.startat := RcDateTime('nextautoindex', 0);
@@ -2754,6 +2754,9 @@ end;
 
 procedure TSite.Auto;
 begin
+  if PermDown then
+    Exit;
+
   if RCInteger('autobnctest', 0) > 0 then
     AutoBnctest;
 
