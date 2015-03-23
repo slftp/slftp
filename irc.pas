@@ -1334,7 +1334,7 @@ begin
       for i:= 0 to sites.Count -1 do
       begin
         s:= sites[i] as TSite;
-          if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited)) then
+          if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown)) then
           begin
             debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, irc_nick]);
             s.siteinvited:= True;
