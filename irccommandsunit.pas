@@ -386,9 +386,12 @@ function IrcUpdateTVRageInfo(const Netname, Channel: string; params: string):
 function IrcDelTVRageInfo(const Netname, Channel: string; params: string):
   boolean;
 
+function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
+  boolean;
+
 const
 
-  irccommands: array[1..244] of TIrcCommand = (
+  irccommands: array[1..245] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:
       '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
@@ -725,6 +728,9 @@ const
     //        (cmd: 'restart'; hnd: IrcMain_Restart; minparams: 0; maxparams: 0; hlpgrp:''),
     (cmd: '- :: dOH MODz :: -'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '@!?'),
+    (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0;
+    maxparams: 1; hlpgrp: 'doh'),
+
 
     (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7;
     maxparams: 8; hlpgrp: 'doh'),
@@ -11766,6 +11772,40 @@ begin
   end;
 
   Result := True;
+end;
+
+
+
+function IrcSetDebugverbosity(const Netname, Channel: string; params: string):boolean;
+var val:integer;
+begin
+val:= StrToIntDef(params,-1);
+if val = -1 then begin
+
+case config.ReadInteger('debug', 'verbosity', 0) of
+0:irc_Addtext(Netname,Channel,'Only Logging Errors.');
+1:irc_Addtext(Netname,Channel,'Only Logging Errors and common Messages.');
+2:irc_Addtext(Netname,Channel,'Only Logging Almost everything.');
+3:irc_Addtext(Netname,Channel,'Skip Logging...');
+end;
+Result:=True;
+Exit;
+end else if (val <= 3) then begin
+config.WriteInteger('debug','verbosity',val);
+config.UpdateFile;
+case config.ReadInteger('debug', 'verbosity', 0) of
+0:irc_Addtext(Netname,Channel,'Only Logging Errors.');
+1:irc_Addtext(Netname,Channel,'Only Logging Errors and common Messages.');
+2:irc_Addtext(Netname,Channel,'Only Logging Almost everything.');
+3:irc_Addtext(Netname,Channel,'Skip Logging...');
+end;
+Result:=True;
+Exit;
+end else begin
+irc_Addtext(Netname,Channel,'<c4>Syntax error</c>, unknown verbosity.');
+Exit;
+end;
+
 end;
 
 /// dOH mODz  eNDz
