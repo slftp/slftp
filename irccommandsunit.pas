@@ -3807,15 +3807,19 @@ begin
   for i := 0 to tasks.Count - 1 do
   begin
     try
-      if (ii > show_tasks) then
-        break;
+
       if show_all then
       begin
         irc_addtext(Netname, Channel, TTask(tasks[i]).Fullname);
-        Inc(ii);
+        Continue;
+//        Inc(ii);
       end
       else
       begin
+
+      if (ii > show_tasks) then
+        break;
+      
         rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
         if ((not rr.Exec(TTask(tasks[i]).Fullname)) and
           (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
