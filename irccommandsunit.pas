@@ -3798,12 +3798,14 @@ begin
   rr.Expression := '--all';
   if rr.Exec(params) then
   begin
+  show_tasks := tasks.Count;
     show_all := True;
   end;
 
   ii := 0;
   irc_addtext(Netname, Channel, 'Tasks in queue: %d displaycount: %d',
     [tasks.Count, Min(show_tasks, tasks.Count)]);
+
   for i := 0 to tasks.Count - 1 do
   begin
     try
