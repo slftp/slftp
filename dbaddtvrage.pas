@@ -195,7 +195,7 @@ begin
   try
     Result := addtvrageDB.ExecSQL(Format(
       'UPDATE addtvrage SET tv_showid="%s", tv_showname="%s", tv_showurl="%s", tv_premiered_year="%d", tv_country="%s", tv_status="%s",'
-      + ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname="%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
+      + ' tv_classification="%s", tv_genres="%s", tv_network="%s", tv_runtime="%d", tv_running="%s", tv_endedyear="%d" WHERE rls_showname LIKE "%s";', [tvs.tv_showid, tvs.tv_showname, tvs.tv_showurl, tvs.tv_premiered_year, tvs.tv_country, tvs.tv_status, tvs.tv_classification, tvs.tv_genres.DelimitedText, tvs.tv_network, tvs.tv_runtime, BoolToStr(tvs.tv_running), tvs.tv_endedyear, tvs.rls_showname]));
     Result := True;
   except
     on e: Exception do
@@ -212,7 +212,7 @@ function dbaddtvrage_delete_show(Show: string): boolean;
 begin
   try
     Result := addtvrageDB.ExecSQL(
-      Format('DELETE FROM addtvrage WHERE rls_showname="%s";', [Show]));
+      Format('DELETE FROM addtvrage WHERE rls_showname LIKE "%s";', [Show]));
   except
     on e: Exception do
     begin
@@ -248,11 +248,11 @@ begin
     Result := nil;
   end;
 
-  if (Result = nil) then
+        if (LowerCase(rls_showname) <> LowerCase(addtvrageDB.column_text(gettvrage, 0))) then  if (Result = nil) then
   begin
     try
       gettvrage := addtvrageDB.Open(
-        'SELECT * FROM addtvrage WHERE rls_showname = "' + rls_showname + '"');
+        'SELECT * FROM addtvrage WHERE rls_showname LIKE "' + rls_showname + '"');
       if addtvrageDB.Step(gettvrage) then
       begin
         if (rls_showname <> addtvrageDB.column_text(gettvrage, 0)) then
