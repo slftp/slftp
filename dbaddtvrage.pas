@@ -243,19 +243,19 @@ begin
     if i <> -1 then
     begin
       Result := TDbTVRage(last_addtvrage.Objects[i]);
+      irc_addtext('','','whatts');
     end;
   except
     Result := nil;
   end;
-
-        if (LowerCase(rls_showname) <> LowerCase(addtvrageDB.column_text(gettvrage, 0))) then  if (Result = nil) then
+  if (Result = nil) then
   begin
     try
       gettvrage := addtvrageDB.Open(
         'SELECT * FROM addtvrage WHERE rls_showname LIKE "' + rls_showname + '"');
       if addtvrageDB.Step(gettvrage) then
       begin
-        if (rls_showname <> addtvrageDB.column_text(gettvrage, 0)) then
+        if (LowerCase(rls_showname) <> LowerCase(addtvrageDB.column_text(gettvrage, 0))) then
         begin
           Result := nil;
           exit;
