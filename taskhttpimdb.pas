@@ -328,10 +328,9 @@ begin
       end;
   *)
 
-  if uppercase(ir.languages.text) <> 'ENGLISH' then
-    rlang := 'USA'
-  else
-    rlang := ir.languages.Strings[0];
+  if (uppercase(trim(ir.languages.text)) <> 'ENGLISH') then
+  rlang := ir.languages.Strings[0] else rlang := 'USA';
+
   imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
   imdb_region := SubString(imdb_counline, ',', 1);
   imdb_country := SubString(imdb_counline, ',', 2);
