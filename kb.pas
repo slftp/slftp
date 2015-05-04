@@ -4,15 +4,14 @@
  - Version 1.3
 
  - Remarks:          Freeware, Copyright must be included
- 
- - Original Author:  believe                   
-                    
+
+ - Original Author:  believe
+
  - Modifications:    aKRAUT
 
  - Last change:      27/06/2010 - Adding CineYear to TIMDBRelease
- 
- - Description:      
 
+ - Description:
 
  ****************************************************************************
 
@@ -39,37 +38,37 @@ uses Classes, SyncObjs, encinifile, IniFiles, knowngroups;
 type
   TRelease = class
 
-  incompleteFiller:boolean;
+    incompleteFiller: boolean;
 
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
-    rlsname:   string;
+    rlsname: string;
     rlsnamewogrp: string;
-    section:   string;
-    words:     TStringList;
-    tags:      TStringList;
+    section: string;
+    words: TStringList;
+    tags: TStringList;
     groupname: string;
-    internal:  boolean;
-    disks:     integer;
-    kb_event:  string;
+    internal: boolean;
+    disks: integer;
+    kb_event: string;
     languages: TStringList;
 
     legnagyobbcd: integer;
     sample: boolean;
     covers: boolean;
-    subs:   boolean;
+    subs: boolean;
 
     fake: boolean;
     fakereason: string;
 
     event: string;
 
-    pretime:  TDateTime;
+    pretime: TDateTime;
     cpretime: int64;
-    pred:     boolean;
+    pred: boolean;
 
     pretimefound: boolean;
-    pretimefrom:  string;
+    pretimefrom: string;
 
     //fakecheckinghez
     dots: integer;
@@ -79,7 +78,6 @@ type
     year: integer;
 
     knowngroup: TKnownGroup;
-
 
     constructor Create(rlsname, section: string; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); virtual;
@@ -110,16 +108,16 @@ type
   end;
 
   TMP3Release = class(TRelease)
-    mp3year:   integer;
-    mp3lng:    string;
-    mp3genre:  string;
+    mp3year: integer;
+    mp3lng: string;
+    mp3genre: string;
     mp3source: string;
     mp3types1: string;
     mp3types2: string;
     mp3types3: string;
 
     //    mp3flac:boolean;
-    mp3_numdisks:  integer;
+    mp3_numdisks: integer;
     mp3_number_of: string;
 
     mp3_va: boolean;
@@ -140,7 +138,8 @@ type
   private
     function Evszam(s: string): boolean;
     procedure AddSource(src: string);
-    procedure NumberOfDisksTag(tag: string; var Source: string; var disks: integer);
+    procedure NumberOfDisksTag(tag: string; var Source: string; var disks:
+      integer);
   end;
 
   TNFORelease = class(TRelease)
@@ -157,20 +156,20 @@ type
   end;
 
   TIMDBRelease = class(TRelease)
-    imdb_id:      string;
-    imdb_year:    integer;
+    imdb_id: string;
+    imdb_year: integer;
     imdb_languages: TStringList;
     imdb_countries: TStringList;
-    imdb_genres:  TStringList;
+    imdb_genres: TStringList;
     imdb_screens: integer;
-    imdb_rating:  integer;
-    imdb_votes:   integer;
-    CineYear:     integer;
-    imdb_ldt:     boolean;
-    imdb_wide:    boolean;
+    imdb_rating: integer;
+    imdb_votes: integer;
+    CineYear: integer;
+    imdb_ldt: boolean;
+    imdb_wide: boolean;
     imdb_festival: boolean;
-    imdb_stvm:    boolean;
-    imdb_stvs:    string;
+    imdb_stvm: boolean;
+    imdb_stvs: string;
 
     function ExtraInfo: string; override;
     destructor Destroy; override;
@@ -184,23 +183,23 @@ type
   end;
 
   TTVRelease = class(TRelease)
-    showname:   string;
-    episode:    integer;
-    season:     integer;
+    showname: string;
+    episode: integer;
+    season: integer;
     premier_year: integer;
     ended_year: integer;
-    country:    string;
+    country: string;
     classification: string;
-    scripted:   boolean;
+    scripted: boolean;
     //genres: string;
-    genres:     TStringList;
-    network:    string;
-    runtime:    integer;
-    seasons:    integer;
-    status:     string;
-    running:    boolean;
-    showid:     string;
-    tvtag:      string;
+    genres: TStringList;
+    network: string;
+    runtime: integer;
+    seasons: integer;
+    status: string;
+    running: boolean;
+    showid: string;
+    tvtag: string;
     function ExtraInfo: string; override;
     constructor Create(rlsname, section: string; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
@@ -219,9 +218,9 @@ type
     //   mvid_languages:string;
     mvid_languages: TStringList;
     mvid_source: string;
-    mvid_pal:  boolean;
+    mvid_pal: boolean;
     mvid_ntsc: boolean;
-    mvid_va:   boolean;
+    mvid_va: boolean;
     mvid_live: boolean;
     mvid_year: integer;
     function ExtraInfo: string; override;
@@ -237,24 +236,24 @@ type
     class function DefaultSections: string; override;
   end;
 
-(*
-   TGameRelease = class(TRelease)
-   game_realgame,region_ntsc,region_rf,region_pal:boolean;
-   game_genre,game_languages: TStringList;
-   game_name:string;
-   game_disks:integer;
+  (*
+     TGameRelease = class(TRelease)
+     game_realgame,region_ntsc,region_rf,region_pal:boolean;
+     game_genre,game_languages: TStringList;
+     game_name:string;
+     game_disks:integer;
 
-    function ExtraInfo: string; override;
-    constructor Create(rlsname, section: string; FakeChecking: Boolean = True); override;
-//    constructor CustomCreate(rlsname, section: string; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
-//    destructor Destroy; override;
-    function Aktualizald(extrainfo: string): Boolean; override;
-    function AsText(pazo_id: Integer = -1): string;  override;
-    function Aktualizal(p: TObject): Boolean; override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
-   end;
-  *)
+      function ExtraInfo: string; override;
+      constructor Create(rlsname, section: string; FakeChecking: Boolean = True); override;
+  //    constructor CustomCreate(rlsname, section: string; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
+  //    destructor Destroy; override;
+      function Aktualizald(extrainfo: string): Boolean; override;
+      function AsText(pazo_id: Integer = -1): string;  override;
+      function Aktualizal(p: TObject): Boolean; override;
+      class function Name: string; override;
+      class function DefaultSections: string; override;
+     end;
+    *)
 
   TCRelease = class of TRelease;
 
@@ -269,11 +268,9 @@ type
     destructor Destroy; override;
   end;
 
+  //procedure kb_Pretime(sitename, section, rls: string; age: Integer);
 
-
-//procedure kb_Pretime(sitename, section, rls: string; age: Integer);
-
-//function kb_pretime(rlsname:string):TDateTime;
+  //function kb_pretime(rlsname:string):TDateTime;
 
 function renameCheck(pattern, i, len: integer; rls: string): boolean;
 function kb_Add(const netname, channel: string;
@@ -288,7 +285,6 @@ procedure kb_Init;
 procedure kb_Uninit;
 procedure kb_Stop;
 
-
 function kb_reloadsections: boolean;
 
 function GotGroupname(rlz: string): string;
@@ -299,9 +295,9 @@ var
   mp3genres: TStringList;
   mp3languages: TStringList;
   mp3sources: TStringList;
-  tvtags:    TStringList;
-  mp3types:  TStringList;
-  kb_list:   TStringList;
+  tvtags: TStringList;
+  mp3types: TStringList;
+  kb_list: TStringList;
   kb_thread: TKBThread;
   kb_last_saved: TDateTime;
   kb_sectionhandlers: TStringList;
@@ -322,7 +318,7 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
-{$IFDEF MSWINDOWS}, Windows{$ENDIF}  ;
+{$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
   TSectionRelease = record
@@ -337,9 +333,9 @@ const
 var
 
   sectionhandlers: TSectionHandlers = (TRelease, TMP3Release,
-    T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease(*,
-     TGameRelease
-     *)
+    T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease (*,
+    TGameRelease
+    *)
     );
 
   addpreechocmd: string;
@@ -347,11 +343,11 @@ var
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
   kb_latest: THashedStringList;
-  kb_skip:   THashedStringList;
+  kb_skip: THashedStringList;
 
   // Config vars
-  trimmed_shit_checker:    boolean;
-  renamed_group_checker:   boolean;
+  trimmed_shit_checker: boolean;
+  renamed_group_checker: boolean;
   renamed_release_checker: boolean;
   //max_sectionhelper: Integer;
 
@@ -360,13 +356,12 @@ var
   try_to_complete_after: integer;
   kb_save_entries: integer;
 
-  rename_patterns:  integer;
+  rename_patterns: integer;
   taskpretime_mode: integer;
 
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
-  nomvdirlistgenre:  boolean;
-
+  nomvdirlistgenre: boolean;
 
 function FindSectionHandler(section: string): TCRelease;
 var
@@ -381,7 +376,7 @@ begin
     end;
 end;
 
- (*
+(*
 procedure SplitRlz(rlsname:string;out rlz,grp:string);
 var x:TStringlist;s:string;
 begin
@@ -401,10 +396,11 @@ finally
 x.free;
 end;
 end;
-  *)
+ *)
+
 function RemoveGroupname(rlz: string): string;
 var
-  x:    TStringList;
+  x: TStringList;
   g, s: string;
 begin
   x := TStringList.Create;
@@ -415,7 +411,7 @@ begin
     s := Csere(s, '-', ' ');
     s := Csere(s, '_', ' ');
 
-    x.Delimiter     := ' ';
+    x.Delimiter := ' ';
     x.DelimitedText := s;
     if uppercase(x.Strings[x.Count - 1]) = 'INT' then
       g := '-' + x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
@@ -494,35 +490,32 @@ begin
     Result := True;
 end;
 
-
 function trimmedShitChecker(section, rls: string): boolean;
 begin
   Result := False;
 end;
 
-
 function kb_AddB(const netname, channel: string;
   sitename, section, genre, event, rls, cdno: string; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
-  //forceRebuild: Boolean = False;
+//forceRebuild: Boolean = False;
 var
   i, j, len: integer;
-  r:     TRelease;
-  rc:    TCRelease;
-  s:     TSite;
-  ss:    string;
+  r: TRelease;
+  rc: TCRelease;
+  s: TSite;
+  ss: string;
   added: boolean;
-  p:     TPazo;
+  p: TPazo;
   ps, psource: TPazoSite;
   rule_result: TRuleAction;
   rlz, grp: string;
-  dlt:   TPazoDirlistTask;
-  l:     TLoginTask;
+  dlt: TPazoDirlistTask;
+  l: TLoginTask;
 begin
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d',
-    [sitename, section, event, rls, cdno, integer(dontFire), integer(forceFire)]);
-
-
+    [sitename, section, event, rls, cdno, integer(dontFire),
+      integer(forceFire)]);
 
   Result := -1;
 
@@ -537,7 +530,6 @@ begin
           [rls, sitename]));
       exit;
     end;
-
 
     if trimmed_shit_checker then
     begin
@@ -557,7 +549,8 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, '[EXCEPTION] kb_AddB trimmed_shit_checker : %s',
+          Debug(dpError, rsections,
+            '[EXCEPTION] kb_AddB trimmed_shit_checker : %s',
             [e.Message]);
         end;
       end;
@@ -568,7 +561,7 @@ begin
       try
         grp := GotGroupname(rls);
         rlz := RemoveGroupname(rls);
-        ss  := kb_groupcheck_rls.Values[rlz];
+        ss := kb_groupcheck_rls.Values[rlz];
         if ss = '' then
           kb_groupcheck_rls.Values[rlz] := grp
         else
@@ -595,7 +588,8 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_group_checker : %s',
+          Debug(dpError, rsections,
+            '[EXCEPTION] kb_AddB renamed_group_checker : %s',
             [e.Message]);
         end;
       end;
@@ -637,7 +631,8 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s',
+          Debug(dpError, rsections,
+            '[EXCEPTION] kb_AddB renamed_release_checker : %s',
             [e.Message]);
         end;
       end;
@@ -658,7 +653,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_trimmed_rls : %s',
+        Debug(dpError, rsections,
+          '[EXCEPTION] kb_AddB clean kb_trimmed_rls : %s',
           [e.Message]);
       end;
     end;
@@ -676,7 +672,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_groupcheck_rls : %s',
+        Debug(dpError, rsections,
+          '[EXCEPTION] kb_AddB clean kb_groupcheck_rls : %s',
           [e.Message]);
       end;
     end;
@@ -712,7 +709,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_skip : %s', [e.Message]);
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_skip : %s',
+          [e.Message]);
       end;
     end;
 
@@ -760,7 +758,8 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
+              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s',
+                [e.Message]);
             end;
           end;
         end;
@@ -870,7 +869,8 @@ begin
 
       if r.rlsname <> rls then
       begin
-        irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls, sitename]));
+        irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls,
+          sitename]));
         exit;
       end;
 
@@ -881,11 +881,11 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, rsections, 'p.rls.Aktualizald(genre) : %s', [e.Message]);
+            Debug(dpError, rsections, 'p.rls.Aktualizald(genre) : %s',
+              [e.Message]);
           end;
         end;
       end;
-
 
       if TPretimeLookupMOde(taskpretime_mode) <> plmNone then
       begin
@@ -898,7 +898,7 @@ begin
               irc_Addadmin(Format(
                 '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>) (%s)',
                 [section, rls, sitename, dbaddpre_GetPreduration(
-                r.pretime), r.pretimefrom]));
+                  r.pretime), r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
@@ -932,7 +932,8 @@ begin
 
         if (s = nil) then
         begin
-          irc_Addstats(Format('<c7>[SITE NOT FOUND]</c> : %s %s', [netname, sitename]));
+          irc_Addstats(Format('<c7>[SITE NOT FOUND]</c> : %s %s', [netname,
+            sitename]));
           exit;
         end;
 
@@ -962,7 +963,8 @@ begin
       end;
 
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
-        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
+        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE')))
+          then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -1001,8 +1003,7 @@ begin
       end;
       psource.Status := rssRealPre;
     end
-    else
-    if ((event = 'COMPLETE') and (not psource.AllPre)) then
+    else if ((event = 'COMPLETE') and (not psource.AllPre)) then
     begin
       psource.setcomplete(cdno);
     end;
@@ -1020,7 +1021,8 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] KBAdd RemovePazo on NUKE : %s',
+          Debug(dpError, rsections,
+            Format('[EXCEPTION] KBAdd RemovePazo on NUKE : %s',
             [e.Message]));
         end;
       end;
@@ -1101,7 +1103,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
+        [e.Message]));
     end;
   end;
 
@@ -1137,7 +1140,8 @@ begin
           if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
             (ps.status in [rssShouldPre, rssRealPre])) then
           begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
+              True);
             irc_Addtext_by_key('PRECATCHSTATS',
               Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
               [section, rls, ps.Name]));
@@ -1148,9 +1152,11 @@ begin
           end;
 
           if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
-            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete])) then
+            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete]))
+              then
           begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
+              False);
             irc_Addtext_by_key('PRECATCHSTATS',
               Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
               [section, rls, ps.Name]));
@@ -1167,19 +1173,21 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, 'kb', Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
+      Debug(dpError, 'kb', Format('[EXCEPTION] kb_Add add dirlist: %s',
+        [e.Message]));
       exit;
     end;
   end;
 
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
-    [sitename, section, genre, event, rls, cdno, integer(dontFire), integer(forceFire)]);
+    [sitename, section, genre, event, rls, cdno, integer(dontFire),
+      integer(forceFire)]);
 end;
 
 function kb_Add(const netname, channel: string;
   sitename, section, genre, event, rls, cdno: string; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
-  //forceRebuild: Boolean = False;
+//forceRebuild: Boolean = False;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -1220,8 +1228,8 @@ begin
   QueueFire;
 end;
 
-
 { TRelease }
+
 function TRelease.Aktualizal(p: TObject): boolean;
 begin
   aktualizalva := True;
@@ -1246,8 +1254,7 @@ begin
     Result := Result + 'Knowngroup: ';
     if knowngroup = grp_known then
       Result := Result + '1'
-    else
-    if knowngroup = grp_unknown then
+    else if knowngroup = grp_unknown then
       Result := Result + '0';
     if knowngroup = grp_notconfigured then
       Result := Result + '?';
@@ -1276,7 +1283,8 @@ begin
   end;
 end;
 
-constructor TRelease.Create(rlsname, section: string; FakeChecking: boolean = True;
+constructor TRelease.Create(rlsname, section: string; FakeChecking: boolean =
+  True;
   SavedPretime: int64 = -1);
 var
   vlang, s: string;
@@ -1286,7 +1294,7 @@ var
 begin
   try
     aktualizalva := False;
-    incompleteFiller:=False;
+    incompleteFiller := False;
     languages := TStringList.Create;
 
     tags := TStringList.Create;
@@ -1303,7 +1311,7 @@ begin
     if SavedPretime > -1 then
     begin
       try
-        self.pretime  := UnixToDateTime(Savedpretime);
+        self.pretime := UnixToDateTime(Savedpretime);
         self.cpretime := SavedPretime;
       except
         on e: Exception do
@@ -1330,9 +1338,7 @@ begin
 
     tags.DelimitedText := s;
 
-
     words.DelimitedText := s;
-
 
     Internal := False;
 
@@ -1344,7 +1350,7 @@ begin
     //rrgx.free;
 
     //detect groupname
-    groupname      := '';
+    groupname := '';
     //rrgx:=TRegExpr.Create;
     rrgx.ModifierI := True;
     rrgx.Expression := '\-([^\-]+)$';
@@ -1366,7 +1372,7 @@ begin
     dots := 0;
     karakterszam := 0;
     maganhangzok := 0;
-    s    := '';
+    s := '';
     for i := 1 to length(rlsname) do
     begin
       if 0 = Pos(rlsname[i], s) then
@@ -1381,7 +1387,6 @@ begin
     end;
 
     rlsnamewogrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
-
 
     if not use_new_language_base then
     begin
@@ -1400,14 +1405,13 @@ begin
         end;
       end;
 
-
-
       for i := 0 to kb_languages.Count - 1 do
       begin
         if kb_languages[i] <> '' then
         begin
           for ii := 0 to tags.Count - 1 do
-            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
+            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i])
+              then
               languages.Add(kb_languages.strings[i]);
         end;
       end;
@@ -1427,8 +1431,6 @@ begin
         languages.Add(vlang);
     end;
 
-
-
     if (languages.Count = 0) then
     begin
       if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
@@ -1436,7 +1438,6 @@ begin
       else
         languages.Add('English');
     end;
-
 
     knowngroup := IsKnownGroup(section, groupname);
 
@@ -1455,7 +1456,7 @@ begin
       if AnsiContainsText(tags[i], 'disc') then
       begin
         disks := 0;
-        j     := 1;
+        j := 1;
         while (j <= length(tags[i])) do
         begin
           if tags[i][j] in ['0'..'9'] then
@@ -1464,7 +1465,6 @@ begin
             Break;
           Inc(j);
         end;
-
 
         Break;
       end;
@@ -1489,7 +1489,6 @@ begin
   inherited;
 end;
 
-
 procedure TRelease.SetPretime(TimeStamp: int64 = 0);
 var
   resu: TPretimeResult;
@@ -1497,14 +1496,14 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime     := UnixToDateTime(TimeStamp);
-    cpretime    := TimeStamp;
+    pretime := UnixToDateTime(TimeStamp);
+    cpretime := TimeStamp;
     pretimefrom := 'Parameter';
   end
   else
   begin
-    resu     := getPretime(rlsname);
-    pretime  := resu.pretime;
+    resu := getPretime(rlsname);
+    pretime := resu.pretime;
     pretimefrom := resu.mode;
     cpretime := datetimetounix(pretime);
   end;
@@ -1515,7 +1514,6 @@ function TRelease.ExtraInfo: string;
 begin
   Result := '';
 end;
-
 
 class function TRelease.SectionAccepted(section: string): boolean;
 var
@@ -1554,14 +1552,13 @@ begin
       if (i = 4) then
       begin
         mp3Year := StrToIntDef(s, 1900);
-        Result  := True;
+        Result := True;
       end
-      else
-      if ((i = 3) and ((s[4] = 'x') or (s[4] = 'X'))) then
+      else if ((i = 3) and ((s[4] = 'x') or (s[4] = 'X'))) then
       begin
-        s[4]    := '0';
+        s[4] := '0';
         mp3Year := StrToIntDef(s, 1900);
-        Result  := True;
+        Result := True;
       end;
     end;
   except
@@ -1577,23 +1574,23 @@ procedure TMP3Release.AddSource(src: string);
 begin
   if mp3source = '' then
     mp3source := src;
-        (*
-        case sources of
-          1: mp3source1:= src;
-          2: mp3source2:= src;
-          3: mp3source3:= src;
-        end;*)
+  (*
+  case sources of
+    1: mp3source1:= src;
+    2: mp3source2:= src;
+    3: mp3source3:= src;
+  end;*)
 end;
 
 procedure TMP3Release.NumberOfDisksTag(tag: string; var Source: string;
   var disks: integer);
 var
-  i:    integer;
+  i: integer;
   szam: integer;
 begin
-  disks  := 0;
+  disks := 0;
   Source := '';
-  szam   := 0;
+  szam := 0;
   try
     i := 1;
     while (i <= length(tag)) do
@@ -1609,13 +1606,14 @@ begin
     if ((i <= length(tag) - 2) and (tag[i] = 'x')) then
       Inc(i);
 
-    disks  := szam;
+    disks := szam;
     Source := ' ' + Copy(tag, i, 15) + ' ';
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, 'TMP3Release.NumberOfDisksTag : %s', [e.Message]);
-      disks  := 0;
+      Debug(dpError, rsections, 'TMP3Release.NumberOfDisksTag : %s',
+        [e.Message]);
+      disks := 0;
       Source := '';
     end;
   end;
@@ -1628,10 +1626,10 @@ var
   //kezdoindex,szoindex,
   kotojelekszama: integer;
   types: integer;
-  j:     integer;
+  j: integer;
   szo, szamoknelkul: string;
-  db:    integer;
-  lrx:   TRegexpr;
+  db: integer;
+  lrx: TRegexpr;
   //    rx:TRegexpr;
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -1643,7 +1641,7 @@ begin
   if words.Count > 3 then
   begin
     try
-      mp3year     := 0;
+      mp3year := 0;
       evszamindex := 0;
       for i := 1 to 3 do
         if Evszam(tags[tags.Count - i]) then
@@ -1652,14 +1650,11 @@ begin
           Break;
         end;
 
-
       if mp3year = 0 then
         mp3year := year;
       if mp3year = 0 then
         exit;
       // nem talaltuk meg az evszamot. Szopas, folosleges folytatni.     //We did not find out the year. Sucking, useless to continue.
-
-
 
       if ((not Internal) and (evszamindex + 3 = tags.Count)) then
         groupname := tags[evszamindex + 1] + '_' + tags[evszamindex + 2]; //tweak
@@ -1702,11 +1697,11 @@ begin
 
       if kotojelekszama < 2 then
         exit;
-(*
-      kezdoindex := Min(szoindex, words.Count - 1);
-      kezdoindex := Min(kezdoindex, evszamindex - 3);
-      kezdoindex := Max(kezdoindex, 0);
-*)
+      (*
+            kezdoindex := Min(szoindex, words.Count - 1);
+            kezdoindex := Min(kezdoindex, evszamindex - 3);
+            kezdoindex := Max(kezdoindex, 0);
+      *)
       types := 0;
       mp3_numdisks := 1;
 
@@ -1717,7 +1712,7 @@ begin
         //1CD 99DVD
 
         szo := ' ' + words[i] + ' ';
-        db  := 0;
+        db := 0;
         NumberOfDisksTag(words[i], szamoknelkul, db);
         for j := 0 to mp3sources.Count - 1 do
         begin
@@ -1726,12 +1721,11 @@ begin
             AddSource(mp3sources.Names[j]);
             Break;
           end
-          else
-          if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
+          else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
             szamoknelkul))) then
           begin
             AddSource(mp3sources.Names[j]);
-            mp3_numdisks  := db;
+            mp3_numdisks := db;
             mp3_number_of := words[i];
             Break;
           end;
@@ -1748,11 +1742,8 @@ begin
         end;
       end; // end of tag kereses
 
-
-
-      lrx.ModifierI  := True;
+      lrx.ModifierI := True;
       lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
-
 
       mp3_va := lrx.Exec(rlsname);
       lrx.Free;
@@ -1770,19 +1761,16 @@ begin
     FakeCheck(self);
 end;
 
-
-
 function TMP3Release.Aktualizald(extrainfo: string): boolean;
 begin
   Result := False;
   if length(extrainfo) > length(mp3genre) then
   begin
     aktualizalva := True;
-    Result   := True;
+    Result := True;
     mp3genre := extrainfo;
   end;
 end;
-
 
 function TMP3Release.AsText(pazo_id: integer = -1): string;
 begin
@@ -1815,15 +1803,12 @@ begin
   Result := False;
   if 0 = AnsiCompareText(mp3types1, 'bootleg') then
     Result := True
-  else
-  if 0 = AnsiCompareText(mp3types2, 'bootleg') then
+  else if 0 = AnsiCompareText(mp3types2, 'bootleg') then
     Result := True
-  else
-  if 0 = AnsiCompareText(mp3types3, 'bootleg') then
+  else if 0 = AnsiCompareText(mp3types3, 'bootleg') then
     Result := True;
 
 end;
-
 
 function TMP3Release.Numdisks: integer;
 begin
@@ -1854,7 +1839,8 @@ begin
       on e: Exception do
       begin
         Debug(dpError, rsections,
-          Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
+          Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s',
+            [e.Message]));
       end;
     end;
     Result := True;
@@ -1870,7 +1856,6 @@ class function TMP3Release.Name: string;
 begin
   Result := 'TMP3Release';
 end;
-
 
 class function TMP3Release.DefaultSections: string;
 begin
@@ -1892,7 +1877,7 @@ function TNFORelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
   shot: TPazoSite;
-  i:    integer;
+  i: integer;
 begin
   Result := False;
   aktualizalva := True;
@@ -1914,7 +1899,8 @@ begin
       on e: Exception do
       begin
         Debug(dpError, rsections,
-          Format('[EXCEPTION] TNFORelease.Aktualizal.AddTask: %s', [e.Message]));
+          Format('[EXCEPTION] TNFORelease.Aktualizal.AddTask: %s',
+            [e.Message]));
       end;
     end;
     Result := True;
@@ -1927,7 +1913,7 @@ begin
   if length(extrainfo) > length(nfogenre) then
   begin
     aktualizalva := True;
-    Result   := True;
+    Result := True;
     nfogenre := extrainfo;
   end;
 end;
@@ -1944,7 +1930,6 @@ begin
   inherited Create(rlsname, section, False, savedpretime);
   nfogenre := '';
 end;
-
 
 class function TNFORelease.DefaultSections: string;
 begin
@@ -1965,7 +1950,7 @@ end;
 
 function TTVRelease.Aktualizal(p: TObject): boolean;
 var
-  pazo:      TPazo;
+  pazo: TPazo;
   db_tvrage: TDbTVRage;
 begin
   Result := False;
@@ -1977,7 +1962,6 @@ begin
   // we already have info
   if (showid <> '') then
     exit;
-
 
   pazo := TPazo(p); // ugly shit
 
@@ -2014,7 +1998,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
+      Debug(dpError, rsections,
+        Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
         [e.Message]));
     end;
   end;
@@ -2031,7 +2016,8 @@ function TTVRelease.AsText(pazo_id: integer): string;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'URL:  http://tvrage.com/shows/id-' + showid + '/' + #13#10;
+  Result := Result + 'URL:  http://tvrage.com/shows/id-' + showid + '/' +
+    #13#10;
   if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
   if episode <> 0 then
@@ -2064,8 +2050,8 @@ var
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
-  episode  := 0;
-  season   := 0;
+  episode := 0;
+  season := 0;
 
   genres := TStringList.Create;
   //  genres.Delimiter:= '|';
@@ -2074,7 +2060,8 @@ begin
   rx := TRegexpr.Create;
   rx.ModifierI := True;
 
-  rx.Expression := '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
+  rx.Expression :=
+    '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
@@ -2084,20 +2071,21 @@ begin
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
-    season   := StrToIntDef(rx.Match[2], 0);
-    episode  := StrToIntDef(rx.Match[3], 0);
+    season := StrToIntDef(rx.Match[2], 0);
+    episode := StrToIntDef(rx.Match[3], 0);
   end;
 
-  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+  rx.Expression :=
+    '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
-    season   := StrToIntDef(rx.Match[2], 0);
-    episode  := StrToIntDef(rx.Match[5], 0);
+    season := StrToIntDef(rx.Match[2], 0);
+    episode := StrToIntDef(rx.Match[5], 0);
   end;
 
   rx.Expression := '[\.\_]';
-  showname      := rx.Replace(showname, ' ');
+  showname := rx.Replace(showname, ' ');
 
   rx.Free;
 
@@ -2113,7 +2101,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('Exception in dbaddtvrage_gettvrage_show: %s',
+        Debug(dpError, rsections,
+          Format('Exception in dbaddtvrage_gettvrage_show: %s',
           [e.Message]));
         exit;
       end;
@@ -2143,7 +2132,6 @@ begin
   inherited;
 end;
 
-
 { T0DayRelease }
 
 function T0DayRelease.AsText(pazo_id: integer): string;
@@ -2163,7 +2151,8 @@ begin
   begin
     for j := 0 to nulldaysources.Count - 1 do
     begin
-      if (AnsiContainsText(nulldaysources.ValueFromIndex[j], ' ' + words[i] + ' ')) then
+      if (AnsiContainsText(nulldaysources.ValueFromIndex[j], ' ' + words[i] +
+        ' ')) then
       begin
         nulldaysource := nulldaysources.Names[j];
         Break;
@@ -2192,15 +2181,13 @@ end;
 
 { TIMDBRelease }
 
-
-
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
-  ps:   TPazoSite;
+  ps: TPazoSite;
   i, j: integer;
   imdbdata: TDbImdbData;
-  ir:   TIMDBRelease;
+  ir: TIMDBRelease;
 begin
   Result := False;
   aktualizalva := True;
@@ -2236,7 +2223,8 @@ begin
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+            Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
+              [e.Message]));
         end;
       end;
     end;
@@ -2266,14 +2254,14 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
+        Debug(dpError, rsections,
+          Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
           [e.Message]));
       end;
     end;
     Result := True;
   end;
 end;
-
 
 function TIMDBRelease.Aktualizald(extrainfo: string): boolean;
 begin
@@ -2293,7 +2281,8 @@ begin
   Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
   Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
   Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
-  Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) + #13#10;
+  Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) +
+    #13#10;
   Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
   Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
   Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
@@ -2304,7 +2293,7 @@ constructor TIMDBRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
-  imdb_id     := '';
+  imdb_id := '';
   imdb_languages := TStringList.Create;
   imdb_countries := TStringList.Create;
   imdb_genres := TStringList.Create;
@@ -2366,7 +2355,8 @@ begin
   Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
   Result := Result + 'MVID Source: ' + mvid_source + #13#10;
   Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
-  Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) + #13#10;
+  Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) +
+    #13#10;
   Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
   Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
 end;
@@ -2378,7 +2368,7 @@ end;
 
 constructor TMVIDRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
-  //constructor TMVIDRelease.Create(rlsname: string; section: string; FakeChecking: Boolean = True);
+//constructor TMVIDRelease.Create(rlsname: string; section: string; FakeChecking: Boolean = True);
 var
   mvrx: TRegexpr;
 
@@ -2390,15 +2380,15 @@ begin
 
   //if tags.Count < 3 then exit;
 
-  FileCount   := 0;
-  mvid_Genre  := TStringList.Create;
+  FileCount := 0;
+  mvid_Genre := TStringList.Create;
   //mvid_languages:=TStringlist.Create;
   mvid_source := '';
-  mvid_pal    := False;
-  mvid_ntsc   := False;
-  mvid_va     := False;
-  mvid_live   := False;
-  mvid_year   := -1;
+  mvid_pal := False;
+  mvid_ntsc := False;
+  mvid_va := False;
+  mvid_live := False;
+  mvid_year := -1;
 
   mvrx := TRegexpr.Create;
   mvrx.ModifierI := True;
@@ -2406,12 +2396,11 @@ begin
   if mvrx.Exec(rlsname) then
     mvid_year := strtointdef(mvrx.Match[1], 0);
   mvrx.Expression := '^VA[\-\_\.]';
-  mvid_va   := mvrx.Exec(rlsname);
+  mvid_va := mvrx.Exec(rlsname);
   mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
   mvid_live := mvrx.Exec(rlsname);
   mvrx.Free;
 end;
-
 
 class function TMVIDRelease.DefaultSections: string;
 begin
@@ -2434,7 +2423,6 @@ class function TMVIDRelease.Name: string;
 begin
   Result := 'TMVIDRelease';
 end;
-
 
 (*
 
@@ -2471,10 +2459,7 @@ end;
 
 grgx.free;
 
-
-
 end;
-
 
 destructor TGameRelease.Destroy;
 begin
@@ -2512,7 +2497,7 @@ if ((TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0)) <> plmNone) 
 AddTask(TPazoPretimeLookupTask.Create('', '', shot.name, pazo, 1));
 //QueueFire;
 end;
-*)  (*
+    *)(*
     AddTask(TPazoGameTask.Create('', '', shot.name, pazo, 1));
     Result:= True;
   end;
@@ -2553,18 +2538,18 @@ procedure AddKbPazo(line: string);
 var
   section, rlsname, extra, event: string;
   added: TDateTime;
-  p:     TPazo;
-  r:     TRelease;
-  rc:    TCRelease;
+  p: TPazo;
+  r: TRelease;
+  rc: TCRelease;
   ctime: int64;
 
 begin
   section := SubString(line, #9, 1);
   rlsname := SubString(line, #9, 2);
-  extra   := SubString(line, #9, 3);
-  added   := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
-  ctime   := Strtoint64(SubString(line, #9, 5));
-  event   := SubString(line, #9, 6);
+  extra := SubString(line, #9, 3);
+  added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
+  ctime := Strtoint64(SubString(line, #9, 5));
+  event := SubString(line, #9, 6);
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
 
@@ -2586,8 +2571,8 @@ begin
 
   p := PazoAdd(r);
 
-  p.added   := added;
-  p.stated  := True;
+  p.added := added;
+  p.stated := True;
   p.cleared := True;
   p.completezve := True;
   kb_list.AddObject(section + '-' + rlsname, p);
@@ -2595,8 +2580,8 @@ end;
 
 procedure KB_start;
 var
-  x:    TEncStringlist;
-  i:    integer;
+  x: TEncStringlist;
+  i: integer;
   last: TDateTime;
 begin
   // itt kell betoltenunk az slftp.kb -t
@@ -2637,7 +2622,6 @@ begin
 
   kb_thread := TKBThread.Create;
 end;
-
 
 procedure kb_Save;
 var
@@ -2708,37 +2692,48 @@ begin
   kb_trimmed_rls.Free;
 end;
 
-
 function kb_reloadsections: boolean;
 var
   xin: Tinifile;
+  secs: TStringlist;
+  r: TRegexpr;
+  I: Integer;
 begin
   //  Result := False;
   kb_sections.Free;
   kb_sections := TStringList.Create;
+  secs := TStringlist.Create;
+  r := TRegexpr.Create;
   xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
   try
-    //  sections.DelimitedText:= config.ReadString(rsections, 'sections', '');
-    xin.ReadSection('sections', kb_sections);
+    r.ModifierI := True;
+    r.ModifierM := True;
+    r.Expression := '^(\#|\/\/)';
+    xin.ReadSection('sections', secs);
+    for I := 0 to secs.Count - 1 do
+      if not r.Exec(secs.Strings[i]) then
+        kb_sections.Add(secs.Strings[i]);
+
   finally
     xin.Free;
+    r.free;
+    secs.free;
   end;
   Result := True;
 end;
 
 procedure kb_Init;
 var
-  i:   integer;
-  x:   TStringList;
-  ss:  string;
+  i: integer;
+  x: TStringList;
+  ss: string;
   xin: Tinifile;
 begin
-  kb_last_saved      := Now();
+  kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
   noannouncesections := TStringList.Create;
   noannouncesections.DelimitedText :=
     config.ReadString(rsections, 'noannouncesection', '');
-
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -2764,13 +2759,13 @@ begin
   kb_list.Duplicates := dupIgnore;
 
   kb_sections := TStringList.Create;
-  //  sections.DelimitedText:= config.ReadString(rsections, 'sections', '');
+  kb_reloadsections;
 
   rename_patterns := 4;
 
-  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  xin.ReadSection('sections', kb_sections);
-  xin.Free;
+  //xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  //  xin.ReadSection('sections', kb_sections);
+  //  xin.Free;
 
   mp3genres := TStringList.Create;
   mp3genres.Delimiter := ' ';
@@ -2795,14 +2790,13 @@ begin
   mp3languages.DelimitedText :=
     UpperCase(config.ReadString(rsections, 'mp3languages', ''));
 
-
   x := TStringList.Create;
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
   tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', '');
 
-  mp3sources     := TStringList.Create;
+  mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
 
   config.ReadSection(rsections, x);
@@ -2813,8 +2807,7 @@ begin
       mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] :=
         ' ' + config.ReadString(rsections, x[i], '') + ' ';
     end
-    else
-    if (1 = Pos('0daysource_', x[i])) then
+    else if (1 = Pos('0daysource_', x[i])) then
     begin
       nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] :=
         ' ' + config.ReadString(rsections, x[i], '') + ' ';
@@ -2822,7 +2815,6 @@ begin
   end;
 
   x.Free;
-
 
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
@@ -2832,11 +2824,11 @@ begin
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
   kb_languages.DelimitedText :=
-    Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'),
+    Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) +
+      'slftp.languages'),
     #13, ','), #10, ',');
 
   //sectionhelper:= THashedStringList.Create;
-
 
   if FileExists(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo') then
   begin
@@ -2844,40 +2836,44 @@ begin
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
-      {$IFDEF MSWINDOWS}
+{$IFDEF MSWINDOWS}
       DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
-      {$ELSE}
+{$ELSE}
       DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
-      {$ENDIF}
+{$ENDIF}
     finally
       x.Free;
     end;
   end;
 
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
-
-
+  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) +
+    'slftp.imdbcountries');
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
-  kb_skip   := THashedStringList.Create;
+  kb_skip := THashedStringList.Create;
 
-  trimmed_shit_checker    := config.ReadBool(rsections, 'trimmed_shit_checker', True);
-  renamed_group_checker   := config.ReadBool(rsections, 'renamed_group_checker', False);
+  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker',
+    True);
+  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker',
+    False);
   renamed_release_checker := config.ReadBool(rsections,
     'renamed_release_checker', False);
   //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
-  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', False);
-  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', True);
-  try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 900);
+  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
+    False);
+  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete',
+    True);
+  try_to_complete_after := config.ReadInteger(rsections,
+    'try_to_complete_after', 900);
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
 
   nomp3dirlistgenre := config.ReadBool(rsections, 'nomp3dirlistgenre', False);
   nonfodirlistgenre := config.ReadBool(rsections, 'nonfodirlistgenre', False);
-  nomvdirlistgenre  := config.ReadBool(rsections, 'nomvdirlistgenre', False);
+  nomvdirlistgenre := config.ReadBool(rsections, 'nomvdirlistgenre', False);
 end;
 
 procedure kb_Stop;
@@ -2923,8 +2919,6 @@ begin
   Debug(dpSpam, rsections, 'Uninit2');
 end;
 
-
-
 { TKBThread }
 
 constructor TKBThread.Create;
@@ -2941,19 +2935,19 @@ begin
   kbevent.Free;
 end;
 
-
 function TKBThread.AddCompleteTransfersv2(pazo: Pointer): boolean;
 var
   i, j: integer;
   psrc, pdest: TPazoSite;
   sdest, ssrc: TSite;
-  p:    TPazo;
+  p: TPazo;
   ssrc_found: boolean;
 
 begin
   Result := False;
-  p      := TPazo(pazo);
-  Debug(dpMessage, rsections, '<!--START AddCompleteTransfers %s', [p.rls.rlsname]);
+  p := TPazo(pazo);
+  Debug(dpMessage, rsections, '<!--START AddCompleteTransfers %s',
+    [p.rls.rlsname]);
   //irc_Addstats(Format('--> AddCompleteTransfers %s (%d)', [p.rls.rlsname, p.sites.Count]));
   for i := 0 to p.sites.Count - 1 do
   begin
@@ -2972,7 +2966,6 @@ begin
       Continue;
     end;
 
-
     sdest := TSite(FindSiteByName('', pdest.Name));
     if sdest = nil then
       Continue;
@@ -2990,11 +2983,11 @@ begin
         psrc := TPazoSite(p.sites[j]);
         if psrc = nil then
           Continue;
-        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')
+          then
           Continue;
         if psrc.Name = pdest.Name then
           Continue;
-
 
         if psrc.error then
         begin
@@ -3006,14 +2999,14 @@ begin
         if not psrc.Complete then
           Continue;
 
-
         ssrc := TSite(FindSiteByName('', psrc.Name));
         if ssrc = nil then
           Continue;
         if ssrc.PermDown then
           Continue;
 
-        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete',
+        if config.ReadBool(rsections,
+          'only_use_routable_sites_on_try_to_complete',
           False) then
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
@@ -3023,14 +3016,15 @@ begin
 
       end;
 
-      if not ssrc_found then //will continue with next site if ssrc_found is FALSE
+      if not ssrc_found then
+        //will continue with next site if ssrc_found is FALSE
         continue;
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
           [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
-        p.rls.incompleteFiller:=True;
+        p.rls.incompleteFiller := True;
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
         Result := True;
         irc_Addstats(Format(
@@ -3052,27 +3046,28 @@ begin
       end;
     end;
   end;
-  Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s', [p.rls.rlsname]);
+  Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
+    [p.rls.rlsname]);
   //irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
 end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
-  j, i:   integer;
+  j, i: integer;
   ps, pss: TPazoSite;
-  p:      TPazo;
+  p: TPazo;
   inc_srcsite, inc_dstsite: TSite;
   inc_srcdir, inc_dstdir: string;
   inc_rc: TCRelease;
   inc_rls: TRelease;
-  inc_p:  TPazo;
+  inc_p: TPazo;
   inc_ps: TPazoSite;
   inc_pd: TPazoDirlistTask;
   sfound: boolean;
   tts, ts, site: TSite;
 begin
   Result := False;
-  p      := TPazo(pazo);
+  p := TPazo(pazo);
 
   Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
   irc_Addstats(Format('--> AddCompleteTransfers %s (%d)',
@@ -3085,17 +3080,17 @@ begin
     irc_Addstats(Format('doing %s - status: %s error: %s',
       [ps.Name, ps.StatusText, BooltoStr(ps.error)]));
 
-(*
-  case status of
-    rssNotAllowed: Result:= Result + 'N';
-    rssNotAllowedButItsThere: Result:= 'NABIT';
-    rssAllowed: Result:= Result + 'A';
-    rssShouldPre: Result:= Result + 'S';
-    rssRealPre: Result:= Result + 'P';
-    rssComplete: Result:= Result + 'C';
-  end;
-*)
-    //will be true if release is complete on site
+    (*
+      case status of
+        rssNotAllowed: Result:= Result + 'N';
+        rssNotAllowedButItsThere: Result:= 'NABIT';
+        rssAllowed: Result:= Result + 'A';
+        rssShouldPre: Result:= Result + 'S';
+        rssRealPre: Result:= Result + 'P';
+        rssComplete: Result:= Result + 'C';
+      end;
+    *)
+        //will be true if release is complete on site
     if ps.Complete then
     begin
       irc_Addstats(Format('<c4>site %s is complete</c>', [ps.Name]));
@@ -3133,7 +3128,7 @@ begin
     //checking if a irc chan is added for the site
     if Precatcher_Sitehasachan(ps.Name) then
     begin
-      pss    := nil;
+      pss := nil;
       sfound := False;
 
       for j := 0 to p.sites.Count - 1 do
@@ -3143,7 +3138,7 @@ begin
           [pss.Name, ps.Name, pss.StatusText, BooltoStr(pss.error),
           BooltoStr(pss.Complete)]));
 
-        if pss.Name = ps.Name then  //set pss := nil; too
+        if pss.Name = ps.Name then //set pss := nil; too
         begin
           irc_Addstats(Format('<c7>%s = %s</c>', [pss.Name, ps.Name]));
           pss := nil;
@@ -3161,16 +3156,18 @@ begin
 
         if pss.destinations.IndexOf(ps) = -1 then //do we need that? for what???
         begin
-          irc_Addstats(Format('<c7>no index on %s for %s</c>', [pss.Name, ps.Name]));
+          irc_Addstats(Format('<c7>no index on %s for %s</c>', [pss.Name,
+            ps.Name]));
           pss := nil;
           continue;
         end;
 
-        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete',
+        if config.ReadBool(rsections,
+          'only_use_routable_sites_on_try_to_complete',
           False) then
         begin
-          ts     := FindSiteByName('', ps.Name);
-          tts    := FindSiteByName('', pss.Name);
+          ts := FindSiteByName('', ps.Name);
+          tts := FindSiteByName('', pss.Name);
           sfound := tts.isRouteableTo(ts.Name);
           //TSite.isRouteableFrom check sitesunit.pas
           irc_Addstats(Format('routable part: %s (%s) <- %s - sfound: %s',
@@ -3180,32 +3177,32 @@ begin
         begin
           sfound := True; //use every site to complete
         end;
-(*
-        for k := 0 to pss.destinations.Count - 1 do
-        begin
-          if TSite(pss.destinations.Items[k]).Name = ps.Name then
-          begin
-            if config.ReadBool(rsections,
-              'only_use_routable_sites_on_try_to_complete', False) then
-            begin
-              sfound := TSite(pss).isRouteableTo(ps.Name);
-              if sfound then
-                break
-              else
-                continue;
-            end
-            else
-            begin//if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
-              sfound := True;
-              break;
-            end;
-          end;//if TSite(pss.destinations.Items[k]).name = ps.name then begin
-          if sfound then
-            break
-          else
-            continue;
-        end;//for k := 0 to pss.destinations.Count - 1 do begin
-*)
+        (*
+                for k := 0 to pss.destinations.Count - 1 do
+                begin
+                  if TSite(pss.destinations.Items[k]).Name = ps.Name then
+                  begin
+                    if config.ReadBool(rsections,
+                      'only_use_routable_sites_on_try_to_complete', False) then
+                    begin
+                      sfound := TSite(pss).isRouteableTo(ps.Name);
+                      if sfound then
+                        break
+                      else
+                        continue;
+                    end
+                    else
+                    begin//if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
+                      sfound := True;
+                      break;
+                    end;
+                  end;//if TSite(pss.destinations.Items[k]).name = ps.name then begin
+                  if sfound then
+                    break
+                  else
+                    continue;
+                end;//for k := 0 to pss.destinations.Count - 1 do begin
+        *)
         if sfound then
           break
         else
@@ -3243,7 +3240,6 @@ begin
 
       irc_Addstats(Format('done with %s and %s', [pss.Name, ps.Name]));
 
-
       //if ps.Name = pss.Name then
       //  Exit; //is already checked above in " for j := 0 to p.sites.Count - 1 do "
 
@@ -3268,25 +3264,23 @@ begin
       if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
         Continue; //Exit;
 
-(*
-      site := FindSiteByName('', ps.Name);
-      if site = nil then
-        Exit;
-      if site.PermDown then
-        Exit;
-*)     //checked in the first lines of this function already
+      (*
+            site := FindSiteByName('', ps.Name);
+            if site = nil then
+              Exit;
+            if site.PermDown then
+              Exit;
+                *)//checked in the first lines of this function already
 
-(*
-      site := FindSiteByName('', pss.Name);
-      if site = nil then
-        Continue; //Exit;
-      if site.PermDown then
-        Continue; //Exit;
-*)
+      (*
+            site := FindSiteByName('', pss.Name);
+            if site = nil then
+              Continue; //Exit;
+            if site.PermDown then
+              Continue; //Exit;
+      *)
 
-
-
-      // ok, megvan minden.
+            // ok, megvan minden.
       Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
         [p.rls.rlsname, ps.Name, pss.Name]);
       irc_Addstats(Format('Trying to complete %s on %s from %s',
@@ -3294,12 +3288,12 @@ begin
       try
         inc_srcsite := FindSiteByName('', pss.Name);
         inc_dstsite := FindSiteByName('', ps.Name);
-        inc_srcdir  := inc_srcsite.sectiondir[p.rls.section];
-        inc_dstdir  := inc_dstsite.sectiondir[p.rls.section];
+        inc_srcdir := inc_srcsite.sectiondir[p.rls.section];
+        inc_dstdir := inc_dstsite.sectiondir[p.rls.section];
 
-        inc_rc  := FindSectionHandler(p.rls.section);
+        inc_rc := FindSectionHandler(p.rls.section);
         inc_rls := inc_rc.Create(p.rls.rlsname, p.rls.section);
-        inc_p   := PazoAdd(inc_rls);
+        inc_p := PazoAdd(inc_rls);
 
         inc_p.AddSite(inc_srcsite.Name, inc_srcdir, False);
         inc_p.AddSite(inc_dstsite.Name, inc_dstdir, False);
@@ -3315,7 +3309,8 @@ begin
 
         inc_ps := inc_p.FindSite(inc_srcsite.Name);
         inc_ps.dirlist.dirlistadded := True;
-        inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
+        inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '',
+          False);
 
         irc_Addstats(Format(
           '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
@@ -3344,8 +3339,6 @@ begin
 end;
 
 //working on
-
-
 
 {
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
@@ -3412,7 +3405,6 @@ begin
           tts    := FindSiteByName('', pss.Name);
           sfound := tts.isRouteableTo(ts.Name);
         end;
-
 
 (*
         for k := 0 to pss.destinations.Count - 1 do
@@ -3497,7 +3489,6 @@ begin
       if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
         continue;
 
-
       // ok, megvan minden.
       Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
         [p.rls.rlsname, ps.Name, pss.Name]);
@@ -3553,12 +3544,11 @@ begin
 end;
 }
 
-
 procedure TKBThread.Execute;
 var
   i, j: integer;
   username: string;
-  p:  TPazo;
+  p: TPazo;
   ps: TPazoSite;
 begin
   while (not slshutdown) do
@@ -3632,9 +3622,11 @@ begin
                 if (ps.dirlist = nil) then
                   Continue;
 
-                username := sitesdat.ReadString('site-' + ps.Name, 'username', '');
+                username := sitesdat.ReadString('site-' + ps.Name, 'username',
+                  '');
                 //irc_Addconsole('--> statsProcess : '+p.rls.rlsname+' @ '+ps.name);
-                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section, username);
+                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section,
+                  username);
               except
                 on E: Exception do
                 begin
@@ -3655,7 +3647,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s', [e.Message]);
+        Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s',
+          [e.Message]);
       end;
     end;
 
