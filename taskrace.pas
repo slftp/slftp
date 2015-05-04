@@ -1105,6 +1105,7 @@ begin
     Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
+
   if ((ssrc.site.sslfxp = srUnsupported) and (sdst.site.sslfxp = srNeeded)) then
   begin
     Debug(dpSpam, c_section, 'SSLFXP on site %s is not supported', [ssrc.site.Name]);
@@ -1510,6 +1511,24 @@ begin
   utana     := Now;
   time_race := MilliSecondsBetween(utana, elotte);
   response  := IntToStr(time_race);
+
+
+    if ((ssrc.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', ssrc.lastResponse))) then
+    begin
+      ssrc.site.sslfxp:= srNeeded;
+      goto ujra;
+    end else
+    if (ssrc.lastResponseCode <> 226) then
+      irc_addtext(ssrc.todotask, '%s: %s', [ssrc.name, Trim(ssrc.lastresponse)]);
+
+    if ((sdst.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', sdst.lastResponse))) then
+    begin
+      sdst.site.sslfxp:= srNeeded;
+      goto ujra;
+    end else
+    if (sdst.lastResponseCode <> 226) then
+      irc_addtext(ssrc.todotask, '%s: %s', [sdst.name, Trim(sdst.lastresponse)]);
+  
 
   if (ssrc.lastResponseCode <> 226) then
     if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
