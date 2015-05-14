@@ -3931,6 +3931,7 @@ begin
     conditions.Free;
 
   conditionstr := Copy(rule, Length(ifstr) + 2, 1000);
+  conditionstr := lowercase(conditionstr);
   conditionstr := Trim(Copy(conditionstr, 1, Length(conditionstr) -
     Length(actionstr) - Length(thenstr) - 1));
 
