@@ -1172,7 +1172,8 @@ begin
       ssrc.site.sslfxp := srUnsupported;
 
     readyerror := True;
-    mainpazo.errorreason := 'No clue anything about drftpd?';
+//    mainpazo.errorreason := 'No clue anything about drftpd?';
+    mainpazo.errorreason:= 'PASV/CPSV failed on '+site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
@@ -1397,6 +1398,12 @@ begin
       (0 < Pos('USE SECURE DATA CONNECTION', lastResponse)))) then
     begin
       ssrc.site.sslfxp := srNeeded;
+      (*from old code (1.3.0.15)*)
+      // ilyenkor olvasni kell egyet desten
+      if not sdst.Read() then goto ujra;
+      // es kettot az src-n
+      if not ssrc.Read() then goto ujra;
+      if not ssrc.Read() then goto ujra;
       irc_AddINFO('[iNFO] SSLFXP Need for: ' + ssrc.Name);
       goto ujra;
     end
@@ -1528,7 +1535,7 @@ begin
     end else
     if (sdst.lastResponseCode <> 226) then
       irc_addtext(ssrc.todotask, '%s: %s', [sdst.name, Trim(sdst.lastresponse)]);
-  
+
 
   if (ssrc.lastResponseCode <> 226) then
     if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
