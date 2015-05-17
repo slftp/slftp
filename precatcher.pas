@@ -704,7 +704,7 @@ begin
         end;
       end;
 
-      if ss.section = 'REQUESTS' then
+      if ss.section = 'REQUEST' then
         exit;
 
       if (mind) then
@@ -715,9 +715,9 @@ begin
         except
           on e: Exception do
           begin
-            MyDebug('[EXCEPTION] ProcessReleaseVege : %s', [e.Message]);
+            MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
             Debug(dpError, rsections,
-              Format('[EXCEPTION] ProcessReleaseVege : %s',
+              Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s',
               [e.Message]));
             ts_data.Free;
             exit;
@@ -735,11 +735,11 @@ begin
       except
         on e: Exception do
         begin
-          MyDebug('[EXCEPTION] ProcessReleaseVege : %s', [e.Message]);
+          MyDebug('[EXCEPTION] ProcessReleaseVegeB section count = 0: %s', [e.Message]);
           Debug(dpError, rsections,
-            Format('[EXCEPTION] ProcessReleaseVege : %s',
+            Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s',
             [e.Message]));
-          irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVege : %s',
+          irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s',
             [e.Message]));
           ts_data.Free;
           exit;
@@ -769,7 +769,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcessB : %s',
+      Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s',
         [e.Message]));
     end;
   end;
