@@ -139,6 +139,17 @@ begin
     Debug(dpError, section, 'Cant initialize MYSQL libs!');
   end;
 
+
+    if slsqlite_inited then
+    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
+  else begin
+    Debug(dpError, section, 'Could not init sqlite: ' + slsqlite_error);
+    Result:=slsqlite_error;
+    Exit;
+  end;
+
+
+
 {$IFNDEF MSWINDOWS}
   s:= Ncurses_Version;
   if s < 'ncurses 5.5.' then
@@ -339,10 +350,6 @@ begin
   Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
 {$ENDIF}
 
-  if slsqlite_inited then
-    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
-  else
-    Debug(dpError, section, 'Could not init sqlite: ' + slsqlite_error);
 
   started := Now();
   MycryptoStart(passphrase);
