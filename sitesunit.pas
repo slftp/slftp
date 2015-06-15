@@ -541,16 +541,11 @@ begin
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
-  if (self.site.Name <> admin_sitename) then
-  begin
-    if not site.PermDown then
-    begin
+  if (self.site.Name <> admin_sitename) then begin
+    if not site.PermDown then begin
       // ha autologin be van kapcsolva akkor -- If auto login is enabled then
-      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
-        AddLoginTask;
-      //self.socks5
-
-    end;
+      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then AddLoginTask;
+    end else status := ssMarkedDown;
   end;
 
   debug(dpSpam, section, 'Slot %s has created', [Name]);
