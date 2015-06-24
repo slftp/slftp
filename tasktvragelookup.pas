@@ -50,6 +50,7 @@ var
   tvr:   TDbTVRage;
   i, gc: integer;
   s:     string;
+
 begin
 
   if Showname <> '' then
@@ -240,20 +241,24 @@ end;
 
 function findTVRAGEID(showname: string): string;
 var
-  sname, url, response: string;
+s,  sname, url, response: string;
   xml: TSLXMLDocument;
   n:   TSLXMLNode;
   st:  TStream;
   i:   integer;
 begin
   Result   := 'FAILED';
-  sname    := Csere(showname, ' ', '+');
+  s        := Csere(showname, '.and.', '.&.');
+  s        := Csere(s, '.at.', '.@.');
+  s        := Csere(s, '_and_', '_&_');
+  s        := Csere(s, '_at_', '_@_');
+  sname    := Csere(s, ' ', '+');
   sname    := Csere(sname, '.', '+');
+  sname    := Csere(sname, '.', '+');
+
   url      := 'show=' + sname;
   response := slUrlGet('http://services.tvrage.com/feeds/search.php', url);
 
-
-  Irc_AddText('','',url);
 
   if response = '' then
     Exit;
@@ -266,11 +271,8 @@ begin
     for i := 0 to xml.GetChildNodeCount(n) - 1 do
     begin
 
-    irc_addtext('','',csakangolabc(xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
-        'name'))));
-
       if csakangolabc(xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
-        'name'))) = csakangolabc(showname) then
+        'name'))) = csakangolabc(s) then
       begin
         Result := xml.GetNodeValue(xml.FindChildNode(xml.GetChildNodeItem(n, i),
           'showid'));
