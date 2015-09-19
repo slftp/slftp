@@ -117,28 +117,32 @@ begin
       tvr.tv_network := string(js.Field['network'].Field['name'].Value);
       tvr.tv_country :=
         string(js.Field['network'].Field['country'].Field['code'].Value);
-    end;
 
-    tvr.tv_status := string(js.Field['status'].Value);
-    for I := 0 to js.Field['genre'].Count - 1 do
-      tvr.tv_genres.Add(string(js.Field['genre'].Child[i].Value));
-    tvr.tv_classification := string(js.Field['type'].Value);
+      tvr.tv_status := string(js.Field['status'].Value);
 
-    x := TStringlist.Create;
-    try
-      x.DelimitedText := '-';
-      x.DelimitedText := string(js.Field['premiered'].Value);
-      tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
-    finally
-      x.free;
+      for I := 0 to js.Field['genres'].Count - 1 do
+        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+
+      tvr.tv_classification := string(js.Field['type'].Value);
+
+      x := TStringlist.Create;
+      try
+        x.Delimiter:= '-';
+        x.DelimitedText := string(js.Field['premiered'].Value);
+        tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
+      finally
+        x.free;
+      end;
+
+      tvr.tv_running := Boolean(tvr.tv_status = 'Running');
+      tvr.tv_scripted := Boolean(tvr.tv_classification = 'Scripted');
+
     end;
-    tvr.tv_running := Boolean(tvr.tv_status = 'Running');
-    tvr.tv_scripted := Boolean(tvr.tv_classification = 'Scripted');
 
   finally
     js.free;
   end;
-
+result:=tvr;
 end;
 
 { TPazoTheTVDbLookupTask }
@@ -154,9 +158,9 @@ end;
 procedure TPazoTheTVDbLookupTask.PostResults(id, network, country, classi,
   status: string; genre: TStringList; premyear: string);
 begin
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>%s</b> -<b>Premiere Year</b> %s - <b>The TVDB info</b>http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname, premyear, id]));
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>Genre</b> %s - <b>Classification</b>%s - <b>Status</b> %s', [genre.CommaText, classi, status]));
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>Country</b> %s - <b>Network</b> %s', [country, network]));
+  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname, premyear, id]));
+  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
+  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
 end;
 
 function TPazoTheTVDbLookupTask.Execute(slot: Pointer): boolean;
