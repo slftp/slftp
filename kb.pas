@@ -200,6 +200,7 @@ type
     running: boolean;
     showid: string;
     tvtag: string;
+//    currentAir:boolean;
     function ExtraInfo: string; override;
     constructor Create(rlsname, section: string; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
@@ -2060,6 +2061,8 @@ begin
   rx := TRegexpr.Create;
   rx.ModifierI := True;
 
+
+  //[\.\_](\d{4})[\.\-](\d{2})[\.\-](\d{2})[\.\_]
   rx.Expression :=
     '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
   if rx.Exec(rlsname) then
