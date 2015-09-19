@@ -11498,7 +11498,7 @@ begin
 
     try
       jl := TlkJSON.ParseText(resp) as TlkJSONlist;
-//      js := TlkJSON.ParseText(resp) as TlkJSONobject;
+      //      js := TlkJSON.ParseText(resp) as TlkJSONobject;
     except
       on E: Exception do
       begin
@@ -11527,16 +11527,14 @@ begin
     finally
       jl.free;
     end;
-    Result:=True;
+    Result := True;
     Exit;
   end;
-if StrToIntDef(sid, -1) > -1 then begin
+  if StrToIntDef(sid, -1) > -1 then
+  begin
     uurl := 'thetvdb=' + sid;
     try
-    resp := slUrlGet('http://api.tvmaze.com/lookup/shows?'+uurl);
-    irc_addtext('','',resp);
-
-    Exit;
+      resp := slUrlGet('http://api.tvmaze.com/lookup/shows?' + uurl);
 
     except
       on E: Exception do
@@ -11549,66 +11547,27 @@ if StrToIntDef(sid, -1) > -1 then begin
       end;
     end;
 
-
-          tvr:=parseTVMazeInfos(resp, sname);
-
+      tvr := parseTVMazeInfos(resp, sname);
+      tvr.rls_showname:=RightStrV2(params, length(sid) + 1);
+      tvr.PostResults(Netname, Channel,RightStrV2(params, length(sid) + 1));
     try
       tvr.Save;
-      tvr.PostResults(Netname, Channel);
     except
       on E: Exception do
       begin
         irc_AddText(Netname, Channel, format(
           '<c4>[Exception]</c> in IrcAddTheTVDbToDb.save: %s',
           [E.Message]));
-          tvr.free;
+        tvr.free;
         result := True;
         Exit;
       end;
     end;
 
-  end else irc_Addtext(netname, channel,
-        '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
-
-  (*
-    //  Result := False;
-    sid := UpperCase(SubString(params, ' ', 1));
-    sname := RightStrV2(params, length(sid) + 1);
-
-    if StrToIntDef(sid, -1) > -1 then
-    begin
-      xml := TSLXMLDocument.Create;
-      try
-        try
-          xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-            sid);
-          tvr := ParseTVRageXML(xml, sname);
-          tvr.Save;
-          tvr.PostResults(Netname, Channel);
-        except
-          on E: Exception do
-            irc_Addtext(netname, channel,
-              format('<c4>[Exception]</c> in ADDTVRageInfo: %s', [E.Message]));
-
-        end;
-      finally
-
-        //      xml.Free;
-        //      tvr.Free;
-          we have to keep an eye
-        {$IFDEF FPC}
-         n:=nil;
-         nn:=nil;
-         nnn:=nil;
-        {$ENDIF}
-
-      end;
-
-    end
-    else
-      irc_Addtext(netname, channel,
-        '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
-        *)
+  end
+  else
+    irc_Addtext(netname, channel,
+      '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
   Result := True;
 end;
 

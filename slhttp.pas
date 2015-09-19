@@ -35,7 +35,7 @@ function slUrlGet(url, params: string): string; overload;
 
 implementation
 
-uses SysUtils, slhelper, socks5, configunit, debugunit;
+uses SysUtils, slhelper, socks5, configunit, debugunit,regexpr, irc;
 
 const
   section = 'http';
@@ -124,7 +124,8 @@ function TslHTTP.Get(const url: string; params: TStringList; output: TStream =
 const
   headernekszantresz = 8192;
 var
-  s, ss, paramsstr: string;
+rx:TRegexpr;
+sss,  s, ss, paramsstr: string;
   uri: string;
   i: Integer;
   olvass: Integer;
@@ -213,6 +214,52 @@ begin
     exit;
 
   Response.Position := 0;
+  sss:= Response.DataString;
+  rx:=TRegexpr.Create;
+  try
+rx.ModifierI:=True;
+rx.ModifierM:=True;
+rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
+if rx.Exec(sss) then begin
+rx.Expression:='^Location\:\s(.*?)$';
+if rx.Exec(sss) then begin
+
+uri:=rx.Match[1];
+Cleanup;
+  if not Connect(Timeout) then
+    exit;
+
+  if not WriteLn('GET ' + uri + ' HTTP/1.0') then
+    exit;
+  if not WriteLn('Host: ' + host) then
+    exit;
+  for i := 0 to CustomHeaders.Count - 1 do
+    if not WriteLn(CustomHeaders.Names[i] + ': ' +
+      CustomHeaders.ValueFromIndex[i]) then
+      exit;
+
+  if not WriteLn('') then
+    exit;
+
+  if output = nil then
+    olvass := 0
+  else
+    olvass := headernekszantresz;
+  if not Read(Response, Timeout, olvass, True) then
+    exit;
+
+  Response.Position := 0;
+  sss:= Response.DataString;
+
+end;
+end;
+  finally
+   rx.Free;
+//   result:=True;
+//   exit;
+  end;
+
+
   s := Response.ReadString(16384);
 
   ResponseStartsAt := Pos(#13#10#13#10, s);

@@ -55,6 +55,7 @@ var
 fixrx, swirx, bcolrx, linkrx, itarx, unlrx, colrx, bolrx: TRegExpr;
 smsg,s: string;
 begin
+
   smsg := msg;
   colrx := TRegExpr.Create;
   bolrx := TRegExpr.Create;
@@ -64,6 +65,8 @@ begin
   linkrx := TRegExpr.Create;
   fixrx := TRegExpr.Create;
   swirx := TRegExpr.Create;
+  try
+
   fixrx.ModifierI := True;
   swirx.ModifierI := True;
   linkrx.ModifierI := True;
@@ -80,7 +83,12 @@ begin
   bcolrx.Expression:=bColorExpression;
   swirx.Expression:=SwitchExpression;
   fixrx.Expression:=FixedExpression;
-  try
+
+
+smsg:=StringReplace(smsg,'<b>',#2,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</b>',#2,[rfReplaceAll]);
+
+
 {   mIRC Color    }
   if colrx.Exec(smsg) then
   begin
@@ -99,6 +107,7 @@ begin
         [rfReplaceAll, rfIgnoreCase]);
     UNTIL not bcolrx.ExecNext;
   end;
+  (*
 {   Bold    }
   if bolrx.Exec(smsg) then
   begin
@@ -108,6 +117,7 @@ begin
         [rfReplaceAll, rfIgnoreCase]);
     UNTIL not bolrx.ExecNext;
   end;
+  *)
 {   Underline   }
   if unlrx.Exec(smsg) then
   	begin
@@ -155,10 +165,8 @@ s:= Format('%s%s%:0s',[UnderlineChar,unlrx.Match[1]]);
         [rfReplaceAll, rfIgnoreCase]);
     UNTIL not fixrx.ExecNext;
   end;
-
-  finally
   result := smsg;
-  end;
+  finally
   bolrx.Free;
   colrx.Free;
   unlrx.Free;
@@ -167,6 +175,8 @@ s:= Format('%s%s%:0s',[UnderlineChar,unlrx.Match[1]]);
   swirx.Free;
   fixrx.Free;
   itarx.Free;
+  end;
+
 end;
 
 end.
