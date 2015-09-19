@@ -55,9 +55,9 @@ uses pretimeunit, ident, slmysql2, mysqlutilunit, eprecatcher, tasksunit,
   rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
   notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot,
   speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
-  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils,
-  dbaddpre, dbaddnfo, dbaddurl, dbaddimdb, dbaddtvrage, globalskipunit,
-  slhttp, dbaddgenre
+
+  dbaddpre, dbaddimdb, dbthetvdb, dbaddgenre,
+  globalskipunit, slhttp,  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils
 {$IFNDEF MSWINDOWS}
      , slconsole
 {$ENDIF}
@@ -86,19 +86,6 @@ var
   ss, s: string;
 begin
   Result := '';
-
-(*
-{$IFDEF MSWINDOWS}
-  if (not FileExists(ExtractFilePath(ParamStr(0))+'ssleay32.dll')) or
-     (not FileExists(ExtractFilePath(ParamStr(0))+'libeay32.dll'))
-  then
-  begin
-    WriteLn('OpenSSL dlls are needed! (libeay32.dll ssleay32.dll)');
-    halt;
-    exit;
-  end;
-{$ENDIF}
-*)
 
   if not sltcp_inited then
   begin
@@ -130,6 +117,8 @@ begin
   end;
 
 
+if config.ReadString('mysql','host','0') <> '0' then begin
+
   if InitialiseMysql then
   begin
     Debug(dpSpam, section, 'MYSQL libs initialised..');
@@ -137,7 +126,10 @@ begin
   else
   begin
     Debug(dpError, section, 'Cant initialize MYSQL libs!');
+    Result:='Cant initialize MYSQL libs!';
+    Exit;
   end;
+end;
 
 
     if slsqlite_inited then
@@ -179,11 +171,13 @@ begin
   InitmRdOHConfigFiles;
 
   dbaddpreInit;
-  dbaddnfoInit;
-  dbaddurlInit;
+//dbaddnfoInit;
+//dbaddurlInit;
   dbaddgenreInit;
   dbaddimdbInit;
-  dbaddtvrageInit;
+//  dbaddtvrageInit;
+
+dbthetvdbInit;
 
   ConsoleInit;
   Tasks_Init;
@@ -358,12 +352,12 @@ begin
   //RehashPreurls;
 
   dbaddpreStart;
-  dbaddnfoStart;
-  dbaddurlStart;
+//  dbaddnfoStart;
+//  dbaddurlStart;
   dbaddgenreStart;
   dbaddimdbStart;
-  dbaddtvrageStart;
-
+//  dbaddtvrageStart;
+  dbthetvdbStart;
   RanksStart;
   SpeedStatsStart;
   NukeStart;
@@ -461,11 +455,12 @@ begin
   //  DupeDBUninit;
 
   dbaddpreUnInit;
-  dbaddnfoUnInit;
-  dbaddurlUnInit;
+//  dbaddnfoUnInit;
+//  dbaddurlUnInit;
   dbaddgenreUnInit;
   dbaddimdbUnInit;
-  dbaddtvrageUnInit;
+//  dbaddtvrageUnInit;
+dbthetvdbUnInit;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');

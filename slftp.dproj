@@ -29,13 +29,6 @@
     <DelphiCompile Include="slftp.dpr">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="globalskipunit.pas" />
-    <DCCReference Include="mrdohutils.pas" />
-    <DCCReference Include="mslproxys.pas" />
-    <DCCReference Include="pathtreeview.pas" />
-    <DCCReference Include="pretimeunit.pas" />
-    <DCCReference Include="sllanguagebase.pas" />
-    <DCCReference Include="taskgame.pas" />
-    <DCCReference Include="tvragedb.pas" />
+    <DCCReference Include="dbthetvdb.pas" />
   </ItemGroup>
 </Project>

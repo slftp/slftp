@@ -38,11 +38,10 @@ program slftp;
                 .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
 
 \*******************************************************************************}
+uses
+  console;
 
-uses console;
 {$APPTYPE CONSOLE}
 begin
-
   ConsoleStart;
-
 end.

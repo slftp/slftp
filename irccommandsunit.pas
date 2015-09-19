@@ -376,7 +376,7 @@ function IrcRebuildSlot(const netname, channel: string; params: string):
 function IrcRecalcFreeslots(const netname, channel: string; params: string):
   boolean;
 
-{ TVRage  }
+{ TVRage
 function IrcAnnounceTVRageInfo(const netname, channel: string; params: string):
   boolean;
 function IrcAddTVRagetoDB(const netname, channel: string; params: string):
@@ -384,6 +384,17 @@ function IrcAddTVRagetoDB(const netname, channel: string; params: string):
 function IrcUpdateTVRageInfo(const Netname, Channel: string; params: string):
   boolean;
 function IrcDelTVRageInfo(const Netname, Channel: string; params: string):
+  boolean;
+}
+
+{ TheTVDb }
+function IrcAnnounceTheTVDbInfo(const netname, channel: string; params: string):
+  boolean;
+function IrcAddTheTVDbToDb(const netname, channel: string; params: string):
+  boolean;
+function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string):
+  boolean;
+function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 
 function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
@@ -393,14 +404,14 @@ const
 
   irccommands: array[1..245] of TIrcCommand = (
     (cmd: '- General:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:
-      '$$$'),
+    '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
     (cmd: 'bnctest'; hnd: IrcBnctest; minparams: 0; maxparams: - 1; hlpgrp:
-      'main'),
+    'main'),
     (cmd: 'ghost'; hnd: IrcKill; minparams: 1; maxparams: 1; hlpgrp: 'main'),
     (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp:
-      'main'),
+    'main'),
     (cmd: 'queue'; hnd: IrcQueue; minparams: 0; maxparams: 2; hlpgrp: 'main'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'main'),
 
@@ -408,65 +419,66 @@ const
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'sites'; hnd: IrcSites; minparams: 0; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'site'; hnd: IrcSite; minparams: 1; maxparams: 1; hlpgrp: 'site'),
-    (cmd: 'siteinfo'; hnd: IrcAddSiteInfos; minparams: 1; maxparams: - 1; hlpgrp:
-      'site'),
+    (cmd: 'siteinfo'; hnd: IrcAddSiteInfos; minparams: 1; maxparams: - 1;
+    hlpgrp:
+    'site'),
     (cmd: 'bnc'; hnd: IrcBnc; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'addsite'; hnd: IrcAddsite; minparams: 4; maxparams: - 1; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'delsite'; hnd: IrcDelsite; minparams: 1; maxparams: 1; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'addbnc'; hnd: IrcAddBnc; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'delbnc'; hnd: IrcDelBnc; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'slots'; hnd: IrcSlots; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'slotsshow'; hnd: IrcSlotsShow; minparams: 1; maxparams: 1; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'rebuildslot'; hnd: IrcRebuildSlot; minparams: 2;
     maxparams: 2; hlpgrp: 'site'),
     (cmd: 'recalcfreeslots'; hnd: IrcRecalcFreeslots; minparams: 1;
     maxparams: 1; hlpgrp: 'site'),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 3; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 2;
     maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'timeout'; hnd: IrcTimeout; minparams: 3; maxparams: 3; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'sslfxp'; hnd: IrcSslfxp; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 2; maxparams: 2; hlpgrp:
-      'site'),
+    'site'),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'legacycwd'; hnd: IrcLegacycwd; minparams: 1; maxparams: 2; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'setprecmd'; hnd: IrcPrecmd; minparams: 2; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'setpredir'; hnd: IrcPredir; minparams: 2; maxparams: 2; hlpgrp: ''),
     //(cmd: 'setspeedtesttopredir'; hnd: IrcSetSpeedtesttoPredir; minparams: 0; maxparams: 1; hlpgrp:''),
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp:
-      'site'),
+    'site'),
     (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 1;
     maxparams: 2; hlpgrp: 'site'),
 
     (cmd: '- Auto:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'autologin'; hnd: IrcAutoLogin; minparams: 1; maxparams: 2; hlpgrp:
-      'auto'),
+    'auto'),
     (cmd: 'autobnctest'; hnd: IrcAutoBnctest; minparams: 1;
     maxparams: 2; hlpgrp: 'auto'),
     (cmd: 'autorules'; hnd: IrcAutoRules; minparams: 1; maxparams: 2; hlpgrp:
-      'auto'),
+    'auto'),
     (cmd: 'autodirlist'; hnd: IrcAutoDirlist; minparams: 1;
     maxparams: - 1; hlpgrp: 'auto'),
     (cmd: 'autocrawler'; hnd: IrcAutoCrawler; minparams: 1;
     maxparams: - 1; hlpgrp: 'auto'),
     (cmd: 'autonuke'; hnd: IrcAutoNuke; minparams: 1; maxparams: 2; hlpgrp:
-      'auto'),
+    'auto'),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'autoindex'; hnd: IrcAutoIndex; minparams: 1; maxparams: - 1;
     hlpgrp: 'auto'),
     (cmd: 'auto'; hnd: IrcAuto; minparams: 0; maxparams: 1; hlpgrp: 'auto'),
     (cmd: 'crawler'; hnd: IrcCrawler; minparams: 0; maxparams: 1; hlpgrp:
-      'auto'),
+    'auto'),
     (cmd: 'crawl'; hnd: IrcCrawl; minparams: 3; maxparams: 5; hlpgrp: 'auto'),
     (cmd: 'confirmerannounce'; hnd: IrcConfirmerAnnounce; minparams: 0;
     maxparams: 1; hlpgrp: 'auto'),
@@ -474,13 +486,13 @@ const
     (cmd: '- Route management:'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp:
-      'route'),
+    'route'),
     (cmd: 'routeset'; hnd: IrcSetspeed; minparams: 3; maxparams: 3; hlpgrp:
-      'route'),
+    'route'),
     (cmd: 'routelock'; hnd: IrcLockspeed; minparams: 3; maxparams: 3;
     hlpgrp: 'route'),
     (cmd: 'routesin'; hnd: IrcInroutes; minparams: 0; maxparams: 1; hlpgrp:
-      'route'),
+    'route'),
     (cmd: 'routesout'; hnd: IrcOutroutes; minparams: 0; maxparams: 1;
     hlpgrp: 'route'),
     (cmd: 'speedstats'; hnd: IrcSpeedStats; minparams: 1; maxparams: 4;
@@ -493,12 +505,12 @@ const
     (cmd: 'ranks'; hnd: IrcRanks; minparams: 0; maxparams: 1; hlpgrp: 'rankm'),
     (cmd: 'rank'; hnd: IrcRank; minparams: 2; maxparams: 3; hlpgrp: 'rankm'),
     (cmd: 'ranklock'; hnd: IrcRankLock; minparams: 2; maxparams: 3; hlpgrp:
-      'rankm'),
+    'rankm'),
     (cmd: 'rankrecalc'; hnd: IrcRankRecalc; minparams: 0; maxparams: 0;
     hlpgrp: 'rankm'),
 
     (cmd: '- Speed test:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:
-      '$$$'),
+    '$$$'),
     (cmd: 'speedtestlocal'; hnd: IrcSpeedTestLocal; minparams: 1;
     maxparams: 1; hlpgrp: 'speedt'),
     (cmd: 'speedtestout'; hnd: IrcSpeedTestOut; minparams: 2;
@@ -510,17 +522,17 @@ const
 
     (cmd: '- Work:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 1; maxparams: 3; hlpgrp:
-      'work'),
+    'work'),
     (cmd: 'latest'; hnd: IrcLatest; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'lame'; hnd: IrcLame; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'spread'; hnd: IrcSpread; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'transfer'; hnd: IrcTransfer; minparams: 3; maxparams: 4; hlpgrp:
-      'work'),
+    'work'),
     (cmd: 'stop'; hnd: IrcCStop; minparams: 1; maxparams: 1; hlpgrp: 'work'),
     (cmd: 'lookup'; hnd: IrcLookup; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'nuke'; hnd: IrcNuke; minparams: 4; maxparams: - 1; hlpgrp: 'work'),
     (cmd: 'unnuke'; hnd: IrcUnNuke; minparams: 3; maxparams: - 1; hlpgrp:
-      'work'),
+    'work'),
     (cmd: 'checkforrip'; hnd: IrcCheckForExistsRip; minparams: 1;
     maxparams: 1; hlpgrp: 'work'),
 
@@ -532,31 +544,31 @@ const
     (cmd: 'batch'; hnd: IrcBatchAdd; minparams: 2; maxparams: 4; hlpgrp: ''),
     (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 3; hlpgrp: ''),
     (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp:
-      ''),
+    ''),
     (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2;
     maxparams: 3; hlpgrp: ''),
     (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 0; maxparams: 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'prechecktime'; hnd: IrcSetReexamineTime; minparams: 0;
     maxparams: 1; hlpgrp: ''),
     (cmd: 'skippre'; hnd: IrcSetSkipPre; minparams: 1; maxparams: 2; hlpgrp:
-      ''),
+    ''),
 
     (cmd: '- Race statistics:'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'statsites'; hnd: IrcStatSites; minparams: 0; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'statsitesbygroup'; hnd: IrcStatSitesByGroup; minparams: 1;
     maxparams: 3; hlpgrp: ''),
     (cmd: 'statsitesbyuser'; hnd: IrcStatSitesByUser; minparams: 1;
     maxparams: 3; hlpgrp: ''),
     (cmd: 'statgroups'; hnd: IrcStatGroups; minparams: 0; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'statgroupsbysite'; hnd: IrcStatGroupsBySite; minparams: 1;
     maxparams: 3; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'statusers'; hnd: IrcStatUsers; minparams: 0; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'statusersbysite'; hnd: IrcStatUsersBySite; minparams: 1;
     maxparams: 3; hlpgrp: ''),
     (cmd: 'statusersbygroup'; hnd: IrcStatUsersByGroup; minparams: 1;
@@ -565,19 +577,21 @@ const
     minparams: 2; maxparams: 4; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 2; hlpgrp:
-      ''),
+    ''),
 
     (cmd: '- Abusing leech slots:'; hnd: IrcNope; minparams: 0;
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'delayleech'; hnd: IrcDelayLeech; minparams: 1; maxparams: 4; hlpgrp:
-      ''),
-    (cmd: 'delayupload'; hnd: IrcDelayUpload; minparams: 1; maxparams: 4; hlpgrp:
-      ''),
+    ''),
+    (cmd: 'delayupload'; hnd: IrcDelayUpload; minparams: 1; maxparams: 4;
+    hlpgrp:
+    ''),
 
     (cmd: '- Misc:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'raw'; hnd: IrcRaw; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp:
-      ''),
+    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1;
+    hlpgrp:
+    ''),
     (cmd: 'invite'; hnd: IrcInvite; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: 'sitechan'; hnd: IrcSiteChan; minparams: 1; maxparams: 2; hlpgrp: ''),
     (cmd: 'tweak'; hnd: IrcTweak; minparams: 2; maxparams: - 1; hlpgrp: ''),
@@ -596,9 +610,9 @@ const
     maxparams: 0; hlpgrp: '$$$'),
     (cmd: 's'; hnd: IrcShowWindow; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: 'windows'; hnd: IrcShowWindows; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
+    ''),
     (cmd: 'delwindow'; hnd: IrcDelWindow; minparams: 1; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'names'; hnd: IrcIrcNames; minparams: 2; maxparams: 2; hlpgrp: ''),
     (cmd: 'repaint'; hnd: IrcRepaint; minparams: 0; maxparams: 0; hlpgrp: ''),
 
@@ -628,26 +642,26 @@ const
     maxparams: 1; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'ircchannels'; hnd: IrcChannels; minparams: 0; maxparams: 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'ircchanadd'; hnd: IrcChanAdd; minparams: 2; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'ircchandel'; hnd: IrcDelchan; minparams: 2; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'ircchanblow'; hnd: IrcSetBlowkey; minparams: 2; maxparams: 3; hlpgrp:
-      ''),
+    ''),
     (cmd: 'ircchankey'; hnd: IrcSetChankey; minparams: 2; maxparams: 3; hlpgrp:
-      ''),
+    ''),
     (cmd: 'ircchanrole'; hnd: IrcSetChanName; minparams: 2;
     maxparams: - 1; hlpgrp: ''),
     //        (cmd: 'ircsetinviteonly'; hnd: IrcSetChanInvite; minparams: 3; maxparams: 3; hlpgrp:'')
 
     (cmd: '- Pre catcher'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp:
-      '$$$'),
+    '$$$'),
     (cmd: 'catchlist'; hnd: IrcPrelist; minparams: 0; maxparams: 2; hlpgrp: ''),
     (cmd: 'catchadd'; hnd: IrcPreadd; minparams: 6; maxparams: 7; hlpgrp: ''),
     (cmd: 'catchdel'; hnd: IrcPredel; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'catchtest'; hnd: IrcPreCatchtest; minparams: 5; maxparams: - 1;
-      hlpgrp: ''),
+    hlpgrp: ''),
     (cmd: 'catchdebug'; hnd: IrcPreCatchDebug; minparams: 0;
     maxparams: 1; hlpgrp: ''),
 
@@ -660,7 +674,7 @@ const
     (cmd: 'rulehelp'; hnd: IrcRuleHelp; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'rulelist'; hnd: IrcRuleList; minparams: 0; maxparams: 1; hlpgrp: ''),
     (cmd: 'rulesload'; hnd: IrcRulesLoad; minparams: 2; maxparams: 2; hlpgrp:
-      ''),
+    ''),
     (cmd: 'rules'; hnd: IrcRules; minparams: 2; maxparams: 2; hlpgrp: '$$$'),
     (cmd: 'rulecp'; hnd: IrcRuleCopy; minparams: 3; maxparams: 3; hlpgrp: ''),
 
@@ -672,9 +686,10 @@ const
 
     (cmd: '- Indexer'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'indexstat'; hnd: IrcIndexStat; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
-    (cmd: 'indexquery'; hnd: IrcIndexQuery; minparams: 1; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
+    (cmd: 'indexquery'; hnd: IrcIndexQuery; minparams: 1; maxparams: - 1;
+    hlpgrp:
+    ''),
     (cmd: 'indexdropsection'; hnd: IrcIndexDropSection; minparams: 2;
     maxparams: 2; hlpgrp: ''),
 
@@ -685,42 +700,44 @@ const
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: ''),
     (cmd: 'notes'; hnd: IrcNotes; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'users'; hnd: IrcUsers; minparams: 0; maxparams: 1; hlpgrp: ''),
     (cmd: 'leechers'; hnd: IrcLeechers; minparams: 1; maxparams: - 1; hlpgrp:
-      ''),
+    ''),
     (cmd: 'traders'; hnd: IrcTraders; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: 'userslots'; hnd: IrcUserslots; minparams: 3; maxparams: 3; hlpgrp:
-      ''),
+    ''),
     (cmd: 'freeslots'; hnd: IrcFreeslots; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
+    ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 1; maxparams: 1; hlpgrp:
-      ''),
-    (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1; hlpgrp:
-      ''),
+    ''),
+    (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1;
+    hlpgrp:
+    ''),
     (cmd: 'finduser'; hnd: IrcFindUser; minparams: 1; maxparams: 1; hlpgrp: ''),
 
     (cmd: '- :: Reload :: -'; hnd: IrcNope; minparams: 0; maxparams: 0;
     hlpgrp: '$$$'),
     (cmd: 'catchreload'; hnd: IrcPrereload; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
+    ''),
     (cmd: 'skipreload'; hnd: IrcSkipReload; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
+    ''),
     (cmd: 'languagereload'; hnd: IrcLanguageBaseReload; minparams: 0;
     maxparams: 0; hlpgrp: ''),
     (cmd: 'socks5reload'; hnd: IrcRehashSocks5; minparams: 0;
     maxparams: 0; hlpgrp: ''),
     (cmd: 'fakereload'; hnd: IrcFakeReload; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
-    (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0; hlpgrp:
-      ''),
+    ''),
+    (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0;
+    hlpgrp:
+    ''),
     (cmd: 'reloadglobalskip'; hnd: IrcReloadGlobalSkipGrouplist;
     minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'knowngroupreload'; hnd: IrcKnowngroups; minparams: 0;
@@ -731,38 +748,37 @@ const
     (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0;
     maxparams: 1; hlpgrp: 'doh'),
 
-
     (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7;
     maxparams: 8; hlpgrp: 'doh'),
 
     (cmd: 'testlanguagebase'; hnd: IrcTestLanguageBase; minparams: 1;
     maxparams: 1; hlpgrp: 'doh'),
     (cmd: 'killall'; hnd: IrcKillAll; minparams: 0; maxparams: 0; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'delallrules'; hnd: IrcAllRuleDel; minparams: 1;
     maxparams: 2; hlpgrp: 'doh'),
     (cmd: 'allrules'; hnd: IrcShowAllRules; minparams: 0;
     maxparams: - 1; hlpgrp: 'doh'),
     (cmd: 'ircnick'; hnd: IrcSetMYIrcNick; minparams: 2; maxparams: 2; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'inviteme'; hnd: IrcInviteMyIRCNICK; minparams: 1;
     maxparams: - 1; hlpgrp: 'doh'),
     (cmd: 'spamconf'; hnd: IrcSpamConfig; minparams: 0; maxparams: 3; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'setoffset'; hnd: IrcSetupOffset; minparams: 0; maxparams: 1;
     hlpgrp: 'doh'),
     (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp:
-      'doh'),
+    'doh'),
     //        (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp:'doh'),
     (cmd: 'credits'; hnd: IrcShowCredits; minparams: 1; maxparams: - 1; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'status'; hnd: IrcShowAppStatus; minparams: 0; maxparams: 0; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'config'; hnd: IrcSLFTPConfig; minparams: 0; maxparams: 3; hlpgrp:
-      'doh'),
+    'doh'),
     //        (cmd: 'wherepred'; hnd:IrcDWherePred; minparams: 2; maxparams: 2; hlpgrp:'doh'),
     (cmd: 'ircchanpart'; hnd: IrcDelPart; minparams: 2; maxparams: 2; hlpgrp:
-      'doh'),
+    'doh'),
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1;
     maxparams: - 1; hlpgrp: '@doh_irc'),
     (cmd: '- IRCBouncers -'; hnd: IrcNope; minparams: 0; maxparams: 0;
@@ -804,18 +820,18 @@ const
     hlpgrp: 'doh_preurls'),
     (cmd: '- MAPPINGS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'mappings'; hnd: IrcDisplayMappings; minparams: 0; maxparams: 1;
-      hlpgrp: ''),
+    hlpgrp: ''),
     (cmd: '- IMDB -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'imdbinfo'; hnd: IrcAnnounceIMDBInfo; minparams: 1;
     maxparams: 1; hlpgrp: ''),
-    (cmd: '- TVRage -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'tvrageinfo'; hnd: IrcAnnounceTVRageInfo; minparams: 1;
+    (cmd: '- TheTVDb -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 'tvdbinfo'; hnd: IrcAnnounceTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'addtvrageinfo'; hnd: IrcAddTVRagetoDB; minparams: 1;
+    (cmd: 'addtvdb'; hnd: IrcAddTheTVDbToDb; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'updatetvrageinfo'; hnd: IrcUpdateTVRageInfo; minparams: 1;
+    (cmd: 'updatetvdb'; hnd: IrcUpdateTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'deltvrageinfo'; hnd: IrcDelTVRageInfo; minparams: 1;
+    (cmd: 'deltvdb'; hnd: IrcDelTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: '')
     );
 
@@ -845,8 +861,8 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile,
   ircblowfish, precatcher, rulesunit, mainthread, taskspeedtest, taskfilesize,
   statsunit, skiplists, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake,
-  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbaddtvrage,
-  globalskipunit, xmlwrapper, tasktvragelookup;
+  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbthetvdb,
+  globalskipunit, xmlwrapper, taskthetvdblookup, uLkJSON;
 
 const
   section = 'irccommands';
@@ -930,19 +946,21 @@ begin
     exit;
   end;
 
-//  Irc_AddText(Netname,channel,'%d ---',[kb_sections.count]);
+  //  Irc_AddText(Netname,channel,'%d ---',[kb_sections.count]);
 
   if kb_sections.IndexOf(sitename) > -1 then
   begin
-   for i:=0 to sites.Count -1 do begin
-   s:=TSite(sites.Items[i]);
-   if s.IsSection(sitename) then ss:=ss+s.Name+',';
-   end;
-   delete(ss,length(ss),1);
-   Irc_AddText(Netname,channel,'Sites with section %s',[sitename]);
-   IrcLineBreak(Netname,Channel,ss,'"','<b>'+sitename+'</b>: ',9);
-  result:=true;
-  exit;
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites.Items[i]);
+      if s.IsSection(sitename) then
+        ss := ss + s.Name + ',';
+    end;
+    delete(ss, length(ss), 1);
+    Irc_AddText(Netname, channel, 'Sites with section %s', [sitename]);
+    IrcLineBreak(Netname, Channel, ss, '"', '<b>' + sitename + '</b>: ', 9);
+    result := true;
+    exit;
   end;
 
   s := FindSiteByName(Netname, sitename);
@@ -1926,7 +1944,7 @@ begin
     begin
       irc_addtext(Netname, Channel,
         '<c8><b>INFO</c></b>: we skip %s for spread ',
-          [TSite(p.sites[i]).Name]);
+        [TSite(p.sites[i]).Name]);
       Continue;
     end;
 
@@ -3798,7 +3816,7 @@ begin
   rr.Expression := '--all';
   if rr.Exec(params) then
   begin
-  show_tasks := tasks.Count;
+    show_tasks := tasks.Count;
     show_all := True;
   end;
 
@@ -3814,14 +3832,14 @@ begin
       begin
         irc_addtext(Netname, Channel, TTask(tasks[i]).Fullname);
         Continue;
-//        Inc(ii);
+        //        Inc(ii);
       end
       else
       begin
 
-      if (ii > show_tasks) then
-        break;
-      
+        if (ii > show_tasks) then
+          break;
+
         rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
         if ((not rr.Exec(TTask(tasks[i]).Fullname)) and
           (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
@@ -3938,7 +3956,8 @@ begin
       end;
       if s.PermDown then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
+          [sitename]);
         continue;
       end;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
@@ -3989,7 +4008,8 @@ begin
     end
     else
     begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
+        [sitename]);
       Result := False;
     end;
   end;
@@ -6744,7 +6764,8 @@ begin
         end;
         if s.PermDown then
         begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
+            [sitename]);
           continue;
         end;
 
@@ -10655,6 +10676,135 @@ begin
   Result := True;
 end;
 
+function IrcSetSitePermdown(const Netname, Channel: string; params: string):
+  boolean;
+var
+  s: TSite;
+  sname: string;
+  svalue: string;
+  ivalue: integer;
+begin
+  Result := False;
+  sname := UpperCase(SubString(params, ' ', 1));
+  svalue := UpperCase(SubString(params, ' ', 2));
+  if svalue = '' then
+  begin
+    ivalue := 1 // default value if no parameter is given
+  end
+  else
+  begin
+    ivalue := StrToIntDef(svalue, 0);
+  end;
+
+  if ((ivalue > 1) or (ivalue < 0)) then
+  begin
+    irc_AddText(Netname, Channel, format(
+      '<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0', [ivalue]));
+    exit;
+  end;
+
+  s := FindSiteByName('', sname);
+
+  if s = nil then
+  begin
+    irc_AddText(Netname, Channel,
+      format('<c4><b>Site not fouind</b></c> with name: %s',
+      [sname]));
+    exit;
+  end;
+
+  if boolean(ivalue) then
+  begin
+    try
+      s.RemoveAutoIndex;
+      s.RemoveAutoBnctest;
+      s.RemoveAutoRules;
+      s.RemoveAutoNuke;
+      s.RemoveAutoDirlist;
+      s.RemoveAutoCrawler;
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]));
+    end;
+
+    try
+      // rewrite config value
+      s.WCInteger('disabled_autonuke', s.RCInteger('autonuke', 0));
+      s.WCInteger('disabled_autoindex', s.RCInteger('autoindex', 0));
+      s.WCInteger('disabled_autobnctest', s.RCInteger('autobnctest', 0));
+      s.WCInteger('disabled_autorules', s.RCInteger('autorules', 0));
+      s.WCInteger('disabled_autodirlist', s.RCInteger('autodirlist', 0));
+      // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in rewrite value: %s', [E.Message]));
+    end;
+
+    try
+      sitesdat.DeleteKey('site-' + s.Name, 'autonuke');
+      sitesdat.DeleteKey('site-' + s.Name, 'autoindex');
+      sitesdat.DeleteKey('site-' + s.Name, 'autobnctest');
+      sitesdat.DeleteKey('site-' + s.Name, 'autorules');
+      sitesdat.DeleteKey('site-' + s.Name, 'autodirlist');
+      // sitesdat.DeleteKey('site-'+s.name,'autologin');
+      // sitesdat.UpdateFile;
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in delete old value: %s', [E.Message]));
+    end;
+  end
+  else
+  begin
+
+    try
+      // rewrite config value
+      s.WCInteger('autonuke', s.RCInteger('disabled_autonuke', 0));
+      s.WCInteger('autoindex', s.RCInteger('disabled_autoindex', 0));
+      s.WCInteger('autobnctest', s.RCInteger('disabled_autobnctest', 0));
+      s.WCInteger('autorules', s.RCInteger('disabled_autorules', 0));
+      s.WCInteger('autodirlist', s.RCInteger('disabled_autodirlist', 0));
+      // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]));
+    end;
+
+    try
+      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autonuke');
+      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autoindex');
+      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autobnctest');
+      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autorules');
+      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autodirlist');
+      // sitesdat.DeleteKey('site-'+s.name,'autologin');
+      // sitesdat.UpdateFile;
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]));
+    end;
+
+    try
+      s.AutoIndex;
+      s.AutoBnctest;
+      s.AutoRules;
+      s.AutoNuke;
+      s.AutoDirlist;
+      s.AutoCrawler;
+    except
+      on E: Exception do
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
+    end;
+  end;
+
+  s.PermDown := boolean(ivalue);
+  Result := True;
+end;
+
 function IrcRulesReload(const Netname, Channel: string; params: string):
   boolean;
 begin
@@ -10861,8 +11011,8 @@ begin
     db_status := db_status + ' <b>-</b> ' + dbaddurl_Status;
   if (dbaddimdb_Status <> '') then
     db_status := db_status + ' <b>-</b> ' + dbaddimdb_Status;
-  if (dbaddtvrage_Status <> '') then
-    db_status := db_status + ' <b>-</b> ' + dbaddtvrage_Status;
+  if (TheTVDbStatus <> '') then
+    db_status := db_status + ' <b>-</b> ' + TheTVDbStatus;
   if (dbaddnfo_Status <> '') then
     db_status := db_status + ' <b>-</b> ' + dbaddnfo_Status;
   if (db_status <> '') then
@@ -11147,22 +11297,24 @@ begin
   Result := True;
 end;
 
-function IrcAnnounceTVRageInfo(const Netname, Channel: string; params: string):
+{ The TV dB Function              }
+
+function IrcAnnounceTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  db_tvrage: TDbTVRage;
+  db_tvrage: TTheTvDB;
 begin
   db_tvrage := nil;
   try
-    db_tvrage := dbaddtvrage_gettvrage_show(params);
+    db_tvrage := getTheTVDBbyShowName(params);
   except
     on E: Exception do
     begin
       //      db_tvrage := nil;
       Debug(dpError, section,
-        format('Exception in dbaddtvrage_gettvrage_rls: %s', [E.Message]));
+        format('Exception in getTheTVDBbyShowName: %s', [E.Message]));
       irc_AddText(Netname, Channel,
-        format('<c4>[Exception]</c> in dbaddtvrage_gettvrage_rls: %s',
+        format('<c4>[Exception]</c> in getTheTVDBbyShowName: %s',
         [E.Message]));
       Result := True;
       exit;
@@ -11172,16 +11324,16 @@ begin
   if db_tvrage = nil then
   begin
     try
-      db_tvrage := dbaddtvrage_gettvrage_rls(params);
+      db_tvrage := getTheTVDBbyReleaseName(params);
     except
       on E: Exception do
       begin
         //        db_tvrage := nil;
         Debug(dpError, section,
-          format('Exception in dbaddtvrage_gettvrage_show: %s', [E.Message]));
+          format('Exception in getTheTVDBbyReleaseName: %s', [E.Message]));
         irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in dbaddtvrage_gettvrage_show: %s',
-            [E.Message]));
+          '<c4>[Exception]</c> in getTheTVDBbyReleaseName: %s',
+          [E.Message]));
         Result := True;
         exit;
       end;
@@ -11191,15 +11343,15 @@ begin
   if db_tvrage = nil then
   begin
     try
-      db_tvrage := dbaddtvrage_gettvrage_id(params);
+      db_tvrage := getTheTVDBbyShowID(params);
     except
       on E: Exception do
       begin
         //        db_tvrage := nil;
         Debug(dpError, section,
-          format('Exception in dbaddtvrage_gettvrage_id: %s', [E.Message]));
+          format('Exception in getTheTVDBbyShowID: %s', [E.Message]));
         irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in dbaddtvrage_gettvrage_id: %s', [E.Message]));
+          '<c4>[Exception]</c> in getTheTVDBbyShowID: %s', [E.Message]));
         Result := True;
         exit;
       end;
@@ -11214,159 +11366,33 @@ begin
       on E: Exception do
       begin
         //        db_tvrage := nil;
-        Debug(dpError, section, format('Exception in SetTVRageRelease: %s',
+        Debug(dpError, section,
+          format('Exception in IrcAnnounceTheTVDbInfo: %s',
           [E.Message]));
         irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in SetTVRageRelease: %s', [E.Message]));
+          format('<c4>[Exception]</c> in IrcAnnounceTheTVDbInfo: %s',
+          [E.Message]));
         Result := True;
         exit;
       end;
     end;
   end
   else
-    irc_addtext(Netname, Channel, format('Nothing found for: %s', [params]));
-
+    irc_addtext(Netname, Channel,
+      format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
   Result := True;
 end;
 
-function IrcSetSitePermdown(const Netname, Channel: string; params: string):
+function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  s: TSite;
-  sname: string;
-  svalue: string;
-  ivalue: integer;
+  tvr: TTheTvDB;
 begin
   Result := False;
-  sname := UpperCase(SubString(params, ' ', 1));
-  svalue := UpperCase(SubString(params, ' ', 2));
-  if svalue = '' then
-  begin
-    ivalue := 1 // default value if no parameter is given
-  end
-  else
-  begin
-    ivalue := StrToIntDef(svalue, 0);
-  end;
-
-  if ((ivalue > 1) or (ivalue < 0)) then
-  begin
-    irc_AddText(Netname, Channel, format(
-      '<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0', [ivalue]));
-    exit;
-  end;
-
-  s := FindSiteByName('', sname);
-
-  if s = nil then
-  begin
-    irc_AddText(Netname, Channel,
-      format('<c4><b>Site not fouind</b></c> with name: %s',
-      [sname]));
-    exit;
-  end;
-
-  if boolean(ivalue) then
-  begin
-    try
-      s.RemoveAutoIndex;
-      s.RemoveAutoBnctest;
-      s.RemoveAutoRules;
-      s.RemoveAutoNuke;
-      s.RemoveAutoDirlist;
-      s.RemoveAutoCrawler;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]));
-    end;
-
-    try
-      // rewrite config value
-      s.WCInteger('disabled_autonuke', s.RCInteger('autonuke', 0));
-      s.WCInteger('disabled_autoindex', s.RCInteger('autoindex', 0));
-      s.WCInteger('disabled_autobnctest', s.RCInteger('autobnctest', 0));
-      s.WCInteger('disabled_autorules', s.RCInteger('autorules', 0));
-      s.WCInteger('disabled_autodirlist', s.RCInteger('autodirlist', 0));
-      // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in rewrite value: %s', [E.Message]));
-    end;
-
-    try
-      sitesdat.DeleteKey('site-' + s.Name, 'autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'autodirlist');
-      // sitesdat.DeleteKey('site-'+s.name,'autologin');
-      // sitesdat.UpdateFile;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in delete old value: %s', [E.Message]));
-    end;
-  end
-  else
-  begin
-
-    try
-      // rewrite config value
-      s.WCInteger('autonuke', s.RCInteger('disabled_autonuke', 0));
-      s.WCInteger('autoindex', s.RCInteger('disabled_autoindex', 0));
-      s.WCInteger('autobnctest', s.RCInteger('disabled_autobnctest', 0));
-      s.WCInteger('autorules', s.RCInteger('disabled_autorules', 0));
-      s.WCInteger('autodirlist', s.RCInteger('disabled_autodirlist', 0));
-      // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]));
-    end;
-
-    try
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autodirlist');
-      // sitesdat.DeleteKey('site-'+s.name,'autologin');
-      // sitesdat.UpdateFile;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]));
-    end;
-
-    try
-      s.AutoIndex;
-      s.AutoBnctest;
-      s.AutoRules;
-      s.AutoNuke;
-      s.AutoDirlist;
-      s.AutoCrawler;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
-    end;
-  end;
-
-  s.PermDown := boolean(ivalue);
-  Result := True;
-end;
-
-function IrcDelTVRageInfo(const Netname, Channel: string; params: string):
-  boolean;
-var
-  tvr: TDbTVRage;
-begin
-  Result := False;
+  (*
   if strtointdef(params, -1) > -1 then
   begin
-    tvr := dbaddtvrage_gettvrage_id(params);
+    tvr := getTheTVDBbyShowID(params);
     try
       Result := dbaddtvrage_delete_show(tvr.rls_showname);
     finally
@@ -11375,157 +11401,214 @@ begin
   end
   else
   begin
-    tvr := dbaddtvrage_gettvrage_show(params);
+    tvr := getTheTVDBbyShowName(params);
     try
       Result := dbaddtvrage_delete_show(tvr.rls_showname);
     finally
       tvr.Free;
     end;
   end;
-
+*)
 end;
 
-function IrcUpdateTVRageInfo(const Netname, Channel: string; params: string):
+function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  xml: TSLXMLDocument;
-  otvr, tvr: TDbTVRage;
+  otvr, tvr: TTheTvDB;
 begin
-  xml := TSLXMLDocument.Create;
-  if strtointdef(params, -1) > -1 then
-  begin
+  result := false;
+  (*
+    xml := TSLXMLDocument.Create;
+    if strtointdef(params, -1) > -1 then
+    begin
 
-    try
-      xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-        params);
-      otvr := dbaddtvrage_gettvrage_id(params);
-      tvr := ParseTVRageXML(xml, otvr.rls_showname);
-      Result := dbaddtvrage_update_show(tvr);
-      tvr.PostResults(otvr.rls_showname);
-    finally
-      otvr.Free;
-      tvr.Free;
-      xml.Free;
+      try
+        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
+          params);
+        otvr := dbaddtvrage_gettvrage_id(params);
+        tvr := ParseTVRageXML(xml, otvr.rls_showname);
+        Result := dbaddtvrage_update_show(tvr);
+        tvr.PostResults(otvr.rls_showname);
+      finally
+        otvr.Free;
+        tvr.Free;
+        xml.Free;
+      end;
+
+    end
+    else
+    begin
+
+      try
+        otvr := dbaddtvrage_gettvrage_show(params);
+        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
+          otvr.tv_showid);
+        tvr := ParseTVRageXML(xml, params);
+        Result := dbaddtvrage_update_show(tvr);
+        tvr.PostResults(params);
+      finally
+        tvr.Free;
+        otvr.Free;
+        xml.Free;
+      end;
+
     end;
-
-  end
-  else
-  begin
-
-    try
-      otvr := dbaddtvrage_gettvrage_show(params);
-      xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-        otvr.tv_showid);
-      tvr := ParseTVRageXML(xml, params);
-      Result := dbaddtvrage_update_show(tvr);
-      tvr.PostResults(params);
-    finally
-      tvr.Free;
-      otvr.Free;
-      xml.Free;
-    end;
-
-  end;
-
+   *)
 end;
 
-function IrcAddTVRagetoDB(const Netname, Channel: string; params: string):
+function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string):
   boolean;
 var
-  uurl, ssname, sname, sid: string;
-  tvr: TDbTVRage;
+  resp, uurl, ssname, sname, sid: string;
+  tvr: TTheTvDB;
   x: TRegExpr;
-  gc, i, sresMAXi, inn: integer;
-  xml: TSLXMLDocument;
-  nnn, nn, n: TSLXMLNode;
+  i, sresMAXi: integer;
+
+  jl: TlkJSONlist;
 begin
-  //  Result := False;
   sid := UpperCase(SubString(params, ' ', 1));
-  sname := RightStrV2(params, length(sid) + 1);
+  ssname := RightStrV2(params, length(sid) + 1);
+  sresMAXi := strtointdef(config.ReadString('tasktvdb',
+    'max_sid_lookup_results',
+    '5'), 5);
+
+  x := TRegExpr.Create;
+  try
+    x.ModifierI := True;
+    x.ModifierM := True;
+    x.Expression := '\s\-c\:(\d+)';
+    // \s is importent for the right announce later...
+    if x.Exec(params) then
+      sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
+  finally
+    x.Free;
+  end;
 
   if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S'))
     then
-    //  inn := StrToIntDef(sid, -1);
-    // we try to find the right Show ID
-    //  if inn = -1 then
   begin
+    sname := StringReplace(ssname, ' ', '+', [rfReplaceAll]);
+    sname := StringReplace(sname, '.', '+', [rfReplaceAll]);
+    sname := StringReplace(sname, '_', '+', [rfReplaceAll]);
+    sname := StringReplace(sname, chr(39), '', [rfReplaceAll]);
+    sname := StringReplace(sname, '@', 'at', [rfReplaceAll]);
 
-    sid := '';
-    //    sresi := 0;
-    sresMAXi := strtointdef(config.ReadString('tasktvrage',
-      'max_sid_lookup_results', '5'), 5);
-    // strtointdef(config.ReadString('tasktvrage','max_sid_lookup_results','5'),5);
-    x := TRegExpr.Create;
+    uurl := 'q=' + sname;
+    resp := slUrlGet('http://api.tvmaze.com/search/shows', uurl);
+
     try
-      x.ModifierI := True;
-      x.ModifierM := True;
-      x.Expression := '\s\-c\:(\d+)';
-      // \s is importent for the right announce later...
-      if x.Exec(params) then
-        sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
-      sname := x.Replace(params, '');
-      x.Expression := '(\s|\_|\.)';
-      ssname := x.Replace(sname, '+');
-      uurl := 'http://services.tvrage.com/feeds/search.php?show=' + ssname;
-    finally
-      x.Free;
+      jl := TlkJSON.ParseText(resp) as TlkJSONlist;
+//      js := TlkJSON.ParseText(resp) as TlkJSONobject;
+    except
+      on E: Exception do
+      begin
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.search: %s',
+          [E.Message]));
+        jl.free;
+        result := True;
+        Exit;
+      end;
     end;
 
-    xml := TSLXMLDocument.Create;
     try
-      xml.LoadFromWeb(uurl);
-      n := xml.GetDocumentElement;
-      Delete(sname, 1, 3);
-      for i := 0 to xml.GetChildNodeCount(n) - 1 do
+      for I := 0 to jl.Count - 1 do
       begin
-        nn := xml.GetChildNodeItem(n, i);
-        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvrageinfo %s %s',
-          [xml.GetNodeValue(xml.FindChildNode(nn, 'name')), xml.GetNodeValue(
-            xml.FindChildNode(nn, 'link')), irccmdprefix, xml.GetNodeValue(
-            xml.FindChildNode(nn, 'showid')), sname]);
+        //string(js.Child[i].Field['show'].Field['url'].Value)
+        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvdb %s %s',
+          [string(jl.Child[i].Field['show'].Field['name'].Value),
+          'http://thetvdb.com/?tab=series&id=' +
+            string(jl.Child[i].Field['show'].Field['externals'].Field['thetvdb'].Value),
+            irccmdprefix,
+            string(jl.Child[i].Field['show'].Field['externals'].Field['thetvdb'].Value), ssname]);
         if i + 1 >= sresMAXi then
           break;
       end;
     finally
-      xml.Free;
+      jl.free;
     end;
-    Result := True;
+    Result:=True;
     Exit;
   end;
-
-  if StrToIntDef(sid, -1) > -1 then
-  begin
-    xml := TSLXMLDocument.Create;
+if StrToIntDef(sid, -1) > -1 then begin
+    uurl := 'thetvdb=' + sid;
     try
-      try
-        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-          sid);
-        tvr := ParseTVRageXML(xml, sname);
-        tvr.Save;
-        tvr.PostResults(Netname, Channel);
-      except
-        on E: Exception do
-          irc_Addtext(netname, channel,
-            format('<c4>[Exception]</c> in ADDTVRageInfo: %s', [E.Message]));
+    resp := slUrlGet('http://api.tvmaze.com/lookup/shows?'+uurl);
+    irc_addtext('','',resp);
 
+    Exit;
+
+    except
+      on E: Exception do
+      begin
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.add.slurlget: %s',
+          [E.Message]));
+        result := True;
+        Exit;
       end;
-    finally
-
-      //      xml.Free;
-      //      tvr.Free;
-      (*  we have to keep an eye
-      {$IFDEF FPC}
-       n:=nil;
-       nn:=nil;
-       nnn:=nil;
-      {$ENDIF}
-      *)
     end;
 
-  end
-  else
-    irc_Addtext(netname, channel,
-      '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+
+          tvr:=parseTVMazeInfos(resp, sname);
+
+    try
+      tvr.Save;
+      tvr.PostResults(Netname, Channel);
+    except
+      on E: Exception do
+      begin
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.save: %s',
+          [E.Message]));
+          tvr.free;
+        result := True;
+        Exit;
+      end;
+    end;
+
+  end else irc_Addtext(netname, channel,
+        '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+
+  (*
+    //  Result := False;
+    sid := UpperCase(SubString(params, ' ', 1));
+    sname := RightStrV2(params, length(sid) + 1);
+
+    if StrToIntDef(sid, -1) > -1 then
+    begin
+      xml := TSLXMLDocument.Create;
+      try
+        try
+          xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
+            sid);
+          tvr := ParseTVRageXML(xml, sname);
+          tvr.Save;
+          tvr.PostResults(Netname, Channel);
+        except
+          on E: Exception do
+            irc_Addtext(netname, channel,
+              format('<c4>[Exception]</c> in ADDTVRageInfo: %s', [E.Message]));
+
+        end;
+      finally
+
+        //      xml.Free;
+        //      tvr.Free;
+          we have to keep an eye
+        {$IFDEF FPC}
+         n:=nil;
+         nn:=nil;
+         nnn:=nil;
+        {$ENDIF}
+
+      end;
+
+    end
+    else
+      irc_Addtext(netname, channel,
+        '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+        *)
   Result := True;
 end;
 
@@ -11629,7 +11712,8 @@ begin
 
   if site.PermDown then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
+      [sitename]);
     Result := False;
     exit;
   end;
@@ -11780,37 +11864,44 @@ begin
   Result := True;
 end;
 
-
-
-function IrcSetDebugverbosity(const Netname, Channel: string; params: string):boolean;
-var val:integer;
+function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
+  boolean;
+var
+  val: integer;
 begin
-val:= StrToIntDef(params,-1);
-if val = -1 then begin
+  val := StrToIntDef(params, -1);
+  if val = -1 then
+  begin
 
-case config.ReadInteger('debug', 'verbosity', 0) of
-0:irc_Addtext(Netname,Channel,'Only Logging Errors.');
-1:irc_Addtext(Netname,Channel,'Only Logging Errors and common Messages.');
-2:irc_Addtext(Netname,Channel,'Only Logging Almost everything.');
-3:irc_Addtext(Netname,Channel,'Skip Logging...');
-end;
-Result:=True;
-Exit;
-end else if (val <= 3) then begin
-config.WriteInteger('debug','verbosity',val);
-config.UpdateFile;
-case config.ReadInteger('debug', 'verbosity', 0) of
-0:irc_Addtext(Netname,Channel,'Only Logging Errors.');
-1:irc_Addtext(Netname,Channel,'Only Logging Errors and common Messages.');
-2:irc_Addtext(Netname,Channel,'Only Logging Almost everything.');
-3:irc_Addtext(Netname,Channel,'Skip Logging...');
-end;
-Result:=True;
-Exit;
-end else begin
-irc_Addtext(Netname,Channel,'<c4>Syntax error</c>, unknown verbosity.');
-Exit;
-end;
+    case config.ReadInteger('debug', 'verbosity', 0) of
+      0: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      1: irc_Addtext(Netname, Channel,
+          'Only Logging Errors and common Messages.');
+      2: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      3: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else if (val <= 3) then
+  begin
+    config.WriteInteger('debug', 'verbosity', val);
+    config.UpdateFile;
+    case config.ReadInteger('debug', 'verbosity', 0) of
+      0: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      1: irc_Addtext(Netname, Channel,
+          'Only Logging Errors and common Messages.');
+      2: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      3: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else
+  begin
+    irc_Addtext(Netname, Channel, '<c4>Syntax error</c>, unknown verbosity.');
+    Exit;
+  end;
 
 end;
 
