@@ -29,7 +29,7 @@ type
     procedure Save;
     procedure PostResults(rls: string = ''); overload;
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
-    procedure SetTVRageRelease(tr: TTVRelease);
+    procedure SetTVRageRelease(var tr: TTVRelease);
 
   end;
 
@@ -60,7 +60,7 @@ uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit,
   taskthetvdblookup, pazo, mrdohutils;
 
 const
-  section = 'thetvdb';
+  section = 'tasktvdb';
 
 var
   thetvdb: TslSqliteDB = nil;
@@ -91,9 +91,8 @@ begin
   dbid := -1;
 
 try
-  thetvdb.ExecSQL('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,endedyear,last_updated) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d)',
-    [tv_showid, tv_premiered_year, tv_country, tv_classification, tv_network,
-      tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now())]);
+  thetvdb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,endedyear,last_updated) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d)',
+    [StrToInt(tv_showid), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network,tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now())]));
 except on E: Exception do
 Irc_AddText('','','Error@TTheTvDB.Save_INSERT infos %s',[e.Message]);
 end;
@@ -109,12 +108,12 @@ end;
     //showInfos was not added!
   end;
 
-  thetvdb.ExecSQL('INSERT OR IGNORE INTO series (rip,showname,info_id) VALUES ("%s","%s",%d);',[rls_showname,tv_showname,dbid]);
+  thetvdb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,info_id) VALUES ("%s","%s",%d);',[rls_showname,tv_showname,dbid]));
 
 
 end;
 
-procedure TTheTvDB.SetTVRageRelease(tr: TTVRelease);
+procedure TTheTvDB.SetTVRageRelease(var tr: TTVRelease);
 begin
   tr.showname := rls_showname;
   tr.showid := tv_showid;
@@ -210,6 +209,7 @@ begin
   self.rls_showname := rls_showname;
   self.tv_genres := TStringList.Create;
   self.tv_genres.QuoteChar := '"';
+  self.tv_endedyear:=-1;
 end;
 
 destructor TTheTvDB.Destroy;
@@ -241,9 +241,9 @@ begin
   try
     if ((rls = '') or (tv_showid = rls)) then
       rls := rls_showname;
-      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>%s</b> -<b>Premiere Year</b> %s - <b>The TVDB info</b>http://thetvdb.com/?tab=series&id=%s',[rls,IntToStr(tv_premiered_year), tv_showid]));
-      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>Genre</b> %s - <b>Classification</b>%s - <b>Status</b> %s',[tv_genres.CommaText, tv_classification, tv_status]));
-      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c><b>Country</b> %s - <b>Network</b> %s',[tv_country, tv_network]));
+      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s',[rls,IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',[tv_genres.CommaText, tv_classification, tv_status]));
+      irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s',[tv_country, tv_network]));
   except
     on e: Exception do
     begin
@@ -259,9 +259,9 @@ begin
   try
     if ((rls = '') or (tv_showid = rls)) then
       rls := rls_showname;
-      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c><b>%s</b> -<b>Premiere Year</b> %s - <b>The TVDB info</b>http://thetvdb.com/?tab=series&id=%s',[rls,IntToStr(tv_premiered_year), tv_showid]));
-      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c><b>Genre</b> %s - <b>Classification</b>%s - <b>Status</b> %s',[tv_genres.CommaText, tv_classification, tv_status]));
-      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c><b>Country</b> %s - <b>Network</b> %s',[tv_country, tv_network]));
+      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s',[rls,IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',[tv_genres.CommaText, tv_classification, tv_status]));
+      irc_Addtext(Netname,Channel,Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s',[tv_country, tv_network]));
   except
     on e: Exception do
     begin
@@ -300,7 +300,7 @@ begin
 
     thetvdb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "Rips" ON "series" ("rip" ASC);');
 
-    Console_Addline('', 'TTVRelease SQLite db loaded.');
+    Console_Addline('', 'TTVRelease SQLite db loaded. '+IntToStr(getTheTVDbInfoCount));
   end;
 end;
 
@@ -340,7 +340,7 @@ begin
     if i <> -1 then
     begin
       Result := TTheTvDB(last_addthetvdb.Objects[i]);
-      irc_addtext('','','whatts');
+//      irc_addtext('','','whatts');
     end;
   except
     Result := nil;
