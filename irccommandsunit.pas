@@ -11040,7 +11040,7 @@ begin
     [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]);
 // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
-  irc_addtext(Netname, Channel, '<b>Knowledge Base:</b> %d Rip%ss in mind',
+  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind',
     [kb_list.Count, chr(39)]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
   if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE

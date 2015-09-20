@@ -180,7 +180,7 @@ begin
     db_thetvdb := getTheTVDBbyShowName(tr.showname);
     if (db_thetvdb <> nil) then
     begin
-      db_thetvdb.SetTVRageRelease(tr);
+      db_thetvdb.SetTVDbRelease(tr);
       ready := True;
       Result := True;
       exit;
@@ -260,37 +260,74 @@ begin
       exit;
     end;
   end;
-  (*
-    try
-      uurl := 'thetvdb.com/api/' + RandomHEXString + '/series/' + sid + '/';
-      tvdb := slUrlGet(uurl);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format(
-          '[EXCEPTION] TPazoTheTVDbLookupTask.execute httpGET(TheTVDB): Exception : %s',
-          [e.Message]));
-        irc_Adderror(Format(
-          '<c4>[EXCEPTION]</c> TPazoTheTVDbLookupTask.execute httpGET(TheTVDB): Exception : %s',
-          [e.Message]));
-        Result := True;
-        ready := True;
-        exit;
-      end;
-    end;
-   *)
-    //maybe adding some if respons = '' ...
 
   db_thetvdb := parseTVMazeInfos(tvmaz, tr.showname);
 
+  (*
+try
+  if db_thetvdb <> nil then db_thetvdb.Save else begin
+   irc_Addadmin('[<b>Error</b>]: TVInfos was nil.');
+   Result := True;
+   ready  := True;
+   exit;
+  end;
+except
+ on e: Exception do
+ begin
+   Debug(dpError, section, Format(
+     '[EXCEPTION] TPazoTheTVDbLookupTask.execute.Save: Exception : %s',
+     [e.Message]));
+   irc_Adderror(Format(
+     '<c4>[EXCEPTION]</c> TPazoTheTVDbLookupTask.execute.Save: Exception : %s',
+     [e.Message]));
+   Result := True;
+   ready := True;
+   exit;
+ end;
+end;
+    *)
+
+ //maybe adding some if respons = '' ...
+
+  if onlyEnglishAlpha(db_thetvdb.tv_showname) = onlyEnglishAlpha(tr.showname)
+    then
+  begin
+    try
+      //      dbaddtvrage_SaveTVRage(db_tvrage.tv_showid, db_tvrage, mainpazo.rls.rlsname);
+      irc_Addtext_by_key('ADDTVRAGE',Format('%s %s %s',[config.ReadString(section,
+        'addcmd', '!addthetvdb'), mainpazo.rls.rlsname, db_thetvdb.tv_showid]));
+      db_thetvdb.Save;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section,
+          Format('Exception in dbaddtvrage_SaveTVRage: %s',
+          [e.Message]));
+        Result := True;
+        readyerror := True;
+        exit;
+      end;
+    end;
+  end
+  else
+  begin
+    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>',
+      [db_thetvdb.tv_showname, tr.showname]);
+
+    if config.ReadBool(section, 'stop_on_englishcheck', True) then
+    begin
+      Result := True;
+      ready := True;
+      exit;
+    end;
+  end;
+
   if config.ReadBool(section, 'post_lookup_infos', False) then
   begin
-
     PostResults(db_thetvdb.tv_showid, db_thetvdb.tv_network,
       db_thetvdb.tv_country,
       db_thetvdb.tv_classification, db_thetvdb.tv_status, db_thetvdb.tv_genres,
       IntToStr(db_thetvdb.tv_premiered_year));
-    //  PostResults(cur_id, cur_netw, cur_country, cur_cassi, cur_status,tr.genres, IntToStr(cur_premyear));
   end;
 
   try

@@ -36,6 +36,8 @@ interface
 
 uses Classes;
 
+function onlyEnglishAlpha(s: string): string;
+
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): string;
 
 function WhenDidThisHappen(SecondsElapsed: int64): TDateTime;
@@ -1454,6 +1456,23 @@ begin
   if LEndePos <> Count - LDelimiterLength then
     dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
 end;
+
+
+
+
+function onlyEnglishAlpha(s: string): string;
+var
+  i: integer;
+begin
+  s      := LowerCase(s);
+  Result := '';
+  for i := 1 to length(s) do
+    if ((s[i] >= 'a') and (s[i] <= 'z')) then
+    begin
+      Result := Result + s[i];
+    end;
+end;
+
 
 end.
 
