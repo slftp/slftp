@@ -117,32 +117,31 @@ begin
       tvr.tv_network := string(js.Field['network'].Field['name'].Value);
       tvr.tv_country :=
         string(js.Field['network'].Field['country'].Field['code'].Value);
-
-      tvr.tv_status := string(js.Field['status'].Value);
-
-      for I := 0 to js.Field['genres'].Count - 1 do
-        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
-
-      tvr.tv_classification := string(js.Field['type'].Value);
-
-      x := TStringlist.Create;
-      try
-        x.Delimiter:= '-';
-        x.DelimitedText := string(js.Field['premiered'].Value);
-        tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
-      finally
-        x.free;
-      end;
-
-      tvr.tv_running := Boolean(tvr.tv_status = 'Running');
-      tvr.tv_scripted := Boolean(tvr.tv_classification = 'Scripted');
-
     end;
+
+    tvr.tv_status := string(js.Field['status'].Value);
+
+    for I := 0 to js.Field['genres'].Count - 1 do
+      tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+
+    tvr.tv_classification := string(js.Field['type'].Value);
+
+    x := TStringlist.Create;
+    try
+      x.Delimiter := '-';
+      x.DelimitedText := string(js.Field['premiered'].Value);
+      tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
+    finally
+      x.free;
+    end;
+
+    tvr.tv_running := Boolean(tvr.tv_status = 'Running');
+    tvr.tv_scripted := Boolean(tvr.tv_classification = 'Scripted');
 
   finally
     js.free;
   end;
-result:=tvr;
+  result := tvr;
 end;
 
 { TPazoTheTVDbLookupTask }

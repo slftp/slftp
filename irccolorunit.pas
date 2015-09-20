@@ -36,57 +36,40 @@ const
   mColorChar:string = #3;
   bColorExpression:String = '<d(\d+)>(.*?)<\/d>';
   bColorChar:string = #4;
-  BoldExpression:String = '<b>(.*?)<\/b>';
-  BoldChar:string = #2;
-  UnderlineExpression:String = '<u>(.*?)<\/u>';
-  UnderlineChar:string = #31;
-  ItalicsExpression:String = '<i>(.*?)<\/i>';
-  ItalicsChar:string = #22;
-  LinkExpression:String = '<l>(.*?)<\/l>';
-  LinkChar:string = #10;
-  FixedExpression:String = '<f>(.*?)<\/f>';
-  FixedChar:string = #17;
-  SwitchExpression:String = '<r>(.*?)<\/r>';
-  SwitchChar:string = #18;
-
 
 function ReplaceThemeMSG(msg: string): string;
 var
-fixrx, swirx, bcolrx, linkrx, itarx, unlrx, colrx, bolrx: TRegExpr;
+bcolrx,colrx: TRegExpr;
+//fixrx, swirx,  linkrx, itarx, unlrx, bolrx: TRegExpr;
 smsg,s: string;
 begin
 
   smsg := msg;
   colrx := TRegExpr.Create;
-  bolrx := TRegExpr.Create;
-  unlrx := TRegExpr.Create;
-  itarx := TRegExpr.Create;
   bcolrx := TRegExpr.Create;
-  linkrx := TRegExpr.Create;
-  fixrx := TRegExpr.Create;
-  swirx := TRegExpr.Create;
   try
-
-  fixrx.ModifierI := True;
-  swirx.ModifierI := True;
-  linkrx.ModifierI := True;
   bcolrx.ModifierI := True;
-  itarx.ModifierI := True;
-  unlrx.ModifierI := True;
-  bolrx.ModifierI := True;
   colrx.ModifierI := True;
   colrx.Expression := mColorExpression;
-  bolrx.Expression := BoldExpression;
-  unlrx.Expression:=UnderlineExpression;
-  itarx.Expression:=ItalicsExpression;
-  linkrx.Expression:=LinkExpression;
   bcolrx.Expression:=bColorExpression;
-  swirx.Expression:=SwitchExpression;
-  fixrx.Expression:=FixedExpression;
-
 
 smsg:=StringReplace(smsg,'<b>',#2,[rfReplaceAll]);
 smsg:=StringReplace(smsg,'</b>',#2,[rfReplaceAll]);
+
+smsg:=StringReplace(smsg,'<u>',#31,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</u>',#31,[rfReplaceAll]);
+
+smsg:=StringReplace(smsg,'<i>',#22,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</i>',#22,[rfReplaceAll]);
+
+smsg:=StringReplace(smsg,'<l>',#10,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</l>',#10,[rfReplaceAll]);
+
+smsg:=StringReplace(smsg,'<f>',#17,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</f>',#17,[rfReplaceAll]);
+
+smsg:=StringReplace(smsg,'<r>',#18,[rfReplaceAll]);
+smsg:=StringReplace(smsg,'</r>',#18,[rfReplaceAll]);
 
 
 {   mIRC Color    }
@@ -117,7 +100,7 @@ smsg:=StringReplace(smsg,'</b>',#2,[rfReplaceAll]);
         [rfReplaceAll, rfIgnoreCase]);
     UNTIL not bolrx.ExecNext;
   end;
-  *)
+
 {   Underline   }
   if unlrx.Exec(smsg) then
   	begin
@@ -165,16 +148,21 @@ s:= Format('%s%s%:0s',[UnderlineChar,unlrx.Match[1]]);
         [rfReplaceAll, rfIgnoreCase]);
     UNTIL not fixrx.ExecNext;
   end;
+  *)
   result := smsg;
   finally
-  bolrx.Free;
-  colrx.Free;
-  unlrx.Free;
+
   bcolrx.Free;
+  colrx.Free;
+(*
+  bolrx.Free;
+  unlrx.Free;
+
   linkrx.Free;
   swirx.Free;
   fixrx.Free;
   itarx.Free;
+*)
   end;
 
 end;

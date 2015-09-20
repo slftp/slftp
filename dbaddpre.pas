@@ -777,8 +777,7 @@ end;
 function dbaddpre_Status: string;
 begin
   Result := '';
-  Result := Format('<b>DB addpre</b>: %d (%d) rls',
-    [dbaddpre_GetCount, last_addpre.Count]);
+  Result := Format('<b>Dupe.db</b>: %d Rips, with %d in Memory',[dbaddpre_GetCount, last_addpre.Count]);
 end;
 
 procedure dbaddpreInit;
