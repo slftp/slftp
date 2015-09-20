@@ -1996,7 +1996,7 @@ begin
     Result := True;
     exit;
   end;
-  irc_addadmin('<b>iNFO</b> No tvrage info found for %s', [self.showname]);
+  irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
   try
     AddTask(TPazoTheTVDbLookupTask.Create('', '',
       config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
