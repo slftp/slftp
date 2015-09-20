@@ -135,8 +135,8 @@ begin
       x.free;
     end;
 
-    tvr.tv_running := Boolean(tvr.tv_status = 'Running');
-    tvr.tv_scripted := Boolean(tvr.tv_classification = 'Scripted');
+    tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
+    tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
 
   finally
     js.free;
@@ -262,30 +262,6 @@ begin
   end;
 
   db_thetvdb := parseTVMazeInfos(tvmaz, tr.showname);
-
-  (*
-try
-  if db_thetvdb <> nil then db_thetvdb.Save else begin
-   irc_Addadmin('[<b>Error</b>]: TVInfos was nil.');
-   Result := True;
-   ready  := True;
-   exit;
-  end;
-except
- on e: Exception do
- begin
-   Debug(dpError, section, Format(
-     '[EXCEPTION] TPazoTheTVDbLookupTask.execute.Save: Exception : %s',
-     [e.Message]));
-   irc_Adderror(Format(
-     '<c4>[EXCEPTION]</c> TPazoTheTVDbLookupTask.execute.Save: Exception : %s',
-     [e.Message]));
-   Result := True;
-   ready := True;
-   exit;
- end;
-end;
-    *)
 
  //maybe adding some if respons = '' ...
 
