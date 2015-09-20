@@ -315,9 +315,9 @@ implementation
 
 uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
-  rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvragelookup,
+  rulesunit, Math, DateUtils, StrUtils, precatcher, taskthetvdblookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbaddtvrage, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbthetvdb, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
@@ -1952,7 +1952,7 @@ end;
 function TTVRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
-  db_tvrage: TDbTVRage;
+  db_tvrage: TTheTvDB;
 begin
   Result := False;
 
@@ -1968,7 +1968,7 @@ begin
 
   //  db_tvrage := nil;
   try
-    db_tvrage := dbaddtvrage_gettvrage_show(self.showname);
+    db_tvrage := getTheTVDBbyShowName(self.showname);
   except
     on e: Exception do
     begin
@@ -1978,14 +1978,18 @@ begin
     end;
   end;
 
+
+  //update here?
+
+
   if (db_tvrage <> nil) then
   begin
     try
-      db_tvrage.SetTVRageRelease(self);
+      db_tvrage.SetTVDbRelease(self);
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('Exception in SetTVRageRelease: %s',
+        Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s',
           [e.Message]));
       end;
     end;
@@ -1994,7 +1998,7 @@ begin
   end;
   irc_addadmin('<b>iNFO</b> No tvrage info found for %s', [self.showname]);
   try
-    AddTask(TPazoTvRageLookupTask.Create('', '',
+    AddTask(TPazoTheTVDbLookupTask.Create('', '',
       config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
   except
     on e: Exception do
@@ -2017,7 +2021,7 @@ function TTVRelease.AsText(pazo_id: integer): string;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'URL:  http://tvrage.com/shows/id-' + showid + '/' +
+  Result := Result + 'URL:  http://thetvdb.com/?tab=series&id=' + showid + '/' +
     #13#10;
   if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
@@ -2036,8 +2040,8 @@ begin
     Result := Result + 'Genres: ' + genres.CommaText + #13#10;
   if network <> '' then
     Result := Result + 'Network: ' + network + #13#10;
-  if runtime <> 0 then
-    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
+//  if runtime <> 0 then
+//    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
@@ -2047,7 +2051,7 @@ constructor TTVRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   rx: TRegexpr;
-  db_tvrage: TDbTVRage;
+  db_tvrage: TTheTvDB;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
@@ -2064,7 +2068,7 @@ begin
 
   //[\.\_](\d{4})[\.\-](\d{2})[\.\-](\d{2})[\.\_]
   rx.Expression :=
-    '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
+    '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
@@ -2096,16 +2100,16 @@ begin
   begin
     //    db_tvrage := nil;
     try
-      db_tvrage := dbaddtvrage_gettvrage_show(showname);
+      db_tvrage := getTheTVDBbyShowName(showname);
       if (db_tvrage <> nil) then
       begin
-        db_tvrage.SetTVRageRelease(self);
+        db_tvrage.SetTVDbRelease(self);
       end;
     except
       on e: Exception do
       begin
         Debug(dpError, rsections,
-          Format('Exception in dbaddtvrage_gettvrage_show: %s',
+          Format('Exception in getTheTVDBbyShowName: %s',
           [e.Message]));
         exit;
       end;

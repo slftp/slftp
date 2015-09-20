@@ -10996,31 +10996,97 @@ begin
   Result := True;
 end;
 
+(*
+
+function IrcSites(const Netname, Channel: string; params: string): boolean;
+var
+  spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
+  scount: integer;
+begin
+  //  Result := False;
+  scount := sites.Count - 2;
+  sup := TStringList.Create;
+  spd := TStringList.Create;
+  sdn := TStringList.Create;
+  suk := TStringList.Create;
+  SitesD(Netname, Channel, sup, sdn, suk, spd);
+
+  IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
+    'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+  IrcLineBreak(Netname, Channel, sdn.commatext, char('"'),
+    'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
+  IrcLineBreak(Netname, Channel, suk.commatext, char('"'),
+    '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
+  IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
+    'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
+
+  sup.Free;
+  sdn.Free;
+  suk.Free;
+  spd.Free;
+  Result := True;
+end;
+
+*)
+
 function IrcShowAppStatus(const Netname, Channel: string; params: string):
   boolean;
 var
   db_status: string;
+  rx: TRegexpr;
+  spd, sup, sdn, suk: TStringList;
 begin
   irc_addtext(Netname, Channel, '<b>%s</b> is up for [%s] <c7><b>%s</b></c>',
     [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]);
-  irc_addtext(Netname, Channel, '<b>KB:</b> %d rls in kb', [kb_list.Count]);
-  db_status := '';
-  if (dbaddpre_Status <> '') then
-    irc_addtext(Netname, Channel, '%s', [dbaddpre_Status]);
-  if (dbaddurl_Status <> '') then
-    db_status := db_status + ' <b>-</b> ' + dbaddurl_Status;
-  if (dbaddimdb_Status <> '') then
-    db_status := db_status + ' <b>-</b> ' + dbaddimdb_Status;
-  if (TheTVDbStatus <> '') then
-    db_status := db_status + ' <b>-</b> ' + TheTVDbStatus;
-  if (dbaddnfo_Status <> '') then
-    db_status := db_status + ' <b>-</b> ' + dbaddnfo_Status;
-  if (db_status <> '') then
-    irc_addtext(Netname, Channel, '%s', [db_status]);
+// irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
-  irc_addtext(Netname, Channel, '<b>%s</b>', [ReadAppSitesCaption]);
-  irc_addtext(Netname, Channel, '<b>%s</b>', [ReadAppQueueCaption]);
-  // irc_addtext(netname,channel,'Uptimerec.: %s',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
+  irc_addtext(Netname, Channel, '<b>Knowledge Base:</b> %d Rip%ss in mind',
+    [kb_list.Count, chr(39)]);
+  irc_addtext(Netname, Channel, TheTVDbStatus);
+  if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE
+    then
+    irc_addtext(Netname, Channel, dbaddpre_Status);
+
+  rx := TRegexpr.Create;
+  rx.ModifierI := True;
+  sup := TStringList.Create;
+  spd := TStringList.Create;
+  sdn := TStringList.Create;
+  suk := TStringList.Create;
+  try
+    SitesD(Netname, Channel, sup, sdn, suk, spd);
+    irc_addtext(Netname, Channel,
+      '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
+      [sites.Count - 2, sup.Count, sdn.Count, suk.Count, spd.Count]);
+    rx.Expression :=
+      'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
+    if rx.Exec(ReadAppQueueCaption) then
+      irc_addtext(Netname, Channel,
+        '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s',
+        [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4], rx.Match[5]]);
+  finally
+    rx.free;
+    sup.Free;
+    sdn.Free;
+    suk.Free;
+    spd.Free;
+  end;
+
+  (*
+    db_status := '';
+    if (dbaddpre_Status <> '') then
+      irc_addtext(Netname, Channel, '%s', [dbaddpre_Status]);
+    if (dbaddurl_Status <> '') then
+      db_status := db_status + ' <b>-</b> ' + dbaddurl_Status;
+    if (dbaddimdb_Status <> '') then
+      db_status := db_status + ' <b>-</b> ' + dbaddimdb_Status;
+    if (dbaddnfo_Status <> '') then
+      db_status := db_status + ' <b>-</b> ' + dbaddnfo_Status;
+    if (db_status <> '') then
+      irc_addtext(Netname, Channel, '%s', [db_status]);
+  *)
+
+
   Result := True;
 end;
 
@@ -11360,8 +11426,10 @@ begin
 
   if (db_tvrage <> nil) then
   begin
+
     try
-      db_tvrage.PostResults(Netname, Channel, params);
+      irc_addtext('', '', db_tvrage.rls_showname);
+      db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
     except
       on E: Exception do
       begin
@@ -11547,9 +11615,9 @@ begin
       end;
     end;
 
-      tvr := parseTVMazeInfos(resp, sname);
-      tvr.rls_showname:=RightStrV2(params, length(sid) + 1);
-      tvr.PostResults(Netname, Channel,RightStrV2(params, length(sid) + 1));
+    tvr := parseTVMazeInfos(resp, sname);
+    tvr.rls_showname := RightStrV2(params, length(sid) + 1);
+    tvr.PostResults(Netname, Channel, RightStrV2(params, length(sid) + 1));
     try
       tvr.Save;
     except
