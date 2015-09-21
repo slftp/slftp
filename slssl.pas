@@ -32,7 +32,7 @@ const
   OPENSSL_SSL_OP_NETSCAPE_CHALLENGE_BUG = $00000002;
   OPENSSL_SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG = $40000000;
   OPENSSL_SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG = $00000008;
-  //OPENSSL_SSL_OP_NON_EXPORT_FIRST = $40000000;
+  OPENSSL_SSL_OP_NON_EXPORT_FIRST = $40000000;
   OPENSSL_SSL_OP_NO_SSLv2 = $01000000;
   OPENSSL_SSL_OP_NO_SSLv3 = $02000000;
   OPENSSL_SSL_OP_NO_TLSv1 = $04000000;
@@ -593,6 +593,7 @@ begin
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_method , @slSSLv3_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_server_method, @slSSLv3_server_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_client_method, @slSSLv3_client_method) then exit;
+
   if not slSsl_LoadProc(h_libssl, fn_SSLv23_method, @slSSLv23_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv23_server_method, @slSSLv23_server_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv23_client_method, @slSSLv23_client_method) then exit;
