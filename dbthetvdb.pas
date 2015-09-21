@@ -28,7 +28,7 @@ type
     procedure Save;
     procedure PostResults(rls: string = ''); overload;
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
-    procedure SetTVDbRelease(var tr: TTVRelease);
+    procedure SetTVDbRelease(tr: TTVRelease);
 
   end;
 
@@ -113,7 +113,7 @@ begin
   thetvdb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id) VALUES ("%s","%s",%d);', [rls_showname, tv_showname, StrToInt(tv_showid)]));
 end;
 
-procedure TTheTvDB.SetTVDbRelease(var tr: TTVRelease);
+procedure TTheTvDB.SetTVDbRelease(tr: TTVRelease);
 begin
   tr.showname := rls_showname;
   tr.showid := tv_showid;
