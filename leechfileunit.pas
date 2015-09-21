@@ -8,7 +8,7 @@ function LeechFile(s: TSiteSlot; dest: TStream; const filename: string; restFrom
 
 implementation
 
-uses SysUtils, sltcp, irc, mystrings;
+uses SysUtils, sltcp, irc, mystrings, slssl;
 
 // 1 : file was retrieved successfully
 // 0 : some error occoured
@@ -66,7 +66,8 @@ begin
         Result:= -1;
         exit;
       end;
-      if not idTCP.TurnToSSL(s.site.io_timeout * 1000) then
+
+      if not idTCP.TurnToSSL(slssl_ctx_tlsv1_2_client,s.site.io_timeout * 1000) then
       begin
         irc_AddText(s.todotask, s.site.name+': couldnt negotiate the SSL connection ('+idTCP.error+') / '+filename);
         s.DestroySocket(False);
