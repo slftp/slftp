@@ -2103,13 +2103,23 @@ begin
       db_tvrage := getTheTVDBbyShowName(showname);
       if (db_tvrage <> nil) then
       begin
+      try
         db_tvrage.SetTVDbRelease(self);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections,
+          Format('Exception in TTVRelease.Create.SetTVDbRelease: %s',
+          [e.Message]));
+        exit;
+      end;
+    end;
       end;
     except
       on e: Exception do
       begin
         Debug(dpError, rsections,
-          Format('Exception in getTheTVDBbyShowName: %s',
+          Format('Exception in TTVRelease.Create.getTheTVDBbyShowName: %s',
           [e.Message]));
         exit;
       end;

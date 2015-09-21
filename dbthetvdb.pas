@@ -127,8 +127,7 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
   //  tr.season:= tv_seasons;
-
-//  PostResults(tr.rlsname);
+    if config.ReadBool(section,'post_lookup_infos',false) then PostResults(tr.rlsname);
 end;
 
 constructor TTheTvDB.Create(rls_showname: string);
