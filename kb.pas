@@ -1968,7 +1968,7 @@ begin
 
   //  db_tvrage := nil;
   try
-    db_tvrage := getTheTVDBbyShowName(self.showname);
+    db_tvrage := getTheTVDBbyShowName(self.showname);                                                                                                                   
   except
     on e: Exception do
     begin
