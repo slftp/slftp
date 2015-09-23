@@ -305,6 +305,7 @@ begin
     *)
 end;
 
+(* broken!
 function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
   TTheTvDB;
 begin
@@ -341,7 +342,7 @@ begin
     result.last_updated := StrToIntDef(thetvdb.column_text(item, 12), -1);
   end;
 end;
-
+ *)
 function getTheTVDBbyShowName(rls_showname: string): TTheTvDB;
 var
   i: integer;
@@ -349,15 +350,17 @@ var
   gettvrage: Psqlite3_stmt;
 begin
   result := nil;
-//  tvrage := nil;
-  if thetvdb = nil then
-    exit;
 
-  if (rls_showname = '') then
+  if thetvdb = nil then begin
+        Debug(dpError, section, '[EXCEPTION] getTheTVDBbyShowName: thetvdb = nil ');
     exit;
-  //  result:= getTVDBByNameFromMemory(rls_showname);
-//  if (Result = nil) then  begin
-  try
+  end;
+
+  if (rls_showname = '') then begin
+       Debug(dpError, section, '[EXCEPTION] getTheTVDBbyShowName: rls_showname is empty');
+    exit;
+  end;
+
     gettvrage := thetvdb.Open(
       'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
       + '";'); //so we can handle the aka's .
@@ -369,9 +372,10 @@ begin
         0))) then
       begin
         Result := nil;
-        Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
+        Debug(dpError, section, 'fillTTheTvDBfromDB LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,0)))');
         exit;
       end;
+  try
     tvrage := TTheTvDB.Create(rls_showname);
     tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
     tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
@@ -381,14 +385,12 @@ begin
     tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
     tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
     tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
-    tvrage.tv_running := Boolean(lowercase(result.tv_status) = 'running');
-    tvrage.tv_scripted := Boolean(lowercase(result.tv_classification) =
+    tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
+    tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
       'scripted');
     tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
     result:=tvrage;
-    end;
 
-    // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
   except
     on e: Exception do
     begin
@@ -397,6 +399,11 @@ begin
         [e.Message]));
     end;
   end;
+
+
+    end;
+
+    // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
   //  end;
 end;
 
@@ -406,6 +413,7 @@ var
   rx: TRegexpr;
 begin
   Result := nil;
+  showname:=rls;
   rx := TRegexpr.Create;
   try
     rx.ModifierI := True;
@@ -468,16 +476,12 @@ begin
     tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
     tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
     tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
-    tvrage.tv_running := Boolean(lowercase(result.tv_status) = 'running');
-    tvrage.tv_scripted := Boolean(lowercase(result.tv_classification) =
+    tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
+    tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
       'scripted');
     tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
     result:=tvrage;
     end;
-
-
-//      tvrage := fillTTheTvDBfromDB(gettvrage);
-//      Result := tvrage;
 
     except
       on e: Exception do

@@ -11038,7 +11038,7 @@ var
 begin
   irc_addtext(Netname, Channel, '<b>%s</b> is up for [%s] <c7><b>%s</b></c>',
     [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]);
-// irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
+  // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind',
     [kb_list.Count, chr(39)]);
@@ -11085,7 +11085,6 @@ begin
     if (db_status <> '') then
       irc_addtext(Netname, Channel, '%s', [db_status]);
   *)
-
 
   Result := True;
 end;
@@ -11371,66 +11370,27 @@ var
   db_tvrage: TTheTvDB;
 begin
 
-  db_tvrage := nil;
-  try
-    db_tvrage := getTheTVDBbyShowName(params);
-  except
-    on E: Exception do
-    begin
-      //      db_tvrage := nil;
-      Debug(dpError, section,
-        format('Exception in getTheTVDBbyShowName: %s', [E.Message]));
-      irc_AddText(Netname, Channel,
-        format('<c4>[Exception]</c> in getTheTVDBbyShowName: %s',
-        [E.Message]));
-      Result := True;
-      exit;
-    end;
-  end;
-
-  if db_tvrage = nil then
+  if StrToIntDef(params, -1) = -1 then
   begin
     try
       db_tvrage := getTheTVDBbyReleaseName(params);
     except
       on E: Exception do
       begin
-        //        db_tvrage := nil;
         Debug(dpError, section,
-          format('Exception in getTheTVDBbyReleaseName: %s', [E.Message]));
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in getTheTVDBbyReleaseName: %s',
+          format('Exception in IrcAnnounceTheTVDbInfo.getTheTVDBbyShowName: %s', [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in IrcAnnounceTheTVDbInfo.getTheTVDBbyShowName: %s',
           [E.Message]));
         Result := True;
         exit;
       end;
     end;
-  end;
-
-  if db_tvrage = nil then
+  end
+  else
   begin
     try
       db_tvrage := getTheTVDBbyShowID(params);
-    except
-      on E: Exception do
-      begin
-        //        db_tvrage := nil;
-        Debug(dpError, section,
-          format('Exception in getTheTVDBbyShowID: %s', [E.Message]));
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in getTheTVDBbyShowID: %s', [E.Message]));
-        Result := True;
-        exit;
-      end;
-    end;
-  end;
-
-  if (db_tvrage <> nil) then
-  begin
-
-    try
-      irc_addtext('', '', db_tvrage.rls_showname);
-      db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
     except
       on E: Exception do
       begin
@@ -11445,12 +11405,102 @@ begin
         exit;
       end;
     end;
-  end
-  else
-  
-    irc_addtext(Netname, Channel,
-      format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
+  end;
+
+    if db_tvrage <> nil then
+    begin
+      db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
+      Result := True;
+    end else begin
+  irc_addtext(Netname, Channel,
+    format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
   Result := True;
+    end;
+
+
+
+  (*
+    //db_tvrage := nil;
+    try
+      db_tvrage := getTheTVDBbyShowName(params);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section,
+          format('Exception in getTheTVDBbyShowName: %s', [E.Message]));
+        irc_AddText(Netname, Channel,
+          format('<c4>[Exception]</c> in getTheTVDBbyShowName: %s',
+          [E.Message]));
+        Result := True;
+        exit;
+      end;
+    end;
+
+    if db_tvrage = nil then
+    begin
+      try
+        db_tvrage := getTheTVDBbyReleaseName(params);
+      except
+        on E: Exception do
+        begin
+          //        db_tvrage := nil;
+          Debug(dpError, section,
+            format('Exception in getTheTVDBbyReleaseName: %s', [E.Message]));
+          irc_AddText(Netname, Channel, format(
+            '<c4>[Exception]</c> in getTheTVDBbyReleaseName: %s',
+            [E.Message]));
+          Result := True;
+          exit;
+        end;
+      end;
+    end;
+
+    if db_tvrage = nil then
+    begin
+      try
+        db_tvrage := getTheTVDBbyShowID(params);
+      except
+        on E: Exception do
+        begin
+          //        db_tvrage := nil;
+          Debug(dpError, section,
+            format('Exception in getTheTVDBbyShowID: %s', [E.Message]));
+          irc_AddText(Netname, Channel, format(
+            '<c4>[Exception]</c> in getTheTVDBbyShowID: %s', [E.Message]));
+          Result := True;
+          exit;
+        end;
+      end;
+    end;
+
+    if (db_tvrage <> nil) then
+    begin
+
+      try
+        irc_addtext('', '', db_tvrage.rls_showname);
+        db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
+      except
+        on E: Exception do
+        begin
+          //        db_tvrage := nil;
+          Debug(dpError, section,
+            format('Exception in IrcAnnounceTheTVDbInfo: %s',
+            [E.Message]));
+          irc_AddText(Netname, Channel,
+            format('<c4>[Exception]</c> in IrcAnnounceTheTVDbInfo: %s',
+            [E.Message]));
+          Result := True;
+          exit;
+        end;
+      end;
+    end
+    else
+    *)
+
+//  irc_addtext(Netname, Channel,
+//    format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
+//  Result := True;
+
 end;
 
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
