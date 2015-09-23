@@ -11370,7 +11370,7 @@ function IrcAnnounceTheTVDbInfo(const Netname, Channel: string; params: string):
 var
   db_tvrage: TTheTvDB;
 begin
-(*
+
   db_tvrage := nil;
   try
     db_tvrage := getTheTVDBbyShowName(params);
@@ -11447,7 +11447,7 @@ begin
     end;
   end
   else
-  *)
+  
     irc_addtext(Netname, Channel,
       format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
   Result := True;
