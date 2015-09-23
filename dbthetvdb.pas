@@ -115,7 +115,7 @@ end;
 
 procedure TTheTvDB.SetTVDbRelease(tr: TTVRelease);
 begin
-  (*
+
     tr.showname := rls_showname;
     tr.showid := tv_showid;
     tr.premier_year := tv_premiered_year;
@@ -127,7 +127,7 @@ begin
     tr.running := tv_running;
     tr.ended_year := tv_endedyear;
     tr.scripted := tv_scripted;
-    *)
+
     //  tr.season:= tv_seasons;
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
