@@ -68,7 +68,7 @@ var
   addthetvdbcmd: string;
   oldthetvdbcmd: string;
 
-//  last_addthetvdb: THashedStringList;
+  //  last_addthetvdb: THashedStringList;
 
 function getTheTVDbInfoCount: integer;
 var
@@ -141,7 +141,7 @@ begin
   self.tv_genres := TStringList.Create;
   self.tv_genres.QuoteChar := '"';
   self.tv_endedyear := -1;
- end;
+end;
 
 destructor TTheTvDB.Destroy;
 begin
@@ -264,17 +264,17 @@ function getTVDBByNameFromMemory(name: string): TTheTvDB;
 var
   i: integer;
 begin
-(*
-  try
-    i := last_addthetvdb.IndexOf(name);
-    if i <> -1 then
-    begin
-      Result := TTheTvDB(last_addthetvdb.Objects[i]);
+  (*
+    try
+      i := last_addthetvdb.IndexOf(name);
+      if i <> -1 then
+      begin
+        Result := TTheTvDB(last_addthetvdb.Objects[i]);
+      end;
+    except
+      Result := nil;
     end;
-  except
-    Result := nil;
-  end;
-*)
+  *)
 end;
 
 function getTVDBByIDFromMemory(id: string): TTheTvDB;
@@ -282,46 +282,46 @@ var
   i: integer;
   tvrage: TTheTvDB;
 begin
-(*
-  for i := last_addthetvdb.Count - 1 downto 0 do
-  begin
-    try
-      if i < 0 then
+  (*
+    for i := last_addthetvdb.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
         Break;
-    except
-      Break;
-    end;
-    try
-      tvrage := TTheTvDB(last_addthetvdb.Objects[i]);
-      if (tvrage.tv_showid = id) then
-      begin
-        Result := tvrage;
+      end;
+      try
+        tvrage := TTheTvDB(last_addthetvdb.Objects[i]);
+        if (tvrage.tv_showid = id) then
+        begin
+          Result := tvrage;
+          break;
+        end;
+      except
         break;
       end;
-    except
-      break;
     end;
-  end;
-  *)
+    *)
 end;
 
-function fillTTheTvDBfromDB(item: Psqlite3_stmt; show: string = ''): TTheTvDB;
+function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
+  TTheTvDB;
 begin
 
-if item = nil then begin
-      Result := nil;
-      Debug(dpError, section,'fillTTheTvDBfromDB item is nil');
-
-  Exit;
-end;
-
+  if item = nil then
+  begin
+    Result := nil;
+    Debug(dpError, section, 'fillTTheTvDBfromDB item is nil');
+    Exit;
+  end;
 
   if thetvdb.Step(item) then
   begin
     if (LowerCase(show) <> LowerCase(thetvdb.column_text(item, 0))) then
     begin
       Result := nil;
-      Debug(dpError, section,'fillTTheTvDBfromDB is nil');
+      Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
       exit;
     end;
     if show = '' then
@@ -345,32 +345,59 @@ end;
 function getTheTVDBbyShowName(rls_showname: string): TTheTvDB;
 var
   i: integer;
-  //  tvrage: TTheTvDB;
+  tvrage: TTheTvDB;
   gettvrage: Psqlite3_stmt;
 begin
-  Result := nil;
+  result := nil;
+//  tvrage := nil;
   if thetvdb = nil then
     exit;
 
   if (rls_showname = '') then
     exit;
   //  result:= getTVDBByNameFromMemory(rls_showname);
-  if (Result = nil) then
-  begin
-    try
-      gettvrage := thetvdb.Open(
-        'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
-        + '";'); //so we can handle the aka's .
-      result := fillTTheTvDBfromDB(gettvrage, rls_showname);
-    except
-      on e: Exception do
+//  if (Result = nil) then  begin
+  try
+    gettvrage := thetvdb.Open(
+      'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
+      + '";'); //so we can handle the aka's .
+
+    if thetvdb.Step(gettvrage) then
+    begin
+
+      if (LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,
+        0))) then
       begin
         Result := nil;
-        Debug(dpError, section, Format('[EXCEPTION] getTheTVDBbyShowName: %s ',
-          [e.Message]));
+        Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
+        exit;
       end;
+    tvrage := TTheTvDB.Create(rls_showname);
+    tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
+    tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
+    tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage, 5), 0);
+    tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
+    tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
+    tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
+    tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
+    tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
+    tvrage.tv_running := Boolean(lowercase(result.tv_status) = 'running');
+    tvrage.tv_scripted := Boolean(lowercase(result.tv_classification) =
+      'scripted');
+    tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
+    result:=tvrage;
+    end;
+
+    // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
+  except
+    on e: Exception do
+    begin
+      Result := nil;
+      Debug(dpError, section, Format('[EXCEPTION] getTheTVDBbyShowName: %s ',
+        [e.Message]));
     end;
   end;
+  //  end;
 end;
 
 function getTheTVDBbyReleaseName(rls: string): TTheTvDB;
@@ -430,8 +457,27 @@ begin
         'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE id = ' + tv_showid
         + ';');
 
-      tvrage := fillTTheTvDBfromDB(gettvrage);
-      Result := tvrage;
+    if thetvdb.Step(gettvrage) then
+    begin
+    tvrage := TTheTvDB.Create(thetvdb.column_text(gettvrage, 0));
+    tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
+    tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
+    tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage, 5), 0);
+    tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
+    tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
+    tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
+    tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
+    tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
+    tvrage.tv_running := Boolean(lowercase(result.tv_status) = 'running');
+    tvrage.tv_scripted := Boolean(lowercase(result.tv_classification) =
+      'scripted');
+    tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
+    result:=tvrage;
+    end;
+
+
+//      tvrage := fillTTheTvDBfromDB(gettvrage);
+//      Result := tvrage;
 
     except
       on e: Exception do
