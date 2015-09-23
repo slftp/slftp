@@ -2096,7 +2096,7 @@ begin
   showname := rx.Replace(showname, ' ');
 
   rx.Free;
-  (*
+
   if (showname <> '') then
   begin
     //    db_tvrage := nil;
@@ -2128,7 +2128,7 @@ begin
     end;
 
   end;
-  *)
+  
 
 end;
 
