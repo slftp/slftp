@@ -115,6 +115,7 @@ end;
 
 procedure TTheTvDB.SetTVDbRelease(tr: TTVRelease);
 begin
+(*
   tr.showname := rls_showname;
   tr.showid := tv_showid;
   tr.premier_year := tv_premiered_year;
@@ -126,6 +127,7 @@ begin
   tr.running := tv_running;
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
+  *)
   //  tr.season:= tv_seasons;
     if config.ReadBool(section,'post_lookup_infos',false) then PostResults(tr.rlsname);
 end;
@@ -301,7 +303,7 @@ begin
       exit;
     end;
     if show = '' then
-      show := thetvdb.column_text(item, 0);
+    show := thetvdb.column_text(item, 0);
     result := TTheTvDB.Create(show);
     result.tv_showid := thetvdb.column_text(item, 3);
     result.tv_showname := thetvdb.column_text(item, 1);
@@ -320,7 +322,7 @@ end;
 function getTheTVDBbyShowName(rls_showname: string): TTheTvDB;
 var
   i: integer;
-  tvrage: TTheTvDB;
+//  tvrage: TTheTvDB;
   gettvrage: Psqlite3_stmt;
 begin
   Result := nil;
@@ -336,8 +338,7 @@ begin
       gettvrage := thetvdb.Open(
         'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
           + '";'); //so we can handle the aka's .
-      tvrage := fillTTheTvDBfromDB(gettvrage, rls_showname);
-      Result := tvrage;
+      result := fillTTheTvDBfromDB(gettvrage, rls_showname);
     except
       on e: Exception do
       begin
