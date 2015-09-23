@@ -68,7 +68,7 @@ var
   addthetvdbcmd: string;
   oldthetvdbcmd: string;
 
-  last_addthetvdb: THashedStringList;
+//  last_addthetvdb: THashedStringList;
 
 function getTheTVDbInfoCount: integer;
 var
@@ -141,7 +141,7 @@ begin
   self.tv_genres := TStringList.Create;
   self.tv_genres.QuoteChar := '"';
   self.tv_endedyear := -1;
-end;
+ end;
 
 destructor TTheTvDB.Destroy;
 begin
@@ -264,6 +264,7 @@ function getTVDBByNameFromMemory(name: string): TTheTvDB;
 var
   i: integer;
 begin
+(*
   try
     i := last_addthetvdb.IndexOf(name);
     if i <> -1 then
@@ -273,7 +274,7 @@ begin
   except
     Result := nil;
   end;
-
+*)
 end;
 
 function getTVDBByIDFromMemory(id: string): TTheTvDB;
@@ -281,6 +282,7 @@ var
   i: integer;
   tvrage: TTheTvDB;
 begin
+(*
   for i := last_addthetvdb.Count - 1 downto 0 do
   begin
     try
@@ -300,6 +302,7 @@ begin
       break;
     end;
   end;
+  *)
 end;
 
 function fillTTheTvDBfromDB(item: Psqlite3_stmt; show: string = ''): TTheTvDB;
@@ -309,6 +312,9 @@ begin
     if (LowerCase(show) <> LowerCase(thetvdb.column_text(item, 0))) then
     begin
       Result := nil;
+      Debug(dpError, section,'fillTTheTvDBfromDB is nil');
+
+
       exit;
     end;
     if show = '' then
