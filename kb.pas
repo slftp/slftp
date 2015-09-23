@@ -1996,6 +1996,7 @@ begin
     Result := True;
     exit;
   end;
+
   irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
   try
     AddTask(TPazoTheTVDbLookupTask.Create('', '',
@@ -2095,7 +2096,7 @@ begin
   showname := rx.Replace(showname, ' ');
 
   rx.Free;
-
+  (*
   if (showname <> '') then
   begin
     //    db_tvrage := nil;
@@ -2127,6 +2128,7 @@ begin
     end;
 
   end;
+  *)
 
 end;
 
