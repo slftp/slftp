@@ -52,7 +52,7 @@ begin
     end;
   except on E: Exception do
     begin
-      Debug(dpError, section, format('Exception in Rehashglobalskiplist: %s',
+      Debug(dpError, 'globalskip', format('Exception in Rehashglobalskiplist: %s',
         [E.Message]));
       result := False;
     end;
