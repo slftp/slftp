@@ -2103,6 +2103,7 @@ begin
       db_tvrage := getTheTVDBbyShowName(showname);
       if (db_tvrage <> nil) then
       begin
+
       try
         db_tvrage.SetTVDbRelease(self);
     except
@@ -2114,6 +2115,7 @@ begin
         exit;
       end;
     end;
+
       end;
     except
       on e: Exception do
