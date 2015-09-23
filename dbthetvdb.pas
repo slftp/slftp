@@ -307,14 +307,21 @@ end;
 
 function fillTTheTvDBfromDB(item: Psqlite3_stmt; show: string = ''): TTheTvDB;
 begin
+
+if item = nil then begin
+      Result := nil;
+      Debug(dpError, section,'fillTTheTvDBfromDB item is nil');
+
+  Exit;
+end;
+
+
   if thetvdb.Step(item) then
   begin
     if (LowerCase(show) <> LowerCase(thetvdb.column_text(item, 0))) then
     begin
       Result := nil;
       Debug(dpError, section,'fillTTheTvDBfromDB is nil');
-
-
       exit;
     end;
     if show = '' then
