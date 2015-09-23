@@ -2099,13 +2099,23 @@ begin
   if (showname <> '') then
   begin
     //    db_tvrage := nil;
+    db_tvrage := nil;
     try
       db_tvrage := getTheTVDBbyShowName(showname);
-      if (db_tvrage <> nil) then
+    except
+      on e: Exception do
       begin
+        Debug(dpError, rsections,
+          Format('Exception in TTVRelease.Create.getTheTVDBbyShowName: %s',
+          [e.Message]));
+        exit;
+      end;
+    end;
+
+
 
       try
-        db_tvrage.SetTVDbRelease(self);
+      if (db_tvrage <> nil) then db_tvrage.SetTVDbRelease(self);
     except
       on e: Exception do
       begin
@@ -2116,16 +2126,6 @@ begin
       end;
     end;
 
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections,
-          Format('Exception in TTVRelease.Create.getTheTVDBbyShowName: %s',
-          [e.Message]));
-        exit;
-      end;
-    end;
   end;
 
 end;
