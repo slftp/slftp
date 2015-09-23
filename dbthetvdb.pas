@@ -102,7 +102,7 @@ begin
   try
     thetvdb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,endedyear,last_updated) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d)',
       [StrToInt(tv_showid), tv_premiered_year, tv_country, tv_status,
-        tv_classification, tv_network, tv_genres.CommaText, tv_endedyear,
+      tv_classification, tv_network, tv_genres.CommaText, tv_endedyear,
         DateTimeToUnix(now())]));
   except on E: Exception do
     begin
@@ -115,21 +115,22 @@ end;
 
 procedure TTheTvDB.SetTVDbRelease(tr: TTVRelease);
 begin
-(*
-  tr.showname := rls_showname;
-  tr.showid := tv_showid;
-  tr.premier_year := tv_premiered_year;
-  tr.country := tv_country;
-  tr.status := tv_status;
-  tr.classification := tv_classification;
-  tr.genres.Assign(tv_genres);
-  tr.network := tv_network;
-  tr.running := tv_running;
-  tr.ended_year := tv_endedyear;
-  tr.scripted := tv_scripted;
-  *)
-  //  tr.season:= tv_seasons;
-    if config.ReadBool(section,'post_lookup_infos',false) then PostResults(tr.rlsname);
+  (*
+    tr.showname := rls_showname;
+    tr.showid := tv_showid;
+    tr.premier_year := tv_premiered_year;
+    tr.country := tv_country;
+    tr.status := tv_status;
+    tr.classification := tv_classification;
+    tr.genres.Assign(tv_genres);
+    tr.network := tv_network;
+    tr.running := tv_running;
+    tr.ended_year := tv_endedyear;
+    tr.scripted := tv_scripted;
+    *)
+    //  tr.season:= tv_seasons;
+  if config.ReadBool(section, 'post_lookup_infos', false) then
+    PostResults(tr.rlsname);
 end;
 
 constructor TTheTvDB.Create(rls_showname: string);
@@ -237,17 +238,23 @@ end;
 
 procedure dbTheTVDbInit;
 begin
-  last_addthetvdb := THashedStringList.Create;
-  last_addthetvdb.CaseSensitive := False;
+  //  last_addthetvdb := THashedStringList.Create;
+  //  last_addthetvdb.CaseSensitive := False;
 end;
 
 procedure dbTheTVDbUninit;
 begin
-  last_addthetvdb.Free;
-  if thetvdb <> nil then
-  begin
-    thetvdb.Free;
-    thetvdb := nil;
+  //  last_addthetvdb.Free;
+  try
+    if thetvdb <> nil then
+    begin
+      thetvdb.Free;
+      thetvdb := nil;
+    end;
+  except on E: Exception do
+      Debug(dpError, section,
+        Format('Exception in dbTheTVDbUninit: %s',
+        [e.Message]));
   end;
 end;
 
@@ -303,7 +310,7 @@ begin
       exit;
     end;
     if show = '' then
-    show := thetvdb.column_text(item, 0);
+      show := thetvdb.column_text(item, 0);
     result := TTheTvDB.Create(show);
     result.tv_showid := thetvdb.column_text(item, 3);
     result.tv_showname := thetvdb.column_text(item, 1);
@@ -314,7 +321,8 @@ begin
     result.tv_genres.CommaText := thetvdb.column_text(item, 10);
     result.tv_network := thetvdb.column_text(item, 9);
     result.tv_running := Boolean(lowercase(result.tv_status) = 'running');
-    result.tv_scripted:= Boolean(lowercase(result.tv_classification) = 'scripted');
+    result.tv_scripted := Boolean(lowercase(result.tv_classification) =
+      'scripted');
     result.last_updated := StrToIntDef(thetvdb.column_text(item, 12), -1);
   end;
 end;
@@ -322,7 +330,7 @@ end;
 function getTheTVDBbyShowName(rls_showname: string): TTheTvDB;
 var
   i: integer;
-//  tvrage: TTheTvDB;
+  //  tvrage: TTheTvDB;
   gettvrage: Psqlite3_stmt;
 begin
   Result := nil;
@@ -337,7 +345,7 @@ begin
     try
       gettvrage := thetvdb.Open(
         'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
-          + '";'); //so we can handle the aka's .
+        + '";'); //so we can handle the aka's .
       result := fillTTheTvDBfromDB(gettvrage, rls_showname);
     except
       on e: Exception do
@@ -405,7 +413,7 @@ begin
 
       gettvrage := thetvdb.Open(
         'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE id = ' + tv_showid
-          + ';');
+        + ';');
 
       tvrage := fillTTheTvDBfromDB(gettvrage);
       Result := tvrage;
