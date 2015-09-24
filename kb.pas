@@ -933,7 +933,7 @@ begin
 
         if (s = nil) then
         begin
-          irc_Addstats(Format('<c7>[SITE NOT FOUND]</c> : %s %s', [netname,
+          irc_Addstats(Format('<c4>[SITE NOT FOUND]</c> : %s %s', [netname,
             sitename]));
           exit;
         end;
@@ -947,19 +947,19 @@ begin
 
         if (s.markeddown) then
         begin
-          irc_Addstats(Format('<c7>[SITE DOWN]</c> : %s %s @ <b>%s</b>',
+          irc_Addstats(Format('<c4>[SITE DOWN]</c> : %s %s @ <b>%s</b>',
             [section, rls, sitename]));
           exit;
         end;
 
         if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
         begin
-          irc_Addstats(Format('<c7>[BACKFILL]</c> : %s %s @ <b>%s</b>',
+          irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>',
             [section, rls, sitename]));
           exit;
         end;
 
-        irc_Addstats(Format('<c7>[NOT SET]</c> : %s %s @ %s (%s)',
+        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
 
@@ -1048,13 +1048,13 @@ begin
     if (rule_result = raDrop) then
     begin
       if spamcfg.ReadBool('kb', 'skip_rls', True) then
-        irc_Addstats(Format('<c7>[SKIP]</c> : %s %s @ %s "%s" (%s)',
+        irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
     end
     else if (rule_result = raDontmatch) then
     begin
       if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
-        irc_Addstats(Format('<c7>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
+        irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
     end;
   end;
