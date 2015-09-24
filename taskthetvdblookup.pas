@@ -108,9 +108,24 @@ begin
     tvr.tv_showname := string(js.Field['name'].Value);
     if js.Field['network'].SelfType = jsNull then
     begin
-      tvr.tv_network := string(js.Field['webChannel'].Field['name'].Value);
-      tvr.tv_country :=
-        string(js.Field['webChannel'].Field['country'].Field['code'].Value);
+      if js.Field['webChannel'].SelfType <> jsNull then
+      begin
+        tvr.tv_network := string(js.Field['webChannel'].Field['name'].Value);
+        if js.Field['webChannel'].Field['country'].SelfType = jsNull then
+        begin
+          tvr.tv_country := 'unknown';
+        end
+        else
+        begin
+          tvr.tv_country :=
+            string(js.Field['webChannel'].Field['country'].Field['code'].Value);
+        end;
+      end
+      else
+      begin
+        tvr.tv_network := 'unknown';
+        tvr.tv_country := 'unknown';
+      end;
     end
     else
     begin
