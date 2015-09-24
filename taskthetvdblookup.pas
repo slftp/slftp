@@ -157,9 +157,24 @@ end;
 procedure TPazoTheTVDbLookupTask.PostResults(id, network, country, classi,
   status: string; genre: TStringList; premyear: string);
 begin
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname, premyear, id]));
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
-  irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
+  if config.ReadBool(section, 'use_new_announce_style', True) then
+  begin
+    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname, premyear, id]));
+    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
+    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
+  end
+  else
+  begin
+    irc_Addstats(Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/',
+      [mainpazo.rls.rlsname, premyear, id]));
+    irc_Addstats(Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s',
+      [genre.CommaText, classi, status]));
+    irc_Addstats(Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ',
+      [country, network]));
+  end;
 end;
 
 function TPazoTheTVDbLookupTask.Execute(slot: Pointer): boolean;
@@ -263,15 +278,17 @@ begin
 
   db_thetvdb := parseTVMazeInfos(tvmaz, tr.showname);
 
- //maybe adding some if respons = '' ...
+  //maybe adding some if respons = '' ...
 
   if onlyEnglishAlpha(db_thetvdb.tv_showname) = onlyEnglishAlpha(tr.showname)
     then
   begin
     try
       //      dbaddtvrage_SaveTVRage(db_tvrage.tv_showid, db_tvrage, mainpazo.rls.rlsname);
-      irc_Addtext_by_key('ADDTVRAGE',Format('%s %s %s',[config.ReadString(section,
-        'addcmd', '!addthetvdb'), mainpazo.rls.rlsname, db_thetvdb.tv_showid]));
+      irc_Addtext_by_key('ADDTVRAGE', Format('%s %s %s',
+        [config.ReadString(section,
+          'addcmd', '!addthetvdb'), mainpazo.rls.rlsname,
+            db_thetvdb.tv_showid]));
       db_thetvdb.Save;
     except
       on e: Exception do

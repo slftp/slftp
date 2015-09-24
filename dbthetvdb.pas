@@ -116,19 +116,19 @@ end;
 procedure TTheTvDB.SetTVDbRelease(tr: TTVRelease);
 begin
 
-    tr.showname := rls_showname;
-    tr.showid := tv_showid;
-    tr.premier_year := tv_premiered_year;
-    tr.country := tv_country;
-    tr.status := tv_status;
-    tr.classification := tv_classification;
-    tr.genres.Assign(tv_genres);
-    tr.network := tv_network;
-    tr.running := tv_running;
-    tr.ended_year := tv_endedyear;
-    tr.scripted := tv_scripted;
+  tr.showname := rls_showname;
+  tr.showid := tv_showid;
+  tr.premier_year := tv_premiered_year;
+  tr.country := tv_country;
+  tr.status := tv_status;
+  tr.classification := tv_classification;
+  tr.genres.Assign(tv_genres);
+  tr.network := tv_network;
+  tr.running := tv_running;
+  tr.ended_year := tv_endedyear;
+  tr.scripted := tv_scripted;
 
-    //  tr.season:= tv_seasons;
+  //  tr.season:= tv_seasons;
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
     PostResults(tr.rlsname);
@@ -170,9 +170,24 @@ begin
   try
     if ((rls = '') or (tv_showid = rls)) then
       rls := rls_showname;
-    irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls, IntToStr(tv_premiered_year), tv_showid]));
-    irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
-    irc_Addstats(Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
+    if config.ReadBool(section, 'use_new_announce_style', True) then
+    begin
+      irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls, IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
+      irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
+    end
+    else
+    begin
+      irc_Addstats(Format(
+        '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/',
+        [rls, IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addstats(Format(
+        '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s',
+        [tv_genres.CommaText, tv_classification, tv_status]));
+      irc_Addstats(Format(
+        '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ',
+        [tv_country, tv_network]));
+    end;
   except
     on e: Exception do
     begin
@@ -190,13 +205,24 @@ begin
   try
     if ((rls = '') or (tv_showid = rls)) then
       rls := rls_showname;
+      if config.ReadBool(section, 'use_new_announce_style', True) then begin
     irc_Addtext(Netname, Channel,
-      Format('<c3>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls, IntToStr(tv_premiered_year), tv_showid]));
+      Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls, IntToStr(tv_premiered_year), tv_showid]));
     irc_Addtext(Netname, Channel,
-      Format('<c3>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
+      Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
     irc_Addtext(Netname, Channel,
-      Format('<c3>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s',
+      Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s',
       [tv_country, tv_network]));
+      end else begin
+     irc_AddText(Netname, CHannel, Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/', [rls, IntToStr(tv_premiered_year), tv_showid]));
+    irc_AddText(Netname, CHannel, Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s',
+      [tv_genres.CommaText, tv_classification, tv_status]));
+    irc_AddText(Netname, CHannel, Format(
+      '(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ',
+      [tv_country, tv_network]));
+      end;
   except
     on e: Exception do
     begin
@@ -343,6 +369,7 @@ begin
   end;
 end;
  *)
+
 function getTheTVDBbyShowName(rls_showname: string): TTheTvDB;
 var
   i: integer;
@@ -351,60 +378,65 @@ var
 begin
   result := nil;
 
-  if thetvdb = nil then begin
-        Debug(dpError, section, '[EXCEPTION] getTheTVDBbyShowName: thetvdb = nil ');
+  if thetvdb = nil then
+  begin
+    Debug(dpError, section, '[EXCEPTION] getTheTVDBbyShowName: thetvdb = nil ');
     exit;
   end;
 
-  if (rls_showname = '') then begin
-       Debug(dpError, section, '[EXCEPTION] getTheTVDBbyShowName: rls_showname is empty');
+  if (rls_showname = '') then
+  begin
+    Debug(dpError, section,
+      '[EXCEPTION] getTheTVDBbyShowName: rls_showname is empty');
     exit;
   end;
 
-    gettvrage := thetvdb.Open(
-      'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
-      + '";'); //so we can handle the aka's .
+  gettvrage := thetvdb.Open(
+    'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
+    + '";'); //so we can handle the aka's .
 
-    if thetvdb.Step(gettvrage) then
-    begin
+  if thetvdb.Step(gettvrage) then
+  begin
 
-      if (LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,
-        0))) then
-      begin
-        Result := nil;
-        Debug(dpError, section, 'fillTTheTvDBfromDB LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,0)))');
-        exit;
-      end;
-  try
-    tvrage := TTheTvDB.Create(rls_showname);
-    tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
-    tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
-    tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage, 5), 0);
-    tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
-    tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
-    tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
-    tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
-    tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
-    tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
-    tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
-      'scripted');
-    tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
-    result:=tvrage;
-
-  except
-    on e: Exception do
+    if (LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,
+      0))) then
     begin
       Result := nil;
-      Debug(dpError, section, Format('[EXCEPTION] getTheTVDBbyShowName: %s ',
-        [e.Message]));
+      Debug(dpError, section,
+        'fillTTheTvDBfromDB LowerCase(rls_showname) <> LowerCase(thetvdb.column_text(gettvrage,0)))');
+      exit;
     end;
+    try
+      tvrage := TTheTvDB.Create(rls_showname);
+      tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
+      tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
+      tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage, 5),
+        0);
+      tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
+      tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
+      tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
+      tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
+      tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
+      tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
+      tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
+        'scripted');
+      tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12),
+        -1);
+      result := tvrage;
+
+    except
+      on e: Exception do
+      begin
+        Result := nil;
+        Debug(dpError, section, Format('[EXCEPTION] getTheTVDBbyShowName: %s ',
+          [e.Message]));
+      end;
+    end;
+
   end;
 
-
-    end;
-
-    // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
-  //  end;
+  // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
+//  end;
 end;
 
 function getTheTVDBbyReleaseName(rls: string): TTheTvDB;
@@ -413,7 +445,7 @@ var
   rx: TRegexpr;
 begin
   Result := nil;
-  showname:=rls;
+  showname := rls;
   rx := TRegexpr.Create;
   try
     rx.ModifierI := True;
@@ -465,23 +497,25 @@ begin
         'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE id = ' + tv_showid
         + ';');
 
-    if thetvdb.Step(gettvrage) then
-    begin
-    tvrage := TTheTvDB.Create(thetvdb.column_text(gettvrage, 0));
-    tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
-    tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
-    tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage, 5), 0);
-    tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
-    tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
-    tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
-    tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
-    tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
-    tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
-    tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
-      'scripted');
-    tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12), -1);
-    result:=tvrage;
-    end;
+      if thetvdb.Step(gettvrage) then
+      begin
+        tvrage := TTheTvDB.Create(thetvdb.column_text(gettvrage, 0));
+        tvrage.tv_showid := thetvdb.column_text(gettvrage, 3);
+        tvrage.tv_showname := thetvdb.column_text(gettvrage, 1);
+        tvrage.tv_premiered_year := StrToIntDef(thetvdb.column_text(gettvrage,
+          5), 0);
+        tvrage.tv_country := thetvdb.column_text(gettvrage, 6);
+        tvrage.tv_status := thetvdb.column_text(gettvrage, 7);
+        tvrage.tv_classification := thetvdb.column_text(gettvrage, 8);
+        tvrage.tv_genres.CommaText := thetvdb.column_text(gettvrage, 10);
+        tvrage.tv_network := thetvdb.column_text(gettvrage, 9);
+        tvrage.tv_running := Boolean(lowercase(tvrage.tv_status) = 'running');
+        tvrage.tv_scripted := Boolean(lowercase(tvrage.tv_classification) =
+          'scripted');
+        tvrage.last_updated := StrToIntDef(thetvdb.column_text(gettvrage, 12),
+          -1);
+        result := tvrage;
+      end;
 
     except
       on e: Exception do
