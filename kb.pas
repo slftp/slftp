@@ -2024,13 +2024,12 @@ function TTVRelease.AsText(pazo_id: integer): string;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'URL:  http://thetvdb.com/?tab=series&id=' + showid + '/' +
-    #13#10;
+  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + showid + #13#10;
   if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
   if episode <> 0 then
     Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
-  if premier_year <> 0 then
+  if premier_year <> -1 then
     Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
   if ended_year <> -1 then
     Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;

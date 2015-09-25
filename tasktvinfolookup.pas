@@ -215,10 +215,10 @@ begin
   end
   else
   begin
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/', [mainpazo.rls.rlsname,
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname,
       premyear, id]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
   end;
 end;
 
