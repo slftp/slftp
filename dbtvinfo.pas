@@ -179,7 +179,7 @@ begin
       rls := rls_showname;
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://tvinfodb.com/?tab=series&id=%s', [rls,
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls,
         IntToStr(tv_premiered_year), tv_showid]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country,
@@ -187,11 +187,11 @@ begin
     end
     else
     begin
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/', [rls,
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s', [rls,
         IntToStr(tv_premiered_year), tv_showid]));
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country,
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country,
         tv_network]));
     end;
   except
@@ -214,7 +214,7 @@ begin
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://tvinfodb.com/?tab=series&id=%s', [rls,
+        Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls,
         IntToStr(tv_premiered_year), tv_showid]));
       irc_Addtext(Netname, Channel,
         Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
@@ -225,11 +225,11 @@ begin
     end
     else
     begin
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://tvrage.com/shows/id-%s/',
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s',
         [rls, IntToStr(tv_premiered_year), tv_showid]));
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVRAGE (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
     end;
   except
     on e: Exception do
@@ -425,7 +425,7 @@ begin
 
       tvi.tv_showname := tvinfodb.column_text(gettvrage, 1);
       tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage,
-        7), 0);
+        7), -1);
       tvi.tv_country := tvinfodb.column_text(gettvrage, 8);
       tvi.tv_status := tvinfodb.column_text(gettvrage, 9);
       tvi.tv_classification := tvinfodb.column_text(gettvrage, 10);
@@ -520,7 +520,7 @@ begin
 
         tvi.tv_showname := tvinfodb.column_text(gettvrage, 1);
         tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage,
-          7), 0);
+          7), -1);
         tvi.tv_country := tvinfodb.column_text(gettvrage, 8);
         tvi.tv_status := tvinfodb.column_text(gettvrage, 9);
         tvi.tv_classification := tvinfodb.column_text(gettvrage, 10);
