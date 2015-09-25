@@ -134,6 +134,11 @@ begin
         string(js.Field['network'].Field['country'].Field['code'].Value);
     end;
 
+    if tvr.tv_country = 'US' then
+      tvr.tv_country := 'USA';
+    if tvr.tv_country = 'GB' then
+      tvr.tv_country := 'UK';
+
     tvr.tv_status := string(js.Field['status'].Value);
 
     for I := 0 to js.Field['genres'].Count - 1 do
