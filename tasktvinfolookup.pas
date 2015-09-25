@@ -71,6 +71,14 @@ begin
     end;
   end;
 
+
+  if ((response = '') or (response = '[]')) then begin
+      Debug(dpError, section,'Cant find theTVDB id for '+name+' ('+sname+')');
+irc_addadmin('Cant find theTVDB id for '+name+' ('+sname+')');
+    Exit;
+  end;
+
+
   js := TlkJSON.ParseText(response) as TlkJSONobject;
   try
     result := string(js.Field['externals'].Field['thetvdb'].Value);
@@ -161,9 +169,11 @@ begin
     tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
     tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
 
-    (*
+    try
 
-    if js.Field['_embedded'].Field['nextepisode'].SelfType <> jsNull then
+
+
+    if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
     begin
       tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
       tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
@@ -173,7 +183,12 @@ begin
       tvr.tv_next_season := -1;
       tvr.tv_next_ep := -1;
     end;
-      *)
+
+    except on E: Exception do
+    Irc_addadmin(e.Message);
+    end;
+
+
     //string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
 
   finally
