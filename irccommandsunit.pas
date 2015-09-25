@@ -388,7 +388,7 @@ function IrcDelTVRageInfo(const Netname, Channel: string; params: string):
 }
 
 { TheTVDb }
-function IrcAnnounceTheTVDbInfo(const netname, channel: string; params: string):
+function IrcAnnounceTVInfo(const netname, channel: string; params: string):
   boolean;
 function IrcAddTheTVDbToDb(const netname, channel: string; params: string):
   boolean;
@@ -824,14 +824,14 @@ const
     (cmd: '- IMDB -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'imdbinfo'; hnd: IrcAnnounceIMDBInfo; minparams: 1;
     maxparams: 1; hlpgrp: ''),
-    (cmd: '- TheTVDb -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'tvdbinfo'; hnd: IrcAnnounceTheTVDbInfo; minparams: 1;
+    (cmd: '- TVInfo -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 'tvinfo'; hnd: IrcAnnounceTVInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
     (cmd: 'addtvdb'; hnd: IrcAddTheTVDbToDb; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'updatetvdb'; hnd: IrcUpdateTheTVDbInfo; minparams: 1;
+    (cmd: 'updatetvinfo'; hnd: IrcUpdateTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'deltvdb'; hnd: IrcDelTheTVDbInfo; minparams: 1;
+    (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: '')
     );
 
@@ -861,8 +861,8 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile,
   ircblowfish, precatcher, rulesunit, mainthread, taskspeedtest, taskfilesize,
   statsunit, skiplists, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake,
-  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbthetvdb,
-  globalskipunit, xmlwrapper, taskthetvdblookup, uLkJSON;
+  taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
+  globalskipunit, xmlwrapper, tasktvinfolookup, uLkJSON;
 
 const
   section = 'irccommands';
@@ -2498,8 +2498,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       site := TSite(sites.Items[i]);
-      if (site.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
-        then
+      if (site.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if s <> '' then
         site.sslfxp := sslfxp;
@@ -5896,8 +5895,7 @@ begin
         [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)])
     else
     begin
-      if ((x.Strings[i] = 'sections') or (x.Strings[i] = 'autoindexsections'))
-        then
+      if ((x.Strings[i] = 'sections') or (x.Strings[i] = 'autoindexsections')) then
       begin
         j_sec := 0;
         s_sections := '';
@@ -7230,8 +7228,7 @@ var
 begin
   Count := 0;
   for i := Low(irccommands) to High(irccommands) do
-    if ((length(irccommands[i].cmd) > 0) and (irccommands[i].cmd[1] <> '-'))
-      then
+    if ((length(irccommands[i].cmd) > 0) and (irccommands[i].cmd[1] <> '-')) then
       if not FileExists(IncludeTrailingPathDelimiter('help') +
         irccommands[i].cmd + '.txt') then
       begin
@@ -11043,8 +11040,7 @@ begin
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind',
     [kb_list.Count, chr(39)]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
-  if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE
-    then
+  if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE then
     irc_addtext(Netname, Channel, dbaddpre_Status);
 
   rx := TRegexpr.Create;
@@ -11364,23 +11360,23 @@ end;
 
 { The TV dB Function              }
 
-function IrcAnnounceTheTVDbInfo(const Netname, Channel: string; params: string):
+function IrcAnnounceTVInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  db_tvrage: TTheTvDB;
+  db_tvrage: TTVInfoDB;
 begin
 
   if StrToIntDef(params, -1) = -1 then
   begin
     try
-      db_tvrage := getTheTVDBbyReleaseName(params);
+      db_tvrage := getTVInfoByReleaseName(params);
     except
       on E: Exception do
       begin
         Debug(dpError, section,
-          format('Exception in IrcAnnounceTheTVDbInfo.getTheTVDBbyShowName: %s', [E.Message]));
+          format('Exception in IrcAnnounceTheTVDbInfo.getTVInfoBbyShowName: %s', [E.Message]));
         irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in IrcAnnounceTheTVDbInfo.getTheTVDBbyShowName: %s',
+          format('<c4>[Exception]</c> in IrcAnnounceTVInfo.getTheTVInfoByShowName: %s',
           [E.Message]));
         Result := True;
         exit;
@@ -11390,16 +11386,16 @@ begin
   else
   begin
     try
-      db_tvrage := getTheTVDBbyShowID(params);
+      db_tvrage := getTVInfoByShowID(params);
     except
       on E: Exception do
       begin
         //        db_tvrage := nil;
         Debug(dpError, section,
-          format('Exception in IrcAnnounceTheTVDbInfo: %s',
+          format('Exception in IrcAnnounceTVInfo: %s',
           [E.Message]));
         irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in IrcAnnounceTheTVDbInfo: %s',
+          format('<c4>[Exception]</c> in IrcAnnounceTVInfo: %s',
           [E.Message]));
         Result := True;
         exit;
@@ -11407,17 +11403,17 @@ begin
     end;
   end;
 
-    if db_tvrage <> nil then
-    begin
-      db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
-      Result := True;
-    end else begin
-  irc_addtext(Netname, Channel,
-    format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
-  Result := True;
-    end;
-
-
+  if db_tvrage <> nil then
+  begin
+    db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
+    Result := True;
+  end
+  else
+  begin
+    irc_addtext(Netname, Channel,
+      format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
+    Result := True;
+  end;
 
   (*
     //db_tvrage := nil;
@@ -11506,7 +11502,7 @@ end;
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  tvr: TTheTvDB;
+  tvr: TTVInfoDB;
 begin
   Result := False;
   (*
@@ -11534,7 +11530,7 @@ end;
 function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-  otvr, tvr: TTheTvDB;
+  otvr, tvr: TTVInfoDB;
 begin
   result := false;
   (*
@@ -11580,7 +11576,7 @@ function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string):
   boolean;
 var
   resp, uurl, ssname, sname, sid: string;
-  tvr: TTheTvDB;
+  tvr: TTVInfoDB;
   x: TRegExpr;
   i, sresMAXi: integer;
 
@@ -11604,8 +11600,7 @@ begin
     x.Free;
   end;
 
-  if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S'))
-    then
+  if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S')) then
   begin
     sname := StringReplace(ssname, ' ', '+', [rfReplaceAll]);
     sname := StringReplace(sname, '.', '+', [rfReplaceAll]);
@@ -11615,6 +11610,13 @@ begin
 
     uurl := 'q=' + sname;
     resp := slUrlGet('http://api.tvmaze.com/search/shows', uurl);
+
+    if ((resp = '') or (resp = '[]')) then
+    begin
+      irc_addtext(Netname, Channel, 'No info' + chr(39) + 's found for ' + params);
+      Result := True;
+      Exit;
+    end;
 
     try
       jl := TlkJSON.ParseText(resp) as TlkJSONlist;
@@ -11655,7 +11657,6 @@ begin
     uurl := 'thetvdb=' + sid;
     try
       resp := slUrlGet('http://api.tvmaze.com/lookup/shows?' + uurl);
-
     except
       on E: Exception do
       begin
@@ -11665,6 +11666,13 @@ begin
         result := True;
         Exit;
       end;
+    end;
+
+    if ((resp = '') or (resp = '[]')) then
+    begin
+      irc_addtext(Netname, Channel, 'No info found for ' + sname);
+      Result := True;
+      Exit;
     end;
 
     tvr := parseTVMazeInfos(resp, sname);
@@ -11689,6 +11697,7 @@ begin
     irc_Addtext(netname, channel,
       '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
   Result := True;
+
 end;
 
 (*

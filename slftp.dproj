@@ -29,6 +29,6 @@
     <DelphiCompile Include="slftp.dpr">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="dbthetvdb.pas" />
+    <DCCReference Include="dbtvinfo.pas" />
   </ItemGroup>
 </Project>
