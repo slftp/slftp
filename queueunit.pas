@@ -2,9 +2,7 @@ unit queueunit;
 
 interface
 
-uses Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo
-  , taskidle, taskquit, tasklogin, regexpr
-  , sitesunit;
+uses Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, regexpr, sitesunit;
 
 type
   TQueueThread = class(TThread)
@@ -55,10 +53,8 @@ var
 
 implementation
 
-uses SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread,
-  Math, configunit, mrdohutils,
-  taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
-  tasktvragelookup, taskhttpnfo, taskrules, tasksitenfo;
+uses SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
+  tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
 
 const
   section = 'queue';

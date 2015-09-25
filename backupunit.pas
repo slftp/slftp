@@ -24,7 +24,7 @@ implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
   statsunit, indexer
-  {$IFDEF MSWINDOWS},Windows{$ENDIF}
+{$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 //PathDelim
@@ -34,7 +34,7 @@ const
 function MakeBackup: boolean;
 (*
 [backup]
-# all listed files will NOT added to the backup. 
+# all listed files will NOT added to the backup.
 skipfiles=sqlite3.dll,ssleay32.dll,libmysql.dll,libeay32.dll
 *)
 var
@@ -47,19 +47,21 @@ var
 begin
   skipfiles := TStringList.Create;
   skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
-  fname     := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
-  path      := config.ReadString(section, 'backup_dir', '');
+  fname := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
+  path := config.ReadString(section, 'backup_dir', '');
   if not DirectoryExists(path) then
     Mkdir(path);
   path := MyIncludeTrailingSlash(path);
   ForceDirectories(path);
-  tar     := TTarWriter.Create(path + fname);
+  tar := TTarWriter.Create(path + fname);
   EOFound := False;
   try
-    if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then begin
-    result:=false;
+    if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then
+    begin
+      result := false;
       exit
-end  else
+    end
+    else
       while not EOFound do
       begin
         if skipfiles.Text <> '' then
@@ -71,16 +73,16 @@ end  else
         else
           tar.AddFile(Res.Name, Res.Name);
         EOFound := FindNext(Res) <> 0;
-      end;//while not EOFound do begin
+      end; //while not EOFound do begin
   finally
     Result := True;
   end;
 
-  {$IFDEF MSWINDOWS}
+{$IFDEF MSWINDOWS}
   SysUtils.FindClose(Res);
-  {$ELSE}
-  FindClose(Res);  
-  {$ENDIF}
+{$ELSE}
+  FindClose(Res);
+{$ENDIF}
   tar.Free;
   skipfiles.Free;
 end;
@@ -104,8 +106,10 @@ begin
         if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
           AddFile(config.ReadString('stats', 'database', 'nonexist'));
       end;
-
-
+         (*  need a better way to backup this file :(
+      if fileexists('tvinfos.db') then
+        AddFile('tvinfos.db');
+       *)
       if fileexists('mirktrade.conf') then
         AddFile('mirktrade.conf');
       if fileexists('sites.dat') then
@@ -166,14 +170,14 @@ end;
 
 procedure DeleteOldBackups(s: string);
 var
-  sr:    TSearchRec;
+  sr: TSearchRec;
   files: TStringList;
-  ages:  TIntList;
-  i:     integer;
+  ages: TIntList;
+  i: integer;
   oldest, oldesti: integer;
 begin
   files := TStringList.Create;
-  ages  := TIntList.Create;
+  ages := TIntList.Create;
   if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
   begin
     repeat
@@ -183,35 +187,34 @@ begin
         ages.Add(sr.Time);
       end;
     until FindNext(sr) <> 0;
-  {$IFDEF MSWINDOWS}
-  SysUtils.FindClose(sr);
-  {$ELSE}
-  FindClose(sr);
-  {$ENDIF}
+{$IFDEF MSWINDOWS}
+    SysUtils.FindClose(sr);
+{$ELSE}
+    FindClose(sr);
+{$ENDIF}
 
     while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
     begin
       // megkeressuk a legregebbit
       oldesti := -1;
-      oldest  := 0;
+      oldest := 0;
       for i := 0 to ages.Count - 1 do
       begin
         if ((oldest = 0) or (ages[i] < oldest)) then
         begin
           oldesti := i;
-          oldest  := ages[i];
+          oldest := ages[i];
         end;
       end;
 
       if oldesti < 0 then
         Break; // wtf?
 
-  {$IFDEF MSWINDOWS}
-DeleteFile(PAnsiChar(s + files[oldesti]));
-  {$ELSE}
-DeleteFile(s + files[oldesti]);
-  {$ENDIF}
-
+{$IFDEF MSWINDOWS}
+      DeleteFile(PAnsiChar(s + files[oldesti]));
+{$ELSE}
+      DeleteFile(s + files[oldesti]);
+{$ENDIF}
 
       files.Delete(oldesti);
       ages.Delete(oldesti);
@@ -244,28 +247,29 @@ begin
   backup_last_backup := Now;
 end;
 
-
 function CustomBackup(var error: string): boolean;
 var
   cb: TTarWriter;
-  s:  string;
+  s: string;
 begin
   //indexerUninit;
   //statsUninit;
   Result := False;
-  s      := 'custom_' + config.ReadString(section, 'backup_dir', '') + 's';
+  s := 'custom_' + config.ReadString(section, 'backup_dir', '') + 's';
   if not DirectoryExists(s) then
     Mkdir(s);
   s := MyIncludeTrailingSlash(s);
   ForceDirectories(s);
   cb := TTarWriter.Create(s + 'slbackup-' + FormatDateTime('mmdd_hhnnss', Now) + '.tar');
   try
-(*
-if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
-     cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
-      if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
-      cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
-      *)
+    (*
+    if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
+         cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
+          if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
+          cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
+          *)
+
+
     if fileexists('mirktrade.conf') then
       cb.AddFile('mirktrade.conf');
     if fileexists('sites.dat') then
@@ -322,7 +326,6 @@ if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
     Result := True;
 end;
 
-
 {TSLBackup}
 
 constructor TSLBackup.Create(custombackup: boolean = False);
@@ -349,27 +352,28 @@ end;
 function TSLBackup.Backup: boolean;
 var
   slb: TTarWriter;
-  cf:  string;
-  x:   TStringList;
+  cf: string;
+  x: TStringList;
 begin
-  x      := TStringList.Create;
-  slb    := TTarWriter.Create(FilePath + Filename + '.tar');
-  cf     := config.ReadString(section, 'files', '');
+  x := TStringList.Create;
+  slb := TTarWriter.Create(FilePath + Filename + '.tar');
+  cf := config.ReadString(section, 'files', '');
   if uppercase(cf) <> '!ALL!' then
     x.CommaText := cf;
   try
     try
-//
-    Result := True;
+      //
+      Result := True;
     except
-      on e: Exception do begin
+      on e: Exception do
+      begin
         debug(dpError, section, 'backup failed: ' + e.Message);
         Result := False;
       end;
     end;
   finally
-  x.Free;
-  slb.Free;
+    x.Free;
+    slb.Free;
   end;
   backup_last_backup := Now;
 end;
