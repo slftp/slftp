@@ -49,15 +49,10 @@ var
 
 implementation
 
-uses pretimeunit, ident, slmysql2, mysqlutilunit, eprecatcher, tasksunit,
-  dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite,
-  sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo,
-  rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot,
-  speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
-
-  dbaddpre, dbaddimdb, dbthetvdb, dbaddgenre,
-  globalskipunit, slhttp,  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils
+uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite,
+  sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
+  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
+  dbaddpre, dbaddimdb, dbaddgenre, globalskipunit, slhttp,  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo
 {$IFNDEF MSWINDOWS}
      , slconsole
 {$ENDIF}
@@ -177,7 +172,7 @@ end;
   dbaddimdbInit;
 //  dbaddtvrageInit;
 
-dbthetvdbInit;
+dbtvinfoInit;
 
   ConsoleInit;
   Tasks_Init;
@@ -199,7 +194,7 @@ dbthetvdbInit;
   RulesInit;
   SkiplistsInit;
   TagsInit;
-  EPrecatcherInit;
+//  EPrecatcherInit;
   NukeInit;
   SpeedStatsInit;
   RanksInit;
@@ -357,7 +352,7 @@ begin
   dbaddgenreStart;
   dbaddimdbStart;
 //  dbaddtvrageStart;
-  dbthetvdbStart;
+  dbtvinfoStart;
   RanksStart;
   SpeedStatsStart;
   NukeStart;
@@ -375,7 +370,7 @@ begin
   SitesStart;
   IrcStart();
   PrecatcherStart();
-  EPrecatcherStart();
+//  EPrecatcherStart();
 
   SiteAutoStart;
   AutoCrawlerStart;
@@ -394,7 +389,7 @@ begin
   AutoCrawlerStop;
   NukeSave;
   SpeedStatsSave;
-  EPrecatcherStop;
+//  EPrecatcherStop;
   IdentStop();
   IrcStop();
   kb_Save();
@@ -423,7 +418,7 @@ begin
   RanksUnInit;
   SpeedStatsUnInit;
   NukeUninit;
-  EPrecatcherUninit;
+  //EPrecatcherUninit;
   TagsUnInit;
   SkiplistsUnInit;
   RulesUnInit;
@@ -460,7 +455,7 @@ begin
   dbaddgenreUnInit;
   dbaddimdbUnInit;
 //  dbaddtvrageUnInit;
-dbthetvdbUnInit;
+dbtvinfoUnInit;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');

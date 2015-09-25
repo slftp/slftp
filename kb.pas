@@ -199,6 +199,8 @@ type
     status: string;
     running: boolean;
     showid: string;
+    tvmazeid:string;
+    tvrageid:string;
     tvtag: string;
 //    currentAir:boolean;
     function ExtraInfo: string; override;
@@ -315,9 +317,9 @@ implementation
 
 uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
-  rulesunit, Math, DateUtils, StrUtils, precatcher, taskthetvdblookup,
+  rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbthetvdb, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
@@ -1952,7 +1954,7 @@ end;
 function TTVRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
-  db_tvrage: TTheTvDB;
+  db_tvrage: TTVInfoDB;
 begin
   Result := False;
 
@@ -1968,7 +1970,7 @@ begin
 
   //  db_tvrage := nil;
   try
-    db_tvrage := getTheTVDBbyShowName(self.showname);                                                                                                                   
+    db_tvrage := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
@@ -1997,9 +1999,9 @@ begin
     exit;
   end;
 
-  irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
+  //irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
   try
-    AddTask(TPazoTheTVDbLookupTask.Create('', '',
+    AddTask(TPazoTVInfoLookupTask.Create('', '',
       config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
   except
     on e: Exception do
@@ -2052,7 +2054,7 @@ constructor TTVRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   rx: TRegexpr;
-  db_tvrage: TTheTvDB;
+  db_tvrage: TTVInfoDB;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
@@ -2102,12 +2104,12 @@ begin
     //    db_tvrage := nil;
     db_tvrage := nil;
     try
-      db_tvrage := getTheTVDBbyShowName(showname);
+      db_tvrage := getTVInfoByShowName(showname);
     except
       on e: Exception do
       begin
         Debug(dpError, rsections,
-          Format('Exception in TTVRelease.Create.getTheTVDBbyShowName: %s',
+          Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s',
           [e.Message]));
         exit;
       end;
