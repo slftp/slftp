@@ -328,6 +328,7 @@ begin
           'addcmd', '!addthetvdb'), mainpazo.rls.rlsname,
         db_tvinfo.tv_showid]));
       db_tvinfo.Save;
+      db_tvinfo.SetTVDbRelease(tr);
     except
       on e: Exception do
       begin
