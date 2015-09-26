@@ -2114,8 +2114,6 @@ begin
       end;
     end;
 
-
-
       try
       if (db_tvrage <> nil) then db_tvrage.SetTVDbRelease(self);
     except
