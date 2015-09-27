@@ -83,7 +83,7 @@ end;
 constructor TslHTTP.Create;
 begin
   //Timeout:= slDefaultTimeout;
-  Timeout := 30000;
+  Timeout := 300000;
   Response := TStringStream.Create('');
   CustomHeaders := TStringList.Create;
   ResponseHeaders := TStringList.Create;
@@ -228,6 +228,7 @@ uri:=rx.Match[1];
 Cleanup;
   if not Connect(Timeout) then
     exit;
+
 
   if not WriteLn('GET ' + uri + ' HTTP/1.0') then
     exit;

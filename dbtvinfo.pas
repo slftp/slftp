@@ -10,11 +10,14 @@ type
     last_updated: integer;
   public
     rls_showname: string;
-    tv_showid: string;
-    tv_tvrageid: string;
-    tv_tvmazeid: string;
+    //tv_showid: string;
+    tvmaze_id: string;
+    thetvdb_id: string;
+    tvrage_id: string;
+
     tv_showname: string;
     tv_country: string;
+    tv_url: string;
     tv_status: string;
     tv_classification: string;
     tv_genres: TStringList;
@@ -49,9 +52,9 @@ procedure dbTVInfoUnInit;
 function getTVInfoByShowName(rls_showname: string): TTVInfoDB;
 function getTVInfoByReleaseName(rls: string): TTVInfoDB;
 
-function getTVInfoByShowID(tv_showid: string): TTVInfoDB;
+function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 
-procedure saveTVInfos(tv_showid: string; tvrage: TTVInfoDB; rls: string = '');
+procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = '');
 
 procedure addTVInfos(params: string);
 procedure TVInfoFireKbAdd(rls: string);
@@ -104,8 +107,8 @@ begin
   dbid := -1;
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d)',
-      [StrToInt(tv_showid), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-        StrToInt(tv_tvrageid), StrToInt(tv_tvmazeid)]));
+      [StrToInt(thetvdb_id), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
+      StrToInt(tvrage_id), StrToInt(tvmaze_id)]));
   except on E: Exception do
     begin
       Irc_AddText('', '', 'Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
@@ -113,14 +116,14 @@ begin
   end;
 
   tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id) VALUES ("%s","%s",%d);', [rls_showname,
-    tv_showname, StrToInt(tv_showid)]));
+    tv_showname, StrToInt(tvmaze_id)]));
 end;
 
 procedure TTVInfoDB.SetTVDbRelease(tr: TTVRelease);
 begin
 
   tr.showname := rls_showname;
-  tr.showid := tv_showid;
+  tr.showid := tvmaze_id;
   tr.premier_year := tv_premiered_year;
   tr.country := tv_country;
   tr.status := tv_status;
@@ -131,9 +134,9 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
 
-  tr.tvmazeid:= tv_tvmazeid;
-  tr.tvrageid:= tv_tvrageid;
-
+  tr.thetvdbid := thetvdb_id;
+  //  tr.tvmazeid:= tv_tvmazeid;
+  tr.tvrageid := tvrage_id;
 
   //  tr.season:= tv_seasons;
 
@@ -175,32 +178,29 @@ end;
 procedure TTVInfoDB.PostResults(rls: string = '');
 begin
   try
-    if ((rls = '') or (tv_showid = rls)) then
+    if ((rls = '') or (tvmaze_id = rls)) then
       rls := rls_showname;
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls,
-        IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
+        IntToStr(tv_premiered_year), tv_url]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country,
         tv_network]));
     end
     else
     begin
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s', [rls,
-        IntToStr(tv_premiered_year), tv_showid]));
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls,
+        IntToStr(tv_premiered_year), tv_url]));
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country,
-        tv_network]));
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
     end;
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsA: %s ',
-        [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsA: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsA: %s ',[e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsA: %s',[e.Message]));
     end;
   end;
 end;
@@ -209,13 +209,13 @@ procedure TTVInfoDB.PostResults(Netname: string; Channel: string; rls: string =
   '');
 begin
   try
-    if ((rls = '') or (tv_showid = rls)) then
+    if ((rls = '') or (tvmaze_id = rls)) then
       rls := rls_showname;
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [rls,
-        IntToStr(tv_premiered_year), tv_showid]));
+        Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
+        IntToStr(tv_premiered_year), tv_url]));
       irc_Addtext(Netname, Channel,
         Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
         [tv_genres.CommaText, tv_classification, tv_status]));
@@ -225,8 +225,8 @@ begin
     end
     else
     begin
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s',
-        [rls, IntToStr(tv_premiered_year), tv_showid]));
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
+        [rls, IntToStr(tv_premiered_year), tv_url]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
@@ -234,18 +234,15 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsB: %s ',
-        [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsB: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsB: %s ', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsB: %s', [e.Message]));
     end;
   end;
 end;
 
 function TheTVDbStatus: string;
 begin
-  Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos',
-    [getTVInfoSeriesCount, getTVInfoCount]);
+  Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
 
 procedure dbTVInfoStart;
@@ -259,18 +256,16 @@ begin
     db_params := config.ReadString(section, 'pragma', 'main.locking_mode = NORMAL');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
 
-    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
+    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
 
-    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER NOT NULL,"tvrage_id"  INTEGER,"tvmaze_id"  INTEGER,"premiered_year"  INTEGER NOT NULL,' +
+    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id" INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,' +
       '"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,' +
-      '"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,PRIMARY KEY ("tvdb_id" ASC));');
+      '"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,PRIMARY KEY ("tvmaze_id" ASC));');
 
-    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvdb_id" ASC);');
+    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
-    Console_Addline('',
-      Format('TVInfo db loaded. %d Series, with %d infos',
-      [getTVInfoSeriesCount, getTVInfoCount]));
+    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
   end;
 end;
 
@@ -290,9 +285,7 @@ begin
       tvinfodb := nil;
     end;
   except on E: Exception do
-      Debug(dpError, section,
-        Format('Exception in dbTVInfoUninit: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('Exception in dbTVInfoUninit: %s', [e.Message]));
   end;
 end;
 
@@ -390,21 +383,17 @@ begin
 
   if tvinfodb = nil then
   begin
-    Debug(dpError, section,
-      '[EXCEPTION] getTheTVDBbyShowName: tvinfodb = nil ');
+    Debug(dpError, section, '[EXCEPTION] getTVInfoByShowName: tvinfodb = nil ');
     exit;
   end;
 
   if (rls_showname = '') then
   begin
-    Debug(dpError, section,
-      '[EXCEPTION] getTheTVDBbyShowName: rls_showname is empty');
+    Debug(dpError, section, '[EXCEPTION] getTVInfoByShowName: rls_showname is empty');
     exit;
   end;
 
-  gettvrage := tvinfodb.Open(
-    'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE rip LIKE "' + rls_showname
-    + '";'); //so we can handle the aka's .
+  gettvrage := tvinfodb.Open('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE rip LIKE "' + rls_showname + '";'); //so we can handle the aka's .
 
   if tvinfodb.Step(gettvrage) then
   begin
@@ -413,38 +402,34 @@ begin
       0))) then
     begin
       Result := nil;
-      Debug(dpError, section,
-        'fillTTheTvDBfromDB LowerCase(rls_showname) <> LowerCase(tvinfodb.column_text(gettvrage,0)))');
+      Debug(dpError, section, 'fillTTVInfoFromDB LowerCase(rls_showname) <> LowerCase(tvinfodb.column_text(gettvrage,0)))');
       exit;
     end;
     try
       tvi := TTVInfoDB.Create(rls_showname);
-      tvi.tv_showid := tvinfodb.column_text(gettvrage, 3);
-      tvi.tv_tvrageid := tvinfodb.column_text(gettvrage, 5);
-      tvi.tv_tvmazeid := tvinfodb.column_text(gettvrage, 6);
-
       tvi.tv_showname := tvinfodb.column_text(gettvrage, 1);
-      tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage,
-        7), -1);
-      tvi.tv_country := tvinfodb.column_text(gettvrage, 8);
-      tvi.tv_status := tvinfodb.column_text(gettvrage, 9);
-      tvi.tv_classification := tvinfodb.column_text(gettvrage, 10);
-      tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 12);
-      tvi.tv_network := tvinfodb.column_text(gettvrage, 11);
+      tvi.tv_url := tvinfodb.column_text(gettvrage, 3);
+      tvi.thetvdb_id := tvinfodb.column_text(gettvrage, 5);
+      tvi.tvrage_id := tvinfodb.column_text(gettvrage, 6);
+      tvi.tvmaze_id := tvinfodb.column_text(gettvrage, 7);
+      tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage, 8), -1);
+      tvi.tv_country := tvinfodb.column_text(gettvrage, 9);
+      tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
+      tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
+      tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
+      tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
       tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
       tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
-      tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 14), -1);
-      tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
-      tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
-      tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 17),
-        -1);
+      tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
+      tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
+      tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), -1);
+      tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), -1);
       result := tvi;
     except
       on e: Exception do
       begin
         Result := nil;
-        Debug(dpError, section, Format('[EXCEPTION] getTheTVDBbyShowName: %s ',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] getTVInfoByShowName: %s ', [e.Message]));
       end;
     end;
 
@@ -492,7 +477,7 @@ begin
   end;
 end;
 
-function getTVInfoByShowID(tv_showid: string): TTVInfoDB;
+function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 var
   i: integer;
   tvi: TTVInfoDB;
@@ -507,41 +492,33 @@ begin
   if (Result = nil) then
   begin
     try
-
-      gettvrage := tvinfodb.Open(
-        'SELECT * FROM series LEFT JOIN infos ON infos.tvdb_id = series.id WHERE id = ' + tv_showid + ';');
-
+      gettvrage := tvinfodb.Open('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE id = ' + tvmaze_id + ';');
       if tvinfodb.Step(gettvrage) then
       begin
         tvi := TTVInfoDB.Create(tvinfodb.column_text(gettvrage, 0));
-        tvi.tv_showid := tvinfodb.column_text(gettvrage, 3);
-        tvi.tv_tvrageid := tvinfodb.column_text(gettvrage, 5);
-        tvi.tv_tvmazeid := tvinfodb.column_text(gettvrage, 6);
-
+        tvi.thetvdb_id := tvinfodb.column_text(gettvrage, 5);
+        tvi.tvrage_id := tvinfodb.column_text(gettvrage, 6);
+        tvi.tvmaze_id := tvinfodb.column_text(gettvrage, 7);
+        tvi.tv_url := tvinfodb.column_text(gettvrage, 3);
         tvi.tv_showname := tvinfodb.column_text(gettvrage, 1);
-        tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage,
-          7), -1);
-        tvi.tv_country := tvinfodb.column_text(gettvrage, 8);
-        tvi.tv_status := tvinfodb.column_text(gettvrage, 9);
-        tvi.tv_classification := tvinfodb.column_text(gettvrage, 10);
-        tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 12);
-        tvi.tv_network := tvinfodb.column_text(gettvrage, 11);
+        tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage, 8), -1);
+        tvi.tv_country := tvinfodb.column_text(gettvrage, 9);
+        tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
+        tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
+        tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
+        tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
         tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
         tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
-        tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 14), -1);
-        tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
-        tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
-        tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 17),
-          -1);
+        tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
+        tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
+        tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), -1);
+        tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), -1);
         result := tvi;
       end;
-
     except
       on e: Exception do
       begin
-        Debug(dpError, section,
-          Format('[EXCEPTION] getTheTVDbByShowID: %s ',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] getTheTVDbByShowID: %s ', [e.Message]));
       end;
     end;
   end;
@@ -569,18 +546,18 @@ begin
   end;
 end;
 
-procedure saveTVInfos(tv_showid: string; tvrage: TTVInfoDB; rls: string = '');
+procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = '');
 var
   save_tvrage: TTVInfoDB;
 begin
-  if (getTVInfoByShowID(tv_showid) = nil) then
+  if (getTVInfoByShowID(tvmaze_id) = nil) then
   begin
     // add the tvrage
     save_tvrage := TTVInfoDB(tvrage);
     try
       //      last_addtvrage.AddObject(tvrage.tv_showname, tvrage);
       if (rls <> '') then
-        irc_Addtext_by_key('ADDTVRAGE', '!addtvrage ' + rls + ' ' + tv_showid);
+        irc_Addtext_by_key('ADDTVRAGE', '!addtvrage ' + rls + ' ' + tvmaze_id);
     except
       on e: Exception do
       begin
