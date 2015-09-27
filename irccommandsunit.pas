@@ -387,15 +387,14 @@ function IrcDelTVRageInfo(const Netname, Channel: string; params: string):
   boolean;
 }
 
-{ TheTVDb }
-function IrcAnnounceTVInfo(const netname, channel: string; params: string):
-  boolean;
-function IrcAddTheTVDbToDb(const netname, channel: string; params: string):
-  boolean;
-function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string):
-  boolean;
-function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
-  boolean;
+{ TVInfo aka TTVRelease aka TVMaze  }
+function IrcAnnounceTVInfo(const netname, channel: string; params: string): boolean;
+//function IrcAddTheTVDbToDb(const netname, channel: string; params: string):boolean;
+
+function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
+
+function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
+function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
 
 function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
   boolean;
@@ -827,7 +826,11 @@ const
     (cmd: '- TVInfo -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'tvinfo'; hnd: IrcAnnounceTVInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'addtvdb'; hnd: IrcAddTheTVDbToDb; minparams: 1;
+    (*
+        (cmd: 'addtvdb'; hnd: IrcAddTheTVDbToDb; minparams: 1;
+        maxparams: - 1; hlpgrp: ''),
+    *)
+    (cmd: 'addtvinfo'; hnd: IrcAddTVMazeToDb; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
     (cmd: 'updatetvinfo'; hnd: IrcUpdateTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
@@ -11572,8 +11575,9 @@ begin
    *)
 end;
 
-function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string):
-  boolean;
+//function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string): boolean;
+
+function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
 var
   resp, uurl, ssname, sname, sid: string;
   tvr: TTVInfoDB;
@@ -11584,7 +11588,7 @@ var
 begin
   sid := UpperCase(SubString(params, ' ', 1));
   ssname := RightStrV2(params, length(sid) + 1);
-  sresMAXi := strtointdef(config.ReadString('tasktvdb',
+  sresMAXi := strtointdef(config.ReadString('tasktvinfo',
     'max_sid_lookup_results',
     '5'), 5);
 
@@ -11609,11 +11613,12 @@ begin
     sname := StringReplace(sname, '@', 'at', [rfReplaceAll]);
 
     uurl := 'q=' + sname;
-    resp := slUrlGet('http://api.tvmaze.com/search/shows', uurl);
+    resp := slUrlGet('http://api.tvmaze.com/search/shows',uurl);
 
     if ((resp = '') or (resp = '[]')) then
     begin
-      irc_addtext(Netname, Channel, 'No info' + chr(39) + 's found for ' + params);
+      irc_addtext(Netname, Channel, 'No search result for ' + sname);
+      irc_addtext(Netname, Channel,resp);
       Result := True;
       Exit;
     end;
@@ -11625,7 +11630,7 @@ begin
       on E: Exception do
       begin
         irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.search: %s',
+          '<c4>[Exception]</c> in IrcAddTVMazeToDb.search: %s',
           [E.Message]));
         jl.free;
         result := True;
@@ -11637,12 +11642,12 @@ begin
       for I := 0 to jl.Count - 1 do
       begin
         //string(js.Child[i].Field['show'].Field['url'].Value)
-        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvdb %s %s',
+        irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvinfo %s %s',
           [string(jl.Child[i].Field['show'].Field['name'].Value),
-          'http://thetvdb.com/?tab=series&id=' +
-            string(jl.Child[i].Field['show'].Field['externals'].Field['thetvdb'].Value),
+            string(jl.Child[i].Field['show'].Field['url']),
+            string(jl.Child[i].Field['show'].Field['id']),
             irccmdprefix,
-            string(jl.Child[i].Field['show'].Field['externals'].Field['thetvdb'].Value), ssname]);
+            ssname]);
         if i + 1 >= sresMAXi then
           break;
       end;
@@ -11654,9 +11659,9 @@ begin
   end;
   if StrToIntDef(sid, -1) > -1 then
   begin
-    uurl := 'thetvdb=' + sid;
+//    uurl := 'thetvdb=' + sid;
     try
-      resp := slUrlGet('http://api.tvmaze.com/lookup/shows?' + uurl);
+      resp := slUrlGet('http://api.tvmaze.com/shows/'+sid);
     except
       on E: Exception do
       begin

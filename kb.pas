@@ -198,8 +198,8 @@ type
     seasons: integer;
     status: string;
     running: boolean;
-    showid: string;
-    tvmazeid:string;
+    showid: string;// aka TVMaze ID
+    thetvdbid:string;
     tvrageid:string;
     tvtag: string;
 //    currentAir:boolean;
