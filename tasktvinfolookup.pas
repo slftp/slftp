@@ -25,9 +25,9 @@ type
   TPazoHTTPTVInfoTask = class(TTask)
   private
     rls: string;
-    tv_showid: string;
+    tvmaze_id: string;
   public
-    constructor Create(const tv_showid: string; rls: string = '');
+    constructor Create(const tvmaze_id: string; rls: string = '');
     destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
@@ -36,6 +36,8 @@ type
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
 function findTheTVDbIDByName(name: string): string;
 
+function findTVMazeIDByName(name: string): string;
+
 implementation
 
 uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
@@ -43,6 +45,56 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
 
 const
   section = 'tasktvinfo';
+
+function findTVMazeIDByName(name: string): string;
+var
+  s, sname, url, response: string;
+  js: TlkJSONobject;
+begin
+  result := 'FAILED';
+  s := Csere(name, '.and.', '.&.');
+  s := Csere(s, '.at.', '.@.');
+  s := Csere(s, '.and.', '_&_');
+  s := Csere(s, '.at.', '_@_');
+  s := Csere(s, '', chr(39));
+  sname := Csere(s, ' ', '+');
+  sname := Csere(sname, '.', '+');
+  url := 'http://api.tvmaze.com/singlesearch/shows?q=' + sname;
+  try
+    response := slUrlGet(url);
+  except on E: Exception do
+    begin
+      Debug(dpError, section,
+        Format('Exception in findTVMazeIDByName.httpGET: %s',
+        [e.Message]));
+      irc_Adderror(Format('Exception in findTVMazeIDByName.httpGET: %s',
+        [e.Message]));
+      Exit;
+    end;
+  end;
+
+  if ((response = '') or (response = '[]')) then
+  begin
+    Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
+    irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
+    Exit;
+  end;
+
+  js := TlkJSON.ParseText(response) as TlkJSONobject;
+  try
+
+    if js.Field['id'].SelfType <> jsNull then
+      result := string(js.Field['id'].Value)
+    else
+    begin
+      Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
+      irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
+    end;
+
+  finally
+    js.Free;
+  end;
+end;
 
 function findTheTVDbIDByName(name: string): string;
 var
@@ -80,7 +132,15 @@ begin
 
   js := TlkJSON.ParseText(response) as TlkJSONobject;
   try
-    result := string(js.Field['externals'].Field['thetvdb'].Value);
+
+    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
+      result := string(js.Field['externals'].Field['thetvdb'].Value)
+    else
+    begin
+      Debug(dpError, section, 'Cant find theTVDB id for ' + name + ' (' + sname + ')');
+      irc_addadmin('Cant find theTVDB id for ' + name + ' (' + sname + ')');
+    end;
+
   finally
     js.Free;
   end;
@@ -105,15 +165,21 @@ begin
       js := TlkJSON.ParseText(jsonStr) as TlkJSONobject;
     except
       on E: Exception do
-        irc_Adderror(format(
-          '<c4>[Exception]</c> in parseTVInfos.JSON.ParseText: %s',
-          [E.Message]));
+      begin
+        irc_Adderror(format('<c4>[Exception]</c> in parseTVInfos.JSON.ParseText: %s', [E.Message]));
+        exit;
+      end;
     end;
 
-    tvr.tv_tvmazeid := string(js.Field['id'].Value);
+    tvr.tvmaze_id := string(js.Field['id'].Value);
 
-    tvr.tv_showid := string(js.Field['externals'].Field['thetvdb'].Value);
-    tvr.tv_tvrageid := string(js.Field['externals'].Field['tvrage'].Value);
+    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
+    begin
+      tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
+      tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
+    end;
+
+    tvr.tv_url := string(js.Field['url'].Value);
 
     tvr.tv_showname := string(js.Field['name'].Value);
     if js.Field['network'].SelfType = jsNull then
@@ -127,8 +193,7 @@ begin
         end
         else
         begin
-          tvr.tv_country :=
-            string(js.Field['webChannel'].Field['country'].Field['code'].Value);
+          tvr.tv_country := string(js.Field['webChannel'].Field['country'].Field['code'].Value);
         end;
       end
       else
@@ -140,8 +205,7 @@ begin
     else
     begin
       tvr.tv_network := string(js.Field['network'].Field['name'].Value);
-      tvr.tv_country :=
-        string(js.Field['network'].Field['country'].Field['code'].Value);
+      tvr.tv_country := string(js.Field['network'].Field['country'].Field['code'].Value);
     end;
 
     if tvr.tv_country = 'US' then
@@ -215,7 +279,8 @@ begin
   end
   else
   begin
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname,
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s',
+      [mainpazo.rls.rlsname,
       premyear, id]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
@@ -257,14 +322,16 @@ begin
   end;
 
   //Show is not found in the DB.
-  sid := findTheTVDBIDByName(tr.showname);
+//  sid := findTheTVDBIDByName(tr.showname);
+
+  sid := findTVMazeIDByName(tr.showname);
 
   if sid = 'FAILED' then
   begin
 
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
-      debug(dpSpam, section, 'READD: retrying tv rage lookup for %s later', [tr.showname]);
+      debug(dpSpam, section, 'READD: retrying TVMaze lookup for %s later', [tr.showname]);
       r := TPazoTVInfoLookupTask.Create(netname, channel, initial_site, mainpazo, attempt + 1);
       r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
       try
@@ -286,8 +353,7 @@ begin
     begin
       debug(dpSpam, section, 'READD: no more attempts...');
     end;
-    irc_addadmin('<c4><b>ERROR</c> No TheTVDb ID found for %s</b>',
-      [tr.showname]);
+    irc_addadmin('<c4><b>ERROR</c> No TVMaze ID found for %s</b>', [tr.showname]);
 
     ready := True;
     Result := True;
@@ -323,16 +389,16 @@ begin
   begin
     try
       //      dbaddtvrage_SaveTVRage(db_tvrage.tv_showid, db_tvrage, mainpazo.rls.rlsname);
-      irc_Addtext_by_key('ADDTVRAGE', Format('%s %s %s',
+      irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s',
         [config.ReadString(section,
-          'addcmd', '!addthetvdb'), mainpazo.rls.rlsname,
-        db_tvinfo.tv_showid]));
+          'addcmd', '!addtvmaze'), mainpazo.rls.rlsname,
+        db_tvinfo.tvmaze_id]));
       db_tvinfo.Save;
       db_tvinfo.SetTVDbRelease(tr);
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in dbaddtvrage_SaveTVRage: %s', [e.Message]));
+        Debug(dpError, section, Format('Exception in addtvinfo_SaveTVRage: %s', [e.Message]));
         Result := True;
         readyerror := True;
         exit;
@@ -341,8 +407,7 @@ begin
   end
   else
   begin
-    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>',
-      [db_tvinfo.tv_showname, tr.showname]);
+    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>', [db_tvinfo.tv_showname, tr.showname]);
 
     if config.ReadBool(section, 'stop_on_englishcheck', True) then
     begin
@@ -354,7 +419,7 @@ begin
 
   if config.ReadBool(section, 'post_lookup_infos', False) then
   begin
-    PostResults(db_tvinfo.tv_showid, db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status, db_tvinfo.tv_genres,
+    PostResults(db_tvinfo.tvmaze_id, db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status, db_tvinfo.tv_genres,
       IntToStr(db_tvinfo.tv_premiered_year));
   end;
 
@@ -366,8 +431,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section,
-        Format('Exception in TPazoTVInfoLookupTask kb_add: %s', [e.Message]));
+      Debug(dpError, section, Format('Exception in TPazoTVInfoLookupTask kb_add: %s', [e.Message]));
     end;
   end;
 
@@ -386,10 +450,10 @@ end;
 
 { TPazoHTTPTVInfoTask }
 
-constructor TPazoHTTPTVInfoTask.Create(const tv_showid: string; rls: string =
+constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: string; rls: string =
   '');
 begin
-  self.tv_showid := tv_showid;
+  self.tvmaze_id := tvmaze_id;
   self.rls := rls;
   inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 end;
@@ -397,9 +461,9 @@ end;
 function TPazoHTTPTVInfoTask.Name: string;
 begin
   try
-    Result := Format('httpTheTVDb : %s', [tv_showid]);
+    Result := Format('httpTVMaze : %s', [tvmaze_id]);
   except
-    Result := 'httpTheTVDb';
+    Result := 'httpTVMaze';
   end;
 end;
 
@@ -450,8 +514,8 @@ begin
     rx.Free;
   end;
 
-  uurl := 'thetvdb=' + tv_showid;
-  response := slUrlGet('http://api.tvmaze.com/lookup/shows', uurl);
+  uurl := 'http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode';
+  response := slUrlGet(uurl);
 
   if response = '' then
   begin
@@ -464,7 +528,7 @@ begin
 
   tvdb := parseTVMazeInfos(response, sname);
   if tvdb <> nil then
-    saveTVInfos(tv_showid, tvdb, rls);
+    saveTVInfos(tvmaze_id, tvdb, rls);
 
 end;
 
