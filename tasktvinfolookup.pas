@@ -269,21 +269,21 @@ begin
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-procedure TPazoTVInfoLookupTask.PostResults(id, network, country, classi,
-  status: string; genre: TStringList; premyear: string);
+procedure TPazoTVInfoLookupTask.PostResults(network, country, classi,
+  status,premyear,url: string; genre: TStringList);
 begin
   if config.ReadBool(section, 'use_new_announce_style', True) then
   begin
-    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> http://thetvdb.com/?tab=series&id=%s', [mainpazo.rls.rlsname,
-      premyear, id]));
+    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> s', [mainpazo.rls.rlsname,
+      premyear, url]));
     irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
     irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
   end
   else
   begin
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - http://thetvdb.com/?tab=series&id=%s',
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
       [mainpazo.rls.rlsname,
-      premyear, id]));
+      premyear, url]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
     irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
   end;
