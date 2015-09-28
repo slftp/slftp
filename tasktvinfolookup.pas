@@ -175,11 +175,8 @@ begin
 
     tvr.tvmaze_id := string(js.Field['id'].Value);
 
-    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-    begin
-      tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
-      tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
-    end;
+    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
+    if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then  tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
 
     tvr.tv_url := string(js.Field['url'].Value);
 
