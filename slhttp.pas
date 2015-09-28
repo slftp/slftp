@@ -83,7 +83,7 @@ end;
 constructor TslHTTP.Create;
 begin
   //Timeout:= slDefaultTimeout;
-  Timeout := 300000;
+  Timeout := 30000;
   Response := TStringStream.Create('');
   CustomHeaders := TStringList.Create;
   ResponseHeaders := TStringList.Create;
@@ -136,6 +136,7 @@ begin
   Cleanup;
 
   paramsstr := '';
+
   if params <> nil then
   begin
     for i := 0 to params.Count - 1 do
@@ -143,7 +144,7 @@ begin
       if i <> 0 then
         paramsstr := paramsstr + '&';
       paramsstr := paramsstr + UrlEncode(params.Names[i]) + '=' +
-        UrlEncode(params.ValueFromIndex[i]);
+        UrlEncode(params.ValueFromIndex[i],true);
     end;
   end;
 
@@ -215,6 +216,7 @@ begin
 
   Response.Position := 0;
   sss:= Response.DataString;
+
   rx:=TRegexpr.Create;
   try
 rx.ModifierI:=True;
@@ -228,7 +230,6 @@ uri:=rx.Match[1];
 Cleanup;
   if not Connect(Timeout) then
     exit;
-
 
   if not WriteLn('GET ' + uri + ' HTTP/1.0') then
     exit;
@@ -260,13 +261,13 @@ end;
 //   exit;
   end;
 
-
   s := Response.ReadString(16384);
 
   ResponseStartsAt := Pos(#13#10#13#10, s);
   if ResponseStartsAt = 0 then
     exit;
   inc(ResponseStartsAt, 4);
+
 
   ResponseCode := StrToIntDef(Copy(s, 10, 3), 0);
   if ResponseCode = 0 then
