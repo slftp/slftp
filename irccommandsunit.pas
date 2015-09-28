@@ -11612,16 +11612,18 @@ begin
     sname := StringReplace(sname, chr(39), '', [rfReplaceAll]);
     sname := StringReplace(sname, '@', 'at', [rfReplaceAll]);
 
-    uurl := 'q=' + sname;
+uurl:='q=' + sname;
     resp := slUrlGet('http://api.tvmaze.com/search/shows',uurl);
 
     if ((resp = '') or (resp = '[]')) then
     begin
-      irc_addtext(Netname, Channel, 'No search result for ' + sname);
+      irc_addtext(Netname, Channel, 'No search result for ' + sname +'('+ssname+')');
       irc_addtext(Netname, Channel,resp);
       Result := True;
       Exit;
     end;
+
+
 
     try
       jl := TlkJSON.ParseText(resp) as TlkJSONlist;
@@ -11644,9 +11646,9 @@ begin
         //string(js.Child[i].Field['show'].Field['url'].Value)
         irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvinfo %s %s',
           [string(jl.Child[i].Field['show'].Field['name'].Value),
-            string(jl.Child[i].Field['show'].Field['url']),
-            string(jl.Child[i].Field['show'].Field['id']),
+            string(jl.Child[i].Field['show'].Field['url'].Value),
             irccmdprefix,
+            string(jl.Child[i].Field['show'].Field['id'].Value),
             ssname]);
         if i + 1 >= sresMAXi then
           break;
