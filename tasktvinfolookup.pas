@@ -16,8 +16,8 @@ type
       pazo: TPazo; attempt: integer = 0);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
-    procedure PostResults(id, network, country, classi, status: string;
-      genre: TStringList; premyear: string);
+    procedure PostResults(network, country, classi, status, premyear, url: string;
+      genre: TStringList);
   end;
 
   (*for !addtvrage channels*)
@@ -428,8 +428,7 @@ begin
 
   if config.ReadBool(section, 'post_lookup_infos', False) then
   begin
-    PostResults(db_tvinfo.tvmaze_id, db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status, db_tvinfo.tv_genres,
-      IntToStr(db_tvinfo.tv_premiered_year));
+    PostResults(db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status,IntToStr(db_tvinfo.tv_premiered_year),db_tvinfo.tv_url, db_tvinfo.tv_genres);
   end;
 
   try
