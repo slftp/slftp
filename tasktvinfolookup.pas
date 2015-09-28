@@ -75,8 +75,9 @@ begin
 
   if ((response = '') or (response = '[]')) then
   begin
-    Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
-    irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
+    //    Debug(dpError, section, 'Can not find '+ name + ' (' + sname + ') on TVMaze');
+    //    irc_addadmin('Can not find '+ name + ' (' + sname + ') on TVMaze');
+    // we already give an failed result no need to send this.
     Exit;
   end;
 
@@ -87,10 +88,11 @@ begin
       result := string(js.Field['id'].Value)
     else
     begin
-      Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
-      irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
+      result := '-1';
+      //      Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
+      //      irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
+      // we already give an failed result no need to send this.
     end;
-
   finally
     js.Free;
   end;
@@ -291,7 +293,7 @@ function TPazoTVInfoLookupTask.Execute(slot: Pointer): boolean;
 var
   tr: TTvRelease;
   r: TPazoTVInfoLookupTask;
-  tvmaz, tvdb, sid, response, uurl: string;
+  tvmaz, sid, uurl: string;
   db_tvinfo: TTVInfoDB;
   ps: TPazoSite;
   //  xml: TSLXMLDocument;
@@ -354,7 +356,6 @@ begin
       debug(dpSpam, section, 'READD: no more attempts...');
     end;
     irc_addadmin('<c4><b>ERROR</c> No TVMaze ID found for %s</b>', [tr.showname]);
-
     ready := True;
     Result := True;
     exit;
@@ -376,14 +377,22 @@ begin
 
   if tvmaz = '' then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> no infos found for ' + tr.showname);
-    Debug(dpSpam, section, '<c4><b>ERROR</c></b> no infos found for ' + tr.showname);
+    irc_addadmin('<c4><b>ERROR</c></b> http respons is empty for ' + tr.showname);
+    Debug(dpSpam, section, 'ERROR http respons is empty for ' + tr.showname);
     Result := True;
     readyerror := True;
     exit;
   end;
 
   db_tvinfo := parseTVMazeInfos(tvmaz, tr.showname);
+
+  if db_tvinfo = nil then
+  begin
+    Debug(dpError, section, 'Error parseTVMazeInfos returns nil.');
+    Result := True;
+    readyerror := True;
+    exit;
+  end;
 
   if onlyEnglishAlpha(db_tvinfo.tv_showname) = onlyEnglishAlpha(tr.showname) then
   begin

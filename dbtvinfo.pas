@@ -100,23 +100,24 @@ begin
 end;
 
 procedure TTVInfoDB.Save;
-var
-  n: Psqlite3_stmt;
-  dbid: integer;
 begin
-  dbid := -1;
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d)',
       [StrToInt(thetvdb_id), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
       StrToInt(tvrage_id), StrToInt(tvmaze_id)]));
   except on E: Exception do
     begin
-      Irc_AddText('', '', 'Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
+      Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
     end;
   end;
 
-  tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id) VALUES ("%s","%s",%d);', [rls_showname,
-    tv_showname, StrToInt(tvmaze_id)]));
+  try
+    tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id,tvmaze_url) VALUES ("%s","%s",%d,"%s");', [rls_showname, tv_showname, StrToInt(tvmaze_id), tv_url]));
+  except on E: Exception do
+    begin
+      Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT series %s', [e.Message]);
+    end;
+  end;
 end;
 
 procedure TTVInfoDB.SetTVDbRelease(tr: TTVRelease);
@@ -199,8 +200,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsA: %s ',[e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsA: %s',[e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsA: %s ', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsA: %s', [e.Message]));
     end;
   end;
 end;
@@ -289,6 +290,7 @@ begin
   end;
 end;
 
+{
 function getTVDBByNameFromMemory(name: string): TTVInfoDB;
 var
   i: integer;
@@ -333,7 +335,7 @@ begin
     end;
     *)
 end;
-
+   }
 (* broken!
 function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
   TTVInfoDB;
@@ -375,7 +377,6 @@ end;
 
 function getTVInfoByShowName(rls_showname: string): TTVInfoDB;
 var
-  i: integer;
   tvi: TTVInfoDB;
   gettvrage: Psqlite3_stmt;
 begin
@@ -479,7 +480,7 @@ end;
 
 function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 var
-  i: integer;
+  //  i: integer;
   tvi: TTVInfoDB;
   gettvrage: Psqlite3_stmt;
 begin
