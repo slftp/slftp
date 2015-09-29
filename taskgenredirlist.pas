@@ -36,7 +36,7 @@ begin
   Result:= '';
   try
     s:= Csere(filename, '-', ' ');
-    Irc_addtext(Netname,Channel,'Checking: %s (%s)',[filename,s]);
+//    Irc_addtext(Netname,Channel,'Checking: %s (%s)',[filename,s]);
     for i:= 0 to mp3genres.Count-1 do
     begin
       if AnsiContainsText(filename, mp3genres[i]) then
