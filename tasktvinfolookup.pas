@@ -271,18 +271,18 @@ procedure TPazoTVInfoLookupTask.PostResults(network, country, classi,
 begin
   if config.ReadBool(section, 'use_new_announce_style', True) then
   begin
-    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> s', [mainpazo.rls.rlsname,
+    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [mainpazo.rls.rlsname,
       premyear, url]));
-    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
-    irc_Addstats(Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
+    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
+    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
   end
   else
   begin
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
       [mainpazo.rls.rlsname,
       premyear, url]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TTVRelease</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
+    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
   end;
 end;
 
@@ -359,7 +359,7 @@ begin
   end;
 
   try
-    uurl := 'http://api.tvmaze.com/lookup/shows?thetvdb=' + sid;
+    uurl := 'http://api.tvmaze.com/shows/'+sid+'?embed[]=nextepisode&embed[]=previousepisode';
     tvmaz := slUrlGet(uurl);
   except
     on e: Exception do
@@ -422,12 +422,12 @@ begin
       exit;
     end;
   end;
-
+(*
   if config.ReadBool(section, 'post_lookup_infos', False) then
   begin
     PostResults(db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status,IntToStr(db_tvinfo.tv_premiered_year),db_tvinfo.tv_url, db_tvinfo.tv_genres);
   end;
-
+*)
   try
     ps := FindMostCompleteSite(mainpazo);
     if ((ps = nil) and (mainpazo.sites.Count > 0)) then
