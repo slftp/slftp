@@ -351,8 +351,8 @@ begin
     else
     begin
       debug(dpSpam, section, 'READD: no more attempts...');
+      irc_addadmin('<c4><b>ERROR</c> No TVMaze ID found for %s</b>', [tr.showname]);
     end;
-    irc_addadmin('<c4><b>ERROR</c> No TVMaze ID found for %s</b>', [tr.showname]);
     ready := True;
     Result := True;
     exit;
