@@ -145,9 +145,9 @@ end;
 function TTVInfoDB.Name: string;
 begin
   try
-    Result := 'TTVRelease :' + rls_showname + ' : ';
+    Result := 'TVInfo :' + rls_showname + ' : ';
   except
-    Result := 'TTVRelease';
+    Result := 'TVInfo';
   end;
 end;
 
@@ -196,13 +196,13 @@ begin
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TTVRelease</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
+        Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
         IntToStr(tv_premiered_year), tv_url]));
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TTVRelease</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
+        Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
         [tv_genres.CommaText, tv_classification, tv_status]));
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TTVRelease</b>]</c> <b>Country</b> %s - <b>Network</b> %s',
+        Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s',
         [tv_country, tv_network]));
     end
     else
