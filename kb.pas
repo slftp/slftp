@@ -198,11 +198,11 @@ type
     seasons: integer;
     status: string;
     running: boolean;
-    showid: string;// aka TVMaze ID
-    thetvdbid:string;
-    tvrageid:string;
+    showid: string; // aka TVMaze ID
+    thetvdbid: string;
+    tvrageid: string;
     tvtag: string;
-//    currentAir:boolean;
+    //    currentAir:boolean;
     function ExtraInfo: string; override;
     constructor Create(rlsname, section: string; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
@@ -518,7 +518,7 @@ var
 begin
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d',
     [sitename, section, event, rls, cdno, integer(dontFire),
-      integer(forceFire)]);
+    integer(forceFire)]);
 
   Result := -1;
 
@@ -966,8 +966,7 @@ begin
       end;
 
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
-        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE')))
-          then
+        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -1155,8 +1154,7 @@ begin
           end;
 
           if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
-            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete]))
-              then
+            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete])) then
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
               False);
@@ -1184,7 +1182,7 @@ begin
 
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
     [sitename, section, genre, event, rls, cdno, integer(dontFire),
-      integer(forceFire)]);
+    integer(forceFire)]);
 end;
 
 function kb_Add(const netname, channel: string;
@@ -1413,8 +1411,7 @@ begin
         if kb_languages[i] <> '' then
         begin
           for ii := 0 to tags.Count - 1 do
-            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i])
-              then
+            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
               languages.Add(kb_languages.strings[i]);
         end;
       end;
@@ -1843,7 +1840,7 @@ begin
       begin
         Debug(dpError, rsections,
           Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s',
-            [e.Message]));
+          [e.Message]));
       end;
     end;
     Result := True;
@@ -1903,7 +1900,7 @@ begin
       begin
         Debug(dpError, rsections,
           Format('[EXCEPTION] TNFORelease.Aktualizal.AddTask: %s',
-            [e.Message]));
+          [e.Message]));
       end;
     end;
     Result := True;
@@ -1980,9 +1977,7 @@ begin
     end;
   end;
 
-
   //update here?
-
 
   if (db_tvrage <> nil) then
   begin
@@ -2001,13 +1996,11 @@ begin
 
   //irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
   try
-    AddTask(TPazoTVInfoLookupTask.Create('', '',
-      config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
+    AddTask(TPazoTVInfoLookupTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections,
-        Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
+      Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
         [e.Message]));
     end;
   end;
@@ -2042,8 +2035,8 @@ begin
     Result := Result + 'Genres: ' + genres.CommaText + #13#10;
   if network <> '' then
     Result := Result + 'Network: ' + network + #13#10;
-//  if runtime <> 0 then
-//    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
+  //  if runtime <> 0 then
+  //    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
@@ -2067,10 +2060,8 @@ begin
   rx := TRegexpr.Create;
   rx.ModifierI := True;
 
-
   //[\.\_](\d{4})[\.\-](\d{2})[\.\-](\d{2})[\.\_]
-  rx.Expression :=
-    '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
+  rx.Expression := '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
@@ -2084,8 +2075,7 @@ begin
     episode := StrToIntDef(rx.Match[3], 0);
   end;
 
-  rx.Expression :=
-    '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
@@ -2107,27 +2097,23 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections,
-          Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s', [e.Message]));
         exit;
       end;
     end;
 
-      try
-      if (db_tvrage <> nil) then db_tvrage.SetTVDbRelease(self);
+    try
+      if (db_tvrage <> nil) then
+        db_tvrage.SetTVDbRelease(self);
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections,
-          Format('Exception in TTVRelease.Create.SetTVDbRelease: %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('Exception in TTVRelease.Create.SetTVDbRelease: %s', [e.Message]));
         exit;
       end;
     end;
 
   end;
-  
 
 end;
 
@@ -2244,7 +2230,7 @@ begin
         begin
           Debug(dpError, rsections,
             Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
-              [e.Message]));
+            [e.Message]));
         end;
       end;
     end;
@@ -2517,7 +2503,7 @@ if ((TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0)) <> plmNone) 
 AddTask(TPazoPretimeLookupTask.Create('', '', shot.name, pazo, 1));
 //QueueFire;
 end;
-    *)(*
+                                *)(*
     AddTask(TPazoGameTask.Create('', '', shot.name, pazo, 1));
     Result:= True;
   end;
@@ -2845,7 +2831,7 @@ begin
   kb_languages.CaseSensitive := False;
   kb_languages.DelimitedText :=
     Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) +
-      'slftp.languages'),
+    'slftp.languages'),
     #13, ','), #10, ',');
 
   //sectionhelper:= THashedStringList.Create;
@@ -3003,8 +2989,7 @@ begin
         psrc := TPazoSite(p.sites[j]);
         if psrc = nil then
           Continue;
-        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')
-          then
+        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
           Continue;
         if psrc.Name = pdest.Name then
           Continue;
@@ -3290,7 +3275,7 @@ begin
               Exit;
             if site.PermDown then
               Exit;
-                *)//checked in the first lines of this function already
+                                                                                      *)//checked in the first lines of this function already
 
       (*
             site := FindSiteByName('', pss.Name);

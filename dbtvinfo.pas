@@ -37,7 +37,9 @@ type
     procedure PostResults(rls: string = ''); overload;
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
-
+    procedure UpdateIRC;
+    //    private
+    //     procedure UpdateDBEntry;
   end;
 
 function getTVInfoCount: integer;
@@ -62,7 +64,7 @@ procedure TVInfoFireKbAdd(rls: string);
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
-  tasktvinfolookup, pazo, mrdohutils;
+  tasktvinfolookup, pazo, mrdohutils, uLkJSON;
 
 const
   section = 'tasktvinfo';
@@ -77,27 +79,7 @@ var
 
   //  last_addthetvdb: THashedStringList;
 
-function getTVInfoCount: integer;
-var
-  icount: Psqlite3_stmt;
-begin
-  icount := tvinfodb.Open('SELECT count(*) FROM infos;');
-  if tvinfodb.Step(icount) then
-    result := tvinfodb.column_int(icount, 0)
-  else
-    result := 0;
-end;
-
-function getTVInfoSeriesCount: integer;
-var
-  icount: Psqlite3_stmt;
-begin
-  icount := tvinfodb.Open('SELECT count(*) FROM series;');
-  if tvinfodb.Step(icount) then
-    result := tvinfodb.column_int(icount, 0)
-  else
-    result := 0;
-end;
+{   TTVInfoDB                                 }
 
 procedure TTVInfoDB.Save;
 begin
@@ -142,7 +124,7 @@ begin
   //  tr.season:= tv_seasons;
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
-    PostResults(tr.rlsname);
+    PostResults(rls_showname);
 
 end;
 
@@ -197,8 +179,7 @@ begin
         tv_classification, tv_status]));
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
     end;
-  except
-    on e: Exception do
+  except on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsA: %s ', [e.Message]));
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsA: %s', [e.Message]));
@@ -226,14 +207,13 @@ begin
     end
     else
     begin
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
         [rls, IntToStr(tv_premiered_year), tv_url]));
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TTVRelease (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
     end;
-  except
-    on e: Exception do
+  except on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.PostResultsB: %s ', [e.Message]));
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.PostResultsB: %s', [e.Message]));
@@ -241,139 +221,60 @@ begin
   end;
 end;
 
+procedure TTVInfoDB.UpdateIRC;
+var
+  sql, respo: string;
+  //  js: TlkJSONobject;
+begin
+  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
+  if respo = '' then
+  begin
+    Irc_AddAdmin('<b><c4>Error</c></b>: http respons of ' + self.tv_showname + ' was empty.');
+    Exit;
+  end;
+  try
+    self := parseTVMazeInfos(respo);
+    //  js := TlkJSON.ParseText(respo) as TlkJSONobject;
+  except on e: Exception do
+    begin
+      irc_AddAdmin(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+      Exit;
+    end;
+  end;
+
+  // sql:=Format('UPDATE infos set ',[]);
+
+    //
+end;
+
+{   misc                                       }
+
+function getTVInfoCount: integer;
+var
+  icount: Psqlite3_stmt;
+begin
+  icount := tvinfodb.Open('SELECT count(*) FROM infos;');
+  if tvinfodb.Step(icount) then
+    result := tvinfodb.column_int(icount, 0)
+  else
+    result := 0;
+end;
+
+function getTVInfoSeriesCount: integer;
+var
+  icount: Psqlite3_stmt;
+begin
+  icount := tvinfodb.Open('SELECT count(*) FROM series;');
+  if tvinfodb.Step(icount) then
+    result := tvinfodb.column_int(icount, 0)
+  else
+    result := 0;
+end;
+
 function TheTVDbStatus: string;
 begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
-
-procedure dbTVInfoStart;
-var
-  db_name, db_params: string;
-begin
-  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addthetvdb');
-  if slsqlite_inited then
-  begin
-    db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
-    db_params := config.ReadString(section, 'pragma', 'main.locking_mode = NORMAL');
-    tvinfodb := TslSqliteDB.Create(db_name, db_params);
-
-    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
-
-    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id" INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,' +
-      '"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,' +
-      '"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,PRIMARY KEY ("tvmaze_id" ASC));');
-
-    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
-    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
-
-    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
-  end;
-end;
-
-procedure dbTVInfoInit;
-begin
-  //  last_addthetvdb := THashedStringList.Create;
-  //  last_addthetvdb.CaseSensitive := False;
-end;
-
-procedure dbTVInfoUninit;
-begin
-  //  last_addthetvdb.Free;
-  try
-    if tvinfodb <> nil then
-    begin
-      tvinfodb.Free;
-      tvinfodb := nil;
-    end;
-  except on E: Exception do
-      Debug(dpError, section, Format('Exception in dbTVInfoUninit: %s', [e.Message]));
-  end;
-end;
-
-{
-function getTVDBByNameFromMemory(name: string): TTVInfoDB;
-var
-  i: integer;
-begin
-  (*
-    try
-      i := last_addthetvdb.IndexOf(name);
-      if i <> -1 then
-      begin
-        Result := TTVInfoDB(last_addthetvdb.Objects[i]);
-      end;
-    except
-      Result := nil;
-    end;
-  *)
-end;
-
-function getTVDBByIDFromMemory(id: string): TTVInfoDB;
-var
-  i: integer;
-  tvrage: TTVInfoDB;
-begin
-  (*
-    for i := last_addthetvdb.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      try
-        tvrage := TTVInfoDB(last_addthetvdb.Objects[i]);
-        if (tvrage.tv_showid = id) then
-        begin
-          Result := tvrage;
-          break;
-        end;
-      except
-        break;
-      end;
-    end;
-    *)
-end;
-   }
-(* broken!
-function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
-  TTVInfoDB;
-begin
-
-  if item = nil then
-  begin
-    Result := nil;
-    Debug(dpError, section, 'fillTTheTvDBfromDB item is nil');
-    Exit;
-  end;
-
-  if tvinfodb.Step(item) then
-  begin
-    if (LowerCase(show) <> LowerCase(tvinfodb.column_text(item, 0))) then
-    begin
-      Result := nil;
-      Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
-      exit;
-    end;
-    if show = '' then
-      show := tvinfodb.column_text(item, 0);
-    result := TTVInfoDB.Create(show);
-    result.tv_showid := tvinfodb.column_text(item, 3);
-    result.tv_showname := tvinfodb.column_text(item, 1);
-    result.tv_premiered_year := StrToIntDef(tvinfodb.column_text(item, 5), 0);
-    result.tv_country := tvinfodb.column_text(item, 6);
-    result.tv_status := tvinfodb.column_text(item, 7);
-    result.tv_classification := tvinfodb.column_text(item, 8);
-    result.tv_genres.CommaText := tvinfodb.column_text(item, 10);
-    result.tv_network := tvinfodb.column_text(item, 9);
-    result.tv_running := Boolean(lowercase(result.tv_status) = 'running');
-    result.tv_scripted := Boolean(lowercase(result.tv_classification) =
-      'scripted');
-    result.last_updated := StrToIntDef(tvinfodb.column_text(item, 12), -1);
-  end;
-end;
- *)
 
 function getTVInfoByShowName(rls_showname: string): TTVInfoDB;
 var
@@ -616,6 +517,135 @@ begin
     end;
   end;
 end;
+
+procedure dbTVInfoStart;
+var
+  db_name, db_params: string;
+begin
+  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addthetvdb');
+  if slsqlite_inited then
+  begin
+    db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
+    db_params := config.ReadString(section, 'pragma', 'main.locking_mode = NORMAL');
+    tvinfodb := TslSqliteDB.Create(db_name, db_params);
+
+    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
+
+    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id" INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,' +
+      '"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,' +
+      '"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,PRIMARY KEY ("tvmaze_id" ASC));');
+
+    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
+    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
+
+    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
+  end;
+end;
+
+procedure dbTVInfoInit;
+begin
+  //  last_addthetvdb := THashedStringList.Create;
+  //  last_addthetvdb.CaseSensitive := False;
+end;
+
+procedure dbTVInfoUninit;
+begin
+  //  last_addthetvdb.Free;
+  try
+    if tvinfodb <> nil then
+    begin
+      tvinfodb.Free;
+      tvinfodb := nil;
+    end;
+  except on E: Exception do
+      Debug(dpError, section, Format('Exception in dbTVInfoUninit: %s', [e.Message]));
+  end;
+end;
+
+{
+function getTVDBByNameFromMemory(name: string): TTVInfoDB;
+var
+  i: integer;
+begin
+  (*
+    try
+      i := last_addthetvdb.IndexOf(name);
+      if i <> -1 then
+      begin
+        Result := TTVInfoDB(last_addthetvdb.Objects[i]);
+      end;
+    except
+      Result := nil;
+    end;
+  *)
+end;
+
+function getTVDBByIDFromMemory(id: string): TTVInfoDB;
+var
+  i: integer;
+  tvrage: TTVInfoDB;
+begin
+  (*
+    for i := last_addthetvdb.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
+      try
+        tvrage := TTVInfoDB(last_addthetvdb.Objects[i]);
+        if (tvrage.tv_showid = id) then
+        begin
+          Result := tvrage;
+          break;
+        end;
+      except
+        break;
+      end;
+    end;
+    *)
+end;
+   }
+(* broken!
+function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
+  TTVInfoDB;
+begin
+
+  if item = nil then
+  begin
+    Result := nil;
+    Debug(dpError, section, 'fillTTheTvDBfromDB item is nil');
+    Exit;
+  end;
+
+  if tvinfodb.Step(item) then
+  begin
+    if (LowerCase(show) <> LowerCase(tvinfodb.column_text(item, 0))) then
+    begin
+      Result := nil;
+      Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
+      exit;
+    end;
+    if show = '' then
+      show := tvinfodb.column_text(item, 0);
+    result := TTVInfoDB.Create(show);
+    result.tv_showid := tvinfodb.column_text(item, 3);
+    result.tv_showname := tvinfodb.column_text(item, 1);
+    result.tv_premiered_year := StrToIntDef(tvinfodb.column_text(item, 5), 0);
+    result.tv_country := tvinfodb.column_text(item, 6);
+    result.tv_status := tvinfodb.column_text(item, 7);
+    result.tv_classification := tvinfodb.column_text(item, 8);
+    result.tv_genres.CommaText := tvinfodb.column_text(item, 10);
+    result.tv_network := tvinfodb.column_text(item, 9);
+    result.tv_running := Boolean(lowercase(result.tv_status) = 'running');
+    result.tv_scripted := Boolean(lowercase(result.tv_classification) =
+      'scripted');
+    result.last_updated := StrToIntDef(tvinfodb.column_text(item, 12), -1);
+  end;
+end;
+ *)
 
 end.
 

@@ -393,7 +393,7 @@ function IrcAnnounceTVInfo(const netname, channel: string; params: string): bool
 
 function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
 
-function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
+function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string): boolean;
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
 
 function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
@@ -832,7 +832,7 @@ const
     *)
     (cmd: 'addtvinfo'; hnd: IrcAddTVMazeToDb; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
-    (cmd: 'updatetvinfo'; hnd: IrcUpdateTheTVDbInfo; minparams: 1;
+    (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1;
     maxparams: - 1; hlpgrp: ''),
     (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1;
     maxparams: - 1; hlpgrp: '')
@@ -11508,11 +11508,13 @@ var
   tvr: TTVInfoDB;
 begin
   Result := False;
-  (*
+    (*
   if strtointdef(params, -1) > -1 then
   begin
-    tvr := getTheTVDBbyShowID(params);
+
+    tvr :=   getTVInfoByShowID(params);
     try
+
       Result := dbaddtvrage_delete_show(tvr.rls_showname);
     finally
       tvr.Free;
@@ -11527,15 +11529,23 @@ begin
       tvr.Free;
     end;
   end;
-*)
+  *)
 end;
 
-function IrcUpdateTheTVDbInfo(const Netname, Channel: string; params: string):
+function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
   boolean;
 var
+respo,tvmaze_id:string;
   otvr, tvr: TTVInfoDB;
 begin
   result := false;
+
+  if strtointdef(params, -1) > -1 then tvmaze_id:=params else begin
+    otvr:=getTVInfoByReleaseName(params);
+    tvmaze_id:=otvr.tvmaze_id;
+  end;
+
+  respo:=slUrlGet('http://api.tvmaze.com/shows/'+tvmaze_id+'?embed[]=nextepisode&embed[]=previousepisode');
   (*
     xml := TSLXMLDocument.Create;
     if strtointdef(params, -1) > -1 then

@@ -4384,7 +4384,7 @@ begin
     if r.rls is TTVRelease then
     begin
       if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).classification;
+        Result := lowercase(TTVRelease(r.rls).classification);
     end;
   except
     Result := '';
