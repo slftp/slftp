@@ -165,7 +165,7 @@ begin
       rls := rls_showname;
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls,
         IntToStr(tv_premiered_year), tv_url]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country,
@@ -196,7 +196,7 @@ begin
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>The TVDB info</b> %s', [rls,
+        Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls,
         IntToStr(tv_premiered_year), tv_url]));
       irc_Addtext(Netname, Channel,
         Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
