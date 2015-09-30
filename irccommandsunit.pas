@@ -48,8 +48,7 @@ function IrcNope(const netname, channel: string; params: string): boolean;
 function IrcQueue(const netname, channel: string; params: string): boolean;
 
 function IrcMaxUpDn(const netname, channel: string; params: string): boolean;
-function IrcMaxUpPerRip(const netname, channel: string; params: string):
-  boolean;
+function IrcMaxUpPerRip(const netname, channel: string; params: string): boolean;
 function IrcMaxIdle(const netname, channel: string; params: string): boolean;
 function IrcTimeout(const netname, channel: string; params: string): boolean;
 function IrcDelsite(const netname, channel: string; params: string): boolean;
@@ -58,25 +57,18 @@ function IrcSlotsShow(const netname, channel: string; params: string): boolean;
 
 function IrcAddSite(const netname, channel: string; params: string): boolean;
 
-function IrcAddSiteInfos(const netname, channel: string; params: string):
-  boolean;
+function IrcAddSiteInfos(const netname, channel: string; params: string): boolean;
 
 function IrcAddBnc(const netname, channel: string; params: string): boolean;
 function IrcDelBnc(const netname, channel: string; params: string): boolean;
 
-function IrcNetAddServer(const netname, channel: string; params: string):
-  boolean;
-function IrcNetDelServer(const netname, channel: string; params: string):
-  boolean;
+function IrcNetAddServer(const netname, channel: string; params: string): boolean;
+function IrcNetDelServer(const netname, channel: string; params: string): boolean;
 
-function IrcNetAddPerform(const netname, channel: string; params: string):
-  boolean;
-function IrcNetDelPerform(const netname, channel: string; params: string):
-  boolean;
-function IrcNetListPerform(const netname, channel: string; params: string):
-  boolean;
-function IrcNetDoPerform(const netname, channel: string; params: string):
-  boolean;
+function IrcNetAddPerform(const netname, channel: string; params: string): boolean;
+function IrcNetDelPerform(const netname, channel: string; params: string): boolean;
+function IrcNetListPerform(const netname, channel: string; params: string): boolean;
+function IrcNetDoPerform(const netname, channel: string; params: string): boolean;
 
 function IrcSetdir(const netname, channel: string; params: string): boolean;
 function IrcSslmethod(const netname, channel: string; params: string): boolean;
@@ -88,8 +80,7 @@ function IrcRanks(const netname, channel: string; params: string): boolean;
 function IrcRank(const netname, channel: string; params: string): boolean;
 function IrcRankRecalc(const netname, channel: string; params: string): boolean;
 
-function IrcNoannouncesite(const netname, channel: string; params: string):
-  boolean;
+function IrcNoannouncesite(const netname, channel: string; params: string): boolean;
 
 function IrcSpeeds(const netname, channel: string; params: string): boolean;
 function IrcSetSpeed(const netname, channel: string; params: string): boolean;
@@ -101,8 +92,7 @@ function IrcDirlist(const netname, channel: string; params: string): boolean;
 function IrcLatest(const netname, channel: string; params: string): boolean;
 
 function IrcDelrelease(const netname, channel: string; params: string): boolean;
-function IrcDelAllrelease(const netname, channel: string; params: string):
-  boolean;
+function IrcDelAllrelease(const netname, channel: string; params: string): boolean;
 
 function IrcSpread(const netname, channel: string; params: string): boolean;
 function IrcCStop(const netname, channel: string; params: string): boolean;
@@ -114,8 +104,7 @@ function IrcChannels(const netname, channel: string; params: string): boolean;
 function IrcChanAdd(const netname, channel: string; params: string): boolean;
 function IrcSetBlowkey(const netname, channel: string; params: string): boolean;
 function IrcSetChankey(const netname, channel: string; params: string): boolean;
-function IrcSetChanName(const netname, channel: string; params: string):
-  boolean;
+function IrcSetChanName(const netname, channel: string; params: string): boolean;
 //function IrcSetChanInvite(const netname, channel: string;params: string): Boolean;
 function IrcShowNet(const netname, channel: string; params: string): boolean;
 function IrcAddnet(const netname, channel: string; params: string): boolean;
@@ -130,10 +119,8 @@ function IrcPrereload(const netname, channel: string; params: string): boolean;
 function IrcPrelist(const netname, channel: string; params: string): boolean;
 function IrcPreadd(const netname, channel: string; params: string): boolean;
 function IrcPredel(const netname, channel: string; params: string): boolean;
-function IrcPreCatchtest(const netname, channel: string; params: string):
-  boolean;
-function IrcPreCatchDebug(const netname, channel: string; params: string):
-  boolean;
+function IrcPreCatchtest(const netname, channel: string; params: string): boolean;
+function IrcPreCatchDebug(const netname, channel: string; params: string): boolean;
 
 function IrcRuleAdd(const netname, channel: string; params: string): boolean;
 function IrcRuleIns(const netname, channel: string; params: string): boolean;
@@ -144,8 +131,7 @@ function IrcRuleHelp(const netname, channel: string; params: string): boolean;
 function IrcRuleList(const netname, channel: string; params: string): boolean;
 function IrcRules(const netname, channel: string; params: string): boolean;
 function IrcRulesLoad(const netname, channel: string; params: string): boolean;
-function IrcRulesReload(const netname, channel: string; params: string):
-  boolean;
+function IrcRulesReload(const netname, channel: string; params: string): boolean;
 
 function IrcAffils(const netname, channel: string; params: string): boolean;
 function IrcSetAffils(const netname, channel: string; params: string): boolean;
@@ -162,8 +148,7 @@ function IrcTraders(const netname, channel: string; params: string): boolean;
 function IrcUserslots(const netname, channel: string; params: string): boolean;
 function IrcFreeslots(const netname, channel: string; params: string): boolean;
 function IrcFindAffil(const netname, channel: string; params: string): boolean;
-function IrcFindSection(const netname, channel: string; params: string):
-  boolean;
+function IrcFindSection(const netname, channel: string; params: string): boolean;
 function IrcFindUser(const netname, channel: string; params: string): boolean;
 function IrcAuto(const netname, channel: string; params: string): boolean;
 function IrcCrawler(const netname, channel: string; params: string): boolean;
@@ -171,14 +156,11 @@ function IrcConfirmerAnnounce(const netname, channel: string; params: string):
   boolean;
 function IrcCrawl(const netname, channel: string; params: string): boolean;
 function IrcAutoLogin(const netname, channel: string; params: string): boolean;
-function IrcAutoBncTest(const netname, channel: string; params: string):
-  boolean;
+function IrcAutoBncTest(const netname, channel: string; params: string): boolean;
 function IrcAutoRules(const netname, channel: string; params: string): boolean;
 function IrcAutoNuke(const netname, channel: string; params: string): boolean;
-function IrcAutoDirlist(const netname, channel: string; params: string):
-  boolean;
-function IrcAutoCrawler(const netname, channel: string; params: string):
-  boolean;
+function IrcAutoDirlist(const netname, channel: string; params: string): boolean;
+function IrcAutoCrawler(const netname, channel: string; params: string): boolean;
 function IrcAutoIndex(const netname, channel: string; params: string): boolean;
 function IrcKbShow(const netname, channel: string; params: string): boolean;
 function IrcKbList(const netname, channel: string; params: string): boolean;
@@ -193,22 +175,17 @@ function IrcNoSocks5(const netname, channel: string; params: string): boolean;
 
 function IrcLookup(const netname, channel: string; params: string): boolean;
 
-function IrcKnowngroups(const netname, channel: string; params: string):
-  boolean;
+function IrcKnowngroups(const netname, channel: string; params: string): boolean;
 
 function IrcShowWindow(const netname, channel: string; params: string): boolean;
-function IrcShowWindows(const netname, channel: string; params: string):
-  boolean;
+function IrcShowWindows(const netname, channel: string; params: string): boolean;
 function IrcDelWindow(const netname, channel: string; params: string): boolean;
 function IrcRepaint(const netname, channel: string; params: string): boolean;
 function IrcIrcNames(const netname, channel: string; params: string): boolean;
 
-function DirlistB(const netname, channel: string; sitename, dir: string;
-  SpeedTest: boolean = False): TDirList;
-procedure RawB(const netname, channel: string; sitename, dir, command: string;
-  AnnounceSitename: boolean = False);
-function RawC(const Netname, Channel: string; sitename, dir, command: string;
-  AnnounceSitename: boolean = False): string;
+function DirlistB(const netname, channel: string; sitename, dir: string; SpeedTest: boolean = False): TDirList;
+procedure RawB(const netname, channel: string; sitename, dir, command: string; AnnounceSitename: boolean = False);
+function RawC(const Netname, Channel: string; sitename, dir, command: string; AnnounceSitename: boolean = False): string;
 
 function IrcNuke(const netname, channel: string; params: string): boolean;
 function IrcUnnuke(const netname, channel: string; params: string): boolean;
@@ -220,59 +197,43 @@ function IrcNewsAdd(const netname, channel: string; params: string): boolean;
 function IrcNewsDel(const netname, channel: string; params: string): boolean;
 
 function IrcSpeedStats(const netname, channel: string; params: string): boolean;
-function IrcSpeedRecalc(const netname, channel: string; params: string):
-  boolean;
+function IrcSpeedRecalc(const netname, channel: string; params: string): boolean;
 
-function IrcSpeedTestLocal(const netname, channel: string; params: string):
-  boolean;
-function IrcSpeedTestCleanup(const netname, channel: string; params: string):
-  boolean;
-function IrcSpeedTestIn(const netname, channel: string; params: string):
-  boolean;
-function IrcSpeedTestOut(const netname, channel: string; params: string):
-  boolean;
+function IrcSpeedTestLocal(const netname, channel: string; params: string): boolean;
+function IrcSpeedTestCleanup(const netname, channel: string; params: string): boolean;
+function IrcSpeedTestIn(const netname, channel: string; params: string): boolean;
+function IrcSpeedTestOut(const netname, channel: string; params: string): boolean;
 
 function IrcIndexStat(const netname, channel: string; params: string): boolean;
 function IrcIndexQuery(const netname, channel: string; params: string): boolean;
-function IrcIndexDropSection(const netname, channel: string; params: string):
-  boolean;
+function IrcIndexDropSection(const netname, channel: string; params: string): boolean;
 
 //function IrcSetSpeedtestToPredir(const netname, channel: string;params: string): Boolean;
 
 function IrcStatSites(const netname, channel: string; params: string): boolean;
-function IrcStatSitesByGroup(const netname, channel: string; params: string):
-  boolean;
-function IrcStatSitesByUser(const netname, channel: string; params: string):
-  boolean;
+function IrcStatSitesByGroup(const netname, channel: string; params: string): boolean;
+function IrcStatSitesByUser(const netname, channel: string; params: string): boolean;
 function IrcStatRaces(const netname, channel: string; params: string): boolean;
 
 function IrcStatGroups(const netname, channel: string; params: string): boolean;
-function IrcStatGroupsBySite(const netname, channel: string; params: string):
-  boolean;
+function IrcStatGroupsBySite(const netname, channel: string; params: string): boolean;
 
 function IrcStatUsers(const netname, channel: string; params: string): boolean;
-function IrcStatUsersByGroup(const netname, channel: string; params: string):
-  boolean;
-function IrcStatUsersBySite(const netname, channel: string; params: string):
-  boolean;
-function IrcStatUsersByGroupBySite(const netname, channel: string;
-  params: string): boolean;
+function IrcStatUsersByGroup(const netname, channel: string; params: string): boolean;
+function IrcStatUsersBySite(const netname, channel: string; params: string): boolean;
+function IrcStatUsersByGroupBySite(const netname, channel: string; params: string): boolean;
 
 function IrcDelayLeech(const netname, channel: string; params: string): boolean;
-function IrcDelayUpload(const netname, channel: string; params: string):
-  boolean;
+function IrcDelayUpload(const netname, channel: string; params: string): boolean;
 
 function IrcTweak(const netname, channel: string; params: string): boolean;
 
 function IrcCatchMod(const netname, channel: string; params: string): boolean;
 
-function IrcShowAllRules(const netname, channel: string; params: string):
-  boolean;
+function IrcShowAllRules(const netname, channel: string; params: string): boolean;
 function IrcKillAll(const netname, channel: string; params: string): boolean;
-function IrcNetNoSocks5(const netname, channel: string; params: string):
-  boolean;
-function IrcSetMYIrcNick(const netname, channel: string; params: string):
-  boolean;
+function IrcNetNoSocks5(const netname, channel: string; params: string): boolean;
+function IrcSetMYIrcNick(const netname, channel: string; params: string): boolean;
 function IrcInviteMyIRCNICK(const netname, channel: string; params: string):
   boolean;
 //function IrcNetAddBNC(const netname, channel: string;params: string): Boolean;
@@ -284,13 +245,10 @@ function IrcNoLoginMSG(const netname, channel: string; params: string): boolean;
 
 //function IrcCustomDelrelease(const netname, channel: string;params: string): Boolean;
 
-function IrcCreateBackup(const netname, channel: string; params: string):
-  boolean;
+function IrcCreateBackup(const netname, channel: string; params: string): boolean;
 
-function IrcLanguageBaseReload(const netname, channel: string; params: string):
-  boolean;
-function IrcTestLanguageBase(const netname, channel: string; params: string):
-  boolean;
+function IrcLanguageBaseReload(const netname, channel: string; params: string): boolean;
+function IrcTestLanguageBase(const netname, channel: string; params: string): boolean;
 
 function IrcSpamConfig(const netname, channel: string; params: string): boolean;
 
@@ -329,39 +287,28 @@ function IrcAddSocks5(const netname, channel: string; params: string): boolean;
 function IrcDelSocks5(const netname, channel: string; params: string): boolean;
 function IrcDisplaySocks5(const netname, channel: string; params: string):
   boolean;
-function IrcTweakSocks5(const netname, channel: string; params: string):
-  boolean;
+function IrcTweakSocks5(const netname, channel: string; params: string): boolean;
 function IrcSetSocks5(const netname, channel: string; params: string): boolean;
-function IrcRehashSocks5(const netname, channel: string; params: string):
-  boolean;
+function IrcRehashSocks5(const netname, channel: string; params: string): boolean;
 //function IrcTweakSocks5(const netname, channel: string;params: string): Boolean;
 
-function IrcDisplayMappings(const netname, channel: string; params: string):
-  boolean;
+function IrcDisplayMappings(const netname, channel: string; params: string): boolean;
 
-function IrcReloadGlobalSkipGrouplist(const netname, channel: string;
-  params: string): boolean;
+function IrcReloadGlobalSkipGrouplist(const netname, channel: string; params: string): boolean;
 
-function IrcShowCredits(const netname, channel: string; params: string):
-  boolean;
+function IrcShowCredits(const netname, channel: string; params: string): boolean;
 
-function IrcShowAppStatus(const netname, channel: string; params: string):
-  boolean;
+function IrcShowAppStatus(const netname, channel: string; params: string): boolean;
 
-function Ircaddknowngroup(const netname, channel: string; params: string):
-  boolean;
+function Ircaddknowngroup(const netname, channel: string; params: string): boolean;
 
-function IrcChanSetSitename(const netname, channel: string; params: string):
-  boolean;
+function IrcChanSetSitename(const netname, channel: string; params: string): boolean;
 
-function IrcSetSitePermdown(const netname, channel: string; params: string):
-  boolean;
+function IrcSetSitePermdown(const netname, channel: string; params: string): boolean;
 
-function IrcAnnounceIMDBInfo(const netname, channel: string; params: string):
-  boolean;
+function IrcAnnounceIMDBInfo(const netname, channel: string; params: string): boolean;
 
-function IrcShowSiteNukes(const netname, channel: string; params: string):
-  boolean;
+function IrcShowSiteNukes(const netname, channel: string; params: string): boolean;
 
 //function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
 
@@ -371,10 +318,8 @@ function IrcFakeReload(const netname, channel: string; params: string): boolean;
 
 function IrcSetPretime(const netname, channel: string; params: string): boolean;
 
-function IrcRebuildSlot(const netname, channel: string; params: string):
-  boolean;
-function IrcRecalcFreeslots(const netname, channel: string; params: string):
-  boolean;
+function IrcRebuildSlot(const netname, channel: string; params: string): boolean;
+function IrcRecalcFreeslots(const netname, channel: string; params: string): boolean;
 
 { TVRage
 function IrcAnnounceTVRageInfo(const netname, channel: string; params: string):
@@ -396,8 +341,7 @@ function IrcAddTVMazeToDb(const netname, channel: string; params: string): boole
 function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string): boolean;
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
 
-function IrcSetDebugverbosity(const Netname, Channel: string; params: string):
-  boolean;
+function IrcSetDebugverbosity(const Netname, Channel: string; params: string): boolean;
 
 const
 
@@ -9942,40 +9886,43 @@ var
   ii, i: integer;
   r: TRule;
 begin
-  //  Result := False;
-  xs := TStringList.Create;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  sections := RightStrV2(params, length(sitename) + 1);
+   Result := False;
+  try
+    xs := TStringList.Create;
+    sitename := UpperCase(SubString(params, ' ', 1));
+    sections := RightStrV2(params, length(sitename) + 1);
 
-  if sections <> '' then
-  begin
-    xs.Delimiter := ' ';
-    xs.DelimitedText := sections;
-    for i := 0 to xs.Count - 1 do
+    if sections <> '' then
+    begin
+      xs.Delimiter := ' ';
+      xs.DelimitedText := sections;
+      for i := 0 to xs.Count - 1 do
+      begin
+        for ii := 0 to rules.Count - 1 do
+        begin
+          r := TRule(rules[ii]);
+          if ((r.sitename = sitename) and (r.section = xs.Strings[i])) then
+          begin
+            irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
+          end;
+        end;
+      end;
+    end
+    else
     begin
       for ii := 0 to rules.Count - 1 do
       begin
         r := TRule(rules[ii]);
-        if ((r.sitename = sitename) and (r.section = xs.Strings[i])) then
+        if r.sitename = sitename then
         begin
           irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
         end;
       end;
     end;
-  end
-  else
-  begin
-    for ii := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[ii]);
-      if r.sitename = sitename then
-      begin
-        irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
-      end;
-    end;
+    Result := True;
+  finally
+    xs.Free;
   end;
-  xs.Free;
-  Result := True;
 end;
 
 (*
@@ -11508,44 +11455,47 @@ var
   tvr: TTVInfoDB;
 begin
   Result := False;
-    (*
-  if strtointdef(params, -1) > -1 then
-  begin
+  (*
+if strtointdef(params, -1) > -1 then
+begin
 
-    tvr :=   getTVInfoByShowID(params);
-    try
+  tvr :=   getTVInfoByShowID(params);
+  try
 
-      Result := dbaddtvrage_delete_show(tvr.rls_showname);
-    finally
-      tvr.Free;
-    end;
-  end
-  else
-  begin
-    tvr := getTheTVDBbyShowName(params);
-    try
-      Result := dbaddtvrage_delete_show(tvr.rls_showname);
-    finally
-      tvr.Free;
-    end;
+    Result := dbaddtvrage_delete_show(tvr.rls_showname);
+  finally
+    tvr.Free;
   end;
-  *)
+end
+else
+begin
+  tvr := getTheTVDBbyShowName(params);
+  try
+    Result := dbaddtvrage_delete_show(tvr.rls_showname);
+  finally
+    tvr.Free;
+  end;
+end;
+*)
 end;
 
 function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
   boolean;
 var
-respo,tvmaze_id:string;
+  respo, tvmaze_id: string;
   otvr, tvr: TTVInfoDB;
 begin
   result := false;
 
-  if strtointdef(params, -1) > -1 then tvmaze_id:=params else begin
-    otvr:=getTVInfoByReleaseName(params);
-    tvmaze_id:=otvr.tvmaze_id;
+  if strtointdef(params, -1) > -1 then
+    tvmaze_id := params
+  else
+  begin
+    otvr := getTVInfoByReleaseName(params);
+    tvmaze_id := otvr.tvmaze_id;
   end;
 
-  respo:=slUrlGet('http://api.tvmaze.com/shows/'+tvmaze_id+'?embed[]=nextepisode&embed[]=previousepisode');
+  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
   (*
     xml := TSLXMLDocument.Create;
     if strtointdef(params, -1) > -1 then
@@ -11622,18 +11572,16 @@ begin
     sname := StringReplace(sname, chr(39), '', [rfReplaceAll]);
     sname := StringReplace(sname, '@', 'at', [rfReplaceAll]);
 
-uurl:='q=' + sname;
-    resp := slUrlGet('http://api.tvmaze.com/search/shows',uurl);
+    uurl := 'q=' + sname;
+    resp := slUrlGet('http://api.tvmaze.com/search/shows', uurl);
 
     if ((resp = '') or (resp = '[]')) then
     begin
-      irc_addtext(Netname, Channel, 'No search result for ' + sname +'('+ssname+')');
-      irc_addtext(Netname, Channel,resp);
+      irc_addtext(Netname, Channel, 'No search result for ' + sname + '(' + ssname + ')');
+      irc_addtext(Netname, Channel, resp);
       Result := True;
       Exit;
     end;
-
-
 
     try
       jl := TlkJSON.ParseText(resp) as TlkJSONlist;
@@ -11656,7 +11604,7 @@ uurl:='q=' + sname;
         //string(js.Child[i].Field['show'].Field['url'].Value)
         irc_addtext(Netname, Channel, '<b>%s</b>: %s -- %saddtvinfo %s %s',
           [string(jl.Child[i].Field['show'].Field['name'].Value),
-            string(jl.Child[i].Field['show'].Field['url'].Value),
+          string(jl.Child[i].Field['show'].Field['url'].Value),
             irccmdprefix,
             string(jl.Child[i].Field['show'].Field['id'].Value),
             ssname]);
@@ -11671,9 +11619,9 @@ uurl:='q=' + sname;
   end;
   if StrToIntDef(sid, -1) > -1 then
   begin
-//    uurl := 'thetvdb=' + sid;
+    //    uurl := 'thetvdb=' + sid;
     try
-      resp := slUrlGet('http://api.tvmaze.com/shows/'+sid);
+      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid);
     except
       on E: Exception do
       begin

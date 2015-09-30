@@ -174,13 +174,28 @@ begin
     end;
 
     tvr.tvmaze_id := string(js.Field['id'].Value);
-
-    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
-    if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then  tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
-
     tvr.tv_url := string(js.Field['url'].Value);
-
     tvr.tv_showname := string(js.Field['name'].Value);
+
+    if js.Field['status'].SelfType = jsNull then
+      tvr.tv_status := 'unknown'
+    else
+      tvr.tv_status := string(js.Field['status'].Value);
+
+    if js.Field['type'].SelfType = jsNull then
+      tvr.tv_classification := 'unknown'
+    else
+
+      tvr.tv_classification := string(js.Field['type'].Value);
+
+    tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
+    tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
+
+    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
+      tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
+    if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then
+      tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
+
     if js.Field['network'].SelfType = jsNull then
     begin
       if js.Field['webChannel'].SelfType <> jsNull then
@@ -212,24 +227,24 @@ begin
     if tvr.tv_country = 'GB' then
       tvr.tv_country := 'UK';
 
-    tvr.tv_status := string(js.Field['status'].Value);
-
     for I := 0 to js.Field['genres'].Count - 1 do
       tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
 
-    tvr.tv_classification := string(js.Field['type'].Value);
+    if js.Field['premiered'].SelfType <> jsNull then
+    begin
 
-    x := TStringlist.Create;
-    try
-      x.Delimiter := '-';
-      x.DelimitedText := string(js.Field['premiered'].Value);
-      tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
-    finally
-      x.free;
-    end;
+      x := TStringlist.Create;
+      try
+        x.Delimiter := '-';
+        x.DelimitedText := string(js.Field['premiered'].Value);
+        tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
+      finally
+        x.free;
+      end;
 
-    tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
-    tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
+    end
+    else
+      tvr.tv_premiered_year := -1;
 
     try
 
@@ -237,11 +252,13 @@ begin
       begin
         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
+        tvr.tv_next_date := -1;
       end
       else
       begin
         tvr.tv_next_season := -1;
         tvr.tv_next_ep := -1;
+        tvr.tv_next_date := -1;
       end;
 
     except on E: Exception do
@@ -267,7 +284,7 @@ begin
 end;
 
 procedure TPazoTVInfoLookupTask.PostResults(network, country, classi,
-  status,premyear,url: string; genre: TStringList);
+  status, premyear, url: string; genre: TStringList);
 begin
   if config.ReadBool(section, 'use_new_announce_style', True) then
   begin
@@ -359,7 +376,7 @@ begin
   end;
 
   try
-    uurl := 'http://api.tvmaze.com/shows/'+sid+'?embed[]=nextepisode&embed[]=previousepisode';
+    uurl := 'http://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode';
     tvmaz := slUrlGet(uurl);
   except
     on e: Exception do
@@ -422,12 +439,12 @@ begin
       exit;
     end;
   end;
-(*
-  if config.ReadBool(section, 'post_lookup_infos', False) then
-  begin
-    PostResults(db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status,IntToStr(db_tvinfo.tv_premiered_year),db_tvinfo.tv_url, db_tvinfo.tv_genres);
-  end;
-*)
+  (*
+    if config.ReadBool(section, 'post_lookup_infos', False) then
+    begin
+      PostResults(db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status,IntToStr(db_tvinfo.tv_premiered_year),db_tvinfo.tv_url, db_tvinfo.tv_genres);
+    end;
+  *)
   try
     ps := FindMostCompleteSite(mainpazo);
     if ((ps = nil) and (mainpazo.sites.Count > 0)) then
