@@ -12,8 +12,8 @@ type
     attempt: integer;
     //duperes:PDupeResults;
 //    foctime: int64;
-    vctime:  int64;
-    url:     string;
+    vctime: int64;
+    url: string;
     function FetchTimeFromPHP: boolean;
     //    function FetchTimeFromMYSQL:boolean;
   public
@@ -30,14 +30,12 @@ type
   public
     constructor Create;
     function ReCalcTimeStamp(oldtime: int64): boolean;
-    property NewTimeStamp: int64 Read fNewtime;
-    property OldTimeStamp: int64 Read fOldtime;
+    property NewTimeStamp: int64 read fNewtime;
+    property OldTimeStamp: int64 read fOldtime;
   end;
 
-
-function PrepareTimestamp(TimeStamp: int64): int64;overload;
-function PrepareTimestamp(DateTime: TDateTime): TDateTime;overload;
-
+function PrepareTimestamp(TimeStamp: int64): int64; overload;
+function PrepareTimestamp(DateTime: TDateTime): TDateTime; overload;
 
 implementation
 
@@ -58,7 +56,6 @@ begin
     Result := preurls.Strings[index];
 end;
 
-
 { TPazoPretimeLookup }
 
 constructor TPazoPretimeLookupTask.Create(const netname, channel: string;
@@ -68,15 +65,14 @@ begin
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-
 function TPazoPretimeLookupTask.Execute(slot: Pointer): boolean;
 var
-  r:   TPazoPretimeLookupTask;
+  r: TPazoPretimeLookupTask;
   plm: TPretimeLookupMOde;
   //  plresult:boolean;
 begin
   Result := True;
-  plm    := TPretimeLookupMOde(config.ReadInteger(section, 'mode', 0));
+  plm := TPretimeLookupMOde(config.ReadInteger(section, 'mode', 0));
   case plm of
     plmNone: Result := True;
     plmHTTP: Result := FetchTimeFromPHP;
@@ -97,43 +93,41 @@ begin
       // mainpazo.rls.aktualizalasfailed:= True;
       debug(dpSpam, section, 'READD: no more attempts...');
     end;
-    ready  := True;
+    ready := True;
     Result := True;
     exit;
   end;
   kb_add(netname, channel, site1, mainpazo.rls.section, '', 'UPDATE',
     mainpazo.rls.rlsname, '');
-  ready  := True;
+  ready := True;
   Result := True;
   //TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL);
 end;
 
-
-
 function TPazoPretimeLookupTask.FetchTimeFromPHP: boolean;
-  ////label nexturl, alldone;
+////label nexturl, alldone;
 
 var
   //response: string;
   response: TStringList;
   prex: TRegexpr;
-//  sctime: string;
-  //urlcount:integer;
+  //  sctime: string;
+    //urlcount:integer;
   i: integer;
 begin
-  Result   := False;
+  Result := False;
   //urlcount := 0;
   //nexturl:
-  url      := GetPretimeURL;
+  url := GetPretimeURL;
   if url = '' then
   begin
     debug(dpSpam, section, 'URL value is empty');
-    ready  := True;
+    ready := True;
     Result := True;
     exit;
   end;
 
-  response      := TStringList.Create;
+  response := TStringList.Create;
   response.Text := slUrlGet(Format(url, [mainpazo.rls.rlsname]));
   debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s',
     [mainpazo.rls.rlsname, response.Text]);
@@ -158,12 +152,10 @@ begin
   response.Free;
 end;
 
-
 function FetchTimeFromMYSQL(rls: TRelease): boolean;
 begin
   Result := True;
 end;
-
 
 function TPazoPretimeLookupTask.Name: string;
 begin
@@ -175,36 +167,30 @@ begin
   end;
 end;
 
-
 function PrepareTimestamp(DateTime: TDateTime): TDateTime;
-var
- time:int64;
 begin
-  Result := DateTime;
-  time:= DateTimeToUnix(DateTime);
-  result:= UnixToDateTime(PrepareTimestamp(time));
+  result := UnixToDateTime(PrepareTimestamp(DateTimeToUnix(DateTime)));
 end;
 
 function PrepareTimestamp(TimeStamp: int64): int64;
 var
   vof: TSLOffset;
 begin
-  vof    := TSLOffset.Create;
+  Result := TimeStamp;
+  vof := TSLOffset.Create;
   try
-  try
-  if vof.ReCalcTimeStamp(TimeStamp) then
-    Result := vof.NewTimeStamp else   Result := TimeStamp;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section,
-        format('[EXCEPTION] PrepareTimestamp: %s',
-        [E.Message]));
+    try
+      if vof.ReCalcTimeStamp(TimeStamp) then
+        Result := vof.NewTimeStamp
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, format('[EXCEPTION] PrepareTimestamp: %s', [E.Message]));
+      end;
     end;
-  end;
   finally
-  vof.Free;
- end;
+    vof.Free;
+  end;
 end;
 
 constructor TSLOffset.Create;
@@ -214,10 +200,10 @@ end;
 
 function TSLOffset.ReCalcTimeStamp(oldtime: int64): boolean;
 var
-  r:    TRegexpr;
+  r: TRegexpr;
   vval: int64;
 begin
-  Result   := False;
+  Result := False;
   fNewtime := fOldtime;
   if fvalue = '0' then
     exit;
@@ -227,8 +213,8 @@ begin
   try
     if r.Exec(fvalue) then
     begin
-      vval     := StrToInt(r.Match[2]);
-      vval     := vval * 3600;
+      vval := StrToInt(r.Match[2]);
+      vval := vval * 3600;
       fNewtime := 0;
       fOldtime := oldtime;
       if r.Match[1] = '+' then
@@ -241,7 +227,6 @@ begin
   end;
   r.Free;
 end;
-
 
 end.
 

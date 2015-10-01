@@ -223,7 +223,8 @@ end;
 
 procedure TTVInfoDB.UpdateIRC;
 var
-  sql, respo: string;
+respo: string;
+//sql:string;
   //  js: TlkJSONobject;
 begin
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
@@ -233,7 +234,7 @@ begin
     Exit;
   end;
   try
-    self := parseTVMazeInfos(respo);
+    //self := parseTVMazeInfos(respo);
     //  js := TlkJSON.ParseText(respo) as TlkJSONobject;
   except on e: Exception do
     begin
