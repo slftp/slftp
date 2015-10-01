@@ -2195,15 +2195,18 @@ var
   imdbdata: TDbImdbData;
   ir: TIMDBRelease;
 begin
+try
   Result := False;
   aktualizalva := True;
 
   pazo := TPazo(p); // ugly shit
 
+
   i := last_imdbdata.IndexOf(rlsname);
   if i = -1 then
   begin
     // no imdb infos, check if we have a nfo
+(*
     i := last_addnfo.IndexOf(rlsname);
     if i <> -1 then
     begin
@@ -2211,7 +2214,7 @@ begin
       Result := True;
       exit;
     end;
-
+*)
     // no nfo start searching nfo
     for j := pazo.sites.Count - 1 downto 0 do
     begin
@@ -2267,6 +2270,17 @@ begin
     end;
     Result := True;
   end;
+
+
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections,
+          Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
+          [e.Message]));
+      end;
+    end;
+
 end;
 
 function TIMDBRelease.Aktualizald(extrainfo: string): boolean;
