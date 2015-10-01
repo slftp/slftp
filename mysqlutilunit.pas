@@ -85,7 +85,7 @@ begin
   else
   begin
     slmysql2.mysql_options(mysqldb, MYSQL_OPT_RECONNECT, 'true');
-    slmysql2.mysql_options(mysqldb, MYSQL_OPT_COMPRESS, 0);
+    slmysql2.mysql_options(mysqldb, MYSQL_OPT_COMPRESS, nil);
   end;
 
   // event
@@ -136,8 +136,8 @@ begin
 end;
 
 function MySQLInsertQuery(sql: string; args: array of const): boolean;
-var
-  mysql_err: string;
+//var
+//  mysql_err: string;
 begin
   Result := False;
   try

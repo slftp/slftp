@@ -84,7 +84,6 @@ var
   tp1, tp2: TPazoTask;
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
-  rsp: TRegexpr;
 begin
   // compare:  1 Item1 is before Item2
   // compare: -1 Item1 is after Item2
@@ -300,7 +299,7 @@ var
   s1, s2: TSite;
   i:      integer;
   ss1, ss2: TSiteSlot;
-  sst1, sst2: TSiteSlot;
+   sst2: TSiteSlot;
   sso:    boolean;
   tt:     TTask;
   tpr:    TPazoRaceTask;
@@ -723,7 +722,7 @@ end;
 function TaskAlreadyInQueue(t: TTask): boolean;
 var
   i:    integer;
-  i_tt: TTask;
+//  i_tt: TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;

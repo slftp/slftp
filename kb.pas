@@ -2090,8 +2090,6 @@ begin
 
   if (showname <> '') then
   begin
-    //    db_tvrage := nil;
-    db_tvrage := nil;
     try
       db_tvrage := getTVInfoByShowName(showname);
     except
@@ -2747,7 +2745,7 @@ var
   i: integer;
   x: TStringList;
   ss: string;
-  xin: Tinifile;
+//  xin: Tinifile;
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
@@ -2995,10 +2993,10 @@ begin
     //checking if a irc chan is added for the site
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
+    ssrc_found:=False;
       for j := 0 to p.sites.Count - 1 do
       begin
-        psrc := nil;
-        ssrc := nil;
+
         ssrc_found := False;
         psrc := TPazoSite(p.sites[j]);
         if psrc = nil then
@@ -3040,8 +3038,7 @@ begin
         continue;
 
       try
-        Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
-          [p.rls.rlsname, pdest.Name, psrc.Name]);
+        Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
         p.rls.incompleteFiller := True;
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
@@ -3087,6 +3084,7 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
+//  sfound := False;
 
   Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
   irc_Addstats(Format('--> AddCompleteTransfers %s (%d)',
@@ -3148,7 +3146,7 @@ begin
     if Precatcher_Sitehasachan(ps.Name) then
     begin
       pss := nil;
-      sfound := False;
+      //sfound := False;
 
       for j := 0 to p.sites.Count - 1 do
       begin

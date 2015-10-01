@@ -157,6 +157,7 @@ var
   x: TStringlist;
 begin
   result := nil;
+  js:= nil;
   if Showname <> '' then
     s := Csere(Showname, '.', ' ')
   else
@@ -173,6 +174,8 @@ begin
       end;
     end;
 
+    if js = nil then Exit;
+    
     tvr.tvmaze_id := string(js.Field['id'].Value);
     tvr.tv_url := string(js.Field['url'].Value);
     tvr.tv_showname := string(js.Field['name'].Value);
@@ -549,7 +552,7 @@ begin
   tvdb := parseTVMazeInfos(response, sname);
   if tvdb <> nil then
     saveTVInfos(tvmaze_id, tvdb, rls);
-
+result:=True;
 end;
 
 end.

@@ -1,3 +1,4 @@
+//dead unit?
 unit dateunit;
 
 interface
@@ -9,7 +10,7 @@ implementation
 
 uses
   SysUtils, DateUtils, debugunit, configunit, RegExpr;
-
+    (*
 const
   section = 'date';
 
@@ -93,6 +94,7 @@ begin
   finally
     r.Free;
   end;
-end;
 
+end;
+   *)
 end.
