@@ -246,20 +246,18 @@ begin
     else
       tvr.tv_premiered_year := -1;
 
-    try
+        tvr.tv_next_season := 0;
+        tvr.tv_next_ep := 0;
+        tvr.tv_next_date := 0;
+        try
 
       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
       begin
         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
         tvr.tv_next_date := -1;
-      end
-      else
-      begin
-        tvr.tv_next_season := -1;
-        tvr.tv_next_ep := -1;
-        tvr.tv_next_date := -1;
       end;
+
 
     except on E: Exception do
         Irc_addadmin(e.Message);
