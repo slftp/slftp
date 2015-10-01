@@ -2,7 +2,7 @@ unit leechfileunit;
 
 interface
 
-uses sitesunit, Classes;
+uses sitesunit, Classes, Debugunit;
 
 function LeechFile(s: TSiteSlot; dest: TStream; const filename: string; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
 
@@ -20,6 +20,7 @@ var
     port: Integer;
 begin
   Result:= 0;
+  try
   idTCP:= TslTCPSocket.Create;
 
   try
@@ -96,6 +97,15 @@ begin
   finally
     idTCP.Free;
   end;
+
+ except
+    on e: Exception do
+    begin
+      Debug(dpError, 'LeechFile', Format('[EXCEPTION] TPazoSiteNfoTask: LeechFile : %s', [e.Message]));
+      exit;
+    end;
+  end;
+
 end;
 
 end.

@@ -1202,10 +1202,11 @@ var de: TDirlistEntry;
 begin
   Result:= nil;
 
-  for i:= entries.Count -1 downto 0 do
+  for i:= 0 to entries.Count -1 do
   begin
-    try if i < 0 then Break; except Break; end;
+//    try if i < 0 then Break; except Break; end;
     try de:= TDirlistEntry(entries[i]);
+
       if ((de.Extension = '.nfo') and (de.filesize > 0)) then
       begin
         Result:= de;

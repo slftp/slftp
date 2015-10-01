@@ -6,8 +6,8 @@ uses Classes, IniFiles, irc, kb, Contnrs;
 
 type
   TDbUrl = class
-    rls: String;
-    url: String;
+    rls: string;
+    url: string;
     constructor Create(rls, url: string);
     destructor Destroy; override;
   end;
@@ -37,7 +37,8 @@ const
 var
   addurlcmd: string;
 
-{ TDbUrl }
+  { TDbUrl }
+
 constructor TDbUrl.Create(rls, url: string);
 begin
   self.rls := rls;
@@ -75,12 +76,12 @@ begin
 
   if ((rls <> '') and (url <> '')) then
   begin
-    i:= last_addurl.IndexOf(rls);
+    i := last_addurl.IndexOf(rls);
     if i <> -1 then
     begin
       exit;
     end;
-    
+
     try
       dbaddurl_SaveUrl(rls, url);
     except
@@ -98,39 +99,40 @@ var
   i: Integer;
   db_url: TDbUrl;
 begin
-  i:= last_addurl.IndexOf(rls);
+  i := last_addurl.IndexOf(rls);
   if i = -1 then
   begin
-    db_url:= TDbUrl.Create(rls, url);
+    db_url := TDbUrl.Create(rls, url);
     last_addurl.AddObject(rls, db_url);
 
     irc_AddInfo(Format('<c7>[URL]</c> for <b>%s</b> : %s', [rls, url]));
-    irc_Addtext_by_key('ADDURL', '!addurl '+rls+' '+url);
+    irc_Addtext_by_key('ADDURL', '!addurl ' + rls + ' ' + url);
 
     dbaddurl_ParseUrl(rls, url);
 
-    i:= last_addurl.Count;
+    i := last_addurl.Count;
     if i > 125 then
     begin
       while i > 100 do
       begin
         last_addurl.Delete(0);
-        i:= last_addurl.Count - 1;
+        i := last_addurl.Count - 1;
       end;
     end;
   end;
 end;
 
 procedure dbaddurl_ParseUrl(rls, url: string);
-var rr: TRegexpr;
-    imdb_id: String;
+var
+  rr: TRegexpr;
+  imdb_id: string;
 begin
-  rr:=TRegexpr.Create;
-  rr.ModifierI:=True;
-  rr.Expression:='tt(\d{6,7})';
+  rr := TRegexpr.Create;
+  rr.ModifierI := True;
+  rr.Expression := 'tt(\d{6,7})';
   if rr.exec(url) then
   begin
-    imdb_id:='tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
+    imdb_id := 'tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
     try
       dbaddimdb_SaveImdb(rls, imdb_id);
     except
@@ -149,16 +151,16 @@ function dbaddurl_Status: string;
 begin
   Result := '';
 
-  Result:= Format('<b>Url</b>: %d',[last_addurl.Count]);
+  Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;
 
 { Init }
 
 procedure dbaddurlInit;
 begin
-  last_addurl:= TStringList.Create;
-  last_addurl.CaseSensitive:= False;
-  last_addurl.Duplicates:= dupIgnore;
+  last_addurl := TStringList.Create;
+  last_addurl.CaseSensitive := False;
+  last_addurl.Duplicates := dupIgnore;
 end;
 
 procedure dbaddurlStart;
