@@ -38,7 +38,6 @@ function Rehashglobalskiplist: boolean;
 var
   x: TStringlist;
 begin
-  result := False;
   try
     x := TStringlist.Create;
     try
@@ -56,7 +55,6 @@ begin
         [E.Message]));
       result := False;
     end;
-
   end;
 end;
 

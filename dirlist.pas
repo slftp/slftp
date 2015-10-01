@@ -477,7 +477,6 @@ var tmp: string;
     dirmaszk, username, groupname, datum, filename: string;
     filesize: Integer;
     i, j: Integer;
-    lines_read: Integer;
     rrgx,splx:TRegExpr;
 begin
   added:= False;
@@ -507,7 +506,7 @@ begin
 //  splx.Expression:='^sample|cover?|sub?|proof$';
   splx.Expression:='^sample$';
 
-  lines_read:= 0;
+
   while(true) do
   begin
     tmp:= trim(Elsosor(s));
