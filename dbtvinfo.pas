@@ -85,8 +85,8 @@ procedure TTVInfoDB.Save;
 begin
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d)',
-      [StrToInt(thetvdb_id), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-      StrToInt(tvrage_id), StrToInt(tvmaze_id)]));
+      [StrToIntDef(thetvdb_id,-1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
+      StrToIntDef(tvrage_id,-1), StrToInt(tvmaze_id)]));
   except on E: Exception do
     begin
       Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
