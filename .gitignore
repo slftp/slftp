@@ -12,3 +12,4 @@ __history
 *.BAK
 *.bak
 bin/*
+slftp.history
