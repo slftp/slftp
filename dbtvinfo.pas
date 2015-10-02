@@ -56,7 +56,7 @@ function getTVInfoByReleaseName(rls: string): TTVInfoDB;
 
 function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 
-procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = '');
+procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = ''; fireKb: boolean = True);
 
 procedure addTVInfos(params: string);
 procedure TVInfoFireKbAdd(rls: string);
@@ -451,7 +451,7 @@ begin
   end;
 end;
 
-procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = '');
+procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = ''; fireKb: boolean = True);
 var
   save_tvrage: TTVInfoDB;
 begin
@@ -462,7 +462,8 @@ begin
     try
       //      last_addtvrage.AddObject(tvrage.tv_showname, tvrage);
       if (rls <> '') then
-        irc_Addtext_by_key('ADDTVRAGE', '!addtvrage ' + rls + ' ' + tvmaze_id);
+
+        irc_Addtext_by_key('ADDTVMAZE', addtinfodbcmd + ' ' + rls + ' ' + tvmaze_id);
     except
       on e: Exception do
       begin
@@ -483,10 +484,8 @@ begin
       end;
     end;
 
-    if (rls <> '') then
-    begin
+    if ((rls <> '') and (fireKb)) then
       TVInfoFireKbAdd(rls);
-    end;
 
   end;
 end;
@@ -506,7 +505,7 @@ begin
     if (ps <> nil) then
     begin
       try
-        if spamcfg.ReadBool('addinfo', 'tvrageupdate', True) then
+        if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
           irc_Addadmin(Format('<c3>[TTVRelease]</c> %s %s now has TV infos (%s)',
             [p.rls.section, p.rls.rlsname, ps.Name]));
         kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');

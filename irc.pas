@@ -202,7 +202,7 @@ implementation
 
 uses debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
      socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
-     sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbaddnfo, dbaddurl, dbaddimdb,
+     sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl, dbaddimdb,
      dbaddgenre
      {$IFDEF MSWINDOWS},Windows{$ENDIF}
      ;
@@ -926,7 +926,7 @@ begin
   if (b.HasKey('ADDTVMAZE')) then
   begin
     try
-      if dbaddnfo_Process(netname, channel, nick, msg) then
+      if dbTVInfo_Process(netname, channel, nick, msg) then
       begin
         Debug(dpSpam, section, '<-- '+channel+' '+nick+' '+msg);
         Exit;
