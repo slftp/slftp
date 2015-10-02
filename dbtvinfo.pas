@@ -61,6 +61,8 @@ procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = '');
 procedure addTVInfos(params: string);
 procedure TVInfoFireKbAdd(rls: string);
 
+function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
+
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
@@ -85,8 +87,8 @@ procedure TTVInfoDB.Save;
 begin
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d)',
-      [StrToIntDef(thetvdb_id,-1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-      StrToIntDef(tvrage_id,-1), StrToInt(tvmaze_id)]));
+      [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
+      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id)]));
   except on E: Exception do
     begin
       Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
@@ -223,9 +225,9 @@ end;
 
 procedure TTVInfoDB.UpdateIRC;
 var
-respo: string;
-//sql:string;
-  //  js: TlkJSONobject;
+  respo: string;
+  //sql:string;
+    //  js: TlkJSONobject;
 begin
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
   if respo = '' then
@@ -523,7 +525,7 @@ procedure dbTVInfoStart;
 var
   db_name, db_params: string;
 begin
-  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addthetvdb');
+  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
@@ -561,6 +563,25 @@ begin
   except on E: Exception do
       Debug(dpError, section, Format('Exception in dbTVInfoUninit: %s', [e.Message]));
   end;
+end;
+
+function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
+begin
+  Result := False;
+  if (1 = Pos(addtinfodbcmd, msg)) then
+  begin
+    msg := Copy(msg, length(addtinfodbcmd + ' ') + 1, 1000);
+    addTVInfos(msg);
+    Result := True;
+  end;
+  (*
+    if (1 = Pos(oldtvragecmd, msg)) then
+    begin
+      msg := Copy(msg, length(oldtvragecmd + ' ') + 1, 1000);
+      dbaddtvrage_addtvrage(msg);
+      Result := True;
+    end;
+    *)
 end;
 
 {
