@@ -46,6 +46,23 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
 const
   section = 'tasktvinfo';
 
+function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
+begin
+  result := name;
+  result := Csere(result, 'and', '&');
+  result := Csere(result, 'at', '@');
+  result := Csere(result, '.and.', '.&.');
+  result := Csere(result, '.at.', '.@.');
+  result := Csere(result, '.and.', '_&_');
+  result := Csere(result, '.at.', '_@_');
+  result := Csere(result, '', chr(39));
+  if forWebFetch then
+  begin
+    result := Csere(result, ' ', '+');
+    result := Csere(result, '.', '+');
+  end;
+end;
+
 function findTVMazeIDByName(name: string): string;
 var
   s, sname, url, response: string;
@@ -59,6 +76,8 @@ begin
   s := Csere(s, '', chr(39));
   sname := Csere(s, ' ', '+');
   sname := Csere(sname, '.', '+');
+
+  //  sname:=replaceTVShowChars(name,true);  we will test it somewhere else....
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + sname;
   try
     response := slUrlGet(url);
@@ -157,7 +176,7 @@ var
   x: TStringlist;
 begin
   result := nil;
-  js:= nil;
+  js := nil;
   if Showname <> '' then
     s := Csere(Showname, '.', ' ')
   else
@@ -174,8 +193,9 @@ begin
       end;
     end;
 
-    if js = nil then Exit;
-    
+    if js = nil then
+      Exit;
+
     tvr.tvmaze_id := string(js.Field['id'].Value);
     tvr.tv_url := string(js.Field['url'].Value);
     tvr.tv_showname := string(js.Field['name'].Value);
@@ -249,10 +269,10 @@ begin
     else
       tvr.tv_premiered_year := -1;
 
-        tvr.tv_next_season := 0;
-        tvr.tv_next_ep := 0;
-        tvr.tv_next_date := 0;
-        try
+    tvr.tv_next_season := 0;
+    tvr.tv_next_ep := 0;
+    tvr.tv_next_date := 0;
+    try
 
       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
       begin
@@ -260,7 +280,6 @@ begin
         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
         tvr.tv_next_date := -1;
       end;
-
 
     except on E: Exception do
         Irc_addadmin(e.Message);
@@ -308,7 +327,7 @@ function TPazoTVInfoLookupTask.Execute(slot: Pointer): boolean;
 var
   tr: TTvRelease;
   r: TPazoTVInfoLookupTask;
-  tvmaz, sid, uurl: string;
+  showA, showB, tvmaz, sid, uurl: string;
   db_tvinfo: TTVInfoDB;
   ps: TPazoSite;
   //  xml: TSLXMLDocument;
@@ -409,7 +428,10 @@ begin
     exit;
   end;
 
-  if onlyEnglishAlpha(db_tvinfo.tv_showname) = onlyEnglishAlpha(tr.showname) then
+  showA := replaceTVShowChars(db_tvinfo.tv_showname);
+  showB := replaceTVShowChars(tr.showname);
+
+  if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
   begin
     try
       //      dbaddtvrage_SaveTVRage(db_tvrage.tv_showid, db_tvrage, mainpazo.rls.rlsname);
@@ -431,7 +453,7 @@ begin
   end
   else
   begin
-    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>', [db_tvinfo.tv_showname, tr.showname]);
+    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]);
 
     if config.ReadBool(section, 'stop_on_englishcheck', True) then
     begin
@@ -552,7 +574,7 @@ begin
   tvdb := parseTVMazeInfos(response, sname);
   if tvdb <> nil then
     saveTVInfos(tvmaze_id, tvdb, rls);
-result:=True;
+  result := True;
 end;
 
 end.
