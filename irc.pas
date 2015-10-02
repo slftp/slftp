@@ -192,7 +192,7 @@ ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
 
   irc_chanroles:array [0..irc_chanroleindex] of string = (
   'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT',  'ADDPRE',
-  'ADDNFO', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
+  'ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
   'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
   'KB', 'ADDGN'
 );
@@ -904,8 +904,26 @@ begin
       end;
     end;
   end;
-
+(*
   if (b.HasKey('ADDNFO')) then
+  begin
+    try
+      if dbaddnfo_Process(netname, channel, nick, msg) then
+      begin
+        Debug(dpSpam, section, '<-- '+channel+' '+nick+' '+msg);
+        Exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] in dbaddnfo_Process: : %s', [e.Message]));
+        exit;
+      end;
+    end;
+  end;
+           *)
+
+  if (b.HasKey('ADDTVMAZE')) then
   begin
     try
       if dbaddnfo_Process(netname, channel, nick, msg) then
