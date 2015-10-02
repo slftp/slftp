@@ -11275,7 +11275,7 @@ begin
     if ((resp = '') or (resp = '[]')) then
     begin
       irc_addtext(Netname, Channel, 'No search result for ' + sname + '(' + ssname + ')');
-      irc_addtext(Netname, Channel, resp);
+ //     irc_addtext(Netname, Channel, resp);
       Result := True;
       Exit;
     end;

@@ -573,7 +573,7 @@ begin
 
   tvdb := parseTVMazeInfos(response, sname);
   if tvdb <> nil then
-    saveTVInfos(tvmaze_id, tvdb, rls);
+    saveTVInfos(tvmaze_id, tvdb, rls,false);
   result := True;
 end;
 
