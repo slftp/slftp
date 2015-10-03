@@ -453,7 +453,7 @@ begin
   end
   else
   begin
-    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]);
+    irc_addadmin('<c4><b>ERROR</c> english alphabet check failed! %s <> %s   </b>', [db_tvinfo.tv_showname, tr.showname]);
 
     if config.ReadBool(section, 'stop_on_englishcheck', True) then
     begin
