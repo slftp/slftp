@@ -11180,7 +11180,7 @@ function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
   boolean;
 var
   respo, tvmaze_id: string;
-  otvr {, tvr}: TTVInfoDB;
+  otvr, newtvi: TTVInfoDB;
 begin
   result := false;
 
@@ -11193,43 +11193,28 @@ begin
   end;
 
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-  (*
-    xml := TSLXMLDocument.Create;
-    if strtointdef(params, -1) > -1 then
+
+  if respo = '' then
+  begin
+    Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: http respons of ' + newtvi.tv_showname + ' was empty.');
+    otvr.free;
+    Exit;
+  end;
+
+  try
+    newtvi := parseTVMazeInfos(respo);
+  except on e: Exception do
     begin
-
-      try
-        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-          params);
-        otvr := dbaddtvrage_gettvrage_id(params);
-        tvr := ParseTVRageXML(xml, otvr.rls_showname);
-        Result := dbaddtvrage_update_show(tvr);
-        tvr.PostResults(otvr.rls_showname);
-      finally
-        otvr.Free;
-        tvr.Free;
-        xml.Free;
-      end;
-
-    end
-    else
-    begin
-
-      try
-        otvr := dbaddtvrage_gettvrage_show(params);
-        xml.LoadFromWeb('http://services.tvrage.com/feeds/showinfo.php?sid=' +
-          otvr.tv_showid);
-        tvr := ParseTVRageXML(xml, params);
-        Result := dbaddtvrage_update_show(tvr);
-        tvr.PostResults(params);
-      finally
-        tvr.Free;
-        otvr.Free;
-        xml.Free;
-      end;
-
+      irc_AddText(Netname, Channel, Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+      otvr.free;
+      Exit;
     end;
-   *)
+  end;
+  newtvi.UpdateIRC;
+  newtvi.PostResults(Netname,Channel,newtvi.tv_showname);
+  newtvi.free;
+  otvr.free;
+Result:=True;
 end;
 
 //function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string): boolean;
@@ -11275,11 +11260,11 @@ begin
     if ((resp = '') or (resp = '[]')) then
     begin
       irc_addtext(Netname, Channel, 'No search result for ' + sname + '(' + ssname + ')');
- //     irc_addtext(Netname, Channel, resp);
+      //     irc_addtext(Netname, Channel, resp);
       Result := True;
       Exit;
     end;
-      jl := TlkJSONlist.Create;
+    jl := TlkJSONlist.Create;
     try
       jl := TlkJSON.ParseText(resp) as TlkJSONlist;
       //      js := TlkJSON.ParseText(resp) as TlkJSONobject;
