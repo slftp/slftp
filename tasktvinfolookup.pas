@@ -171,7 +171,7 @@ function getGenreFromTheTVDb(id: string): string;
 var
   s, url, response: string;
   xml: TSLXMLDocument;
-  nn, n: TSLXMLNode;
+  gn, nn, n: TSLXMLNode;
   x: TStringlist;
   rx: TRegexpr;
   ts: TStream;
@@ -188,8 +188,9 @@ begin
 
     xml.LoadFromStream(ts);
     n := xml.GetDocumentElement;
-    nn := xml.FindChildNode(n, 'Series').ChildNodes.FindNode('Genre');
-    s := xml.GetNodeValue(nn);
+    nn := xml.FindChildNode(n, 'Series');
+    gn := xml.FindChildNode(nn,'Genre');
+    s := xml.GetNodeValue(gn);
     rx.Expression := '\|?(.*?)\|';
 
     if rx.Exec(s) then
