@@ -226,8 +226,8 @@ end;
 procedure TTVInfoDB.UpdateIRC;
 var
   respo: string;
-  //sql:string;
-    //  js: TlkJSONobject;
+  sql: string;
+  js: TlkJSONobject;
 begin
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
   if respo = '' then
@@ -236,8 +236,8 @@ begin
     Exit;
   end;
   try
-    //self := parseTVMazeInfos(respo);
-    //  js := TlkJSON.ParseText(respo) as TlkJSONobject;
+    self := parseTVMazeInfos(respo);
+    js := TlkJSON.ParseText(respo) as TlkJSONobject;
   except on e: Exception do
     begin
       irc_AddAdmin(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
@@ -245,9 +245,10 @@ begin
     end;
   end;
 
-  // sql:=Format('UPDATE infos set ',[]);
+  sql := Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = "%s", ended_year = %d, tvrage_id = %d, last_updated = %d WHERE tvmaze_id = %d; ',
+    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), StrToInt(tvmaze_id)]);
 
-    //
+    tvinfodb.ExecSQL(sql);
 end;
 
 {   misc                                       }
