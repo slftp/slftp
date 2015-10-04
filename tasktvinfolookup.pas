@@ -167,6 +167,48 @@ begin
   end;
 end;
 
+function getGenreFromTheTVDb(id: string): string;
+var
+  s, url, response: string;
+  xml: TSLXMLDocument;
+  nn, n: TSLXMLNode;
+  x: TStringlist;
+  rx: TRegexpr;
+  ts: TStream;
+begin
+  xml := TSLXMLDocument.Create;
+  rx := TRegexpr.create;
+  x := TStringlist.Create;
+  try
+    x.Delimiter := '"';
+    rx.ModifierI := True;
+    s := slUrlGet('http://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/');
+    ts := TStringStream.Create(s);
+    ts.Position := 0;
+
+    xml.LoadFromStream(ts);
+    n := xml.GetDocumentElement;
+    nn := xml.FindChildNode(n, 'Series').ChildNodes.FindNode('Genre');
+    s := xml.GetNodeValue(nn);
+    rx.Expression := '\|?(.*?)\|';
+
+    if rx.Exec(s) then
+      repeat
+        x.Add(rx.Match[1]);
+      until not rx.ExecNext();
+
+    result := x.CommaText;
+
+  finally
+    ts.free;
+    x.free;
+    rx.free;
+{$IFDEF FPC}
+    xml.free;
+{$ENDIF}
+  end;
+end;
+
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
 var
   tvr: TTVInfoDB;
@@ -250,8 +292,17 @@ begin
     if tvr.tv_country = 'GB' then
       tvr.tv_country := 'UK';
 
-    for I := 0 to js.Field['genres'].Count - 1 do
-      tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+    if js.Field['genres'].Count = 0 then
+    begin
+      irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
+      tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+    end
+    else
+    begin
+
+      for I := 0 to js.Field['genres'].Count - 1 do
+        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+    end;
 
     if js.Field['premiered'].SelfType <> jsNull then
     begin
@@ -573,7 +624,7 @@ begin
 
   tvdb := parseTVMazeInfos(response, sname);
   if tvdb <> nil then
-    saveTVInfos(tvmaze_id, tvdb, rls,false);
+    saveTVInfos(tvmaze_id, tvdb, rls, false);
   result := True;
 end;
 
