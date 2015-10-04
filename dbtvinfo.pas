@@ -229,26 +229,13 @@ var
   sql: string;
   js: TlkJSONobject;
 begin
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-  if respo = '' then
-  begin
-    Irc_AddAdmin('<b><c4>Error</c></b>: http respons of ' + self.tv_showname + ' was empty.');
-    Exit;
-  end;
-  try
-    self := parseTVMazeInfos(respo);
-    js := TlkJSON.ParseText(respo) as TlkJSONobject;
-  except on e: Exception do
-    begin
-      irc_AddAdmin(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
-      Exit;
-    end;
-  end;
 
-  sql := Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = "%s", ended_year = %d, tvrage_id = %d, last_updated = %d WHERE tvmaze_id = %d; ',
-    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), StrToInt(tvmaze_id)]);
+  sql :=
+    Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = "%s", ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
+      StrToInt(tvmaze_id)]);
 
-    tvinfodb.ExecSQL(sql);
+  tvinfodb.ExecSQL(sql);
 end;
 
 {   misc                                       }
