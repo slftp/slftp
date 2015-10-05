@@ -302,7 +302,7 @@ begin
 
     if js.Field['genres'].Count = 0 then
     begin
-      if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then
+      if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
         irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
         tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
