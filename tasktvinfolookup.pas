@@ -189,7 +189,7 @@ begin
     xml.LoadFromStream(ts);
     n := xml.GetDocumentElement;
     nn := xml.FindChildNode(n, 'Series');
-    gn := xml.FindChildNode(nn,'Genre');
+    gn := xml.FindChildNode(nn, 'Genre');
     s := xml.GetNodeValue(gn);
     rx.Expression := '\|?(.*?)\|';
 
@@ -239,9 +239,16 @@ begin
     if js = nil then
       Exit;
 
+    tvr.tv_showname := string(js.Field['name'].Value);
+
+    if LowerCase(tvr.tv_showname) = 'not found' then
+    begin
+      irc_addAdmin('<c14><b>Info</c></b>: TVMaze returned 404 - Not Found.');
+      Exit;
+    end;
+
     tvr.tvmaze_id := string(js.Field['id'].Value);
     tvr.tv_url := string(js.Field['url'].Value);
-    tvr.tv_showname := string(js.Field['name'].Value);
 
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
@@ -295,8 +302,11 @@ begin
 
     if js.Field['genres'].Count = 0 then
     begin
-      irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
-      tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+      if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then
+      begin
+        irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
+        tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+      end;
     end
     else
     begin
