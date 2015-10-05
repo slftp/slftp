@@ -38,6 +38,8 @@ type
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
     procedure UpdateIRC;
+    procedure setTheTVDbID(id: integer);
+    procedure setTVRageID(id: integer);
     //    private
     //     procedure UpdateDBEntry;
   end;
@@ -83,6 +85,26 @@ var
 
 {   TTVInfoDB                                 }
 
+procedure TTVInfoDB.setTheTVDbID(id: integer);
+begin
+  try
+    tvinfodb.ExecSQL(Format('UPDATE infos set tvdb_id = %d WHERE tvmaze_id = %s', [id, tvmaze_id]));
+  except on E: Exception do
+      Irc_AddAdmin('<c4><b>Exception</c></b>: setTheTVDbID: %s', [e.Message]);
+  end;
+
+end;
+
+procedure TTVInfoDB.setTVRageID(id: integer);
+begin
+  try
+    tvinfodb.ExecSQL(Format('UPDATE infos set tvrage_id = %d WHERE tvmaze_id = %s', [id, tvmaze_id]));
+  except on E: Exception do
+      Irc_AddAdmin('<c4><b>Exception</c></b>: setTVRageID: %s', [e.Message]);
+  end;
+
+end;
+
 procedure TTVInfoDB.Save;
 begin
   try
@@ -90,16 +112,14 @@ begin
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
       StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id)]));
   except on E: Exception do
-    begin
-      Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT infos %s', [e.Message]);
-    end;
+      Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
   end;
 
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id,tvmaze_url) VALUES ("%s","%s",%d,"%s");', [rls_showname, tv_showname, StrToInt(tvmaze_id), tv_url]));
   except on E: Exception do
     begin
-      Irc_AddAdmin('Error@TTVInfoDB.Save_INSERT series %s', [e.Message]);
+      Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT series %s', [e.Message]);
     end;
   end;
 end;
@@ -141,7 +161,7 @@ end;
 destructor TTVInfoDB.Destroy;
 begin
   self.tv_genres.Free;
-inherited;
+  inherited;
 end;
 
 function TTVInfoDB.Name: string;
@@ -233,7 +253,7 @@ begin
   sql :=
     Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = "%s", ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
-      StrToInt(tvmaze_id)]);
+    StrToInt(tvmaze_id)]);
 
   tvinfodb.ExecSQL(sql);
 end;
