@@ -621,7 +621,7 @@ const
         maxparams: - 1; hlpgrp: ''),
     *)
     (cmd: 'addtvinfo'; hnd: IrcAddTVMazeToDb; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1; maxparams: -1; hlpgrp: ''),
     (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1; maxparams: - 1; hlpgrp: '')
     );
 
@@ -11190,6 +11190,7 @@ begin
   begin
     otvr := getTVInfoByReleaseName(params);
     tvmaze_id := otvr.tvmaze_id;
+    otvr.free;
   end;
 
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
@@ -11197,7 +11198,6 @@ begin
   if respo = '' then
   begin
     Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: http respons of ' + newtvi.tv_showname + ' was empty.');
-    otvr.free;
     Exit;
   end;
 
@@ -11206,15 +11206,13 @@ begin
   except on e: Exception do
     begin
       irc_AddText(Netname, Channel, Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
-      otvr.free;
       Exit;
     end;
   end;
   newtvi.UpdateIRC;
-  newtvi.PostResults(Netname,Channel,newtvi.tv_showname);
+  newtvi.PostResults(Netname, Channel, newtvi.tv_showname);
   newtvi.free;
-  otvr.free;
-Result:=True;
+  Result := True;
 end;
 
 //function IrcAddTheTVDbToDb(const Netname, Channel: string; params: string): boolean;

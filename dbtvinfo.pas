@@ -141,7 +141,7 @@ end;
 destructor TTVInfoDB.Destroy;
 begin
   self.tv_genres.Free;
-  inherited;
+inherited;
 end;
 
 function TTVInfoDB.Name: string;

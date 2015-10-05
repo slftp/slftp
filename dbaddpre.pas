@@ -795,10 +795,6 @@ begin
     0: Console_Addline('', 'Local addpre List Started...');
     1: Console_Addline('', 'Local SQLITE addpre DB Started...');
     2: Console_Addline('', 'Connected to MYSQL DupeDB...');
-  else
-    begin
-      Console_Addline('', 'Local addpre DB NOT Started.');
-    end;
   end;
 end;
 
