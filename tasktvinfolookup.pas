@@ -180,7 +180,7 @@ begin
   rx := TRegexpr.create;
   x := TStringlist.Create;
   try
-    x.Delimiter := '"';
+    x.QuoteChar := '"';
     rx.ModifierI := True;
     s := slUrlGet('http://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/');
     ts := TStringStream.Create(s);
@@ -198,6 +198,8 @@ begin
         x.Add(rx.Match[1]);
       until not rx.ExecNext();
 
+      //genres.Assign(x);
+      //x.Delimiter:='|';
     result := x.CommaText;
 
   finally
@@ -208,6 +210,8 @@ begin
     xml.free;
 {$ENDIF}
   end;
+
+//result:=Csere(result,'"','\"');
 end;
 
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
@@ -305,7 +309,9 @@ begin
       if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
         irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
-        tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+tvr.tv_genres.CommaText:= getGenreFromTheTVDb(tvr.thetvdb_id);
+//tvr.tv_genres.Add('Test');
+//tvr.tv_genres.Add('nother Test');
       end;
     end
     else
