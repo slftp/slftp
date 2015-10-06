@@ -108,7 +108,7 @@ end;
 procedure TTVInfoDB.Save;
 begin
   try
-    tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d)',
+    tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d)',
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
       StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id)]));
   except on E: Exception do
@@ -251,7 +251,7 @@ var
 begin
 
   sql :=
-    Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = "%s", ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
     StrToInt(tvmaze_id)]);
 
