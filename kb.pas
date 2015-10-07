@@ -2979,7 +2979,7 @@ begin
 
     if pdest.error then
     begin
-      Debug(dpMessage, rsections, 'Error for %s: %s',
+      Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
         [pdest.Name, pdest.reason]);
       Continue;
     end;
@@ -3008,7 +3008,7 @@ begin
 
         if psrc.error then
         begin
-          Debug(dpMessage, rsections, 'Error for %s: %s',
+          Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
             [psrc.Name, psrc.reason]);
           Continue;
         end;
@@ -3117,7 +3117,7 @@ begin
     //There is some error we need to check in later revs!
     if ps.error then
     begin
-      irc_Addstats(Format('<c4>error for %s (%s)</c>', [ps.Name, ps.reason]));
+      irc_Addstats(Format('<c4>Error: AddCompleteTransfersv2 for %s (%s)</c>', [ps.Name, ps.reason]));
       Continue;
     end;
 
