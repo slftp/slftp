@@ -184,9 +184,12 @@ begin
     rx.ModifierI := True;
     s := slUrlGet('http://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/');
     ts := TStringStream.Create(s);
-    ts.Position := 0;
-
-    xml.LoadFromStream(ts);
+    try
+      ts.Position := 0;
+      xml.LoadFromStream(ts);
+    finally
+      ts.free;
+    end;
     n := xml.GetDocumentElement;
     nn := xml.FindChildNode(n, 'Series');
     gn := xml.FindChildNode(nn, 'Genre');
@@ -198,20 +201,12 @@ begin
         x.Add(rx.Match[1]);
       until not rx.ExecNext();
 
-      //genres.Assign(x);
-      //x.Delimiter:='|';
     result := x.CommaText;
-
   finally
-    ts.free;
     x.free;
     rx.free;
-{$IFDEF FPC}
     xml.free;
-{$ENDIF}
   end;
-
-//result:=Csere(result,'"','\"');
 end;
 
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
@@ -309,9 +304,9 @@ begin
       if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
         irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
-tvr.tv_genres.CommaText:= getGenreFromTheTVDb(tvr.thetvdb_id);
-//tvr.tv_genres.Add('Test');
-//tvr.tv_genres.Add('nother Test');
+        tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+        //tvr.tv_genres.Add('Test');
+        //tvr.tv_genres.Add('nother Test');
       end;
     end
     else
