@@ -323,7 +323,6 @@ function IrcRecalcFreeslots(const netname, channel: string; params: string): boo
 
 function IrcSetDebugverbosity(const Netname, Channel: string; params: string): boolean;
 
-
 { TVInfo aka TTVRelease aka TVMaze  }
 function IrcAnnounceTVInfo(const netname, channel: string; params: string): boolean;
 function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
@@ -331,8 +330,6 @@ function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string): bo
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string): boolean;
 function IrcSetTheTVDbID(const Netname, Channel: string; params: string): boolean;
 function IrcSetTVRageID(const netname, channel: string; params: string): boolean;
-
-
 
 const
 
@@ -348,7 +345,6 @@ const
     (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0; maxparams: 1; hlpgrp: 'doh'),
     (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp: 'doh'),
     (cmd: 'status'; hnd: IrcShowAppStatus; minparams: 0; maxparams: 0; hlpgrp: 'doh'),
-
 
     (cmd: '- Site management:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'sites'; hnd: IrcSites; minparams: 0; maxparams: 1; hlpgrp: 'site'),
@@ -459,7 +455,7 @@ const
 
     (cmd: '- Misc:'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'raw'; hnd: IrcRaw; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp:''),
+    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: 'invite'; hnd: IrcInvite; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: 'sitechan'; hnd: IrcSiteChan; minparams: 1; maxparams: 2; hlpgrp: ''),
     (cmd: 'tweak'; hnd: IrcTweak; minparams: 2; maxparams: - 1; hlpgrp: ''),
@@ -522,7 +518,6 @@ const
     (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7; maxparams: 8; hlpgrp: ''),
     (cmd: 'catchdebug'; hnd: IrcPreCatchDebug; minparams: 0; maxparams: 1; hlpgrp: ''),
     (cmd: 'mappings'; hnd: IrcDisplayMappings; minparams: 0; maxparams: 1; hlpgrp: ''),
-
 
     (cmd: '- Rules management'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'delallrules'; hnd: IrcAllRuleDel; minparams: 1; maxparams: 2; hlpgrp: 'doh'),
@@ -3633,8 +3628,7 @@ begin
 
 end;
 
-procedure RawB(const Netname, Channel: string; sitename, dir, command: string;
-  AnnounceSitename: boolean = False);
+procedure RawB(const Netname, Channel: string; sitename, dir, command: string;AnnounceSitename: boolean = False);
 var
   r: TRawTask;
   tn: TTaskNotify;
@@ -5881,7 +5875,8 @@ begin
     exit;
   end;
 
-  if CheckForBadAssGroup(dir) then irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Bad group found...');
+  if CheckForBadAssGroup(dir) then
+    irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Bad group found...');
 
   try
     // i:= kb_add(netname, channel, '', section, '', 'NEWDIR', dir, '', True);
@@ -9320,40 +9315,57 @@ var
   mnick: string;
 begin
   //  Result := False;
-  x := TStringList.Create;
-  x.Delimiter := ' ';
-  x.DelimitedText := UpperCase(params);
-  if x.Count > 0 then
+
+  if params = '*' then
   begin
+    for I := 0 to sites.Count - 1 do begin
+      if Uppercase(TSite(sites.Items[i]).Name) = getAdminSiteName then Continue;
+      if TSite(sites.Items[i]).IRCNick = '' then Continue;
+      Irc_AddText(Netname,Channel,'Invitation sent inquiry to %s',[TSite(sites.Items[i]).Name]);
+      RawB(Netname, Channel, TSite(sites.Items[i]).Name, '/', 'SITE INVITE ' + TSite(sites.Items[i]).IRCNick);
+    end;
+    result:=True;
+  end
+  else
+  begin
+    x := TStringList.Create;
+    try
+      x.Delimiter := ' ';
+      x.DelimitedText := UpperCase(params);
+      if x.Count > 0 then
+      begin
 
-    for i := 0 to x.Count - 1 do
-    begin
-      mnick := '';
-      s := FindSiteByName(Netname, x[i]);
-      if s = nil then
-      begin
-        irc_addtext(Netname, Channel, 'Site %s not found', [x[i]]);
-        Continue;
-      end
-      else
-      begin
-        if (s.PermDown) then
-          Continue;
-        mnick := s.ircnick;
-        if mnick = '' then
+        for i := 0 to x.Count - 1 do
         begin
-          irc_addtext(Netname, Channel, 'No IRCNick found for %s', [x[i]]);
-          Continue;
-        end
-        else
-          RawB(Netname, Channel, s.Name, '/', 'SITE INVITE ' + mnick);
-      end; { else begin from if s = nil }
-    end; { for i:= 0 to x.Count -1 do }
-    irc_addtext(Netname, Channel, 'All Done...');
-    x.Free;
-  end; { if x.Count > 0 then }
-  Result := True;
+          mnick := '';
+          s := FindSiteByName(Netname, x[i]);
+          if s = nil then
+          begin
+            irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Site %s not found', [x[i]]);
+            Continue;
+          end
+          else
+          begin
+            if (s.PermDown) then
+              Continue;
+            mnick := s.ircnick;
+            if mnick = '' then
+            begin
+              irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: No IRC-Nick found for %s', [x[i]]);
+              Continue;
+            end
+            else
+              RawB(Netname, Channel, s.Name, '/', 'SITE INVITE ' + mnick);
+          end; { else begin from if s = nil }
+        end; { for i:= 0 to x.Count -1 do }
+        irc_addtext(Netname, Channel, 'All Done...');
 
+      end; { if x.Count > 0 then }
+      Result := True;
+    finally
+      x.Free;
+    end;
+  end;
 end;
 
 function IrcNetNoSocks5(const Netname, Channel: string; params: string):
@@ -11195,9 +11207,6 @@ begin
   Result := True;
 end;
 
-
-
-
 function IrcSetTVRageID(const Netname, Channel: string; params: string): boolean;
 var
   mazeid, tvrageid: integer;
@@ -11218,9 +11227,9 @@ begin
     Irc_AddText(Netname, Channel, '<c15><b>Info</c></b>: No entry found..');
     Exit;
   end;
-    tvi.setTVRageID(tvrageid);
-    tvi.free;
-    result:=True;
+  tvi.setTVRageID(tvrageid);
+  tvi.free;
+  result := True;
 end;
 
 function IrcSetTheTVDBID(const netname, channel: string; params: string): boolean;
@@ -11243,9 +11252,9 @@ begin
     Irc_AddText(Netname, Channel, '<c15><b>Info</c></b>: No entry found..');
     Exit;
   end;
-    tvi.setTheTVDbID(thetvdbid);
-    tvi.free;
-    result:=True;
+  tvi.setTheTVDbID(thetvdbid);
+  tvi.free;
+  result := True;
 end;
 
 function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
