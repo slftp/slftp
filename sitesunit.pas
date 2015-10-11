@@ -303,6 +303,9 @@ procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
 
+function getAdminSiteName:string;
+
+
 //function
 
 function SiteSoftWareToSTring(sitename: string): string; overload;
@@ -336,6 +339,12 @@ var
   admin_siteslots: integer = 10;
   autologin:     boolean = False;
   killafter:     integer = 0;
+
+function getAdminSiteName:string;
+begin
+result:= config.ReadString(section, 'admin_sitename', 'SLFTP');
+end;
+
 
 function SiteSoftWareToSTring(sitename: string): string;
 begin
