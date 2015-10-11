@@ -3256,6 +3256,7 @@ begin
       s.DeleteKey('autoindexsections');
       s.DeleteKey('nextautoindex');
       s.RemoveAutoIndex;
+      indexerRemoveSiteSection(s.Name,'');
     except
       on E: Exception do
         irc_addtext(Netname, Channel, 'Remove <b>autoindex</b> failed : %s',
