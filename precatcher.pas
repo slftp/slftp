@@ -86,9 +86,8 @@ var
   debug_f: TextFile;
   precatcher_debug_lock: TCriticalSection;
 
-  ValidChars: set of char = ['0'..'9', 'A'..'Z', 'a'..'z', '?',
-    '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*',
-    '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
+  ValidChars: set of char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
+    '/', ':', ';', ' '];
   StrippingChars: set of char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 procedure mydebug(s: string); overload;
@@ -110,10 +109,8 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] mydebug: Exception : %s',
-          [e.Message]));
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> mydebug: Exception : %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] mydebug: Exception : %s', [e.Message]));
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> mydebug: Exception : %s', [e.Message]));
       end;
     end;
   end;
@@ -179,9 +176,7 @@ begin
       begin
         if (Ord(s[i]) <> 255) then
         begin
-          if (((s[i] >= 'a') and (s[i] <= 'z')) or
-            ((s[i] >= 'A') and (s[i] <= 'Z')) or Szam(s[i]) or
-            (s[i] in StrippingChars)) then
+          if (((s[i] >= 'a') and (s[i] <= 'z')) or ((s[i] >= 'A') and (s[i] <= 'Z')) or Szam(s[i]) or (s[i] in StrippingChars)) then
             Result := Result + s[i]
           else
             Result := Result + ' ';
@@ -229,8 +224,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s', [e.Message]));
       irc_Adderror(Format('<c4>[EXCEPTION]</c> csupaszit : %s', [e.Message]));
       Result := '';
       exit;
@@ -241,10 +235,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s',
-        [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s', [e.Message]));
       Result := '';
       exit;
     end;
@@ -257,8 +249,7 @@ var
   i: integer;
   x: TMap;
 begin
-  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls,
-    section]));
+  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
 
   Inc(x_count);
   if (x_count > 500) then
@@ -276,11 +267,9 @@ begin
       if i > mappingslist.Count then
         Break;
       x := mappingslist[i] as TMap;
-      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result))
-        then
+      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
       begin
-        MyDebug(Format('PrecatcherSectionMapping testing %s for %s',
-          [rls, x.newsection]));
+        MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
         if (x.mask.Matches(rls)) then
         begin
           if ((config.ReadBool(rsections, 'recursiv_mapping', False)) and
@@ -292,8 +281,7 @@ begin
           else
           begin
             Result := x.newsection;
-            MyDebug(Format('PrecatcherSectionMapping %s mapped to %s',
-              [rls, x.newsection]));
+            MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
             exit;
           end;
         end;
@@ -302,8 +290,7 @@ begin
       on E: Exception do
       begin
         Debug(dpError, rsections,
-          Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
-          [e.Message]));
+          Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
         break;
       end;
     end;
@@ -432,16 +419,14 @@ begin
     on E: Exception do
     begin
       Debug(dpError, rsections,
-        Format('[EXCEPTION] in PrecatcherSectionMapping: %s',
-        [e.Message]));
+        Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
       exit;
     end;
   end;
 
   if (Trim(rls) = '') then
   begin
-    Debug(dpError, rsections,
-      '[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
+    //    Debug(dpError, rsections,'[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
     exit;
   end;
 
@@ -548,8 +533,7 @@ begin
         begin
           section := '';
           Debug(dpError, rsections,
-            Format('[EXCEPTION] PrecatcherSectionMapping: %s',
-            [e.Message]));
+            Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
         end;
       end;
 
@@ -562,9 +546,8 @@ begin
 
     if section = '' then
     begin
-      irc_Addadmin('No section?! ' + sitename + '@' + rls);
+      irc_Addadmin('<c14><b>Info</c></b>: Section on $s for %s not found.', [sitename, rls]);
       MyDebug('No section?! ' + sitename + '@' + rls);
-      Debug(dpSpam, rsections, 'No section?! ' + sitename + '@' + rls);
       exit;
     end;
 
@@ -575,29 +558,24 @@ begin
     MyDebug('Event: %s', [event]);
     Debug(dpSpam, rsections, 'Event: %s', [event]);
 
-    Debug(dpSpam, rsections, Format('-- ProcessReleaseVege %s %s %s %s',
-      [rls, sitename, event, section]));
+    Debug(dpSpam, rsections, Format('-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
     if not precatcher_debug then
     begin
       try
         if (precatcher_spamevents.IndexOf(event) <> -1) then
         begin
-          irc_Addtext_by_key('PRECATCHSTATS',
-            Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls,
-            sitename]));
+          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
         end;
         kb_Add('', '', sitename, section, '', event, rls, '');
       except
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] ProcessReleaseVege kb_Add: %s',
-            [e.Message]));
+            Format('[EXCEPTION] ProcessReleaseVege kb_Add: %s', [e.Message]));
         end;
       end;
     end;
-    Debug(dpSpam, rsections, Format('<-- ProcessReleaseVege %s %s %s %s',
-      [rls, sitename, event, section]));
+    Debug(dpSpam, rsections, Format('<-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
   end;
 end;
 
@@ -635,8 +613,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
         ts_data.Free;
         exit;
       end;
@@ -673,8 +650,7 @@ begin
       if igindex > -1 then
       begin
         MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] +
-          ' found in ' + rls);
+        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
         skiprlses.Add(rls);
         //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
         exit;
@@ -717,8 +693,7 @@ begin
           begin
             MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
             Debug(dpError, rsections,
-              Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s',
-              [e.Message]));
+              Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s', [e.Message]));
             ts_data.Free;
             exit;
           end;
@@ -737,10 +712,8 @@ begin
         begin
           MyDebug('[EXCEPTION] ProcessReleaseVegeB section count = 0: %s', [e.Message]);
           Debug(dpError, rsections,
-            Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s',
-            [e.Message]));
-          irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s',
-            [e.Message]));
+            Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
+          irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
           ts_data.Free;
           exit;
         end;
@@ -769,8 +742,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s', [e.Message]));
     end;
   end;
 end;

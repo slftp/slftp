@@ -5869,7 +5869,7 @@ begin
     section := UpperCase(SubString(params, ' ', 2));
     if precatcher.sectionlist.IndexOfName(section) = -1 then
     begin
-      irc_addtext(Netname, Channel, 'Section not found');
+      irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Section was not found in slftp.precatcher file.');
       exit;
     end;
     dir := SubString(params, ' ', 3);
@@ -5877,14 +5877,11 @@ begin
 
   if ((dir = '') or (dir = section) or (sitename = dir)) then
   begin
-    irc_addtext(Netname, Channel, 'No valid Rip found!');
+    irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: No valid Rip found!');
     exit;
   end;
 
-  if CheckForBadAssGroup(dir) then
-    irc_addtext(Netname, Channel, 'Bad group found...')
-  else
-    irc_addtext(Netname, Channel, 'Bag group check passed!');
+  if CheckForBadAssGroup(dir) then irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Bad group found...');
 
   try
     // i:= kb_add(netname, channel, '', section, '', 'NEWDIR', dir, '', True);
