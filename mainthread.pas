@@ -2,17 +2,16 @@
 
  - Soulless robotic engine aka SLFTP
  - Version 1.3
- 
+
  - Remarks:          Freeware, Copyright must be included
- 
- - Original Author:  believe                   
-                    
+
+ - Original Author:  believe
+
  - Modifications:    aKRAUT aka dOH
 
  - Last change:      DD/MM/2010 - adding socks5 proxylist
 
  - Description:      Mainpool, Init/Uninit, Start/Stop and handle the timer
-
 
  ****************************************************************************
 
@@ -45,16 +44,16 @@ function Main_Restart: boolean;
 
 var
   slshutdown: boolean;
-  started:    TDateTime;
+  started: TDateTime;
 
 implementation
 
-uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite,
+uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
   sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
   notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
-  dbaddpre, dbaddimdb, dbaddgenre, globalskipunit, slhttp,  backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo
+  dbaddpre, dbaddimdb, dbaddgenre, globalskipunit, slhttp, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo
 {$IFNDEF MSWINDOWS}
-     , slconsole
+  , slconsole
 {$ENDIF}
   , StrUtils;
 
@@ -62,14 +61,13 @@ const
   section = 'mainthread';
 
 var
-  queue_fire:      integer;
+  queue_fire: integer;
   queueclean_interval: integer;
   ranks_save_interval: integer;
   recalc_ranks_interval: integer;
   speedstats_save_interval: integer;
   speedstats_recalc_routes_interval: integer;
   backup_interval: integer;
-
 
 function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
@@ -89,20 +87,19 @@ begin
   end;
   if not slssl_inited then
   begin
-    ss     := 'Couldnt load OpenSSL! Try to copy the libssl/libcrypto libs in slftp dir!' +
+    ss := 'Couldnt load OpenSSL! Try to copy the libssl/libcrypto libs in slftp dir!' +
       #10#13;
 {$IFDEF MSWINDOWS}
-    ss     := ss + 'Or install it from:' + #13#10 +
+    ss := ss + 'Or install it from:' + #13#10 +
       'http://www.slproweb.com/products/Win32OpenSSL.html';
 {$ENDIF}
 {$IFDEF LINUX}
-   // ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
-    ss:=ss+#10#13+'Check the wiki for more infos about openssl +1.*.*';
+    // ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
+    ss := ss + #10#13 + 'Check the wiki for more infos about openssl +1.*.*';
 {$ENDIF}
     Result := ss;
     exit;
   end;
-
 
   s := OpenSSLShortVersion();
   if (s < '0.9.8') then
@@ -111,37 +108,35 @@ begin
     exit;
   end;
 
-
-if config.ReadString('mysql','host','0') <> '0' then begin
-
-  if InitialiseMysql then
+  if config.ReadString('mysql', 'host', '0') <> '0' then
   begin
-    Debug(dpSpam, section, 'MYSQL libs initialised..');
-  end
+
+    if InitialiseMysql then
+    begin
+      Debug(dpSpam, section, 'MYSQL libs initialised..');
+    end
+    else
+    begin
+      Debug(dpError, section, 'Cant initialize MYSQL libs!');
+      Result := 'Cant initialize MYSQL libs!';
+      Exit;
+    end;
+  end;
+
+  if slsqlite_inited then
+    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
   else
   begin
-    Debug(dpError, section, 'Cant initialize MYSQL libs!');
-    Result:='Cant initialize MYSQL libs!';
-    Exit;
-  end;
-end;
-
-
-    if slsqlite_inited then
-    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
-  else begin
     Debug(dpError, section, 'Could not init sqlite: ' + slsqlite_error);
-    Result:=slsqlite_error;
+    Result := slsqlite_error;
     Exit;
   end;
-
-
 
 {$IFNDEF MSWINDOWS}
-  s:= Ncurses_Version;
+  s := Ncurses_Version;
   if s < 'ncurses 5.5.' then
   begin
-    Result:= 'Ncurses version is unsupported! 5.5+ needed.';
+    Result := 'Ncurses version is unsupported! 5.5+ needed.';
     exit;
   end;
 {$ENDIF}
@@ -154,6 +149,9 @@ end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
   //  AutoCrawlerInit;
+
+  InitXMLWeapper;
+
   StatsInit;
   IndexerInit;
   Socks5Init;
@@ -166,13 +164,13 @@ end;
   InitmRdOHConfigFiles;
 
   dbaddpreInit;
-//dbaddnfoInit;
-//dbaddurlInit;
+  //dbaddnfoInit;
+  //dbaddurlInit;
   dbaddgenreInit;
   dbaddimdbInit;
-//  dbaddtvrageInit;
+  //  dbaddtvrageInit;
 
-dbtvinfoInit;
+  dbtvinfoInit;
 
   ConsoleInit;
   Tasks_Init;
@@ -194,7 +192,7 @@ dbtvinfoInit;
   RulesInit;
   SkiplistsInit;
   TagsInit;
-//  EPrecatcherInit;
+  //  EPrecatcherInit;
   NukeInit;
   SpeedStatsInit;
   RanksInit;
@@ -204,7 +202,7 @@ dbtvinfoInit;
   //  DupeDBInit;
   //  RehashIrcColor;
 
-  queue_fire      := config.readInteger('queue', 'queue_fire', 900);
+  queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
@@ -324,7 +322,6 @@ begin
 
   //    if s <> '' then Debug(dpError, section, 'backup create failed: %s ', [s]);
 
-
   // Looks like a good spot to handle the rec. uptime ..
   //if SecondsBetween(Now, last_max_uptime_check) >= 3 then CheckForNewMaxUpTime;// <- broken!
 
@@ -339,7 +336,6 @@ begin
   Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
 {$ENDIF}
 
-
   started := Now();
   MycryptoStart(passphrase);
   StartProxys;
@@ -347,11 +343,11 @@ begin
   //RehashPreurls;
 
   dbaddpreStart;
-//  dbaddnfoStart;
-//  dbaddurlStart;
+  //  dbaddnfoStart;
+  //  dbaddurlStart;
   dbaddgenreStart;
   dbaddimdbStart;
-//  dbaddtvrageStart;
+  //  dbaddtvrageStart;
   dbtvinfoStart;
   RanksStart;
   SpeedStatsStart;
@@ -370,7 +366,7 @@ begin
   SitesStart;
   IrcStart();
   PrecatcherStart();
-//  EPrecatcherStart();
+  //  EPrecatcherStart();
 
   SiteAutoStart;
   AutoCrawlerStart;
@@ -389,7 +385,7 @@ begin
   AutoCrawlerStop;
   NukeSave;
   SpeedStatsSave;
-//  EPrecatcherStop;
+  //  EPrecatcherStop;
   IdentStop();
   IrcStop();
   kb_Save();
@@ -402,19 +398,20 @@ end;
 procedure Main_Uninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-(*
-  // ez a legutolsonak betoltott unit, kilepesnel varni fog a tobbi cucc befejezodesere
-  while
-    (myIdentserver <> nil)
-    or
-    (kb_thread <> nil)
-    or
-    (myIrcThreads.Count <> 0)
-    do Sleep(500);
-  Debug(dpSpam, section, 'Uninit2');
-*)
+  (*
+    // ez a legutolsonak betoltott unit, kilepesnel varni fog a tobbi cucc befejezodesere
+    while
+      (myIdentserver <> nil)
+      or
+      (kb_thread <> nil)
+      or
+      (myIrcThreads.Count <> 0)
+      do Sleep(500);
+    Debug(dpSpam, section, 'Uninit2');
+  *)
 
   ConsoleUnInit;
+  UninitXMLWeapper;
   RanksUnInit;
   SpeedStatsUnInit;
   NukeUninit;
@@ -450,31 +447,30 @@ begin
   //  DupeDBUninit;
 
   dbaddpreUnInit;
-//  dbaddnfoUnInit;
-//  dbaddurlUnInit;
+  //  dbaddnfoUnInit;
+  //  dbaddurlUnInit;
   dbaddgenreUnInit;
   dbaddimdbUnInit;
-//  dbaddtvrageUnInit;
-dbtvinfoUnInit;
+  //  dbaddtvrageUnInit;
+  dbtvinfoUnInit;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
 end;
 
-
 function Main_Restart: boolean;
 begin
   Result := False;
-(*  broken anyway!
-try
-    Main_Stop;
-    Main_Uninit;
-    sleep(500);
-    Main_Init;
-    Main_Stop;
-    result:=True;
-except on e: Exception do Debug(dpError, 'MainThread', '[EXCEPTION] MainThreadRestart: %s', [e.Message]);end;
-*)
+  (*  broken anyway!
+  try
+      Main_Stop;
+      Main_Uninit;
+      sleep(500);
+      Main_Init;
+      Main_Stop;
+      result:=True;
+  except on e: Exception do Debug(dpError, 'MainThread', '[EXCEPTION] MainThreadRestart: %s', [e.Message]);end;
+  *)
 end;
 
 end.
