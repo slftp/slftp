@@ -11281,6 +11281,7 @@ begin
     // \s is importent for the right announce later...
     if x.Exec(params) then
       sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
+      ssname:=x.Replace(ssname,'');
   finally
     x.Free;
   end;
