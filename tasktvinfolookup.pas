@@ -210,12 +210,16 @@ begin
 end;
 
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
+const
+  genreList: string = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
+    'Fantasy, Food, Game Show, History, Horror, Home and Garden, News, Medical, Mini-Series, Music, Mystery, Reality, Romance, Science-Fiction, ' +
+    'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';
 var
   tvr: TTVInfoDB;
   i: integer;
   s: string;
   js: TlkJSONobject;
-  x: TStringlist;
+  slGen, gMaze, gTVDB, x: TStringlist;
 begin
   result := nil;
   js := nil;
@@ -224,6 +228,10 @@ begin
   else
     s := '';
   tvr := TTVInfoDB.Create(s);
+  tvr.tv_genres.Duplicates := dupIgnore;
+  slGen := TStringlist.Create;
+  gTVDB := TStringlist.Create;
+  slGen.CommaText := genreList;
   try
     try
       js := TlkJSON.ParseText(jsonStr) as TlkJSONobject;
@@ -299,23 +307,46 @@ begin
     if tvr.tv_country = 'GB' then
       tvr.tv_country := 'UK';
 
-    if js.Field['genres'].Count = 0 then
-    begin
+    try
+
       if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
-        irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
-        tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
-        //tvr.tv_genres.Add('Test');
-        //tvr.tv_genres.Add('nother Test');
+
+        gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+
+        for I := 0 to gTVDB.Count - 1 do
+          if slGen.IndexOf(gTVDB.Strings[i]) > -1 then
+            tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
-    end
-    else
-    begin
 
       for I := 0 to js.Field['genres'].Count - 1 do
-        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
-    end;
+        if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
+          tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
 
+    except on E: Exception do
+      begin
+        irc_addadmin(e.Message);
+      end;
+
+    end;
+    (*
+  if js.Field['genres'].Count = 0 then
+  begin
+    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
+    begin
+      irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
+      tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+      //tvr.tv_genres.Add('Test');
+      //tvr.tv_genres.Add('nother Test');
+    end;
+  end
+  else
+  begin
+
+    for I := 0 to js.Field['genres'].Count - 1 do
+      tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+  end;
+  *)
     if js.Field['premiered'].SelfType <> jsNull then
     begin
 
@@ -352,6 +383,8 @@ begin
 
   finally
     js.free;
+    slGen.free;
+    gTVDB.free;
   end;
   result := tvr;
 end;
