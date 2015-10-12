@@ -16,7 +16,7 @@ uses
 {$ELSE}
   ActiveX, Variants, xmldom, XMLIntf, msxmldom, XMLDoc
 {$ENDIF}
-  , Classes, SysUtils;
+  , Classes, SysUtils, irc;
 
 type
 {$IFDEF FPC}
@@ -24,12 +24,12 @@ type
   TSLXMLDoc = TXMLDocument;
 {$ELSE}
   TSLXMLNode = IXMLNode;
-  TSLXMLDoc  = IXMLDocument;
+  TSLXMLDoc = IXMLDocument;
 {$ENDIF}
 
   TSLXMLDocument = class
   private
-    xmlFile:   TSLXMLDoc;
+    xmlFile: TSLXMLDoc;
     FFilename: string;
   public
     constructor Create; overload;
@@ -61,9 +61,27 @@ type
     procedure SaveToFile(XMLFileName: string);
   end;
 
+procedure InitXMLWeapper;
+procedure UninitXMLWeapper;
+
 implementation
 
 uses slhttp;
+
+procedure InitXMLWeapper;
+begin
+{$IFDEF MSWINDOWS}
+ // CoInitialize(nil);
+{$ENDIF}
+
+end;
+
+procedure UninitXMLWeapper;
+begin
+{$IFDEF MSWINDOWS}
+  CoUninitialize;
+{$ENDIF}
+end;
 
 constructor TSLXMLDocument.Create;
 begin
@@ -73,8 +91,7 @@ begin
 {$ELSE}
   CoInitialize(nil);
   xmlFile := TXMLDocument.Create(nil);
-  xmlFile.Options := [doNodeAutoCreate, doAttrNull, doAutoPrefix,
-    doNamespaceDecl, doNodeAutoIndent];
+  xmlFile.Options := [doNodeAutoCreate, doAttrNull, doAutoPrefix, doNamespaceDecl, doNodeAutoIndent];
   xmlfile.Active := True;
   xmlFile.Version := '1.0';
 {$ENDIF}
@@ -94,7 +111,7 @@ end;
 
 procedure TSLXMLDocument.LoadFromFile(XMLFileName: string);
 begin
-  FFilename      := XMLFileName;
+  FFilename := XMLFileName;
 {$IFDEF FPC}
   ReadXMLFile(xmlFile, XMLFileName);
 {$ELSE}
@@ -113,34 +130,32 @@ begin
 {$ENDIF}
 end;
 
-
 procedure TSLXMLDocument.LoadFromStream(XMLFile: TStream);
 begin
   XMLFile.Position := 0;
 {$IFDEF FPC}
- ReadXMLFile(self.xmlFile,xmlFile);
+  ReadXMLFile(self.xmlFile, xmlFile);
 {$ELSE}
   self.xmlFile.LoadFromStream(xmlfile);
 {$ENDIF}
 end;
 
-
 procedure TSLXMLDocument.LoadFromWeb(url: string);
 var
-  st:  TStream;
+  st: TStream;
   res: string;
 begin
   res := slUrlGet(url);
-(*
-if res = '' then begin
-//Trow excption
-end;
-*)
-  st  := TStringStream.Create(res);
+  (*
+  if res = '' then begin
+  //Trow excption
+  end;
+  *)
+  st := TStringStream.Create(res);
   try
     st.Position := 0;
 {$IFDEF FPC}
- ReadXMLFile(xmlFile,st);
+    ReadXMLFile(xmlFile, st);
 {$ELSE}
     xmlFile.LoadFromStream(st);
 {$ENDIF}
@@ -149,19 +164,17 @@ end;
   end;
 end;
 
-
 destructor TSLXMLDocument.Destroy;
 begin
-  {$IFDEF FPC}
-    xmlFile.Free;
-    xmlFile := nil;  
-  {$ELSE}
- // xmlFile := nil;
-  CoUninitialize;
-  {$ENDIF}
+{$IFDEF FPC}
+  xmlFile.Free;
+  xmlFile := nil;
+{$ELSE}
+    xmlFile := nil;
+    //  CoUninitialize;
+{$ENDIF}
   inherited;
 end;
-
 
 function TSLXMLDocument.GetDocumentElement: TSLXMLNode;
 begin
@@ -312,7 +325,6 @@ begin
 
 {$ENDIF}
 end;
-
 
 end.
 
