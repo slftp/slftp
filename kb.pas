@@ -965,6 +965,7 @@ begin
           [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
 
+
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
         (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
