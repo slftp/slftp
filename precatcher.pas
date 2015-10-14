@@ -546,7 +546,7 @@ begin
 
     if section = '' then
     begin
-      irc_Addadmin('<c14><b>Info</c></b>: Section on $s for %s not found.', [sitename, rls]);
+      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found.', [sitename, rls]);
       MyDebug('No section?! ' + sitename + '@' + rls);
       exit;
     end;

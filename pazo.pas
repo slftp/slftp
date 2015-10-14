@@ -878,7 +878,7 @@ begin
       if TPazoSite(sites[i]).Name = sitename then
       begin
         Result := TPazoSite(sites[i]);
-        exit;
+        Break;
       end;
     end;
   except
