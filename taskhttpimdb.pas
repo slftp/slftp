@@ -133,7 +133,7 @@ begin
 
   (*  Fetch Votes from iMDB *)
   // Trying newest iMDB layout from 24.09.2011 first
-  rr.Expression := '<span itemprop="ratingCount">(\S+)<\/span>';
+  rr.Expression := '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>';
   if rr.Exec(mainsite) then
   begin
     rr2.Expression := '[\.\,]';
@@ -171,7 +171,7 @@ begin
 
   (*  Fetch Rating from iMDB  *)
   // Trying newest iMDB layout from 24.09.2011 first
-  rr.Expression := '<span itemprop="ratingValue">(\d+\.\d+)<\/span>';
+  rr.Expression := '<span[^<>]*itemprop="ratingValue">(\d+\.\d+)<\/span>';
   if rr.Exec(mainsite) then
   begin
     rr2.Expression := '[\.\,]';
