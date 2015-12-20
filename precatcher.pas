@@ -664,7 +664,7 @@ begin
     s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
     ts_data.DelimitedText := s;
 
-    MyDebug('After FoCsupaszitas line is: %s', [ts_data.DelimitedText]);
+    MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
 
     for i := 0 to sc.sections.Count - 1 do
     begin
