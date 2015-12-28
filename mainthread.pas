@@ -87,24 +87,19 @@ begin
   end;
   if not slssl_inited then
   begin
-    ss := 'Couldnt load OpenSSL! Try to copy the libssl/libcrypto libs in slftp dir!' +
-      #10#13;
+    ss := 'Could not load OpenSSL! Try to copy the libssl/libcrypto libs into slftp dir!' +#10#13;
 {$IFDEF MSWINDOWS}
     ss := ss + 'Or install it from:' + #13#10 +
       'http://www.slproweb.com/products/Win32OpenSSL.html';
-{$ENDIF}
-{$IFDEF LINUX}
-    // ss:=ss+'try sudo apt-get -y install openssl libssl-dev libssl0.9.8 libssl0.9.8-dbg';
-    ss := ss + #10#13 + 'Check the wiki for more infos about openssl +1.*.*';
 {$ENDIF}
     Result := ss;
     exit;
   end;
 
   s := OpenSSLShortVersion();
-  if (s < '0.9.8') then
+  if (s < '1.0.0') then
   begin
-    Result := 'OpenSSL version is unsupported! 0.9.8+ needed.';
+    Result := 'OpenSSL version is unsupported! 1.0.0+ needed.';
     exit;
   end;
 
@@ -117,7 +112,7 @@ begin
     end
     else
     begin
-      Debug(dpError, section, 'Cant initialize MYSQL libs!');
+      Debug(dpError, section, 'Could not initialize MYSQL libs!');
       Result := 'Cant initialize MYSQL libs!';
       Exit;
     end;
@@ -127,7 +122,7 @@ begin
     Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
   else
   begin
-    Debug(dpError, section, 'Could not init sqlite: ' + slsqlite_error);
+    Debug(dpError, section, 'Could not initialize sqlite: ' + slsqlite_error);
     Result := slsqlite_error;
     Exit;
   end;
@@ -157,7 +152,6 @@ begin
   Socks5Init;
   MyCryptoInit;
 
-  (* mR dOH mOD...*)
   InitProxys;
   MySQLInit;
   SLLanguages_Init;
@@ -168,8 +162,6 @@ begin
   //dbaddurlInit;
   dbaddgenreInit;
   dbaddimdbInit;
-  //  dbaddtvrageInit;
-
   dbtvinfoInit;
 
   ConsoleInit;
@@ -339,15 +331,11 @@ begin
   started := Now();
   MycryptoStart(passphrase);
   StartProxys;
-  //  nWoMYSQLStart;
-  //RehashPreurls;
-
   dbaddpreStart;
   //  dbaddnfoStart;
   //  dbaddurlStart;
   dbaddgenreStart;
   dbaddimdbStart;
-  //  dbaddtvrageStart;
   dbtvinfoStart;
   RanksStart;
   SpeedStatsStart;
@@ -362,17 +350,13 @@ begin
   indexerStart;
   StatsStart;
   MySQLInit;
-
   SitesStart;
   IrcStart();
   PrecatcherStart();
   //  EPrecatcherStart();
-
   SiteAutoStart;
   AutoCrawlerStart;
-
   slshutdown := False;
-
   QueueStart();
 
 end;

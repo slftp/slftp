@@ -1,6 +1,5 @@
 program slftp;
 {*******************************************************************************\
-
  Freeware, Copyright              .
  must be included GLP3            ;    .
  it under the terms of the GNU   01.   .
@@ -37,11 +36,12 @@ program slftp;
                 0.    :.
                 .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
 
-\*******************************************************************************}
+*******************************************************************************}
 uses
   console;
 
 {$APPTYPE CONSOLE}
 begin
+//Here we shall add a filechecker. 
   ConsoleStart;
 end.
