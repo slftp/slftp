@@ -60,6 +60,9 @@ function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 
 procedure saveTVInfos(tvmaze_id: string; tvrage: TTVInfoDB; rls: string = ''; fireKb: boolean = True);
 
+function deleteTVInfoByID(id: string): Integer;
+function deleteTVInfoByRipName(Name: string): Integer;
+
 procedure addTVInfos(params: string);
 procedure TVInfoFireKbAdd(rls: string);
 
@@ -285,6 +288,55 @@ end;
 function TheTVDbStatus: string;
 begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
+end;
+
+function deleteTVInfoByID(id: string): Integer;
+begin
+  if not tvinfodb.ExecSQL(Format('DELETE FROM infos WHERE tvmaze_id = %s;', [id])) then
+  begin
+    result := 10;
+    Exit;
+  end;
+  if not tvinfodb.ExecSQL(Format('DELETE FROM series WHERE id = %s;', [id])) then
+  begin
+    result := 11;
+    Exit;
+  end;
+  result := 1;
+end;
+
+function deleteTVInfoByRipName(Name: string): Integer;
+var
+  count: integer;
+  cinfo: Psqlite3_stmt;
+begin
+  cinfo := tvinfodb.Open(Format('SELECT COUNT(*) FROM series WHERE rip = %s;', [Name]));
+  if tvinfodb.Step(cinfo) then
+    count := tvinfodb.column_int(cinfo, 0)
+  else
+    count := 0;
+
+  case count of
+    0:
+      begin
+        result := 0;
+        Exit;
+      end;
+    1:
+      begin
+        if not tvinfodb.ExecSQL(Format('DELETE FROM series WHERE rip = %s;', [name])) then
+          result := 12
+        else
+          result := 1;
+        Exit;
+      end;
+    else 
+      begin
+      cinfo := tvinfodb.Open(Format('SELECT id FROM series WHERE rip = %s;', [Name]));
+        if tvinfodb.Step(cinfo) then result := deleteTVInfoByID(tvinfodb.column_text(cinfo, 0)) else result:=13;
+        Exit;
+      end;
+  end;
 end;
 
 function getTVInfoByShowName(rls_showname: string): TTVInfoDB;
