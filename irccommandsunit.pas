@@ -3256,7 +3256,7 @@ begin
       s.DeleteKey('autoindexsections');
       s.DeleteKey('nextautoindex');
       s.RemoveAutoIndex;
-      indexerRemoveSiteSection(s.Name,'');
+      indexerRemoveSiteSection(s.Name, '');
     except
       on E: Exception do
         irc_addtext(Netname, Channel, 'Remove <b>autoindex</b> failed : %s',
@@ -3629,7 +3629,7 @@ begin
 
 end;
 
-procedure RawB(const Netname, Channel: string; sitename, dir, command: string;AnnounceSitename: boolean = False);
+procedure RawB(const Netname, Channel: string; sitename, dir, command: string; AnnounceSitename: boolean = False);
 var
   r: TRawTask;
   tn: TTaskNotify;
@@ -9319,13 +9319,16 @@ begin
 
   if params = '*' then
   begin
-    for I := 0 to sites.Count - 1 do begin
-      if Uppercase(TSite(sites.Items[i]).Name) = getAdminSiteName then Continue;
-      if TSite(sites.Items[i]).IRCNick = '' then Continue;
-      Irc_AddText(Netname,Channel,'Invitation sent inquiry to %s',[TSite(sites.Items[i]).Name]);
+    for I := 0 to sites.Count - 1 do
+    begin
+      if Uppercase(TSite(sites.Items[i]).Name) = getAdminSiteName then
+        Continue;
+      if TSite(sites.Items[i]).IRCNick = '' then
+        Continue;
+      Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s', [TSite(sites.Items[i]).Name]);
       RawB(Netname, Channel, TSite(sites.Items[i]).Name, '/', 'SITE INVITE ' + TSite(sites.Items[i]).IRCNick);
     end;
-    result:=True;
+    result := True;
   end
   else
   begin
@@ -10242,6 +10245,14 @@ var
   pt: TDateTime;
   resu: TPretimeResult;
 begin
+
+  if config.ReadInteger('taskpretime', 'mode', 0) = 0 then
+  begin
+    Irc_AddText(Netname, Channel, '<c15>INFO</c>: Pretime_mode is set to None!');
+    Result := True;
+    Exit;
+  end;
+
   resu := getPretime(params);
   pt := resu.pretime;
   if datetimetounix(pt) > 15 then
@@ -11139,34 +11150,49 @@ end;
 
 function IrcDelTheTVDbInfo(const Netname, Channel: string; params: string):
   boolean;
-(*
 var
-tvr: TTVInfoDB;
-*)
+  return: Integer;
 begin
   Result := False;
-  (*
-if strtointdef(params, -1) > -1 then
-begin
+  if strtointdef(params, -1) > -1 then
+    return := deleteTVInfoByID(params)
+  else
+    return := deleteTVInfoByRipName(params);
 
-  tvr :=   getTVInfoByShowID(params);
-  try
-
-    Result := dbaddtvrage_delete_show(tvr.rls_showname);
-  finally
-    tvr.Free;
+    //better error message system needed :/
+  case return of
+    1:
+      begin
+        //        Irc_AddText(Netname, Channel, '');
+        result := true;
+        exit;
+      end;
+    10:
+      begin
+        Irc_AddText(Netname, Channel, '<c4><b>Error</c></b>: Failed to delete id:' + params);
+        result := true;
+        exit;
+      end;
+    11:
+      begin
+        Irc_AddText(Netname, Channel, '<c4><b>Error</c></b>: Failed to delete id:' + params);
+        result := true;
+        exit;
+      end;
+    12:
+      begin
+        Irc_AddText(Netname, Channel, '<c4><b>Error</c></b>: Failed to delete ' + params);
+        result := true;
+        exit;
+      end;
+    13:
+      begin
+        Irc_AddText(Netname, Channel, '<c4><b>Error</c></b>: Failed to delete ' + params);
+        result := true;
+        exit;
+      end;
   end;
-end
-else
-begin
-  tvr := getTheTVDBbyShowName(params);
-  try
-    Result := dbaddtvrage_delete_show(tvr.rls_showname);
-  finally
-    tvr.Free;
-  end;
-end;
-*)
+//we dont set result to true, to check if something went wrong...
 end;
 
 function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
@@ -11281,7 +11307,7 @@ begin
     // \s is importent for the right announce later...
     if x.Exec(params) then
       sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
-      ssname:=x.Replace(ssname,'');
+    ssname := x.Replace(ssname, '');
   finally
     x.Free;
   end;
