@@ -6,8 +6,6 @@ uses Classes, IniFiles, irc, slsqlite, kb, Contnrs;
 
 type
   TTVInfoDB = class
-  private
-    last_updated: integer;
   public
     rls_showname: string;
     //tv_showid: string;
@@ -30,6 +28,7 @@ type
     tv_next_season: integer;
     tv_next_ep: integer;
     tv_next_date: integer;
+    last_updated: integer;
     constructor Create(rls_showname: string); //overload;
     destructor Destroy; override;
     function Name: string;
@@ -38,6 +37,7 @@ type
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
     procedure UpdateIRC;
+    function Update: boolean;
     procedure setTheTVDbID(id: integer);
     procedure setTVRageID(id: integer);
     //    private
@@ -142,6 +142,8 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
 
+  tr.currentseason:=(tv_next_season = tr.season);
+
   tr.thetvdbid := thetvdb_id;
   //  tr.tvmazeid:= tv_tvmazeid;
   tr.tvrageid := tvrage_id;
@@ -190,11 +192,10 @@ begin
       rls := rls_showname;
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls,
-        IntToStr(tv_premiered_year), tv_url]));
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), tv_url]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country,
-        tv_network]));
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end
     else
     begin
@@ -203,6 +204,7 @@ begin
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end;
   except on e: Exception do
     begin
@@ -221,22 +223,21 @@ begin
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls,
-        IntToStr(tv_premiered_year), tv_url]));
-      irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s',
-        [tv_genres.CommaText, tv_classification, tv_status]));
-      irc_Addtext(Netname, Channel,
-        Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s',
-        [tv_country, tv_network]));
+        Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), tv_url]));
+      irc_Addtext(Netname, Channel, Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification,
+        tv_status]));
+      irc_Addtext(Netname, Channel, Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
+
     end
     else
     begin
-      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
-        [rls, IntToStr(tv_premiered_year), tv_url]));
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls,
+        IntToStr(tv_premiered_year), tv_url]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
+      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end;
   except on e: Exception do
     begin
@@ -246,19 +247,44 @@ begin
   end;
 end;
 
-procedure TTVInfoDB.UpdateIRC;
+function TTVInfoDB.Update: boolean;
 var
   respo: string;
   sql: string;
-  js: TlkJSONobject;
+//  js: TlkJSONobject;
 begin
+  result := False;
+  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
 
-  sql :=
-    Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+  if respo = '' then
+  begin
+    irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
+    Debug(dpError, section, 'TVMaze api response was empty.');
+    Exit;
+  end;
+
+  try
+    self := parseTVMazeInfos(respo);
+  except on e: Exception do
+    begin
+      irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+      Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
+      Exit;
+    end;
+  end;
+
+  result :=
+    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
-    StrToInt(tvmaze_id)]);
+    StrToInt(tvmaze_id)]));
 
-  tvinfodb.ExecSQL(sql);
+end;
+
+procedure TTVInfoDB.UpdateIRC;
+begin
+  tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
+    StrToInt(tvmaze_id)]));
 end;
 
 {   misc                                       }
@@ -330,12 +356,15 @@ begin
           result := 1;
         Exit;
       end;
-    else 
-      begin
+  else
+    begin
       cinfo := tvinfodb.Open(Format('SELECT id FROM series WHERE rip = %s;', [Name]));
-        if tvinfodb.Step(cinfo) then result := deleteTVInfoByID(tvinfodb.column_text(cinfo, 0)) else result:=13;
-        Exit;
-      end;
+      if tvinfodb.Step(cinfo) then
+        result := deleteTVInfoByID(tvinfodb.column_text(cinfo, 0))
+      else
+        result := 13;
+      Exit;
+    end;
   end;
 end;
 
@@ -588,7 +617,7 @@ begin
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
-    db_params := config.ReadString(section, 'pragma', 'main.locking_mode = NORMAL');
+    db_params := config.ReadString(section, 'pragma', 'PRAGMA main.locking_mode=NORMAL');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
 
     tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');

@@ -20,6 +20,18 @@ type
       genre: TStringList);
   end;
 
+  (*didn't work like i wanted :/*)
+  TPazoHTTPUpdateTVInfoTask = class(TPazoPlainTask)
+  private
+    showname: string;
+    tvmaze_id: string;
+  public
+    constructor Create(const netname, channel: string; site: string; pazo: TPazo; attempt: integer = 0);
+    destructor Destroy; override;
+    function Execute(slot: Pointer): boolean; override;
+    function Name: string; override;
+  end;
+
   (*for !addtvrage channels*)
 
   TPazoHTTPTVInfoTask = class(TTask)
@@ -228,6 +240,7 @@ begin
   else
     s := '';
   tvr := TTVInfoDB.Create(s);
+  tvr.tv_genres.Sorted:=True;
   tvr.tv_genres.Duplicates := dupIgnore;
   slGen := TStringlist.Create;
   gTVDB := TStringlist.Create;
@@ -380,13 +393,14 @@ begin
     end;
 
     //string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
-
+    result := tvr;
   finally
     js.free;
     slGen.free;
     gTVDB.free;
+   // tvr.free;
   end;
-  result := tvr;
+
 end;
 
 { TPazoTheTVDbLookupTask }
@@ -543,6 +557,7 @@ begin
         Debug(dpError, section, Format('Exception in addtvinfo_SaveTVRage: %s', [e.Message]));
         Result := True;
         readyerror := True;
+        db_tvinfo.free;
         exit;
       end;
     end;
@@ -575,7 +590,7 @@ begin
       Debug(dpError, section, Format('Exception in TPazoTVInfoLookupTask kb_add: %s', [e.Message]));
     end;
   end;
-
+  db_tvinfo.free;
   ready := True;
   Result := True;
 end;
@@ -587,6 +602,76 @@ begin
   except
     Result := 'TVInfo';
   end;
+end;
+
+//TPazoHTTPUpdateTVInfoTask
+
+constructor TPazoHTTPUpdateTVInfoTask.Create(const netname: string; const channel: string; site: string; pazo: TPazo; attempt: Integer = 0);
+begin
+
+  inherited Create(netname, channel, site, '', pazo);
+  //  inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+end;
+
+destructor TPazoHTTPUpdateTVInfoTask.Destroy;
+begin
+  inherited;
+end;
+
+function TPazoHTTPUpdateTVInfoTask.Name: string;
+begin
+  Result := Format('httpUpdateTVInfo : %s', [showname]);
+end;
+
+function TPazoHTTPUpdateTVInfoTask.Execute(slot: Pointer): boolean;
+var
+  tvdb: TTVInfoDB;
+  response: string;
+  ps: TPazoSite;
+begin
+  showname := TTvRelease(mainpazo.rls).showname;
+  tvmaze_id := TTvRelease(mainpazo.rls).showid;
+
+  response := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
+  if response = '' then
+  begin
+    irc_addadmin('<c4><b>ERROR</c></b> TVInfo updated for '+showname+' failed, response for was empty');
+    Debug(dpSpam, section, 'ERROR TVInfo updated for '+showname+' failed, response for was empty');
+    Result := True;
+    readyerror := True;
+    exit;
+  end;
+  try
+  tvdb := parseTVMazeInfos(response, showname);
+  except on E: Exception do
+  irc_adderror(Format('parseTVMazeInfos  -=> %s',[e.Message]));
+  end;
+
+
+
+  try
+  try
+    result := tvdb.Update;
+  except on E: Exception do
+    irc_adderror(Format('parseTVMazeInfos  -=> %s',[e.Message]));
+  end;
+
+  finally
+    //tvdb.free;
+  end;
+
+  try
+    ps := FindMostCompleteSite(mainpazo);
+    if ((ps = nil) and (mainpazo.sites.Count > 0)) then
+      ps := TPazoSite(mainpazo.sites[0]);
+    kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('Exception in TPazoTVInfoUpdateTask kb_add: %s', [e.Message]));
+    end;
+  end;
+
 end;
 
 { TPazoHTTPTVInfoTask }
@@ -668,8 +753,13 @@ begin
   end;
 
   tvdb := parseTVMazeInfos(response, sname);
-  if tvdb <> nil then
-    saveTVInfos(tvmaze_id, tvdb, rls, false);
+  try
+    if tvdb <> nil then
+      saveTVInfos(tvmaze_id, tvdb, rls, false);
+  finally
+    tvdb.free;
+  end;
+
   result := True;
 end;
 

@@ -45,9 +45,8 @@ type
     class function Name: string; override;
   end;
 
-
   TInfixOperator = class(TOperator)
-    left:  TRuleNode;
+    left: TRuleNode;
     right: TRuleNode;
 
     function AsText: string; override;
@@ -64,7 +63,6 @@ type
     class function Name: string; override;
     function Match(p: TPazo): boolean; override;
   end;
-
 
   TOperand = class(TRuleNode)
     class function Name: string; override;
@@ -118,7 +116,7 @@ type
 
   TConditionOperator = class(TOperator)
     condition: TCondition;
-    operand:   TOperand;
+    operand: TOperand;
     function AsText: string; override;
     destructor Destroy; override;
     function FeedOperand(var s: string): boolean; virtual; abstract;
@@ -248,7 +246,6 @@ type
     function Match(p: TPazo): boolean; override;
   end;
 
-
   TConditionOperatorClass = class of TConditionOperator;
 
   TCondition = class(TRuleNode)
@@ -289,17 +286,16 @@ type
     constructor Create(parent: TRuleNode); override;
   end;
 
-
   TConditionClass = class of TCondition;
 
   TRuleAction = (raDrop, raAllow, raDontmatch);
 
   TRule = class
-    sitename:   string;
-    section:    string;
+    sitename: string;
+    section: string;
     conditions: TRuleNode;
-    action:     TRuleAction;
-    error:      string;
+    action: TRuleAction;
+    error: string;
 
     function Execute(r: TPazo): TRuleAction;
 
@@ -308,7 +304,6 @@ type
     constructor Create(rule: string);
     destructor Destroy; override;
   end;
-
 
 procedure RulesRemove(sitename, section: string);
 procedure RulesSave;
@@ -326,9 +321,8 @@ function FindConditionClassByName(Name: string): TConditionClass;
 
 var
   rules: TObjectList;
-  rtpl:  TObjectList;
+  rtpl: TObjectList;
   conditions: TClassList;
-
 
 implementation
 
@@ -339,13 +333,14 @@ uses SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit,
 const
   dsection = 'rules';
 
+{$I rulesunit.inc}
 
 type
   TPrefixOperatorClass = class of TPrefixOperator;
   TInfixOperatorClass = class of TInfixOperator;
 
   TConditionReleaseName = class(TStringCondition)
-   function SupplyValue(r: TPazo): string; override;
+    function SupplyValue(r: TPazo): string; override;
     class function Name: string; override;
     class function Description: string; override;
   end;
@@ -368,18 +363,18 @@ type
     class function Description: string; override;
   end;
 
-(*
-  TConditionPretime = class(TIntCondition)
-    function SupplyValue(r: TPazo): Integer; override;
-    class function Name: string; override;
-    class function Description: string; override;
-  end;
-  TConditionPretimeFound = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): Boolean; override;
-    class function Name: string; override;
-    class function Description: string; override;
-  end;
-*)
+  (*
+    TConditionPretime = class(TIntCondition)
+      function SupplyValue(r: TPazo): Integer; override;
+      class function Name: string; override;
+      class function Description: string; override;
+    end;
+    TConditionPretimeFound = class(TBooleanCondition)
+      function SupplyValue(r: TPazo): Boolean; override;
+      class function Name: string; override;
+      class function Description: string; override;
+    end;
+  *)
   TConditionComplete = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: string; override;
@@ -729,6 +724,12 @@ type
     class function Description: string; override;
   end;
 
+  TConditionTVCurrentSeason = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: string; override;
+    class function Description: string; override;
+  end;
+
   {###      MVID    ###}
   TConditionMVIDGenre = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
@@ -778,21 +779,18 @@ type
     class function Description: string; override;
   end;
 
-
-
   TConditionDefault = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
     class function Name: string; override;
     class function Description: string; override;
   end;
-// NE FELEJTSD EL LENT ADDOLNI A LISTABA !!!
+  // NE FELEJTSD EL LENT ADDOLNI A LISTABA !!!
 
 var
   prefixops: TClassList;
-  infixops:  TClassList;
+  infixops: TClassList;
 
-
-{ TInfixOperator }
+  { TInfixOperator }
 
 function TInfixOperator.AsText: string;
 begin
@@ -923,7 +921,6 @@ begin
   Result := '(';
 end;
 
-
 { TOrOperator }
 
 function TOrOperator.Match(p: TPazo): boolean;
@@ -966,7 +963,6 @@ end;
 
 { TNoOperator }
 
-
 function TBooleanOperator.AsText: string;
 begin
   try
@@ -979,7 +975,6 @@ begin
     end;
   end;
 end;
-
 
 function TBooleanOperator.FeedOperand(var s: string): boolean;
 begin
@@ -1079,7 +1074,6 @@ class function TNotInOperator.Name: string;
 begin
   Result := 'notin';
 end;
-
 
 { TStringEqualOperator }
 
@@ -1278,7 +1272,6 @@ begin
   Result := '<=';
 end;
 
-
 { TCondition }
 
 class function TCondition.AcceptedOperatorsAsText: string;
@@ -1286,7 +1279,7 @@ var
   i: integer;
   c: TCondition;
 begin
-  c      := self.Create(nil);
+  c := self.Create(nil);
   Result := '';
   for i := 0 to c.acceptedOperators.Count - 1 do
     Result := Result + TConditionOperatorClass(c.acceptedOperators[i]).Name + ' ';
@@ -1335,7 +1328,6 @@ begin
     end;
 end;
 
-
 { TMaskOperator }
 
 function TMaskOperator.FeedOperand(var s: string): boolean;
@@ -1360,7 +1352,6 @@ begin
     end;
   end;
 end;
-
 
 function TMaskOperator.Match(p: TPazo): boolean;
 begin
@@ -1410,20 +1401,17 @@ begin
     parent.SetupChild(self);
 end;
 
-
 class function TRuleNode.TakeThis(var s: string): boolean;
 begin
   Result := False;
   if s = Name then
   begin
     Result := True;
-    s      := '';
+    s := '';
   end;
 end;
 
-
 { TStringOperand }
-
 
 procedure TRuleNode.SetupChild(child: TRuleNode);
 begin
@@ -1436,7 +1424,6 @@ function TStringOperand.AsText: string;
 begin
   Result := Value;
 end;
-
 
 function TStringOperand.FeedOperand(const s: string): boolean;
 begin
@@ -1472,7 +1459,6 @@ function TIntOperand.AsText: string;
 begin
   Result := IntToStr(Value);
 end;
-
 
 function TIntOperand.FeedOperand(const s: string): boolean;
 begin
@@ -1595,7 +1581,6 @@ function TMaskOperand.AsText: string;
 begin
   Result := fValue;
 end;
-
 
 constructor TMaskOperand.Create(parent: TRuleNode);
 begin
@@ -1769,7 +1754,6 @@ begin
 
 end;
 
-
 { TStringCondition }
 
 constructor TStringCondition.Create(parent: TRuleNode);
@@ -1784,7 +1768,6 @@ begin
   acceptedOperators.Add(TNotInOperator);
 end;
 
-
 { TBooleanCondition }
 
 constructor TBooleanCondition.Create(parent: TRuleNode);
@@ -1794,14 +1777,12 @@ begin
   acceptedOperators.Add(TBooleanOperator);
 end;
 
-
 { TConditionOperator }
 
 function TConditionOperator.AsText: string;
 begin
   Result := condition.AsText + ' ' + Name + ' ' + operand.AsText;
 end;
-
 
 function TConditionOperator.AtConditionName: string;
 begin
@@ -1824,6 +1805,7 @@ begin
 end;
 
 { TNotOperator }
+
 function TNotOperator.Match(p: TPazo): boolean;
 begin
   try
@@ -1844,7 +1826,6 @@ end;
 
 { TOperand }
 
-
 function TOperand.AtConditionName: string;
 begin
   Result := '';
@@ -1860,7 +1841,6 @@ begin
   Result := 'operand';
 end;
 
-
 class function TBooleanOperator.TakeThis(var s: string): boolean;
 begin
   Result := True;
@@ -1873,7 +1853,6 @@ class function TClosingBracketOperator.Name: string;
 begin
   Result := ')';
 end;
-
 
 function mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
 begin
@@ -1889,11 +1868,11 @@ end;
 function FireRuleSetB(p: TPazo; ps: TPazoSite;
   sitenametomatch, sectiontomatch: string): TRuleAction;
 var
-  i:  integer;
+  i: integer;
   ra: TRuleAction;
 begin
   Result := raDontmatch;
-  ra     := Result;
+  ra := Result;
   try
     for i := 0 to rtpl.Count - 1 do
     begin
@@ -1916,14 +1895,14 @@ begin
           if ra = raDrop then
           begin
             ps.reason := TRule(rtpl[i]).AsText(True);
-            Result    := raDrop;
+            Result := raDrop;
             exit;
           end;
 
           if ra = raAllow then
           begin
             ps.reason := TRule(rtpl[i]).AsText(True);
-            Result    := raAllow;
+            Result := raAllow;
             exit;
           end;
         end;
@@ -1962,14 +1941,14 @@ begin
           if ra = raDrop then
           begin
             ps.reason := TRule(rules[i]).AsText(True);
-            Result    := raDrop;
+            Result := raDrop;
             exit;
           end;
 
           if ra = raAllow then
           begin
             ps.reason := TRule(rules[i]).AsText(True);
-            Result    := raAllow;
+            Result := raAllow;
             exit;
           end;
         end;
@@ -2068,8 +2047,8 @@ end;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
-  y:     TStringList;
-  i:     integer;
+  y: TStringList;
+  i: integer;
   ps_s, dstps_s: TSite;
 begin
   Result := False;
@@ -2095,16 +2074,16 @@ begin
   y := TStringList.Create;
   //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
   y.Assign(ps.speed_from);
-(*
-  try
-    y.CustomSort(myspeedcomparer);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
+  (*
+    try
+      y.CustomSort(myspeedcomparer);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
+      end;
     end;
-  end;
-*)
+  *)
   for i := 0 to y.Count - 1 do
   begin
     try
@@ -2175,10 +2154,10 @@ end;
 
 procedure RulesOrder(p: TPazo);
 var
-  x:    TStringList;
+  x: TStringList;
   i, j: integer;
-  r:    TRule;
-  s:    string;
+  r: TRule;
+  s: string;
   fositeIndex, aktsiteIndex: integer;
 begin
   x := TStringList.Create;
@@ -2239,8 +2218,8 @@ end;
 
 procedure RulesSave;
 var
-  i:   integer;
-  f:   TEncStringlist;
+  i: integer;
+  f: TEncStringlist;
   a_i: integer;
   a_j: integer;
   a_sitename: string;
@@ -2310,7 +2289,6 @@ begin
   end;
 end;
 
-
 function AddRule(rule: string; var error: string): TRule;
 var
   r: TRule;
@@ -2329,9 +2307,9 @@ end;
 
 procedure RulesLoad(action, filename: string);
 var
-  fst:   TStringList;
-  i:     integer;
-  r:     TRule;
+  fst: TStringList;
+  i: integer;
+  r: TRule;
   error: string;
 begin
   if (UpperCase(action) = 'REPLACE') then
@@ -2362,16 +2340,16 @@ end;
 
 procedure RulesReload();
 var
-  fst:   TStringList;
-  i:     integer;
-  r:     TRule;
+  fst: TStringList;
+  i: integer;
+  r: TRule;
   error: string;
   intFound: integer;
   SearchRec: TSearchRec;
   rules_path: string;
   split_site_data: boolean;
 begin
-  rules_path      := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
+  rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
   split_site_data := config.ReadBool('sites', 'split_site_data', False);
   if (split_site_data) then
   begin
@@ -2419,21 +2397,21 @@ begin
     intFound := FindNext(SearchRec);
   end;
 
-  {$IFDEF MSWINDOWS}
+{$IFDEF MSWINDOWS}
   SysUtils.FindClose(SearchRec);
-  {$ELSE}
+{$ELSE}
   FindClose(SearchRec);
-  {$ENDIF}
+{$ENDIF}
 
 end;
 
 procedure RulesStart;
 var
-  f:     TEncStringlist;
-  i:     integer;
-  r:     TRule;
+  f: TEncStringlist;
+  i: integer;
+  r: TRule;
   error: string;
-  S:     string;
+  S: string;
 begin
   // load rules tpl
   RulesReload();
@@ -2466,7 +2444,7 @@ end;
 procedure RulesInit;
 begin
   rules := TObjectList.Create;
-  rtpl  := TObjectList.Create;
+  rtpl := TObjectList.Create;
 
   conditions := TClassList.Create;
   conditions.Add(TConditionReleaseName);
@@ -2474,7 +2452,7 @@ begin
   conditions.Add(TConditionInternal);
   conditions.Add(TConditionAge);
   //  conditions.Add(TConditionPretime);
-  //  conditions.Add(TConditionPretimeFound);  
+  //  conditions.Add(TConditionPretimeFound);
   conditions.Add(TConditionComplete);
   conditions.Add(TConditionNotComplete);
   conditions.Add(TConditionPre);
@@ -2496,7 +2474,6 @@ begin
   conditions.Add(TConditionNuked);
   conditions.Add(TConditionAutofollow);
   conditions.Add(TConditionPred);
-
 
   conditions.Add(TCondition0daySource);
 
@@ -2525,6 +2502,7 @@ begin
   conditions.Add(TConditionTVEndedYear);
   conditions.Add(TConditionTVRunning);
   conditions.Add(TConditionTVStatus);
+  conditions.Add(TConditionTVCurrentSeason);
 
   conditions.Add(TConditionIMDBYear);
   conditions.Add(TConditionIMDBLanguages);
@@ -2540,7 +2518,6 @@ begin
 
   conditions.Add(TConditionIMDBVotes);
 
-
   conditions.Add(TConditionMVIDGenre);
   conditions.Add(TConditionMVIDFiles);
   conditions.Add(TConditionMVIDYear);
@@ -2550,9 +2527,7 @@ begin
   conditions.Add(TConditionMVIDVA);
   conditions.Add(TConditionMVIDLive);
 
-
   conditions.Add(TConditionDefault);
-
 
   prefixops := TClassList.Create;
   prefixops.Add(TNotOperator);
@@ -2574,8 +2549,6 @@ begin
   rtpl.Free;
   Debug(dpSpam, 'rules', 'Uninit2');
 end;
-
-
 
 { TConditionReleaseName }
 
@@ -2641,7 +2614,7 @@ end;
 procedure TConditionNotComplete.SupplyValues(r: TPazo; re: TStringList);
 var
   ps: TPazoSite;
-  i:  integer;
+  i: integer;
 begin
   try
     for i := 0 to r.sites.Count - 1 do
@@ -2684,7 +2657,7 @@ end;
 procedure TConditionComplete.SupplyValues(r: TPazo; re: TStringList);
 var
   ps: TPazoSite;
-  i:  integer;
+  i: integer;
 begin
   try
     for i := 0 to r.sites.Count - 1 do
@@ -2716,7 +2689,6 @@ begin
   Result := 'complete';
 end;
 
-
 { TConditionPre }
 
 class function TConditionPre.Description: string;
@@ -2731,7 +2703,7 @@ end;
 procedure TConditionPre.SupplyValues(r: TPazo; re: TStringList);
 var
   ps: TPazoSite;
-  i:  integer;
+  i: integer;
 begin
   try
     for i := 0 to r.sites.Count - 1 do
@@ -2794,7 +2766,7 @@ end;
 procedure TConditionNotAllowed.SupplyValues(r: TPazo; re: TStringList);
 var
   ps: TPazoSite;
-  i:  integer;
+  i: integer;
 begin
   try
     for i := 0 to r.sites.Count - 1 do
@@ -2837,7 +2809,7 @@ end;
 procedure TConditionAllowed.SupplyValues(r: TPazo; re: TStringList);
 var
   ps: TPazoSite;
-  i:  integer;
+  i: integer;
 begin
   try
     for i := 0 to r.sites.Count - 1 do
@@ -3115,7 +3087,6 @@ begin
   Result := 'mp3language';
 end;
 
-
 function TConditionMP3Language.Hitelesit(const s: string): boolean;
 begin
   try
@@ -3173,7 +3144,6 @@ class function TConditionMP3Source.Name: string;
 begin
   Result := 'mp3source';
 end;
-
 
 function TConditionMP3Source.Hitelesit(const s: string): boolean;
 begin
@@ -3373,7 +3343,6 @@ begin
   Result := 'age';
 end;
 
-
 { TConditionNfoMGenre }
 
 class function TConditionNfoMGenre.Description: string;
@@ -3405,7 +3374,6 @@ class function TConditionNfoMGenre.Name: string;
 begin
   Result := 'nfogenre';
 end;
-
 
 constructor TConditionNfoMGenre.Create(parent: TRuleNode);
 begin
@@ -3524,7 +3492,6 @@ begin
   Result := 'language';
 end;
 
-
 function InArray(var Name: string; elements: TClassList): TCRuleNode;
 var
   i: integer;
@@ -3547,13 +3514,13 @@ type
   TMitVarunk = (mvFelteteltVagyPrefixet, mvOperatort, mvInfixOrSuffix,
     mvOperandus, mvOperandusOrInfixOrSuffix, mvInfix);
 var
-  s:   string;
+  s: string;
   top: TRuleNode;
-  mv:  TMitVarunk;
-  cr:  TCRuleNode;
-  c:   TCondition;
+  mv: TMitVarunk;
+  cr: TCRuleNode;
+  c: TCondition;
   cco: TConditionOperatorClass;
-  co:  TConditionOperator;
+  co: TConditionOperator;
   ifo: TInfixOperator;
   rule_read: integer;
 
@@ -3561,8 +3528,8 @@ var
   begin
     Result := True;
     while ((top.parent <> nil) and
-        (top.parent is TPrefixOperator) and
-        (not (top.parent is TOpeningBracketOperator))) do
+      (top.parent is TPrefixOperator) and
+      (not (top.parent is TOpeningBracketOperator))) do
       top := top.parent;
 
     if ((top.parent <> nil) and
@@ -3587,8 +3554,7 @@ var
         top.Free;
         exit;
       end
-      else
-      if TOpeningBracketOperator(top.parent).child = nil then
+      else if TOpeningBracketOperator(top.parent).child = nil then
       begin
         error := 'Syntax error, empty parentheses';
         top.Free;
@@ -3596,8 +3562,8 @@ var
       end
       else
       begin
-        top    := top.parent;
-        mv     := mvInfix;
+        top := top.parent;
+        mv := mvInfix;
         Result := True;
         exit;
       end;
@@ -3609,11 +3575,11 @@ var
       if not TopRight then
         exit;
 
-      ifo    := TInfixOperator(cr.Create(top.parent));
+      ifo := TInfixOperator(cr.Create(top.parent));
       ifo.left := top;
       top.parent := ifo;
-      top    := ifo;
-      mv     := mvFelteteltVagyPrefixet;
+      top := ifo;
+      mv := mvFelteteltVagyPrefixet;
       Result := True;
       exit;
     end;
@@ -3622,8 +3588,8 @@ var
   function AddOperator: boolean;
   begin
     Result := False;
-    c      := TCondition(top);
-    cco    := c.TakesThisOperator(s);
+    c := TCondition(top);
+    cco := c.TakesThisOperator(s);
     if cco = nil then
     begin
       error := c.Name + ' doesnt take operator ' + s;
@@ -3631,7 +3597,7 @@ var
       exit;
     end;
 
-    co  := cco.Create(top.parent);
+    co := cco.Create(top.parent);
     co.condition := c;
     c.parent := co;
     top := co;
@@ -3649,9 +3615,9 @@ var
 
 begin
   Result := nil;
-  co     := nil;
-  top    := nil;
-  mv     := mvFelteteltVagyPrefixet;
+  co := nil;
+  top := nil;
+  mv := mvFelteteltVagyPrefixet;
   rule_read := 0;
 
   while (True) do
@@ -3671,82 +3637,81 @@ begin
     begin
       case mv of
         mvFelteteltVagyPrefixet:
-        begin
-          cr := InArray(s, prefixops);
-          if cr <> nil then
           begin
-            top := cr.Create(top);
-            Continue;
-          end;
+            cr := InArray(s, prefixops);
+            if cr <> nil then
+            begin
+              top := cr.Create(top);
+              Continue;
+            end;
 
-          cr := InArray(s, conditions);
-          if cr <> nil then
-          begin
-            top := cr.Create(top);
-            mv  := mvOperatort;
-            Continue;
-          end;
+            cr := InArray(s, conditions);
+            if cr <> nil then
+            begin
+              top := cr.Create(top);
+              mv := mvOperatort;
+              Continue;
+            end;
 
-          error := 'Syntax error, expecting prefix operator or condition name, got: ' + s;
-          if top <> nil then
-            top.Free;
-          exit;
-        end;
+            error := 'Syntax error, expecting prefix operator or condition name, got: ' + s;
+            if top <> nil then
+              top.Free;
+            exit;
+          end;
         mvOperatort:
-        begin
-          if not AddOperator then
-            exit;
-        end;
+          begin
+            if not AddOperator then
+              exit;
+          end;
         mvOperandus:
-        begin
-          if not co.FeedOperand(s) then
           begin
-            error := 'Condition ' + co.condition.Name + ' doesnt take operand: ' + s;
-            top.Free;
-            exit;
+            if not co.FeedOperand(s) then
+            begin
+              error := 'Condition ' + co.condition.Name + ' doesnt take operand: ' + s;
+              top.Free;
+              exit;
+            end;
+            mv := mvOperandusOrInfixOrSuffix;
           end;
-          mv := mvOperandusOrInfixOrSuffix;
-        end;
         mvInfixOrSuffix:
-        begin
-          if infixorsuffix() then
-            Continue;
-          if error <> '' then
-            exit;
-
-
-          error := 'Infix or suffix operator expected, got: ' + s;
-          top.Free;
-          exit;
-
-        end;
-        mvOperandusOrInfixOrSuffix:
-        begin
-          if infixorsuffix() then
-            Continue;
-          if error <> '' then
-            exit;
-
-          // most mar csak etetni lehet
-          if not TConditionOperator(top).FeedOperand(s) then
           begin
-            error := 'Condition ' + TConditionOperator(top).condition.Name +
-              ' doesnt take operand: ' + s;
+            if infixorsuffix() then
+              Continue;
+            if error <> '' then
+              exit;
+
+            error := 'Infix or suffix operator expected, got: ' + s;
+            top.Free;
+            exit;
+
+          end;
+        mvOperandusOrInfixOrSuffix:
+          begin
+            if infixorsuffix() then
+              Continue;
+            if error <> '' then
+              exit;
+
+            // most mar csak etetni lehet
+            if not TConditionOperator(top).FeedOperand(s) then
+            begin
+              error := 'Condition ' + TConditionOperator(top).condition.Name +
+                ' doesnt take operand: ' + s;
+              top.Free;
+              exit;
+            end;
+          end;
+        mvInfix:
+          begin
+            if infixorsuffix then
+              Continue;
+            if error <> '' then
+              exit;
+
+            error := 'Syntax error, infix/suffix operator expected, got: ' + s;
             top.Free;
             exit;
           end;
-        end;
-        mvInfix:
-        begin
-          if infixorsuffix then
-            Continue;
-          if error <> '' then
-            exit;
-
-          error := 'Syntax error, infix/suffix operator expected, got: ' + s;
-          top.Free;
-          exit;
-        end;
       end;
     end;
   end;
@@ -3799,11 +3764,8 @@ begin
       top := top.parent;
   end;
 
-
   Result := top;
 end;
-
-
 
 { TRule }
 
@@ -3866,12 +3828,12 @@ end;
 
 procedure TRule.Reparse(rule: string);
 var
-  i:     integer;
+  i: integer;
   ifstr, thenstr, actionstr, conditionstr: string;
   isnot: boolean;
 begin
   sitename := UpperCase(SubString(rule, ' ', 1));
-  section  := UpperCase(SubString(rule, ' ', 2));
+  section := UpperCase(SubString(rule, ' ', 2));
 
   if sitename = '' then
   begin
@@ -3885,12 +3847,11 @@ begin
     exit;
   end;
 
-  rule  := Copy(rule, Length(sitename) + Length(section) + 3, 1000);
+  rule := Copy(rule, Length(sitename) + Length(section) + 3, 1000);
   ifstr := LowerCase(SubString(rule, ' ', 1));
   if ifstr = 'if' then
     isnot := False
-  else
-  if ifstr = 'ifnot' then
+  else if ifstr = 'ifnot' then
     isnot := True
   else
   begin
@@ -3905,7 +3866,7 @@ begin
     exit;
   end;
 
-  thenstr   := LowerCase(SubString(rule, ' ', i));
+  thenstr := LowerCase(SubString(rule, ' ', i));
   actionstr := UpperCase(SubString(rule, ' ', i + 1));
   if thenstr <> 'then' then
   begin
@@ -3915,11 +3876,9 @@ begin
 
   if actionstr = 'DROP' then
     action := raDrop
-  else
-  if actionstr = 'ACCEPT' then
+  else if actionstr = 'ACCEPT' then
     action := raAllow
-  else
-  if actionstr = 'ALLOW' then
+  else if actionstr = 'ALLOW' then
     action := raAllow
   else
   begin
@@ -3931,7 +3890,7 @@ begin
     conditions.Free;
 
   conditionstr := Copy(rule, Length(ifstr) + 2, 1000);
-//  conditionstr := lowercase(conditionstr);
+  //  conditionstr := lowercase(conditionstr);
   conditionstr := Trim(Copy(conditionstr, 1, Length(conditionstr) -
     Length(actionstr) - Length(thenstr) - 1));
 
@@ -3940,7 +3899,6 @@ begin
 
   conditions := ParseRule(conditionstr, error);
 end;
-
 
 { TMultiStringCondition }
 
@@ -4053,13 +4011,13 @@ end;
 
 function TMultiInOperator.Match(p: TPazo): boolean;
 var
-  i:     integer;
+  i: integer;
   lista: TStringList;
 begin
   try
     re.Clear;
     GetSupplyValues(p, re);
-    lista  := GetOperandValue;
+    lista := GetOperandValue;
     Result := True;
     for i := lista.Count - 1 downto 0 do
     begin
@@ -4107,7 +4065,6 @@ begin
     Result := False;
   end;
 end;
-
 
 { TConditionYear }
 
@@ -4163,7 +4120,6 @@ begin
     Result := '';
   end;
 end;
-
 
 { TConditionAutofollow }
 
@@ -4292,7 +4248,6 @@ begin
   Result:= 'pretime';
 end;
 
-
 { TConditionPretimeFound }
 
 class function TConditionPretimeFound.Description: string;
@@ -4367,6 +4322,7 @@ begin
 end;
 
 { TConditionTVClassication }
+
 class function TConditionTVClassification.Description: string;
 begin
   Result := 'Returns with the Classification field parsed from tvrage.';
@@ -4390,7 +4346,6 @@ begin
     Result := '';
   end;
 end;
-
 
 { TConditionTVScripted }
 
@@ -4504,7 +4459,6 @@ begin
   end;
 end;
 
-
 { TConditionTVEndedYear }
 
 class function TConditionTVEndedYear.Description: string;
@@ -4533,9 +4487,10 @@ begin
 end;
 
 { TConditionTVStatus }
+
 class function TConditionTVStatus.Description: string;
 begin
-  Result := 'Returns with the Status field parsed from tvrage.';//+#13#00;
+  Result := 'Returns with the Status field parsed from tvrage.'; //+#13#00;
 end;
 
 class function TConditionTVStatus.Name: string;
@@ -4558,10 +4513,11 @@ begin
 end;
 
 { TConditionTVRunning }
+
 class function TConditionTVRunning.Description: string;
 begin
   Result :=
-    'Returns with the Status field parsed from tvrage. Returns false if lookup is not ready yet.';
+    'Returns with the Status field parsed from TVMaze. Returns false if lookup is not ready yet.';
   //+#13#10;
 end;
 
@@ -4584,16 +4540,38 @@ begin
   end;
 end;
 
+{ TConditionTVRunning }
+
+class function TConditionTVCurrentSeason.Description: string;
+begin
+  Result := TVCurrentSeasonDescription;
+  //+#13#10;
+end;
+
+class function TConditionTVCurrentSeason.Name: string;
+begin
+  Result := 'tvcurrentseason';
+end;
+
+function TConditionTVCurrentSeason.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+  try
+    if r.rls is TTVRelease then
+    begin
+      if TTVRelease(r.rls).showid <> '' then
+        Result := TTVRelease(r.rls).currentseason;
+    end;
+  except
+    Result := False;
+  end;
+end;
 
 { TConditionTag }
 
 class function TConditionTag.Description: string;
 begin
-  Result := 'You can use tag condition to check if a specified tag exists in the releasename.'
-    + #13#10;
-  Result := 'Basicly, tag is a shorthand to *.tag.*, *.tag-*, *-tag.*, *-tag-*' + #13#10;
-  Result := '!ruleadd HQ PS2 if tag = NTSC then DROP' + #13#10;
-  Result := '!ruleadd HQ TV if not tag in HDTV, PDTV then DROP';//+#13#10;
+  result := TagDescription;
 end;
 
 class function TConditionTag.Name: string;
@@ -4638,8 +4616,6 @@ begin
     Result := '';
   end;
 end;
-
-
 
 { TConditionIMDBYear }
 
@@ -4866,7 +4842,6 @@ begin
   end;
 end;
 
-
 class function TConditionIMDBldt.Description: string;
 begin
   Result := 'Returns with the a boolean for Limited. Returns zero if IMDB lookup is not yet ready.';
@@ -4945,7 +4920,6 @@ begin
   end;
 end;
 
-
 { TConditionIMDBCineyear }
 
 class function TConditionIMDBCineyear.Description: string;
@@ -4972,9 +4946,6 @@ begin
   end;
 end;
 
-
-
-
 (*
 
 class function TConditionIMDBGenres.Description: string;
@@ -4994,12 +4965,9 @@ begin
     re.Assign(TImdbRelease(r.rls).imdb_genres);
 end;
 
-
 *)
 
 { TConditionMVIDGenre }
-
-
 
 class function TConditionMVIDGenre.Description: string;
 begin
@@ -5057,7 +5025,6 @@ begin
   end;
 end;
 
-
 { TConditionMVIDFiles }
 
 class function TConditionMVIDFiles.Description: string;
@@ -5105,7 +5072,7 @@ end;
 
 class function TConditionMVIDVA.Description: string;
 begin
-  Result := 'Returns true if release is Various Artists (VA)';//+#13#10;
+  Result := 'Returns true if release is Various Artists (VA)'; //+#13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
@@ -5125,7 +5092,7 @@ end;
 
 class function TConditionMVIDPAL.Description: string;
 begin
-  Result := 'Returns with the a boolean for PAL region.';//+#13#10;
+  Result := 'Returns with the a boolean for PAL region.'; //+#13#10;
   //  Result:= Result + '' +#13#10;
 end;
 
@@ -5145,7 +5112,7 @@ end;
 
 class function TConditionMVIDNTSC.Description: string;
 begin
-  Result := 'Returns with the a boolean for NTSC region.';//+#13#10;
+  Result := 'Returns with the a boolean for NTSC region.'; //+#13#10;
   //  Result:= Result + '' +#13#10;
 end;
 
@@ -5165,7 +5132,7 @@ end;
 
 class function TConditionMVIDLIVE.Description: string;
 begin
-  Result := 'Returns with the a boolean for LIVE type.';//+#13#10;
+  Result := 'Returns with the a boolean for LIVE type.'; //+#13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
@@ -5180,8 +5147,6 @@ begin
   if r.rls is TMVIDRelease then
     Result := TMVIDRelease(r.rls).mvid_live;
 end;
-
-
 
 function FindConditionClassByName(Name: string): TConditionClass;
 var
@@ -5201,7 +5166,6 @@ begin
     Result := nil;
   end;
 end;
-
 
 end.
 
