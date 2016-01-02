@@ -198,6 +198,8 @@ type
     seasons: integer;
     status: string;
     running: boolean;
+    currentseason:boolean;
+    currentepisode:boolean;
     showid: string; // aka TVMaze ID
     thetvdbid: string;
     tvrageid: string;
@@ -238,25 +240,6 @@ type
     class function Name: string; override;
     class function DefaultSections: string; override;
   end;
-
-  (*
-     TGameRelease = class(TRelease)
-     game_realgame,region_ntsc,region_rf,region_pal:boolean;
-     game_genre,game_languages: TStringList;
-     game_name:string;
-     game_disks:integer;
-
-      function ExtraInfo: string; override;
-      constructor Create(rlsname, section: string; FakeChecking: Boolean = True); override;
-  //    constructor CustomCreate(rlsname, section: string; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
-  //    destructor Destroy; override;
-      function Aktualizald(extrainfo: string): Boolean; override;
-      function AsText(pazo_id: Integer = -1): string;  override;
-      function Aktualizal(p: TObject): Boolean; override;
-      class function Name: string; override;
-      class function DefaultSections: string; override;
-     end;
-    *)
 
   TCRelease = class of TRelease;
 
@@ -335,11 +318,7 @@ const
 
 var
 
-  sectionhandlers: TSectionHandlers = (TRelease, TMP3Release,
-    T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease (*,
-    TGameRelease
-    *)
-    );
+  sectionhandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease);
 
   addpreechocmd: string;
 
@@ -378,28 +357,6 @@ begin
       exit;
     end;
 end;
-
-(*
-procedure SplitRlz(rlsname:string;out rlz,grp:string);
-var x:TStringlist;s:string;
-begin
-x:=TStringlist.Create;
-try
-s:= Csere(rlsname, '(', '');
-s:= Csere(s, ')', '');
-s:= Csere(s, '.', ' ');
-s:= Csere(s, '-', ' ');
-s:= Csere(s, '_', ' ');
-x.Delimiter:=' ';
-x.DelimitedText:=s;
-if uppercase(x.Strings[x.Count-1]) = 'INT' then grp:='-'+x.Strings[x.Count-2]+'_'+x.Strings[x.Count-1] else
-grp:=x.Strings[x.Count-1];
-rlz:=Csere(rlsname, grp, '');
-finally
-x.free;
-end;
-end;
- *)
 
 function RemoveGroupname(rlz: string): string;
 var
@@ -964,7 +921,6 @@ begin
         irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));
       end;
-
 
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
         (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
@@ -1977,22 +1933,61 @@ begin
         [e.Message]));
     end;
   end;
-
-  //update here?
+  (*
+    //update here?
+    if MonthsBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'monthbetweenlastUpdate', 6) then
+    begin
+      if not db_tvrage.Update then
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] updating of %f failed.', [showname]));
+        irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %f failed.', [showname]));
+      end;
+    end;
+  *)
 
   if (db_tvrage <> nil) then
   begin
-    try
-      db_tvrage.SetTVDbRelease(self);
-    except
-      on e: Exception do
+    if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 62) then
+    begin
+      if not db_tvrage.Update then
       begin
-        Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
+        irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
+
+(*
+      try
+      Irc_AddAdmin('Updating...');
+
+      showid:= db_tvrage.tvmaze_id;
+      AddTask(TPazoHTTPUpdateTVInfoTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
+      db_tvrage.free;
+      //result:=True;
+      Exit;
+      except on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('Exception in PazoUpdateTVInfo: %s',
+            [e.Message]));
+        end;
+      end;
+*)
+    end
+    else
+    begin
+  //  Irc_AddAdmin('no Update!');
+      try
+        db_tvrage.SetTVDbRelease(self);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s',
+            [e.Message]));
+        end;
+      end;
+      db_tvrage.free;
+      Result := True;
+      exit;
     end;
-    Result := True;
-    exit;
   end;
 
   //irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
@@ -2041,6 +2036,8 @@ begin
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
+    Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+
 end;
 
 constructor TTVRelease.Create(rlsname: string; section: string;
@@ -2088,7 +2085,7 @@ begin
   showname := rx.Replace(showname, ' ');
 
   rx.Free;
-
+    (*
   if (showname <> '') then
   begin
     try
@@ -2107,13 +2104,14 @@ begin
     except
       on e: Exception do
       begin
+        db_tvrage.free;
         Debug(dpError, rsections, Format('Exception in TTVRelease.Create.SetTVDbRelease: %s', [e.Message]));
         exit;
       end;
     end;
-
+    db_tvrage.free;
   end;
-
+  *)
 end;
 
 class function TTVRelease.DefaultSections: string;
@@ -2194,91 +2192,89 @@ var
   imdbdata: TDbImdbData;
   ir: TIMDBRelease;
 begin
-try
-  Result := False;
-  aktualizalva := True;
+  try
+    Result := False;
+    aktualizalva := True;
 
-  pazo := TPazo(p); // ugly shit
+    pazo := TPazo(p); // ugly shit
 
-
-  i := last_imdbdata.IndexOf(rlsname);
-  if i = -1 then
-  begin
-    // no imdb infos, check if we have a nfo
-(*
-    i := last_addnfo.IndexOf(rlsname);
-    if i <> -1 then
+    i := last_imdbdata.IndexOf(rlsname);
+    if i = -1 then
     begin
-      // we have the nfo
-      Result := True;
-      exit;
-    end;
-*)
-    // no nfo start searching nfo
-    for j := pazo.sites.Count - 1 downto 0 do
-    begin
-      try
-        if j < 0 then
-          Break;
-      except
-        Break;
-      end;
-      ps := TPazoSite(pazo.sites[j]);
-      try
-        AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
+      // no imdb infos, check if we have a nfo
+  (*
+      i := last_addnfo.IndexOf(rlsname);
+      if i <> -1 then
+      begin
+        // we have the nfo
         Result := True;
+        exit;
+      end;
+  *)
+      // no nfo start searching nfo
+      for j := pazo.sites.Count - 1 downto 0 do
+      begin
+        try
+          if j < 0 then
+            Break;
+        except
+          Break;
+        end;
+        ps := TPazoSite(pazo.sites[j]);
+        try
+          AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
+          Result := True;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections,
+              Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
+              [e.Message]));
+          end;
+        end;
+      end;
+    end
+    else
+    begin
+      try
+        imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+        if pazo.rls is TIMDBRelease then
+        begin
+          ir := TIMDBRelease(pazo.rls);
+          ir.imdb_id := imdbdata.imdb_id;
+          ir.imdb_year := imdbdata.imdb_year;
+          ir.imdb_languages := imdbdata.imdb_languages;
+          ir.imdb_countries := imdbdata.imdb_countries;
+          ir.imdb_genres := imdbdata.imdb_genres;
+          ir.imdb_screens := imdbdata.imdb_screens;
+          ir.imdb_rating := imdbdata.imdb_rating;
+          ir.imdb_votes := imdbdata.imdb_votes;
+          ir.CineYear := imdbdata.imdb_cineyear;
+          ir.imdb_ldt := imdbdata.imdb_ldt;
+          ir.imdb_wide := imdbdata.imdb_wide;
+          ir.imdb_festival := imdbdata.imdb_festival;
+          ir.imdb_stvm := imdbdata.imdb_stvm;
+          ir.imdb_stvs := imdbdata.imdb_stvs;
+        end;
       except
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
+            Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
             [e.Message]));
         end;
       end;
+      Result := True;
     end;
-  end
-  else
-  begin
-    try
-      imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
-      if pazo.rls is TIMDBRelease then
-      begin
-        ir := TIMDBRelease(pazo.rls);
-        ir.imdb_id := imdbdata.imdb_id;
-        ir.imdb_year := imdbdata.imdb_year;
-        ir.imdb_languages := imdbdata.imdb_languages;
-        ir.imdb_countries := imdbdata.imdb_countries;
-        ir.imdb_genres := imdbdata.imdb_genres;
-        ir.imdb_screens := imdbdata.imdb_screens;
-        ir.imdb_rating := imdbdata.imdb_rating;
-        ir.imdb_votes := imdbdata.imdb_votes;
-        ir.CineYear := imdbdata.imdb_cineyear;
-        ir.imdb_ldt := imdbdata.imdb_ldt;
-        ir.imdb_wide := imdbdata.imdb_wide;
-        ir.imdb_festival := imdbdata.imdb_festival;
-        ir.imdb_stvm := imdbdata.imdb_stvm;
-        ir.imdb_stvs := imdbdata.imdb_stvs;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-          [e.Message]));
-      end;
+
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections,
+        Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
+        [e.Message]));
     end;
-    Result := True;
   end;
-
-
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-          [e.Message]));
-      end;
-    end;
 
 end;
 
@@ -2362,7 +2358,7 @@ begin
     Result := True;
   end;
 
-  aktualizalva := True;
+ // aktualizalva := True;
 end;
 
 function TMVIDRelease.AsText(pazo_id: integer): string;
@@ -2387,21 +2383,14 @@ end;
 
 constructor TMVIDRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
-//constructor TMVIDRelease.Create(rlsname: string; section: string; FakeChecking: Boolean = True);
 var
   mvrx: TRegexpr;
 
 begin
-
   inherited Create(rlsname, section, True, savedpretime);
-  //inherited Create(rlsname, section, False,savedpretime);
   aktualizalva := False;
-
-  //if tags.Count < 3 then exit;
-
   FileCount := 0;
   mvid_Genre := TStringList.Create;
-  //mvid_languages:=TStringlist.Create;
   mvid_source := '';
   mvid_pal := False;
   mvid_ntsc := False;
@@ -2442,107 +2431,6 @@ class function TMVIDRelease.Name: string;
 begin
   Result := 'TMVIDRelease';
 end;
-
-(*
-
-constructor TGameRelease
-
-constructor TGameRelease.Create(rlsname: string; section: string; FakeChecking: Boolean = True);
-
-begin
-inherited;
-game_genre:=TStringList.Create;
-game_languages:=TStringList.Create;
-
-(*
-var grgx:TRegexpr; vtag:string;
-
-grgx:=TRegExpr.Create;
-grgx.ModifierI:=True;
-game_realgame:=True;
-for I := 0 to words.Count - 1 do begin
-vtag:=words.Strings[i];
-grgx.Expression:='^(DLC|XBLA|WiiWare|VC|XBLIG)$';
-if grgx.Exec(vtag) then game_realgame:=False;
-grgx.Expression:='^(PAL|EUR)$';
-if grgx.Exec(vtag) then region_pal:=True;
-grgx.Expression:='^(NTSC|USA)$';
-if grgx.Exec(vtag) then region_ntsc:=True;
-grgx.Expression:='^(RF)$';
-if grgx.Exec(vtag) then region_rf:=True;
-//grgx.Expression:='^(JAP)$';
-//if grgx.Exec(vtag) then self.region_jap:=True;
-
-end;
-//grgx.Expression:='(PAL|EUR|NTSC|USA|RF|JAP|JB|DLC|XBLA|WiiWare|VC|XBLIG).*$';
-
-grgx.free;
-
-end;
-
-destructor TGameRelease.Destroy;
-begin
-game_genre.free;
-game_languages.free;
-inherited;
-end;
-
-function TGameRelease.AsText(pazo_id: Integer = -1):string;
-begin
-  Result:= inherited AsText(pazo_id);
-  Result:= Result + 'GAME Name: '+game_name+#13#10;
-  Result:= Result + 'GAME Languages: '+game_languages.CommaText+#13#10;
-  Result:= Result + 'GAME Genre: '+game_genre.CommaText+#13#10;
-  Result:= Result + 'GAME Disks: '+IntToStr(game_disks)+#13#10;
-  Result:= Result + 'GAME NTSC: '+IntToStr(Integer(region_ntsc))+#13#10;
-  Result:= Result + 'GAME PAL: '+IntToStr(Integer(region_pal))+#13#10;
-//  Result:= Result + 'GAME JAP: '+IntToStr(Integer(region_jap))+#13#10;
-  Result:= Result + 'GAME RF: '+IntToStr(Integer(region_rf))+#13#10;
-  Result:= Result + 'GAME RealGame: '+IntToStr(Integer(game_realgame))+#13#10;
-end;
-
-function TGameRelease.Aktualizal(p: TObject):Boolean;
-var pazo: TPazo;
-    shot: TPazoSite;
-begin
-  Result:= False;
-  pazo:= TPazo(p); // ugly shit
-
-  shot:= FindMostCompleteSite(pazo);
-  if shot <> nil then
-  begin
-  (*
-if ((TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0)) <> plmNone) and (TPretimeLookupMOde(config.ReadInteger('taskpretime','mode',0)) <> plmSQLITE)) then begin
-AddTask(TPazoPretimeLookupTask.Create('', '', shot.name, pazo, 1));
-//QueueFire;
-end;
-                                *)(*
-    AddTask(TPazoGameTask.Create('', '', shot.name, pazo, 1));
-    Result:= True;
-  end;
-
-  aktualizalva:= True;
-end;
-
-function TGameRelease.ExtraInfo:string;
-begin
-result:=game_name;
-end;
-
-function TGameRelease.Aktualizald(extrainfo: string):Boolean;
-begin
-  Result:= False;
-end;
-
-class function TGameRelease.Name:string;
-begin
-result:='TGameRelease';
-end;
-class function TGameRelease.DefaultSections:string;
-begin
-result:='XBOX360 WII PSP PC';
-end;
-     *)
 
 {!--- KB Utils ---?}
 
@@ -2746,7 +2634,7 @@ var
   i: integer;
   x: TStringList;
   ss: string;
-//  xin: Tinifile;
+  //  xin: Tinifile;
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
@@ -2994,7 +2882,7 @@ begin
     //checking if a irc chan is added for the site
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
-    ssrc_found:=False;
+      ssrc_found := False;
       for j := 0 to p.sites.Count - 1 do
       begin
 
@@ -3085,7 +2973,7 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
-//  sfound := False;
+  //  sfound := False;
 
   Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
   irc_Addstats(Format('--> AddCompleteTransfers %s (%d)',
@@ -3288,7 +3176,6 @@ begin
               Exit;
             if site.PermDown then
               Exit;
-                                                                                      *)//checked in the first lines of this function already
 
       (*
             site := FindSiteByName('', pss.Name);
@@ -3355,212 +3242,6 @@ begin
     irc_Addstats(Format('<-- AddCompleteTransfers %s', [p.rls.rlsname]));
   end;
 end;
-
-//working on
-
-{
-function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
-var
-  j, i:   integer;
-  ps, pss: TPazoSite;
-  p:      TPazo;
-  inc_srcsite, inc_dstsite: TSite;
-  inc_srcdir, inc_dstdir: string;
-  inc_rc: TCRelease;
-  inc_rls: TRelease;
-  inc_p:  TPazo;
-  inc_ps: TPazoSite;
-  inc_pd: TPazoDirlistTask;
-  sfound: boolean;
-  tts, ts, site: TSite;
-begin
-  Result := False;
-  p      := TPazo(pazo);
-  Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
-
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    ps := TPazoSite(p.sites[i]);
-
-    if ps.Complete then
-      Continue; // Release is allready filled and complete!
-    if ps.error then
-      Continue; //There is some error we need to check in later revs!
-    if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-      Continue;
-    //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-    if ps.status <> rssAllowed then
-      Continue;
-
-    site := FindSiteByName('', ps.Name);
-    if site = nil then
-      Continue;
-    if site.PermDown then
-      Continue;
-
-    //if not ps.status = rssAllowed then Continue;
-
-    if Precatcher_Sitehasachan(ps.Name) then
-    begin
-      pss    := nil;
-      sfound := False;
-
-      for j := 0 to p.sites.Count - 1 do
-      begin
-        pss := TPazoSite(p.sites[j]);
-        if pss.Name = ps.Name then
-          Continue;
-        if not pss.Complete then
-          Continue;
-
-        if pss.destinations.IndexOf(ps) = -1 then
-          continue;
-
-        if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete',
-          False) then
-        begin
-          ts     := FindSiteByName('', ps.Name);
-          tts    := FindSiteByName('', pss.Name);
-          sfound := tts.isRouteableTo(ts.Name);
-        end;
-
-(*
-        for k := 0 to pss.destinations.Count - 1 do
-        begin
-          if TSite(pss.destinations.Items[k]).Name = ps.Name then
-          begin
-            if config.ReadBool(rsections,
-              'only_use_routable_sites_on_try_to_complete', False) then
-            begin
-              sfound := TSite(pss).isRouteableTo(ps.Name);
-              if sfound then
-                break
-              else
-                continue;
-            end
-            else
-            begin//if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
-              sfound := True;
-              break;
-            end;
-          end;//if TSite(pss.destinations.Items[k]).name = ps.name then begin
-          if sfound then
-            break
-          else
-            continue;
-        end;//for k := 0 to pss.destinations.Count - 1 do begin
-*)
-        if sfound then
-          break
-        else
-        begin
-          Debug(dpMessage, rsections,
-            '--> site %s is not routable to %s for filling inc - trying next site',
-            [pss.Name, ps.Name]);
-          continue;
-        end;
-      end;//for j:= 0 to p.sites.Count -1 do
-(*
-
-      if ps.Name = pss.Name then
-        Exit;
-      if ((pss = nil) and (not pss.Complete)) then
-        Exit;
-
-      if ps.Complete then
-        Exit; // Release is allready filled and complete!
-      if ps.error then
-        Exit; //There is some error we need to check in later revs!
-
-      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        Continue;
-      //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-      if ps.status <> rssAllowed then
-        Continue;
-
-      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        Exit;
-      if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        Exit;
-      site := FindSiteByName('', ps.Name);
-      if site = nil then
-        Exit;
-      if site.PermDown then
-        Exit;
-
-      site := FindSiteByName('', pss.Name);
-      if site = nil then
-        Exit;
-      if site.PermDown then
-        Exit;
-
-  *)
-
-      site := FindSiteByName('', pss.Name);
-      if site = nil then
-        continue;
-      if site.PermDown then
-        continue;
-
-      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        continue;
-      if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        continue;
-
-      // ok, megvan minden.
-      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
-        [p.rls.rlsname, ps.Name, pss.Name]);
-      try
-        inc_srcsite := FindSiteByName('', pss.Name);
-        inc_dstsite := FindSiteByName('', ps.Name);
-        inc_srcdir  := inc_srcsite.sectiondir[p.rls.section];
-        inc_dstdir  := inc_dstsite.sectiondir[p.rls.section];
-
-        inc_rc  := FindSectionHandler(p.rls.section);
-        inc_rls := inc_rc.Create(p.rls.rlsname, p.rls.section);
-        inc_p   := PazoAdd(inc_rls);
-
-        inc_p.AddSite(inc_srcsite.Name, inc_srcdir, False);
-        inc_p.AddSite(inc_dstsite.Name, inc_dstdir, False);
-
-        kb_list.AddObject('TRANSFER-' +
-          IntToStr(RandomRange(10000000, 99999999)), inc_p);
-
-        inc_ps := inc_p.FindSite(inc_srcsite.Name);
-        inc_ps.AddDestination(inc_dstsite.Name, 9);
-        inc_ps := inc_p.FindSite(inc_dstsite.Name);
-        inc_ps.status := rssAllowed;
-        inc_ps.dirlist.need_mkdir := False;
-
-        inc_ps := inc_p.FindSite(inc_srcsite.Name);
-        inc_ps.dirlist.dirlistadded := True;
-        inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '', False);
-
-        irc_Addstats(Format(
-          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
-          [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
-(*
-        irc_addtext(inc_pd, Format(
-          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
-          [p.rls.section,p.rls.rlsname, ps.Name, pss.Name]));
-*)
-        AddTask(inc_pd);
-        QueueFire;
-        Result := True;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
-            [e.Message]));
-          Result := False;
-        end;
-      end;
-    end;
-  end;
-  Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
-end;
-}
 
 procedure TKBThread.Execute;
 var
