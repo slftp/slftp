@@ -730,6 +730,24 @@ type
     class function Description: string; override;
   end;
 
+  TConditionTVCurrentEpisiode = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: string; override;
+    class function Description: string; override;
+  end;
+
+  TConditionTVCurrentOnAir = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: string; override;
+    class function Description: string; override;
+  end;
+
+  TConditionTVDailyShow = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: string; override;
+    class function Description: string; override;
+  end;
+
   {###      MVID    ###}
   TConditionMVIDGenre = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
@@ -2503,6 +2521,9 @@ begin
   conditions.Add(TConditionTVRunning);
   conditions.Add(TConditionTVStatus);
   conditions.Add(TConditionTVCurrentSeason);
+  conditions.Add(TConditionTVCurrentEpisiode);
+  conditions.Add(TConditionTVCurrentOnAir);
+  conditions.Add(TConditionTVDailyShow);
 
   conditions.Add(TConditionIMDBYear);
   conditions.Add(TConditionIMDBLanguages);
@@ -4540,7 +4561,89 @@ begin
   end;
 end;
 
-{ TConditionTVRunning }
+
+{ TConditionTVDailyShow }
+
+class function TConditionTVDailyShow.Description: string;
+begin
+  Result := TVDailyShowDescription;
+  //+#13#10;
+end;
+
+class function TConditionTVDailyShow.Name: string;
+begin
+  Result := 'tvdaily';
+end;
+
+function TConditionTVDailyShow.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+  try
+    if r.rls is TTVRelease then
+    begin
+      if TTVRelease(r.rls).showid <> '' then
+        Result := TTVRelease(r.rls).daily;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+{ TConditionTVCurrentEpisode }
+
+class function TConditionTVCurrentEpisiode.Description: string;
+begin
+  Result := TVCurrentEpisiodeDescription;
+  //+#13#10;
+end;
+
+class function TConditionTVCurrentEpisiode.Name: string;
+begin
+  Result := 'tvcurrentep';
+end;
+
+function TConditionTVCurrentEpisiode.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+  try
+    if r.rls is TTVRelease then
+    begin
+      if TTVRelease(r.rls).showid <> '' then
+        Result := TTVRelease(r.rls).currentepisode;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+{ TConditionTVCurrentSeason }
+
+class function TConditionTVCurrentOnAir.Description: string;
+begin
+  Result := TVCurrentSeasonDescription;
+  //+#13#10;
+end;
+
+class function TConditionTVCurrentOnAir.Name: string;
+begin
+  Result := 'tvcurrent';
+end;
+
+function TConditionTVCurrentOnAir.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+  try
+    if r.rls is TTVRelease then
+    begin
+      if TTVRelease(r.rls).showid <> '' then
+        Result := TTVRelease(r.rls).currentair;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+{ TConditionTVCurrentSeason }
 
 class function TConditionTVCurrentSeason.Description: string;
 begin

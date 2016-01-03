@@ -200,6 +200,8 @@ type
     running: boolean;
     currentseason:boolean;
     currentepisode:boolean;
+    currentair:boolean;
+    daily:boolean;
     showid: string; // aka TVMaze ID
     thetvdbid: string;
     tvrageid: string;
@@ -2036,7 +2038,10 @@ begin
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
-    Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+ Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+ Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
+ Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
+ Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
 
 end;
 

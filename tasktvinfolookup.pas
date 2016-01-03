@@ -240,7 +240,7 @@ begin
   else
     s := '';
   tvr := TTVInfoDB.Create(s);
-  tvr.tv_genres.Sorted:=True;
+  tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
   slGen := TStringlist.Create;
   gTVDB := TStringlist.Create;
@@ -313,6 +313,12 @@ begin
     begin
       tvr.tv_network := string(js.Field['network'].Field['name'].Value);
       tvr.tv_country := string(js.Field['network'].Field['country'].Field['code'].Value);
+    end;
+
+    if js.Field['schedule'].SelfType <> jsNull then
+    begin
+      for i := 0 to js.Field['schedule'].Field['days'].Count - 1 do
+        tvr.tv_days.Add(string(js.Field['schedule'].Field['days'].Child[i].Value));
     end;
 
     if tvr.tv_country = 'US' then
@@ -398,7 +404,7 @@ begin
     js.free;
     slGen.free;
     gTVDB.free;
-   // tvr.free;
+    // tvr.free;
   end;
 
 end;
@@ -635,26 +641,24 @@ begin
   response := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
   if response = '' then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> TVInfo updated for '+showname+' failed, response for was empty');
-    Debug(dpSpam, section, 'ERROR TVInfo updated for '+showname+' failed, response for was empty');
+    irc_addadmin('<c4><b>ERROR</c></b> TVInfo updated for ' + showname + ' failed, response for was empty');
+    Debug(dpSpam, section, 'ERROR TVInfo updated for ' + showname + ' failed, response for was empty');
     Result := True;
     readyerror := True;
     exit;
   end;
   try
-  tvdb := parseTVMazeInfos(response, showname);
+    tvdb := parseTVMazeInfos(response, showname);
   except on E: Exception do
-  irc_adderror(Format('parseTVMazeInfos  -=> %s',[e.Message]));
+      irc_adderror(Format('parseTVMazeInfos  -=> %s', [e.Message]));
   end;
 
-
-
   try
-  try
-    result := tvdb.Update;
-  except on E: Exception do
-    irc_adderror(Format('parseTVMazeInfos  -=> %s',[e.Message]));
-  end;
+    try
+      result := tvdb.Update;
+    except on E: Exception do
+        irc_adderror(Format('parseTVMazeInfos  -=> %s', [e.Message]));
+    end;
 
   finally
     //tvdb.free;
