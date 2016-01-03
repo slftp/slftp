@@ -4,5 +4,8 @@ const
     'Basicly, tag is a shorthand to *.tag.*, *.tag-*, *-tag.*, *-tag-*' + #13#10 + '!ruleadd HQ PS2 if tag = NTSC then DROP' + #13#10 +
     '!ruleadd HQ TV if not tag in HDTV, PDTV then DROP';
 
+  TVCurrentEpisiodeDescription: string = 'Returns true when the rip has the same episode number as the database. Returns false when we have no value.';
   TVCurrentSeasonDescription: string = 'Returns true when the rip has the same season number as the database. Returns false when we have no value.';
+  TVDailyShowDescription: string = 'Returns true when the rip airs daily. Returns false when we have no value.';
+  TVCurrentOnAirDescription: string = 'Returns true when the rip has the same season+episoden number as the database. Returns false when we have no value.';
 

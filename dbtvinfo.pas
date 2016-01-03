@@ -19,6 +19,7 @@ type
     tv_status: string;
     tv_classification: string;
     tv_genres: TStringList;
+    tv_days: TStringList;
     tv_network: string;
     //tv_runtime: integer;
     tv_premiered_year: integer;
@@ -29,6 +30,7 @@ type
     tv_next_ep: integer;
     tv_next_date: integer;
     last_updated: integer;
+    tv_daily: boolean;
     constructor Create(rls_showname: string); //overload;
     destructor Destroy; override;
     function Name: string;
@@ -68,6 +70,8 @@ procedure TVInfoFireKbAdd(rls: string);
 
 function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
+function updateToV2: boolean;
+
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
@@ -75,6 +79,7 @@ uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
 
 const
   section = 'tasktvinfo';
+  dbversion: integer = 2;
 
 var
   tvinfodb: TslSqliteDB = nil;
@@ -111,9 +116,9 @@ end;
 procedure TTVInfoDB.Save;
 begin
   try
-    tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d)',
+    tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id,airdays) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d,%s)',
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id)]));
+      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id),tv_days.CommaText]));
   except on E: Exception do
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
   end;
@@ -142,7 +147,10 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
 
-  tr.currentseason:=(tv_next_season = tr.season);
+  tr.currentseason := Boolean(tv_next_season = tr.season);
+  tr.currentepisode := Boolean(tv_next_ep = tr.episode);
+  tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
+  tr.daily := Boolean(tv_days.Count > 1);
 
   tr.thetvdbid := thetvdb_id;
   //  tr.tvmazeid:= tv_tvmazeid;
@@ -160,12 +168,16 @@ begin
   self.rls_showname := rls_showname;
   self.tv_genres := TStringList.Create;
   self.tv_genres.QuoteChar := '"';
+  self.tv_days := TStringList.Create;
+  self.tv_days.QuoteChar := '"';
+
   self.tv_endedyear := -1;
 end;
 
 destructor TTVInfoDB.Destroy;
 begin
   self.tv_genres.Free;
+  self.tv_days.free;
   inherited;
 end;
 
@@ -251,7 +263,7 @@ function TTVInfoDB.Update: boolean;
 var
   respo: string;
   sql: string;
-//  js: TlkJSONobject;
+  //  js: TlkJSONobject;
 begin
   result := False;
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
@@ -274,16 +286,18 @@ begin
   end;
 
   result :=
-    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
-    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
-    StrToInt(tvmaze_id)]));
+    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
+    tv_next_ep,
+      StrToInt(tvmaze_id)]));
 
 end;
 
 procedure TTVInfoDB.UpdateIRC;
 begin
-  tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
-    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season, tv_next_ep,
+  tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
+      tv_next_ep,
     StrToInt(tvmaze_id)]));
 end;
 
@@ -411,6 +425,7 @@ begin
       tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
       tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
       tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
+      tvi.tv_days.CommaText:= tvinfodb.column_text(gettvrage, 19);      
       tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
       tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
       tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
@@ -418,6 +433,7 @@ begin
       tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
       tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), -1);
       tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), -1);
+
       result := tvi;
     except
       on e: Exception do
@@ -500,6 +516,7 @@ begin
         tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
         tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
         tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
+      tvi.tv_days.CommaText:= tvinfodb.column_text(gettvrage, 19);
         tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
         tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
         tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
@@ -617,17 +634,21 @@ begin
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
-    db_params := config.ReadString(section, 'pragma', 'PRAGMA main.locking_mode=NORMAL');
+    db_params := config.ReadString(section, 'pragma', ' main.locking_mode=NORMAL');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
 
     tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
 
-    tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id" INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,' +
-      '"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,' +
-      '"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,PRIMARY KEY ("tvmaze_id" ASC));');
+    tvinfodb.ExecSQL(
+      'CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id"  INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,' +
+      '"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,' +
+      '"next_episode"  INTEGER,"airdays"  TEXT,PRIMARY KEY ("tvmaze_id" ASC));');
 
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
+
+    if not tvinfodb.ExecSQL('SELECT * FROM _infos_old_v1;') then
+      updateToV2;
 
     Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
   end;
@@ -756,6 +777,50 @@ begin
   end;
 end;
  *)
+
+{  DataBase Version Helper...}
+
+function updateToV2: boolean;
+begin
+  result := False;
+  if tvinfodb = nil then
+    Exit;
+
+  if not tvinfodb.ExecSQL('ALTER TABLE "main"."infos" RENAME TO "_infos_old_v1";') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: ALTER TABLE Failed');
+    Exit;
+  end;
+  if not tvinfodb.ExecSQL('DROP INDEX "main"."tvinfo";') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: DROP old TABLE Failed');
+    Exit;
+  end;
+
+  if not
+    tvinfodb.ExecSQL('CREATE TABLE "main"."infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id"  INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT ' +
+    'unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  ' +
+    'INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,"airdays"  TEXT,PRIMARY KEY ("tvmaze_id" ASC));') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: CREATE new Tabel Failed');
+    Exit;
+  end;
+
+  if not
+    tvinfodb.ExecSQL('INSERT INTO "main"."infos" ("tvdb_id", "tvrage_id", "tvmaze_id", "premiered_year", "country", "status", "classification", "network", "genre", "ended_year", "last_updated", "next_date", "next_season", ' +
+    '"next_episode") SELECT "tvdb_id", "tvrage_id", "tvmaze_id", "premiered_year", "country", "status", "classification", "network", "genre", "ended_year", "last_updated", "next_date", "next_season", "next_episode" FROM "_infos_old_v1";') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: INTER INTO new TABEL Failed');
+    Exit;
+  end;
+
+  if not tvinfodb.ExecSQL('CREATE UNIQUE INDEX "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: CREATE UNIQUE INDEX Failed');
+    Exit;
+  end;
+  result := True;
+end;
 
 end.
 
