@@ -118,7 +118,7 @@ begin
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO  infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id, tvmaze_id,airdays) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d,%s)',
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id),tv_days.CommaText]));
+      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id), tv_days.CommaText]));
   except on E: Exception do
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
   end;
@@ -239,7 +239,7 @@ begin
       irc_Addtext(Netname, Channel, Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification,
         tv_status]));
       irc_Addtext(Netname, Channel, Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
-      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
+      irc_AddText(Netname, CHannel, Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
 
     end
     else
@@ -249,7 +249,8 @@ begin
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText,
         tv_classification, tv_status]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
-      irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [DateTimeToStr(UnixToDateTime(last_updated))]));
+      irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>',
+        [DateTimeToStr(UnixToDateTime(last_updated))]));
     end;
   except on e: Exception do
     begin
@@ -297,8 +298,8 @@ procedure TTVInfoDB.UpdateIRC;
 begin
   tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
-      tv_next_ep,
-    StrToInt(tvmaze_id)]));
+    tv_next_ep,
+      StrToInt(tvmaze_id)]));
 end;
 
 {   misc                                       }
@@ -425,7 +426,7 @@ begin
       tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
       tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
       tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
-      tvi.tv_days.CommaText:= tvinfodb.column_text(gettvrage, 19);      
+      tvi.tv_days.CommaText := tvinfodb.column_text(gettvrage, 19);
       tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
       tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
       tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
@@ -516,7 +517,7 @@ begin
         tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
         tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
         tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
-      tvi.tv_days.CommaText:= tvinfodb.column_text(gettvrage, 19);
+        tvi.tv_days.CommaText := tvinfodb.column_text(gettvrage, 19);
         tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
         tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
         tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
