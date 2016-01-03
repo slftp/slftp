@@ -11222,6 +11222,8 @@ begin
 
   try
     newtvi := parseTVMazeInfos(respo);
+    newtvi.last_updated:=DateTimeToUnix(now());
+
   except on e: Exception do
     begin
       irc_AddText(Netname, Channel, Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
