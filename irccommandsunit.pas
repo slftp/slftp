@@ -11159,7 +11159,7 @@ begin
   else
     return := deleteTVInfoByRipName(params);
 
-    //better error message system needed :/
+  //better error message system needed :/
   case return of
     1:
       begin
@@ -11192,7 +11192,7 @@ begin
         exit;
       end;
   end;
-//we dont set result to true, to check if something went wrong...
+  //we dont set result to true, to check if something went wrong...
 end;
 
 function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
@@ -11222,7 +11222,7 @@ begin
 
   try
     newtvi := parseTVMazeInfos(respo);
-    newtvi.last_updated:=DateTimeToUnix(now());
+    newtvi.last_updated := DateTimeToUnix(now());
 
   except on e: Exception do
     begin
@@ -11371,7 +11371,7 @@ begin
   begin
     //    uurl := 'thetvdb=' + sid;
     try
-      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid);
+      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode');
     except
       on E: Exception do
       begin

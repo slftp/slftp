@@ -232,6 +232,7 @@ var
   s: string;
   js: TlkJSONobject;
   slGen, gMaze, gTVDB, x: TStringlist;
+
 begin
   result := nil;
   js := nil;
@@ -385,14 +386,23 @@ begin
     tvr.tv_next_season := 0;
     tvr.tv_next_ep := 0;
     tvr.tv_next_date := 0;
-    try
 
-      if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
+    ShortDateFormat := 'yyyy-mm-dd';
+    DateSeparator := '-';
+
+    try
+      if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
+      begin
+        tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
+        tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
+        tvr.tv_next_date := DateTimeToUnix(StrToDate(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value)));
+      end
+      else if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] = nil)) then
       begin
         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-        tvr.tv_next_date := -1;
-      end;
+        tvr.tv_next_date := DateTimeToUnix(StrToDate(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)));
+      end
 
     except on E: Exception do
         Irc_addadmin(e.Message);
