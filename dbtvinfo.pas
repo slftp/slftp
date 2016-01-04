@@ -473,7 +473,7 @@ begin
       showname := rx.Match[1];
 
     rx.Expression :=
-      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
     if rx.Exec(rls) then
       showname := rx.Match[1];
     rx.Expression := '[\.\_]';

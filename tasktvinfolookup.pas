@@ -740,7 +740,7 @@ begin
     end;
 
     rx.Expression :=
-      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
+      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
     if rx.Exec(rls) then
     begin
       sname := rx.Match[1];
