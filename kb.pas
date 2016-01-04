@@ -198,10 +198,10 @@ type
     seasons: integer;
     status: string;
     running: boolean;
-    currentseason:boolean;
-    currentepisode:boolean;
-    currentair:boolean;
-    daily:boolean;
+    currentseason: boolean;
+    currentepisode: boolean;
+    currentair: boolean;
+    daily: boolean;
     showid: string; // aka TVMaze ID
     thetvdbid: string;
     tvrageid: string;
@@ -1957,26 +1957,26 @@ begin
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
 
-(*
-      try
-      Irc_AddAdmin('Updating...');
+      (*
+            try
+            Irc_AddAdmin('Updating...');
 
-      showid:= db_tvrage.tvmaze_id;
-      AddTask(TPazoHTTPUpdateTVInfoTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
-      db_tvrage.free;
-      //result:=True;
-      Exit;
-      except on e: Exception do
-        begin
-          Debug(dpError, rsections, Format('Exception in PazoUpdateTVInfo: %s',
-            [e.Message]));
-        end;
-      end;
-*)
+            showid:= db_tvrage.tvmaze_id;
+            AddTask(TPazoHTTPUpdateTVInfoTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
+            db_tvrage.free;
+            //result:=True;
+            Exit;
+            except on e: Exception do
+              begin
+                Debug(dpError, rsections, Format('Exception in PazoUpdateTVInfo: %s',
+                  [e.Message]));
+              end;
+            end;
+      *)
     end
     else
     begin
-  //  Irc_AddAdmin('no Update!');
+      //  Irc_AddAdmin('no Update!');
       try
         db_tvrage.SetTVDbRelease(self);
       except
@@ -2038,10 +2038,10 @@ begin
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
- Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
- Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
- Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
- Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+  Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+  Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
+  Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
+  Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
 
 end;
 
@@ -2068,6 +2068,7 @@ begin
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
+
   end;
 
   rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
@@ -2078,45 +2079,50 @@ begin
     episode := StrToIntDef(rx.Match[3], 0);
   end;
 
-  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
+  //  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
+  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
   if rx.Exec(rlsname) then
   begin
     showname := rx.Match[1];
     season := StrToIntDef(rx.Match[2], 0);
-    episode := StrToIntDef(rx.Match[5], 0);
+    //    episode := StrToIntDef(rx.Match[5], 0);
+    if StrToIntDef(rx.Match[7], 0) > 0 then
+      episode := StrToIntDef(rx.Match[7], 0)
+    else
+      episode := StrToIntDef(rx.Match[5], 0);
   end;
 
   rx.Expression := '[\.\_]';
   showname := rx.Replace(showname, ' ');
 
   rx.Free;
-    (*
-  if (showname <> '') then
-  begin
-    try
-      db_tvrage := getTVInfoByShowName(showname);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s', [e.Message]));
-        exit;
-      end;
+  (*
+if (showname <> '') then
+begin
+  try
+    db_tvrage := getTVInfoByShowName(showname);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s', [e.Message]));
+      exit;
     end;
-
-    try
-      if (db_tvrage <> nil) then
-        db_tvrage.SetTVDbRelease(self);
-    except
-      on e: Exception do
-      begin
-        db_tvrage.free;
-        Debug(dpError, rsections, Format('Exception in TTVRelease.Create.SetTVDbRelease: %s', [e.Message]));
-        exit;
-      end;
-    end;
-    db_tvrage.free;
   end;
-  *)
+
+  try
+    if (db_tvrage <> nil) then
+      db_tvrage.SetTVDbRelease(self);
+  except
+    on e: Exception do
+    begin
+      db_tvrage.free;
+      Debug(dpError, rsections, Format('Exception in TTVRelease.Create.SetTVDbRelease: %s', [e.Message]));
+      exit;
+    end;
+  end;
+  db_tvrage.free;
+end;
+*)
 end;
 
 class function TTVRelease.DefaultSections: string;
@@ -2363,7 +2369,7 @@ begin
     Result := True;
   end;
 
- // aktualizalva := True;
+  // aktualizalva := True;
 end;
 
 function TMVIDRelease.AsText(pazo_id: integer): string;
