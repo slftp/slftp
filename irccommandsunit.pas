@@ -11392,7 +11392,6 @@ begin
 
     tvr := parseTVMazeInfos(resp, sname);
     tvr.rls_showname := RightStrV2(params, length(sid) + 1);
-    tvr.PostResults(Netname, Channel, RightStrV2(params, length(sid) + 1));
     try
       tvr.Save;
     except
@@ -11406,7 +11405,7 @@ begin
         Exit;
       end;
     end;
-
+    tvr.PostResults(Netname, Channel, RightStrV2(params, length(sid) + 1));
   end
   else
     irc_Addtext(netname, channel,
