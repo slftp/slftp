@@ -1927,6 +1927,7 @@ begin
   //  db_tvrage := nil;
   try
     db_tvrage := getTVInfoByShowName(self.showname);
+    db_tvrage.ripname:=self.rlsname;
   except
     on e: Exception do
     begin
@@ -1949,7 +1950,7 @@ begin
 
   if (db_tvrage <> nil) then
   begin
-    if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 62) then
+    if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
       if not db_tvrage.Update then
       begin
