@@ -388,9 +388,12 @@ begin
     tvr.tv_next_date := 0;
 
     ShortDateFormat := 'yyyy-mm-dd';
+    ShortTimeFormat := 'hh:mm';
     DateSeparator := '-';
+    TimeSeparator :=':';
 
     try
+(*
       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
       begin
         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
@@ -403,6 +406,14 @@ begin
         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
         tvr.tv_next_date := DateTimeToUnix(StrToDate(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)));
       end
+*)
+
+ if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
+      begin
+        tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
+        tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
+        tvr.tv_next_date := DateTimeToUnix(StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value+' '+string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value))));
+      end;
 
     except on E: Exception do
         Irc_addadmin(e.Message);
