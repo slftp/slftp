@@ -442,33 +442,69 @@ begin
   GetMem(Result, SizeOf(TslLockHandle));
 
   if Result = nil then exit;
+
 {$IFDEF FPC}
   pthread_mutex_init(@(Result^.lock),nil);
 {$ELSE}
   pthread_mutex_init(Result^.lock,nil);
 {$ENDIF}
+
 end;
 procedure pthreads_dyn_destroy_function(l: PslLockHandle; filename: PChar; line: LongInt);
 begin
   if l = nil then exit;
 
+  //pthread_mutex_destroy(l^.lock);
+{$IFDEF FPC}
+  pthread_mutex_destroy(@(l^.lock));
+{$ELSE}
   pthread_mutex_destroy(l^.lock);
+{$ENDIF}
+
   FreeMem(l);
 end;
 procedure pthreads_dyn_lock_function(mode: LongInt; l: PslLockHandle; filename: PChar; line: LongInt);
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-		pthread_mutex_lock(l^.lock)
+
+		//pthread_mutex_lock(l^.lock)
+                {$IFDEF FPC}
+                pthread_mutex_lock(@(l^.lock))
+                {$ELSE}
+                pthread_mutex_lock(l^.lock)
+                {$ENDIF}
+
 	else
-		pthread_mutex_unlock(l^.lock);
+		//pthread_mutex_unlock(l^.lock);
+
+                {$IFDEF FPC}
+                pthread_mutex_unlock(@(l^.lock));
+                {$ELSE}
+                pthread_mutex_unlock(l^.lock);
+                {$ENDIF}
+
 end;
 
 procedure pthreads_locking_callback(mode, ltype: Longint; filename: PChar; line: Longint); cdecl;
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-		pthread_mutex_lock(callback_locks[ltype])
+		//pthread_mutex_lock(callback_locks[ltype])
+
+                {$IFDEF FPC}
+                pthread_mutex_lock(@(callback_locks[ltype]))
+                {$ELSE}
+                pthread_mutex_lock(callback_locks[ltype])
+                {$ENDIF}
+
 	else
-		pthread_mutex_unlock(callback_locks[ltype]);
+		//pthread_mutex_unlock(callback_locks[ltype]);
+
+                {$IFDEF FPC}
+                pthread_mutex_unlock(@(callback_locks[ltype]));
+                {$ELSE}
+                pthread_mutex_unlock(callback_locks[ltype]);
+                {$ENDIF}
+
 end;
 function pthreads_thread_id(): LongWord; cdecl;
 begin
@@ -502,7 +538,13 @@ begin
   slCRYPTO_set_id_callback(nil);
 
 	for i:= 0 to slCRYPTO_num_locks()-1 do
-		pthread_mutex_destroy(callback_locks[i]);
+		//pthread_mutex_destroy(callback_locks[i]);
+
+                {$IFDEF FPC}
+                pthread_mutex_destroy(@(callback_locks[i]));
+                {$ELSE}
+                pthread_mutex_destroy(callback_locks[i]);
+                {$ENDIF}
 
   SetLength(callback_locks, 0);
 end;
