@@ -1927,7 +1927,7 @@ begin
   //  db_tvrage := nil;
   try
     db_tvrage := getTVInfoByShowName(self.showname);
-    db_tvrage.ripname:=self.rlsname;
+    db_tvrage.ripname:=rlsname;
   except
     on e: Exception do
     begin
@@ -1952,6 +1952,7 @@ begin
   begin
     if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
+      db_tvrage.ripname:=rlsname;
       if not db_tvrage.Update then
       begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));

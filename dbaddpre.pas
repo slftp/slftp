@@ -11,7 +11,7 @@ type
   end;
 
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
-  TAddPreMode = (apmMem, apmSQLITE, apmMYSQL);
+  TAddPreMode = (apmMem, apmSQLITE, apmMYSQL, apmNone);
 
   TDbAddPre = class
     rls: string;
@@ -75,7 +75,7 @@ var
   last_addpre: THashedStringList;
   last_addpre_lock: TCriticalSection;
 
-  dbaddpre_mode: TAddPreMode = TAddPreMode(1);
+  dbaddpre_mode: TAddPreMode = TAddPreMode(3);
   //  integer = 1;
   dbaddpre_plm1: TPretimeLookupMOde;
   dbaddpre_plm2: TPretimeLookupMOde;
@@ -118,6 +118,7 @@ begin
     apmMem: Result := 'Memory';
     apmSQLITE: Result := 'SQLITE';
     apmMYSQL: Result := 'MYSQL';
+    apmNone: Result := 'Skip';
   end;
 end;
 
@@ -392,7 +393,10 @@ begin
   rls_section := UpperCase(SubString(params, ' ', 2));
   if ((rls <> '') and (rls_section <> '') and (length(rls) > minimum_rlsname)) then
   begin
-    dbaddpre_InsertRlz(rls, rls_section, netname + '-' + channel + '-' + nickname);
+
+    if dbaddpre_mode <> apmNone then
+      dbaddpre_InsertRlz(rls, rls_section, netname + '-' + channel + '-' + nickname);
+
     if (event = 'ADDPRE') and (kbadd_addpre) then
     begin
       kb_Add_addpre(rls, rls_section, event);
@@ -413,6 +417,7 @@ var
   q, mysql_result: string;
 begin
   Result := UnixToDateTime(0);
+
   // stor in memory
   if (dbaddpre_mode = apmMem) then
   begin
@@ -513,100 +518,102 @@ begin
   if pretime <> UnixToDateTime(0) then
     exit;
 
-  if (dbaddpre_mode = apmMem) then
-  begin
-    try
-      last_addpre_lock.Enter;
-      try
-        addpredata := TDbAddPre.Create(rls, Now());
-        last_addpre.AddObject(rls, addpredata);
+  //  if dbaddpre_mode = apmNone then
 
-        i := last_addpre.Count;
-        if i > 150 then
-        begin
-          while i > 100 do
+  case dbaddpre_mode of
+    apmMem:
+      begin
+        try
+          last_addpre_lock.Enter;
+          try
+            addpredata := TDbAddPre.Create(rls, Now());
+            last_addpre.AddObject(rls, addpredata);
+
+            i := last_addpre.Count;
+            if i > 150 then
+            begin
+              while i > 100 do
+              begin
+                last_addpre.Delete(0);
+                i := last_addpre.Count - 1;
+              end;
+            end;
+          finally
+            last_addpre_lock.Leave;
+          end;
+        except
+          on e: Exception do
           begin
-            last_addpre.Delete(0);
-            i := last_addpre.Count - 1;
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s',
+              [e.Message]));
+            Result := False;
+            exit;
           end;
         end;
-      finally
-        last_addpre_lock.Leave;
       end;
-    except
-      on e: Exception do
+    apmSQLITE:
       begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s',
-          [e.Message]));
-        Result := False;
-        exit;
+        try
+          pretime := dbaddpre_GetRlz(rls);
+          if pretime <> UnixToDateTime(0) then
+            exit;
+
+          addpreDB.ExecSQL(sql_addrlz, [rls, rls_section, DateTimeToUnix(Now()), Source]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s',
+              [e.Message]));
+            Result := False;
+            exit;
+          end;
+        end;
       end;
-    end;
+    apmMYSQL:
+      begin
+        try
+
+          if config.ReadString('taskmysqlpretime', 'source_field', '-1') = '-1' then
+          begin
+
+            sql := Format('INSERT IGNORE INTO `%s` (`%s`, `%s`, `%s`) ',
+              [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
+              SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
+                ';', 1), SubString(config.ReadString('taskmysqlpretime',
+                'section_field', 'section;1'), ';', 1),
+                SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
+                ';', 1)]);
+
+            //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+            sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
+          end
+          else
+          begin
+            sql := Format('INSERT IGNORE INTO %s (`%s`, `%s`, `%s`, `%s`) ',
+              [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
+              SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
+                ';', 1), SubString(config.ReadString('taskmysqlpretime',
+                'section_field', 'section;1'), ';', 1),
+                SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
+                ';', 1), SubString(config.ReadString('taskmysqlpretime',
+                'source_field', 'source;4'), ';', 1)]);
+
+            //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+            sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+          end;
+          MySQLInsertQuery(sql, [rls, rls_section, Source]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s',
+              [e.Message]));
+            Result := False;
+            exit;
+          end;
+        end;
+
+      end;
   end;
-
-  if dbaddpre_mode = apmSQLITE then
-  begin
-    try
-      pretime := dbaddpre_GetRlz(rls);
-      if pretime <> UnixToDateTime(0) then
-        exit;
-
-      addpreDB.ExecSQL(sql_addrlz, [rls, rls_section, DateTimeToUnix(Now()), Source]);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s',
-          [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-  end;
-
-  if dbaddpre_mode = apmMYSQL then
-  begin
-    try
-
-      if config.ReadString('taskmysqlpretime', 'source_field', '-1') = '-1' then
-      begin
-
-        sql := Format('INSERT IGNORE INTO `%s` (`%s`, `%s`, `%s`) ',
-          [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-          SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-            ';', 1), SubString(config.ReadString('taskmysqlpretime',
-            'section_field', 'section;1'), ';', 1),
-            SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-            ';', 1)]);
-
-        //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-        sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
-      end
-      else
-      begin
-        sql := Format('INSERT IGNORE INTO %s (`%s`, `%s`, `%s`, `%s`) ',
-          [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-          SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-            ';', 1), SubString(config.ReadString('taskmysqlpretime',
-            'section_field', 'section;1'), ';', 1),
-            SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-            ';', 1), SubString(config.ReadString('taskmysqlpretime',
-            'source_field', 'source;4'), ';', 1)]);
-
-        //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-        sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-      end;
-      MySQLInsertQuery(sql, [rls, rls_section, Source]);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s',
-          [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-  end;
-
   Result := True;
 end;
 
@@ -616,42 +623,36 @@ var
   q, res: string;
 begin
   Result := 0;
-
-  if dbaddpre_mode = apmMem then
-  begin
-    Result := last_addpre.Count;
-    exit;
-  end;
-
-  if dbaddpre_mode = apmSQLITE then
-  begin
-    i := 0;
-    addpreDB.Open(sql_countrlz);
-    while addpreDB.Step(sql_countrlz) do
-    begin
-      Inc(i);
-      if i > 10 then
+  case dbaddpre_mode of
+    apmMem: Result := last_addpre.Count;
+    apmSQLITE:
       begin
-        Result := 0;
+        i := 0;
+        addpreDB.Open(sql_countrlz);
+        while addpreDB.Step(sql_countrlz) do
+        begin
+          Inc(i);
+          if i > 10 then
+          begin
+            Result := 0;
+            exit;
+          end;
+          Result := addpreDB.column_int(sql_countrlz, 0);
+        end;
         exit;
       end;
-      Result := addpreDB.column_int(sql_countrlz, 0);
-    end;
-    exit;
-  end;
-
-  if dbaddpre_mode = apmMYSQL then
-  begin
-    mysql_lock.Enter;
-    try
-      q := 'SELECT count(*) as count FROM ' + config.ReadString(
-        'taskmysqlpretime', 'tablename', 'addpre') + ';';
-      res := gc(mysqldb, q, []);
-      Result := StrToIntDef(res, 0);
-    finally
-      mysql_lock.Leave;
-    end;
-    exit;
+    apmMYSQL:
+      begin
+        mysql_lock.Enter;
+        try
+          q := 'SELECT count(*) as count FROM ' + config.ReadString(
+            'taskmysqlpretime', 'tablename', 'addpre') + ';';
+          res := gc(mysqldb, q, []);
+          Result := StrToIntDef(res, 0);
+        finally
+          mysql_lock.Leave;
+        end;
+      end;
   end;
 end;
 
@@ -765,7 +766,7 @@ begin
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
   kbadd_sitepre := config.ReadBool(section, 'kbadd_sitepre', False);
 
-  dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 1));
+  dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
   dbaddpre_plm1 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
   dbaddpre_plm2 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0));
 
@@ -795,6 +796,7 @@ begin
     0: Console_Addline('', 'Local addpre List Started...');
     1: Console_Addline('', 'Local SQLITE addpre DB Started...');
     2: Console_Addline('', 'Connected to MYSQL DupeDB...');
+    //3: Exit;
   end;
 end;
 
