@@ -39,7 +39,7 @@ type
     procedure PostResults(rls: string = ''); overload;
     procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
-    procedure UpdateIRC;
+    function UpdateIRC: boolean;
     function Update: boolean;
     procedure setTheTVDbID(id: integer);
     procedure setTVRageID(id: integer);
@@ -68,7 +68,7 @@ function deleteTVInfoByRipName(Name: string): Integer;
 
 procedure addTVInfos(params: string);
 
-procedure TVInfoFireKbAdd(rls: string; msg:string = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
+procedure TVInfoFireKbAdd(rls: string; msg: string = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
 
 function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
@@ -212,7 +212,7 @@ begin
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd',
-        UnixToDateTime(tv_next_date))]));
+          UnixToDateTime(tv_next_date))]));
       irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end
     else
@@ -223,7 +223,7 @@ begin
         tv_classification, tv_status]));
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
       irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss',
-        UnixToDateTime(last_updated))]));
+          UnixToDateTime(last_updated))]));
     end;
   except on e: Exception do
     begin
@@ -258,7 +258,7 @@ begin
         tv_classification, tv_status]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s)', [tv_country, tv_network]));
       irc_AddText(Netname, CHannel, Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss',
-        UnixToDateTime(last_updated))]));
+          UnixToDateTime(last_updated))]));
     end;
   except on e: Exception do
     begin
@@ -270,10 +270,13 @@ end;
 
 function TTVInfoDB.Update: boolean;
 var
+  rls_name: string;
   respo: string;
   sql: string;
   //  js: TlkJSONobject;
 begin
+  //variable will be overwriten by  parseTVMazeInfos.
+  rls_name := self.ripname;
   result := False;
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
 
@@ -300,14 +303,23 @@ begin
     tv_next_ep,
       StrToInt(tvmaze_id)]));
 
-  if result then
-    TVInfoFireKbAdd(ripname,'<c9>[TVInfo]</c> Updated -> %s %s (%s)');
+  try
+
+    if result then
+      TVInfoFireKbAdd(rls_name, '<c9>[TVInfo]</c> Updated -> %s %s (%s)');
+  except on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Update.fireKB: %s ', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update.fireKB: %s', [e.Message]));
+    end;
+  end;
 
 end;
 
-procedure TTVInfoDB.UpdateIRC;
+function TTVInfoDB.UpdateIRC: boolean;
 begin
-  tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+  result :=
+    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
     tv_next_ep,
       StrToInt(tvmaze_id)]));
@@ -533,9 +545,9 @@ begin
         tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
         tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
         tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
-        tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
-        tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), -1);
-        tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), -1);
+        tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), 0);
+        tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), 0);
+        tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), 0);
         result := tvi;
       end;
     except
@@ -608,7 +620,7 @@ begin
   end;
 end;
 
-procedure TVInfoFireKbAdd(rls: string; msg:string = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
+procedure TVInfoFireKbAdd(rls: string; msg: string = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
 var
   p: TPazo;
   ps: TPazoSite;
@@ -624,8 +636,8 @@ begin
     begin
       try
         if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
-//          irc_Addadmin(Format(msg,[p.rls.section, p.rls.rlsname, ps.Name]));
-          irc_Addadmin(Format(msg,[p.rls.section, p.rls.rlsname, ps.Name]));
+          //          irc_Addadmin(Format(msg,[p.rls.section, p.rls.rlsname, ps.Name]));
+          irc_Addadmin(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
         kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
       except
         on e: Exception do
@@ -638,16 +650,69 @@ begin
   end;
 end;
 
+function fixMyCrap(userVersion: integer): boolean;
+var
+  u: Psqlite3_stmt;
+begin
+  result := false;
+  u := tvinfodb.open('SELECT COUNT(*) FROM _infos_old_v1;');
+  if (userVersion = 0) then
+  begin
+
+    if not tvinfodb.ExecSQL('DROP TABLE IF EXISTS _infos_old_v1') then
+    begin
+
+      Debug(dpError, section, '[ERROR] in fixMyCrap: DROP TABLE Failed');
+      Exit;
+    end;
+
+    if not tvinfodb.ExecSQL('PRAGMA user_version = 2;') then
+    begin
+      Debug(dpError, section, '[ERROR] fiyMyCrap: PRAGMA user_version = 2');
+      Exit;
+    end;
+    result := True;
+  end;
+
+end;
+
 procedure dbTVInfoStart;
 var
+  uV: integer;
   db_name, db_params: string;
+  user_version: Psqlite3_stmt;
 begin
   addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
-    db_params := config.ReadString(section, 'pragma', ' main.locking_mode=NORMAL');
-    tvinfodb := TslSqliteDB.Create(db_name, db_params);
+    db_params := config.ReadString(section, 'pragma', ' locking_mode=NORMAL;');
+    tvinfodb := TslSqliteDB.Create(db_name, '');
+    // tvinfodb.ExecSQL('PRAGMA locking_mode=normal;');
+
+    //Just fix the poo i did :)
+    user_version := tvinfodb.Open('PRAGMA user_version;');
+    if tvinfodb.Step(user_version) then
+      uV := StrToIntDef(tvinfodb.column_text(user_version, 0), -1);
+    if not tvinfodb.Close(user_version) then
+      Irc_AddAdmin('konnte user_version nicht closen...');
+
+    if uV = 0 then
+    begin
+
+      if not tvinfodb.ExecSQL('DROP TABLE IF EXISTS _infos_old_v1;') then
+      begin
+        irc_AddAdmin('[ERROR] in fixMyCrap: DROP TABLE Failed ' + sqlite3_errmsg(tvinfodb));
+        Debug(dpError, section, '[ERROR] in fixMyCrap: DROP TABLE Failed: ' + sqlite3_errmsg(tvinfodb));
+        Exit;
+      end
+      else
+      begin
+
+        tvinfodb.ExecSQL('PRAGMA user_version = 2;');
+      end;
+
+    end;
 
     tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
 
@@ -659,11 +724,8 @@ begin
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
-    if not tvinfodb.ExecSQL('SELECT * FROM _infos_old_v1;') then
-      updateToV2;
-
-    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
   end;
+    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
 end;
 
 procedure dbTVInfoInit;
@@ -847,6 +909,19 @@ begin
     Debug(dpError, section, '[ERROR] in updateToV2: CREATE UNIQUE INDEX Failed');
     Exit;
   end;
+
+  if not tvinfodb.ExecSQL('PRAGMA user_version = 2;') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: PRAGMA user_version = 2');
+    Exit;
+  end;
+
+  if not tvinfodb.ExecSQL('DROP TABLE "main"."_infos_old_v1";') then
+  begin
+    Debug(dpError, section, '[ERROR] in updateToV2: DROP ALTERED TABLE Failed');
+    Exit;
+  end;
+
   result := True;
 end;
 
