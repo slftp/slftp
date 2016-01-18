@@ -142,6 +142,7 @@ begin
   s := Csere(s, '', chr(39));
   sname := Csere(s, ' ', '+');
   sname := Csere(sname, '.', '+');
+  
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + sname;
   try
     response := slUrlGet(url);
@@ -221,6 +222,85 @@ begin
   end;
 end;
 
+procedure findCurrentAirDate(json: TlkJSONobject; out season, episdoe: Integer; out date: TDateTime);
+var
+  ep_nextnum, ep_prevnum: integer;
+  se_nextnum, se_prevnum: integer;
+  nextdt, prevdt: TDateTime;
+begin
+
+  ShortDateFormat := 'yyyy-mm-dd';
+  ShortTimeFormat := 'hh:mm';
+  DateSeparator := '-';
+  TimeSeparator := ':';
+
+  try
+
+    if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['previousepisode'] <> nil)) then
+    begin
+      ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
+      se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
+      prevdt := UnixToDateTime(0);
+      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' +
+        string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value));
+    end;
+
+  except on E: Exception do
+    begin
+      Debug(dpError, section, '[Exception] in findCurrentAirDate.previousepisode: ' + E.Message);
+      Irc_AddAdmin('[Exception] in findCurrentAirDate.previousepisode: ' + E.Message);
+    end;
+  end;
+
+  try
+
+    if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['nextepisode'] <> nil)) then
+    begin
+      ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
+      se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
+      nextdt := UnixToDateTime(0);
+      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' +
+        string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value));
+    end;
+
+  except on E: Exception do
+    begin
+      Debug(dpError, section, '[Exception] in findCurrentAirDate.nextepisode: ' + E.Message);
+      Irc_AddAdmin('[Exception] in findCurrentAirDate.previousepisode: ' + E.Message);
+    end;
+  end;
+
+  if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
+  begin
+    // next date is smaller|equal to now()..
+    //Irc_AddAdmin('next date is smaller|equal to now()..');
+    episdoe := ep_nextnum;
+    season := se_nextnum;
+    date := DateTimeToUnix(nextdt);
+    Exit;
+  end;
+
+  if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
+  begin
+    //previous date + 1Day is grater|equal to now()
+    //Irc_AddAdmin('previous date + 1Day is grater|equal to now()');
+    episdoe := ep_prevnum;
+    season := se_prevnum;
+    date := DateTimeToUnix(prevdt);
+    Exit;
+  end;
+
+  if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
+  begin
+    // nothing before matched and next_date is grater then now, so we took this.
+    //Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
+    episdoe := ep_nextnum;
+    season := se_nextnum;
+    date := DateTimeToUnix(nextdt);
+  end;
+
+end;
+
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
 const
   genreList: string = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
@@ -230,12 +310,10 @@ var
   tvr: TTVInfoDB;
   i: integer;
   s: string;
-  ep_nextnum, ep_prevnum: integer;
-  se_nextnum, se_prevnum: integer;
-  nextdt, prevdt: TDateTime;
   js: TlkJSONobject;
   slGen, gMaze, gTVDB, x: TStringlist;
-
+  season, episdoe: Integer;
+  date: TDateTime;
 begin
   result := nil;
   js := nil;
@@ -352,24 +430,7 @@ begin
       end;
 
     end;
-    (*
-  if js.Field['genres'].Count = 0 then
-  begin
-    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-    begin
-      irc_addAdmin('<b>Info</b>: No genre value found, fetching them from TheTVDb');
-      tvr.tv_genres.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
-      //tvr.tv_genres.Add('Test');
-      //tvr.tv_genres.Add('nother Test');
-    end;
-  end
-  else
-  begin
 
-    for I := 0 to js.Field['genres'].Count - 1 do
-      tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
-  end;
-  *)
     if js.Field['premiered'].SelfType <> jsNull then
     begin
 
@@ -390,78 +451,81 @@ begin
     tvr.tv_next_season := 0;
     tvr.tv_next_date := DateTimeToUnix(0);
 
-    ShortDateFormat := 'yyyy-mm-dd';
-    ShortTimeFormat := 'hh:mm';
-    DateSeparator := '-';
-    TimeSeparator := ':';
-
-    try
-      if ((js.Field['_embedded'].SelfType <> jsNull) and (js.Field['_embedded'].Field['previousepisode'].SelfType <> jsNull)) then
-      begin
-        ep_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
-        se_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
-        prevdt := UnixToDateTime(0);
-        prevdt := StrToDateTime(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' +
-          string(js.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value));
-      end;
-      if ((js.Field['_embedded'].SelfType <> jsNull) and (js.Field['_embedded'].Field['nextepisode'].SelfType <> jsNull)) then
-      begin
-        ep_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-        se_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
-        nextdt := UnixToDateTime(0);
-        nextdt := StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' +
-          string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value));
-      end;
-
-      //Show ended there is no next!
-      if lowercase(tvr.tv_status) = 'ended' then
-      begin
-        tvr.tv_next_ep := 0;
-        tvr.tv_next_season := 0;
-        tvr.tv_next_date := DateTimeToUnix(0);
-      end
-      else
-       if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
-      begin
-        // next date is smaller|equal to now()..
-        //Irc_AddAdmin('next date is smaller|equal to now()..');
-        tvr.tv_next_ep := ep_nextnum;
-        tvr.tv_next_season := se_nextnum;
-        tvr.tv_next_date := DateTimeToUnix(nextdt);
-      end
-      else
-      if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
-      begin
-        //previous date + 1Day is grater|equal to now()
-        //Irc_AddAdmin('previous date + 1Day is grater|equal to now()');
-        tvr.tv_next_ep := ep_prevnum;
-        tvr.tv_next_season := se_prevnum;
-        tvr.tv_next_date := DateTimeToUnix(prevdt);
-      end else if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then begin
-        // nothing before matched and next_date is grater then now, so we took this.
-        //Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
-        tvr.tv_next_ep := ep_nextnum;
-        tvr.tv_next_season := se_nextnum;
-        tvr.tv_next_date := DateTimeToUnix(nextdt);
-      end;
-
-
-      (*
-       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
-            begin
-              tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
-              tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-              tvr.tv_next_date := DateTimeToUnix(StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value+' '+string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value))));
-            end;
-      *)
-    except on E: Exception do
-      begin
-        Debug(dpError, section, Format('[Exception] in parseTVMazeInfos.findNext: %s', [e.Message]));
-        irc_Adderror(Format('<c4>[Exception]</c> in parseTVMazeInfos.findNext: %s', [e.Message]));
-      end;
+    //Show not ended so we check for next.
+    if lowercase(tvr.tv_status) <> 'ended' then begin
+      findCurrentAirDate(js, season, episdoe, date);
+      tvr.tv_next_season:=season;
+      tvr.tv_next_ep:=episdoe;
+      tvr.tv_next_date:=DateTimeToUnix(date);
     end;
 
-    //string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
+    {
+try
+ if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
+ begin
+   ep_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
+   se_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
+   prevdt := UnixToDateTime(0);
+   prevdt := StrToDateTime(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' +
+     string(js.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value));
+ end;
+ if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
+ begin
+   ep_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
+   se_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
+   nextdt := UnixToDateTime(0);
+   nextdt := StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' +
+     string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value));
+ end;
+
+ //Show ended there is no next!
+ if lowercase(tvr.tv_status) = 'ended' then
+ begin
+   tvr.tv_next_ep := -1;
+   tvr.tv_next_season := -1;
+   tvr.tv_next_date := DateTimeToUnix(0);
+ end
+ else if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
+ begin
+   // next date is smaller|equal to now()..
+   //Irc_AddAdmin('next date is smaller|equal to now()..');
+   tvr.tv_next_ep := ep_nextnum;
+   tvr.tv_next_season := se_nextnum;
+   tvr.tv_next_date := DateTimeToUnix(nextdt);
+ end
+ else if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
+ begin
+   //previous date + 1Day is grater|equal to now()
+   //Irc_AddAdmin('previous date + 1Day is grater|equal to now()');
+   tvr.tv_next_ep := ep_prevnum;
+   tvr.tv_next_season := se_prevnum;
+   tvr.tv_next_date := DateTimeToUnix(prevdt);
+ end
+ else if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
+ begin
+   // nothing before matched and next_date is grater then now, so we took this.
+   //Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
+   tvr.tv_next_ep := ep_nextnum;
+   tvr.tv_next_season := se_nextnum;
+   tvr.tv_next_date := DateTimeToUnix(nextdt);
+ end;
+
+ (*
+  if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
+       begin
+         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
+         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
+         tvr.tv_next_date := DateTimeToUnix(StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value+' '+string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value))));
+       end;
+ *)
+except on E: Exception do
+ begin
+   Debug(dpError, section, Format('[Exception] in parseTVMazeInfos.findNext: %s', [e.Message]));
+   irc_Adderror(Format('<c4>[Exception]</c> in parseTVMazeInfos.findNext: %s', [e.Message]));
+ end;
+end;
+  }
+//string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
     result := tvr;
   finally
     js.free;
