@@ -151,11 +151,31 @@ begin
   tr.running := tv_running;
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
-
-  tr.currentseason := Boolean(tv_next_season = tr.season);
-  tr.currentepisode := Boolean(tv_next_ep = tr.episode);
-  tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
   tr.daily := Boolean(tv_days.Count > 1);
+   case tv_next_season of
+    -5:
+      begin
+        //Prev and Next are on the same day.
+        tv_next_ep := tr.episode;
+        tv_next_season := tr.season;
+      end;
+    -10:
+      begin
+        //show is ended.
+        tv_next_ep := 0;
+        tv_next_season := 0;
+        tr.currentseason := False;
+        tr.currentepisode := False;
+        tr.currentair := False;
+       end;
+   else
+    begin
+      tr.currentseason := Boolean(tv_next_season = tr.season);
+      tr.currentepisode := Boolean(tv_next_ep = tr.episode);
+      tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
+    end;
+
+  end;
 
   tr.thetvdbid := thetvdb_id;
   //  tr.tvmazeid:= tv_tvmazeid;
@@ -725,7 +745,7 @@ begin
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
   end;
-    Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
+  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
 end;
 
 procedure dbTVInfoInit;

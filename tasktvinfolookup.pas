@@ -270,6 +270,15 @@ begin
     end;
   end;
 
+
+
+ if IsSameDay(prevdt,nextdt) then begin
+    episdoe := -5;
+    season := -5;
+    date := DateTimeToUnix(nextdt);
+ end;
+
+
   if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
   begin
     // next date is smaller|equal to now()..
@@ -447,8 +456,8 @@ begin
     else
       tvr.tv_premiered_year := -1;
 
-    tvr.tv_next_ep := 0;
-    tvr.tv_next_season := 0;
+    tvr.tv_next_ep := -10;
+    tvr.tv_next_season := -10;
     tvr.tv_next_date := DateTimeToUnix(0);
 
     //Show not ended so we check for next.
