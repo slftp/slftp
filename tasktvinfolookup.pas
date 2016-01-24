@@ -60,25 +60,29 @@ const
 
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 begin
-  result := name;
-  result := Csere(result, 'and', '&');
-  result := Csere(result, 'at', '@');
-  result := Csere(result, '.and.', '.&.');
-  result := Csere(result, '.at.', '.@.');
-  result := Csere(result, '.and.', '_&_');
-  result := Csere(result, '.at.', '_@_');
-  result := Csere(result, '', chr(39));
+//  result := name;
+  name := Csere(name, 'and', '&');
+  name := Csere(name, 'at', '@');
+  name := Csere(name, '.and.', '.&.');
+  name := Csere(name, '.at.', '.@.');
+  name := Csere(name, '.and.', '_&_');
+  name := Csere(name, '.at.', '_@_');
+  name := Csere(name, '', chr(39));
   if forWebFetch then
   begin
-    result := Csere(result, ' ', '+');
-    result := Csere(result, '.', '+');
+    result := Csere(name, ' ', '+');
+    result := Csere(name, '.', '+');
   end;
+  result:=name;
 end;
 
 function findTVMazeIDByName(name: string): string;
 var
-  s, sname, url, response: string;
+  year, country, s, sname, url, response: string;
   js: TlkJSONobject;
+  hadYear, hadCountry: boolean;
+  r: TRegexpr;
+  I: Integer;
 begin
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
@@ -86,11 +90,28 @@ begin
   s := Csere(s, '.and.', '_&_');
   s := Csere(s, '.at.', '_@_');
   s := Csere(s, '', chr(39));
-  sname := Csere(s, ' ', '+');
-  sname := Csere(sname, '.', '+');
-
+  s := Csere(s, ' ', '+');
+  s := Csere(s, '.', '+');
+(*
+    r := TRegexpr.Create;
+  try
+    r.Expression := '\d{4}$';
+    if r.Exec(s) then
+    begin
+      hadYear = True;
+      year := r.Match[0];
+      s := r.Replace(s, '');
+    end;
+    r.Expression := '\+(\w+)$';
+    hadCountry = True;
+    country := r.Match[0];
+    s := r.Replace(s, '');
+  finally
+    r.free;
+  end;
+*)
   //  sname:=replaceTVShowChars(name,true);  we will test it somewhere else....
-  url := 'http://api.tvmaze.com/singlesearch/shows?q=' + sname;
+  url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
   except on E: Exception do
@@ -113,8 +134,8 @@ begin
   end;
 
   js := TlkJSON.ParseText(response) as TlkJSONobject;
-  try
 
+  try
     if js.Field['id'].SelfType <> jsNull then
       result := string(js.Field['id'].Value)
     else
@@ -131,19 +152,39 @@ end;
 
 function findTheTVDbIDByName(name: string): string;
 var
-  s, sname, url, response: string;
+  year, country, s, sname, url, response: string;
   js: TlkJSONobject;
+  hadYear, hadCountry: boolean;
+  r: TRegexpr;
 begin
+  hadYear := False;
+  hadCountry := False;
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
   s := Csere(s, '.at.', '.@.');
   s := Csere(s, '.and.', '_&_');
   s := Csere(s, '.at.', '_@_');
   s := Csere(s, '', chr(39));
-  sname := Csere(s, ' ', '+');
-  sname := Csere(sname, '.', '+');
-  
-  url := 'http://api.tvmaze.com/singlesearch/shows?q=' + sname;
+  s := Csere(s, ' ', '+');
+  s := Csere(s, '.', '+');
+  (*
+    try
+      r := TRegexpr.Create;
+      r.Expression:='\d{4}$';
+      if r.Exec(s) then begin
+      hadYear=True;
+      year:=r.Match[0];
+      s:=r.Replace(s,'');
+      end;
+      r.Expression:='\+(\w+)$';
+      hadCountry=True;
+      country:=r.Match[0];
+      s:=r.Replace(s,'');
+    finally
+      r.free;
+    end;
+  *)
+  url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
   except on E: Exception do
@@ -166,13 +207,12 @@ begin
 
   js := TlkJSON.ParseText(response) as TlkJSONobject;
   try
-
     if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       result := string(js.Field['externals'].Field['thetvdb'].Value)
     else
     begin
       Debug(dpError, section, 'Cant find theTVDB id for ' + name + ' (' + sname + ')');
-      irc_addadmin('Cant find theTVDB id for ' + name + ' (' + sname + ')');
+      irc_addadmin('<b><c14>Info</b></c>: Cant find theTVDB id for ' + name + ' (' + sname + ')');
     end;
 
   finally
@@ -270,14 +310,12 @@ begin
     end;
   end;
 
-
-
- if IsSameDay(prevdt,nextdt) then begin
+  if IsSameDay(prevdt, nextdt) then
+  begin
     episdoe := -5;
     season := -5;
     date := DateTimeToUnix(nextdt);
- end;
-
+  end;
 
   if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
   begin
@@ -461,11 +499,12 @@ begin
     tvr.tv_next_date := DateTimeToUnix(0);
 
     //Show not ended so we check for next.
-    if lowercase(tvr.tv_status) <> 'ended' then begin
+    if lowercase(tvr.tv_status) <> 'ended' then
+    begin
       findCurrentAirDate(js, season, episdoe, date);
-      tvr.tv_next_season:=season;
-      tvr.tv_next_ep:=episdoe;
-      tvr.tv_next_date:=DateTimeToUnix(date);
+      tvr.tv_next_season := season;
+      tvr.tv_next_ep := episdoe;
+      tvr.tv_next_date := DateTimeToUnix(date);
     end;
 
     {

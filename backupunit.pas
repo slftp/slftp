@@ -91,7 +91,7 @@ procedure CreateBackup(s: string);
 var
   vbname: string;
 begin
-  vbname := s + 'slftp-backup-' + FormatDateTime('yyyymmddhhnnss', Now) + '.tar';
+  vbname := s + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
   try
     with TTarWriter.Create(vbname) do
     begin
@@ -106,10 +106,10 @@ begin
         if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
           AddFile(config.ReadString('stats', 'database', 'nonexist'));
       end;
-         (*  need a better way to backup this file :(
-      if fileexists('tvinfos.db') then
-        AddFile('tvinfos.db');
-       *)
+      (*  need a better way to backup this file :(
+   if fileexists('tvinfos.db') then
+     AddFile('tvinfos.db');
+    *)
       if fileexists('mirktrade.conf') then
         AddFile('mirktrade.conf');
       if fileexists('sites.dat') then
@@ -146,7 +146,6 @@ begin
         AddFile('slftp.languages');
       if fileexists('slftp.knowngroups') then
         AddFile('slftp.knowngroups');
-      //<!-- mr.dOH files
       if fileexists('slftp.socks5') then
         AddFile('slftp.socks5');
       if fileexists('languagebase.slftp') then
@@ -159,7 +158,6 @@ begin
         AddFile('slftp.skipgroups');
       if fileexists('slftp.preurls') then
         AddFile('slftp.preurls');
-      //----------------------------------------------------------------------------->
       Free;
     end;
   except
@@ -260,7 +258,7 @@ begin
     Mkdir(s);
   s := MyIncludeTrailingSlash(s);
   ForceDirectories(s);
-  cb := TTarWriter.Create(s + 'slbackup-' + FormatDateTime('mmdd_hhnnss', Now) + '.tar');
+  cb := TTarWriter.Create(s + 'slbackup-' + FormatDateTime('yyyy-mm-dd_hhnnss', Now) + '.tar');
   try
     (*
     if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
@@ -268,7 +266,6 @@ begin
           if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
           cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
           *)
-
 
     if fileexists('mirktrade.conf') then
       cb.AddFile('mirktrade.conf');
@@ -308,8 +305,8 @@ begin
       cb.AddFile('slftp.knowngroups');
     if fileexists('slftp.socks5') then
       cb.AddFile('slftp.socks5');
-    if fileexists('imdbcountrys.nwo') then
-      cb.AddFile('imdbcountrys.nwo');
+    if fileexists('slftp.imdbcountries') then
+      cb.AddFile('slftp.imdbcountries');
     if fileexists('languagebase.slftp') then
       cb.AddFile('languagebase.slftp');
     if fileexists('slftp.preurls') then
