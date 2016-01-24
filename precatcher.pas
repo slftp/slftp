@@ -483,7 +483,7 @@ begin
         MyDebug('<c4>[Bad Group]</c> detected!: ' + rls);
         Debug(dpSpam, rsections, 'Bad Group detected!: ' + rls);
         if not precatcher_debug then
-          irc_addadmin('Bad Group detected!: ' + rls);
+          irc_addadmin('<b><c14>Info</c14></b>: Bad Group detected!: ' + rls);
         skiprlses.Add(rls);
         //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Bad Group detected', [FormatDateTime('hh:nn:ss', Now)]));
         exit;
