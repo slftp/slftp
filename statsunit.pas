@@ -77,7 +77,7 @@ begin
 
   irc_addtext(netname, channel, Format('%s race stats of site: <b>%s</b>', [periode, sitename]));
 
-  q:= 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '''+sitename+''' AND ts > date(''now'','''+sql_periode+''');';
+  q:= 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
@@ -99,7 +99,7 @@ begin
     irc_addtext(netname, channel, Format('TOTAL <b>out</b> %.2f %s (%s files)', [size, s_unit,stats.column_text(s, 0)]));
   end;
 
-  q:= 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '''+sitename+''' AND ts > date(''now'','''+sql_periode+''');';
+  q:= 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
@@ -124,29 +124,7 @@ begin
   if not detail then Exit;
   
 
-  q:= 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '''+sitename+''' AND ts > date(''now'','''+sql_periode+''') GROUP BY sitedst ORDER BY sitedst';
-  s:= stats.Open(q);
-  while stats.Step(s) do
-  begin
-    s_size:= StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    size := StrToFloatDef(s_size, 0);
-    s_unit := 'KB';
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit :='MB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit :='GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit :='TB';
-    end;
-    irc_addtext(netname, channel, Format('<b>from</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
-  end;
-
-  q:= 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '''+sitename+''' AND ts > date(''now'','''+sql_periode+''') GROUP BY sitesrc ORDER BY sitesrc';
+  q:= 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitedst ORDER BY sitedst';
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
@@ -166,6 +144,28 @@ begin
       s_unit :='TB';
     end;
     irc_addtext(netname, channel, Format('<b>to</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
+  end;
+
+  q:= 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
+  s:= stats.Open(q);
+  while stats.Step(s) do
+  begin
+    s_size:= StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    size := StrToFloatDef(s_size, 0);
+    s_unit := 'KB';
+    if size > 1024  then begin
+      size := size / 1024;
+      s_unit :='MB';
+    end;
+    if size > 1024  then begin
+      size := size / 1024;
+      s_unit :='GB';
+    end;
+    if size > 1024  then begin
+      size := size / 1024;
+      s_unit :='TB';
+    end;
+    irc_addtext(netname, channel, Format('<b>from</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
   end;
 end;
 
