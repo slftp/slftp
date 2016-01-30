@@ -152,7 +152,7 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
   tr.daily := Boolean(tv_days.Count > 1);
-   case tv_next_season of
+  case tv_next_season of
     -5:
       begin
         //Prev and Next are on the same day.
@@ -167,8 +167,8 @@ begin
         tr.currentseason := False;
         tr.currentepisode := False;
         tr.currentair := False;
-       end;
-   else
+      end;
+  else
     begin
       tr.currentseason := Boolean(tv_next_season = tr.season);
       tr.currentepisode := Boolean(tv_next_ep = tr.episode);
@@ -516,7 +516,8 @@ begin
       showname := rx.Match[1];
 
     rx.Expression :=
-      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
+      //      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
+    '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
     if rx.Exec(rls) then
       showname := rx.Match[1];
     rx.Expression := '[\.\_]';
