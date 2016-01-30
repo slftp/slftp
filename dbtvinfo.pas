@@ -74,6 +74,9 @@ function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
 function updateToV2: boolean;
 
+procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: integer);overload;
+procedure getShowValues(rip: string; out showName: string);overload;
+
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
@@ -92,6 +95,58 @@ var
   oldtvinfodbcmd: string;
 
   //  last_addthetvdb: THashedStringList;
+
+
+procedure getShowValues(rip: string; out showName: string);
+var season,episode:integer;
+begin
+getShowValues(rip,showName,season,episode);
+end;
+
+procedure getShowValues(rip: string; out showname: string; out season: integer; out episode: integer);
+var
+  rx: TRegexpr;
+begin
+  rx := TRegexpr.Create;
+  try
+      rx.ModifierI := True;
+    //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv
+    rx.Expression := '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
+    if rx.Exec(rip) then
+    begin
+      showname := rx.Match[1];
+      season := 0;
+      episode := 0;
+      exit;
+    end;
+
+    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
+    if rx.Exec(rip) then
+    begin
+      showname := rx.Match[1];
+      season := StrToIntDef(rx.Match[2], 0);
+      episode := StrToIntDef(rx.Match[3], 0);
+    end;
+
+    rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
+    if rx.Exec(rip) then
+    begin
+      showname := rx.Match[1];
+      season := StrToIntDef(rx.Match[2], 0);
+      //    episode := StrToIntDef(rx.Match[5], 0);
+      if StrToIntDef(rx.Match[7], 0) > 0 then
+        episode := StrToIntDef(rx.Match[7], 0)
+      else
+        episode := StrToIntDef(rx.Match[5], 0);
+      Exit;
+    end;
+
+  finally
+    rx.free;
+  end;
+end;
+
+
 
 {   TTVInfoDB                                 }
 
@@ -500,31 +555,9 @@ var
 begin
   Result := nil;
   showname := rls;
-  rx := TRegexpr.Create;
-  try
-    rx.ModifierI := True;
-
-    rx.Expression :=
-      '(.*)[\._-](\d{4}[\._-]\d{2}[\._-]\d{2}|\d{2}[\._-]\d{2}[\._-]\d{4})[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      showname := rx.Match[1];
-    end;
-
-    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
-    if rx.Exec(rls) then
-      showname := rx.Match[1];
-
-    rx.Expression :=
-      //      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
-    '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?)?[\._-](.*)';
-    if rx.Exec(rls) then
-      showname := rx.Match[1];
-    rx.Expression := '[\.\_]';
-    showname := rx.Replace(showname, ' ');
-  finally
-    rx.Free;
-  end;
+    getShowValues(showname,showname);
+    showname:=Csere(showname,'.',' ');
+    showname:=Csere(showname,'_',' ');
 
   if (showname <> '') then
   begin

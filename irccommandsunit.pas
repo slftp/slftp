@@ -10783,7 +10783,7 @@ begin
     SitesD(Netname, Channel, sup, sdn, suk, spd);
     irc_addtext(Netname, Channel,
       '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
-      [sites.Count - 2, sup.Count, sdn.Count, suk.Count, spd.Count]);
+      [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
     rx.Expression :=
       'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
     if rx.Exec(ReadAppQueueCaption) then

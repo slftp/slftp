@@ -266,6 +266,9 @@ function kb_Add(const netname, channel: string;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
 function FindSectionHandler(section: string): TCRelease;
+
+
+
 procedure kb_FreeList;
 procedure kb_Save;
 procedure KB_start;
@@ -346,6 +349,7 @@ var
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
+
 
 function FindSectionHandler(section: string): TCRelease;
 var
@@ -1927,7 +1931,7 @@ begin
   //  db_tvrage := nil;
   try
     db_tvrage := getTVInfoByShowName(self.showname);
-    db_tvrage.ripname:=rlsname;
+    db_tvrage.ripname := rlsname;
   except
     on e: Exception do
     begin
@@ -1952,7 +1956,7 @@ begin
   begin
     if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
-      db_tvrage.ripname:=rlsname;
+      db_tvrage.ripname := rlsname;
       if not db_tvrage.Update then
       begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
@@ -2062,69 +2066,10 @@ begin
   //  genres.Delimiter:= '|';
   genres.QuoteChar := '"';
 
-  rx := TRegexpr.Create;
-  rx.ModifierI := True;
+  getShowValues(rlsname, showname, season, episode);
+  showname:=Csere(showname,'.',' ');
+  showname:=Csere(showname,'_',' ');
 
-  //[\.\_](\d{4})[\.\-](\d{2})[\.\-](\d{2})[\.\_]
-  rx.Expression := '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
-  if rx.Exec(rlsname) then
-  begin
-    showname := rx.Match[1];
-
-  end;
-
-  rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
-  if rx.Exec(rlsname) then
-  begin
-    showname := rx.Match[1];
-    season := StrToIntDef(rx.Match[2], 0);
-    episode := StrToIntDef(rx.Match[3], 0);
-  end;
-
-  //  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
-  rx.Expression := '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
-  if rx.Exec(rlsname) then
-  begin
-    showname := rx.Match[1];
-    season := StrToIntDef(rx.Match[2], 0);
-    //    episode := StrToIntDef(rx.Match[5], 0);
-    if StrToIntDef(rx.Match[7], 0) > 0 then
-      episode := StrToIntDef(rx.Match[7], 0)
-    else
-      episode := StrToIntDef(rx.Match[5], 0);
-  end;
-
-  rx.Expression := '[\.\_]';
-  showname := rx.Replace(showname, ' ');
-
-  rx.Free;
-  (*
-if (showname <> '') then
-begin
-  try
-    db_tvrage := getTVInfoByShowName(showname);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, Format('Exception in TTVRelease.Create.getTVInfoByShowName: %s', [e.Message]));
-      exit;
-    end;
-  end;
-
-  try
-    if (db_tvrage <> nil) then
-      db_tvrage.SetTVDbRelease(self);
-  except
-    on e: Exception do
-    begin
-      db_tvrage.free;
-      Debug(dpError, rsections, Format('Exception in TTVRelease.Create.SetTVDbRelease: %s', [e.Message]));
-      exit;
-    end;
-  end;
-  db_tvrage.free;
-end;
-*)
 end;
 
 class function TTVRelease.DefaultSections: string;
