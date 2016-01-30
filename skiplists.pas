@@ -269,6 +269,7 @@ begin
       filemask.Add(TslMask.Create('*.rar'));
       filemask.Add(TslMask.Create('*.r[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.s[0-9][0-9]'));
+      filemask.Add(TslMask.Create('*.t[0-9][0-9]'));      
       filemask.Add(TslMask.Create('*.[0-9][0-9][0-9]'));
     end
     else
