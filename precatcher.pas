@@ -1083,9 +1083,8 @@ end;
 
 function precatcher_logfilename: string;
 begin
-  Result := config.ReadString(rsections, 'debugfile',
-    ExtractFilePath(ParamStr(0)) +
-    'precatcher.log');
+  Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
+
 end;
 
 procedure Precatcher_Init;
