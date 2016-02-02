@@ -6,7 +6,7 @@ uses SyncObjs, tasksunit, pazo;
 
 type
   TPazoPlainTask = class(TTask) // no announce
-    pazo_id:  integer;
+    pazo_id: integer;
     mainpazo: TPazo;
     ps1, ps2: TPazoSite;
     constructor Create(const netname, channel: string; site1: string;
@@ -21,7 +21,7 @@ type
   end;
 
   TPazoDirlistTask = class(TPazoTask)
-    dir:    string;
+    dir: string;
     is_pre: boolean;
     constructor Create(const netname, channel: string; site: string;
       pazo: TPazo; dir: string; is_pre: boolean);
@@ -39,7 +39,7 @@ type
 
   TWaitTask = class(TTask)
   public
-    event:    TEvent;
+    event: TEvent;
     wait_for: string;
     destructor Destroy; override;
     constructor Create(const netname, channel: string; site1: string);
@@ -48,16 +48,16 @@ type
   end;
 
   TPazoRaceTask = class(TPazoTask)
-    dir:      string;
+    dir: string;
     filename: string;
     storfilename: string;
-    rank:     integer;
+    rank: integer;
     filesize: integer;
-    isSfv:    boolean;
+    isSfv: boolean;
     isSample: boolean;
-    isNFO:    boolean;
+    isNFO: boolean;
     dontRemoveOtherSources: boolean;
-    dst:      TWaitTask;
+    dst: TWaitTask;
     constructor Create(const netname, channel: string; site1: string;
       site2: string; pazo: TPazo; dir, filename: string; filesize, rank: integer);
     function Execute(slot: Pointer): boolean; override;
@@ -68,13 +68,13 @@ implementation
 
 uses StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit,// console,
+  dirlist, midnight, speedstatsunit, // console,
   rulesunit, mainthread, Regexpr, mrdohutils;
 
 const
   c_section = 'taskrace';
 
-{ TLoginTask }
+  { TLoginTask }
 
 constructor TPazoPlainTask.Create(const netname, channel: string;
   site1: string; site2: string; pazo: TPazo);
@@ -106,7 +106,6 @@ begin
 
   inherited;
 end;
-
 
 constructor TPazoTask.Create(const netname, channel: string; site1: string;
   site2: string; pazo: TPazo);
@@ -154,14 +153,12 @@ begin
   inherited;
 end;
 
-
-
 { TPazoDirlistTask }
 
 constructor TPazoDirlistTask.Create(const netname, channel: string;
   site: string; pazo: TPazo; dir: string; is_pre: boolean);
 begin
-  self.dir    := dir;
+  self.dir := dir;
   self.is_pre := is_pre;
   inherited Create(netname, channel, site, '', pazo);
 end;
@@ -170,20 +167,20 @@ function TPazoDirlistTask.Execute(slot: Pointer): boolean;
 label
   ujra;
 var
-  s:      TSiteSlot;
-  i:      integer;
-  de:     TDirListEntry;
+  s: TSiteSlot;
+  i: integer;
+  de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
-  d:      TDirList;
+  d: TDirList;
   aktdir: string;
   voltadd: boolean;
   numerrors: integer;
-  tname:  string;
-  ps:     TPazoSite;
+  tname: string;
+  ps: TPazoSite;
 begin
   numerrors := 0;
   Result := False;
-  s     := slot;
+  s := slot;
   tname := Name;
   //  voltadd:= False;
 
@@ -199,24 +196,23 @@ begin
   mainpazo.lastTouch := Now();
 
   ujra:
-    if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or
+  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or
     (slshutdown)) then
-    begin
-      readyerror := True;
+  begin
+    readyerror := True;
 
-      if ps1.error then
-        mainpazo.errorreason := 'ERROR PS1';
+    if ps1.error then
+      mainpazo.errorreason := 'ERROR PS1';
 
-      //    if ps1.dirlistgaveup then
-      //    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
+    //    if ps1.dirlistgaveup then
+    //    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
 
-      if ps1.status = rssNuked then
-        mainpazo.errorreason := 'ERROR PS1: status = Nuked';
+    if ps1.status = rssNuked then
+      mainpazo.errorreason := 'ERROR PS1: status = Nuked';
 
-
-      Debug(dpSpam, c_section, '<-- ' + tname);
-      exit;
-    end;
+    Debug(dpSpam, c_section, '<-- ' + tname);
+    exit;
+  end;
 
   try
     Inc(numerrors);
@@ -259,28 +255,23 @@ begin
     end;
   end;
 
+  (* Old code!
+    mainpazo.cs.Enter;
+    // ha nem minket osztott ki a sors a globalis dirlist keszitesere akkor kilepunk
+    //if we do not split the fate of the global dirlist preparation also exits
+    if ((pre) and (mainpazo.dirlist <> nil) and (mainpazo.dirlist <> ps1.dirlist)) then
+    begin
 
-(* Old code!
-  mainpazo.cs.Enter;
-  // ha nem minket osztott ki a sors a globalis dirlist keszitesere akkor kilepunk
-  //if we do not split the fate of the global dirlist preparation also exits
-  if ((pre) and (mainpazo.dirlist <> nil) and (mainpazo.dirlist <> ps1.dirlist)) then
-  begin
+      if ps1.CopyMainDirlist(netname, channel, dir) then
+        goto folytatas;
 
-    if ps1.CopyMainDirlist(netname, channel, dir) then
-      goto folytatas;
+    end;
 
-  end;
+    if ((pre) and (mainpazo.dirlist = nil)) then
+      mainpazo.dirlist:= ps1.dirlist;
+    mainpazo.cs.Leave;
 
-
-  if ((pre) and (mainpazo.dirlist = nil)) then
-    mainpazo.dirlist:= ps1.dirlist;
-  mainpazo.cs.Leave;
-
-  *)
-
-
-
+    *)
 
   if ((not ps1.midnightdone) and (IsMidnight(mainpazo.rls.section))) then
   begin
@@ -433,10 +424,8 @@ begin
     end;
   end;
 
-
-
   //if d.entries = nil then Irc_AddAdmin('DEBUG:: d.entries = nil');
-  //if d.entries.Count <= 0 then Irc_AddAdmin('DEBUG:: d.entries.Count <= 0'); 
+  //if d.entries.Count <= 0 then Irc_AddAdmin('DEBUG:: d.entries.Count <= 0');
 
   //Hiere den incompleteFiller chek adden?
 
@@ -551,7 +540,7 @@ begin
             (not ps.dirlist.Complete) and (not ps.dirlist.error)) then
           begin
             // dirlisst more
-            r     := TPazoDirlistTask.Create(netname, channel, ps1.Name,
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name,
               mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(),
               config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
@@ -579,7 +568,7 @@ begin
             (not ps.dirlist.error)) then
           begin
             // dirlisst more
-            r     := TPazoDirlistTask.Create(netname, channel, ps1.Name,
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name,
               mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(),
               config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
@@ -611,7 +600,7 @@ begin
   Debug(dpSpam, c_section, '<-- ' + tname);
 
   Result := True;
-  ready  := True;
+  ready := True;
 end;
 
 function TPazoDirlistTask.Name: string;
@@ -619,17 +608,16 @@ begin
   try
     if is_pre then
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
-        dir + ' ' *) + ScheduleText
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' (* +
+      dir + ' ' *)+ ScheduleText
     else
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' '(* +
-        dir + ' ' *) + ScheduleText;
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' (* +
+      dir + ' ' *)+ ScheduleText;
   except
     Result := 'PDIRLIST';
   end;
 end;
-
 
 { TPazoMkdirTask }
 
@@ -644,19 +632,19 @@ function TPazoMkdirTask.Execute(slot: Pointer): boolean;
 label
   ujra;
 var
-  s:     TSiteSlot;
+  s: TSiteSlot;
   aktdir, fulldir: string;
-  hiba:  boolean;
-  m:     boolean;
-  r:     TRule;
-  e:     string;
-  grp:   string;
+  hiba: boolean;
+  m: boolean;
+  r: TRule;
+  e: string;
+  grp: string;
   numerrors: integer;
   tname: string;
 begin
   numerrors := 0;
   Result := False;
-  s     := slot;
+  s := slot;
   tname := Name;
 
   if mainpazo.stopped then
@@ -671,13 +659,13 @@ begin
   mainpazo.lastTouch := Now();
 
   ujra:
-    if ((ps1.error) or (slshutdown)) then
-    begin
-      readyerror := True;
-      mainpazo.errorreason := 'ERROR PS1 or PS2';
-      Debug(dpSpam, c_section, '<-- ' + tname);
-      exit;
-    end;
+  if ((ps1.error) or (slshutdown)) then
+  begin
+    readyerror := True;
+    mainpazo.errorreason := 'ERROR PS1 or PS2';
+    Debug(dpSpam, c_section, '<-- ' + tname);
+    exit;
+  end;
 
   try
     Inc(numerrors);
@@ -756,10 +744,10 @@ begin
   if not s.Mkdir(aktdir) then
     goto ujra;
 
-
   hiba := False;
   if s.lastResponseCode <> 257 then
   begin
+
     if ((s.lastResponseCode = 550) and (0 <> Pos('File exists', s.lastResponse))) then
     begin
       hiba := False;
@@ -810,6 +798,11 @@ begin
       hiba := True;
     end
     else if ((s.lastResponseCode = 533) and
+      (0 <> Pos('This file looks like a dupe!', s.lastResponse))) then
+    begin
+      hiba := True;
+    end
+    else if ((s.lastResponseCode = 533) and
       (0 <> Pos('File name not allowed', s.lastResponse))) then
     begin
       if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
@@ -819,16 +812,16 @@ begin
     else if ((0 <> Pos('Denied', s.lastResponse)) or
       (0 <> Pos('Denying', s.lastResponse))) then
     begin
-      if config.ReadBool(c_section, 'autoruleadd', True) then
+      if config.ReadBool(c_section, 'autoruleadd', False) then
       begin
         if ((s.lastResponseCode = 550) and
           (0 <> Pos('releases are not accepted here', s.lastResponse))) then
         begin
           // auto adding blacklist rule
-          e   := s.lastResponse;
+          e := s.lastResponse;
           grp := Fetch(e, ' ');
           grp := Fetch(e, ' '); // masodik szo
-          e   := '';
+          e := '';
           Debug(dpSpam, c_section, 'Adding grp %s to blacklist on %s', [grp, site1]);
           irc_Addadmin(Format('Adding grp %s to blacklist on %s', [grp, site1]));
 
@@ -868,7 +861,7 @@ begin
         begin
           ps1.MarkSiteAsFailed(True);
         end;
-        Result     := True;
+        Result := True;
         readyerror := True;
         exit;
       end;
@@ -896,11 +889,10 @@ begin
 
   Debug(dpMessage, c_section, '<-- ' + tname);
 
-  Result     := True;
+  Result := True;
   readyerror := hiba;
-  ready      := True;
+  ready := True;
 end;
-
 
 function TPazoMkdirTask.Name: string;
 begin
@@ -911,16 +903,14 @@ begin
   end;
 end;
 
-
-
 { TPazoRaceTask }
 
 constructor TPazoRaceTask.Create(const netname, channel: string;
   site1, site2: string; pazo: TPazo; dir, filename: string; filesize, rank: integer);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
-  self.dir      := dir;
-  self.rank     := rank;
+  self.dir := dir;
+  self.rank := rank;
   self.filename := filename;
   if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
     self.storfilename := lowercase(filename)
@@ -929,34 +919,33 @@ begin
   self.filesize := filesize;
 end;
 
-
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
   ujra, brokentransfer, retrujra;
 var
   ssrc, sdst: TSiteSlot;
   kellssl: boolean;
-  host:  string;
-  port:  integer;
-  byme:  boolean;
+  host: string;
+  port: integer;
+  byme: boolean;
   numerrors: integer;
   elotte, utana: TDateTime;
-  fs:    double;
+  fs: double;
   time_race: integer;
   todir1, todir2: string;
   rss, rsd: boolean;
   tname: string;
   speed_stat: string;
-  rrgx:  TRegExpr;
+  rrgx: TRegExpr;
   lastResponseCode: integer;
   lastResponse: string;
   fsize, racebw: double;
 begin
-  Result    := False;
-  ssrc      := slot1;
-  sdst      := slot2;
+  Result := False;
+  ssrc := slot1;
+  sdst := slot2;
   numerrors := 0;
-  tname     := Name;
+  tname := Name;
 
   if mainpazo.stopped then
   begin
@@ -976,14 +965,14 @@ begin
   Debug(dpMessage, c_section, '--> ' + tname);
 
   ujra:
-    if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or
+  if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or
     (ps2.status = rssNuked) or (slshutdown)) then
-    begin
-      readyerror := True;
-      mainpazo.errorreason := 'ERROR PS1 or PS2';
-      Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
-      exit;
-    end;
+  begin
+    readyerror := True;
+    mainpazo.errorreason := 'ERROR PS1 or PS2';
+    Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+    exit;
+  end;
 
   try
     Inc(numerrors);
@@ -1156,7 +1145,7 @@ begin
     goto ujra;
 
   lastResponseCode := ssrc.lastResponseCode;
-  lastResponse     := ssrc.lastResponse;
+  lastResponse := ssrc.lastResponse;
 
   if lastResponseCode <> 227 then
   begin
@@ -1172,8 +1161,8 @@ begin
       ssrc.site.sslfxp := srUnsupported;
 
     readyerror := True;
-//    mainpazo.errorreason := 'No clue anything about drftpd?';
-    mainpazo.errorreason:= 'PASV/CPSV failed on '+site1;
+    //    mainpazo.errorreason := 'No clue anything about drftpd?';
+    mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
@@ -1204,14 +1193,13 @@ begin
     goto ujra;
 
   lastResponseCode := sdst.lastResponseCode;
-  lastResponse     := sdst.lastResponse;
+  lastResponse := sdst.lastResponse;
 
   if ((lastResponseCode = 500) and
     (0 <> Pos('You need to use a client supporting PRET', lastResponse))) then
   begin
     sdst.site.sw := sswDrftpd;
   end;
-
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
     goto ujra;
@@ -1222,7 +1210,7 @@ begin
   end;
 
   lastResponseCode := sdst.lastResponseCode;
-  lastResponse     := sdst.lastResponse;
+  lastResponse := sdst.lastResponse;
 
   if lastResponseCode <> 150 then
   begin
@@ -1307,8 +1295,7 @@ begin
       exit;
     end;
 
-    if (((lastResponseCode = 533) and (0 < Pos('File not found in sfv', lastResponse))))
-    then
+    if (((lastResponseCode = 533) and (0 < Pos('File not found in sfv', lastResponse)))) then
     begin
       ps2.ParseDupe(netname, channel, dir, filename, False);
       readyerror := True;
@@ -1316,8 +1303,7 @@ begin
       exit;
     end;
 
-    if (((lastResponseCode = 425) and (0 < Pos('Connection refused', lastResponse))))
-    then
+    if (((lastResponseCode = 425) and (0 < Pos('Connection refused', lastResponse)))) then
     begin
       irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s',
         [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
@@ -1341,17 +1327,16 @@ begin
     if ((lastResponseCode = 550) or (lastResponseCode = 500)) then
     begin
       ps2.ParseDupe(netname, channel, dir, filename, False);
-      ready  := True;
+      ready := True;
       Result := True;
       Debug(dpMessage, c_section, '<-- DUPE ' + tname);
       exit;
     end
-    else
-    if (lastResponseCode = 553) then
+    else if (lastResponseCode = 553) then
     begin
       ps2.ParseXdupe(netname, channel, dir, lastResponse,
         ps2.ParseDupe(netname, channel, dir, filename, False));
-      ready  := True;
+      ready := True;
       Result := True;
       Debug(dpMessage, c_section, '<-- DUPE ' + tname);
       exit;
@@ -1371,11 +1356,10 @@ begin
     exit;
   end;
 
-
   retrujra:
 
-    if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
-      goto ujra;
+  if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
+    goto ujra;
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
@@ -1384,7 +1368,7 @@ begin
   end;
 
   lastResponseCode := ssrc.lastResponseCode;
-  lastResponse     := ssrc.lastResponse;
+  lastResponse := ssrc.lastResponse;
 
   elotte := Now;
 
@@ -1392,23 +1376,24 @@ begin
   begin
     if ((lastResponseCode = 550) and (0 < Pos('credit', LowerCase(lastResponse)))) then
       ssrc.site.SetKredits
-    else
-    if (((lastResponseCode = 427) and (0 < Pos('Use SSL FXP', lastResponse))) or
+    else if (((lastResponseCode = 427) and (0 < Pos('Use SSL FXP', lastResponse))) or
       ((lastResponseCode = 530) and
       (0 < Pos('USE SECURE DATA CONNECTION', lastResponse)))) then
     begin
       ssrc.site.sslfxp := srNeeded;
       (*from old code (1.3.0.15)*)
       // ilyenkor olvasni kell egyet desten
-      if not sdst.Read() then goto ujra;
+      if not sdst.Read() then
+        goto ujra;
       // es kettot az src-n
-      if not ssrc.Read() then goto ujra;
-      if not ssrc.Read() then goto ujra;
+      if not ssrc.Read() then
+        goto ujra;
+      if not ssrc.Read() then
+        goto ujra;
       irc_AddINFO('[iNFO] SSLFXP Need for: ' + ssrc.Name);
       goto ujra;
     end
-    else
-    if ((lastResponseCode = 550) and (0 < Pos('Taglines Enforced', lastResponse))) then
+    else if ((lastResponseCode = 550) and (0 < Pos('Taglines Enforced', lastResponse))) then
     begin
       if not ssrc.Send('SITE TAGLINE %s', ['slftp.4tw']) then
         goto ujra;
@@ -1416,8 +1401,7 @@ begin
         goto ujra;
       goto retrujra;
     end
-    else
-    if (((lastResponseCode = 550) and
+    else if (((lastResponseCode = 550) and
       (0 < Pos('No such file or directory', lastResponse))) or
       ((lastResponseCode = 426) and
       (0 < Pos('File has been deleted on the master', lastResponse))) or
@@ -1434,8 +1418,7 @@ begin
         irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s',
           [tname]);
     end
-    else
-    if (((lastResponseCode = 425) and
+    else if (((lastResponseCode = 425) and
       (0 < Pos('t open data connection', lastResponse))) or
       ((lastResponseCode = 426) and (0 < Pos('Read timed out', lastResponse)))) then
     begin
@@ -1443,16 +1426,14 @@ begin
         irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s',
           [tname]);
     end
-    else
-    if ((lastResponseCode = 553) and
+    else if ((lastResponseCode = 553) and
       (0 < Pos('You have reached your maximum simultaneous downloads allowed',
       lastResponse))) then
     begin
       if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
     end
-    else
-    if ((lastResponseCode = 550) and (0 < Pos('Permission denied', lastResponse))) then
+    else if ((lastResponseCode = 550) and (0 < Pos('Permission denied', lastResponse))) then
     begin
       if spamcfg.readbool(c_section, 'permission_denied', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
@@ -1515,27 +1496,25 @@ begin
   end;
   debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
 
-  utana     := Now;
+  utana := Now;
   time_race := MilliSecondsBetween(utana, elotte);
-  response  := IntToStr(time_race);
+  response := IntToStr(time_race);
 
+  if ((ssrc.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', ssrc.lastResponse))) then
+  begin
+    ssrc.site.sslfxp := srNeeded;
+    goto ujra;
+  end
+  else if (ssrc.lastResponseCode <> 226) then
+    irc_addtext(ssrc.todotask, '%s: %s', [ssrc.name, Trim(ssrc.lastresponse)]);
 
-    if ((ssrc.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', ssrc.lastResponse))) then
-    begin
-      ssrc.site.sslfxp:= srNeeded;
-      goto ujra;
-    end else
-    if (ssrc.lastResponseCode <> 226) then
-      irc_addtext(ssrc.todotask, '%s: %s', [ssrc.name, Trim(ssrc.lastresponse)]);
-
-    if ((sdst.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', sdst.lastResponse))) then
-    begin
-      sdst.site.sslfxp:= srNeeded;
-      goto ujra;
-    end else
-    if (sdst.lastResponseCode <> 226) then
-      irc_addtext(ssrc.todotask, '%s: %s', [sdst.name, Trim(sdst.lastresponse)]);
-
+  if ((sdst.lastResponseCode = 522) and (0 < Pos('You have to turn on secure data connection', sdst.lastResponse))) then
+  begin
+    sdst.site.sslfxp := srNeeded;
+    goto ujra;
+  end
+  else if (sdst.lastResponseCode <> 226) then
+    irc_addtext(ssrc.todotask, '%s: %s', [sdst.name, Trim(sdst.lastresponse)]);
 
   if (ssrc.lastResponseCode <> 226) then
     if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
@@ -1561,7 +1540,7 @@ begin
     (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)))) then
   begin
     brokentransfer:
-      Debug(dpSpam, c_section, 'Broken transfer event!');
+    Debug(dpSpam, c_section, 'Broken transfer event!');
     DontRemoveOtherSources := True;
     if (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) then
       DontRemoveOtherSources := False;
@@ -1581,7 +1560,7 @@ begin
           [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       Inc(ps1.badcrcevents);
     end;
-    ready  := True;
+    ready := True;
     Result := True;
     Debug(dpSpam, c_section, '<-- Broken? ' + sdst.lastResponse + '' + tname);
     Exit;
@@ -1591,7 +1570,7 @@ begin
   begin
     Debug(dpMessage, c_section, '<- ' + tname);
     Result := True;
-    ready  := True;
+    ready := True;
     exit;
   end;
 
@@ -1620,7 +1599,7 @@ begin
   try
     rrgx := TRegExpr.Create;
     try
-      rrgx.ModifierI  := True;
+      rrgx.ModifierI := True;
       rrgx.Expression := config.ReadString('dirlist', 'useful_skip',
         '\.nfo|\.sfv|\.m3u|\.cue|\.jpg|\.jpeg|\.gif|\.png|\.avi|\.mkv|\.vob|\.mp4|\.wmv');
       if not rrgx.Exec(filename) then
@@ -1630,9 +1609,8 @@ begin
         if (fs > 0) and (time_race > 0) then
         begin
 
-          racebw := fs * 1000 / time_race / 1024;// / 1024;
-          fsize  := fs / 1024;
-
+          racebw := fs * 1000 / time_race / 1024; // / 1024;
+          fsize := fs / 1024;
 
           if (filesize > 1024) then
           begin
@@ -1652,22 +1630,22 @@ begin
               speed_stat :=
                 Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
           end;
-(*
+          (*
 
-          if ((filesize > 1024) and (racebw > 1024)) then
-            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s',
-              [fsize / 1024, racebw / 1024]);
+                    if ((filesize > 1024) and (racebw > 1024)) then
+                      speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s',
+                        [fsize / 1024, racebw / 1024]);
 
-          if ((filesize > 1024) and (racebw < 1024)) then
-            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+                    if ((filesize > 1024) and (racebw < 1024)) then
+                      speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
 
-          if ((filesize < 1024) and (racebw > 1024)) then
-            speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024]);
+                    if ((filesize < 1024) and (racebw > 1024)) then
+                      speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024]);
 
-          if ((filesize < 1024) and (racebw < 1024)) then
-            speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+                    if ((filesize < 1024) and (racebw < 1024)) then
+                      speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
 
-*)
+          *)
 
         end;
         irc_SendRACESTATS(tname + ' ' + speed_stat);
@@ -1691,7 +1669,7 @@ begin
   Debug(dpMessage, c_section, '<-- ' + tname);
 
   Result := True;
-  ready  := True;
+  ready := True;
 end;
 
 function TPazoRaceTask.Name: string;
