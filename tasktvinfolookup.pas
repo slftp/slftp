@@ -60,7 +60,7 @@ const
 
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 begin
-//  result := name;
+  //  result := name;
   name := Csere(name, 'and', '&');
   name := Csere(name, 'at', '@');
   name := Csere(name, '.and.', '.&.');
@@ -73,7 +73,7 @@ begin
     result := Csere(name, ' ', '+');
     result := Csere(name, '.', '+');
   end;
-  result:=name;
+  result := name;
 end;
 
 function findTVMazeIDByName(name: string): string;
@@ -92,25 +92,25 @@ begin
   s := Csere(s, '', chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
-(*
-    r := TRegexpr.Create;
-  try
-    r.Expression := '\d{4}$';
-    if r.Exec(s) then
-    begin
-      hadYear = True;
-      year := r.Match[0];
+  (*
+      r := TRegexpr.Create;
+    try
+      r.Expression := '\d{4}$';
+      if r.Exec(s) then
+      begin
+        hadYear = True;
+        year := r.Match[0];
+        s := r.Replace(s, '');
+      end;
+      r.Expression := '\+(\w+)$';
+      hadCountry = True;
+      country := r.Match[0];
       s := r.Replace(s, '');
+    finally
+      r.free;
     end;
-    r.Expression := '\+(\w+)$';
-    hadCountry = True;
-    country := r.Match[0];
-    s := r.Replace(s, '');
-  finally
-    r.free;
-  end;
-*)
-  //  sname:=replaceTVShowChars(name,true);  we will test it somewhere else....
+  *)
+    //  sname:=replaceTVShowChars(name,true);  we will test it somewhere else....
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
@@ -267,12 +267,18 @@ var
   ep_nextnum, ep_prevnum: integer;
   se_nextnum, se_prevnum: integer;
   nextdt, prevdt: TDateTime;
+  airt: string;
+
+  hadPrev, hadNext: boolean;
 begin
 
   ShortDateFormat := 'yyyy-mm-dd';
   ShortTimeFormat := 'hh:mm';
   DateSeparator := '-';
   TimeSeparator := ':';
+
+  hadPrev := False;
+  hadNext := False;
 
   try
 
@@ -281,10 +287,15 @@ begin
       ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
       se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
       prevdt := UnixToDateTime(0);
-      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' +
-        string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value));
-    end;
 
+      if string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
+        airt := '00:00'
+      else
+        airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
+      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt);
+
+      hadPrev := True;
+    end;
   except on E: Exception do
     begin
       Debug(dpError, section, '[Exception] in findCurrentAirDate.previousepisode: ' + E.Message);
@@ -293,16 +304,18 @@ begin
   end;
 
   try
-
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['nextepisode'] <> nil)) then
     begin
       ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
       se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
       nextdt := UnixToDateTime(0);
-      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' +
-        string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value));
+      if string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
+        airt := '00:00'
+      else
+        airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
+      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt);
+      hadNext := True;
     end;
-
   except on E: Exception do
     begin
       Debug(dpError, section, '[Exception] in findCurrentAirDate.nextepisode: ' + E.Message);
@@ -310,11 +323,28 @@ begin
     end;
   end;
 
+  if ((not hadNext) and (not hadPrev)) then
+  begin
+    episdoe := -15;
+    season := -15;
+    date := DateTimeToUnix(0);
+    Exit;
+  end;
+
+  if not hadNext then
+  begin
+    episdoe := ep_prevnum;
+    season := se_prevnum;
+    date := prevdt;
+    exit;
+  end;
+
   if IsSameDay(prevdt, nextdt) then
   begin
     episdoe := -5;
     season := -5;
     date := DateTimeToUnix(nextdt);
+    Exit;
   end;
 
   if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
