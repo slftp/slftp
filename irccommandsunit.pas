@@ -11484,7 +11484,8 @@ end;
 function IrcShowSiteNukes(const netname, channel: string; params: string):
   boolean;
 var
-  Count, username, ss, sitename: string;
+  username, ss, sitename: string;
+  Count:integer;
   r: TRegexpr;
   site: TSite;
   //  si:   TStringList;
@@ -11495,10 +11496,8 @@ begin
     si.CommaText:=sitename;
   *)
 
-  Count := UpperCase(SubString(params, ' ', 2));
-  if Count = '' then
-    Count := '35';
 
+  Count := StrToIntDef(SubString(params, ' ', 2),500);
   site := FindSiteByName(Netname, sitename);
 
   if site = nil then
@@ -11543,7 +11542,7 @@ begin
   end;
 
   try
-    ss := RawC(Netname, Channel, site.Name, '', 'site nukes ' + Count);
+    ss := RawC(Netname, Channel, site.Name, '', 'site nukes ' + IntToStr(Count));
   except
     on E: Exception do
     begin
