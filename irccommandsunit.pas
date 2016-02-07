@@ -11554,22 +11554,21 @@ begin
     end;
   end;
 
-  r := TRegexpr.Create;
+    r := TRegexpr.Create;
+
+  try
   r.Expression := 'foo nukes';
   r.ModifierI := True;
   if r.Exec(ss) then
   begin
     irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
     Result := False;
-    r.Free;
-    exit;
-  end;
-
+  end else begin
   r.Expression := '200- ';
   ss := r.Replace(ss, '');
 
   r.Expression := Format(
-    '\|.*?\|\s*%s\s*\|\s(\d+)x\s*([\d\,\.]+M?)\s*\|(.*?)\|[\r\n\s]+\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
+  '\|.*?\|\s+%s\s+\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
     [username]);
 
   if not r.Exec(ss) then
@@ -11581,8 +11580,13 @@ begin
         Trim(r.Match[2]), Trim(r.Match[4])]);
     until not r.ExecNext;
 
-  r.Free;
   Result := True;
+  end;
+
+  finally
+  r.Free;
+  end;
+
 end;
 
 function IrcCatchMod(const netname, channel: string; params: string): boolean;
