@@ -132,15 +132,13 @@ begin
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      season := StrToIntDef(rx.Match[2], 0);
-      //    episode := StrToIntDef(rx.Match[5], 0);
-      if StrToIntDef(rx.Match[7], 0) > 0 then
-        episode := StrToIntDef(rx.Match[7], 0)
+      season := StrToIntDef(rx.Match[3], 0);
+      if StrToIntDef(rx.Match[8], 0) > 0 then
+        episode := StrToIntDef(rx.Match[8], 0)
       else
-        episode := StrToIntDef(rx.Match[5], 0);
+        episode := StrToIntDef(rx.Match[6], 0);
       Exit;
     end;
-
   finally
     rx.free;
   end;
