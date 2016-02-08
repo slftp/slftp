@@ -92,25 +92,7 @@ begin
   s := Csere(s, '', chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
-  (*
-      r := TRegexpr.Create;
-    try
-      r.Expression := '\d{4}$';
-      if r.Exec(s) then
-      begin
-        hadYear = True;
-        year := r.Match[0];
-        s := r.Replace(s, '');
-      end;
-      r.Expression := '\+(\w+)$';
-      hadCountry = True;
-      country := r.Match[0];
-      s := r.Replace(s, '');
-    finally
-      r.free;
-    end;
-  *)
-    //  sname:=replaceTVShowChars(name,true);  we will test it somewhere else....
+
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
@@ -167,23 +149,6 @@ begin
   s := Csere(s, '', chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
-  (*
-    try
-      r := TRegexpr.Create;
-      r.Expression:='\d{4}$';
-      if r.Exec(s) then begin
-      hadYear=True;
-      year:=r.Match[0];
-      s:=r.Replace(s,'');
-      end;
-      r.Expression:='\+(\w+)$';
-      hadCountry=True;
-      country:=r.Match[0];
-      s:=r.Replace(s,'');
-    finally
-      r.free;
-    end;
-  *)
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
@@ -293,8 +258,10 @@ begin
       else
         airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
       prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt);
-
       hadPrev := True;
+
+      //irc_addadmin('previousepisode => %dx%d %s %s ',[ep_prevnum,se_prevnum,airt,DateTimeToStr(prevdt)]);
+
     end;
   except on E: Exception do
     begin
@@ -315,6 +282,9 @@ begin
         airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
       nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt);
       hadNext := True;
+
+      //irc_addadmin('nextepisode => %dx%d %s %s ',[ep_nextnum,se_nextnum,airt,DateTimeToStr(nextdt)]);
+
     end;
   except on E: Exception do
     begin
