@@ -1936,7 +1936,7 @@ begin
     on e: Exception do
     begin
       db_tvrage := nil;
-      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal: %s',
+      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s',
         [e.Message]));
     end;
   end;
@@ -2022,9 +2022,9 @@ begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
   Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + showid + #13#10;
-  if season <> 0 then
+//  if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-  if episode <> 0 then
+//  if episode <> 0 then
     Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
   if premier_year <> -1 then
     Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
@@ -2059,8 +2059,8 @@ var
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
-  episode := 0;
-  season := 0;
+  episode := -1;
+  season := -1;
 
   genres := TStringList.Create;
   //  genres.Delimiter:= '|';
