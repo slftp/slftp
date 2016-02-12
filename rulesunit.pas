@@ -3429,7 +3429,7 @@ end;
 
 class function TConditionTVShowName.Description: string;
 begin
-  Result := 'Returns with the tvshow''s name. This is the part before the S01E01 or 1x12 tag.';
+  Result := TVShowNameDescription;
 end;
 
 function TConditionTVShowName.SupplyValue(r: TPazo): string;
@@ -4293,8 +4293,7 @@ end;
 
 class function TConditionTVPremierYear.Description: string;
 begin
-  Result :=
-    'Returns with the year of premier (based on tvrage). Returns zero if lookup is not ready yet.';
+  Result :=  TVPremierYearDescription;
 end;
 
 class function TConditionTVPremierYear.Name: string;
@@ -4320,7 +4319,7 @@ end;
 
 class function TConditionTVCountry.Description: string;
 begin
-  Result := 'Returns with the Country field parsed from tvrage.';
+  Result := TVCountryDescription;
 end;
 
 class function TConditionTVCountry.Name: string;
@@ -4346,7 +4345,7 @@ end;
 
 class function TConditionTVClassification.Description: string;
 begin
-  Result := 'Returns with the Classification field parsed from tvrage.';
+  Result := TVClassificationDescription;
 end;
 
 class function TConditionTVClassification.Name: string;
@@ -4373,7 +4372,7 @@ end;
 class function TConditionTVScripted.Description: string;
 begin
   Result :=
-    'Returns with the Classification field parsed from tvrage. Returns false if lookup is not ready yet.';
+    TVScriptedDescription;
 end;
 
 class function TConditionTVScripted.Name: string;
@@ -4399,7 +4398,7 @@ end;
 
 class function TConditionTVGenres.Description: string;
 begin
-  Result := 'Returns with the Genres field parsed from tvrage.';
+  Result := TVGenresDescription;
 end;
 
 class function TConditionTVGenres.Name: string;
@@ -4431,7 +4430,7 @@ end;
 
 class function TConditionTVNetwork.Description: string;
 begin
-  Result := 'Returns with the Network field parsed from tvrage.';
+  Result := TVNetworkDescription;
 end;
 
 class function TConditionTVNetwork.Name: string;
@@ -4457,8 +4456,7 @@ end;
 
 class function TConditionTVRuntime.Description: string;
 begin
-  Result :=
-    'Returns with the Runtime field parsed from tvrage. Returns 0 if lookup is not ready yet';
+  Result := TVRuntimeDescription;
 end;
 
 class function TConditionTVRuntime.Name: string;
@@ -4484,8 +4482,7 @@ end;
 
 class function TConditionTVEndedYear.Description: string;
 begin
-  Result :=
-    'Returns with the end year field parsed from tvrage. Returns 0 if lookup is not ready yet';
+  Result :=  TVEndedYearDescription;
 end;
 
 class function TConditionTVEndedYear.Name: string;
@@ -4511,7 +4508,7 @@ end;
 
 class function TConditionTVStatus.Description: string;
 begin
-  Result := 'Returns with the Status field parsed from tvrage.'; //+#13#00;
+  Result := TVStatusDescription;
 end;
 
 class function TConditionTVStatus.Name: string;
@@ -4537,9 +4534,7 @@ end;
 
 class function TConditionTVRunning.Description: string;
 begin
-  Result :=
-    'Returns with the Status field parsed from TVMaze. Returns false if lookup is not ready yet.';
-  //+#13#10;
+  Result := TVRunningDescription;
 end;
 
 class function TConditionTVRunning.Name: string;
@@ -4701,7 +4696,7 @@ end;
 
 class function TConditionTVtag.Description: string;
 begin
-  Result := 'Returns the "tv tag" of the release name. Check slftp.ini, [kb] tvtags.';
+  Result := TVtagDescription;
 end;
 
 class function TConditionTVtag.Name: string;

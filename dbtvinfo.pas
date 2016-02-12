@@ -74,8 +74,8 @@ function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
 function updateToV2: boolean;
 
-procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: integer);overload;
-procedure getShowValues(rip: string; out showName: string);overload;
+procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: int64); overload;
+procedure getShowValues(rip: string; out showName: string); overload;
 
 implementation
 
@@ -96,27 +96,29 @@ var
 
   //  last_addthetvdb: THashedStringList;
 
-
 procedure getShowValues(rip: string; out showName: string);
-var season,episode:integer;
+var
+  season: integer;
+  episode: int64;
 begin
-getShowValues(rip,showName,season,episode);
+  getShowValues(rip, showName, season, episode);
 end;
 
-procedure getShowValues(rip: string; out showname: string; out season: integer; out episode: integer);
+procedure getShowValues(rip: string; out showname: string; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
+  dt: TDateTime;
 begin
   rx := TRegexpr.Create;
   try
-      rx.ModifierI := True;
-    //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv
-    rx.Expression := '(.*)[\._-](\d{4}[\.\-]\d{2}[\.\-]\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
+    rx.ModifierI := True;
+    //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
+    rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      season := 0;
-      episode := 0;
+      season := -99;
+      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
       exit;
     end;
 
@@ -128,7 +130,7 @@ begin
       episode := StrToIntDef(rx.Match[3], 0);
     end;
 
-    rx.Expression :='(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
+    rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
@@ -143,8 +145,6 @@ begin
     rx.free;
   end;
 end;
-
-
 
 {   TTVInfoDB                                 }
 
@@ -194,6 +194,8 @@ procedure TTVInfoDB.SetTVDbRelease(tr: TTVRelease);
 begin
 
   tr.showname := rls_showname;
+  tr.thetvdbid := thetvdb_id;
+  tr.tvrageid := tvrage_id;
   tr.showid := tvmaze_id;
   tr.premier_year := tv_premiered_year;
   tr.country := tv_country;
@@ -205,12 +207,19 @@ begin
   tr.ended_year := tv_endedyear;
   tr.scripted := tv_scripted;
   tr.daily := Boolean(tv_days.Count > 1);
+  tr.currentseason := false;
+  tr.currentepisode := false;
+  tr.currentair := false;
+
   case tv_next_season of
     -5:
       begin
         //Prev and Next are on the same day.
         tv_next_ep := tr.episode;
         tv_next_season := tr.season;
+        tr.currentseason := true;
+        tr.currentepisode := true;
+        tr.currentair := true;
       end;
     -10:
       begin
@@ -221,6 +230,12 @@ begin
         tr.currentepisode := False;
         tr.currentair := False;
       end;
+    -99:
+      begin
+        //dated show
+        tv_next_ep := 0;
+        tv_next_season := 0;
+      end
   else
     begin
       tr.currentseason := Boolean(tv_next_season = tr.season);
@@ -229,12 +244,6 @@ begin
     end;
 
   end;
-
-  tr.thetvdbid := thetvdb_id;
-  //  tr.tvmazeid:= tv_tvmazeid;
-  tr.tvrageid := tvrage_id;
-
-  //  tr.season:= tv_seasons;
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
     PostResults(rls_showname);
@@ -498,7 +507,11 @@ begin
     exit;
   end;
 
-  gettvrage := tvinfodb.Open('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE rip LIKE "' + rls_showname + '";'); //so we can handle the aka's .
+  try
+    gettvrage := tvinfodb.Open('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE rip LIKE "' + rls_showname + '";'); //so we can handle the aka's .
+  except on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] getTheTVDbByShowID.tvinfodb.Open: %s ', [e.Message]));
+  end;
 
   if tvinfodb.Step(gettvrage) then
   begin
@@ -553,9 +566,9 @@ var
 begin
   Result := nil;
   showname := rls;
-    getShowValues(showname,showname);
-    showname:=Csere(showname,'.',' ');
-    showname:=Csere(showname,'_',' ');
+  getShowValues(showname, showname);
+  showname := Csere(showname, '.', ' ');
+  showname := Csere(showname, '_', ' ');
 
   if (showname <> '') then
   begin

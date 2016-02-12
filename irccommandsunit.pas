@@ -11497,7 +11497,7 @@ begin
   *)
 
 
-  Count := StrToIntDef(SubString(params, ' ', 2),500);
+  Count := StrToIntDef(SubString(params, ' ', 2),150);
   site := FindSiteByName(Netname, sitename);
 
   if site = nil then
@@ -11555,6 +11555,8 @@ begin
   end;
 
     r := TRegexpr.Create;
+    r.ModifierS:=False;
+    r.ModifierG:=False;
 
   try
   r.Expression := 'foo nukes';
