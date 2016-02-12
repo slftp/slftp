@@ -259,9 +259,7 @@ begin
         airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
       prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt);
       hadPrev := True;
-
-      //irc_addadmin('previousepisode => %dx%d %s %s ',[ep_prevnum,se_prevnum,airt,DateTimeToStr(prevdt)]);
-
+//      irc_addadmin('previousepisode => %dx%d %s ',[se_prevnum,ep_prevnum,DateTimeToStr(prevdt)]);
     end;
   except on E: Exception do
     begin
@@ -282,9 +280,7 @@ begin
         airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
       nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt);
       hadNext := True;
-
-      //irc_addadmin('nextepisode => %dx%d %s %s ',[ep_nextnum,se_nextnum,airt,DateTimeToStr(nextdt)]);
-
+//      irc_addadmin('nextepisode => %dx%d %s ',[se_nextnum,ep_nextnum,DateTimeToStr(nextdt)]);
     end;
   except on E: Exception do
     begin
@@ -295,14 +291,16 @@ begin
 
   if ((not hadNext) and (not hadPrev)) then
   begin
+//    Irc_AddAdmin('no next & no prev.');
     episdoe := -15;
     season := -15;
-    date := DateTimeToUnix(0);
+    date := UnixToDateTime(631160017); //1.1.1990 031337
     Exit;
   end;
 
   if not hadNext then
   begin
+//    Irc_AddAdmin('no Next');
     episdoe := ep_prevnum;
     season := se_prevnum;
     date := prevdt;
@@ -311,41 +309,42 @@ begin
 
   if IsSameDay(prevdt, nextdt) then
   begin
+//    Irc_AddAdmin('same date');
     episdoe := -5;
     season := -5;
-    date := DateTimeToUnix(nextdt);
+    date := nextdt;
     Exit;
   end;
 
   if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
   begin
     // next date is smaller|equal to now()..
-    //Irc_AddAdmin('next date is smaller|equal to now()..');
+//    Irc_AddAdmin('next date is smaller|equal to now()..');
     episdoe := ep_nextnum;
     season := se_nextnum;
-    date := DateTimeToUnix(nextdt);
+    date := nextdt;
+//    irc_addadmin('NEXT it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
     Exit;
   end;
 
   if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
   begin
     //previous date + 1Day is grater|equal to now()
-    //Irc_AddAdmin('previous date + 1Day is grater|equal to now()');
     episdoe := ep_prevnum;
     season := se_prevnum;
-    date := DateTimeToUnix(prevdt);
+    date := prevdt;
+//    irc_addadmin('PREV. it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
     Exit;
   end;
 
   if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
   begin
     // nothing before matched and next_date is grater then now, so we took this.
-    //Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
+//    Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
     episdoe := ep_nextnum;
     season := se_nextnum;
-    date := DateTimeToUnix(nextdt);
+    date := nextdt;
   end;
-
 end;
 
 function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
