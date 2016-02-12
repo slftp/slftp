@@ -1931,7 +1931,6 @@ begin
   //  db_tvrage := nil;
   try
     db_tvrage := getTVInfoByShowName(self.showname);
-    db_tvrage.ripname := rlsname;
   except
     on e: Exception do
     begin
@@ -1954,6 +1953,8 @@ begin
 
   if (db_tvrage <> nil) then
   begin
+   db_tvrage.ripname := rlsname; // caused the error
+
     if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
       db_tvrage.ripname := rlsname;
@@ -2056,17 +2057,21 @@ constructor TTVRelease.Create(rlsname: string; section: string;
 var
   rx: TRegexpr;
   db_tvrage: TTVInfoDB;
+  c_episode:int64;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
   episode := -1;
   season := -1;
+  c_episode:=-1;
 
   genres := TStringList.Create;
   //  genres.Delimiter:= '|';
   genres.QuoteChar := '"';
 
-  getShowValues(rlsname, showname, season, episode);
+  getShowValues(rlsname, showname, season, c_episode);
+  episode:=c_episode;
+
   showname:=Csere(showname,'.',' ');
   showname:=Csere(showname,'_',' ');
 
