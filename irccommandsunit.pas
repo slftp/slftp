@@ -4970,6 +4970,7 @@ begin
     exit;
   end;
 
+  irc_addtext(Netname, Channel, '<b>Modified<b>: %d %s <u><b>to</b></u> %s', [id, TRule(rules[id]).AsText(True), r.AsText(True)]);
   rules.Delete(id);
   rules.Insert(id, r);
 
