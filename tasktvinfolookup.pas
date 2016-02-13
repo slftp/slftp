@@ -221,7 +221,12 @@ var
   hadPrev, hadNext: boolean;
 begin
 
+{$IFDEF MSWINDOWS}
   GetLocaleFormatSettings(1033, formatSettings);
+{$ELSE}
+formatSettings:=DefaultFormatSettings;
+{$ENDIF}
+
   formatSettings.ShortDateFormat := 'yyyy-mm-dd';
   formatSettings.ShortTimeFormat := 'hh:mm';
   formatSettings.DateSeparator := '-';
