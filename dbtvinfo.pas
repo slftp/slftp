@@ -74,8 +74,12 @@ function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
 function updateToV2: boolean;
 
+
 procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: int64); overload;
 procedure getShowValues(rip: string; out showName: string); overload;
+
+//function findTVMazeIDv2(showname:string):string;
+function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 
 implementation
 
@@ -95,6 +99,24 @@ var
   oldtvinfodbcmd: string;
 
   //  last_addthetvdb: THashedStringList;
+
+function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
+begin
+  //  result := name;
+  name := Csere(name, 'and', '&');
+  name := Csere(name, 'at', '@');
+  name := Csere(name, '.and.', '.&.');
+  name := Csere(name, '.at.', '.@.');
+  name := Csere(name, '.and.', '_&_');
+  name := Csere(name, '.at.', '_@_');
+  name := Csere(name, '', chr(39));
+  if forWebFetch then
+  begin
+    result := Csere(name, ' ', '+');
+    result := Csere(name, '.', '+');
+  end;
+  result := name;
+end;
 
 procedure getShowValues(rip: string; out showName: string);
 var
@@ -145,6 +167,11 @@ begin
     rx.free;
   end;
 end;
+
+
+
+
+
 
 {   TTVInfoDB                                 }
 
