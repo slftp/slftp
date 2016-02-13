@@ -58,23 +58,7 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
 const
   section = 'tasktvinfo';
 
-function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
-begin
-  //  result := name;
-  name := Csere(name, 'and', '&');
-  name := Csere(name, 'at', '@');
-  name := Csere(name, '.and.', '.&.');
-  name := Csere(name, '.at.', '.@.');
-  name := Csere(name, '.and.', '_&_');
-  name := Csere(name, '.at.', '_@_');
-  name := Csere(name, '', chr(39));
-  if forWebFetch then
-  begin
-    result := Csere(name, ' ', '+');
-    result := Csere(name, '.', '+');
-  end;
-  result := name;
-end;
+
 
 function findTVMazeIDByName(name: string): string;
 var
@@ -233,14 +217,15 @@ var
   se_nextnum, se_prevnum: integer;
   nextdt, prevdt: TDateTime;
   airt: string;
-
+  formatSettings: TFormatSettings;
   hadPrev, hadNext: boolean;
 begin
 
-  ShortDateFormat := 'yyyy-mm-dd';
-  ShortTimeFormat := 'hh:mm';
-  DateSeparator := '-';
-  TimeSeparator := ':';
+  GetLocaleFormatSettings(1033, formatSettings);
+  formatSettings.ShortDateFormat := 'yyyy-mm-dd';
+  formatSettings.ShortTimeFormat := 'hh:mm';
+  formatSettings.DateSeparator := '-';
+  formatSettings.TimeSeparator := ':';
 
   hadPrev := False;
   hadNext := False;
@@ -257,9 +242,9 @@ begin
         airt := '00:00'
       else
         airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
-      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt);
+      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt,formatSettings);
       hadPrev := True;
-//      irc_addadmin('previousepisode => %dx%d %s ',[se_prevnum,ep_prevnum,DateTimeToStr(prevdt)]);
+      //      irc_addadmin('previousepisode => %dx%d %s ',[se_prevnum,ep_prevnum,DateTimeToStr(prevdt)]);
     end;
   except on E: Exception do
     begin
@@ -278,9 +263,9 @@ begin
         airt := '00:00'
       else
         airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
-      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt);
+      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt,formatSettings);
       hadNext := True;
-//      irc_addadmin('nextepisode => %dx%d %s ',[se_nextnum,ep_nextnum,DateTimeToStr(nextdt)]);
+      //      irc_addadmin('nextepisode => %dx%d %s ',[se_nextnum,ep_nextnum,DateTimeToStr(nextdt)]);
     end;
   except on E: Exception do
     begin
@@ -291,7 +276,7 @@ begin
 
   if ((not hadNext) and (not hadPrev)) then
   begin
-//    Irc_AddAdmin('no next & no prev.');
+    //    Irc_AddAdmin('no next & no prev.');
     episdoe := -15;
     season := -15;
     date := UnixToDateTime(631160017); //1.1.1990 031337
@@ -300,7 +285,7 @@ begin
 
   if not hadNext then
   begin
-//    Irc_AddAdmin('no Next');
+    //    Irc_AddAdmin('no Next');
     episdoe := ep_prevnum;
     season := se_prevnum;
     date := prevdt;
@@ -309,7 +294,7 @@ begin
 
   if IsSameDay(prevdt, nextdt) then
   begin
-//    Irc_AddAdmin('same date');
+    //    Irc_AddAdmin('same date');
     episdoe := -5;
     season := -5;
     date := nextdt;
@@ -323,7 +308,7 @@ begin
     episdoe := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
-//    irc_addadmin('NEXT it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
+    //    irc_addadmin('NEXT it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
     Exit;
   end;
 
@@ -333,7 +318,7 @@ begin
     episdoe := ep_prevnum;
     season := se_prevnum;
     date := prevdt;
-//    irc_addadmin('PREV. it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
+    //    irc_addadmin('PREV. it is => %dx%d %s ',[season,episdoe,DateTimeToStr(date)]);
     Exit;
   end;
 

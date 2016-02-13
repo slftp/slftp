@@ -29,6 +29,8 @@ type
 procedure IrcCommandInit;
 procedure IrcCommandUninit;
 
+function IrcHelpv2(const Netname, Channel: string; params: string): boolean;
+
 function FindIrcCommand(cmd: string): integer; // overload;
 //function FindIrcCommand(cmd: string): boolean; overload;
 function IrcDie(const netname, channel: string; params: string): boolean;
@@ -331,6 +333,7 @@ const
     (cmd: '- General -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
+//    (cmd: 'help'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'main'),    
     (cmd: 'bnctest'; hnd: IrcBnctest; minparams: 0; maxparams: - 1; hlpgrp: 'main'),
     (cmd: 'ghost'; hnd: IrcKill; minparams: 1; maxparams: 1; hlpgrp: 'main'),
     (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp: 'main'),
@@ -4984,10 +4987,13 @@ begin
 
   if ((id < 0) or (id >= rules.Count)) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id');
+
+
+    irc_addtext(Netname, Channel, 'Incorrect rule id (%s)',[params]);
     exit;
   end;
 
+  Irc_AddText(netname,channel,'<b>Delete</b>: <b>%s</b> %s',[params,TRule(rules.Items[id]).AsText(true)]);
   rules.Delete(id);
   RulesSave;
 
@@ -5375,6 +5381,45 @@ begin
   Result := True;
 end;
 
+function IrcHelpv2(const Netname, Channel: string; params: string): boolean;
+var
+  i: integer;
+  s: string;
+  f: TextFile;
+  fn: string;
+begin
+
+  if ((params = '--all') or (params = '-all') or (params = '--a') or (params = '-a')) then
+  begin
+    irc_addtext(Netname, Channel, '<b><u>Available commands are:</b></u>');
+    s := '';
+    for i := Low(irccommands) to High(irccommands) do
+    begin
+      if (irccommands[i].cmd[1] = '-') then
+      begin
+        if s <> '' then
+          irc_addtext(Netname, Channel, s);
+        if (irccommands[i].cmd <> '-') then
+          irc_addtext(Netname, Channel, '<u><c7><b>%s</c></b></u>',
+            [irccommands[i].cmd]);
+        s := '';
+      end
+      else
+      begin
+        if s <> '' then
+          s := s + ', ';
+        s := s + irccmdprefix + irccommands[i].cmd;
+      end;
+    end;
+    if s <> '' then
+      irc_addtext(Netname, Channel, s);
+    irc_addtext(Netname, Channel,
+      '<b>Type %shelp command to get detailed info</b>.', [irccmdprefix]);
+      result:=True;
+      Exit;
+  end;
+end;
+
 function IrcHelp(const Netname, Channel: string; params: string): boolean;
 var
   i: integer;
@@ -5388,7 +5433,7 @@ begin
   //  r := TRegExpr.Create;
   if params <> '' then
   begin
-    if (1 = Pos(irccmdprefix, params)) then // commandhandlerrel kezdodik
+    if (1 = Pos(irccmdprefix, params)) then // commandhandlerrel kezdodik     -- commandhandler rel begins
       params := Copy(params, length(irccmdprefix) + 1, 1000);
     (*
       if boolean(FindIrcCommand(params)) then begin
@@ -5444,6 +5489,7 @@ begin
   end
   else
   begin
+
     irc_addtext(Netname, Channel, '<b><u>Available commands are:</b></u>');
     s := '';
     for i := Low(irccommands) to High(irccommands) do
@@ -11485,7 +11531,7 @@ function IrcShowSiteNukes(const netname, channel: string; params: string):
   boolean;
 var
   username, ss, sitename: string;
-  Count:integer;
+  Count: integer;
   r: TRegexpr;
   site: TSite;
   //  si:   TStringList;
@@ -11496,8 +11542,7 @@ begin
     si.CommaText:=sitename;
   *)
 
-
-  Count := StrToIntDef(SubString(params, ' ', 2),150);
+  Count := StrToIntDef(SubString(params, ' ', 2), 150);
   site := FindSiteByName(Netname, sitename);
 
   if site = nil then
@@ -11554,39 +11599,41 @@ begin
     end;
   end;
 
-    r := TRegexpr.Create;
-    r.ModifierS:=False;
-    r.ModifierG:=False;
+  r := TRegexpr.Create;
+//  r.ModifierS := False;
+//  r.ModifierG := False;
 
   try
-  r.Expression := 'foo nukes';
-  r.ModifierI := True;
-  if r.Exec(ss) then
-  begin
-    irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
-    Result := False;
-  end else begin
-  r.Expression := '200- ';
-  ss := r.Replace(ss, '');
+    r.Expression := 'foo nukes';
+    r.ModifierI := True;
+    if r.Exec(ss) then
+    begin
+      irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
+      Result := False;
+    end
+    else
+    begin
+      r.Expression := '200- ';
+      ss := r.Replace(ss, '');
 
-  r.Expression := Format(
-  '\|.*?\|\s+%s\s+\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
-    [username]);
+      r.Expression := Format(
+        '\|\s*%s\s*\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
+        [username]);
 
-  if not r.Exec(ss) then
-    irc_addtext(Netname, Channel, 'No Nukes found, good boy!')
-  else
-    repeat
-      irc_addtext(Netname, Channel, '%s x%s for: %s (%sM) %s ago.',
-        [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]),
-        Trim(r.Match[2]), Trim(r.Match[4])]);
-    until not r.ExecNext;
+      if not r.Exec(ss) then
+        irc_addtext(Netname, Channel, 'No Nukes found, good boy!')
+      else
+        repeat
+          irc_addtext(Netname, Channel, '%s x%s for: %s (%sM) %s ago.',
+            [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]),
+            Trim(r.Match[2]), Trim(r.Match[4])]);
+        until not r.ExecNext;
 
-  Result := True;
-  end;
+      Result := True;
+    end;
 
   finally
-  r.Free;
+    r.Free;
   end;
 
 end;
