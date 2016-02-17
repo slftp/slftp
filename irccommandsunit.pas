@@ -333,7 +333,7 @@ const
     (cmd: '- General -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
-//    (cmd: 'help'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'main'),    
+    //    (cmd: 'help'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'main'),
     (cmd: 'bnctest'; hnd: IrcBnctest; minparams: 0; maxparams: - 1; hlpgrp: 'main'),
     (cmd: 'ghost'; hnd: IrcKill; minparams: 1; maxparams: 1; hlpgrp: 'main'),
     (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp: 'main'),
@@ -4989,12 +4989,11 @@ begin
   if ((id < 0) or (id >= rules.Count)) then
   begin
 
-
-    irc_addtext(Netname, Channel, 'Incorrect rule id (%s)',[params]);
+    irc_addtext(Netname, Channel, 'Incorrect rule id (%s)', [params]);
     exit;
   end;
 
-  Irc_AddText(netname,channel,'<b>Delete</b>: <b>%s</b> %s',[params,TRule(rules.Items[id]).AsText(true)]);
+  Irc_AddText(netname, channel, '<b>Delete</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
   rules.Delete(id);
   RulesSave;
 
@@ -5416,8 +5415,8 @@ begin
       irc_addtext(Netname, Channel, s);
     irc_addtext(Netname, Channel,
       '<b>Type %shelp command to get detailed info</b>.', [irccmdprefix]);
-      result:=True;
-      Exit;
+    result := True;
+    Exit;
   end;
 end;
 
@@ -11334,6 +11333,116 @@ var
   tvr: TTVInfoDB;
   x: TRegExpr;
   i, sresMAXi: integer;
+  res: TStringlist;
+  hadYear, hadCountry: boolean;
+  tv_prime, tv_country, showName, year, country: string;
+  jl: TlkJSONlist;
+begin
+  result := False;
+  sid := UpperCase(SubString(params, ' ', 1));
+  ssname := RightStrV2(params, length(sid) + 1);
+  sresMAXi := strtointdef(config.ReadString('tasktvinfo',
+    'max_sid_lookup_results',
+    '5'), 5);
+
+  x := TRegExpr.Create;
+  try
+    x.ModifierI := True;
+    x.ModifierM := True;
+    x.Expression := '\s\-c\:(\d+)';
+    // \s is importent for the right announce later...
+    if x.Exec(params) then
+      sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
+    ssname := x.Replace(ssname, '');
+  finally
+    x.Free;
+  end;
+
+  if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S')) then
+  begin
+    getShowValues(ssname, showName);
+    resp := findTVMazeIDByNamev2(showName, netname, channel);
+
+    if resp = 'IRC' then
+    begin
+      result := True;
+      Exit;
+    end;
+
+    if resp <> 'FAILED' then
+    begin
+      res := TStringlist.Create;
+      try
+        res.CommaText := resp;
+        irc_addtext(Netname, Channel, '<b><c5>TVInfo</c></b>: No match for %s found.', [showName]);
+        for I := 0 to res.Count - 1 do
+        begin
+          irc_addtext(netname, channel, res.Strings[i]);
+          if i >= sresMAXi then
+            break;
+        end;
+        result := true
+      finally
+        res.free;
+      end;
+    end;
+    Exit;
+  end;
+
+  if StrToIntDef(sid, -1) > -1 then
+  begin
+    //    uurl := 'thetvdb=' + sid;
+    try
+      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode');
+    except
+      on E: Exception do
+      begin
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.add.slurlget: %s',
+          [E.Message]));
+        result := True;
+        Exit;
+      end;
+    end;
+
+    if ((resp = '') or (resp = '[]')) then
+    begin
+      irc_addtext(Netname, Channel, 'No info found for ' + sname);
+      Result := True;
+      Exit;
+    end;
+
+    tvr := parseTVMazeInfos(resp, sname);
+    tvr.rls_showname := RightStrV2(params, length(sid) + 1);
+    try
+      tvr.Save;
+    except
+      on E: Exception do
+      begin
+        irc_AddText(Netname, Channel, format(
+          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.save: %s',
+          [E.Message]));
+        tvr.free;
+        result := True;
+        Exit;
+      end;
+    end;
+    tvr.PostResults(Netname, Channel, RightStrV2(params, length(sid) + 1));
+  end
+  else
+    irc_Addtext(netname, channel,
+      '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
+  Result := True;
+
+end;
+
+{
+function IrcAddTVMazeToDb(const netname, channel: string; params: string): boolean;
+var
+  resp, uurl, ssname, sname, sid: string;
+  tvr: TTVInfoDB;
+  x: TRegExpr;
+  i, sresMAXi: integer;
 
   jl: TlkJSONlist;
 begin
@@ -11455,7 +11564,7 @@ begin
   Result := True;
 
 end;
-
+    }
 (*
   function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
   begin
@@ -11601,8 +11710,8 @@ begin
   end;
 
   r := TRegexpr.Create;
-//  r.ModifierS := False;
-//  r.ModifierG := False;
+  //  r.ModifierS := False;
+  //  r.ModifierG := False;
 
   try
     r.Expression := 'foo nukes';

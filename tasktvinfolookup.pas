@@ -50,6 +50,8 @@ function findTheTVDbIDByName(name: string): string;
 
 function findTVMazeIDByName(name: string): string;
 
+function findTVMazeIDByNamev2(name: string; Netname: string = ''; Channel: string = ''): string;
+
 implementation
 
 uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
@@ -58,7 +60,174 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
 const
   section = 'tasktvinfo';
 
+function findTVMazeIDByNamev2(name: string; Netname: string = ''; Channel: string = ''): string;
+var
+  showA, showB, sname, resp: string;
+  x: TRegExpr;
+  i: integer;
+  ddate, res: TStringlist;
+  fromIRC, hadYear, hadCountry: boolean;
+  tv_prime, tv_country, showName, year, country: string;
+  jl: TlkJSONlist;
 
+begin
+  result := 'FAILED';
+  fromIRC := Boolean((Netname <> '') and (Channel <> ''));
+  x := TRegExpr.Create;
+  try
+    x.ModifierI := True;
+    x.ModifierM := True;
+    getShowValues(name, showName);
+
+    // Cut off Year tag
+    x.Expression := '[._-](\d{4})[._-]?$';
+    if x.Exec(showName) then
+    begin
+      hadYear := True;
+      year := x.Match[1];
+      showName := x.Replace(showName, '');
+    end;
+    // Cut off Country tag
+    x.Expression := '[._-](US|UK|AU|CA|NZ)[._-]?$';
+    if x.Exec(showName) then
+    begin
+      hadCountry := True;
+      country := x.Match[1];
+      showName := x.Replace(showName, '');
+    end;
+  finally
+    x.free;
+  end;
+
+  resp := slUrlGet('http://api.tvmaze.com/search/shows', 'q=' + replaceTVShowChars(showName, true));
+  if ((resp = '') or (resp = '[]')) then
+  begin
+    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [Csere(showName, '.', ' '), name]);
+    Exit;
+  end;
+
+  jl := TlkJSONlist.Create;
+  try
+    jl := TlkJSON.ParseText(resp) as TlkJSONlist;
+  except
+    on E: Exception do
+    begin
+      irc_AddText(Netname, Channel, '<c4>[Exception]</c> in IrcAddTVMazeToDb.search: %s', [E.Message]);
+      jl.free;
+      Exit;
+    end;
+  end;
+
+  res := TStringlist.Create;
+  ddate := TStringlist.Create;
+  try
+    for I := 0 to jl.Count - 1 do
+    begin
+
+      showA := replaceTVShowChars(Csere(showName, '.', ' '));
+      showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
+
+      if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+      begin
+
+        if hadCountry then
+        begin
+          if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
+            tv_country := string(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+          if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
+            tv_country := string(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+          if tv_country = 'GB' then
+            tv_country := 'UK';
+          if UpperCase(tv_country) = uppercase(country) then
+          begin
+            if fromIRC then
+            begin
+              irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
+                [string(jl.Child[i].Field['show'].Field['name'].Value),
+                string(jl.Child[i].Field['show'].Field['url'].Value),
+                  irccmdprefix,
+                  string(jl.Child[i].Field['show'].Field['id'].Value),
+                  Csere(showName, '.', ' '), country]);
+              result := 'IRC';
+            end
+            else
+              result := string(jl.Child[i].Field['show'].Field['id'].Value);
+            //          result := True;
+            Break;
+          end;
+          res.Add(
+            Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
+            [string(jl.Child[i].Field['show'].Field['name'].Value),
+            tv_country,
+              string(jl.Child[i].Field['show'].Field['url'].Value),
+              irccmdprefix,
+              string(jl.Child[i].Field['show'].Field['id'].Value),
+              Csere(showName, '.', ' '), country]));
+        end;
+        if hadYear then
+        begin
+          ddate.Delimiter := '-';
+          if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
+            ddate.DelimitedText := string(jl.Child[i].Field['show'].Field['premiered'].Value)
+          else
+            ddate.DelimitedText := '1990-01-01';
+          if year = ddate.Strings[0] then
+          begin
+            if fromIRC then
+            begin
+              irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
+                [string(jl.Child[i].Field['show'].Field['name'].Value),
+                string(jl.Child[i].Field['show'].Field['url'].Value),
+                  irccmdprefix,
+                  string(jl.Child[i].Field['show'].Field['id'].Value),
+                  Csere(showName, '.', ' '), year]);
+              result := 'IRC';
+            end
+            else
+              result := string(jl.Child[i].Field['show'].Field['id'].Value);
+            Break;
+          end;
+          res.Add(
+            Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
+            [string(jl.Child[i].Field['show'].Field['name'].Value),
+            ddate.Strings[0],
+              string(jl.Child[i].Field['show'].Field['url'].Value),
+              irccmdprefix,
+              string(jl.Child[i].Field['show'].Field['id'].Value),
+              Csere(showName, '.', ' '), year]));
+        end;
+      end;
+
+      if ((not hadYear) and (not hadCountry)) then
+      begin
+        if not fromIRC then
+          result := string(jl.Child[i].Field['show'].Field['id'].Value)
+        else
+        begin
+          result := 'IRC';
+          irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s',
+            [string(jl.Child[i].Field['show'].Field['name'].Value),
+            string(jl.Child[i].Field['show'].Field['url'].Value),
+              irccmdprefix,
+              string(jl.Child[i].Field['show'].Field['id'].Value),
+              Csere(showName, '.', ' ')]);
+        end;
+        Break;
+      end;
+
+    end;
+
+
+   //No match found, so we announce the resuls
+
+    if ((result = 'FAILED') and (fromIRC)) then result := res.CommaText;
+
+  finally
+    jl.free;
+    res.free;
+    ddate.free;
+  end;
+end;
 
 function findTVMazeIDByName(name: string): string;
 var
@@ -224,9 +393,8 @@ begin
 {$IFDEF MSWINDOWS}
   GetLocaleFormatSettings(1033, formatSettings);
 {$ELSE}
-formatSettings:=DefaultFormatSettings;
+  formatSettings := DefaultFormatSettings;
 {$ENDIF}
-
   formatSettings.ShortDateFormat := 'yyyy-mm-dd';
   formatSettings.ShortTimeFormat := 'hh:mm';
   formatSettings.DateSeparator := '-';
@@ -247,7 +415,7 @@ formatSettings:=DefaultFormatSettings;
         airt := '00:00'
       else
         airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
-      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt,formatSettings);
+      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
       hadPrev := True;
       //      irc_addadmin('previousepisode => %dx%d %s ',[se_prevnum,ep_prevnum,DateTimeToStr(prevdt)]);
     end;
@@ -268,7 +436,7 @@ formatSettings:=DefaultFormatSettings;
         airt := '00:00'
       else
         airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
-      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt,formatSettings);
+      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
       hadNext := True;
       //      irc_addadmin('nextepisode => %dx%d %s ',[se_nextnum,ep_nextnum,DateTimeToStr(nextdt)]);
     end;
