@@ -74,7 +74,6 @@ function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
 function updateToV2: boolean;
 
-
 procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: int64); overload;
 procedure getShowValues(rip: string; out showName: string); overload;
 
@@ -112,8 +111,8 @@ begin
   name := Csere(name, '', chr(39));
   if forWebFetch then
   begin
-    result := Csere(name, ' ', '+');
-    result := Csere(name, '.', '+');
+    name := Csere(name, ' ', '+');
+    name := Csere(name, '.', '+');
   end;
   result := name;
 end;
@@ -132,6 +131,7 @@ var
   dt: TDateTime;
 begin
   rx := TRegexpr.Create;
+  showName:=rip;
   try
     rx.ModifierI := True;
     //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
@@ -167,11 +167,6 @@ begin
     rx.free;
   end;
 end;
-
-
-
-
-
 
 {   TTVInfoDB                                 }
 
