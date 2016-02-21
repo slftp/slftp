@@ -80,7 +80,7 @@ begin
     getShowValues(name, showName);
 
     // Cut off Year tag
-    x.Expression := '[._-/s](\d{4})[._-]?$';
+    x.Expression := '[._-\s](\d{4})[._-]?$';
     if x.Exec(showName) then
     begin
       hadYear := True;
@@ -88,7 +88,7 @@ begin
       showName := x.Replace(showName, '');
     end;
     // Cut off Country tag
-    x.Expression := '[._-/s](US|UK|AU|CA|NZ)[._-]?$';
+    x.Expression := '[._-\s](US|UK|AU|CA|NZ)[._-]?$';
     if x.Exec(showName) then
     begin
       hadCountry := True;
