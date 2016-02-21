@@ -11349,7 +11349,7 @@ begin
   try
     x.ModifierI := True;
     x.ModifierM := True;
-    x.Expression := '\s\-c\:(\d+)';
+    x.Expression := '\s\-c\:(\d+)$';
     // \s is importent for the right announce later...
     if x.Exec(params) then
       sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
