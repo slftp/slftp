@@ -152,7 +152,7 @@ begin
       episode := StrToIntDef(rx.Match[3], 0);
     end;
 
-    rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
+    rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part\.?)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
