@@ -1,4 +1,4 @@
-                                 [s]oul[l]ess Ftp
+[s]oul[l]ess Ftp
 -------------------------------------------------------------------------------
 
 slFtp is an open-source, multithreaded FTP client with native Linux and Windows
@@ -27,9 +27,9 @@ Features:
 - And many many more!
 Join #slftp@LiNKNET
 
-                                    Licence
+Licence
 -------------------------------------------------------------------------------
 You can freely use/mod slFtp, but keep the source open.
 
-      slftp (c) 2006-2009 believe *** (c) 2009 Soulless Developer Team 
+ slftp (c) 2006-2009 believe *** (c) 2009 Soulless Developer Team 
 
