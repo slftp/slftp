@@ -80,7 +80,7 @@ begin
     getShowValues(name, showName);
 
     // Cut off Year tag
-    x.Expression := '[._-\s](\d{4})[._-]?$';
+    x.Expression := '[._-\s](\d{4})[\s._-]?$';
     if x.Exec(showName) then
     begin
       hadYear := True;
@@ -88,7 +88,7 @@ begin
       showName := x.Replace(showName, '');
     end;
     // Cut off Country tag
-    x.Expression := '[._-\s](US|UK|AU|CA|NZ)[._-]?$';
+    x.Expression := '[._-\s](US|UK|AU|CA|NZ)[\s._-]?$';
     if x.Exec(showName) then
     begin
       hadCountry := True;
@@ -102,7 +102,7 @@ begin
   resp := slUrlGet('http://api.tvmaze.com/search/shows', 'q=' + replaceTVShowChars(showName, true));
   if ((resp = '') or (resp = '[]')) then
   begin
-    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [Csere(showName, '.', ' '), name]);
+    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [Csere(showName, '.', ' '), replaceTVShowChars(showName, true)]);
     Exit;
   end;
 

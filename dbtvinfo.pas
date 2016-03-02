@@ -101,18 +101,20 @@ var
 
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 begin
+//this is a protction!!!!  Dispatches will not end up in Disp@ches
+name := Csere(name, ' ', '.');
+
   //  result := name;
-  name := Csere(name, 'and', '&');
-  name := Csere(name, 'at', '@');
   name := Csere(name, '.and.', '.&.');
   name := Csere(name, '.at.', '.@.');
-  name := Csere(name, '.and.', '_&_');
-  name := Csere(name, '.at.', '_@_');
+  name := Csere(name, '_and_', '_&_');
+  name := Csere(name, '_at_', '_@_');
   name := Csere(name, '', chr(39));
   if forWebFetch then
   begin
     name := Csere(name, ' ', '+');
     name := Csere(name, '.', '+');
+    name := Csere(name, '_', '+');
   end;
   result := name;
 end;
@@ -131,7 +133,7 @@ var
   dt: TDateTime;
 begin
   rx := TRegexpr.Create;
-  showName:=rip;
+  showName := rip;
   try
     rx.ModifierI := True;
     //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
@@ -233,6 +235,13 @@ begin
   tr.currentepisode := false;
   tr.currentair := false;
 
+  if YearOf(now) = tv_next_season then begin
+    tv_next_season := tr.season;
+//    tr.currentseason := true;
+//    tr.currentepisode := Boolean(tv_next_ep = tr.episode);
+//    tr.currentair := tr.currentepisode;
+  end;
+
   case tv_next_season of
     -5:
       begin
@@ -264,8 +273,9 @@ begin
       tr.currentepisode := Boolean(tv_next_ep = tr.episode);
       tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
     end;
-
   end;
+
+
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
     PostResults(rls_showname);
