@@ -8,7 +8,7 @@ const
   TVCurrentEpisiodeDescription: string = 'Returns true when the rip has the same episode number as the database. Returns false when we have no value.';
   TVCurrentSeasonDescription: string = 'Returns true when the rip has the same season number as the database. Returns false when we have no value.';
   TVDailyShowDescription: string = 'Returns true when the rip airs daily. Returns false when we have no value.';
-  TVCurrentOnAirDescription: string = 'Returns true when the rip has the same season+episoden number as the database. Returns false when we have no value.';
+  TVCurrentOnAirDescription: string = 'Returns true when the rip has the same season and episoden number as the database. Returns false when we have no value.';
   TVShowNameDescription: string = 'Returns with the tvshow''s name. This is the part before the S01E01 or 1x12 tag.';
   TVPremierYearDescription: string = 'Returns with the year of premier (based on TVMaze). Returns zero if lookup is not ready yet.' + #10#13 +
     'Scripted, Animation, Reality, Talk Show, Documentary, Game Show, News, Sports, Variety';
