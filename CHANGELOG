@@ -47,7 +47,7 @@ The MultiDisc thing
 --=============================( SLFTP v1.5.1.1 )=================================- 
 {+} TVInfo auto-update
 {^} TVInfo will find shows with Language tag, like UK, US, NZ and Years.
-{^}	slssl.pas file, now you can use Free Pascal Compiler +2.6
+{^}	fixed slssl.pas file, now you can use Free Pascal Compiler 2.6.* and newer
 
 --=============================( SLFTP v1.5.1.0 )=================================- 
 {#}	Bug fixes over fixes over fixes, to much to name them all, really!
