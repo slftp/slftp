@@ -1,0 +1,162 @@
+                                .
+                                ;    .
+                               01.   .
+                               01;, .:
+                               0100 11
+                               1010 01
+                               0100 01
+                             : 1001 00 :        
+                             :   `0 01 :
+       _______     _         :  _____._:___              _
+      /      /    / \___     __/          /             / \________     
+     /  ,___/____/     /     \    _      / \___________/          /
+  ___\____      /     /______/    /_____/             /    _     /
+ /__     /     /     /      /     ___/ /____      ___/     /    /
+   /    /     /     /      /     /2o!  :   /     /  /     _____/
+  /     _____/_____       /__   /     .:  /     /  /__   /    
+ /__   /          /___   /...\_/....:::: /__   /  .   \_/            
+    \_.001.  1    .100._/            ...    \_/   .
+       01    10      10               ::          :
+      `10.11 .0  11.01'                `          :
+        1000.  .  .000'                 ........  :
+        `'`101. .101'`1.......:.........:      :..'
+          . `10100'.:         :         :      :
+   --->   :.  `10z.`:  <-- ---+- slFtp -+-     :    
+          1:   .`10f.         :         `......:
+	  01  .1  `00r.       :.............'   
+	  00  0:  .100'       :...Legend...:'
+          01  01.101' 
+	  10  0101' .  {+} - new feature
+	  01  01'  .1  {#} - bugfix
+	  0:  10   00  {^} - improvement
+	  :.  1    10  {-} - removed
+	  .   1    0:
+	      0.    :.
+	      .     .ß
+	      
+--==========================( NEW SLFTP.ini ITEMS )===============================-	    
+
+[tasktvinfo]
+daysbetweenlastUpdate=6
+
+--===========================( KNOWN BUG in v1.5 )================================-	      
+
+The Sample thing
+The MultiDisc thing
+
+--=============================( SLFTP v1.5.1.1 )=================================- 
+{+}			TVInfo auto-update
+{^}         TVInfo will find shows with Language tag, like UK, US, NZ and Years.
+{^}			slssl.pas file, now you can use Free Pascal Compiler +2.6
+
+--=============================( SLFTP v1.5.1.0 )=================================- 
+{#}			Bug fixes over fixes over fixes, to much to name them all, really!
+{#}			Adjust to new IMDb layout some users have been experiencing on rating/votes
+{+}			Welcome TVMaze & TheTVDb! 
+{-}			TVRage, rest in peace, thanks for your support!  
+{-}			We removed NFO, URL and IMDB Db, we need to start from scratch for these features. 
+{-}			last_tvinfo_in_memory. we already have them in a DataBase! 
+{^}			Starting to get the IRC-Announce-color-pattern back in line. 
+
+--=============================( SLFTP v1.5.0.6 )=================================- 
+{#}			TVRage code mess-up.. sorry!
+
+--=============================( SLFTP v1.5.0.5 )=================================- 
+{#}			TVRage SQL statement's  fixed to ignore case (thx madjik)
+{#}			!queue --all now will REALLY show all! 
+{+}			logverbosity, change the Debug verbosity. 
+
+--=============================( SLFTP v1.5.0.4 )=================================- 
+{#}			ProcessReleaseVege, should be fixed
+{^}			Perm. down.
+{^}			IMDB.stv will now work even with old languagebase.
+{^}			setdir IRCCommand throw an error when user try to add REQUEST section, its REQUESTS.
+{+}			!sections sectionname , will announce each site with that section in list.
+
+--=============================( SLFTP v1.5.0.3 )=================================- 
+{#}			!imdbinfo - fixed added cmd parameter to TIrcCommandThread exception
+{#}			sample first config value, sample was  sended always first.
+{#}			Played around with TVRage Ended Year, UNTESTED!
+{#}			IrcSetSocks5 set -1 to remove a proxy from Site/IRCNet
+{^}			TCP connection use ssl_v23 again. thx to glftpd dev for the heads-up!
+
+--=============================( SLFTP v1.5.0.2 )=================================- 
+{#}			some MYSQL dupe check fixes.
+{#}			try_to_complete finally work:.(?)
+
+--=============================( SLFTP v1.5.0.1 )=================================- 
+{+}			irccommands: setpretimemod2, setaddpremode.
+{^}			irccommands check for PermDown -> Raw,Invite,Setdown,Autologin,Autobnctest,Autodirlist,Autoindex,Autonuke,Speedtest,Credits.
+{^}			Proxy connection is now over TLS v1.2
+{#}			spamconf command work again.
+{#}			TVRage should only crache when TVRage lags or an old show got Aired and Pred again, then some items are missing in the XML. -> Us.and.Them.S01E01.Pilot.PDTV.x264-FiHTV
+{#}			Adding English as default language (like in MP3Source CDR) -> [SKIP] : 0DAY Ashampoo.Photo.Card.2.v2.0.2-TE @ xy "xy 0DAY if language notin German, English then DROP" (NEWDIR)
+
+--=============================( SLFTP v1.5.0.0 )=================================- 
+{+}			mode_2 for a 2nd pretime check. 
+{+}			sample_first value.
+{+}			Convert file names to lower case option.
+{+}			updatetvrageinfo and deltvrageinfo added. check !help
+{+}			New SSL method: #7 TLSv1_2 and #8 ImplicitTLSv1_2
+{^}			MYSQL will work the old fashion way, check slftp.ini
+{^}			addtvrageinfo, syntax changed. check helpfile. 
+{#}			try_to_complete code added from eN0Rm.
+{#}			Autoindex work again
+{#}			findaffil irccommand. 
+{#}			IRCCommand-errors now ALL go into the same channel and dont need a chanrole.
+
+--=============================( SLFTP v1.4.5.1 )=================================- 
+{^}			PreTimeMode will announced on new_rls and update_rls, now you know which mode did the job :)
+{^}			IMDB regex to properly fetch /releaseinfo status
+{^}			NukeWord in prechater will now check word by word and not AnsiSameText. 
+{#}			Pretime offset handling.
+
+--=============================( SLFTP v1.4.5.0 )=================================- 
+{+} 		MYSQL Pretime check. read MYSQL under docs!
+{+} 		added support for hex and long bnc ips
+{+} 		added split_site_data mode for splitting site data to 3 files per site, disabled by default changed mysql initialisation to not exit when it fails
+{^}			slftp.ini and spamconf.
+{^}			Added Adminsite site check to Prebot.
+{^}			changed affil handling from toggling to !setaffils and !affils
+{#}			many many many bugfixes, to much to count them all 
+{#}			IrcSpread exception fixed on windows.
+
+--=============================( SLFTP v1.4.0.4 )=================================- 
+{+}			XML-Wrapper!!! DOM AND MSXML, NATIVE! No 3rd party Component pack! 
+{#}			SpeedStat calc now show megabyte again.
+{#}			Nukewords work again.
+{#}			Sites count on !status, !sites and Console windows.
+{#}			try_to_complete back in game?
+{#}			Some Artist like Vanden_Plas was detected as mp3va.
+{^}			Added a new NEWDIR PRE theme thx to d3x. let us know if its cool or awful ;)
+{^}			Autobnctest, Autologin and try_to_complete now check for permdown = true.
+
+--=============================( SLFTP v1.4.0.3 )=================================- 
+{#}			auto_add_affils config value was not in use
+{#}			on try to complete when no source site was found, slftp take the dest site as source site.
+{#}			IRCWrite wrong EXCEPTION
+{#}			TVRage Running and TVGenre 
+{-}			old code that attempted to part any channels without blowkeys. The code did not work properly and caused lots of "No such channel" errors on adding or removing channels
+{-}			!listaffils, its now a part of affils.
+{+}			custom Dirlist command for Autoindex added.
+{+}			!nukes, show the sitenukes.
+{+}			!catchmod, same like rulemod but for catches
+{^}			replace function moved to  FoCsupaszitas, now we replace before we check the catchline. we can rename (MP3)(NEW) to MP3 NEW and make the catchline withpout (). eg -> NEWDIR NEW,>
+				NOTE: Your catchline is: #n SITE-NETNAME-#CHANNEL <BOTNICK> [PRE] {PRE-RELEASE,ENG-x264-SD,by} (ENGXVID) you have to tweak it!
+				you can use !catchmod or decrpyt your slftp.chans file and fixe the words part: {PRE-RELEASE,ENG-x264-SD,by} -> {PRE,RELEASE,ENG,x264,SD,by}
+				Best solution is make a proper replacer config :)
+{^}			!affils command now include listaffils command. You can list all affils from a site with e.g. !affils MP3.	
+				read the new helpfile!			
+--=============================( SLFTP v1.4.0.2 )=================================- 
+{+}			Topic and Nick change detection. chanrole: INFO  .. check slftp.ini
+{^}			!ircnetadd now accept user and nick value for proxy usage!
+{^}			!affils linesplit after 12 items.
+{^}			TIMDBScreens Always take the highest US/UK screen count, not only from the opening weekend 
+{-}			!ircnetaddbnc
+{#}			!tweak work again.
+{#}			try_to_complete finally work, was broken in 1.4.0.1
+{#} 		QueueSort memory leak.
+--=============================( SLFTP v1.4.0.1 )=================================-
+{#} 		try_to_complete is back!
+{^} 		QueueSort Fileorder, MKDir, SFV, NFO, Sample 
+{-}			infinite loop from console
