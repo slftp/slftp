@@ -4995,7 +4995,7 @@ begin
     exit;
   end;
 
-  Irc_AddText(netname, channel, '<b>Deleted</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
+  Irc_AddText(netname, channel, '<b>Delete</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
   rules.Delete(id);
   RulesSave;
 
