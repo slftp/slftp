@@ -9663,12 +9663,12 @@ var
   vsocks: TmSLSocks5;
 begin
   Result := False;
-  vtrigger := SubString(params, ' ', 1);
-  vname := SubString(params, ' ', 2);
-  vvalue := SubString(params, ' ', 3);
+  vtrigger := UpperCase(SubString(params, ' ', 1));
+  vname := UpperCase(SubString(params, ' ', 2));
+  vvalue := UpperCase(SubString(params, ' ', 3));
   vsocks := nil;
 
-  if UpperCase(vtrigger) = 'SITE' then
+  if vtrigger = 'SITE' then
   begin
     vsite := FindSiteByName('', vname);
     if vsite = nil then
@@ -9676,37 +9676,51 @@ begin
       irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [vname]);
       exit;
     end;
+
     if vvalue = '-1' then
-      vsite.ProxyName := '!!NOIN!!'
-    else
-      vsocks := FindProxyByName(vvalue);
-    if vsocks = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+      vsite.ProxyName := '!!NOIN!!'; //means Proxy usage removed
+      Result := True;
       exit;
+    end
+    else
+    begin
+      vsocks := FindProxyByName(vvalue);
+        if vsocks = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+          exit;
+        end;
+      vsite.ProxyName := vvalue;
     end;
-    vsite.ProxyName := vvalue;
   end
-  else if UpperCase(vtrigger) = 'IRC' then
+  else if vtrigger = 'IRC' then
   begin
     virc := FindIrcnetwork(vname);
     if virc = nil then
     begin
-      irc_addtext(Netname, Channel,
-        'Cant find IRCNetwork with name %s!', [vname]);
+      irc_addtext(Netname, Channel, 'Cant find IRCNetwork with name %s!', [vname]);
       exit;
     end;
+
     if vvalue = '-1' then
-      virc.ProxyName := '!!NOIN!!'
-    else
-      vsocks := FindProxyByName(vvalue);
-    if vsocks = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+      virc.ProxyName := '!!NOIN!!'; //means Proxy usage removed
+      Result := True;
       exit;
+    end
+    else
+    begin
+      vsocks := FindProxyByName(vvalue);
+        if vsocks = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+          exit;
+        end;
+      virc.ProxyName := vvalue;
     end;
-    virc.ProxyName := vvalue;
   end;
+
   Result := True;
 end;
 
