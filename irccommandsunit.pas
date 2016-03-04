@@ -150,6 +150,7 @@ function IrcTraders(const netname, channel: string; params: string): boolean;
 function IrcUserslots(const netname, channel: string; params: string): boolean;
 function IrcFreeslots(const netname, channel: string; params: string): boolean;
 function IrcFindAffil(const netname, channel: string; params: string): boolean;
+function IrcFindCountry(const netname, channel: string; params: string): boolean;
 function IrcFindSection(const netname, channel: string; params: string): boolean;
 function IrcFindUser(const netname, channel: string; params: string): boolean;
 function IrcAuto(const netname, channel: string; params: string): boolean;
@@ -329,7 +330,7 @@ function IrcSetTVRageID(const netname, channel: string; params: string): boolean
 
 const
 
-  irccommands: array[1..243] of TIrcCommand = (
+  irccommands: array[1..244] of TIrcCommand = (
     (cmd: '- General -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -557,6 +558,7 @@ const
     (cmd: 'freeslots'; hnd: IrcFreeslots; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'findcountry'; hnd: IrcFindCountry; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'finduser'; hnd: IrcFindUser; minparams: 1; maxparams: 1; hlpgrp: ''),
 
@@ -4993,7 +4995,7 @@ begin
     exit;
   end;
 
-  Irc_AddText(netname, channel, '<b>Delete</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
+  Irc_AddText(netname, channel, '<b>Deleted</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
   rules.Delete(id);
   RulesSave;
 
@@ -6194,6 +6196,41 @@ begin
 
   if ss <> '' then
     irc_addtext(Netname, Channel, ss);
+
+  Result := True;
+end;
+
+function IrcFindCountry(const Netname, Channel: string; params: string): boolean;
+var
+  s: TSite;
+  i: integer;
+  site_found: boolean;
+  country, ss: string;
+begin
+  country := SubString(params, ' ', 1);
+  site_found := False;
+  ss := format('Site(s) with Country %s:', [Country]);
+
+  for i := 0 to sites.Count - 1 do
+  begin
+    s := TSite(sites[i]);
+
+    if country = s.RCString('country', '') then
+    begin
+      ss := ss + format(' <b>%s</b>', [s.Name]);
+      site_found := True;
+    end;
+
+  end;
+
+  if site_found then
+   begin
+    irc_addtext(Netname, Channel, ss);
+   end
+  else 
+   begin
+    irc_addtext(Netname, Channel, 'No sites with this Country found!');
+   end;
 
   Result := True;
 end;
