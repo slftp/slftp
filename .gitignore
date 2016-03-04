@@ -11,5 +11,7 @@ __history
 *.ppu
 *.BAK
 *.bak
+*.stackdump
 bin/*
 slftp.history
+
