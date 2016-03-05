@@ -600,6 +600,7 @@ const
     (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: '- Sections -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: '')
+
     //,(cmd: 'inssection'; hnd: IrcInsSections; minparams: 1; maxparams: - 1; hlpgrp: '')
 
     );
@@ -6224,13 +6225,13 @@ begin
   end;
 
   if site_found then
-   begin
+  begin
     irc_addtext(Netname, Channel, ss);
-   end
-  else 
-   begin
+  end
+  else
+  begin
     irc_addtext(Netname, Channel, 'No sites with this Country found!');
-   end;
+  end;
 
   Result := True;
 end;
@@ -9723,11 +9724,11 @@ begin
     else
     begin
       vsocks := FindProxyByName(vvalue);
-        if vsocks = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
-          exit;
-        end;
+      if vsocks = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        exit;
+      end;
       vsite.ProxyName := vvalue;
     end;
   end
@@ -9749,11 +9750,11 @@ begin
     else
     begin
       vsocks := FindProxyByName(vvalue);
-        if vsocks = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
-          exit;
-        end;
+      if vsocks = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        exit;
+      end;
       virc.ProxyName := vvalue;
     end;
   end;
