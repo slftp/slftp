@@ -815,7 +815,7 @@ begin
     msg:= RightStrv2(s, Pos(' ', s));
     msg:= RightStrv2(msg, Pos(':', msg));
     //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
-    if (nick <> config.ReadString(section, 'nickname', 'slftp')) then
+    if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
     begin
       adminnet:= FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
       adminnet.IrcWrite('PRIVMSG '+config.ReadString(section, 'admin_nick', 'slftp')+' :'+ ReplaceThemeMSG('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg) );
