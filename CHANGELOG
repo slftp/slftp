@@ -44,10 +44,13 @@ daysbetweenlastUpdate=6
 The Sample thing
 The MultiDisc thing
 
---=============================( SLFTP v1.5.1.1 )=================================- 
+--=============================( SLFTP v1.5.2.0 )=================================- 
 {+} TVInfo auto-update
+{+} !findcountry to find sites by country
+{#} !sites and !status will show correct site count now
 {^} TVInfo will find shows with Language tag, like UK, US, NZ and Years.
-{^}	fixed slssl.pas file, now you can use Free Pascal Compiler 2.6.* and newer
+{^} fixed slssl.pas file, now you can use newest Free Pascal Compiler
+{^} ircsetsocks5 works with lowercase input and a bug with -1 fixxed
 
 --=============================( SLFTP v1.5.1.0 )=================================- 
 {#}	Bug fixes over fixes over fixes, to much to name them all, really!
