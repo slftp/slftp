@@ -2,12 +2,12 @@ unit skiplists;
 
 interface
 
-uses Contnrs;
+uses Contnrs, slmasks;
 
 type
   TSkipListFilter = class
   private
-    dirmask:  TObjectList;
+    dirmask: TObjectList;
     filemask: TObjectList;
     function Dirmatches(dirname: string): boolean;
   public
@@ -19,12 +19,13 @@ type
 
   TSkipList = class
   private
+    mask:TslMask;
     allowedfiles: TObjectList;
-    alloweddirs:  TObjectList;
+    alloweddirs: TObjectList;
     function FindDirFilterB(list: TObjectList; dirname: string): TSkiplistFilter;
   public
     sectionname: string;
-    dirdepth:    integer;
+    dirdepth: integer;
     constructor Create(sectionname: string);
     destructor Destroy; override;
 
@@ -45,9 +46,9 @@ function SkiplistCount: integer;
 
 implementation
 
-uses slmasks, mystrings, SysUtils, DebugUnit, irc, console
-{$IFDEF MSWINDOWS},Windows{$ENDIF}
-;
+uses mystrings, SysUtils, DebugUnit, irc, console
+{$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  ;
 
 const
   section: string = 'skiplists';
@@ -58,11 +59,11 @@ var
 
 procedure SkiplistStart;
 var
-  f:      TextFile;
+  f: TextFile;
   s, s1, s2: string;
-  akt:    TSkipList;
+  akt: TSkipList;
   addhere: TObjectList;
-//  isdupe: boolean;
+  //  isdupe: boolean;
 begin
 
   skiplist_to_clean.Clear;
@@ -70,7 +71,7 @@ begin
   skiplist_to_clean.Assign(skiplist);
   skiplist.Clear;
   addhere := nil;
-  akt     := nil;
+  akt := nil;
   AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.skip');
   Reset(f);
   while not EOF(f) do
@@ -88,20 +89,17 @@ begin
       //dupe check?
       skiplist.Add(akt);
     end
-    else
-    if akt <> nil then
+    else if akt <> nil then
     begin
       s1 := SubString(s, '=', 1);
       s2 := SubString(s, '=', 2);
       if s1 = 'dirdepth' then
         akt.dirdepth := StrToIntDef(s2, 1)
-      else
-      if ((s1 = 'allowedfiles') or (s1 = 'alloweddirs')) then
+      else if ((s1 = 'allowedfiles') or (s1 = 'alloweddirs')) then
       begin
         if (s1 = 'allowedfiles') then
           addhere := akt.allowedfiles
-        else
-        if (s1 = 'alloweddirs') then
+        else if (s1 = 'alloweddirs') then
           addhere := akt.alloweddirs;
         s1 := SubString(s2, ':', 1);
         s2 := SubString(s2, ':', 2);
@@ -142,21 +140,21 @@ end;
 
 function SkiplistRehash: boolean;
 begin
-    skiplist.Clear;
-    skiplist_to_clean.Clear;
-    result:=True;
-    try
+  skiplist.Clear;
+  skiplist_to_clean.Clear;
+  result := True;
+  try
     SkiplistStart;
-    except on E: Exception do
-    result:=False;
-    end;
+  except on E: Exception do
+      result := False;
+  end;
 end;
 
 { TSkipList }
 
 function TSkipList.AllowedDir(dirname, filename: string): TSkipListFilter;
 var
-  j:  integer;
+  j: integer;
   sf: TSkipListFilter;
 begin
   Result := nil;
@@ -177,7 +175,7 @@ end;
 
 function TSkipList.AllowedFile(dirname, filename: string): TSkipListFilter;
 var
-  j:  integer;
+  j: integer;
   sf: TSkipListFilter;
 begin
   Result := nil;
@@ -202,20 +200,20 @@ begin
   alloweddirs := TObjectList.Create;
   self.sectionname := UpperCase(sectionname);
   dirdepth := 1;
+  mask:=TslMask.Create(sectionname);
 end;
 
 destructor TSkipList.Destroy;
 begin
   allowedfiles.Free;
   alloweddirs.Free;
-
+  mask.Free;
   inherited;
 end;
 
-
 function TSkipList.FindDirFilterB(list: TObjectList; dirname: string): TSkiplistFilter;
 var
-  i:  integer;
+  i: integer;
   sf: TSkiplistFilter;
 begin
   Result := nil;
@@ -248,11 +246,11 @@ end;
 
 constructor TSkipListFilter.Create(dms, fms: string);
 var
-  fm:     string;
+  fm: string;
   dc, fc: integer;
-  i, j:   integer;
+  i, j: integer;
 begin
-  dirmask  := TObjectList.Create;
+  dirmask := TObjectList.Create;
   filemask := TObjectList.Create;
 
   dc := Count(',', dms);
@@ -269,7 +267,7 @@ begin
       filemask.Add(TslMask.Create('*.rar'));
       filemask.Add(TslMask.Create('*.r[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.s[0-9][0-9]'));
-      filemask.Add(TslMask.Create('*.t[0-9][0-9]'));      
+      filemask.Add(TslMask.Create('*.t[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.[0-9][0-9][0-9]'));
     end
     else
@@ -324,26 +322,40 @@ var
   i: integer;
   s: TSkipList;
 begin
-      Result := skiplist[0] as TSkipList;
+  Result := nil; //skiplist[0] as TSkipList;
+  (*
+  if TSkipList(skiplists[0]).sectionname = '*' then
+    Result := skiplist[0] as TSkipList else result := nil;
+  *)
   try
     for i := 1 to skiplist.Count - 1 do
     begin
       s := TSkipList(skiplist[i]);
-      if (AnsiCompareText(s.sectionname, section) = 0) then
+
+if s.mask.Matches(section) then
+
+
+//      if (AnsiCompareText(s.sectionname, section) = 0) then
       begin
         Result := s;
-        exit;
+        break;
       end;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'skiplists', '[EXCEPTION] FindSkipList : %s', [e.Message]);
-result:=nil;
+      result := nil;
     end;
   end;
-  irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> section not found: %s',
-    [section]));
+  (*
+  if Result = nil then
+  begin
+    irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> section not found: %s',
+      [section]));
+    Result := skiplist[0] as TSkipList;
+  end;
+  *)
 end;
 
 function TSkipListFilter.MatchFile(filename: string): integer;
