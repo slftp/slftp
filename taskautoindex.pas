@@ -27,10 +27,21 @@ var de: TDirlistEntry;
     i: Integer;
     rx:TRegexpr;
 begin
-  rx:=TRegexpr.Create;
-  rx.Expression:=config.ReadString(rsections,'expect_nfo_files','');
-  Result:= nil;
+  rx := TRegexpr.Create;
+  rx.Expression := config.ReadString(rsections,'expect_nfo_files','');
+  Result := nil;
   try
+  de := dl.FindNfo;
+  if (de <> nil) then
+  begin
+    if not rx.exec(de.filename) then
+    begin
+      Result := de;
+      break;
+    end;
+  end;
+  
+(*
     for i:= 0 to dl.entries.Count -1 do
     begin
       de:= TDirlistEntry(dl.entries[i]);
@@ -43,6 +54,8 @@ begin
         end;
       end;
     end;
+*)
+
     rx.free;
   except
     on e: Exception do
