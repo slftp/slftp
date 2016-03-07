@@ -24,8 +24,8 @@ const rsections = 'indexer';
 
 function IndexFindNfo(dl: TDirList): TDirListEntry;
 var de: TDirlistEntry;
-    i: Integer;
-    rx:TRegexpr;
+    //i: Integer;
+    rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
   rx.Expression := config.ReadString(rsections, 'expect_nfo_files', '');
