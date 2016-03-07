@@ -852,25 +852,13 @@ begin
 
   if channel = irc_nick then // nickname az a sajat nickem amivel ircen vagyok
   begin
-<<<<<<< HEAD
-  try
-    //privat uzenet, ki kell hamozni a nikket
-    channel:= nick;
-    msg:= RightStrv2(s, Pos(' ', s));
-    msg:= RightStrv2(msg, Pos(':', msg));
-    //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
-    if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
-    begin
-      adminnet:= FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
-      adminnet.IrcWrite('PRIVMSG '+config.ReadString(section, 'admin_nick', 'slftp')+' :'+ ReplaceThemeMSG('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg) );
-=======
     try
       //privat uzenet, ki kell hamozni a nikket
       channel := nick;
       msg := RightStrv2(s, Pos(' ', s));
       msg := RightStrv2(msg, Pos(':', msg));
       //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
-      if (nick <> config.ReadString(section, 'nickname', 'slftp')) then
+      if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
       begin
         adminnet := FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
         adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
@@ -878,7 +866,6 @@ begin
       exit;
     except on E: Exception do
         Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite: %s', [e.Message]));
->>>>>>> remotes/origin/Issue#13
     end;
   end;
   msg := RightStrv2(s, Pos(' ', s));
@@ -1169,156 +1156,156 @@ begin
   if 1 = Pos('PING :', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
-      registered := True
-    else
+    registered := True
+  else
+  begin
+    s1 := SubString(s, ' ', 1);
+
+    if (s1 = 'ERROR') then
     begin
-      s1 := SubString(s, ' ', 1);
-
-      if (s1 = 'ERROR') then
-      begin
-        //  02-20 20:28:16.887 (12C8) [irc         ] << ERROR :Closing Link: 213.186.38.105 (*** Banned )
-        irc_addadmin(Format('<%s> %s', [netname, RightStrV2(s, 7)]));
-      end;
-
-      s2 := SubString(s, ' ', 2);
-
-      if (0 = Pos(':' + irc_nick + '!', s)) then
-      begin
-        if (s2 = 'PRIVMSG') then
-        begin
-          try
-            IrcPrivMsg(s);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] IrcPrivMsg: %s', [e.Message]));
-              Result := True;
-              exit;
-            end;
-          end;
-        end
-        else if (s2 = 'INVITE') then
-        begin
-          chan := Copy(SubString(s, ' ', 4), 2, 1000);
-          irc_Addadmin('INVITE on ' + netname + ' to ' + chan + ' by ' + Copy(SubString(SubString(s, ' ', 1), '!', 1), 2, 100));
-          b := FindIrcBlowfish(netname, chan, False);
-          if nil <> b then
-          begin
-            // oke, ha hivtak hat belepunk
-            if not WriteLn(Trim('JOIN ' + b.channel + ' ' + b.chankey)) then
-            begin
-              Result := True;
-              exit;
-            end;
-          end;
-        end;
-      end;
-
-      snick := Copy(s, 2, Pos('!', s) - 2);
-      //:rsc!rsctm@coctail.sda.bme.hu KICK #femforgacs rsctm :no reason
-      if (s2 = 'KICK') then
-      begin
-        chan := SubString(s, ' ', 3);
-        nick := SubString(s, ' ', 4);
-
-        if (nick <> irc_nick) then
-        begin
-          if config.ReadBool(section, 'echo_kick_events', False) then
-          begin
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s', [netname, chan, nick, snick]));
-            console_addline(netname + ' ' + chan, Format('--> KICK %s by %s <--', [nick, snick]));
-          end;
-        end;
-        chanpart(chan, nick);
-      end
-      else if (s2 = 'JOIN') then
-      begin
-        chan := Copy(SubString(s, ' ', 3), 2, 1000);
-        snick := Copy(s, 2, Pos('!', s) - 2);
-        console_add_ircwindow(netname + ' ' + chan);
-        if (snick <> irc_nick) then
-        begin
-          if config.ReadBool(section, 'echo_join_part_events', False) then
-          begin
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s', [netname, chan, snick]));
-            console_addline(netname + ' ' + chan, Format('--> JOIN %s <--', [snick]));
-          end;
-        end;
-
-        chanjoin(chan, snick);
-      end
-      else if (s2 = 'PART') then
-      begin
-        chan := SubString(s, ' ', 3);
-        snick := Copy(s, 2, Pos('!', s) - 2);
-        if (snick <> irc_nick) then
-        begin
-          console_addline(netname + ' ' + chan, Format('--> PART %s <--', [snick]));
-          if config.ReadBool(section, 'echo_join_part_events', False) then
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s', [netname, chan, snick]));
-        end;
-        chanpart(chan, snick);
-      end
-      else if (s2 = 'TOPIC') then
-      begin
-        s1 := Copy(s, Pos(':', s) + 1, MaxInt);
-        chan := SubString(s, ' ', 3);
-        s1 := Copy(s1, Pos(' ', s1), MaxInt);
-        msg := Copy(s1, Pos(':', s1) + 1, MaxInt);
-        //irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
-        if (1 = Pos('+OK ', msg)) then
-        begin
-          try
-            crypted := True;
-            if config.ReadBool(section, 'echo_topic_change_events', False) then
-              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-            end;
-          end;
-        end
-        else if (1 = Pos('mcps ', msg)) then
-        begin
-          try
-            crypted := True;
-            if config.ReadBool(section, 'echo_topic_change_events', False) then
-              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-            end;
-          end;
-        end;
-        if not crypted then
-        begin
-          if config.ReadBool(section, 'echo_topic_change_events', False) then
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, msg]));
-        end;
-      end
-      else if (s2 = 'NICK') then
-      begin
-        snick := Copy(s, 2, Pos('!', s) - 2);
-        if (snick <> irc_nick) then
-        begin
-          if config.ReadBool(section, 'echo_nick_change_events', False) then
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s', [netname, snick, Copy(s, RPos(':', s) + 1, MaxInt)]));
-        end;
-      end
-      else if ((s2 = 'QUIT') and (snick <> irc_nick)) then
-      begin
-        s1 := Copy(s, RPos(':', s) + 1, 1000);
-        for i := 0 to channels.Count - 1 do
-        begin
-          chan := channels.Names[i];
-          console_addline(netname + ' ' + chan, Format('--> QUIT %s (%s) <--', [snick, s1]));
-          chanpart(chan, snick);
-        end;
-      end;
-
+      //  02-20 20:28:16.887 (12C8) [irc         ] << ERROR :Closing Link: 213.186.38.105 (*** Banned )
+      irc_addadmin(Format('<%s> %s', [netname, RightStrV2(s, 7)]));
     end;
+
+    s2 := SubString(s, ' ', 2);
+
+    if (0 = Pos(':' + irc_nick + '!', s)) then
+    begin
+      if (s2 = 'PRIVMSG') then
+      begin
+        try
+          IrcPrivMsg(s);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] IrcPrivMsg: %s', [e.Message]));
+            Result := True;
+            exit;
+          end;
+        end;
+      end
+      else if (s2 = 'INVITE') then
+      begin
+        chan := Copy(SubString(s, ' ', 4), 2, 1000);
+        irc_Addadmin('INVITE on ' + netname + ' to ' + chan + ' by ' + Copy(SubString(SubString(s, ' ', 1), '!', 1), 2, 100));
+        b := FindIrcBlowfish(netname, chan, False);
+        if nil <> b then
+        begin
+          // oke, ha hivtak hat belepunk
+          if not WriteLn(Trim('JOIN ' + b.channel + ' ' + b.chankey)) then
+          begin
+            Result := True;
+            exit;
+          end;
+        end;
+      end;
+    end;
+
+    snick := Copy(s, 2, Pos('!', s) - 2);
+    //:rsc!rsctm@coctail.sda.bme.hu KICK #femforgacs rsctm :no reason
+    if (s2 = 'KICK') then
+    begin
+      chan := SubString(s, ' ', 3);
+      nick := SubString(s, ' ', 4);
+
+      if (nick <> irc_nick) then
+      begin
+        if config.ReadBool(section, 'echo_kick_events', False) then
+        begin
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s', [netname, chan, nick, snick]));
+          console_addline(netname + ' ' + chan, Format('--> KICK %s by %s <--', [nick, snick]));
+        end;
+      end;
+      chanpart(chan, nick);
+    end
+    else if (s2 = 'JOIN') then
+    begin
+      chan := Copy(SubString(s, ' ', 3), 2, 1000);
+      snick := Copy(s, 2, Pos('!', s) - 2);
+      console_add_ircwindow(netname + ' ' + chan);
+      if (snick <> irc_nick) then
+      begin
+        if config.ReadBool(section, 'echo_join_part_events', False) then
+        begin
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s', [netname, chan, snick]));
+          console_addline(netname + ' ' + chan, Format('--> JOIN %s <--', [snick]));
+        end;
+      end;
+
+      chanjoin(chan, snick);
+    end
+    else if (s2 = 'PART') then
+    begin
+      chan := SubString(s, ' ', 3);
+      snick := Copy(s, 2, Pos('!', s) - 2);
+      if (snick <> irc_nick) then
+      begin
+        console_addline(netname + ' ' + chan, Format('--> PART %s <--', [snick]));
+        if config.ReadBool(section, 'echo_join_part_events', False) then
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s', [netname, chan, snick]));
+      end;
+      chanpart(chan, snick);
+    end
+    else if (s2 = 'TOPIC') then
+    begin
+      s1 := Copy(s, Pos(':', s) + 1, MaxInt);
+      chan := SubString(s, ' ', 3);
+      s1 := Copy(s1, Pos(' ', s1), MaxInt);
+      msg := Copy(s1, Pos(':', s1) + 1, MaxInt);
+      //irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
+      if (1 = Pos('+OK ', msg)) then
+      begin
+        try
+          crypted := True;
+          if config.ReadBool(section, 'echo_topic_change_events', False) then
+            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+          end;
+        end;
+      end
+      else if (1 = Pos('mcps ', msg)) then
+      begin
+        try
+          crypted := True;
+          if config.ReadBool(section, 'echo_topic_change_events', False) then
+            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+          end;
+        end;
+      end;
+      if not crypted then
+      begin
+        if config.ReadBool(section, 'echo_topic_change_events', False) then
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, msg]));
+      end;
+    end
+    else if (s2 = 'NICK') then
+    begin
+      snick := Copy(s, 2, Pos('!', s) - 2);
+      if (snick <> irc_nick) then
+      begin
+        if config.ReadBool(section, 'echo_nick_change_events', False) then
+          irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s', [netname, snick, Copy(s, RPos(':', s) + 1, MaxInt)]));
+      end;
+    end
+    else if ((s2 = 'QUIT') and (snick <> irc_nick)) then
+    begin
+      s1 := Copy(s, RPos(':', s) + 1, 1000);
+      for i := 0 to channels.Count - 1 do
+      begin
+        chan := channels.Names[i];
+        console_addline(netname + ' ' + chan, Format('--> QUIT %s (%s) <--', [snick, s1]));
+        chanpart(chan, snick);
+      end;
+    end;
+
+  end;
 
   Result := True;
 end;
