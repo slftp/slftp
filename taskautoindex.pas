@@ -28,7 +28,7 @@ var de: TDirlistEntry;
     rx:TRegexpr;
 begin
   rx := TRegexpr.Create;
-  rx.Expression := config.ReadString(rsections,'expect_nfo_files','');
+  rx.Expression := config.ReadString(rsections, 'expect_nfo_files', '');
   Result := nil;
   try
   de := dl.FindNfo;
