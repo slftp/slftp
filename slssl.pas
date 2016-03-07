@@ -134,9 +134,6 @@ var slssl_inited: Boolean = False;
   slSSL_shutdown : function(s: PSSL):Integer cdecl = nil;
   slSSL_get_error : function(s: PSSL; ret_code: Integer):Integer cdecl = nil;
 
-  slSSLv2_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv2_server_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv2_client_method : function:PSSL_METHOD cdecl = nil;
   slSSLv3_method : function:PSSL_METHOD cdecl = nil;
   slSSLv3_server_method : function:PSSL_METHOD cdecl = nil;
   slSSLv3_client_method : function:PSSL_METHOD cdecl = nil;
@@ -263,9 +260,6 @@ const
   fn_SSL_get_error = 'SSL_get_error';  {Do not localize}
   fn_SSLeay_version = 'SSLeay_version';  {Do not localize}
 
-  fn_SSLv2_method = 'SSLv2_method';  {Do not localize}
-  fn_SSLv2_server_method = 'SSLv2_server_method';  {Do not localize}
-  fn_SSLv2_client_method = 'SSLv2_client_method';  {Do not localize}
   fn_SSLv3_method = 'SSLv3_method';  {Do not localize}
   fn_SSLv3_server_method = 'SSLv3_server_method';  {Do not localize}
   fn_SSLv3_client_method = 'SSLv3_client_method';  {Do not localize}
@@ -629,9 +623,6 @@ begin
   if not slSsl_LoadProc(h_libssl, fn_SSL_write, @slSSL_write) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSL_get_error, @slSSL_get_error) then exit;
 
-  if not slSsl_LoadProc(h_libssl, fn_SSLv2_method, @slSSLv2_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv2_server_method, @slSSLv2_server_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv2_client_method, @slSSLv2_client_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_method , @slSSLv3_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_server_method, @slSSLv3_server_method) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSLv3_client_method, @slSSLv3_client_method) then exit;
