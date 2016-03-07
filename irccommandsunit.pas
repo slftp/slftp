@@ -111,6 +111,7 @@ function IrcSetChanName(const netname, channel: string; params: string): boolean
 function IrcShowNet(const netname, channel: string; params: string): boolean;
 function IrcAddnet(const netname, channel: string; params: string): boolean;
 function IrcModnet(const netname, channel: string; params: string): boolean;
+function IrcModesNet(const netname, channel: string; params: string): boolean;
 function IrcDelnet(const netname, channel: string; params: string): boolean;
 function IrcDelchan(const netname, channel: string; params: string): boolean;
 function IrcJump(const netname, channel: string; params: string): boolean;
@@ -330,7 +331,7 @@ function IrcSetTVRageID(const netname, channel: string; params: string): boolean
 
 const
 
-  irccommands: array[1..244] of TIrcCommand = (
+  irccommands: array[1..245] of TIrcCommand = (
     (cmd: '- General -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -489,6 +490,7 @@ const
     (cmd: 'ircnet'; hnd: IrcShownet; minparams: 1; maxparams: 2; hlpgrp: ''),
     (cmd: 'ircnetadd'; hnd: IrcAddnet; minparams: 3; maxparams: 7; hlpgrp: ''),
     (cmd: 'ircnetmod'; hnd: IrcModnet; minparams: 2; maxparams: 3; hlpgrp: ''),
+    (cmd: 'ircnetmodes'; hnd: IrcModesNet; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: 'ircnetdel'; hnd: IrcDelnet; minparams: 1; maxparams: 1; hlpgrp: ''),
     (cmd: 'ircnetaddserver'; hnd: Ircnetaddserver; minparams: 2; maxparams: 2; hlpgrp: ''),
     (cmd: 'ircnetdelserver'; hnd: Ircnetdelserver; minparams: 2; maxparams: 2; hlpgrp: ''),
@@ -4300,6 +4302,56 @@ begin
 
   Result := True;
 
+end;
+
+function IrcModesNet(const netname, channel: string; params: string): boolean;
+var
+  s, mode, n_modes, nn: string;
+  mlist: TStringlist;
+  I: Integer;
+  ircn: TMyIrcThread;
+begin
+  result := False;
+  nn := UpperCase(SubString(params, ' ', 1));
+  n_modes := RightStrV2(params, length(nn) + 1);
+
+  ircn := FindIrcnetwork(nn);
+  if nil = ircn then
+  begin
+    irc_addtext(Netname, Channel, '<c5><b>ERROR</b></c>: Network with name <b>%s</b> doesnt exists!', [nn]);
+    exit;
+  end;
+
+  //some more checks to inform the user what slftp have changed?
+
+  mlist := TStringlist.Create;
+  try
+    mlist.Delimiter := ' ';
+    mlist.DelimitedText := n_modes;
+    for I := 0 to mlist.Count - 1 do
+    begin
+
+      mode := mlist.Strings[i];
+
+      if length(mode) = 2 then
+      begin
+
+        if ((mode[1] = '+') and (mode[2] = 'h')) then
+          ircn.MangleHost := True;
+        if ((mode[1] = '-') and (mode[2] = 'h')) then
+          ircn.MangleHost := False;
+
+        if ((mode[1] = '+') and (mode[2] = 'i')) then
+          ircn.Invisible := True;
+        if ((mode[1] = '-') and (mode[2] = 'i')) then
+          ircn.Invisible := False;
+
+      end;
+    end;
+  finally
+    mlist.free;
+  end;
+  result := True;
 end;
 
 function IrcModnet(const Netname, Channel: string; params: string): boolean;
