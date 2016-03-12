@@ -37,7 +37,7 @@ begin
     if not rx.exec(de.filename) then
     begin
       Result := de;
-      break;
+      exit;
     end;
   end;
   
