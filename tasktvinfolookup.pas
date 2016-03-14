@@ -392,6 +392,8 @@ var
   hadPrev, hadNext: boolean;
 begin
 
+date := UnixToDateTime(631160017); //1.1.1990 031337
+
 {$IFDEF MSWINDOWS}
   GetLocaleFormatSettings(1033, formatSettings);
 {$ELSE}

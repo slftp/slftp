@@ -101,8 +101,8 @@ var
 
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 begin
-//this is a protction!!!!  Dispatches will not end up in Disp@ches
-name := Csere(name, ' ', '.');
+  //this is a protction!!!!  Dispatches will not end up in Disp@ches
+  name := Csere(name, ' ', '.');
 
   //  result := name;
   name := Csere(name, '.and.', '.&.');
@@ -199,7 +199,7 @@ begin
       tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id,tvmaze_id,airdays,next_date,next_season,next_episode) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d,''%s'',%d,%d,%d)',
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
       StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id), tv_days.CommaText, tv_next_date, tv_next_season, tv_next_ep])) then
-      last_updated := DateTimeToUnix(now());
+      last_updated := DateTimeToUnix(now()) else last_updated:= 631160017;
 
   except on E: Exception do
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
@@ -235,11 +235,12 @@ begin
   tr.currentepisode := false;
   tr.currentair := false;
 
-  if YearOf(now) = tv_next_season then begin
+  if YearOf(now) = tv_next_season then
+  begin
     tv_next_season := tr.season;
-//    tr.currentseason := true;
-//    tr.currentepisode := Boolean(tv_next_ep = tr.episode);
-//    tr.currentair := tr.currentepisode;
+    //    tr.currentseason := true;
+    //    tr.currentepisode := Boolean(tv_next_ep = tr.episode);
+    //    tr.currentair := tr.currentepisode;
   end;
 
   case tv_next_season of
@@ -274,8 +275,6 @@ begin
       tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
     end;
   end;
-
-
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
     PostResults(rls_showname);
@@ -432,11 +431,17 @@ end;
 
 function TTVInfoDB.UpdateIRC: boolean;
 begin
-  result :=
-    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
-    [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
-    tv_next_ep,
-      StrToInt(tvmaze_id)]));
+  try
+    result :=
+      tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+      [StrToIntDef(thetvdb_id, -1), tv_status, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date,
+        tv_next_season,
+      tv_next_ep,
+        StrToInt(tvmaze_id)]));
+  except on E: Exception do
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.UpdateIRC: %s', [e.Message]));
+  end;
+
 end;
 
 {   misc                                       }
