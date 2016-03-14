@@ -72,6 +72,8 @@ var
 
 begin
   result := 'FAILED';
+  hadYear:=False;
+  hadCountry:=False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
   x := TRegExpr.Create;
   try
