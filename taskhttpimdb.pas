@@ -162,9 +162,10 @@ begin
       begin
         // Apparently no votes yet - no-votes regex should work for new and old layout
         rr.Expression :=
-          '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="rating rating-big" [^<]+ title="Awaiting enough ratings - click stars to rate">';
+          '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="rating rating-big" [^<]+ title="Awaiting enough ratings - click stars to rate">';
         if rr.Exec(mainsite) then
           imdbdata.imdb_votes := -1;
+          imdbdata.imdb_rating := -1;
       end;
     end;
   end;
