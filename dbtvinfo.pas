@@ -274,7 +274,7 @@ begin
   else
     begin
       tr.currentseason := Boolean(tv_next_season = tr.season);
-      tr.currentepisode := Boolean(tv_next_ep = tr.episode);
+      tr.currentepisode := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
       tr.currentair := Boolean((tv_next_season = tr.season) and (tv_next_ep = tr.episode));
     end;
   end;
