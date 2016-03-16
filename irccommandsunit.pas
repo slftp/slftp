@@ -11284,7 +11284,7 @@ begin
 
   if db_tvrage <> nil then
   begin
-    db_tvrage.PostResults(Netname, Channel, db_tvrage.rls_showname);
+    db_tvrage.PostResultsv2(Netname, Channel, db_tvrage.rls_showname);
     Result := True;
   end
   else
@@ -11371,7 +11371,7 @@ begin
     newtvi := parseTVMazeInfos(respo);
     newtvi.last_updated := DateTimeToUnix(now());
     newtvi.UpdateIRC;
-    newtvi.PostResults(Netname, Channel, newtvi.tv_showname);
+    newtvi.PostResultsv2(Netname, Channel, newtvi.tv_showname);
     newtvi.free;
   except on e: Exception do
     begin
@@ -11532,7 +11532,7 @@ begin
         Exit;
       end;
     end;
-    tvr.PostResults(Netname, Channel, RightStrV2(params, length(sid) + 1));
+    tvr.PostResultsv2(Netname, Channel, RightStrV2(params, length(sid) + 1));
   end
   else
     irc_Addtext(netname, channel,
