@@ -11370,7 +11370,7 @@ begin
   try
     newtvi := parseTVMazeInfos(respo);
     newtvi.last_updated := DateTimeToUnix(now());
-    Result := newtvi.UpdateIRC;
+    newtvi.UpdateIRC;
     newtvi.PostResults(Netname, Channel, newtvi.tv_showname);
     newtvi.free;
   except on e: Exception do
@@ -11379,6 +11379,7 @@ begin
       Exit;
     end;
   end;
+  Result := True;
 end;
 
 function IrcSetTVRageID(const Netname, Channel: string; params: string): boolean;

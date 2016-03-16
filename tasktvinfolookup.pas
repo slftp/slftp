@@ -72,8 +72,8 @@ var
 
 begin
   result := 'FAILED';
-  hadYear:=False;
-  hadCountry:=False;
+  hadYear := False;
+  hadCountry := False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
   x := TRegExpr.Create;
   try
@@ -85,9 +85,12 @@ begin
     x.Expression := '[._-\s](\d{4})[\s._-]?$';
     if x.Exec(showName) then
     begin
-      hadYear := True;
       year := x.Match[1];
-      showName := x.Replace(showName, '');
+      if strtoint(year) < config.ReadInteger('', 'minimum_year_value', 2030) then
+      begin
+        showName := x.Replace(showName, '');
+        hadYear := True;
+      end;
     end;
     // Cut off Country tag
     x.Expression := '[._-\s](US|UK|AU|CA|NZ)[\s._-]?$';
@@ -219,10 +222,10 @@ begin
 
     end;
 
+    //No match found, so we announce the resuls
 
-   //No match found, so we announce the resuls
-
-    if ((result = 'FAILED') and (fromIRC)) then result := res.CommaText;
+    if ((result = 'FAILED') and (fromIRC)) then
+      result := res.CommaText;
 
   finally
     jl.free;
@@ -391,6 +394,8 @@ var
   formatSettings: TFormatSettings;
   hadPrev, hadNext: boolean;
 begin
+
+  date := UnixToDateTime(631160017); //1.1.1990 031337
 
 {$IFDEF MSWINDOWS}
   GetLocaleFormatSettings(1033, formatSettings);
@@ -638,24 +643,25 @@ begin
     end;
 
     if js.Field['premiered'].SelfType <> jsNull then
-    begin
-
-      x := TStringlist.Create;
-      try
-        x.Delimiter := '-';
-        x.DelimitedText := string(js.Field['premiered'].Value);
-        tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
-      finally
-        x.free;
-      end;
-
-    end
+      tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4),-1)
     else
       tvr.tv_premiered_year := -1;
 
+    (*
+          x := TStringlist.Create;
+          try
+            x.Delimiter := '-';
+            x.DelimitedText := string(js.Field['premiered'].Value);
+            tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
+          finally
+            x.free;
+          end;
+      *)
+
+    tvr.tv_endedyear := -1;
     tvr.tv_next_ep := -10;
     tvr.tv_next_season := -10;
-    tvr.tv_next_date := DateTimeToUnix(0);
+    tvr.tv_next_date := 631160017;
 
     //Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
@@ -664,6 +670,11 @@ begin
       tvr.tv_next_season := season;
       tvr.tv_next_ep := episdoe;
       tvr.tv_next_date := DateTimeToUnix(date);
+    end
+    else
+    begin
+      if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
+        tvr.tv_endedyear := StrtoIntdef(Copy(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value), 1, 4), -1);
     end;
 
     {
@@ -733,6 +744,7 @@ except on E: Exception do
 end;
   }
 //string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
+    tvr.last_updated := DateTimeToUnix(now());
     result := tvr;
   finally
     js.free;
