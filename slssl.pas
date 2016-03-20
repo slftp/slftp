@@ -321,7 +321,7 @@ const
   fn_CRYPTO_set_dynlock_destroy_callback = 'CRYPTO_set_dynlock_destroy_callback';
 
 
-function OpensslVersion: string;
+function OpenSSLVersion: string;
 begin
   Result:= Format('%s %s %s %s',[
     slSSLeay_version(OPENSSL_SSLEAY_VERSION),
@@ -329,7 +329,8 @@ begin
     slSSLeay_version(OPENSSL_SSLEAY_BUILT_ON),
     slSSLeay_version(OPENSSL_SSLEAY_PLATFORM)]);
 end;
-function OpensslShortVersion: string;
+
+function OpenSSLShortVersion: string;
 begin
   Result:= Copy(slSSLeay_version(OPENSSL_SSLEAY_VERSION), 9, 6);
 end;
