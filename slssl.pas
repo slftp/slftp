@@ -8,8 +8,8 @@ type
   PSSL_METHOD     = Pointer;
 
 
-function OpensslVersion: string;
-function OpensslShortVersion: string;
+function OpenSSLVersion: string;
+function OpenSSLShortVersion: string;
 function slSSL_LastError(): string; overload;
 function slSSL_LastError(ssl: PSSL; ec: Integer): string; overload;
 
