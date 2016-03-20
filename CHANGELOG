@@ -38,6 +38,10 @@
 
 		[tasktvinfo]
 		daysbetweenlastUpdate=6
+                
+		[irc]
+		admin_forward_msgs=1
+                
 
 --===========================( KNOWN BUG in v1.5 )================================-	      
 
@@ -47,11 +51,13 @@
 --=============================( SLFTP v1.5.2.0 )=================================- 
 		{+}	TVInfo auto-update + end_year is back
 		{+}	!findcountry to find sites by country
-		{#}	!sites and !status will show correct site count now
-		{^}	TVInfo will find shows with Language tag, like UK, US, NZ and Years.
-		{^}	fixed slssl.pas file, now you can use newest Free Pascal Compiler
-		{^}	ircsetsocks5 works with lowercase input and a bug with -1 fixxed
-		{^}	imdb shows correct infos when no/less than 5 votes/rates
+		{#}	!sites and !status will now show correct site count
+		{^}	TVInfo will find shows with country tag, like UK, US, NZ and year tag.
+		{^}	fixed slssl.pas file to be compatible with latest openssl libs (1.0.2g+ and 1.0.1s+)
+		{^}	Now you can compile slftp with the newest FPC (Free Pascal Compiler)
+		{^}	ircsetsocks5 works with lowercase input and a bug with -1 fixed
+		{^}	IMDB shows correct infos for movies with no rating/not enough votes
+		{^}	Private IRC messages forwarding to admin nick can now be disabled (admin_forward_msgs)
 
 --=============================( SLFTP v1.5.1.0 )=================================- 
 		{#}	Bug fixes over fixes over fixes, to much to name them all, really!
