@@ -97,9 +97,9 @@ begin
   end;
 
   s := OpenSSLShortVersion();
-  if (s < '1.0.1s') then
+  if (s < '1.0.1') then
   begin
-    Result := 'OpenSSL version is deprecated! 1.0.1s or newer needed.';
+    Result := 'OpenSSL version '+OpenSSLShortVersion()+' is deprecated! 1.0.1 or newer needed.';
     exit;
   end;
 
