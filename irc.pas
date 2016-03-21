@@ -1524,7 +1524,7 @@ begin
 
   status := 'online...';
 
-  if (config.ReadBool(section, 'manglehost', False) and (MangleHost)) then
+  if (config.ReadBool(section, 'manglehost', True) and (MangleHost)) then
   begin
     if not IrcWrite('MODE ' + irc_nick + ' +h') then
     begin
