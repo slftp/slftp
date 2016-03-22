@@ -47,7 +47,7 @@ begin
   Result:= '';
   while stats.Step(s) do
   begin
-    size:= StrToInt(StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
+    size:= StrToInt(StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
     s_unit :='MB';
 
     if size > 1024  then begin
@@ -81,7 +81,7 @@ begin
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
-    s_size:= StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    s_size:= StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
     size := StrToFloatDef(s_size, 0);
     s_unit := 'KB';
     if size > 1024  then begin
@@ -103,7 +103,7 @@ begin
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
-    s_size:= StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    s_size:= StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
     size := StrToFloatDef(s_size, 0);
     s_unit := 'KB';
     if size > 1024  then begin
@@ -128,7 +128,7 @@ begin
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
-    s_size:= StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    s_size:= StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
     size := StrToFloatDef(s_size, 0);
     s_unit := 'KB';
     if size > 1024  then begin
@@ -150,7 +150,7 @@ begin
   s:= stats.Open(q);
   while stats.Step(s) do
   begin
-    s_size:= StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    s_size:= StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
     size := StrToFloatDef(s_size, 0);
     s_unit := 'KB';
     if size > 1024  then begin
