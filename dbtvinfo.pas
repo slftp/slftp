@@ -36,7 +36,8 @@ type
     destructor Destroy; override;
     function Name: string;
     procedure Save;
-    procedure PostResultsv2(netname: string = ''; channel: string = ''; rls: string = '');
+
+    procedure PostResultsv2(rls: string = '';netname: string = ''; channel: string = '');
     //    procedure PostResults(rls: string = ''); overload;
     //    procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
@@ -317,7 +318,7 @@ end;
 
 *)
 
-procedure TTVInfoDB.PostResultsv2(netname: string = ''; channel: string = ''; rls: string = '');
+procedure TTVInfoDB.PostResultsv2(rls: string = '';netname: string = ''; channel: string = '');
 var
   toAnnounce: TStringlist;
   toStats: boolean;
@@ -357,6 +358,7 @@ begin
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss',UnixToDateTime(last_updated))]));
     end;
+
 
 
     for I := 0 to toAnnounce.Count - 1 do begin
@@ -582,9 +584,6 @@ begin
     end;
 
   end;
-
-  // result := fillTTheTvDBfromDB(gettvrage, rls_showname);
-//  end;
 end;
 
 function getTVInfoByReleaseName(rls: string): TTVInfoDB;
@@ -594,9 +593,11 @@ var
 begin
   Result := nil;
   showname := rls;
-  getShowValues(showname, showname);
+  getShowValues(rls, showname);
   showname := Csere(showname, '.', ' ');
   showname := Csere(showname, '_', ' ');
+
+  Irc_AddText('','','-=>'+showname);
 
   if (showname <> '') then
   begin

@@ -106,10 +106,10 @@ begin
         if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
           AddFile(config.ReadString('stats', 'database', 'nonexist'));
       end;
-      (*  need a better way to backup this file :(
-   if fileexists('tvinfos.db') then
-     AddFile('tvinfos.db');
-    *)
+
+      if fileexists('tvinfos.db') then
+        AddFile('tvinfos.db');
+
       if fileexists('mirktrade.conf') then
         AddFile('mirktrade.conf');
       if fileexists('sites.dat') then
