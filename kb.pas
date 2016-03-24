@@ -1914,51 +1914,41 @@ end;
 function TTVRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
-  db_tvrage: TTVInfoDB;
+  db_tvinfo: TTVInfoDB;
 begin
   Result := False;
 
   aktualizalva := True;
   if showname = '' then
     exit;
-
+(*
   // we already have info
   if (showid <> '') then
     exit;
-
+            *)
   pazo := TPazo(p); // ugly shit
 
-  //  db_tvrage := nil;
+  db_tvinfo := nil;
   try
-    db_tvrage := getTVInfoByShowName(self.showname);
+    db_tvinfo := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
-      db_tvrage := nil;
+      db_tvinfo := nil;
       Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s',
         [e.Message]));
     end;
   end;
-  (*
-    //update here?
-    if MonthsBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'monthbetweenlastUpdate', 6) then
-    begin
-      if not db_tvrage.Update then
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] updating of %f failed.', [showname]));
-        irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %f failed.', [showname]));
-      end;
-    end;
-  *)
 
-  if (db_tvrage <> nil) then
+
+  if (db_tvinfo <> nil) then
   begin
-   db_tvrage.ripname := rlsname; // caused the error
+   db_tvinfo.ripname := rlsname; // caused the error
 
-    if DaysBetween(UnixToDateTime(db_tvrage.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
+    if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
-      db_tvrage.ripname := rlsname;
-      if not db_tvrage.Update then
+      db_tvinfo.ripname := rlsname;
+      if not db_tvinfo.Update then
       begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
@@ -1985,7 +1975,7 @@ begin
     begin
       //  Irc_AddAdmin('no Update!');
       try
-        db_tvrage.SetTVDbRelease(self);
+        db_tvinfo.SetTVDbRelease(self);
       except
         on e: Exception do
         begin
@@ -1993,7 +1983,7 @@ begin
             [e.Message]));
         end;
       end;
-      db_tvrage.free;
+      db_tvinfo.free;
       Result := True;
       exit;
     end;
@@ -2022,7 +2012,7 @@ function TTVRelease.AsText(pazo_id: integer): string;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + showid + #13#10;
+  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + thetvdbid + #13#10;
 //  if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
 //  if episode <> 0 then
