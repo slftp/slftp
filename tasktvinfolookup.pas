@@ -916,10 +916,10 @@ begin
   end
   else
   begin
-    irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [db_tvinfo.tv_showname, tr.showname]);
-
+//    irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [db_tvinfo.tv_showname, tr.showname]);
     if config.ReadBool(section, 'stop_on_englishcheck', True) then
     begin
+        irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [db_tvinfo.tv_showname, tr.showname]);
       Result := True;
       ready := True;
       exit;
