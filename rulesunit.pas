@@ -2391,7 +2391,7 @@ begin
         if (Trim(fst[i]) = '') then
           Continue;
 
-        r := AddRule(fst[i], error);
+        r := AddRule(Trim(fst[i]), error);
         if r <> nil then
         begin
           if split_site_data then
