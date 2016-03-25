@@ -144,7 +144,8 @@ begin
     begin
       showname := rx.Match[1];
       season := -99;
-      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
+      episode := DateTimeToUnix(StrToDateTime(rx.Match[4]+DateSeparator+rx.Match[3]+DateSeparator+rx.Match[2]));
+//      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
       exit;
     end;
 
