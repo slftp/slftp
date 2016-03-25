@@ -143,8 +143,16 @@ begin
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      season := -99;
-      episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2]));
+      if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
+      begin
+        season := -99;
+        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2]));
+      end
+      else
+      begin
+        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
+        Debug(dpMessage,section,'ERROR: '+rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
+      end;
       //      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
       exit;
     end;
@@ -271,7 +279,7 @@ begin
       begin
         //dated show
         tr.season := YearOf(UnixToDateTime(tr.episode));
-        tv_next_season:=YearOf(UnixToDateTime(tv_next_date));
+        tv_next_season := YearOf(UnixToDateTime(tv_next_date));
         tr.episode := self.tv_next_ep; // no episode tag, so we must trust tvmaze
         tr.currentseason := Boolean(CurrentYear = tr.season);
         tr.currentepisode := Boolean((CurrentYear = tr.season) and (tv_next_ep = tr.episode));
@@ -365,7 +373,7 @@ begin
         tv_status]));
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss',
-        UnixToDateTime(last_updated))]));
+          UnixToDateTime(last_updated))]));
     end;
 
     for I := 0 to toAnnounce.Count - 1 do
