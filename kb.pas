@@ -1000,7 +1000,7 @@ begin
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
-  if ((event <> 'NUKE') and (event <> 'ADDPRE')) then
+  if ((event <> 'NUKE') and (event <> 'ADDPRE') and (event <> 'PRE')) then
   begin
     kb_lock.Enter;
     try
