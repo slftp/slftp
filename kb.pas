@@ -2013,7 +2013,7 @@ begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
 //  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + thetvdbid + #13#10;
-  Result := Result + 'http://www.tvmaze.com/shows/'+showid+'/'+Csere(showname,' ','-')+'/'+ #13#10;
+  Result := Result + 'http://www.tvmaze.com/shows/'+showid+'/'+lowercase(Csere(showname,' ','-'))+ #13#10;
 //  if season <> 0 then
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
 //  if episode <> 0 then
