@@ -175,7 +175,7 @@ begin
           if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
             ddate.DelimitedText := string(jl.Child[i].Field['show'].Field['premiered'].Value)
           else
-            ddate.DelimitedText := '1990-01-01';
+            ddate.DelimitedText := '1970-01-01';
           if year = ddate.Strings[0] then
           begin
             if fromIRC then
@@ -395,7 +395,7 @@ var
   hadPrev, hadNext: boolean;
 begin
 
-  date := UnixToDateTime(631160017); //1.1.1990 031337
+  date := UnixToDateTime(3817); //1.1.1990 031337
 
 {$IFDEF MSWINDOWS}
   GetLocaleFormatSettings(1033, formatSettings);
@@ -459,7 +459,8 @@ begin
     //    Irc_AddAdmin('no next & no prev.');
     episdoe := -15;
     season := -15;
-    date := UnixToDateTime(631160017); //1.1.1990 031337
+    date := UnixToDateTime(3817); //1.1.1970 031337
+
     Exit;
   end;
 
@@ -661,7 +662,7 @@ begin
     tvr.tv_endedyear := -1;
     tvr.tv_next_ep := -10;
     tvr.tv_next_season := -10;
-    tvr.tv_next_date := 631160017;
+    tvr.tv_next_date := 3817;
 
     //Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
