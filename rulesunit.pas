@@ -2364,7 +2364,7 @@ var
   error: string;
   intFound: integer;
   SearchRec: TSearchRec;
-  rules_path: string;
+  rule_line, rules_path: string;
   split_site_data: boolean;
 begin
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
@@ -2388,10 +2388,11 @@ begin
       fst.LoadFromFile(rules_path + SearchRec.Name);
       for i := 0 to fst.Count - 1 do
       begin
-        if (Trim(fst[i]) = '') then
+        rule_line := Trim(fst[i]);
+        if ((rule_line = '') or (rule_line[1] = '#')) then
           Continue;
 
-        r := AddRule(Trim(fst[i]), error);
+        r := AddRule(rule_line, error);
         if r <> nil then
         begin
           if split_site_data then
