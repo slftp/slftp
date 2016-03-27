@@ -202,8 +202,6 @@ begin
           try
             d:= TDirlistEntry(entries[i]);
             if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then            
-//            if ((d.cdno > 0) and (not d.skiplisted) and (not d.Sample) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
-//            if ((d.cdno > 0) and (d.subdirlist <> nil) and (not d.subdirlist.Complete)) then
             begin
               Result:= False;
               break;
@@ -224,8 +222,6 @@ begin
 
   cache_completed:= Result;
 end;
-
-
 
 constructor TDirList.Create( site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest:boolean = False);
 begin
@@ -916,7 +912,6 @@ begin
   files:= 0;
   size:= 0;
 
-
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
@@ -1424,7 +1419,6 @@ begin
   if dirlist.skiplist = nil then exit;
 
   ldepth:= dirlist.Depth();
-//  if ldepth > dirdepth then// ez nem fordulhat elo elmeletileg, de inkabb kezeljuk = Theoretically, this does not occur, but with a better
   
     if ( not skiplisted ) then
     begin
@@ -1487,8 +1481,8 @@ end;
 
 procedure DirlistInit;
 begin
-  global_skip:= config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.');
-  useful_skip:= config.ReadString(section, 'useful_skip', '\.nfo|\.sfv|\.m3u|\.cue|\.jpg|\.jpeg|\.gif|\.png|\.avi|\.mkv|\.vob|\.mp4|\.wmv');
+  global_skip:= config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$');
+  useful_skip:= config.ReadString(section, 'useful_skip', '\.nfo|\.sfv|\.m3u|\.cue');
 end;
 procedure DirlistUninit;
 begin

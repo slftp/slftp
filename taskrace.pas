@@ -357,7 +357,8 @@ begin
         Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s',
           [e.Message]);
     end;
-    // Search for sub dir
+
+    // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
       for i := 0 to d.entries.Count - 1 do
@@ -373,17 +374,15 @@ begin
 
           if ((de.directory) and (not de.skiplisted)) then
           begin
-            //            if ((de.subdirlist <> nil) and (de.subdirlist.Complete)) then Continue; // kihagyjuk...
             if ((de.subdirlist <> nil) and (de.subdirlist.dirlistadded)) then
               Continue;
 
-            //tpazodirlisttask addolasa de.filename -mel bovitve dir-t
             aktdir := dir;
             if aktdir <> '' then
               aktdir := aktdir + '/';
             aktdir := aktdir + de.filename;
             Debug(dpSpam, c_section, 'READD: adding dirlist task to subdir ' + aktdir);
-            irc_Addtext_by_key('PRECATCHSTATS',
+            irc_Addtext_by_key('PRECATCHSTATS', 
               Format('<c7>[DIRLIST]</c> %s %s %s Dirlist added to : %s',
               [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
             try
@@ -427,7 +426,7 @@ begin
   //if d.entries = nil then Irc_AddAdmin('DEBUG:: d.entries = nil');
   //if d.entries.Count <= 0 then Irc_AddAdmin('DEBUG:: d.entries.Count <= 0');
 
-  //Hiere den incompleteFiller chek adden?
+  //Hiere den incompleteFiller chek adden? (good question)
 
   // check if need to give up
   if ((d <> nil) and (not d.Complete)) then
@@ -444,11 +443,11 @@ begin
 
     if ((d.entries <> nil) and (d.entries.Count > 0) and
       (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section,
-      'newdir_max_unchanged', 60))) then
+      'newdir_max_unchanged', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
         irc_Addstats(Format(
-          '<c11>[iNC]</c> %s: %s %s %s is still incomplete, giving up...',
+          '<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete, giving up...',
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       ps1.dirlistgaveup := True;
       (*
@@ -1197,7 +1196,10 @@ begin
   end;
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
+  begin
     goto ujra;
+  end;
+
   if not sdst.Read('STOR') then
   begin
     sdst.Quit;
@@ -1206,6 +1208,9 @@ begin
 
   lastResponseCode := sdst.lastResponseCode;
   lastResponse := sdst.lastResponse;
+
+  Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(storfilename)]);
+  Debug(dpSpam, 'taskrace', '<-- REICEIVED: %s', [lastResponse]);
 
   if lastResponseCode <> 150 then
   begin
@@ -1354,7 +1359,9 @@ begin
   retrujra:
 
   if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
+  begin;
     goto ujra;
+  end;
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
@@ -1364,6 +1371,9 @@ begin
 
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
+
+  Debug(dpSpam, 'taskrace', '--> SENT: RETR %s', [ssrc.TranslateFilename(filename)]);
+  Debug(dpSpam, 'taskrace', '<-- REICEIVED: %s', [lastResponse]);
 
   elotte := Now;
 
@@ -1596,7 +1606,7 @@ begin
     try
       rrgx.ModifierI := True;
       rrgx.Expression := config.ReadString('dirlist', 'useful_skip',
-        '\.nfo|\.sfv|\.m3u|\.cue|\.jpg|\.jpeg|\.gif|\.png|\.avi|\.mkv|\.vob|\.mp4|\.wmv');
+        '\.nfo|\.sfv|\.m3u|\.cue');
       if not rrgx.Exec(filename) then
       begin
         speed_stat := '';
