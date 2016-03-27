@@ -151,7 +151,7 @@ begin
       else
       begin
         irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
-        Debug(dpMessage,section,'ERROR: '+rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
+        Debug(dpMessage, section, 'ERROR: ' + rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
       end;
       //      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
       exit;
@@ -212,7 +212,7 @@ begin
       StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id), tv_days.CommaText, tv_next_date, tv_next_season, tv_next_ep])) then
       last_updated := DateTimeToUnix(now())
     else
-      last_updated := 631160017;
+      last_updated := 3817;
 
   except on E: Exception do
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
@@ -274,6 +274,32 @@ begin
         tr.currentseason := False;
         tr.currentepisode := False;
         tr.currentair := False;
+      end;
+    -15:
+      begin
+        //neither next nor prev
+
+        if tr.episode > 031337 then
+        begin
+          // looks like a date tag was found.
+          tr.season := YearOf(UnixToDateTime(tr.episode));
+          self.tv_next_season := tr.season;
+          tr.currentseason := Boolean(CurrentYear = tr.season);
+          tr.currentepisode := Boolean(tr.currentseason and (UnixToDateTime(tr.episode + 86400) >= now));
+          tr.currentair := tr.currentepisode;
+        end;
+        self.tv_next_ep := 0;
+        tr.episode := 0;
+
+        (*
+        CurrentYear
+        YearOf(UnixToDateTime(tr.episode));
+        MonthOf(UnixToDateTime(tr.episode))
+        DayOf(UnixToDateTime(tr.episode+86400))
+
+        if UnixToDateTime(tr.episode+86400) >= now then irc_addAdmin('>=') else irc_addAdmin('<=');
+        irc_addAdmin(IntToStr(tr.episode+86400 - DateTimeToUnix(now)));
+        *)
       end;
     -99:
       begin
