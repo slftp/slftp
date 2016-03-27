@@ -433,7 +433,7 @@ begin
   begin
     if ((d.entries <> nil) and (d.entries.Count = 0) and
       (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section,
-      'newdir_max_empty', 60))) then
+      'newdir_max_empty', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
         irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...',
