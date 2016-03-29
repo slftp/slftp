@@ -104,6 +104,8 @@ begin
     x.free;
   end;
 
+
+
   resp := slUrlGet('http://api.tvmaze.com/search/shows', 'q=' + replaceTVShowChars(showName, true));
   if ((resp = '') or (resp = '[]')) then
   begin
