@@ -133,6 +133,7 @@ procedure getShowValues(rip: string; out showname: string; out season: integer; 
 var
   rx: TRegexpr;
   dt: TDateTime;
+  ttags: TStringlist;
 begin
   rx := TRegexpr.Create;
   showName := rip;
@@ -163,6 +164,7 @@ begin
       showname := rx.Match[1];
       season := StrToIntDef(rx.Match[2], 0);
       episode := StrToIntDef(rx.Match[3], 0);
+      exit;
     end;
 
     rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part\.?)(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
@@ -176,6 +178,23 @@ begin
         episode := StrToIntDef(rx.Match[6], 0);
       Exit;
     end;
+
+    // neither dated nor season-epiode nor disk or anyther known TV-Series tags are found. so we snip up the release scene infos to make a clean tbvmaze lookup,
+    // which will fail!
+
+    ttags := TStringlist.Create;
+    try
+      ttags.Assign(tvtags);
+      ttags.Delimiter := '|';
+      rx.Expression := '(\d{4}|' + ttags.DelimitedText + ').*$';
+      season := 0;
+      episode := 0;
+      showName := rx.Replace(rip, '');
+
+    finally
+      ttags.free;
+    end;
+
   finally
     rx.free;
   end;
