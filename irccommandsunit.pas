@@ -6441,15 +6441,17 @@ begin
     for i := 0 to x.Count - 1 do
     begin
       s := FindSiteByName(Netname, x.Strings[i]);
-      if (s.PermDown) then
-      begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
-          [x.Strings[i]]);
-        Continue;
-      end;
+
       if s = nil then
       begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
+          [x.Strings[i]]);
+        Continue;
+      end;
+
+      if (s.PermDown) then
+      begin
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
           [x.Strings[i]]);
         Continue;
       end;
