@@ -43,15 +43,17 @@
 		admin_forward_msgs=1
                 
 
---===========================( KNOWN BUG in v1.5 )================================-	      
+--===========================( KNOWN BUG in v1.5.* )================================-	      
 
 		The Sample thing
 		The MultiDisc thing
+		Sometimes slFtp tries to send into wrong folder -> Not AllowedFile error occur
 	
 --=============================( SLFTP v1.5.2.0 )=================================- 
 		{+}	TVInfo auto-update + end_year is back
 		{+}	!findcountry to find sites by country
 		{#}	!sites and !status will now show correct site count
+		{#}	autologin trigger doesn't show up an error when typed incorrectly 
 		{^}	TVInfo will find shows with country tag, like UK, US, NZ and year tag.
 		{^}	fixed slssl.pas file to be compatible with latest openssl libs (1.0.2g+ and 1.0.1s+)
 		{^}	Now you can compile slftp with the newest FPC (Free Pascal Compiler)
@@ -60,6 +62,7 @@
 		{^}	Private IRC messages forwarding to admin nick can now be disabled (admin_forward_msgs)
 		{^}	slftp.skip can now be used with *, instead of rules for TV-SD-ENG,TV-SD-DE,TV-SD-FR you can have one like TV-SD-*
 		{^}	MangleHost (+h) and Invisible (+i) mode will only be send if IRCD know this commands
+		{^}	No more SKIP message on a PRE
 
 --=============================( SLFTP v1.5.1.0 )=================================- 
 		{#}	Bug fixes over fixes over fixes, to much to name them all, really!
