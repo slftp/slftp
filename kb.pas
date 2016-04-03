@@ -2020,7 +2020,7 @@ begin
     Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
   if premier_year <> -1 then
     Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
-  if ended_year <> -1 then
+  if ended_year > 0 then
     Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
   if country <> '' then
     Result := Result + 'Country: ' + country + #13#10;
