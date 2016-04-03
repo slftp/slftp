@@ -393,11 +393,12 @@ begin
       if tv_endedyear > 0 then
         toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> (%s - %s) - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), IntToStr(tv_endedyear), tv_url]))
       else
-      begin
         toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), tv_url]));
+
+      if ((tv_next_season > 0) and (tv_next_ep > 0)) then
         toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd',
             UnixToDateTime(tv_next_date))]));
-      end;
+
       toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
       toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
@@ -621,6 +622,7 @@ begin
       tvi.tvrage_id := tvinfodb.column_text(gettvrage, 6);
       tvi.tvmaze_id := tvinfodb.column_text(gettvrage, 7);
       tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage, 8), -1);
+      tvi.tv_endedyear := StrToIntDef(tvinfodb.column_text(gettvrage, 14), -1);
       tvi.tv_country := tvinfodb.column_text(gettvrage, 9);
       tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
       tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
@@ -690,6 +692,7 @@ begin
         tvi.tv_url := tvinfodb.column_text(gettvrage, 3);
         tvi.tv_showname := tvinfodb.column_text(gettvrage, 1);
         tvi.tv_premiered_year := StrToIntDef(tvinfodb.column_text(gettvrage, 8), -1);
+        tvi.tv_endedyear := StrToIntDef(tvinfodb.column_text(gettvrage, 14), -1);
         tvi.tv_country := tvinfodb.column_text(gettvrage, 9);
         tvi.tv_status := tvinfodb.column_text(gettvrage, 10);
         tvi.tv_classification := tvinfodb.column_text(gettvrage, 11);
