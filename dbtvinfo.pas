@@ -659,8 +659,6 @@ begin
   showname := Csere(showname, '.', ' ');
   showname := Csere(showname, '_', ' ');
 
-  Irc_AddText('', '', '-=>' + showname);
-
   if (showname <> '') then
   begin
     Result := getTVInfoByShowName(showname);
