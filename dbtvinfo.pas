@@ -410,11 +410,14 @@ begin
         toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s - %s) - %s', [rls, IntToStr(tv_premiered_year),
           IntToStr(tv_endedyear), tv_url]))
       else
-      begin
         toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls, IntToStr(tv_premiered_year),
           tv_url]));
-        //toAnnounce := toAnnounce+  need to add season and episode infos ?
-      end;
+      //toAnnounce := toAnnounce+  need to add season and episode infos ?
+
+      if ((tv_next_season > 0) and (tv_next_ep > 0)) then
+        toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Season/Episode (Date)</c></b> ...........: <b>%d.%d</b> (%s)', [tv_next_season, tv_next_ep,
+          FormatDateTime('yyyy-mm-dd',
+            UnixToDateTime(tv_next_date))]));
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText, tv_classification,
         tv_status]));
       toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
