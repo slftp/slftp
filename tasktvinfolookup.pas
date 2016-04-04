@@ -16,8 +16,6 @@ type
       pazo: TPazo; attempt: integer = 0);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
-    procedure PostResults(network, country, classi, status, premyear, url: string;
-      genre: TStringList);
   end;
 
   (*didn't work like i wanted :/*)
@@ -103,8 +101,6 @@ begin
   finally
     x.free;
   end;
-
-
 
   resp := slUrlGet('http://api.tvmaze.com/search/shows', 'q=' + replaceTVShowChars(showName, true));
   if ((resp = '') or (resp = '[]')) then
@@ -646,7 +642,7 @@ begin
     end;
 
     if js.Field['premiered'].SelfType <> jsNull then
-      tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4),-1)
+      tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4), -1)
     else
       tvr.tv_premiered_year := -1;
 
@@ -680,73 +676,6 @@ begin
         tvr.tv_endedyear := StrtoIntdef(Copy(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value), 1, 4), -1);
     end;
 
-    {
-try
- if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
- begin
-   ep_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
-   se_prevnum := StrToIntDef(string(js.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
-   prevdt := UnixToDateTime(0);
-   prevdt := StrToDateTime(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' +
-     string(js.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value));
- end;
- if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
- begin
-   ep_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-   se_nextnum := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
-   nextdt := UnixToDateTime(0);
-   nextdt := StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' +
-     string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value));
- end;
-
- //Show ended there is no next!
- if lowercase(tvr.tv_status) = 'ended' then
- begin
-   tvr.tv_next_ep := -1;
-   tvr.tv_next_season := -1;
-   tvr.tv_next_date := DateTimeToUnix(0);
- end
- else if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
- begin
-   // next date is smaller|equal to now()..
-   //Irc_AddAdmin('next date is smaller|equal to now()..');
-   tvr.tv_next_ep := ep_nextnum;
-   tvr.tv_next_season := se_nextnum;
-   tvr.tv_next_date := DateTimeToUnix(nextdt);
- end
- else if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
- begin
-   //previous date + 1Day is grater|equal to now()
-   //Irc_AddAdmin('previous date + 1Day is grater|equal to now()');
-   tvr.tv_next_ep := ep_prevnum;
-   tvr.tv_next_season := se_prevnum;
-   tvr.tv_next_date := DateTimeToUnix(prevdt);
- end
- else if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
- begin
-   // nothing before matched and next_date is grater then now, so we took this.
-   //Irc_AddAdmin('nothing before matched and next_date is grater then now, so we took next.');
-   tvr.tv_next_ep := ep_nextnum;
-   tvr.tv_next_season := se_nextnum;
-   tvr.tv_next_date := DateTimeToUnix(nextdt);
- end;
-
- (*
-  if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['nextepisode'] <> nil)) then
-       begin
-         tvr.tv_next_season := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
-         tvr.tv_next_ep := StrToIntDef(string(js.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-         tvr.tv_next_date := DateTimeToUnix(StrToDateTime(string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value+' '+string(js.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value))));
-       end;
- *)
-except on E: Exception do
- begin
-   Debug(dpError, section, Format('[Exception] in parseTVMazeInfos.findNext: %s', [e.Message]));
-   irc_Adderror(Format('<c4>[Exception]</c> in parseTVMazeInfos.findNext: %s', [e.Message]));
- end;
-end;
-  }
-//string(js.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value)
     tvr.last_updated := DateTimeToUnix(now());
     result := tvr;
   finally
@@ -768,26 +697,6 @@ begin
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-procedure TPazoTVInfoLookupTask.PostResults(network, country, classi,
-  status, premyear, url: string; genre: TStringList);
-begin
-  if config.ReadBool(section, 'use_new_announce_style', True) then
-  begin
-    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [mainpazo.rls.rlsname,
-      premyear, url]));
-    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [genre.CommaText, classi, status]));
-    irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [country, network]));
-  end
-  else
-  begin
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s',
-      [mainpazo.rls.rlsname,
-      premyear, url]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [genre.CommaText, classi, status]));
-    irc_Addstats(Format('(<c9>i</c>)....<c7><b>TVInfo</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [country, network]));
-  end;
-end;
-
 function TPazoTVInfoLookupTask.Execute(slot: Pointer): boolean;
 var
   tr: TTvRelease;
@@ -795,9 +704,6 @@ var
   showA, showB, tvmaz, sid, uurl: string;
   db_tvinfo: TTVInfoDB;
   ps: TPazoSite;
-  //  xml: TSLXMLDocument;
-  //  st: TStream;
-
 begin
   tr := TTvRelease(mainpazo.rls);
 
@@ -896,44 +802,32 @@ begin
   showA := replaceTVShowChars(db_tvinfo.tv_showname);
   showB := replaceTVShowChars(tr.showname);
 
-  if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+  if ((config.ReadBool(section, 'stop_on_englishcheck', True)) and (onlyEnglishAlpha(showA) <> onlyEnglishAlpha(showB))) then
   begin
-    try
-      //      dbaddtvrage_SaveTVRage(db_tvrage.tv_showid, db_tvrage, mainpazo.rls.rlsname);
-      irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s',
-        [config.ReadString(section,
-          'addcmd', '!addtvmaze'), mainpazo.rls.rlsname,
-        db_tvinfo.tvmaze_id]));
-      db_tvinfo.Save;
-      db_tvinfo.SetTVDbRelease(tr);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('Exception in addtvinfo_SaveTVRage: %s', [e.Message]));
-        Result := True;
-        readyerror := True;
-        db_tvinfo.free;
-        exit;
-      end;
-    end;
-  end
-  else
-  begin
-//    irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [db_tvinfo.tv_showname, tr.showname]);
-    if config.ReadBool(section, 'stop_on_englishcheck', True) then
+    irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]);
+    Result := True;
+    ready := True;
+    exit;
+  end;
+
+  try
+    irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s',
+      [config.ReadString(section,
+        'addcmd', '!addtvmaze'), mainpazo.rls.rlsname,
+      db_tvinfo.tvmaze_id]));
+    db_tvinfo.Save;
+    db_tvinfo.SetTVDbRelease(tr);
+  except
+    on e: Exception do
     begin
-        irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [db_tvinfo.tv_showname, tr.showname]);
+      Debug(dpError, section, Format('Exception in addtvinfo_SaveTVRage: %s', [e.Message]));
       Result := True;
-      ready := True;
+      readyerror := True;
+      db_tvinfo.free;
       exit;
     end;
   end;
-  (*
-    if config.ReadBool(section, 'post_lookup_infos', False) then
-    begin
-      PostResults(db_tvinfo.tv_network, db_tvinfo.tv_country, db_tvinfo.tv_classification, db_tvinfo.tv_status,IntToStr(db_tvinfo.tv_premiered_year),db_tvinfo.tv_url, db_tvinfo.tv_genres);
-    end;
-  *)
+
   try
     ps := FindMostCompleteSite(mainpazo);
     if ((ps = nil) and (mainpazo.sites.Count > 0)) then
