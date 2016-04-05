@@ -776,10 +776,16 @@ begin
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, '<c4>Site <b>%s</b> not found</c>.',
+    irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Site <b>%s</b> not found.',
       [sitename]);
     exit;
   end;
+
+ if kb_sections.IndexOf(section) = -1 then begin
+    irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Site <b>%s</b> not found.',
+      [section]);
+    exit;
+ end;
 
   s.sectiondir[section] := dir;
   s.SetSections(section, False);

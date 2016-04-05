@@ -267,8 +267,6 @@ function kb_Add(const netname, channel: string;
 //forceRebuild: Boolean = False;
 function FindSectionHandler(section: string): TCRelease;
 
-
-
 procedure kb_FreeList;
 procedure kb_Save;
 procedure KB_start;
@@ -349,7 +347,6 @@ var
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
-
 
 function FindSectionHandler(section: string): TCRelease;
 var
@@ -1921,11 +1918,11 @@ begin
   aktualizalva := True;
   if showname = '' then
     exit;
-(*
-  // we already have info
-  if (showid <> '') then
-    exit;
-            *)
+  (*
+    // we already have info
+    if (showid <> '') then
+      exit;
+              *)
   pazo := TPazo(p); // ugly shit
 
   db_tvinfo := nil;
@@ -1940,10 +1937,9 @@ begin
     end;
   end;
 
-
   if (db_tvinfo <> nil) then
   begin
-   db_tvinfo.ripname := rlsname; // caused the error
+    db_tvinfo.ripname := rlsname; // caused the error
 
     if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'daysbetweenlastUpdate', 2) then
     begin
@@ -2012,12 +2008,12 @@ function TTVRelease.AsText(pazo_id: integer): string;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-//  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + thetvdbid + #13#10;
-  Result := Result + 'http://www.tvmaze.com/shows/'+showid+'/'+lowercase(Csere(showname,' ','-'))+ #13#10;
-//  if season <> 0 then
-    Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-//  if episode <> 0 then
-    Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
+  //  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + thetvdbid + #13#10;
+  Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
+  //  if season <> 0 then
+  Result := Result + 'Season: ' + IntToStr(season) + #13#10;
+  //  if episode <> 0 then
+  Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
   if premier_year <> -1 then
     Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
   if ended_year > 0 then
@@ -2048,23 +2044,23 @@ constructor TTVRelease.Create(rlsname: string; section: string;
 var
   rx: TRegexpr;
   db_tvrage: TTVInfoDB;
-  c_episode:int64;
+  c_episode: int64;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
   episode := -1;
   season := -1;
-  c_episode:=-1;
+  c_episode := -1;
 
   genres := TStringList.Create;
   //  genres.Delimiter:= '|';
   genres.QuoteChar := '"';
 
   getShowValues(rlsname, showname, season, c_episode);
-  episode:=c_episode;
+  episode := c_episode;
 
-  showname:=Csere(showname,'.',' ');
-  showname:=Csere(showname,'_',' ');
+  showname := Csere(showname, '.', ' ');
+  showname := Csere(showname, '_', ' ');
 
 end;
 
@@ -2445,6 +2441,8 @@ var
   i: integer;
   last: TDateTime;
 begin
+  kb_reloadsections;
+
   // itt kell betoltenunk az slftp.kb -t
   kb_lock.Enter;
   x := TEncStringlist.Create(passphrase);
@@ -2563,6 +2561,9 @@ begin
   //  Result := False;
   kb_sections.Free;
   kb_sections := TStringList.Create;
+  kb_sections.Sorted := True;
+  kb_sections.Duplicates := dupIgnore;
+
   secs := TStringlist.Create;
   r := TRegexpr.Create;
   xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
@@ -2574,6 +2575,13 @@ begin
     for I := 0 to secs.Count - 1 do
       if not r.Exec(secs.Strings[i]) then
         kb_sections.Add(secs.Strings[i]);
+
+    for I := 0 to mappingslist.Count - 1 do
+    begin
+      if TMap(mappingslist.Items[i]).origsection <> '' then
+        kb_sections.Add(TMap(mappingslist.Items[i]).origsection);
+      kb_sections.Add(TMap(mappingslist.Items[i]).newsection);
+    end;
 
   finally
     xin.Free;
@@ -2620,7 +2628,8 @@ begin
   kb_list.Duplicates := dupIgnore;
 
   kb_sections := TStringList.Create;
-  kb_reloadsections;
+  kb_sections.Sorted := True;
+  kb_sections.Duplicates := dupIgnore;
 
   rename_patterns := 4;
 

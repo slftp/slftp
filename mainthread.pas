@@ -57,6 +57,8 @@ uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfis
 {$ENDIF}
   , StrUtils;
 
+{$I slftp.inc}
+
 const
   section = 'mainthread';
 
@@ -87,7 +89,7 @@ begin
   end;
   if not slssl_inited then
   begin
-    ss := 'Could not load OpenSSL! Try to copy the libssl/libcrypto libs into slftp dir!' +#10#13;
+    ss := 'Could not load OpenSSL! Try to copy the libssl/libcrypto libs into slftp dir!' + #10#13;
 {$IFDEF MSWINDOWS}
     ss := ss + 'Or install it from:' + #13#10 +
       'http://www.slproweb.com/products/Win32OpenSSL.html';
@@ -97,9 +99,9 @@ begin
   end;
 
   s := OpenSSLShortVersion();
-  if (s < '1.0.1') then
+  if (s < lib_OpenSSL) then
   begin
-    Result := 'OpenSSL version '+OpenSSLShortVersion()+' is deprecated! 1.0.1 or newer needed.';
+    result := Format('OpenSSL version %s is deprecated! %s or newer needed.', [OpenSSLVersion, lib_OpenSSL]);
     exit;
   end;
 
@@ -129,9 +131,9 @@ begin
 
 {$IFNDEF MSWINDOWS}
   s := Ncurses_Version;
-  if s < 'ncurses 5.5.' then
+  if s < lib_Ncurses then
   begin
-    Result := 'Ncurses version is unsupported! 5.5+ needed.';
+    Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
     exit;
   end;
 {$ENDIF}

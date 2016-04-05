@@ -1567,7 +1567,7 @@ begin
     begin
       if (operand_read > 100) then
       begin
-        debugunit.Debug(dpError, 'rules', '[iNFO] TListOperand.Reparse count break', []);
+        debugunit.Debug(dpError, 'rules', '[ERROR] TListOperand.Reparse count break', []);
         break;
       end;
       Inc(operand_read);
@@ -2576,8 +2576,7 @@ end;
 
 class function TConditionReleaseName.Description: string;
 begin
-  Result := 'Returns with the name of the release.' + #13#10;
-  Result := Result + 'Example: if releasename =~ *-keygen* then DROP' + #13#10;
+result:=ReleaseNameDescription;
 end;
 
 function TConditionReleaseName.SupplyValue(r: TPazo): string;
@@ -2598,8 +2597,7 @@ end;
 
 class function TConditionSection.Description: string;
 begin
-  Result := 'Returns with the section name of the release.' + #13#10;
-  Result := Result + 'if section = TV then DROP' + #13#10;
+result:=SectionDescription;
 end;
 
 function TConditionSection.SupplyValue(r: TPazo): string;
@@ -2620,17 +2618,7 @@ end;
 
 class function TConditionNotComplete.Description: string;
 begin
-  Result := 'Returns with the list of the sites where the release is not yet complete.'
-    + #13#10;
-  Result := Result +
-    'This is the negated complete condition. It is true if the release is not notAllowed at the specified site and it is not pre or complete.' + #13#10;
-  Result := Result +
-    'For eg, you can add this rule on a slow 100mbit site: if notcomplete @ GBITSITE1 && source = GBITSITE2 then DROP'
-    +
-    #13#10;
-  Result := Result +
-    'With this rule, 100mbit site will be started racing after gbitsite1 is finished.' +
-    #13#10;
+  Result := NotCompleteDescription;
 end;
 
 procedure TConditionNotComplete.SupplyValues(r: TPazo; re: TStringList);
@@ -2671,9 +2659,7 @@ end;
 
 class function TConditionComplete.Description: string;
 begin
-  Result := 'Returns with the list of the sites, where the release is complete.' +
-    #13#10;
-  Result := Result + 'if complete @ SITENAME && source != SITENAME then DROP' + #13#10;
+  Result := CompleteDescription;
 end;
 
 procedure TConditionComplete.SupplyValues(r: TPazo; re: TStringList);
@@ -2715,11 +2701,7 @@ end;
 
 class function TConditionPre.Description: string;
 begin
-  Result := 'Returns true, if the release is pred on the specified site.' + #13#10;
-  Result := Result +
-    'If you add this rule on a slow site, pres wont be sent there til gbitsite is incomplete: '
-    + #13#10;
-  Result := Result + 'if pre @ AFFILSITE && incomplete @ GBITSITE then DROP' + #13#10;
+  Result := PreDescription;
 end;
 
 procedure TConditionPre.SupplyValues(r: TPazo; re: TStringList);
@@ -2780,9 +2762,7 @@ end;
 
 class function TConditionNotAllowed.Description: string;
 begin
-  Result := 'Returns true, if the release is not allowed on the specified site.' +
-    #13#10;
-  Result := Result + 'Example: notallowed @ SITENAME' + #13#10;
+  Result := NotAllowedDescription;
 end;
 
 procedure TConditionNotAllowed.SupplyValues(r: TPazo; re: TStringList);
@@ -2823,9 +2803,7 @@ end;
 
 class function TConditionAllowed.Description: string;
 begin
-  Result := 'Returns true, if the release is not notallowed on the specified site.'
-    + #13#10;
-  Result := Result + 'Example: allowed @ SITENAME' + #13#10;
+  Result := AllowedDescription;
 end;
 
 procedure TConditionAllowed.SupplyValues(r: TPazo; re: TStringList);
@@ -2866,8 +2844,7 @@ end;
 
 class function TConditionGroup.Description: string;
 begin
-  Result := 'Returns with the groupname.' + #13#10;
-  Result := Result + 'Example: group in GRP1, GRP2, GRP3' + #13#10;
+  Result := GroupDescription;
 end;
 
 function TConditionGroup.SupplyValue(r: TPazo): string;
@@ -2888,14 +2865,7 @@ end;
 
 class function TConditionKnownGroup.Description: string;
 begin
-  Result :=
-    'Returns true, if the groupname is known (you can set the list in slftp.ini if i remember well).'
-    + #13#10;
-  Result := Result +
-    'Note: If no known groups is set for a section in slftp.knowngroups, this condition wont match at all!'
-    +
-    #13#10;
-  Result := Result + 'Example: !ruleadd * * ifnot knowngroup then DROP' + #13#10;
+  Result := KnownGroupDescription;
 end;
 
 function TConditionKnownGroup.SupplyValue(r: TPazo): boolean;
@@ -2916,12 +2886,7 @@ end;
 
 class function TConditionUnKnownGroup.Description: string;
 begin
-  Result := 'Returns true, if the groupname is not known.' + #13#10;
-  Result := Result +
-    'Note: If no known groups is set for a section in slftp.knowngroups, this condition wont match at all!'
-    +
-    #13#10;
-  Result := Result + 'Example: !ruleadd * * if unknowngroup then DROP' + #13#10;
+  Result := UnKnownGroupDescription;
 end;
 
 function TConditionUnKnownGroup.SupplyValue(r: TPazo): boolean;
@@ -2942,14 +2907,7 @@ end;
 
 class function TConditionSource.Description: string;
 begin
-  Result :=
-    'Returns with the name of the source site, which is currently fireing the ruleset.' +
-    #13#10;
-  Result := 'You can use this function to setup static routing.' + #13#10;
-  Result := Result +
-    'For eg, we dont want to race SITE1''s MP3 section from SITE2 (but we want everything else):'
-    + #13#10;
-  Result := Result + 'Example: !ruleadd SITE1 MP3 if source = SITE2 then DROP' + #13#10;
+  Result := SourceDescription;
 end;
 
 function TConditionSource.SupplyValue(r: TPazo): string;
@@ -2966,13 +2924,7 @@ end;
 
 class function TConditionDestination.Description: string;
 begin
-  Result := 'Returns with the name of the destination site.' + #13#10;
-  Result := Result + 'You can use this function to make exceptions in generic rules.' +
-    #13#10;
-  Result := Result + 'For eg, we want to drop stuffs detected as fake except on a few dumps: '
-    + #13#10;
-  Result := Result + '!ruleadd * * if fake && destination notin DUMP1, DUMP2 then DROP' +
-    #13#10;
+  Result := DestinationDescription;
 end;
 
 function TConditionDestination.SupplyValue(r: TPazo): string;
@@ -2989,8 +2941,7 @@ end;
 
 class function TConditionNewdirSource.Description: string;
 begin
-  Result := 'Returns true, if source is newdir (not pre or complete).' + #13#10;
-  Result := Result + 'Example: if newdirsource then DROP' + #13#10;
+  Result := NewdirSourceDescription;
 end;
 
 function TConditionNewdirSource.SupplyValue(r: TPazo): boolean;
@@ -3408,8 +3359,7 @@ end;
 
 class function TConditionFake.Description: string;
 begin
-  Result := 'Returns true if the release was recognized as fake by the fakechecker.' +
-    #13#10;
+  Result := FakeDescription;
 end;
 
 function TConditionFake.SupplyValue(r: TPazo): boolean;
@@ -3453,11 +3403,7 @@ end;
 
 class function TConditionForeign.Description: string;
 begin
-  Result := 'Returns true, if the releasename has a language tag (other than english).' +
-    #13#10;
-  Result := Result +
-    'Note: as mp3 rips have 2 letter codes, use mp3foreign and mp3language conditions.' +
-    #13#10;
+  Result :=ForeignDescription;
 end;
 
 function TConditionForeign.SupplyValue(r: TPazo): boolean;
@@ -3486,11 +3432,7 @@ end;
 
 class function TConditionLanguage.Description: string;
 begin
-  Result := 'Returns with the recognized language tags of the release.' + #13#10;
-  Result := Result +
-    'Note: as mp3 rips have 2 letter codes, use mp3foreign and mp3language conditions.' +
-    #13#10;
-  Result := Result + 'ifnot language in English, Slowenian, Chinese then DROP' + #13#10;
+  Result := LanguageDescription;
 end;
 
 procedure TConditionLanguage.SupplyValues(r: TPazo; re: TStringList);
@@ -4065,8 +4007,8 @@ end;
 
 class function TConditionCompleteSource.Description: string;
 begin
-  Result :=
-    'Returns true, if the source site is complete. You can use this rule to fill some sites from complete source only.';
+  Result := CompleteSourceDescription;
+
 end;
 
 class function TConditionCompleteSource.Name: string;
@@ -4092,8 +4034,8 @@ end;
 
 class function TConditionYear.Description: string;
 begin
-  Result :=
-    'Returns with the year tag of the release name. Returns with zero if year tag is not present.';
+  Result := YearDescription;
+
 end;
 
 class function TConditionYear.Name: string;
@@ -4114,8 +4056,7 @@ end;
 
 class function TCondition0daySource.Description: string;
 begin
-  Result := 'Returns with the 0day rip''s source/OS.' + #13#10;
-  Result := Result + 'Example: if not ( 0daysource in WIN, LINUX ) then DROP' + #13#10;
+  Result := zerodaySourceDescription;
 end;
 
 function TCondition0daySource.Hitelesit(const s: string): boolean;
@@ -4147,10 +4088,7 @@ end;
 
 class function TConditionAutofollow.Description: string;
 begin
-  Result :=
-    'Returns true, if there was already an irc announce on the site (mean: somebody started to send the rip there).'
-    +
-    #13#10;
+  Result :=AutofollowDescription;
 end;
 
 class function TConditionAutofollow.Name: string;
@@ -4180,8 +4118,7 @@ end;
 
 class function TConditionNuked.Description: string;
 begin
-  Result := 'Returns true, if the rlz was nuked on the site.' + #13#10;
-  Result := Result + 'ex: !ruleadd * * if nuked then DROP';
+  Result := NukeDescription;
 end;
 
 class function TConditionNuked.Name: string;
@@ -4210,7 +4147,7 @@ end;
 
 class function TConditionPred.Description: string;
 begin
-  Result := 'Returns true, if there was a pre on any site.' + #13#10;
+  Result :=  PredDescription;
 end;
 
 class function TConditionPred.Name: string;
@@ -4231,9 +4168,7 @@ end;
 
 class function TConditionDisks.Description: string;
 begin
-  Result := 'Returns with the number of disks (for eg 3 for Foobar.2008.NTSC.3DiSC.MDVDR-GRP'
-    + #13#10;
-  Result := 'NOTE: this is NOT for MP3 rips.';
+  Result :=DisksDescription;
 end;
 
 class function TConditionDisks.Name: string;
