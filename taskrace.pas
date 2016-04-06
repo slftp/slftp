@@ -23,8 +23,9 @@ type
   TPazoDirlistTask = class(TPazoTask)
     dir: string;
     is_pre: boolean;
+    incompleteFill: boolean;
     constructor Create(const netname, channel: string; site: string;
-      pazo: TPazo; dir: string; is_pre: boolean);
+      pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
   end;
@@ -156,10 +157,11 @@ end;
 { TPazoDirlistTask }
 
 constructor TPazoDirlistTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; dir: string; is_pre: boolean);
+  site: string; pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
+  self.incompleteFill := incompleteFill;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -443,6 +445,10 @@ begin
   //only thing we need to check how to get it work with non routable sites - we need to add them manually on TKBThread.AddCompleteTransfers
   // but will they be used on race? Or do slftp overwritte them?
 
+  //don't check the part below if it's an incomplete fill because we would stop there
+  if (not incompleteFill) then
+  begin
+
   //check if we should give up with empty/incomplete release
   if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then //if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND (not incomplete_fill) ) then
   begin
@@ -517,6 +523,8 @@ begin
     end;
 
     end;
+
+  end;
 
   end;
 
