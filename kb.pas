@@ -38,7 +38,7 @@ uses Classes, SyncObjs, encinifile, IniFiles, knowngroups;
 type
   TRelease = class
 
-    incompleteFiller: boolean;
+    //incompleteFiller: boolean;
 
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -1258,7 +1258,7 @@ var
 begin
   try
     aktualizalva := False;
-    incompleteFiller := False;
+    //incompleteFiller := False;
     languages := TStringList.Create;
 
     tags := TStringList.Create;
@@ -2883,8 +2883,9 @@ begin
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
-        p.rls.incompleteFiller := True;
-        AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
+        //p.rls.incompleteFiller := True;
+        //AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
+        AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', False, True));
         Result := True;
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
