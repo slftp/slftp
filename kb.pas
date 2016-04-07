@@ -1008,15 +1008,23 @@ begin
     end;
     if (rule_result = raDrop) then
     begin
+    //do not announce [SKIP] on pre
+    if (ps.status = rssRealPre) then
+    begin
       if spamcfg.ReadBool('kb', 'skip_rls', True) then
+      begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
+      end;
+    end;  
     end
     else if (rule_result = raDontmatch) then
     begin
       if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
+      begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
+      end;
     end;
   end;
 
