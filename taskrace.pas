@@ -23,8 +23,9 @@ type
   TPazoDirlistTask = class(TPazoTask)
     dir: string;
     is_pre: boolean;
+    incompleteFill: boolean;
     constructor Create(const netname, channel: string; site: string;
-      pazo: TPazo; dir: string; is_pre: boolean);
+      pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: string; override;
   end;
@@ -156,10 +157,11 @@ end;
 { TPazoDirlistTask }
 
 constructor TPazoDirlistTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; dir: string; is_pre: boolean);
+  site: string; pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
+  self.incompleteFill := incompleteFill;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -443,6 +445,10 @@ begin
   //only thing we need to check how to get it work with non routable sites - we need to add them manually on TKBThread.AddCompleteTransfers
   // but will they be used on race? Or do slftp overwritte them?
 
+  //don't check the part below if it's an incomplete fill because we would stop there
+  if (not incompleteFill) then
+  begin
+
   //check if we should give up with empty/incomplete release
   if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then //if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND (not incomplete_fill) ) then
   begin
@@ -517,6 +523,8 @@ begin
     end;
 
     end;
+
+  end;
 
   end;
 
@@ -781,30 +789,32 @@ begin
   begin
     if (s.lastResponseCode = 550) then
     begin
-      if (0 <> Pos('File exists', s.lastResponse)) then
+      if (0 <> AnsiPos('File exists', s.lastResponse)) then
       begin
         hiba := False;
       end
-      else if (0 <> Pos('already exists', s.lastResponse)) then
+      else if (0 <> AnsiPos('already exists', s.lastResponse)) then
       begin
         hiba := False;
       end
-      else if (0 <> Pos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '') then
+      else if (0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '') then
       begin
         hiba := False;
       end
-      else if (0 <> Pos('Dupe detected', s.lastResponse)) then
+      else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
       begin
         hiba := False;
       end
-      else if (0 <> Pos('is already on site', s.lastResponse)) then
+      else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
       begin
         hiba := False;
       end
-      else if (0 <> Pos('Denying creation of', s.lastResponse)) or (0 <> Pos('BLOCKED:', s.lastResponse)) or (0 <> Pos('Denied by dirscript', s.lastResponse)) then
+      else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
       begin
         if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+        begin
           irc_Adderror(s.todotask, '<c4>[DENIED]</c> %s', [tname]);
+        end;
 
           hiba := True;
       end
@@ -816,30 +826,32 @@ begin
     end
     else if (s.lastResponseCode = 213) then
     begin
-      if (0 <> Pos('status of', s.lastResponse)) then
+      if (0 <> AnsiPos('status of', s.lastResponse)) then
       begin
         hiba := False;
       end
     end
     else if (s.lastResponseCode = 533) then
     begin
-      if (0 <> Pos('This file looks like a dupe!', s.lastResponse)) then
+      if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
       begin
         hiba := True;
       end;
-      if (0 <> Pos('File name not allowed', s.lastResponse)) then
+      if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
       begin
         if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+        begin
           irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
+        end;
 
           hiba := True;
       end;
     end
-    else if ((0 <> Pos('Denied', s.lastResponse)) or (0 <> Pos('Denying', s.lastResponse))) then
+    else if ((0 <> AnsiPos('Denied', s.lastResponse)) or (0 <> AnsiPos('Denying', s.lastResponse))) then
     begin
       if config.ReadBool(c_section, 'autoruleadd', False) then
       begin
-        if ((s.lastResponseCode = 550) and (0 <> Pos('releases are not accepted here', s.lastResponse))) then
+        if ((s.lastResponseCode = 550) and (0 <> AnsiPos('releases are not accepted here', s.lastResponse))) then
         begin
           // auto adding blacklist rule
           e := s.lastResponse;
@@ -859,13 +871,17 @@ begin
       end;
 
       if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+      begin
         irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+      end;
       hiba := True;
     end
     else
     begin
       if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+      begin
         irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+      end;
 
       hiba := True;
     end;
