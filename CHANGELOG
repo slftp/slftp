@@ -63,6 +63,7 @@
 		{^}	slftp.skip can now be used with *, instead of rules for TV-SD-ENG,TV-SD-DE,TV-SD-FR you can have one like TV-SD-*
 		{^}	MangleHost (+h) and Invisible (+i) mode will only be send if IRCD know this commands
 		{^}	No more SKIP message on a PRE
+		{^}	Show more infos on !ruledel and !rulemod
 
 --=============================( SLFTP v1.5.1.0 )=================================- 
 		{#}	Bug fixes over fixes over fixes, to much to name them all, really!
