@@ -2807,9 +2807,10 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
-  Debug(dpMessage, rsections, '<!--START AddCompleteTransfers %s',
+  
+  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s',
     [p.rls.rlsname]);
-  //irc_Addstats(Format('--> AddCompleteTransfers %s (%d)', [p.rls.rlsname, p.sites.Count]));
+
   for i := 0 to p.sites.Count - 1 do
   begin
     pdest := TPazoSite(p.sites[i]);
@@ -2822,8 +2823,8 @@ begin
 
     if pdest.error then
     begin
-      Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
-        [pdest.Name, pdest.reason]);
+      Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
+        [pdest.Name, pdest.reason]));
       Continue;
     end;
 
@@ -2834,14 +2835,17 @@ begin
       Continue;
 
     //checking if a irc chan is added for the site
+    //not sure if we really need this, psrc.Complete should be set while dirlist - not from irc
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
       ssrc_found := False;
+      psrc := nil;
+
       for j := 0 to p.sites.Count - 1 do
       begin
-
         ssrc_found := False;
         psrc := TPazoSite(p.sites[j]);
+
         if psrc = nil then
           Continue;
         if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
@@ -2851,8 +2855,8 @@ begin
 
         if psrc.error then
         begin
-          Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
-            [psrc.Name, psrc.reason]);
+          Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
+            [psrc.Name, psrc.reason]));
           Continue;
         end;
 
@@ -2871,14 +2875,32 @@ begin
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
           ssrc_found := True;
+
         if ssrc_found then
           break;
 
       end;
 
+      //will continue with next site if ssrc_found is FALSE
       if not ssrc_found then
-        //will continue with next site if ssrc_found is FALSE
         continue;
+
+
+
+      if psrc = nil then
+      begin
+        irc_Addstats(Format('psrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+      ssrc := TSite(FindSiteByName('', psrc.Name));
+      if ssrc = nil then
+      begin
+        irc_Addstats(Format('ssrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
@@ -2898,17 +2920,14 @@ begin
             [e.Message]));
           irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
             [e.Message]));
-          //for debug
-          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
-            [e.Message]));
           Result := False;
         end;
       end;
     end;
   end;
+
   Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
     [p.rls.rlsname]);
-  //irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
 end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
