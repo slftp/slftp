@@ -1243,9 +1243,7 @@ begin
   end;
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
-  begin
     goto ujra;
-  end;
 
   if not sdst.Read('STOR') then
   begin
@@ -1413,9 +1411,8 @@ begin
   retrujra:
 
   if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
-  begin;
     goto ujra;
-  end;
+
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.

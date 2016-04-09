@@ -9656,7 +9656,7 @@ var
   fport, fstatus: integer;
 begin
   //  Result := False;
-  fname := SubString(params, ' ', 1);
+  fname := UpperCase(SubString(params, ' ', 1));
   if FindProxyByName(fname) <> nil then
   begin
     irc_addtext(Netname, Channel, 'Proxy with name %s already exists!',

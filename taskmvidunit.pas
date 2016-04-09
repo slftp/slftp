@@ -25,7 +25,7 @@ type
 implementation
 
 uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit, Regexpr;
+     configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr;
 
 const
   section = 'taskmvid';
@@ -236,7 +236,10 @@ if nfofile = '' then
     exit;
   end;
 
-  i:= LeechFile(s, ss, nfofile);
+  // trying to get the nfo
+  s.downloadingfrom:= True;
+  i := s.LeechFile(s, ss, nfofile);
+
   if (i < 0)  then
   begin
     readyerror:= true;
