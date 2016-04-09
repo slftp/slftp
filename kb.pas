@@ -900,7 +900,7 @@ begin
           exit;
         end;
 
-        if (DateTimeToUnix(r.pretime) = 0) then
+        if ((DateTimeToUnix(r.pretime) = 0) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
         begin
           irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>',
             [section, rls, sitename]));
@@ -914,15 +914,18 @@ begin
           exit;
         end;
 
-        if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
+        if ((not s.IsPretimeOk(p.rls.section, p.rls.pretime)) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
         begin
           irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>',
             [section, rls, sitename]));
           exit;
         end;
 
+        if (sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        begin
         irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));
+        end;
       end;
 
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
@@ -1095,7 +1098,7 @@ begin
 
   // now add dirlist
   try
-    if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE')) then
+    if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE') or (event = 'UPDATE')) then
     begin
       for i := p.sites.Count - 1 downto 0 do
       begin
@@ -1107,33 +1110,27 @@ begin
         end;
         try
           ps := TPazoSite(p.sites[i]);
-          if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
-            (ps.status in [rssShouldPre, rssRealPre])) then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
-              True);
-            irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
-              [section, rls, ps.Name]));
 
+          // Source site is PRE site for this group
+          if ps.status in [rssShouldPre, rssRealPre] then
+          begin
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
             if (ps.dirlist <> nil) then
               ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
-          if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
-            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete])) then
+          // Source site is _not_ a PRE site for this group
+          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
           begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
-              False);
-            irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
-              [section, rls, ps.Name]));
-
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
             if (ps.dirlist <> nil) then
               ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
+
         except
           Continue;
         end;

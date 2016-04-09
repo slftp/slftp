@@ -20,7 +20,7 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit ;
+     configunit, tasksunit, dirlist, mystrings, sitesunit;
 
 const
   section = 'taskgenrenfo';
@@ -168,8 +168,10 @@ ujra:
     exit;
   end;
 
+  // try to get the nfo file
+  s.downloadingfrom:= True;
+  i := s.LeechFile(s, ss, nfofile); 
 
-  i:= LeechFile(s, ss, nfofile);
   if i < 0 then
   begin
     readyerror:= true;
