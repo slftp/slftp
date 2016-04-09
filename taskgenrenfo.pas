@@ -170,7 +170,7 @@ ujra:
 
   // try to get the nfo file
   s.downloadingfrom:= True;
-  i := s.LeechFile(s, ss, nfofile); 
+  i := s.LeechFile(ss, nfofile); 
 
   if i < 0 then
   begin
