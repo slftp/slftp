@@ -10738,7 +10738,7 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := '\[(Ratio|R)\:\s?([\d\:\.]+|Unlimited)\]';
+    x.Expression := config.ReadString('sites', 'ratio_regex', '\[(Ratio|R)\:\s?([\d\:\.]+|Unlimited)\]');
     if x.Exec(line) then
     begin
       if ((x.Match[2] = 'Unlimited') or (x.Match[2] = '1:0.0')) then
@@ -10747,7 +10747,7 @@ begin
         ratio := x.Match[2];
     end;
 
-    x.Expression := '\[?(Credits|Creds|C)\:\s?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?';
+    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(Credits|Creds|C)\:\s?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?');
     if x.Exec(line) then
     begin
       ss := x.Match[2];
