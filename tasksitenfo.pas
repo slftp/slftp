@@ -2,7 +2,7 @@ unit tasksitenfo;
 
 interface
 
-uses Classes, pazo, taskrace, sltcp, dbaddnfo, dbaddurl;
+uses Classes, pazo, taskrace, sltcp;
 
 type
   TPazoSiteNfoTask = class(TPazoPlainTask)
@@ -19,7 +19,7 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, regexpr, dbaddimdb,
-  configunit, tasksunit, dirlist, mystrings, sitesunit;
+  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl;
 
 const
   section = 'tasksitenfo';
@@ -161,6 +161,7 @@ begin
   end;
 
   // no nfo file found. Reschedule the task and exit.
+  queue_lock.Enter;
   if (nfofile = '') then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -173,6 +174,7 @@ begin
       except
         on e: Exception do
         begin
+          queue_lock.Leave;
           Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
           readyerror := True;
           exit;
@@ -181,18 +183,19 @@ begin
     end
     else
     begin
-      Debug(dpSpam, section, 'FAIL: No more readdin...');
+      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
     end;
+    queue_lock.Leave;
     ready := True;
     Result := True;
     exit;
   end;
+  queue_lock.Leave;
 
-  // trying to leech the nfo file
+  // try to get the nfo file
   try
-    s.downloadingfrom := True;
     i := s.LeechFile(ss, nfofile);
-    Debug(dpError, section, Format('Result: %d', [i]));  
+
   except
     on e: Exception do
     begin
@@ -203,11 +206,12 @@ begin
   end;
   
   // nfo file could not be downloaded. Reschedule the task and exit.
+  queue_lock.Enter;
   if i <> 1 then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
-      Debug(dpSpam, section, 'READD: nincs meg az nfo file...');
+      Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
 
       try
         r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
@@ -216,6 +220,7 @@ begin
       except
         on e: Exception do
         begin
+          queue_lock.Leave;
           Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
           readyerror := True;
           exit;
@@ -224,14 +229,18 @@ begin
     end
     else
     begin
-      Debug(dpSpam, section, 'READD: nincs tobb readd...');
+      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
+
     end;
+    queue_lock.Leave;
     ready := True;
     Result := True;
     exit;
   end;
+  queue_lock.Leave;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
+  queue_lock.Enter;
   try
     parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
     dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
@@ -239,11 +248,14 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] parseNFO: %s', [e.Message]));
+      queue_lock.Leave;
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
   end;
+  queue_lock.Leave;
+
   ready := True;
   Result := True;
   Debug(dpMessage, section, '<-- ' + tname);
@@ -252,7 +264,7 @@ end;
 function TPazoSiteNfoTask.Name: string;
 begin
   try
-    Result := 'SITENFO ' + site1 + ' ' + IntToStr(pazo_id) + ' ' + mainpazo.rls.rlsname;
+    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, IntToStr(pazo_id), site1, attempt]);
   except
     Result := 'SITENFO';
   end;
