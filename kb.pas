@@ -1009,7 +1009,7 @@ begin
     if (rule_result = raDrop) then
     begin
     //do not announce [SKIP] on pre
-    if (ps.status <> rssRealPre) then
+    if (psource.status <> rssRealPre) then
     begin
       if spamcfg.ReadBool('kb', 'skip_rls', True) then
       begin
