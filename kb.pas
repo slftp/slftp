@@ -693,6 +693,7 @@ begin
         // nuking an old rls not in kb
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
+        kb_lock.Leave;
         exit;
       end;
 
@@ -701,6 +702,7 @@ begin
         // complet an old rls not in kb
         irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
+          kb_lock.Leave;
         exit;
       end;
 
@@ -768,6 +770,7 @@ begin
         RulesOrder(p);
       end;
 
+      // announce event on admin chan
       if (event = 'ADDPRE') then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
@@ -776,7 +779,6 @@ begin
       else if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          //          irc_Addstats(Format('<c3>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format(
             '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
             [section, rls, sitename]));
@@ -788,14 +790,12 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
               irc_Addstats(Format('<c7><b>[NEW %s]</b></c> <b>%s</b> @ <b>%s</b>',
                 [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s (<c7>Not found in PreDB</c>)', [section, rls, '<b>'+sitename+'</b>']));
               irc_Addstats(Format(
                 '<c7>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
                 [section, rls, sitename]));
@@ -804,7 +804,6 @@ begin
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            //            irc_Addstats(Format('<c3>[NEW]</c> %s %s @ %s (%s) (<c3> %s ago</c>)', [section, rls, '<b>'+sitename+'</b>', p.sl.sectionname, dbaddpre_GetPreduration(r.pretime)]));
             irc_Addstats(Format(
               '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
               [section, rls, sitename, p.sl.sectionname,
@@ -817,7 +816,6 @@ begin
       if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          //          irc_Addstats(Format('<c9>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format('<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
             [section, rls, sitename]));
       end;
@@ -834,6 +832,7 @@ begin
       begin
         irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls,
           sitename]));
+        kb_lock.Leave;
         exit;
       end;
 
@@ -1000,7 +999,7 @@ begin
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
-  if ((event <> 'NUKE') and (event <> 'ADDPRE') and (event <> 'PRE')) then
+  if ((event <> 'NUKE') and (event <> 'ADDPRE')) then
   begin
     kb_lock.Enter;
     try
@@ -1011,8 +1010,8 @@ begin
     end;
     if (rule_result = raDrop) then
     begin
-    //do not announce [SKIP] on pre
-    if (ps.status = rssRealPre) then
+
+    if (psource.status <> rssRealPre) then
     begin
       if spamcfg.ReadBool('kb', 'skip_rls', True) then
       begin
@@ -1588,14 +1587,13 @@ constructor TMP3Release.Create(rlsname, section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
-  //kezdoindex,szoindex,
   kotojelekszama: integer;
   types: integer;
   j: integer;
   szo, szamoknelkul: string;
   db: integer;
   lrx: TRegexpr;
-  //    rx:TRegexpr;
+
 begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
@@ -2047,8 +2045,6 @@ end;
 constructor TTVRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
-  rx: TRegexpr;
-  db_tvrage: TTVInfoDB;
   c_episode: int64;
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -2821,9 +2817,9 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
-  Debug(dpMessage, rsections, '<!--START AddCompleteTransfers %s',
+  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s',
     [p.rls.rlsname]);
-  //irc_Addstats(Format('--> AddCompleteTransfers %s (%d)', [p.rls.rlsname, p.sites.Count]));
+
   for i := 0 to p.sites.Count - 1 do
   begin
     pdest := TPazoSite(p.sites[i]);
@@ -2836,8 +2832,8 @@ begin
 
     if pdest.error then
     begin
-      Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
-        [pdest.Name, pdest.reason]);
+      Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
+        [pdest.Name, pdest.reason]));
       Continue;
     end;
 
@@ -2851,6 +2847,8 @@ begin
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
       ssrc_found := False;
+      psrc := nil;
+
       for j := 0 to p.sites.Count - 1 do
       begin
 
@@ -2865,8 +2863,8 @@ begin
 
         if psrc.error then
         begin
-          Debug(dpMessage, rsections, 'Error AddCompleteTransfersv2 for %s: %s',
-            [psrc.Name, psrc.reason]);
+          Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
+            [psrc.Name, psrc.reason]));
           Continue;
         end;
 
@@ -2890,8 +2888,8 @@ begin
 
       end;
 
+      //will continue with next site if ssrc_found is FALSE
       if not ssrc_found then
-        //will continue with next site if ssrc_found is FALSE
         continue;
 
       try
@@ -2912,9 +2910,6 @@ begin
             [e.Message]));
           irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
             [e.Message]));
-          //for debug
-          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
-            [e.Message]));
           Result := False;
         end;
       end;
@@ -2922,7 +2917,6 @@ begin
   end;
   Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
     [p.rls.rlsname]);
-  //irc_Addstats(Format('AddCompleteTransfers %s -->', [p.rls.rlsname]));
 end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
