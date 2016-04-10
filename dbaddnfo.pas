@@ -123,6 +123,7 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
+    // clean old db entries  
     last_addnfo.BeginUpdate;
     try
       i := last_addnfo.Count;
@@ -137,6 +138,7 @@ begin
     finally
       last_addnfo.EndUpdate;
     end;
+
   end;
 end;
 

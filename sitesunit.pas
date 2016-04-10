@@ -1613,6 +1613,8 @@ begin
 
       idTCP.Disconnect;
 
+      if not Read() then exit;
+
       Result := 1;
   finally
     idTCP.Free;
