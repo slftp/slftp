@@ -463,7 +463,7 @@ begin
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, d.LastChanged, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
+      Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%s) > newdir_max_empty(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
     end;
 
     if ((d.entries.Count > 0) and
@@ -477,7 +477,7 @@ begin
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, d.LastChanged, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
+      Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%s) > newdir_max_unchanged(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
     end;
 
     if (is_pre) then
@@ -493,7 +493,7 @@ begin
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, d.LastChanged, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+      Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%s) > newdir_max_completed(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_completed)), config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
     end;
 
     end
@@ -508,7 +508,7 @@ begin
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, d.LastChanged, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
+      Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%s) > newdir_max_created(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_started)), config.ReadInteger(c_section, 'newdir_max_created', 600)]));
     end;
 
     if ( (d.date_completed <> 0) AND (SecondsBetween(Now, d.date_completed) > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
@@ -519,7 +519,7 @@ begin
           [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, d.LastChanged, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+      Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%s) > newdir_max_completed(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_completed)), config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
     end;
 
     end;

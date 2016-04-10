@@ -74,7 +74,7 @@ var
   de: TDirListEntry;
   r: TPazoGenreNfoTask;
   d: TDirList;
-  tname, event, nfofile, genre: string;
+  tname, nfofile, genre: string;
   numerrors: Integer;
 begin
   Result:= False;
