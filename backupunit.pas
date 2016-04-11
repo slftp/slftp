@@ -23,7 +23,7 @@ var
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, slvision
+  statsunit, indexer
 {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
@@ -91,7 +91,6 @@ procedure CreateBackup(s: string);
 var
   vbname: string;
 begin
-
   vbname := s + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
   try
     with TTarWriter.Create(vbname) do
@@ -108,11 +107,8 @@ begin
           AddFile(config.ReadString('stats', 'database', 'nonexist'));
       end;
 
-      if not TVInfoDbAlaive then
-      begin
-        if fileexists('tvinfos.db') then
-          AddFile('tvinfos.db');
-      end;
+      if fileexists('tvinfos.db') then
+        AddFile('tvinfos.db');
 
       if fileexists('mirktrade.conf') then
         AddFile('mirktrade.conf');
@@ -166,7 +162,7 @@ begin
     end;
   except
     on e: Exception do
-      debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
+      debug(dpError, section, 'backup failed: ' + e.Message);
   end;
 end;
 
