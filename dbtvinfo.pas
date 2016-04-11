@@ -141,8 +141,10 @@ begin
   showName := rip;
   try
     rx.ModifierI := True;
+    rx.ModifierG := True;
     //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
+    //(.*?)[._](\d{2,4})[._-](\d{2})[._-](\d{2,4})[._-].*?  this regex will match even more. but is it stabel???
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
@@ -160,35 +162,93 @@ begin
       exit;
     end;
 
-    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
+    (*  regular series tagging like S01E02 and 1x02 *)
+
+    rx.Expression := '(.*?)[._-](S(\d{1,3})(E(\d{1,3}))?|(\d+)x(\d+))';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      season := StrToIntDef(rx.Match[2], 0);
-      episode := StrToIntDef(rx.Match[3], 0);
-      exit;
+      if StrToIntDef(rx.Match[3], 0) > 0 then
+      begin
+        season := StrToIntDef(rx.Match[3], 0);
+        episode := StrToIntDef(rx.Match[5], 0);
+        exit;
+      end;
+
+      if StrToIntDef(rx.Match[6], 0) > 0 then
+      begin
+        season := StrToIntDef(rx.Match[6], 0);
+        episode := StrToIntDef(rx.Match[7], 0);
+        exit;
+      end;
+      {
+          rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
+          if rx.Exec(rip) then
+          begin
+            showname := rx.Match[1];
+            season := StrToIntDef(rx.Match[2], 0);
+            episode := StrToIntDef(rx.Match[3], 0);
+            exit;
+          end;
+
+      }
     end;
 
-    rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part\.?)?(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
+    rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      season := StrToIntDef(rx.Match[3], 0);
-      if StrToIntDef(rx.Match[8], 0) > 0 then
-        episode := StrToIntDef(rx.Match[8], 0)
+      episode := StrToIntDef(rx.Match[7], 0);
+      //        season := -1;
+      if StrToIntDef(rx.Match[5], 0) > 0 then
+        episode := StrToIntDef(rx.Match[5], 0)
       else
-        episode := StrToIntDef(rx.Match[6], 0);
+        episode := StrToIntDef(rx.Match[7], 0);
+      Exit;
+    end;
+    (*
+    ** some other crap, we could create alot more regex, but these tags are from +2004 so maybe they are usefull..
+    **  there sre still some issuses with   Saison4.VOL1,  Vol.2.Disc2, SEASON1.DISC1.SIDE1, Enn and so on... but to be fair, there is no real Epsidoe on a complete retail release ..
+    *)
+    rx.Expression := '(.*?)[._-]((W|V|S(taffel|eason|aison))[._]?(\d{1,3})[._]?)?(SE|DIS[CK]|Y|E|EPS?|VOL(UME)?)[._]?(\d{1,3}).*?';
+    if rx.Exec(rip) then
+    begin
+      showname := rx.Match[1];
+      //as i said above we dont care the real values...
+      if StrToIntDef(rx.Match[4], 0) > 0 then
+      begin
+        episode := StrToIntDef(rx.Match[4], 0);
+        season := StrToIntDef(rx.Match[4], 0);
+      end
+      else
+      begin
+        episode := StrToIntDef(rx.Match[7], 0);
+        season := StrToIntDef(rx.Match[7], 0);
+      end;
       Exit;
     end;
 
-    // neither dated nor season-epiode nor disk or anyther known TV-Series tags are found. so we snip up the release scene infos to make a clean tbvmaze lookup,
-    // which will fail!
+    //      rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part\.?)?(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
+    (*
+          if rx.Exec(rip) then
+          begin
+            showname := rx.Match[1];
+            season := StrToIntDef(rx.Match[3], 0);
+            if StrToIntDef(rx.Match[8], 0) > 0 then
+              episode := StrToIntDef(rx.Match[8], 0)
+            else
+              episode := StrToIntDef(rx.Match[6], 0);
+            Exit;
+          end;
+    *)
+          // neither dated nor season-epiode nor disk or anyther known TV-Series tags are found. so we snip up the release scene infos to make a clean tbvmaze lookup,
+          // which will fail!
 
     ttags := TStringlist.Create;
     try
       ttags.Assign(tvtags);
       ttags.Delimiter := '|';
-      rx.Expression := '(\d{4}|' + ttags.DelimitedText + ').*$';
+      rx.Expression := '(\d{4}|720p|1080p|' + ttags.DelimitedText + ').*$';
       season := 0;
       episode := 0;
       showName := rx.Replace(rip, '');
