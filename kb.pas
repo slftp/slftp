@@ -1008,21 +1008,16 @@ begin
     finally
       kb_lock.Leave;
     end;
-    if (rule_result = raDrop) then
-    begin
 
+    // announce SKIP and DONT MATCH only if the site is not a PRE site 
     if (psource.status <> rssRealPre) then
     begin
-      if spamcfg.ReadBool('kb', 'skip_rls', True) then
+      if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
-      end;
-    end;  
-    end
-    else if (rule_result = raDontmatch) then
-    begin
-      if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
+      end
+      else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
