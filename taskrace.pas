@@ -1702,8 +1702,7 @@ begin
     rrgx := TRegExpr.Create;
     try
       rrgx.ModifierI := True;
-      rrgx.Expression := config.ReadString('dirlist', 'useful_skip',
-        '\.nfo|\.sfv|\.m3u|\.cue');
+      rrgx.Expression := config.ReadString('dirlist', 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
       if not rrgx.Exec(filename) then
       begin
         speed_stat := '';
