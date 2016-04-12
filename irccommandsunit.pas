@@ -1991,7 +1991,7 @@ var
   lastAnn: TDateTime;
 
   ann: integer;
-  i, j: string;
+  i, j, k: string;
 begin
   Result := False;
 
@@ -2159,7 +2159,8 @@ begin
         irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>', [rlsname, p.errorreason]);
 
       irc_addtext(netname, channel, '%s STATS until ERROR: %s - %s', [rlsname, p.Stats(TRUE), p.StatusText]);
-      break;
+      Result := False;
+      exit;
     end;
 
     if ((ann <> 0) and (SecondsBetween(Now, lastAnn) > ann)) then
@@ -2169,10 +2170,14 @@ begin
         i := IntToStr(ps_src.dirlist.Done);
   
       j := '?';
+      k := '?';
       if ((ps_dst <> nil) and (ps_dst.dirlist <> nil)) then
+      begin
         j := IntToStr(ps_dst.dirlist.RacedByMe);
+        k := IntToStr(ps_dst.dirlist.Done);
+      end;
   
-      irc_addtext(Netname, Channel, '%s: %s/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j, i, irccmdprefix, p.pazo_id]);
+      irc_addtext(Netname, Channel, '%s: %s (%s)/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j, k, i, irccmdprefix, p.pazo_id]);
       lastAnn := Now();
     end;
 
