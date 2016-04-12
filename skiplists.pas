@@ -348,14 +348,12 @@ if s.mask.Matches(section) then
       result := nil;
     end;
   end;
-  (*
+
   if Result = nil then
   begin
-    irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> section not found: %s',
-      [section]));
+    irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> section not found: %s', [section]));
     Result := skiplist[0] as TSkipList;
   end;
-  *)
 end;
 
 function TSkipListFilter.MatchFile(filename: string): integer;
