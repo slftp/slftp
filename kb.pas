@@ -693,7 +693,6 @@ begin
         // nuking an old rls not in kb
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
-        kb_lock.Leave;
         exit;
       end;
 
@@ -702,7 +701,6 @@ begin
         // complet an old rls not in kb
         irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
-          kb_lock.Leave;
         exit;
       end;
 
@@ -832,7 +830,6 @@ begin
       begin
         irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls,
           sitename]));
-        kb_lock.Leave;
         exit;
       end;
 
