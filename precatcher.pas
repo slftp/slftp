@@ -480,12 +480,12 @@ begin
 
       if CheckForBadAssGroup(rls) then
       begin
-        MyDebug('<c4>[Bad Group]</c> detected!: ' + rls);
-        Debug(dpSpam, rsections, 'Bad Group detected!: ' + rls);
+        MyDebug('<c4>[SKIPPED GROUP]</c> detected!: ' + rls);
+        Debug(dpSpam, rsections, 'Skipped group detected!: ' + rls);
         if not precatcher_debug then
-          irc_addadmin('<b><c14>Info</c14></b>: Bad Group detected!: ' + rls);
+          irc_addadmin('<b><c14>Info</c></b>: Skipped group detected!: ' + rls);
         skiprlses.Add(rls);
-        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Bad Group detected', [FormatDateTime('hh:nn:ss', Now)]));
+        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Skipped group detected', [FormatDateTime('hh:nn:ss', Now)]));
         exit;
       end;
 
