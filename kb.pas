@@ -535,7 +535,7 @@ begin
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit!',
                 [rls, sitename]));
             kb_skip.Insert(0, rls);
-            kb_lock.Leave;
+            // kb_lock.Leave;
             exit;
           end;
           if grp <> ss then
@@ -544,7 +544,7 @@ begin
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit!',
                 [rls, sitename]));
             kb_skip.Insert(0, rls);
-            kb_lock.Leave;
+            // kb_lock.Leave;
             exit;
           end;
         end;
@@ -665,7 +665,7 @@ begin
       begin
         while i > 250 do
         begin
-          kb_skip.Delete(i);
+          kb_skip.Delete(i);           
           i := kb_skip.Count - 1;
         end;
       end;
