@@ -310,7 +310,8 @@ irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, ty
     Break;
     end;
 
-    if p.ready then
+    //check if filecount on dst (p.sites[0]) is the same as on src (p.sites[1])
+    if ((p.ready) AND (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
     begin
     irc_Addadmin('Request is ready?');
       //Done! go to reqfill.
