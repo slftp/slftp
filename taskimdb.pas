@@ -57,8 +57,8 @@ end;
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, slhttp, regexpr,
-     tasksitenfo, Contnrs;
+     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit,
+     slhttp, regexpr, tasksitenfo, Contnrs;
 
 const
     section = 'taskimdb';

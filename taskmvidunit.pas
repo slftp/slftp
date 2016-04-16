@@ -25,7 +25,7 @@ type
 implementation
 
 uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr;
+     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit, Regexpr;
 
 const
   section = 'taskmvid';
@@ -143,13 +143,14 @@ end;
 *)
 function TPazoMVIDTask.Execute(slot: Pointer):boolean;
 label ujra;
-var
-  s: TSiteSlot;
-  filecount, i, j, k: Integer;
-  de: TDirListEntry;
-  r: TPazoMVIDTask;
-  d: TDirList;
-  regiono, nfofile, genre: string;
+var s: TSiteSlot;
+   filecount, i, j, k: Integer;
+    de: TDirListEntry;
+    r: TPazoMVIDTask;
+    d: TDirList;
+regiono,sfvfile, nfofile, genre: string;
+//    re:TRegexpr;
+//    fcount:integer;
     mvr:TMVIDRelease;
 begin
   Result:= False;
@@ -183,14 +184,18 @@ ujra:
 
 
     j:= 0;
+//    fcount:=-1;
     filecount:=0;
     nfofile:= '';
+    sfvfile:= '';
     d:= TDirlist.Create(s.Name, nil, nil, s.lastResponse);
     for i:= 0 to d.entries.Count-1 do
     begin
       de:= TDirlistEntry(d.entries[i]);
       if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
         nfofile:= de.filename;
+//      if ((not de.Directory) and (de.Extension = '.sfv') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
+//        sfvfile:= de.filename;
 
       if ((de.Directory) or (de.filesize = 0)) then
       begin
@@ -204,6 +209,12 @@ inc(filecount);
 
     end;
     d.Free;
+(* if filecount >= 0 then begin
+fcount:=filecount;
+filecount:=-1;
+end;*)
+
+//  if ((nfofile = '') or (sfvfile = ''))  then
 
 if nfofile = '' then
   begin
@@ -225,10 +236,7 @@ if nfofile = '' then
     exit;
   end;
 
-  // trying to get the nfo
-  s.downloadingfrom:= True;
-  i := s.LeechFile(ss, nfofile);
-
+  i:= LeechFile(s, ss, nfofile);
   if (i < 0)  then
   begin
     readyerror:= true;
@@ -236,14 +244,41 @@ if nfofile = '' then
   end;
   if i = 0 then goto ujra;
 genre:= FetchGenre(ss.DataString);
+//vidsrc:= GetVideoSource(ss.DataString); Broken!
 regiono:=GetVideoRegion(ss.DataString);
 
-mvr:=TMVIDRelease(mainpazo.rls);
+//  ii:=LeechFile(s,ss1, sfvfile);
+//  if (ii < 0)  then
+//  begin
+//    readyerror:= true;
+//    exit;
+//  end;
+//  if ii = 0 then goto ujra;
+//filecount:=GetFileCount(ss1.DataString);
+
+//Irc_Addtext('','','NFO Coneten: %s',[ss.DataString]);
+//Irc_Addtext('','','SFV Coneten: %s',[ss1.DataString]);
+
+(*
+  if (mainpazo.rls is TMVIDRelease) then
+  begin
+  mvr:=TMVIDRelease(mainpazo.rls);
+    if ((mvr.mvid_genre.text <> '') and (mvr.FileCount > 0))  then
+    begin
+      Result:= True;
+      ready:= True;
+      exit;
+    end;
+  end; // else mas nem nagyon lehet...
+                                  *)
+  mvr:=TMVIDRelease(mainpazo.rls);
 
 mvr.FileCount:=filecount;
 mvr.mvid_Genre.add(Genre);
 if regiono = 'PAL' then mvr.mvid_pal:=True;
 if regiono = 'NTSC' then mvr.mvid_ntsc:=True;
+//if Uppercase(vidsrc) = 'LIVE' then mvr.mvid_live:=True;
+//mvr.mvid_source:=vidsrc;
 
 kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'NEWDIR', mainpazo.rls.rlsname, '');
 
@@ -255,5 +290,7 @@ function TPazoMVIDTask.Name:string;
 begin
   Result:= 'PMVID '+IntToStr(pazo_id);
 end;
+
+
 
 end.

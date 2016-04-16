@@ -535,7 +535,7 @@ begin
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit!',
                 [rls, sitename]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
+            kb_lock.Leave;
             exit;
           end;
           if grp <> ss then
@@ -544,7 +544,7 @@ begin
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit!',
                 [rls, sitename]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
+            kb_lock.Leave;
             exit;
           end;
         end;
@@ -665,7 +665,7 @@ begin
       begin
         while i > 250 do
         begin
-          kb_skip.Delete(i);           
+          kb_skip.Delete(i);
           i := kb_skip.Count - 1;
         end;
       end;
@@ -768,7 +768,6 @@ begin
         RulesOrder(p);
       end;
 
-      // announce event on admin chan
       if (event = 'ADDPRE') then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
@@ -777,6 +776,7 @@ begin
       else if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
+          //          irc_Addstats(Format('<c3>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format(
             '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
             [section, rls, sitename]));
@@ -788,12 +788,14 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
+              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
               irc_Addstats(Format('<c7><b>[NEW %s]</b></c> <b>%s</b> @ <b>%s</b>',
                 [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
+              //              irc_Addstats(Format('<c7>[NEW]</c> %s %s @ %s (<c7>Not found in PreDB</c>)', [section, rls, '<b>'+sitename+'</b>']));
               irc_Addstats(Format(
                 '<c7>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
                 [section, rls, sitename]));
@@ -802,6 +804,7 @@ begin
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
+            //            irc_Addstats(Format('<c3>[NEW]</c> %s %s @ %s (%s) (<c3> %s ago</c>)', [section, rls, '<b>'+sitename+'</b>', p.sl.sectionname, dbaddpre_GetPreduration(r.pretime)]));
             irc_Addstats(Format(
               '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
               [section, rls, sitename, p.sl.sectionname,
@@ -814,6 +817,7 @@ begin
       if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
+          //          irc_Addstats(Format('<c9>[PRE]</c> %s %s @ %s', [section, rls, '<b>'+sitename+'</b>']));
           irc_Addstats(Format('<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
             [section, rls, sitename]));
       end;
@@ -896,7 +900,7 @@ begin
           exit;
         end;
 
-        if ((DateTimeToUnix(r.pretime) = 0) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
+        if (DateTimeToUnix(r.pretime) = 0) then
         begin
           irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>',
             [section, rls, sitename]));
@@ -910,18 +914,15 @@ begin
           exit;
         end;
 
-        if ((not s.IsPretimeOk(p.rls.section, p.rls.pretime)) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
+        if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
         begin
           irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>',
             [section, rls, sitename]));
           exit;
         end;
 
-        if (sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        begin
         irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));
-        end;
       end;
 
       if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
@@ -996,7 +997,7 @@ begin
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
-  if ((event <> 'NUKE') and (event <> 'ADDPRE')) then
+  if ((event <> 'NUKE') and (event <> 'ADDPRE') and (event <> 'PRE')) then
   begin
     kb_lock.Enter;
     try
@@ -1005,16 +1006,21 @@ begin
     finally
       kb_lock.Leave;
     end;
-
-    // announce SKIP and DONT MATCH only if the site is not a PRE site 
+    if (rule_result = raDrop) then
+    begin
+    //do not announce [SKIP] on pre
     if (psource.status <> rssRealPre) then
     begin
-      if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
+      if spamcfg.ReadBool('kb', 'skip_rls', True) then
       begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
-      end
-      else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
+      end;
+    end;  
+    end
+    else if (rule_result = raDontmatch) then
+    begin
+      if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
       begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
@@ -1089,7 +1095,7 @@ begin
 
   // now add dirlist
   try
-    if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE') or (event = 'UPDATE')) then
+    if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE')) then
     begin
       for i := p.sites.Count - 1 downto 0 do
       begin
@@ -1101,27 +1107,33 @@ begin
         end;
         try
           ps := TPazoSite(p.sites[i]);
-
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
+          if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
+            (ps.status in [rssShouldPre, rssRealPre])) then
           begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
+              True);
+            irc_Addtext_by_key('PRECATCHSTATS',
+              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
+              [section, rls, ps.Name]));
+
             if (ps.dirlist <> nil) then
               ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+          if ((ps.dirlist <> nil) and (not (ps.dirlist.dirlistadded)) and
+            (ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete])) then
           begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
+            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '',
+              False);
+            irc_Addtext_by_key('PRECATCHSTATS',
+              Format('<c7>[KB]</c> %s %s Dirlist added to : %s',
+              [section, rls, ps.Name]));
+
             if (ps.dirlist <> nil) then
               ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
-
         except
           Continue;
         end;
@@ -1579,13 +1591,14 @@ constructor TMP3Release.Create(rlsname, section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
+  //kezdoindex,szoindex,
   kotojelekszama: integer;
   types: integer;
   j: integer;
   szo, szamoknelkul: string;
   db: integer;
   lrx: TRegexpr;
-
+  //    rx:TRegexpr;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
@@ -2037,6 +2050,8 @@ end;
 constructor TTVRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
+  rx: TRegexpr;
+  db_tvrage: TTVInfoDB;
   c_episode: int64;
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -2809,6 +2824,7 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
+  
   Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s',
     [p.rls.rlsname]);
 
@@ -2836,6 +2852,7 @@ begin
       Continue;
 
     //checking if a irc chan is added for the site
+    //not sure if we really need this, psrc.Complete should be set while dirlist - not from irc
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
       ssrc_found := False;
@@ -2843,9 +2860,9 @@ begin
 
       for j := 0 to p.sites.Count - 1 do
       begin
-
         ssrc_found := False;
         psrc := TPazoSite(p.sites[j]);
+
         if psrc = nil then
           Continue;
         if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
@@ -2875,6 +2892,7 @@ begin
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
           ssrc_found := True;
+
         if ssrc_found then
           break;
 
@@ -2883,6 +2901,23 @@ begin
       //will continue with next site if ssrc_found is FALSE
       if not ssrc_found then
         continue;
+
+
+
+      if psrc = nil then
+      begin
+        irc_Addstats(Format('psrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+      ssrc := TSite(FindSiteByName('', psrc.Name));
+      if ssrc = nil then
+      begin
+        irc_Addstats(Format('ssrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
@@ -2907,6 +2942,7 @@ begin
       end;
     end;
   end;
+
   Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
     [p.rls.rlsname]);
 end;
