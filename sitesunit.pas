@@ -2,7 +2,7 @@ unit sitesunit;
 
 interface
 
-uses Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr,
+uses Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
   taskautodirlist, taskautocrawler, taskautonuke, taskautoindex,
   tasklogin, tasksunit, taskrules;
 
@@ -71,12 +71,13 @@ type
       raiseonclose: boolean; timeout: integer = 0): boolean; overload;
     function Send(s: string): boolean; overload;
     function Send(s: string; const Args: array of const): boolean; overload;
-    function ReLogin(hanyszor: integer = 0; kill: boolean = False;
+    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False;
       s_message: string = ''): boolean;
     function bnc: string;
     function Cwd(dir: string; force: boolean = False): boolean;
     function Dirlist(dir: string; forcecwd: boolean = False;
       fulldirlist: boolean = False): boolean;
+    function Leechfile(dest: TStream; const filename: string; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
     //    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
     function RemoveFile(dir, filename: string): boolean;
     function RemoveDir(dir: string): boolean;
@@ -1092,7 +1093,7 @@ begin
     end;
 end;
 
-function TSiteSlot.ReLogin(hanyszor: integer = 0; kill: boolean = False;
+function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False;
   s_message: string = ''): boolean;
 var
   l_maxrelogins: integer;
@@ -1101,11 +1102,11 @@ var
   ss: TSiteSlot;
 begin
   Result := False;
-  Debug(dpSpam, section, 'Relogin ' + Name + ' ' + IntToStr(hanyszor));
-  if hanyszor = 0 then
+  Debug(dpSpam, section, 'Relogin ' + Name + ' ' + IntToStr(limit_maxrelogins));
+  if limit_maxrelogins = 0 then
     l_maxrelogins := maxrelogins
   else
-    l_maxrelogins := hanyszor;
+    l_maxrelogins := limit_maxrelogins;
 
   if Status = ssOnline then
   begin
@@ -1533,6 +1534,102 @@ begin
     end;
   end;
 end;
+
+function TSiteSlot.Leechfile(dest: TStream; const filename: string; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
+var
+    idTCP: TslTCPSocket;
+    host: string;
+    port: Integer;
+begin
+  Result := 0;
+  try
+  idTCP := TslTCPSocket.Create;
+
+  try
+
+    if not SendProtP then exit;
+
+    if site.sw = sswDrftpd then
+    begin
+      if not Send('PRET RETR %s', [TranslateFilename(filename)]) then exit;
+      if not Read('PRET RETR %s') then exit;
+    end;
+
+    if not Send('PASV') then exit;
+    if not Read('PASV') then exit;
+
+    if (lastResponseCode <> 227) then
+    begin
+      irc_addtext(todotask, Trim(lastResponse));
+      Result:= -1;
+      exit;
+    end;
+    ParsePasvString(lastResponse, host, port);
+    if port = 0 then
+    begin
+        irc_AddText(todotask, site.name+': couldnt parse passive string / '+filename);
+        Result:= -1;
+        exit;
+    end;
+
+      idTCP.Host := host;
+      idTCP.Port := port;
+
+      if not Send('REST %d', [restFrom]) then exit;
+      if not Read('REST') then exit;
+
+      if not Send('RETR %s', [TranslateFilename(filename)]) then exit;
+
+      if not idTCP.Connect(site.connect_timeout * 1000) then
+      begin
+        irc_AddText(todotask, site.name+': couldnt connect to site ('+idTCP.error+') / '+filename);
+        DestroySocket(False);
+        Result := -1;
+        exit;
+      end;
+
+      if not idTCP.TurnToSSL(slssl_ctx_tlsv1_2_client,site.io_timeout * 1000) then
+      begin
+        irc_AddText(todotask, site.name+': couldnt negotiate the SSL connection ('+idTCP.error+') / '+filename);
+        DestroySocket(False);
+        Result := -1;
+        exit;
+      end;
+
+      if not Read('RETR') then
+      begin
+        irc_AddText(todotask, site.name+': couldnt read response of site / '+filename);
+        Result := -1;
+        exit;
+      end;
+
+      if not idTCP.Read(dest, site.io_timeout * 1000, maxRead, True) then
+      begin
+        irc_AddText(todotask, site.name+': couldnt fetch content ('+idTCP.error+') / '+filename);
+        DestroySocket(False);
+        Result := -1;
+        exit;
+      end;
+
+      idTCP.Disconnect;
+
+      if not Read() then exit;
+
+      Result := 1;
+  finally
+    idTCP.Free;
+  end;
+
+ except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.LeechFile : %s', [e.Message]));
+      exit;
+    end;
+  end;
+
+end;
+
 
 function TSiteSlot.TranslateFilename(filename: string): string;
 begin

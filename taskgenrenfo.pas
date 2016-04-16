@@ -20,7 +20,7 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit ;
+     console, configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo;
 
 const
   section = 'taskgenrenfo';
@@ -65,85 +65,132 @@ begin
   Result:= Trim(Result);
 end;
 
-
-
-
 function TPazoGenreNfoTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    i, j, k: Integer;
-    de: TDirListEntry;
-    r: TPazoGenreNfoTask;
-    d: TDirList;
-    event, nfofile, genre: string;
+label
+  ujra;
+var
+  i: Integer;
+  s: TSiteSlot;
+  de: TDirListEntry;
+  r: TPazoGenreNfoTask;
+  d: TDirList;
+  tname, nfofile, genre: string;
+  numerrors: Integer;
 begin
   Result:= False;
+  numerrors := 0;
   s:= slot;
+  tname := Name;
 
+  Debug(dpMessage, section, '--> ' + tname);
+
+  // exit if pazo is stopped
   if mainpazo.stopped then
   begin
     readyerror:= True;
     exit;
   end;
 
-  Debug(dpMessage, section, Name);
-
-  if (mainpazo.rls is TNFORelease) then
-  begin
-    if (TNFORelease(mainpazo.rls).nfogenre <> '') then
+  // exit if nfo is already in dbaddnfo
+  try
+    i:= last_addnfo.IndexOf(mainpazo.rls.rlsname);
+    if i <> -1 then
     begin
       Result:= True;
       ready:= True;
       exit;
     end;
-  end; // else mas nem nagyon lehet...
-
-
-ujra:
-  if s.status <> ssOnline then
-    if not s.ReLogin then
+  except
+    on e: Exception do
     begin
+      Debug(dpError, section, Format('[EXCEPTION] TPazoGenreNfoTask last_addnfo.IndexOf: %s', [e.Message]));
       readyerror:= True;
       exit;
     end;
+  end;
 
-    if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir)+ MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
+  // Number of errors too high. Exiting.
+  ujra:
+  try
+    inc(numerrors);
+    if numerrors > 3 then
     begin
-      if s.status = ssDown then
-        goto ujra;
-      readyerror:= True; // <- nincs meg a dir...
+      irc_Adderror(Format('<c4>[ERROR]</c> %s', [name]));
+      mainpazo.errorreason := 'Protocol errors on ' + site1;
+      readyerror := True;
       exit;
     end;
-
-
-    j:= 0;
-    nfofile:= '';
-    d:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
-    for i:= 0 to d.entries.Count-1 do
+  except
+    on e: Exception do
     begin
-      try if i > d.entries.Count then Break; except Break; end;
-      try
-        de:= TDirlistEntry(d.entries[i]);
-        if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
-          nfofile:= de.filename;
-
-        if ((de.Directory) or (de.filesize = 0)) then
-        begin
-          k:= TagComplete(de.filenamelc);
-          if j = 0 then j:= k;
-          if k = 1 then j:= k;
-        end;
-      except
-        Break;
-      end;
+      Debug(dpError, section, Format('[EXCEPTION] TPazoGenreNfoTask.Execute error: %s', [e.Message]));
+      readyerror := True;
+      exit;
     end;
-    d.Free;
+  end;
 
+  // no idea what it really does
+  queue_lock.Enter;
+  if (mainpazo.rls is TNFORelease) then
+  begin
+    if (TNFORelease(mainpazo.rls).nfogenre <> '') then
+    begin
+      queue_lock.Leave;
+      Result:= True;
+      ready:= True;
+      exit;
+    end;
+  end; 
+  queue_lock.Leave;
+
+  // Check if slot is online. If not try to relogin once.
+  if s.status <> ssOnline then
+  begin
+    if not s.ReLogin(1) then
+    begin
+      readyerror := True;
+      Debug(dpSpam, section, 'site status is offline.');
+      exit;
+    end;
+  end;
+
+  // Trying to list files in release directory
+  if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
+  begin
+    Debug(dpSpam, section, 'Dirlist Failed.');
+    if s.status = ssDown then
+      goto ujra;
+    readyerror := True;
+    exit;
+  end;
+
+  // Trying to look for a nfo file in the dirlist
+  nfofile := '';
+  try
+    d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+    try
+      de := d.FindNfo;
+      if (de <> nil) then
+        nfofile := de.filename;
+    finally
+      d.Free;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TPazoGenreNfoTask TDirlist : %s', [e.Message]));
+      readyerror := true;
+      exit;
+    end;
+  end;
+
+  // no nfo file found. Reschedule the task and exit.
+  queue_lock.Enter;
   if (nfofile = '') then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
-      Debug(dpSpam, section, 'READD: nincs meg az nfo file...');
+      Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
 
       r:= TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
       r.startat:= IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
@@ -152,55 +199,88 @@ ujra:
       except
         on e: Exception do
         begin
+          queue_lock.Leave;
           Debug(dpError, section, Format('[Exception] in TPazoGenreNfoTask AddTask %s', [e.Message]));
-          irc_Adderror(Format('<c4>[Exception]</c> in TPazoGenreNfoTask AddTask %s', [e.Message]));
           readyerror:= True;
           exit;
         end;
       end;
     end else
     begin
-      Debug(dpSpam, section, 'READD: nincs tobb readd...');
+      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
     end;
 
+    queue_lock.Leave;
     ready:= True;
     Result:= True;
     exit;
   end;
+  queue_lock.Leave;
 
+  // try to get the nfo file
+  i := s.LeechFile(ss, nfofile); 
 
-  i:= LeechFile(s, ss, nfofile);
-  if i < 0 then
+  // nfo file could not be downloaded. Reschedule the task and exit.
+  queue_lock.Enter;
+  if i <> 1 then
   begin
-    readyerror:= true;
+    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    begin
+      Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
+      try
+        r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+        AddTask(r);
+      except
+        on e: Exception do
+        begin
+          queue_lock.Leave;
+          Debug(dpError, section, Format('[Exception] in TPazoGenreNfoTask AddTask %s', [e.Message]));
+          readyerror := True;
+          exit;
+        end;
+      end;
+    end
+    else
+    begin
+      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
+
+    end;
+    queue_lock.Leave;
+    ready := True;
+    Result := True;
     exit;
   end;
-  if i = 0 then goto ujra;
-  // else siker
+  queue_lock.Leave;
 
-
+  // nfo file was downloaded. Parsing it and adding it to dbaddnfo
   genre:= FetchGenre(ss.DataString);
 
-  if j = 1 then event:= 'COMPLETE' else event:= 'NEWDIR';
+  queue_lock.Enter;
   try
     kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'UPDATE', mainpazo.rls.rlsname, '');
+    dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
+    Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
   except
     on e: Exception do
     begin
+      queue_lock.Leave;
       Debug(dpError, section, Format('[Exception] in TPazoGenreNfoTask kb_add %s', [e.Message]));
       readyerror:= True;
       exit;
     end;
   end;
 
+  queue_lock.Leave;
   Result:= True;
   ready:= True;
+  Debug(dpMessage, section, '<-- ' + tname);
 end;
 
 function TPazoGenreNfoTask.Name: string;
 begin
   try
-    Result:=Format('GENRENFO: %s [Count:%d]',[mainpazo.rls.rlsname,attempt]);
+    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, IntToStr(pazo_id), site1, attempt]);
   except
     Result:= 'GENRENFO';
   end;
