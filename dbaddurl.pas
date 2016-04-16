@@ -110,22 +110,15 @@ begin
 
     dbaddurl_ParseUrl(rls, url);
 
-    // clean old db entries  
-    last_addurl.BeginUpdate;
-    try
-      i := last_addurl.Count;
-      if i > 125 then
+    i := last_addurl.Count;
+    if i > 125 then
+    begin
+      while i > 100 do
       begin
-        while i > 100 do
-        begin
-          last_addurl.Delete(0);
-          i := last_addurl.Count - 1;
-        end;
+        last_addurl.Delete(0);
+        i := last_addurl.Count - 1;
       end;
-    finally
-      last_addurl.EndUpdate;
     end;
-
   end;
 end;
 

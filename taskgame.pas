@@ -20,8 +20,8 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, slhttp, regexpr,
-     sllanguagebase;
+     configunit, tasksunit, dirlist, mystrings, sitesunit, leechfileunit,
+     slhttp, regexpr,sllanguagebase;
 
 const section = 'taskgame';
 
@@ -173,10 +173,7 @@ ujra:
     exit;
   end;
 
-  // try to get the nfo file
-  s.downloadingfrom:= True;
-  i := s.LeechFile(ss, nfofile);
-
+  i:= LeechFile(s, ss, nfofile);
   if i < 0 then
   begin
     readyerror:= True;

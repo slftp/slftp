@@ -123,22 +123,15 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    // clean old db entries  
-    last_addnfo.BeginUpdate;
-    try
-      i := last_addnfo.Count;
-      if i > 125 then
+    i := last_addnfo.Count;
+    if i > 125 then
+    begin
+      while i > 100 do
       begin
-        while i > 100 do
-        begin
-          last_addnfo.Delete(0);
-          i := last_addnfo.Count - 1;
-        end;
+        last_addnfo.Delete(0);
+        i := last_addnfo.Count - 1;
       end;
-    finally
-      last_addnfo.EndUpdate;
     end;
-
   end;
 end;
 
@@ -157,19 +150,14 @@ begin
 
     dbaddnfo_ParseNfo(rls, nfo_data);
 
-    last_addnfo.BeginUpdate;
-    try
-      i := last_addnfo.Count;
-      if i > 125 then
+    i := last_addnfo.Count;
+    if i > 125 then
+    begin
+      while i > 100 do
       begin
-        while i > 100 do
-        begin
-          last_addnfo.Delete(0);
-          i := last_addnfo.Count - 1;
-        end;
+        last_addnfo.Delete(0);
+        i := last_addnfo.Count - 1;
       end;
-    finally
-      last_addnfo.EndUpdate;
     end;
   end;
 end;
