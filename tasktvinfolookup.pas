@@ -630,14 +630,15 @@ begin
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
 
+      if js.Field['genres'].SelfType <> jsNull then
+      begin
+        for I := 0 to js.Field['genres'].Count - 1 do
+          if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
+            tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+            //irc_addAdmin(IntToStr(js.Field['genres'].Count))
+        end
+      else irc_addAdmin('Genre is null');
 
-if js.Field['genres'].SelfType  <> jsNull then begin
-
-      for I := 0 to js.Field['genres'].Count - 1 do
-        if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
-          tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
-          irc_addAdmin(IntToStr(js.Field['genres'].Count))
-  end else irc_addAdmin('genre is null');
     except on E: Exception do
       begin
         irc_addadmin(e.Message);
