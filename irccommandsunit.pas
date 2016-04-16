@@ -794,11 +794,15 @@ begin
     exit;
   end;
 
- if kb_sections.IndexOf(section) = -1 then begin
-    irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Site <b>%s</b> not found.',
-      [section]);
-    exit;
- end;
+  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') then
+  begin
+    if (kb_sections.IndexOf(section) = -1) and (dir <> '') then
+    begin
+      irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file.',
+        [section, section]);
+      exit;
+    end;
+  end;
 
   s.sectiondir[section] := dir;
   s.SetSections(section, False);
