@@ -2808,7 +2808,9 @@ var
 
 begin
   Result := False;
+
   p := TPazo(pazo);
+
   Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s',
     [p.rls.rlsname]);
 
@@ -2836,6 +2838,7 @@ begin
       Continue;
 
     //checking if a irc chan is added for the site
+    //not sure if we really need this, psrc.Complete should be set while dirlist - not from irc
     if Precatcher_Sitehasachan(pdest.Name) then
     begin
       ssrc_found := False;
@@ -2843,9 +2846,9 @@ begin
 
       for j := 0 to p.sites.Count - 1 do
       begin
-
         ssrc_found := False;
         psrc := TPazoSite(p.sites[j]);
+
         if psrc = nil then
           Continue;
         if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
@@ -2875,6 +2878,7 @@ begin
           ssrc_found := ssrc.isRouteableTo(sdest.Name)
         else
           ssrc_found := True;
+
         if ssrc_found then
           break;
 
@@ -2883,6 +2887,23 @@ begin
       //will continue with next site if ssrc_found is FALSE
       if not ssrc_found then
         continue;
+
+
+
+      if psrc = nil then
+      begin
+        irc_Addstats(Format('psrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+      ssrc := TSite(FindSiteByName('', psrc.Name));
+      if ssrc = nil then
+      begin
+        irc_Addstats(Format('ssrc is nil (%s)', [psrc.Name]));
+        Exit;
+      end;
+
+
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
@@ -2907,6 +2928,7 @@ begin
       end;
     end;
   end;
+
   Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
     [p.rls.rlsname]);
 end;
