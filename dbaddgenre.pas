@@ -70,7 +70,7 @@ var
   i: Integer;
 begin
   if (Count(' ', params) > 1) then begin
-    irc_AddInfo(Format('<c7>[GENRE]</c> rejected <b>%s</b> because it contains more than 2 parameters', [params]));
+    //irc_AddInfo(Format('<c7>[GENRE]</c> rejected <b>%s</b> because it contains more than 2 parameters', [params]));
     exit;
   end;
 
@@ -162,7 +162,7 @@ begin
       if (mp3genre <> '') then
       begin
         kb_add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), p.rls.section, mp3genre, 'UPDATE', p.rls.rlsname, '');
-        irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, mp3genre]));
+        //irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, mp3genre]));
         Result:=True;
       end;
     end;

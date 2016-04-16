@@ -31,11 +31,12 @@ begin
 end;
 
 function TPazoGenreDirlistTask.FetchGenre(filename: string): string;
-var
-  i: Integer;
+var i: Integer; s:string;
 begin
   Result:= '';
   try
+    s:= Csere(filename, '-', ' ');
+//    Irc_addtext(Netname,Channel,'Checking: %s (%s)',[filename,s]);
     for i:= 0 to mp3genres.Count-1 do
     begin
       if AnsiContainsText(filename, mp3genres[i]) then
@@ -56,7 +57,7 @@ var s: TSiteSlot;
     j: Integer;
     r: TPazoGenreDirlistTask;
     d: TDirList;
-    tagfile, genre: string;
+    event, tagfile, genre: string;
 begin
   Result:= False;
   s:= slot;
@@ -160,6 +161,7 @@ ujra:
       Debug(dpSpam, section, 'READD: There is no longer read...');
   end else
   begin
+    if j = -1 then event:= 'NEWDIR' else event:= 'COMPLETE';
     try
       kb_add(netname, channel,ps1.name, mainpazo.rls.section, genre, 'UPDATE', mainpazo.rls.rlsname, '');
     except

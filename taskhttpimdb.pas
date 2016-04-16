@@ -19,8 +19,8 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-  configunit, dirlist, mystrings, sitesunit, console, slhttp, regexpr,
-  dbaddimdb, tasksitenfo, Contnrs;
+  configunit, dirlist, mystrings, sitesunit, leechfileunit, console,
+  slhttp, regexpr, dbaddimdb, tasksitenfo, Contnrs;
 
 const
   section = 'taskhttpimdb';
@@ -47,7 +47,7 @@ var
 
   mainsite, rlsdatesite, businesssite: string;
 begin
-  Result:=False;
+  //    Result:=False;
 
   if (rls = '') then
   begin
@@ -242,7 +242,18 @@ begin
 
   (*  Fetch Countries from iMDB  *)
 
-  // Expression designed to work with new and old layouts of iMDB (04/10/2010)
+  (*
+  rr.Expression:='<h4 class="inline">Country:<\/h4>(.*?)</div>';
+  rr2.Expression:='<a href="\/country\/de\?ref\_=tt\_dt\_dt"\s*itemprop='+chr(39)+'url'+chr(39)+'>(.*?)<\/a>';
+  imdbdata.imdb_countries.Clear;
+  if rr.Exec(text) then begin
+    if rr2.Exec(rr.Match[1]) then
+      repeat
+        imdbdata.imdb_countries.Add(rr2.Match[1]);
+      until not rr2.ExecNext;
+  end else begin
+  *)
+    // Expression designed to work with new and old layouts of iMDB (04/10/2010)
   rr2.Expression :=
     '<a\s*(onclick=\"[^\"]+\")?\s*href=\"\/(Sections\/)?Country?\/[^"]*"[^>]*>([^<]+)<\/a>';
   // Trying new layout of iMDB first
@@ -434,11 +445,9 @@ begin
     repeat
       s := Csere(rr.Match[2], ',', '');
       s := Csere(s, '.', '');
-
-      Debug(dpSpam, section,
+      Debug(dpError, section,
         Format('TPazoHTTPImdbTask dbaddimdb_SaveImdb: match=%s',
           [rr.Match[0]]));
-
       if StrToIntDef(s, 0) > imdb_screens then
         imdb_screens := StrToIntDef(s, 0)
     until not rr.ExecNext;
