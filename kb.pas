@@ -503,7 +503,7 @@ begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>',
             [rls, sitename]));
           kb_skip.Insert(0, rls);
-          kb_lock.Leave;
+          //kb_lock.Leave;
           exit;
         end;
 
@@ -585,7 +585,7 @@ begin
                 kb_latest.Insert(0, rls);
                 // gonna insert this anyway, because there are sometimes renames of renames
                 kb_skip.Insert(0, rls);
-                kb_lock.Leave;
+                //kb_lock.Leave;
                 exit;
               end;
             end;
