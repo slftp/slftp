@@ -49,9 +49,16 @@
 		The MultiDisc thing
 		Sometimes slFtp tries to send into wrong folder -> Not AllowedFile error occur
 		
---=============================( SLFTP v1.5.2.5 )=================================- 
-		{#}	'Invalid argument index in format' error message fixxed
+--=============================( SLFTP v1.5.2.2 )=================================- 
+		{#}	'Invalid argument index in format' error message fixed
+		{#} !addgn is working again
+		{#} !setsocks5 is now case insensitive
 		{^}	No [SKIP] message after [PRE] message
+	
+--=============================( SLFTP v1.5.2.1 )=================================- 	
+		{#} stop_on_englishcheck is working again. FYI: shamless is unequal to shamelessus! so disable the stop_on_englishcheck in slftp.ini
+		{#} TVInfo.db is now include to onStart Backup
+		{^} Mapped sections will now listed under !sections, no need for: TV-1080-DE=TV-1080-DE		
 	
 --=============================( SLFTP v1.5.2.0 )=================================- 
 		{+}	TVInfo auto-update + end_year is back
