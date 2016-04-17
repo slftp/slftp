@@ -825,7 +825,7 @@ begin
       end
       else
       begin
-        Debug(dpError, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+        Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
         irc_Addadmin(Format('TPazoMkdirTask respone error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
       end
     end
@@ -1248,9 +1248,7 @@ begin
   end;
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
-  begin
     goto ujra;
-  end;
 
   if not sdst.Read('STOR') then
   begin
@@ -1418,9 +1416,8 @@ begin
   retrujra:
 
   if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
-  begin;
     goto ujra;
-  end;
+
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
@@ -1710,8 +1707,7 @@ begin
     rrgx := TRegExpr.Create;
     try
       rrgx.ModifierI := True;
-      rrgx.Expression := config.ReadString('dirlist', 'useful_skip',
-        '\.nfo|\.sfv|\.m3u|\.cue');
+      rrgx.Expression := config.ReadString('dirlist', 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
       if not rrgx.Exec(filename) then
       begin
         speed_stat := '';
