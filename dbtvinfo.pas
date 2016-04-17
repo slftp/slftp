@@ -82,8 +82,6 @@ procedure getShowValues(rip: string; out showName: string); overload;
 //function findTVMazeIDv2(showname:string):string;
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 
-function TVInfoDbAlaive: boolean;
-
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
@@ -897,25 +895,20 @@ begin
 end;
 
 procedure dbTVInfoStart;
-begin
-  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
-end;
-
-procedure dbTVInfoInit;
 var
+  uV: integer;
   db_name, db_params: string;
   user_version: Psqlite3_stmt;
-  uV: integer;
 begin
   addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
     db_params := config.ReadString(section, 'pragma', ' locking_mode=NORMAL;');
-    tvinfodb := TslSqliteDB.Create(db_name, db_params);
+    tvinfodb := TslSqliteDB.Create(db_name, '');
     // tvinfodb.ExecSQL('PRAGMA locking_mode=normal;');
 
-     //Just fix the poo i did :)
+    //Just fix the poo i did :)
     user_version := tvinfodb.Open('PRAGMA user_version;');
     if tvinfodb.Step(user_version) then
       uV := StrToIntDef(tvinfodb.column_text(user_version, 0), -1);
@@ -950,6 +943,13 @@ begin
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
   end;
+  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
+end;
+
+procedure dbTVInfoInit;
+begin
+  //  last_addthetvdb := THashedStringList.Create;
+  //  last_addthetvdb.CaseSensitive := False;
 end;
 
 procedure dbTVInfoUninit;
@@ -1141,11 +1141,6 @@ begin
   end;
 
   result := True;
-end;
-
-function TVInfoDbAlaive: boolean;
-begin
-if tvinfodb = nil then result:=false else result:=true;
 end;
 
 end.

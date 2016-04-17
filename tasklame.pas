@@ -18,7 +18,7 @@ function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Integer;
 
 implementation
 
-uses mystrings, SysUtils, DebugUnit, irc, leechfileunit;
+uses mystrings, SysUtils, DebugUnit, irc;
 
 const section = 'lame';
 
@@ -72,7 +72,11 @@ begin
     begin
 
       ms.Clear;
-      i:= LeechFile(s, ms, filename, restfrom, mennyitolvass);
+
+      // trying to get the nfo
+      s.downloadingfrom:= True;
+      i := s.LeechFile(ms, filename, restfrom, mennyitolvass);
+
       if i <= 0 then
       begin
         Result:= i;
@@ -174,9 +178,8 @@ ujra:
       exit;
     end;
 
-  s.downloadingfrom:= True;
-
   i:= LameID3v1ID3v2Info(s, genremode, filesize, dir, filename, re2, re0, re1, m);
+
   if i < 0 then
   begin
     readyerror:= True;
