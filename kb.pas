@@ -896,13 +896,6 @@ begin
           exit;
         end;
 
-        if ((DateTimeToUnix(r.pretime) = 0) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
-        begin
-          irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>',
-            [section, rls, sitename]));
-          exit;
-        end;
-
         if (s.markeddown) then
         begin
           irc_Addstats(Format('<c4>[SITE DOWN]</c> : %s %s @ <b>%s</b>',
@@ -910,11 +903,23 @@ begin
           exit;
         end;
 
-        if ((not s.IsPretimeOk(p.rls.section, p.rls.pretime)) and (TPretimeLookupMode(taskpretime_mode) <> plmNone)) then
+        if (TPretimeLookupMode(taskpretime_mode) <> plmNone) then
+        begin
+
+        if (DateTimeToUnix(r.pretime) = 0) then
+        begin
+          irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>',
+            [section, rls, sitename]));
+          exit;
+        end;
+
+        if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
         begin
           irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>',
             [section, rls, sitename]));
           exit;
+        end;
+
         end;
 
         if (sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
