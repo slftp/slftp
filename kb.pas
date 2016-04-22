@@ -705,7 +705,7 @@ begin
       end;
 
       debug(dpSpam, rsections,
-        'This NEWDIR task was the first one to hit kb - checking eljut etc',
+        'This NEWDIR task for %s (%s) was the first one to hit kb - checking eljut etc',
         [rls, section]);
 
       // uj joveveny!
