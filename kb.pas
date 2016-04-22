@@ -705,8 +705,8 @@ begin
       end;
 
       debug(dpSpam, rsections,
-        'This NEWDIR task was the first one to hit kb - checking eljut etc',
-        [rls, section]);
+        'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
+        [event, rls, section]);
 
       // uj joveveny!
       rc := FindSectionHandler(section);
@@ -823,8 +823,8 @@ begin
       r := p.rls;
 
       debug(dpSpam, rsections,
-        'This NEWDIR task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
-        [rls, section]);
+        'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
+        [event, rls, section]);
 
       if r.rlsname <> rls then
       begin
