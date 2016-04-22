@@ -705,8 +705,8 @@ begin
       end;
 
       debug(dpSpam, rsections,
-        'This NEWDIR task for %s (%s) was the first one to hit kb - checking eljut etc',
-        [rls, section]);
+        'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
+        [event, rls, section]);
 
       // uj joveveny!
       rc := FindSectionHandler(section);
