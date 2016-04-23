@@ -1528,7 +1528,6 @@ begin
 //  end;
 //  rrgx.Free;
 
-  try
   rrgx := TRegExpr.Create;
   try
     rrgx.ModifierI := True;
@@ -1539,9 +1538,6 @@ begin
       exit;
     end;
 
-  finally
-    rrgx.Free;
-  end;
   except
     on e: Exception do
     begin
@@ -1549,6 +1545,7 @@ begin
         [e.Message]));
     end;
   end;
+  rrgx.Free;
 
 
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
