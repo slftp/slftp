@@ -141,15 +141,20 @@ type
 procedure  DirlistInit;
 procedure  DirlistUninit;
 
+//make it global to use it in other units with those variables
+var
+  global_skip: String;
+  useful_skip: String;
+
 implementation
 
 uses SysUtils, DateUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
 
 const section = 'dirlist';
 
-var
-  global_skip: String;
-  useful_skip: String;
+//var
+//  global_skip: String;
+//  useful_skip: String;
   
 { TDirList }
 function TDirList.Complete: Boolean;
