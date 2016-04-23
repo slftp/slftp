@@ -1528,6 +1528,7 @@ begin
 //  end;
 //  rrgx.Free;
 
+  try
   rrgx := TRegExpr.Create;
   try
     rrgx.ModifierI := True;
@@ -1540,6 +1541,13 @@ begin
 
   finally
     rrgx.Free;
+  end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] Exception in ParseDupe regex: %s',
+        [e.Message]));
+    end;
   end;
 
 
