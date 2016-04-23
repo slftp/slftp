@@ -1517,16 +1517,31 @@ begin
   if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
     exit;
 
+//  rrgx := TRegExpr.Create;
+//  rrgx.ModifierI := True;
+//  //rrgx.Expression := config.ReadString('dirlist', 'global_skip','\-missing$|\-offline$|^\.');
+//  rrgx.Expression := global_skip;
+//  if rrgx.Exec(filename) then
+//  begin
+//    rrgx.Free;
+//    exit;
+//  end;
+//  rrgx.Free;
+
   rrgx := TRegExpr.Create;
-  rrgx.ModifierI := True;
-  rrgx.Expression := config.ReadString('dirlist', 'global_skip',
-    '\-missing$|\-offline$|^\.');
-  if rrgx.Exec(filename) then
-  begin
+  try
+    rrgx.ModifierI := True;
+    rrgx.Expression := global_skip;
+
+    if rrgx.Exec(filename) then
+    begin
+      exit;
+    end;
+
+  finally
     rrgx.Free;
-    exit;
   end;
-  rrgx.Free;
+
 
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
   try
