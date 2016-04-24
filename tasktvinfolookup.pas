@@ -243,8 +243,8 @@ begin
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
   s := Csere(s, '.at.', '.@.');
-  s := Csere(s, '.and.', '_&_');
-  s := Csere(s, '.at.', '_@_');
+  s := Csere(s, '_and_', '_&_');
+  s := Csere(s, '_at_', '_@_');
   s := Csere(s, '', chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
@@ -300,11 +300,12 @@ begin
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
   s := Csere(s, '.at.', '.@.');
-  s := Csere(s, '.and.', '_&_');
-  s := Csere(s, '.at.', '_@_');
+  s := Csere(s, '_and_', '_&_');
+  s := Csere(s, '_at_', '_@_');
   s := Csere(s, '', chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
+  
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
