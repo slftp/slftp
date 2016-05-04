@@ -180,6 +180,7 @@ var
 begin
   files := TStringList.Create;
   ages := TIntList.Create;
+  try
   if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
   begin
     repeat
@@ -189,15 +190,15 @@ begin
         ages.Add(sr.Time);
       end;
     until FindNext(sr) <> 0;
-{$IFDEF MSWINDOWS}
-    SysUtils.FindClose(sr);
-{$ELSE}
-    FindClose(sr);
-{$ENDIF}
+    {$IFDEF MSWINDOWS}
+      SysUtils.FindClose(sr);
+    {$ELSE}
+      FindClose(sr);
+    {$ENDIF}
 
     while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
     begin
-      // megkeressuk a legregebbit
+      //we search for the oldest
       oldesti := -1;
       oldest := 0;
       for i := 0 to ages.Count - 1 do
@@ -212,18 +213,22 @@ begin
       if oldesti < 0 then
         Break; // wtf?
 
-{$IFDEF MSWINDOWS}
-      DeleteFile(PAnsiChar(s + files[oldesti]));
-{$ELSE}
-      DeleteFile(s + files[oldesti]);
-{$ENDIF}
+      {$IFDEF MSWINDOWS}
+        DeleteFile(PAnsiChar(s + files[oldesti]));
+      {$ELSE}
+        DeleteFile(s + files[oldesti]);
+      {$ENDIF}
 
       files.Delete(oldesti);
       ages.Delete(oldesti);
     end;
   end;
-  ages.Free;
-  files.Free;
+
+  finally
+    ages.Free;
+    files.Free;
+  end;
+
 end;
 
 procedure BackupBackup;
