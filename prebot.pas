@@ -1381,6 +1381,8 @@ begin
       failed      := 0;
       //      addednumber:= 0;
       checkedlist := TStringList.Create;
+      try
+
       for i := 0 to tn.responses.Count - 1 do
       begin
         sr := TSiteResponse(tn.responses[i]);
@@ -1476,7 +1478,11 @@ begin
       if (perfect > 0) then
         irc_addtext(netname, channel,
           '<c3>Perfect on %d sites compared to</c> <b>%s</b>.', [perfect, sitename]);
-      checkedlist.Free;
+
+      finally
+        checkedlist.Free;
+      end;
+
     end;
   end;
 
