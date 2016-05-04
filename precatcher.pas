@@ -904,18 +904,23 @@ var
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
+  try
   rx.ModifierI := True;
   rx.ModifierM := True;
   rx.Expression := '^(\#|\/\/)';
   if rx.Exec(s) then
   begin
-    rx.Free;
     exit;
   end;
-  rx.Free;
+
+  finally
+    rx.Free;
+  end;
 
   if (SubString(s, '=', 1) = 'replacefrom') then
+  begin
     replacefromline := trim(SubString(s, '=', 2))
+  end
   else if (SubString(s, '=', 1) = 'replaceto') then
   begin
     replacetoline := trim(SubString(s, '=', 2));
@@ -927,6 +932,7 @@ begin
       replaceto.Add(replacetoline);
     end;
   end;
+
 end;
 
 procedure ProcessSections(s: string);
@@ -935,15 +941,18 @@ var
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
+  try
   rx.ModifierI := True;
   rx.ModifierM := True;
   rx.Expression := '^(\#|\/\/)';
   if rx.Exec(s) then
   begin
-    rx.Free;
     exit;
   end;
-  rx.Free;
+
+  finally
+    rx.Free;
+  end;
 
   section := UpperCase(SubString(s, '=', 1));
   if (section <> '') then
@@ -958,6 +967,7 @@ begin
         sectionlist.Add(section + '= ' + vv + ' ');
     end;
   end;
+
 end;
 
 procedure ProcessMappings(s: string);
@@ -967,12 +977,12 @@ var
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
+  try
   rx.ModifierI := True;
   rx.ModifierM := True;
   rx.Expression := '^(\#|\/\/)';
   if rx.Exec(s) then
   begin
-    rx.Free;
     exit;
   end;
 
@@ -995,7 +1005,10 @@ begin
           SubString(ss, ',', i)));
     end;
   end;
-  rx.Free;
+
+  finally
+    rx.Free;
+  end;
 end;
 
 procedure ProcessConfigLine(s: string);
