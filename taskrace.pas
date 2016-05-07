@@ -962,15 +962,17 @@ end;
 
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
-  ujra, brokentransfer, retrujra;
+  ujra, brokentransfer, retrujra; //ujra = again
 var
   ssrc, sdst: TSiteSlot;
-  kellssl: boolean;
+  //kellssl: boolean; //kell = must
+  RequireSSL: boolean;
   host: string;
   port: integer;
   byme: boolean;
   numerrors: integer;
-  elotte, utana: TDateTime;
+  //elotte, utana: TDateTime; //elotte -> started  utana -> ended
+  started, ended: TDateTime;
   fs: double;
   time_race: integer;
   todir1, todir2: string;
@@ -1149,7 +1151,7 @@ begin
 
   if ((ssrc.site.sslfxp = srNeeded) or (sdst.site.sslfxp = srNeeded)) then
   begin
-    kellssl := True;
+    RequireSSL := True;
     if not ssrc.SendProtP() then
       goto ujra;
     if not sdst.SendProtP() then
@@ -1157,7 +1159,7 @@ begin
   end
   else
   begin
-    kellssl := False;
+    RequireSSL := False;
     if not ssrc.SendProtC() then
       goto ujra;
     if not sdst.SendProtC() then
@@ -1172,7 +1174,7 @@ begin
       goto ujra;
   end;
 
-  if (kellssl) then
+  if (RequireSSL) then
   begin
     if not ssrc.Send('CPSV') then
       goto ujra;
@@ -1197,9 +1199,10 @@ begin
       ssrc.site.legacydirlist := True;
     end;
 
-    if ((kellssl) and (lastResponseCode = 500) and
-      (0 < AnsiPos('understood', lastResponse))) then
+    if ( (RequireSSL) and (lastResponseCode = 500) and (0 < AnsiPos('understood', lastResponse)) ) then
+    begin
       ssrc.site.sslfxp := srUnsupported;
+    end;
 
     readyerror := True;
     //    mainpazo.errorreason := 'No clue anything about drftpd?';
@@ -1259,17 +1262,17 @@ begin
 
   if lastResponseCode <> 150 then
   begin
-    if (((lastResponseCode = 427) and (0 < AnsiPos('Use SSL FXP', lastResponse))) or
-       ((lastResponseCode = 530) and (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)))) then
+    if ( ( (lastResponseCode = 427) AND (0 < AnsiPos('Use SSL FXP', lastResponse)) ) or
+       ( (lastResponseCode = 530) AND (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)) ) ) then
     begin
       sdst.site.sslfxp := srNeeded;
       irc_AddINFO('[iNFO] SSLFXP Need for: ' + sdst.Name);
       goto ujra;
     end;
 
-    if (((lastResponseCode = 553) and (0 < AnsiPos('out of disk space', lastResponse))) or
-       ((lastResponseCode = 452) and (0 < AnsiPos('No space left on device', lastResponse))) or
-       ((lastResponseCode = 450) and (0 < AnsiPos('No transfer-slave(s) available', lastResponse)))) then
+    if ( ( (lastResponseCode = 553) AND (0 < AnsiPos('out of disk space', lastResponse)) ) or
+       ( (lastResponseCode = 452) AND (0 < AnsiPos('No space left on device', lastResponse)) ) or
+       ( (lastResponseCode = 450) AND (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) ) then
     begin
       sdst.site.Setoutofspace;
       if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
@@ -1284,16 +1287,7 @@ begin
       exit;
     end;
 
-    //if (((lastResponseCode = 533) and
-    //  (0 < AnsiPos('Multiple SFV files not allowed.', lastResponse)))) then
-    //begin
-    //  readyerror := True;
-    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    //  exit;
-    //end;
-
-    if (((lastResponseCode = 400) and
-      (0 < AnsiPos('SFVFile still transferring', lastResponse)))) then
+    if ( (lastResponseCode = 400) AND (0 < AnsiPos('SFVFile still transferring', lastResponse)) ) then
     begin
       ps2.ParseDupe(netname, channel, dir, filename, False);
       readyerror := True;
@@ -1301,35 +1295,14 @@ begin
       exit;
     end;
 
-    if (((lastResponseCode = 533) and
-      (0 < AnsiPos('You must upload sfv first', lastResponse)))) then
-    begin
-      ps2.ParseDupe(netname, channel, dir, filename, False);
-      readyerror := True;
-      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-      exit;
-    end;
-
-    if (lastResponseCode = 553) then
-    begin
-    if ( (0 < AnsiPos('Multiple SFV files not allowed.', lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', lastResponse)) ) then
+    if ( (lastResponseCode = 553) AND ( (0 < AnsiPos('Multiple SFV files not allowed.', lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', lastResponse)) ) ) then
     begin
       readyerror := True;
       Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
       exit;
     end;
-    end;
 
-    //if (((lastResponseCode = 553) and
-    //  (0 < AnsiPos('Max sim UP per dir/sfv reached', lastResponse)))) then
-    //begin
-    //  readyerror := True;
-    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    //  exit;
-    //end;
-
-    if (((lastResponseCode = 553) and
-      (0 < AnsiPos('Upload denied by pre_check script', lastResponse)))) then
+    if ( (lastResponseCode = 553) AND (0 < AnsiPos('Upload denied by pre_check script', lastResponse)) ) then
     begin
       readyerror := True;
       ps2.SetFileError(netname, channel, dir, filename);
@@ -1338,8 +1311,8 @@ begin
       exit;
     end;
 
-    if (((lastResponseCode = 533) and
-      (0 < AnsiPos('does not exist in the sfv', lastResponse)))) then
+    if ( (lastResponseCode = 533) AND 
+    ( (0 < AnsiPos('You must upload sfv first', lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', lastResponse)) OR (0 < AnsiPos('File not found in sfv', lastResponse)) ) ) then
     begin
       ps2.ParseDupe(netname, channel, dir, filename, False);
       readyerror := True;
@@ -1347,15 +1320,35 @@ begin
       exit;
     end;
 
-    if (((lastResponseCode = 533) and (0 < AnsiPos('File not found in sfv', lastResponse)))) then
-    begin
-      ps2.ParseDupe(netname, channel, dir, filename, False);
-      readyerror := True;
-      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-      exit;
-    end;
+    //if (((lastResponseCode = 533) and
+    //  (0 < AnsiPos('You must upload sfv first', lastResponse)))) then
+    //begin
+    //  ps2.ParseDupe(netname, channel, dir, filename, False);
+    //  readyerror := True;
+    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    //  exit;
+    //end;
 
-    if (((lastResponseCode = 425) and (0 < AnsiPos('Connection refused', lastResponse)))) then
+    //if (((lastResponseCode = 533) and
+    //  (0 < AnsiPos('does not exist in the sfv', lastResponse)))) then
+    //begin
+    //  ps2.ParseDupe(netname, channel, dir, filename, False);
+    //  readyerror := True;
+    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    //  exit;
+    //end;
+
+    //if (((lastResponseCode = 533) and (0 < AnsiPos('File not found in sfv', lastResponse)))) then
+    //begin
+    //  ps2.ParseDupe(netname, channel, dir, filename, False);
+    //  readyerror := True;
+    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    //  exit;
+    //end;
+
+
+
+    if ( (lastResponseCode = 425) AND (0 < AnsiPos('Connection refused', lastResponse)) ) then
     begin
       irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s',
         [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
@@ -1364,7 +1357,7 @@ begin
       goto ujra;
     end;
 
-    if (((lastResponseCode = 550) and (0 < AnsiPos('No such directory', lastResponse)))) then
+    if ( (lastResponseCode = 550) AND (0 < AnsiPos('No such directory', lastResponse)) ) then
     begin
       irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, lastResponse]));
       if (dir = '') then
@@ -1376,7 +1369,7 @@ begin
       exit;
     end;
 
-    if ((lastResponseCode = 550) or (lastResponseCode = 500)) then
+    if ( (lastResponseCode = 550) or (lastResponseCode = 500) ) then
     begin
       ps2.ParseDupe(netname, channel, dir, filename, False);
       ready := True;
@@ -1426,29 +1419,30 @@ begin
   Debug(dpSpam, 'taskrace', '--> SENT: RETR %s', [ssrc.TranslateFilename(filename)]);
   Debug(dpSpam, 'taskrace', '<-- REICEIVED: %s', [lastResponse]);
 
-  elotte := Now;
+  started := Now;
 
   if lastResponseCode <> 150 then
   begin
-    if ((lastResponseCode = 550) and (0 < AnsiPos('credit', LowerCase(lastResponse)))) then
+    if ( (lastResponseCode = 550) and (0 < AnsiPos('credit', LowerCase(lastResponse)))) then
     begin
       ssrc.site.SetKredits
     end
-    else if (((lastResponseCode = 427) and (0 < AnsiPos('Use SSL FXP', lastResponse))) or
-      ((lastResponseCode = 530) and
-      (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)))) then
+    else if ( ((lastResponseCode = 427) AND (0 < AnsiPos('Use SSL FXP', lastResponse))) or
+      ((lastResponseCode = 530) AND (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse))) ) then
     begin
       ssrc.site.sslfxp := srNeeded;
-      (*from old code (1.3.0.15)*)
-      // ilyenkor olvasni kell egyet desten
+
+      // must do one read on destination
       if not sdst.Read() then
         goto ujra;
-      // es kettot az src-n
+
+      // must do two read on source
       if not ssrc.Read() then
         goto ujra;
       if not ssrc.Read() then
         goto ujra;
-      irc_AddINFO('[iNFO] SSLFXP Need for: ' + ssrc.Name);
+
+      irc_AddINFO('[iNFO] SSLFXP needed on Source: ' + ssrc.Name);
       goto ujra;
     end
     else if ((lastResponseCode = 550) and (0 < AnsiPos('Taglines Enforced', lastResponse))) then
@@ -1459,51 +1453,58 @@ begin
         goto ujra;
       goto retrujra;
     end
-    else if (((lastResponseCode = 550) and
-      (0 < AnsiPos('No such file or directory', lastResponse))) or
-      ((lastResponseCode = 426) and
-      (0 < AnsiPos('File has been deleted on the master', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < AnsiPos('is being deleted', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < AnsiPos('found in any root', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < AnsiPos('Transfer was aborted', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < AnsiPos('Slave is offline', lastResponse))) or
-      ((lastResponseCode = 550) and
-      (0 < AnsiPos('Unable to load your own user file', lastResponse))) or
-      ((lastResponseCode = 550) and (0 < AnsiPos('File not found', lastResponse))) or
-      ((lastResponseCode = 550) and (0 < AnsiPos('File unavailable', lastResponse)))) then
+    else if ( 
+      ( (lastResponseCode = 550) AND ( 
+        (0 < AnsiPos('No such file or directory', lastResponse)) or (0 < AnsiPos('Unable to load your own user file', lastResponse)) or 
+        (0 < AnsiPos('File not found', lastResponse)) or (0 < AnsiPos('File unavailable', lastResponse)) ) ) 
+      OR 
+      ( (lastResponseCode = 426) AND ( 
+        (0 < AnsiPos('File has been deleted on the master', lastResponse)) or (0 < AnsiPos('is being deleted', lastResponse)) or
+        (0 < AnsiPos('found in any root', lastResponse)) or (0 < AnsiPos('Transfer was aborted', lastResponse)) or
+        (0 < AnsiPos('Slave is offline', lastResponse)) ) ) 
+      //( (lastResponseCode = 550) and (0 < AnsiPos('No such file or directory', lastResponse)) ) or
+      //( (lastResponseCode = 426) and (0 < AnsiPos('File has been deleted on the master', lastResponse)) ) or
+      //( (lastResponseCode = 426) and (0 < AnsiPos('is being deleted', lastResponse)) ) or
+      //( (lastResponseCode = 426) and (0 < AnsiPos('found in any root', lastResponse)) ) or
+      //( (lastResponseCode = 426) and (0 < AnsiPos('Transfer was aborted', lastResponse)) ) or
+      //( (lastResponseCode = 426) and (0 < AnsiPos('Slave is offline', lastResponse)) ) or
+      //( (lastResponseCode = 550) and (0 < AnsiPos('Unable to load your own user file', lastResponse)) ) or
+      //( (lastResponseCode = 550) and (0 < AnsiPos('File not found', lastResponse)) ) or
+      //( (lastResponseCode = 550) and (0 < AnsiPos('File unavailable', lastResponse)) )
+    ) then
     begin
       if spamcfg.readbool(c_section, 'No_such_file_or_directory', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s',
           [tname]);
     end
-    else if (((lastResponseCode = 425) and
-      (0 < AnsiPos('t open data connection', lastResponse))) or
-      ((lastResponseCode = 426) and (0 < AnsiPos('Read timed out', lastResponse)))) then
+    else if ( ((lastResponseCode = 425) AND (0 < AnsiPos('t open data connection', lastResponse))) or
+      ((lastResponseCode = 426) AND (0 < AnsiPos('Read timed out', lastResponse))) ) then
     begin
       if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s',
           [tname]);
     end
-    else if ((lastResponseCode = 553) and
-      (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed',
-      lastResponse))) then
+    else if ( (lastResponseCode = 553) AND (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', lastResponse)) ) then
     begin
       if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
     end
-    else if ((lastResponseCode = 550) and (0 < AnsiPos('Permission denied', lastResponse))) then
+    else if ( (lastResponseCode = 550) AND (0 < AnsiPos('Permission denied', lastResponse)) ) then
     begin
       if spamcfg.readbool(c_section, 'permission_denied', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
     end
     else
     begin
-      if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
+      //if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] unknown after RETR</c> %s : %d %s',
           [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
     end;
+
     // ilyenkor a dst szalon a legjobb ha lezarjuk a geci a socketet mert az ABOR meg a sok szar amugy sem hasznalhato.
     // es majd ugyis automatan ujrabejelentkezik a cumo
+    // This is the best salon dst If you close the socket because of spunk ABOR a lot of crap anyway be used.
+    // And then anyway Automatic redial occurs in the Cumó
     sdst.DestroySocket(False);
 
     mainpazo.errorreason := 'No free slots?';
@@ -1541,7 +1542,7 @@ begin
     if ((rsd) and (rss)) then
       Break;
 
-    if (SecondsBetween(Now, elotte) > 600) then
+    if (SecondsBetween(Now, started) > 600) then
     begin
       Debug(dpError, c_section, Format('[iNFO] Long race break: %s %s %s',
         [Name, ssrc.lastResponse, sdst.lastResponse]));
@@ -1554,8 +1555,8 @@ begin
   end;
   debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
 
-  utana := Now;
-  time_race := MilliSecondsBetween(utana, elotte);
+  ended := Now;
+  time_race := MilliSecondsBetween(ended, started);
   response := IntToStr(time_race);
 
   //for src
@@ -1627,11 +1628,11 @@ begin
   end;
 
   //this is a very fucked-up case, we'll try again.
-  if ((mainpazo.rls <> nil) and (byme) and
-    ((0 < AnsiPos('CRC-Check: SFV first', sdst.lastResponse)) or
+  if ( (mainpazo.rls <> nil) and (byme) and
+    ( (0 < AnsiPos('CRC-Check: SFV first', sdst.lastResponse)) or
     (0 < AnsiPos('CRC-Check: BAD!', sdst.lastResponse)) or
     (0 < AnsiPos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
-    (0 < AnsiPos('0byte-file: Not allowed', sdst.lastResponse)))) then
+    (0 < AnsiPos('0byte-file: Not allowed', sdst.lastResponse)) ) ) then
   begin
     brokentransfer:
     Debug(dpSpam, c_section, 'Broken transfer event!');
@@ -1702,7 +1703,8 @@ begin
     rrgx := TRegExpr.Create;
     try
       rrgx.ModifierI := True;
-      rrgx.Expression := config.ReadString('dirlist', 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
+      //rrgx.Expression := config.ReadString('dirlist', 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
+      rrgx.Expression := useful_skip;
       if not rrgx.Exec(filename) then
       begin
         speed_stat := '';
