@@ -48,31 +48,40 @@ begin
   inherited;
 end;
 
-function TPazoMVIDTask.GetVideoRegion(text: string):string;
+function TPazoMVIDTask.GetVideoRegion(text: string): string;
 var
-rrx:TRegexpr;
+  rrx:TRegexpr;
 begin
-result:='-1';
-rrx:=TRegexpr.Create;
-rrx.ModifierI:=True;
-rrx.Expression:='(NTSC|PAL)';
-if rrx.Exec(text) then begin
-result:=rrx.Match[0];
-rrx.free;
-exit;
-end;
-rrx.Expression:='(23\.976|29\.970?|59\.940?)\s?FPS';
-if rrx.Exec(text) then begin
-result:='NTSC';
-rrx.free;
-exit;
-end;
-rrx.Expression:='(25\.000)\s?FPS';
-if rrx.Exec(text) then begin
-result:='PAL';
-rrx.free;
-exit;
-end;
+  result := '-1';
+  rrx := TRegexpr.Create;
+  try
+  rrx.ModifierI := True;
+
+  rrx.Expression := '(NTSC|PAL)';
+  if rrx.Exec(text) then
+  begin
+  result := rrx.Match[0];
+  exit;
+  end;
+
+  rrx.Expression := '(23\.976|29\.970?|59\.940?)\s?FPS';
+  if rrx.Exec(text) then
+  begin
+  result := 'NTSC';
+  exit;
+  end;
+
+  rrx.Expression := '(25\.000)\s?FPS';
+  if rrx.Exec(text) then
+  begin
+  result := 'PAL';
+  exit;
+  end;
+
+  finally
+    rrx.Free;
+  end;
+
 end;
 (*
 function TPazoMVIDTask.GetVideoSource(text: string):string;
