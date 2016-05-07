@@ -419,7 +419,7 @@ const
     (cmd: 'latest'; hnd: IrcLatest; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'lame'; hnd: IrcLame; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'spread'; hnd: IrcSpread; minparams: 2; maxparams: 3; hlpgrp: 'work'),
-    (cmd: 'transfer'; hnd: IrcTransfer; minparams: 3; maxparams: 4; hlpgrp: 'work'),
+    (cmd: 'transfer'; hnd: IrcTransfer; minparams: 5; maxparams: 5; hlpgrp: 'work'),
     (cmd: 'stop'; hnd: IrcCStop; minparams: 1; maxparams: 1; hlpgrp: 'work'),
     (cmd: 'lookup'; hnd: IrcLookup; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'nuke'; hnd: IrcNuke; minparams: 4; maxparams: - 1; hlpgrp: 'work'),
@@ -1993,170 +1993,207 @@ end;
 
 function IrcTransfer(const Netname, Channel: string; params: string): boolean;
 var
-  s1, s2: TSite;
-  sitename1, sitename2, section, predir1, predir2, dir: string;
-  lastAnn: TDateTime;
-  ann: integer;
-  pazo_id: integer;
+  srcsitename, dstsitename, srcdir, dstdir, rlsname, ftpsrcdir, ftpdstdir: string;
+  srcsite, dstsite: TSite;
   p: TPazo;
-  ps: TPazoSite;
-  pd: TPazoDirlistTask;
+  ps_src, ps_dst: TPazoSite;
   rc: TCRelease;
   rls: TRelease;
-  i, j: string;
+//  pazo_id: integer;
+  pd: TPazoDirlistTask;
+  lastAnn: TDateTime;
+
+  ann: integer;
+  i, j, k: string;
 begin
   Result := False;
 
-  sitename1 := UpperCase(SubString(params, ' ', 1));
-  sitename2 := UpperCase(SubString(params, ' ', 2));
-  section := UpperCase(SubString(params, ' ', 3));
+  //!transfer srcsite dstsite srcdir dstdir rlsname
 
-  s1 := FindSiteByName(Netname, sitename1);
-  if s1 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
-    exit;
-  end;
-  if s1.working = sstDown then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [sitename1]);
-    exit;
-  end;
-  s2 := FindSiteByName(Netname, sitename2);
-  if s2 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
-    exit;
-  end;
-  if s2.working = sstDown then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [sitename2]);
-    exit;
-  end;
+  srcsitename := UpperCase(SubString(params, ' ', 1));
+  dstsitename := UpperCase(SubString(params, ' ', 2));
+  //uppercase don't work with path...so use uppercase later in code
+  srcdir := SubString(params, ' ', 3);
+  dstdir := SubString(params, ' ', 4);
+  rlsname := SubString(params, ' ', 5);
 
-  predir1 := s1.sectiondir[section];
-  predir2 := s2.sectiondir[section];
-
-  dir := RightStrV2(params, length(sitename1) + length(sitename2) +
-    length(section) + 3);
-  if ((dir = '') and (predir1 = '')) then
-  begin
-    section := 'PRE';
-    predir1 := s1.sectiondir[section];
-    predir2 := s2.sectiondir[section];
-    dir := RightStrV2(params, length(sitename1) + length(sitename2) + 2);
-  end;
-
-  if dir = '' then
+  if ( (srcsitename = '') OR (dstsitename = '') OR (srcdir = '') OR (dstdir = '') OR (rlsname = '') ) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
 
-  if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
+
+  srcsite := FindSiteByName(Netname, srcsitename);
+  if srcsite = nil then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [srcsitename]);
+    exit;
+  end;
+  if srcsite.working = sstDown then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [srcsitename]);
     exit;
   end;
 
-  if (predir1 = '') then
+  dstsite := FindSiteByName(Netname, dstsitename);
+  if dstsite = nil then
   begin
-    irc_addtext(Netname, Channel,
-      'Site <b>%s</b> has no dir set for section %s.', [sitename1, section]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [dstsitename]);
     exit;
   end;
-  if (predir2 = '') then
+  if dstsite.working = sstDown then
   begin
-    irc_addtext(Netname, Channel,
-      'Site <b>%s</b> has no dir set for section %s.', [sitename2, section]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [dstsitename]);
     exit;
   end;
 
-  // most el kene keszitenunk a taskot es a pazot
-  rc := FindSectionHandler(section);
-  rls := rc.Create(dir, section);
+
+  if ((1 = AnsiPos('/', srcdir)) OR (length(srcdir) = LastDelimiter('/', srcdir))) then
+  begin
+    if ((1 = AnsiPos('/', srcdir)) AND (length(srcdir) = LastDelimiter('/', srcdir))) then
+    begin
+    ftpsrcdir := srcdir;
+    irc_addtext(Netname, Channel, '<c14><b>srcdir is a path</b>.</c>');
+    end
+    else
+    begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b> - Sure if it is a path?</c>');
+    exit;
+    end;
+  end
+  else
+  begin
+    srcdir := UpperCase(srcdir);
+    ftpsrcdir := srcsite.sectiondir[srcdir];
+    irc_addtext(Netname, Channel, '<c14><b>srcdir is a slftp section</b>.</c>');
+  end;
+
+
+  if ((1 = AnsiPos('/', dstdir)) OR (length(dstdir) = LastDelimiter('/', dstdir))) then
+  begin
+    if ((1 = AnsiPos('/', dstdir)) AND (length(dstdir) = LastDelimiter('/', dstdir))) then
+    begin
+    ftpdstdir := dstdir;
+    irc_addtext(Netname, Channel, '<c14><b>dstdir is a path</b>.</c>');
+    end
+    else
+    begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b> - Sure if it is a path?</c>');
+    exit;
+    end;
+  end
+  else
+  begin
+    dstdir := UpperCase(dstdir);
+    ftpdstdir := dstsite.sectiondir[dstdir];
+    irc_addtext(Netname, Channel, '<c14><b>dstdir is a slftp section</b>.</c>');
+  end;
+
+
+  //for the case if a slftp section is used but no dir is set
+  if (ftpsrcdir = '') then
+  begin
+    irc_addtext(Netname, Channel,'Site <b>%s</b> has no dir set for section %s.', [srcsitename, srcdir]);
+    exit;
+  end;
+  if (ftpdstdir = '') then
+  begin
+    irc_addtext(Netname, Channel,'Site <b>%s</b> has no dir set for section %s.', [dstsitename, dstdir]);
+    exit;
+  end;
+
+
+  rc := FindSectionHandler(srcdir); //srcdir is our "section"
+  rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
-  pazo_id := p.pazo_id;
+//  pazo_id := p.pazo_id;
   kb_list.AddObject('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
 
-  p.AddSite(sitename1, predir1, False);
-  p.AddSite(sitename2, predir2, False);
+  p.AddSite(srcsite.Name, ftpsrcdir, False);
+  p.AddSite(dstsite.Name, ftpdstdir, False);
 
-  ps := p.FindSite(sitename1);
-  ps.AddDestination(sitename2, 200);
-  ps := p.FindSite(sitename2);
-  ps.status := rssAllowed;
+  ps_src := p.FindSite(srcsite.Name);
+  ps_src.AddDestination(dstsite.Name, 200);
 
-  ps := TPazoSite(p.sites[0]);
-  ps.dirlist.dirlistadded := True;
-  pd := TPazoDirlistTask.Create(Netname, Channel, ps.Name, p, '', False);
+  ps_dst := p.FindSite(dstsite.Name);
+  ps_dst.status := rssAllowed;
+
+  ps_src := TPazoSite(p.sites[0]);
+  ps_src.dirlist.dirlistadded := True;
+
+  pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False);
   AddTask(pd);
   QueueFire;
 
-  irc_addtext(Netname, Channel,
-    'Spread has started. Type %sstop <b>%d</b> if you want.',
-    [irccmdprefix, pazo_id]);
+  irc_addtext(Netname, Channel, 'File Transfer has started. Type <c4>%sstop <b>%d</b></c> if you need.', [irccmdprefix, p.pazo_id]);
 
-  // most pedig varunk x mp-et es announceoljuk az eredmenyt, illetve megszakitjuk
-  // ha meg kell hogy szakadjon
   ann := config.ReadInteger('spread', 'announcetime', 60);
-  lastAnn := now();
+  lastAnn := Now();
+
   while (True) do
   begin
     if (slshutdown) then
-      exit;
-    Sleep(500);
-
-    p := FindPazoById(pazo_id);
-    if p = nil then
     begin
-      exit; // ez a szituacio nem nagyon fordulhat elo
+      Result := False;
+      exit;
     end;
+
+    Sleep(1000);
+
+    //[STATS] output was initiated by dirlist
+    if p.ready then
+    begin
+
+    if ps_dst.dirlist.RacedByMe <> 0 then
+    begin
+      // do nothing
+    end
+    else
+    begin
+      irc_addtext(netname, channel, '%s was already <c10>COMPLETE</c> on %s',[rlsname, dstsite.Name]);
+    end;
+
+      break;
+    end;
+
     if p.stopped then
     begin
-      if RemovePazo(p.pazo_id) then
-        irc_addtext(Netname, Channel, 'DEBUG - Pazo Removed!')
-      else
-        irc_addtext(Netname, Channel, 'DEBUG - Pazo NOT Removed!');
-      irc_addtext(Netname, Channel,
-        'Spreading of <b>%s</b> has stopped.', [dir]);
+      irc_addtext(Netname, Channel, 'File Transfer of <b>%s</b> has <c4>stopped</c>.', [rlsname]);
       Result := True;
       exit;
     end;
 
-    if ((p.ready) or (p.readyerror)) then
+    if p.readyerror then
     begin
-      if not p.readyerror then
-      begin
-        //       Result := True;
-        if p.errorreason = '' then
-          irc_addtext(Netname, Channel,
-            '<b>%s</b> ERROR: <c4>NO ERROR MSG FOUND, SORRY!</c>', [dir])
-        else
-          irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>',
-            [dir, p.errorreason]);
-        break;
-        // irc_addtext(netname, channel, '%s DONE: %s',[dir), p.Stats]);
-      end;
+      if p.errorreason = '' then
+        irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>NO ERROR MSG FOUND, SORRY!</c>', [rlsname])
+      else
+        irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>', [rlsname, p.errorreason]);
+
+      irc_addtext(netname, channel, '%s STATS until ERROR: %s - %s', [rlsname, p.Stats(TRUE), p.StatusText]);
+      Result := False;
+      exit;
     end;
 
-    if ((ann <> 0) and (SecondsBetween(now, lastAnn) > ann)) then
+    if ((ann <> 0) and (SecondsBetween(Now, lastAnn) > ann)) then
     begin
       i := '?';
-      ps := p.FindSite(sitename1);
-      if ((ps <> nil) and (ps.dirlist <> nil)) then
-        i := IntToStr(ps.dirlist.Done);
-
+      if ((ps_src <> nil) and (ps_src.dirlist <> nil)) then
+        i := IntToStr(ps_src.dirlist.Done);
+  
       j := '?';
-      ps := p.FindSite(sitename2);
-      if ((ps <> nil) and (ps.dirlist <> nil)) then
-        j := IntToStr(ps.dirlist.RacedByMe);
-
-      irc_addtext(Netname, Channel,
-        '%s: %s-%s %s-%s. Type %sstop <b>%d</b> if you want.',
-        [dir, sitename1, i, sitename2, j, irccmdprefix, p.pazo_id]);
-      lastAnn := now();
+      k := '?';
+      if ((ps_dst <> nil) and (ps_dst.dirlist <> nil)) then
+      begin
+        j := IntToStr(ps_dst.dirlist.RacedByMe);
+        k := IntToStr(ps_dst.dirlist.Done);
+      end;
+  
+      irc_addtext(Netname, Channel, '%s: %s (%s)/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j, k, i, irccmdprefix, p.pazo_id]);
+      lastAnn := Now();
     end;
+
   end;
 
   Result := True;
