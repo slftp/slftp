@@ -1264,8 +1264,8 @@ var
         result := FloatToStr(TlkJSONnumber(obj).FValue, fs);
 {$ELSE}
         result := FloatToStr(TlkJSONnumber(obj).FValue);
-        i := pos(DecimalSeparator, result);
-        if (DecimalSeparator <> '.') and (i > 0) then
+        i := pos(DefaultFormatSettings.DecimalSeparator, result);
+        if (DefaultFormatSettings.DecimalSeparator <> '.') and (i > 0) then
           result[i] := '.';
 {$ENDIF}
       end
@@ -1393,8 +1393,8 @@ var
         mem_write(FloatToStr(TlkJSONnumber(obj).FValue, fs));
 {$ELSE}
         ws := FloatToStr(TlkJSONnumber(obj).FValue);
-        i := pos(DecimalSeparator, ws);
-        if (DecimalSeparator <> '.') and (i > 0) then ws[i] := '.';
+        i := pos(DefaultFormatSettings.DecimalSeparator, ws);
+        if (DefaultFormatSettings.DecimalSeparator <> '.') and (i > 0) then ws[i] := '.';
         mem_write(ws);
 {$ENDIF}
       end
@@ -1477,7 +1477,7 @@ var
 begin
 {$IFDEF HAVE_FORMATSETTING}
   GetLocaleFormatSettings(GetThreadLocale, fs);
-  fs.DecimalSeparator := '.';
+  fs.DefaultFormatSettings.DecimalSeparator := '.';
 {$ENDIF}
 {$IFDEF NEW_STYLE_GENERATE}
   pt0 := nil;
@@ -1644,8 +1644,8 @@ var
     js.FValue := StrToFloat(ws, fs);
 {$ELSE}
     i := pos('.', ws);
-    if (DecimalSeparator <> '.') and (i > 0) then
-      ws[pos('.', ws)] := DecimalSeparator;
+    if (DefaultFormatSettings.DecimalSeparator <> '.') and (i > 0) then
+      ws[pos('.', ws)] := DefaultFormatSettings.DecimalSeparator;
     js.FValue := StrToFloat(ws);
 {$ENDIF}
     add_child(o, TlkJSONbase(js));
@@ -1879,7 +1879,7 @@ var
 begin
 {$IFDEF HAVE_FORMATSETTING}
   GetLocaleFormatSettings(GetThreadLocale, fs);
-  fs.DecimalSeparator := '.';
+  fs.DefaultFormatSettings.DecimalSeparator := '.';
 {$ENDIF}
 
   result := nil;

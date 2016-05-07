@@ -29,7 +29,6 @@ function dbaddpre_GetPreduration(rlz_pretime: TDateTime): string;
 function dbaddpre_Status: string;
 
 function dbaddpre_Process(net, chan, nick, msg: string): boolean;
-function dbsitepre_Process(net, chan, nick, msg: string): boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
@@ -710,31 +709,6 @@ begin
           [e.Message]));
         dbaddpreUninit;
         dbaddpreinit;
-      end;
-    end;
-  end;
-end;
-
-function dbsitepre_Process(net, chan, nick, msg: string): boolean;
-var
-  rls, rls_section: string;
-begin
-  Result := False;
-  if (1 = Pos(siteprecmd, msg)) then
-  begin
-    Result := True;
-    msg := Copy(msg, length(siteprecmd + ' ') + 1, MaxInt);
-    rls := '';
-    rls := SubString(msg, ' ', 1);
-    rls_section := '';
-    rls_section := UpperCase(SubString(msg, ' ', 2));
-    try
-      dbaddpre_ADDPRE(net, chan, nick, msg, 'SITEPRE');
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbsitepre_Process: %s ',
-          [e.Message]));
       end;
     end;
   end;

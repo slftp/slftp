@@ -9,7 +9,6 @@ type
   public
     ripname: string;
     rls_showname: string;
-    //tv_showid: string;
     tvmaze_id: string;
     thetvdb_id: string;
     tvrage_id: string;
@@ -22,7 +21,6 @@ type
     tv_genres: TStringList;
     tv_days: TStringList;
     tv_network: string;
-    //tv_runtime: integer;
     tv_premiered_year: integer;
     tv_endedyear: integer;
     tv_running: boolean;
@@ -38,15 +36,11 @@ type
     procedure Save;
 
     procedure PostResultsv2(rls: string = ''; netname: string = ''; channel: string = '');
-    //    procedure PostResults(rls: string = ''); overload;
-    //    procedure PostResults(Netname, Channel: string; rls: string = ''); overload;
     procedure SetTVDbRelease(tr: TTVRelease);
     function UpdateIRC: boolean;
     function Update: boolean;
     procedure setTheTVDbID(id: integer);
     procedure setTVRageID(id: integer);
-    //    private
-    //     procedure UpdateDBEntry;
   end;
 
 function getTVInfoCount: integer;
@@ -74,15 +68,12 @@ procedure TVInfoFireKbAdd(rls: string; msg: string = '<c3>[TVInfo]</c> %s %s now
 
 function dbTVInfo_Process(net, chan, nick, msg: string): boolean;
 
-function updateToV2: boolean;
-
 procedure getShowValues(rip: string; out showName: string; out season: integer; out episode: int64); overload;
 procedure getShowValues(rip: string; out showName: string); overload;
 
-//function findTVMazeIDv2(showname:string):string;
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 
-function TVInfoDbAlaive: boolean;
+function TVInfoDbAlive: boolean;
 
 implementation
 
@@ -91,24 +82,15 @@ uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
 
 const
   section = 'tasktvinfo';
-  dbversion: integer = 2;
 
 var
   tvinfodb: TslSqliteDB = nil;
-  sql_addtvinfodb: Psqlite3_stmt = nil;
-  sql_counttvinfodb: Psqlite3_stmt = nil;
-
   addtinfodbcmd: string;
-  oldtvinfodbcmd: string;
-
-  //  last_addthetvdb: THashedStringList;
 
 function replaceTVShowChars(name: string; forWebFetch: boolean = false): string;
 begin
   //this is a protction!!!!  Dispatches will not end up in Disp@ches
   name := Csere(name, ' ', '.');
-
-  //  result := name;
   name := Csere(name, '.and.', '.&.');
   name := Csere(name, '.at.', '.@.');
   name := Csere(name, '_and_', '_&_');
@@ -134,7 +116,6 @@ end;
 procedure getShowValues(rip: string; out showname: string; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
-  dt: TDateTime;
   ttags: TStringlist;
 begin
   rx := TRegexpr.Create;
@@ -144,21 +125,19 @@ begin
     rx.ModifierG := True;
     //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
-    //(.*?)[._](\d{2,4})[._-](\d{2})[._-](\d{2,4})[._-].*?  this regex will match even more. but is it stabel???
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2]));
+        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + DefaultFormatSettings.DateSeparator + rx.Match[3] + DefaultFormatSettings.DateSeparator + rx.Match[2]));
       end
       else
       begin
-        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
-        Debug(dpMessage, section, 'ERROR: ' + rx.Match[4] + DateSeparator + rx.Match[3] + DateSeparator + rx.Match[2] + ' is no vailed date.');
+        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + DefaultFormatSettings.DateSeparator + rx.Match[3] + DefaultFormatSettings.DateSeparator + rx.Match[2] + ' is no vailed date.');
+        Debug(dpMessage, section, 'ERROR: ' + rx.Match[4] + DefaultFormatSettings.DateSeparator + rx.Match[3] + DefaultFormatSettings.DateSeparator + rx.Match[2] + ' is no vailed date.');
       end;
-      //      episode := DateTimeToUnix(StrToDateTime(Format('%s/%s/%s', [rx.Match[2], rx.Match[4], rx.Match[3]])));
       exit;
     end;
 
@@ -181,17 +160,6 @@ begin
         episode := StrToIntDef(rx.Match[7], 0);
         exit;
       end;
-      {
-          rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
-          if rx.Exec(rip) then
-          begin
-            showname := rx.Match[1];
-            season := StrToIntDef(rx.Match[2], 0);
-            episode := StrToIntDef(rx.Match[3], 0);
-            exit;
-          end;
-
-      }
     end;
 
     rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
@@ -199,22 +167,19 @@ begin
     begin
       showname := rx.Match[1];
       episode := StrToIntDef(rx.Match[7], 0);
-      //        season := -1;
+
       if StrToIntDef(rx.Match[5], 0) > 0 then
         episode := StrToIntDef(rx.Match[5], 0)
       else
         episode := StrToIntDef(rx.Match[7], 0);
       Exit;
     end;
-    (*
-    ** some other crap, we could create alot more regex, but these tags are from +2004 so maybe they are usefull..
-    **  there sre still some issuses with   Saison4.VOL1,  Vol.2.Disc2, SEASON1.DISC1.SIDE1, Enn and so on... but to be fair, there is no real Epsidoe on a complete retail release ..
-    *)
+
     rx.Expression := '(.*?)[._-]((W|V|S(taffel|eason|aison))[._]?(\d{1,3})[._]?)?(SE|DIS[CK]|Y|E|EPS?|VOL(UME)?)[._]?(\d{1,3}).*?';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      //as i said above we dont care the real values...
+
       if StrToIntDef(rx.Match[4], 0) > 0 then
       begin
         episode := StrToIntDef(rx.Match[4], 0);
@@ -227,22 +192,6 @@ begin
       end;
       Exit;
     end;
-
-    //      rx.Expression := '(.*)[\._-](S(\d{1,3}))?(\.?([DE]|EP|Episode|Part\.?)?(\d{1,4})\w?(E(\d{1,4}))?)?[\._-](.*)';
-    (*
-          if rx.Exec(rip) then
-          begin
-            showname := rx.Match[1];
-            season := StrToIntDef(rx.Match[3], 0);
-            if StrToIntDef(rx.Match[8], 0) > 0 then
-              episode := StrToIntDef(rx.Match[8], 0)
-            else
-              episode := StrToIntDef(rx.Match[6], 0);
-            Exit;
-          end;
-    *)
-          // neither dated nor season-epiode nor disk or anyther known TV-Series tags are found. so we snip up the release scene infos to make a clean tbvmaze lookup,
-          // which will fail!
 
     ttags := TStringlist.Create;
     try
@@ -332,9 +281,6 @@ begin
   if YearOf(now) = tv_next_season then
   begin
     tv_next_season := tr.season;
-    //    tr.currentseason := true;
-    //    tr.currentepisode := Boolean(tv_next_ep = tr.episode);
-    //    tr.currentair := tr.currentepisode;
   end;
 
   case tv_next_season of
@@ -371,16 +317,6 @@ begin
         end;
         self.tv_next_ep := 0;
         tr.episode := 0;
-
-        (*
-        CurrentYear
-        YearOf(UnixToDateTime(tr.episode));
-        MonthOf(UnixToDateTime(tr.episode))
-        DayOf(UnixToDateTime(tr.episode+86400))
-
-        if UnixToDateTime(tr.episode+86400) >= now then irc_addAdmin('>=') else irc_addAdmin('<=');
-        irc_addAdmin(IntToStr(tr.episode+86400 - DateTimeToUnix(now)));
-        *)
       end;
     -99:
       begin
@@ -431,13 +367,6 @@ begin
   end;
 end;
 
-(*
-<c3>[<b>TTVRelease</b>]</c><b>Falling Skies</b> -<b>Premiere Year</b> 2011 - <b>The TVDB info</b>http://tvrage.com/shows/id-26205/
-<c3>[<b>TTVRelease</b>]</c><b>Genre</b> Action,Military/War,Mystery,Sci-Fi - <b>Classification</b>Scripted - <b>Status</b> Final Season
-<c3>[<b>TTVRelease</b>]</c><b>Country</b> USA - <b>Network</b> TNT DRAMA
-
-*)
-
 procedure TTVInfoDB.PostResultsv2(rls: string = ''; netname: string = ''; channel: string = '');
 var
   toAnnounce: TStringlist;
@@ -474,7 +403,6 @@ begin
       else
         toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls, IntToStr(tv_premiered_year),
           tv_url]));
-      //toAnnounce := toAnnounce+  need to add season and episode infos ?
 
       if ((tv_next_season > 0) and (tv_next_ep > 0)) then
         toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Season/Episode (Date)</c></b> ...........: <b>%d.%d</b> (%s)', [tv_next_season, tv_next_ep,
@@ -504,8 +432,7 @@ function TTVInfoDB.Update: boolean;
 var
   rls_name: string;
   respo: string;
-  sql: string;
-  //  js: TlkJSONobject;
+
 begin
   //variable will be overwriten by  parseTVMazeInfos.
   rls_name := self.ripname;
@@ -716,7 +643,6 @@ end;
 function getTVInfoByReleaseName(rls: string): TTVInfoDB;
 var
   showname: string;
-  rx: TRegexpr;
 begin
   Result := nil;
   showname := rls;
@@ -732,15 +658,12 @@ end;
 
 function getTVInfoByShowID(tvmaze_id: string): TTVInfoDB;
 var
-  //  i: integer;
   tvi: TTVInfoDB;
   gettvrage: Psqlite3_stmt;
 begin
   Result := nil;
   if tvinfodb = nil then
     exit;
-
-  //result:=getTVDBByIDFromMemory(tv_showid);
 
   if (Result = nil) then
   begin
@@ -810,7 +733,6 @@ begin
     // add the tvrage
     save_tvrage := TTVInfoDB(tvrage);
     try
-      //      last_addtvrage.AddObject(tvrage.tv_showname, tvrage);
       if (rls <> '') then
 
         irc_Addtext_by_key('ADDTVMAZE', addtinfodbcmd + ' ' + rls + ' ' + tvmaze_id);
@@ -856,7 +778,6 @@ begin
     begin
       try
         if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
-          //          irc_Addadmin(Format(msg,[p.rls.section, p.rls.rlsname, ps.Name]));
           irc_Addadmin(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
         kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
       except
@@ -868,32 +789,6 @@ begin
       end;
     end;
   end;
-end;
-
-function fixMyCrap(userVersion: integer): boolean;
-var
-  u: Psqlite3_stmt;
-begin
-  result := false;
-  u := tvinfodb.open('SELECT COUNT(*) FROM _infos_old_v1;');
-  if (userVersion = 0) then
-  begin
-
-    if not tvinfodb.ExecSQL('DROP TABLE IF EXISTS _infos_old_v1') then
-    begin
-
-      Debug(dpError, section, '[ERROR] in fixMyCrap: DROP TABLE Failed');
-      Exit;
-    end;
-
-    if not tvinfodb.ExecSQL('PRAGMA user_version = 2;') then
-    begin
-      Debug(dpError, section, '[ERROR] fiyMyCrap: PRAGMA user_version = 2');
-      Exit;
-    end;
-    result := True;
-  end;
-
 end;
 
 procedure dbTVInfoStart;
@@ -913,9 +808,7 @@ begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
     db_params := config.ReadString(section, 'pragma', ' locking_mode=NORMAL;');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
-    // tvinfodb.ExecSQL('PRAGMA locking_mode=normal;');
 
-     //Just fix the poo i did :)
     user_version := tvinfodb.Open('PRAGMA user_version;');
     if tvinfodb.Step(user_version) then
       uV := StrToIntDef(tvinfodb.column_text(user_version, 0), -1);
@@ -954,7 +847,6 @@ end;
 
 procedure dbTVInfoUninit;
 begin
-  //  last_addthetvdb.Free;
   try
     if tvinfodb <> nil then
     begin
@@ -975,177 +867,13 @@ begin
     addTVInfos(msg);
     Result := True;
   end;
-  (*
-    if (1 = Pos(oldtvragecmd, msg)) then
-    begin
-      msg := Copy(msg, length(oldtvragecmd + ' ') + 1, 1000);
-      dbaddtvrage_addtvrage(msg);
-      Result := True;
-    end;
-    *)
 end;
 
-{
-function getTVDBByNameFromMemory(name: string): TTVInfoDB;
-var
-  i: integer;
+function TVInfoDbAlive: boolean;
 begin
-  (*
-    try
-      i := last_addthetvdb.IndexOf(name);
-      if i <> -1 then
-      begin
-        Result := TTVInfoDB(last_addthetvdb.Objects[i]);
-      end;
-    except
-      Result := nil;
-    end;
-  *)
-end;
-
-function getTVDBByIDFromMemory(id: string): TTVInfoDB;
-var
-  i: integer;
-  tvrage: TTVInfoDB;
-begin
-  (*
-    for i := last_addthetvdb.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      try
-        tvrage := TTVInfoDB(last_addthetvdb.Objects[i]);
-        if (tvrage.tv_showid = id) then
-        begin
-          Result := tvrage;
-          break;
-        end;
-      except
-        break;
-      end;
-    end;
-    *)
-end;
-   }
-(* broken!
-function fillTTheTvDBfromDB(const item: Psqlite3_stmt; show: string = ''):
-  TTVInfoDB;
-begin
-
-  if item = nil then
-  begin
-    Result := nil;
-    Debug(dpError, section, 'fillTTheTvDBfromDB item is nil');
-    Exit;
-  end;
-
-  if tvinfodb.Step(item) then
-  begin
-    if (LowerCase(show) <> LowerCase(tvinfodb.column_text(item, 0))) then
-    begin
-      Result := nil;
-      Debug(dpError, section, 'fillTTheTvDBfromDB is nil');
-      exit;
-    end;
-    if show = '' then
-      show := tvinfodb.column_text(item, 0);
-    result := TTVInfoDB.Create(show);
-    result.tv_showid := tvinfodb.column_text(item, 3);
-    result.tv_showname := tvinfodb.column_text(item, 1);
-    result.tv_premiered_year := StrToIntDef(tvinfodb.column_text(item, 5), 0);
-    result.tv_country := tvinfodb.column_text(item, 6);
-    result.tv_status := tvinfodb.column_text(item, 7);
-    result.tv_classification := tvinfodb.column_text(item, 8);
-    result.tv_genres.CommaText := tvinfodb.column_text(item, 10);
-    result.tv_network := tvinfodb.column_text(item, 9);
-    result.tv_running := Boolean(lowercase(result.tv_status) = 'running');
-    result.tv_scripted := Boolean(lowercase(result.tv_classification) =
-      'scripted');
-    result.last_updated := StrToIntDef(tvinfodb.column_text(item, 12), -1);
-  end;
-end;
- *)
-
-{  DataBase Version Helper...}
-
-(*
-function updateToV3: boolean;
-begin
-  result := False;
   if tvinfodb = nil then
-    Exit;
-
-if not tvinfodb.ExecSQL('DROP TABLE "main"."_infos_old_v1";') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: DROP old TABLE Failed');
-    Exit;
-  end;
-
-end;
-*)
-
-function updateToV2: boolean;
-begin
-  result := False;
-  if tvinfodb = nil then
-    Exit;
-
-  if not tvinfodb.ExecSQL('ALTER TABLE "main"."infos" RENAME TO "_infos_old_v1";') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: ALTER TABLE Failed');
-    Exit;
-  end;
-  if not tvinfodb.ExecSQL('DROP INDEX "main"."tvinfo";') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: DROP old TABLE Failed');
-    Exit;
-  end;
-
-  if not
-    tvinfodb.ExecSQL('CREATE TABLE "main"."infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id"  INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT ' +
-    'unknown,"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  ' +
-    'INTEGER,"next_season"  INTEGER,"next_episode"  INTEGER,"airdays"  TEXT,PRIMARY KEY ("tvmaze_id" ASC));') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: CREATE new Tabel Failed');
-    Exit;
-  end;
-
-  if not
-    tvinfodb.ExecSQL('INSERT INTO "main"."infos" ("tvdb_id", "tvrage_id", "tvmaze_id", "premiered_year", "country", "status", "classification", "network", "genre", "ended_year", "last_updated", "next_date", "next_season", ' +
-    '"next_episode") SELECT "tvdb_id", "tvrage_id", "tvmaze_id", "premiered_year", "country", "status", "classification", "network", "genre", "ended_year", "last_updated", "next_date", "next_season", "next_episode" FROM "_infos_old_v1";') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: INTER INTO new TABEL Failed');
-    Exit;
-  end;
-
-  if not tvinfodb.ExecSQL('CREATE UNIQUE INDEX "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: CREATE UNIQUE INDEX Failed');
-    Exit;
-  end;
-
-  if not tvinfodb.ExecSQL('PRAGMA user_version = 2;') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: PRAGMA user_version = 2');
-    Exit;
-  end;
-
-  if not tvinfodb.ExecSQL('DROP TABLE "main"."_infos_old_v1";') then
-  begin
-    Debug(dpError, section, '[ERROR] in updateToV2: DROP ALTERED TABLE Failed');
-    Exit;
-  end;
-
-  result := True;
-end;
-
-function TVInfoDbAlaive: boolean;
-begin
-if tvinfodb = nil then result:=false else result:=true;
+    Result:=false
+  else Result:=true;
 end;
 
 end.

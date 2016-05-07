@@ -47,6 +47,7 @@ function RandomHEXString(strlength: integer = 16): string;
 var
   temp: integer;
 begin
+  result := '';
   randomize;
   repeat
     temp := random(2048);

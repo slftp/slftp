@@ -1429,27 +1429,27 @@ begin
     begin
       if not directory then
       begin
-
-          //we first look for ftprush screwed up files like (1).nfo
-          l:= length(filename);
-          if l > length(Extension)+6 then
-          begin
-            if (
-                (filename[l-6] = '(')
-                and
-                (filename[l-4] = ')')
-                and
-                (filename[l-5] in ['0'..'9'])
-                ) then
-            begin
-              skiplisted:= True;
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> (?) file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));              
-              exit;
-            end;
-          end;
-
         s:= dirlist.Dirname;
         sf:= dirlist.skiplist.AllowedFile(s, filename);
+
+        //we first look for ftprush screwed up files like (1).nfo
+        l:= length(filename);
+        if l > length(Extension)+6 then
+        begin
+          if (
+              (filename[l-6] = '(')
+              and
+              (filename[l-4] = ')')
+              and
+              (filename[l-5] in ['0'..'9'])
+              ) then
+          begin
+            skiplisted:= True;
+            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> (?) file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));              
+            exit;
+          end;
+        end;
+
         if sf = nil then
         begin
           skiplisted:= True;
