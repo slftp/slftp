@@ -1833,7 +1833,7 @@ end;
 
 procedure TslTCPThread.Start;
 begin
-  connectionThread.Resume;
+  connectionThread.Start;
 end;
 
 procedure TslTCPThread.Stop;
