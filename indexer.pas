@@ -14,7 +14,7 @@ procedure indexerAddRelease(const rls, site, section, path: string);
 procedure indexerRemoveSiteSection(const site, section: string);
 function indexerCapable: Boolean;
 
-function IndexerAlaive: boolean;
+function IndexerAlive: boolean;
 
 implementation
 
@@ -33,7 +33,7 @@ var
   indexerSelectPartially: Psqlite3_stmt = nil;
   indexer_lock: TCriticalSection;
 
-function IndexerAlaive: boolean;
+function IndexerAlive: boolean;
 begin
   if indexes = nil then
     result := False

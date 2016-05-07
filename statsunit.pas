@@ -11,7 +11,7 @@ procedure statsBeginTransaction();
 procedure statsEndTransaction();
 function statsQuery(const q: string): string;
 
-function StatsAlaive:boolean;
+function StatsAlive:boolean;
 
 procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: String);
 
@@ -31,7 +31,7 @@ var
     statsRace: Psqlite3_stmt;
     stats: TslSqliteDB;
 
-function StatsAlaive:boolean;
+function StatsAlive:boolean;
 begin
   if stats = nil then result:= False else result:=true;
 end;
