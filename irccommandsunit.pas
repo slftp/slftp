@@ -10734,7 +10734,7 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := config.ReadString('sites', 'ratio_regex', '\[(Ratio|R)\:\s?([\d\:\.]+|Unlimited)\]');
+    x.Expression := config.ReadString('sites', 'ratio_regex', '\[?(Ratio|R)\:?\s?\(?([\d\:\.]+|Unlimited|[\d\:\d]+)\]?');
     if x.Exec(line) then
     begin
       if ((x.Match[2] = 'Unlimited') or (x.Match[2] = '1:0.0')) then
@@ -10743,7 +10743,7 @@ begin
         ratio := x.Match[2];
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(Credits|Creds|C)\:\s?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?');
+    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(Credits|Creds|C)\:?\s?([\-\d\.\,\(]+)(MB|GB|TB|EP|ZP)\]?');
     if x.Exec(line) then
     begin
       ss := x.Match[2];
@@ -10753,10 +10753,11 @@ begin
         minus := True;
         ss := Csere(ss, '-', '');
       end;
+
 {$IFDEF MSWINDOWS}
-      // ss:=Csere(x.match[2],'.',',');
       ss := Csere(ss, '.', ',');
 {$ENDIF}
+
       c := strtofloat(ss);
       ss := x.Match[3];
       if x.Match[3] = 'MB' then
@@ -10766,19 +10767,18 @@ begin
         begin
           c := c / 1024;
           ss := 'GB';
-        end; // if c > 1024  then begin
+        end;
         if c > 1024 then
         begin
           c := c / 1024;
           ss := 'TB';
-        end; // if c > 1024 then begin
-      end; // if x.match[2] = 'MB' then begin
+        end;
+      end;
       if minus then
         creds := format('-%.2f %s', [c, ss])
       else
         creds := format('%.2f %s', [c, ss]);
-      // creds:=x.match[1]+' '+x.match[2];
-    end; // else creds:=Format('%.2f %s',[c,ss]);
+    end;
 
     result := Format('Credits on <b>%s</b>: <b>%s</b> (%s)', [sitename, creds, ratio]);
   finally
