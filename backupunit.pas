@@ -96,19 +96,19 @@ begin
   try
     with TTarWriter.Create(vbname) do
     begin
-      if not IndexerAlaive then
+      if not IndexerAlive then
       begin
         if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
           AddFile(config.ReadString('indexer', 'database', 'nonexist'));
       end;
 
-      if not StatsAlaive then
+      if not StatsAlive then
       begin
         if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
           AddFile(config.ReadString('stats', 'database', 'nonexist'));
       end;
 
-      if not TVInfoDbAlaive then
+      if not TVInfoDbAlive then
       begin
         if fileexists('tvinfos.db') then
           AddFile('tvinfos.db');

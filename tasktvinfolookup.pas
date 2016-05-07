@@ -60,12 +60,12 @@ const
 
 function findTVMazeIDByNamev2(name: string; Netname: string = ''; Channel: string = ''): string;
 var
-  showA, showB, sname, resp: string;
+  showA, showB, resp: string;
   x: TRegExpr;
   i: integer;
   ddate, res: TStringlist;
   fromIRC, hadYear, hadCountry: boolean;
-  tv_prime, tv_country, showName, year, country: string;
+  tv_country, showName, year, country: string;
   jl: TlkJSONlist;
 
 begin
@@ -234,11 +234,8 @@ end;
 
 function findTVMazeIDByName(name: string): string;
 var
-  year, country, s, sname, url, response: string;
+  s, url, response: string;
   js: TlkJSONobject;
-  hadYear, hadCountry: boolean;
-  r: TRegexpr;
-  I: Integer;
 begin
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
@@ -264,24 +261,15 @@ begin
   end;
 
   if ((response = '') or (response = '[]')) then
-  begin
-    //    Debug(dpError, section, 'Can not find '+ name + ' (' + sname + ') on TVMaze');
-    //    irc_addadmin('Can not find '+ name + ' (' + sname + ') on TVMaze');
-    // we already give an failed result no need to send this.
-    Exit;
-  end;
+    exit;
 
   js := TlkJSON.ParseText(response) as TlkJSONobject;
-
   try
     if js.Field['id'].SelfType <> jsNull then
       result := string(js.Field['id'].Value)
     else
     begin
       result := '-1';
-      //      Debug(dpError, section, 'Can not find TVMaze id for ' + name + ' (' + sname + ')');
-      //      irc_addadmin('Can not find TVMaze id for ' + name + ' (' + sname + ')');
-      // we already give an failed result no need to send this.
     end;
   finally
     js.Free;
@@ -290,13 +278,9 @@ end;
 
 function findTheTVDbIDByName(name: string): string;
 var
-  year, country, s, sname, url, response: string;
+  s, url, response: string;
   js: TlkJSONobject;
-  hadYear, hadCountry: boolean;
-  r: TRegexpr;
 begin
-  hadYear := False;
-  hadCountry := False;
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
   s := Csere(s, '.at.', '.@.');
@@ -322,8 +306,8 @@ begin
 
   if ((response = '') or (response = '[]')) then
   begin
-    Debug(dpError, section, 'Cant find theTVDB id for ' + name + ' (' + sname + ')');
-    irc_addadmin('Cant find theTVDB id for ' + name + ' (' + sname + ')');
+    Debug(dpError, section, 'Cant find theTVDB id for ' + name);
+    irc_addadmin('Cant find theTVDB id for ' + name);
     Exit;
   end;
 
@@ -333,8 +317,8 @@ begin
       result := string(js.Field['externals'].Field['thetvdb'].Value)
     else
     begin
-      Debug(dpError, section, 'Cant find theTVDB id for ' + name + ' (' + sname + ')');
-      irc_addadmin('<b><c14>Info</b></c>: Cant find theTVDB id for ' + name + ' (' + sname + ')');
+      Debug(dpError, section, 'Cant find theTVDB id for ' + name);
+      irc_addadmin('<b><c14>Info</b></c>: Cant find theTVDB id for ' + name);
     end;
 
   finally
@@ -344,7 +328,7 @@ end;
 
 function getGenreFromTheTVDb(id: string): string;
 var
-  s, url, response: string;
+  s: string;
   xml: TSLXMLDocument;
   gn, nn, n: TSLXMLNode;
   x: TStringlist;
@@ -522,7 +506,7 @@ var
   i: integer;
   s: string;
   js: TlkJSONobject;
-  slGen, gMaze, gTVDB, x: TStringlist;
+  slGen, gTVDB: TStringlist;
   season, episdoe: Integer;
   date: TDateTime;
 begin
@@ -649,22 +633,10 @@ if js.Field['genres'].SelfType  <> jsNull then begin
       tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4), -1)
     else
       tvr.tv_premiered_year := -1;
-
-    (*
-          x := TStringlist.Create;
-          try
-            x.Delimiter := '-';
-            x.DelimitedText := string(js.Field['premiered'].Value);
-            tvr.tv_premiered_year := StrToIntDef(x.Strings[0], -1);
-          finally
-            x.free;
-          end;
-      *)
-
-    tvr.tv_endedyear := -1;
-    tvr.tv_next_ep := -10;
-    tvr.tv_next_season := -10;
-    tvr.tv_next_date := 3817;
+      tvr.tv_endedyear := -1;
+      tvr.tv_next_ep := -10;
+      tvr.tv_next_season := -10;
+      tvr.tv_next_date := 3817;
 
     //Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
@@ -686,7 +658,6 @@ if js.Field['genres'].SelfType  <> jsNull then begin
     js.free;
     slGen.free;
     gTVDB.free;
-    // tvr.free;
   end;
 
 end;
