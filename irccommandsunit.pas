@@ -4162,23 +4162,20 @@ end;
 
 function IrcSetdown(const Netname, Channel: string; params: string): boolean;
 var
-  sitename: string;
   s: TSite;
   i: integer;
   x: TStringList;
 begin
-  //  Result := False;
-  sitename := UpperCase(params);
+  Result := False;
   x := TStringList.Create;
-  x.DelimitedText := sitename;
-  // x.Text:=sitename;
+  try
+  x.DelimitedText := UpperCase(params);
 
-  if (uppercase(sitename) = '!ALL!') or (sitename = '*') then
+  if (x.Strings[0] = '!ALL!') or (x.Strings[0] = '*') then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
@@ -4198,17 +4195,18 @@ begin
     for i := 0 to x.Count - 1 do
     begin
       s := FindSiteByName(Netname, x.Strings[i]);
+
       if s = nil then
       begin
-        irc_addtext(Netname, Channel,
-          '<c4><b>ERROR</c></b>: Site <b>%s</b> not found.', [sitename]);
+        irc_addtext(Netname, Channel,'<c4><b>ERROR</c></b>: Site <b>%s</b> not found.', [x.Strings[i]]);
         Continue;
       end;
+
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
-
       if (s.PermDown) then
         Continue;
+
       s.markeddown := True;
       s.working := sstDown;
       s.markeddown := True;
@@ -4217,27 +4215,14 @@ begin
       s.RemoveAutoRules;
       QueueEmpty(s.Name);
     end;
-    (*
-      s:= FindSiteByName(netname, sitename);
-      if s = nil then
-      begin
-      irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
-      exit;
-      end;
-
-      s.markeddown:= True;
-      s.working:= sstDown;
-      s.RemoveAutoIndex;
-      s.RemoveAutoBnctest;
-      s.RemoveAutoRules;
-      QueueEmpty(s.name);
-    *)
   end;
 
-  QueueFire; // hogy eltavolitsuk a queue bejegyzeseket
-  x.Free;
-  Result := True;
+  finally
+    x.Free;
+  end;
 
+  QueueFire; //to remove entries from queue
+  Result := True;
 end;
 
 function IrcShownet(const Netname, Channel: string; params: string): boolean;
