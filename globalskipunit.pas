@@ -9,7 +9,7 @@ procedure Uninitglobalskiplist;
 
 function Rehashglobalskiplist: boolean;
 
-function CheckForBadAssGroup(rls: string): boolean;
+function CheckForBadAssGroup(const rls: string): boolean;
 
 var
   globalgroupskip: TStringlist;
