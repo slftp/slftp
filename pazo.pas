@@ -1528,7 +1528,10 @@ begin
 //  end;
 //  rrgx.Free;
 
+
   rrgx := TRegExpr.Create;
+  try
+
   try
     rrgx.ModifierI := True;
     rrgx.Expression := global_skip;
@@ -1545,7 +1548,10 @@ begin
         [e.Message]));
     end;
   end;
-  rrgx.Free;
+
+  finally
+    rrgx.Free;
+  end;
 
 
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
