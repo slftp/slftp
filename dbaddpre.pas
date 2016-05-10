@@ -157,13 +157,17 @@ begin
     debug(dpSpam, section, 'URL value is empty');
     exit;
   end;
+
   response := TStringList.Create;
   response.Text := slUrlGet(Format(url, [rls]));
   debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response.Text]);
+
   prex := TRegexpr.Create;
+  try
   prex.ModifierM := True;
   prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
   read_count := 0;
+
   for i := 0 to response.Count - 1 do
   begin
     Inc(read_count);
@@ -195,8 +199,14 @@ begin
       end;
     end;
   end;
-  prex.Free;
-  response.Free;
+
+
+  finally
+    begin
+    prex.Free;
+    response.Free;
+    end;
+  end;
 end;
 
 function ReadPretimeOverSQLITE(rls: string): TDateTime;
