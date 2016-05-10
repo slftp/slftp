@@ -12,7 +12,7 @@ procedure dupedbEndTransaction();
 
 procedure Addrlstodupedb(rls,section,event:string;pretime:longint;size:integer);
 
-procedure ReadDupeDB(rls:string; out pretime:integer; out size:integer);
+procedure ReadDupeDB(const rls: string; out pretime: integer; out size: integer);
 
 function dupeDBQuery(const q: string): string;
 
@@ -78,7 +78,8 @@ begin
 end;
 
 function dupeDBQuery(const q: string): string;
-var s: Psqlite3_stmt;
+var
+  s: Psqlite3_stmt;
 begin
  s:= dupedb.Open(q);
  Result:= '';
@@ -87,7 +88,8 @@ begin
 end;
 
 procedure DupeDBInit;
-var s: string;
+var 
+  s: string;
 begin
   s:= Trim('dupe.db');
   dupedb:= TslSqliteDB.Create(s,'');
