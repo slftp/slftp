@@ -310,7 +310,7 @@ procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
 procedure RulesLoad(action, filename: string);
-function AddRule(const rule: string; var error: string): TRule;
+function AddRule(rule: string; var error: string): TRule;
 procedure RulesOrder(p: TPazo);
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
@@ -2307,23 +2307,20 @@ begin
   end;
 end;
 
-function AddRule(const rule: string; var error: string): TRule;
+function AddRule(rule: string; var error: string): TRule;
 var
   r: TRule;
 begin
   Result := nil;
 
   r := TRule.Create(rule);
-  try
   if r.error <> '' then
+  begin
     error := r.error;
+    r.Free;
+  end
   else
     Result := r;
-
-  finally
-    r.Free;
-  end;
-
 end;
 
 procedure RulesLoad(action, filename: string);
