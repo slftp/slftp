@@ -3922,10 +3922,10 @@ var
   s: TSite;
   i: integer;
 begin
-  //sitesup := TStringList.Create;
-  //sitesdn := TStringList.Create;
-  //sitespd := TStringList.Create;
-  //sitesuk := TStringList.Create;
+  sitesup := TStringList.Create;
+  sitesdn := TStringList.Create;
+  sitespd := TStringList.Create;
+  sitesuk := TStringList.Create;
 
     for i := 0 to sites.Count - 1 do
     begin
