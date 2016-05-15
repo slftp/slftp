@@ -3727,8 +3727,6 @@ var
   xl: TStringList;
   i: integer;
 begin
-  //  Result := False;
-  // sitename:= UpperCase(SubString(params, ' ', 1));
   sitename := UpperCase(params);
   xl := TStringList.Create;
   xl.Delimiter := char(44);
@@ -3746,16 +3744,15 @@ begin
       end;
       if s.PermDown then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
-          [sitename]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set permdown.', [sitename]);
         continue;
       end;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
     end;
   finally
-    Result := True;
+    xl.Free;
   end;
-  xl.Free;
+  Result := True;
 end;
 
 function IrcRaw(const Netname, Channel: string; params: string): boolean;
@@ -3818,19 +3815,19 @@ begin
 
   x := TStringList.Create;
   y := TStringList.Create;
+  try
+
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
     if s.markeddown then
     begin
-      irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.',
-        [s.Name]);
+      irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.', [s.Name]);
       Continue;
     end;
     if (s.PermDown) then
     begin
-      irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.',
-        [s.Name]);
+      irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.',[s.Name]);
       Continue;
     end;
     x.DelimitedText := s.leechers;
@@ -3848,11 +3845,9 @@ begin
       Continue;
     end;
   end;
-  x.Free;
 
   if y.Count = 0 then
   begin
-    y.Free;
     irc_addtext(Netname, Channel, 'User %s not found on any sites', [username]);
     exit;
   end;
@@ -3860,7 +3855,10 @@ begin
   for i := 0 to y.Count - 1 do
     RawB(Netname, Channel, y[i], '', command);
 
-  y.Free;
+  finally
+    x.Free;
+    y.Free;
+  end;
 
   Result := True;
 end;
@@ -3960,6 +3958,8 @@ begin
   sup := TStringList.Create;
   sd := TStringList.Create;
   suk := TStringList.Create;
+  try
+
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
@@ -3984,9 +3984,13 @@ begin
   irc_addtext(Netname, Channel, '??: ' + suk.commatext);
   irc_addtext(Netname, Channel, '##: %d UP:%d DN:%d ??:%d ',
     [sites.Count, sup.Count, sd.Count, suk.Count]);
-  sup.Free;
-  sd.Free;
-  suk.Free;
+
+  finally
+    sup.Free;
+    sd.Free;
+    suk.Free;
+  end;
+
 end;
 
 procedure SitesB(const Netname, Channel: string);
@@ -4069,12 +4073,12 @@ var
 begin
   Result := False;
   added := False;
+  s := nil;
+  db := 0;
   x := TStringList.Create;
   x.Delimiter := ' ';
   x.DelimitedText := UpperCase(params);
-  s := nil;
-
-  db := 0;
+  try
 
   if x.Count > 0 then
   begin
@@ -4146,7 +4150,10 @@ begin
   // if s.RCString('autologin','-1') <> '-1' then
   if s.RCInteger('autobnctest', 0) <> 0 then
     s.AutoBnctest;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 
   RemoveTN(tn);
 
@@ -4637,6 +4644,7 @@ begin
   y := TStringList.Create;
   y.Delimiter := ' ';
   y.DelimitedText := Names;
+  try
 
   for i := 0 to y.Count - 1 do
 
@@ -4647,39 +4655,6 @@ begin
       Result := False;
       exit;
     end;
-
-  (*
-    r.Expression:='[\+\-](.*?)$';
-    r.ModifierM:=True;
-    r.ModifierI:=True;
-    snames:=' ';
-
-    for I := 0 to y.Count - 1 do
-    if r.Exec(y.Strings[i]) then begin
-    s:=r.Match[1];
-    if not Check_For_Vailed_Chanrole(s) then  begin
-    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> %s is no valid chanrole.',[s]);
-    result:=False;
-    r.free;
-    Exit;
-    end;
-    end else begin
-    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> whats todo with %s ?',[y.strings[i]]);
-    result:=False;
-    r.free;
-    Exit;
-    end;
-  *)
-  (*
-    z:=Tstringlist.Create;
-    z.Delimiter:=' ';
-    z.DelimitedText:=b.names;
-
-    for I := 0 to y.Count - 1 do begin
-    z.IndexOf(y.Strings[i]);
-    end;
-
-  *)
 
   b := FindIrcBlowfish(nn, blowchannel, False);
   if b <> nil then
@@ -4704,8 +4679,9 @@ begin
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
       [blowchannel, nn]));
 
-  // z.free;
-  // r.free;
+  finally
+    y.Free;
+  end;
 
   Result := True;
 end;
@@ -5252,8 +5228,11 @@ var
   i: integer;
   r: TRegExpr;
 begin
+  Result := False;
   r := TRegExpr.Create;
   r.ModifierI := True;
+  try
+
   for i := 0 to conditions.Count - 1 do
   begin
     if UpperCase(params) = 'COMMON' then
@@ -5264,22 +5243,26 @@ begin
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
     end
     else if params <> '' then
-    begin // if UpperCase(params) = 'COMMON' then begin
+    begin
       r.Expression := format('^%s[\w\d]+$', [params]);
       if r.Exec(TConditionClass(conditions[i]).Name) then
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name +
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
     end
     else
-    begin // end else if params <> '' then begin
+    begin
       if conditions[i] <> TBooleanCondition then
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name +
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText)
       else
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name);
-    end; // end else begin //end else if params <> '' then begin
-  end; // for i:= 0 to conditions.Count -1 do begin
-  r.Free;
+    end;
+  end;
+
+  finally
+    r.Free;
+  end;
+
   Result := True;
 end;
 
@@ -5689,6 +5672,7 @@ begin
   end;
 
   x := TStringList.Create;
+  try
 
   irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
   irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s',
@@ -5717,7 +5701,9 @@ begin
   if s.RCString('notes', '') <> '' then
     irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
 
-  x.Free;
+  finally
+    x.Free;
+  end;
 
   Result := True;
 end;
@@ -5740,6 +5726,7 @@ begin
   end;
 
   x := TStringList.Create;
+  try
   sitesdat.ReadSection('site-' + sitename, x);
   x.Sort;
 
@@ -5801,7 +5788,10 @@ begin
       end;
     end;
   end;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 
   i := 0;
   while (not slshutdown) do
