@@ -3924,17 +3924,15 @@ var
   s: TSite;
   i: integer;
 begin
-  sitesup := TStringList.Create;
-  sitesdn := TStringList.Create;
-  sitespd := TStringList.Create;
-  sitesuk := TStringList.Create;
+  //sitesup := TStringList.Create;
+  //sitesdn := TStringList.Create;
+  //sitespd := TStringList.Create;
+  //sitesuk := TStringList.Create;
 
-  try
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites[i]);
-      if UpperCase(s.Name) = uppercase(config.ReadString(
-        'sites', 'admin_sitename', 'SLFTP')) then
+      if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
 
       if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
@@ -3945,17 +3943,12 @@ begin
         Continue;
       end;
       case s.working of
-        sstUp:
-          sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' +
-            IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
-        sstDown:
-          sitesdn.Add('<b>' + s.Name + '</b>');
-        sstUnknown:
-          sitesuk.Add('<b>' + s.Name + '</b>');
+        sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+        sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
+        sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
       end;
     end;
-  finally
-  end;
+
 end;
 
 procedure SitesC(const Netname, Channel: string);
@@ -5615,15 +5608,15 @@ end;
 
 function IrcSites(const Netname, Channel: string; params: string): boolean;
 var
-  spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
+  spd, sup, sdn, suk: TStringList;
   scount: integer;
 begin
-  //  Result := False;
   scount := sites.Count - 1;
   sup := TStringList.Create;
   spd := TStringList.Create;
   sdn := TStringList.Create;
   suk := TStringList.Create;
+  try
   SitesD(Netname, Channel, sup, sdn, suk, spd);
 
   IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
@@ -5634,11 +5627,13 @@ begin
     '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
   IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
     'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
-
+  finally
   sup.Free;
+  spd.Free;
   sdn.Free;
   suk.Free;
-  spd.Free;
+  end;
+
   Result := True;
 end;
 
@@ -10915,39 +10910,6 @@ begin
   Result := True;
 end;
 
-(*
-
-function IrcSites(const Netname, Channel: string; params: string): boolean;
-var
-  spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
-  scount: integer;
-begin
-  //  Result := False;
-  scount := sites.Count - 2;
-  sup := TStringList.Create;
-  spd := TStringList.Create;
-  sdn := TStringList.Create;
-  suk := TStringList.Create;
-  SitesD(Netname, Channel, sup, sdn, suk, spd);
-
-  IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
-    'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, sdn.commatext, char('"'),
-    'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, suk.commatext, char('"'),
-    '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
-    'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
-
-  sup.Free;
-  sdn.Free;
-  suk.Free;
-  spd.Free;
-  Result := True;
-end;
-
-*)
-
 function IrcShowAppStatus(const Netname, Channel: string; params: string): boolean;
 var
   rx: TRegexpr;
@@ -10971,11 +10933,11 @@ begin
   suk := TStringList.Create;
   try
     SitesD(Netname, Channel, sup, sdn, suk, spd);
+
     irc_addtext(Netname, Channel,
       '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
       [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
-    rx.Expression :=
-      'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
+    rx.Expression := 'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
     if rx.Exec(ReadAppQueueCaption) then
       irc_addtext(Netname, Channel,
         '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s',
@@ -10983,9 +10945,9 @@ begin
   finally
     rx.free;
     sup.Free;
+    spd.Free;
     sdn.Free;
     suk.Free;
-    spd.Free;
   end;
 
   (*
