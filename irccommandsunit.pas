@@ -3916,16 +3916,17 @@ end;
   end;
 *)
 
-procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
-  out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
+//procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
+//  out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
+procedure SitesD(const Netname, Channel: string; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 var
   s: TSite;
   i: integer;
 begin
-  sitesup := TStringList.Create;
-  sitesdn := TStringList.Create;
-  sitespd := TStringList.Create;
-  sitesuk := TStringList.Create;
+  //sitesup := TStringList.Create;
+  //sitesdn := TStringList.Create;
+  //sitespd := TStringList.Create;
+  //sitesuk := TStringList.Create;
 
     for i := 0 to sites.Count - 1 do
     begin
