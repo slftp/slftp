@@ -285,7 +285,6 @@ function IrcDisplaySocks5(const netname, channel: string; params: string): boole
 function IrcTweakSocks5(const netname, channel: string; params: string): boolean;
 function IrcSetSocks5(const netname, channel: string; params: string): boolean;
 function IrcRehashSocks5(const netname, channel: string; params: string): boolean;
-//function IrcTweakSocks5(const netname, channel: string;params: string): Boolean;
 
 function IrcDisplayMappings(const netname, channel: string; params: string): boolean;
 
@@ -584,7 +583,7 @@ const
     (cmd: 'addsocks5'; hnd: IrcAddSocks5; minparams: 3; maxparams: 5; hlpgrp: 'doh_socks5'),
     (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'doh_socks5'),
     (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'doh_socks5'),
-    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 5; maxparams: 5; hlpgrp: 'doh_socks5'),
+    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
     (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
 
     (cmd: '- PRETIME -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
@@ -9638,8 +9637,7 @@ begin
 end;
  *)
 
-function IrcTweakSocks5(const Netname, Channel: string; params: string):
-  boolean;
+function IrcTweakSocks5(const Netname, Channel: string; params: string): boolean;
 var
   fname, ftrigger, fvalue: string;
   s5: TmSLSocks5;
@@ -9647,14 +9645,16 @@ begin
   Result := False;
 
   fname := SubString(params, ' ', 1);
-  ftrigger := SubString(params, ' ', 2);
+  ftrigger := AnsiLowerCase(SubString(params, ' ', 2));
   fvalue := SubString(params, ' ', 3);
+
   s5 := FindProxyByName(fname);
   if s5 = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Network with name %s!', [fname]);
+    irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [fname]);
     exit;
   end;
+
   try
     if ftrigger = 'host' then
       s5.host := fvalue;
@@ -9664,9 +9664,15 @@ begin
       s5.username := fvalue;
     if ftrigger = 'password' then
       s5.password := fvalue;
-  finally
-    Result := True;
+  except
+    on e: Exception do
+    begin
+      Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcTweakSocks5 saving value %s', [e.Message]);
+      exit;
+    end;
   end;
+
+  Result := True;
 end;
 
 function IrcAddSocks5(const Netname, Channel: string; params: string): boolean;
