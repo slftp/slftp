@@ -9729,32 +9729,38 @@ var
   trigger, Value: string;
   rx: TRegExpr;
 begin
-  Result := True;
+  Result := False;
+
   rx := TRegExpr.Create;
-  rx.ModifierI := True;
-  rx.Expression := '[\-]{1,2}(name|index) ([^\s]+)';
-  if rx.Exec(params) then
+  try
+    rx.ModifierI := True;
+    rx.Expression := '[\-]{1,2}(name|index) ([^\s]+)';
+    if rx.Exec(params) then
+    begin
+      trigger := AnsiUpperCase(rx.Match[1]);
+      Value := rx.Match[2];
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'dOH! something wrong!');
+      exit;
+    end;
+  finally
+    rx.Free;
+  end;
+
+  if ((trigger <> 'NAME') and (trigger <> 'INDEX')) then
   begin
-    trigger := rx.Match[1];
-    Value := rx.Match[2];
-  end
-  else
-  begin
-    irc_addtext(Netname, Channel, 'dOH! something wrong!');
+    irc_addtext(Netname, Channel, 'Use delsocks5 --NAME <socks5 name> OR --INDEX <# in listsocks5>');
     exit;
   end;
 
-  if ((UpperCase(trigger) <> 'NAME') and (UpperCase(trigger) <> 'INDEX')) then
-  begin
-    irc_addtext(Netname, Channel,
-      'Use delsocks5 --NAME <socks5 name> OR --INDEX <# in listsocks5>');
-    exit;
-  end;
-
-  if UpperCase(trigger) = 'NAME' then
+  if trigger = 'NAME' then
     Result := RemoveProxy(Value);
-  if UpperCase(trigger) = 'INDEX' then
+  if trigger = 'INDEX' then
     Result := RemoveProxy(StrToInt(Value));
+
+  Result := True;
 end;
 
 function IrcRehashSocks5(const Netname, Channel: string; params: string):
