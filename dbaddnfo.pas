@@ -184,13 +184,18 @@ var //URLTemplate : String;
 begin
   sec := FindSectionHandler(section);
   r   := TRegExpr.Create;
+  try
+
   if sec.ClassName = 'TIMDBRelease' then
   begin
     r.Expression := 'tt\d{5,7}';
     if r.Exec(nfo_data) then
       dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + r.Match[0] + '/');
-    r.Free;
     Exit;
+  end;
+
+  finally
+    r.Free;
   end;
 
   dbaddnfo_ParseNfo(rls, nfo_data);

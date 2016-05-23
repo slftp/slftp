@@ -2333,7 +2333,6 @@ constructor TMVIDRelease.Create(rlsname: string; section: string;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   mvrx: TRegexpr;
-
 begin
   inherited Create(rlsname, section, True, savedpretime);
   aktualizalva := False;
@@ -2347,15 +2346,18 @@ begin
   mvid_year := -1;
 
   mvrx := TRegexpr.Create;
-  mvrx.ModifierI := True;
-  mvrx.Expression := '\-(\d{4})\-';
-  if mvrx.Exec(rlsname) then
-    mvid_year := strtointdef(mvrx.Match[1], 0);
-  mvrx.Expression := '^VA[\-\_\.]';
-  mvid_va := mvrx.Exec(rlsname);
-  mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
-  mvid_live := mvrx.Exec(rlsname);
-  mvrx.Free;
+  try
+    mvrx.ModifierI := True;
+    mvrx.Expression := '\-(\d{4})\-';
+    if mvrx.Exec(rlsname) then
+      mvid_year := strtointdef(mvrx.Match[1], 0);
+    mvrx.Expression := '^VA[\-\_\.]';
+    mvid_va := mvrx.Exec(rlsname);
+    mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
+    mvid_live := mvrx.Exec(rlsname);
+  finally
+    mvrx.Free;
+  end;
 end;
 
 class function TMVIDRelease.DefaultSections: string;
