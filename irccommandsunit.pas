@@ -10780,24 +10780,24 @@ begin
         ratio := x.Match[2];
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(Credits|Creds|C)\:?\s?([\-\d\.\,\(]+)(MB|GB|TB|EP|ZP)\]?');
+    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(Credits|Creds|C)\:?\s?\(?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?');
     if x.Exec(line) then
     begin
-      ss := x.Match[2];
       minus := False;
+      ss := x.Match[2];
       if Pos('-', ss) > 0 then
       begin
         minus := True;
         ss := Csere(ss, '-', '');
       end;
 
-{$IFDEF MSWINDOWS}
+      {$IFDEF MSWINDOWS}
       ss := Csere(ss, '.', ',');
-{$ENDIF}
+      {$ENDIF}
 
       c := strtofloat(ss);
       ss := x.Match[3];
-      if x.Match[3] = 'MB' then
+      if UpperCase(x.Match[3]) = 'MB' then
       begin
         ss := 'MB';
         if c > 1024 then
@@ -10811,13 +10811,14 @@ begin
           ss := 'TB';
         end;
       end;
-      if minus then
-        creds := format('-%.2f %s', [c, ss])
-      else
-        creds := format('%.2f %s', [c, ss]);
-    end;
 
-    result := Format('Credits on <b>%s</b>: <b>%s</b> (%s)', [sitename, creds, ratio]);
+      if minus then
+        creds := Format('<c4> -%.2f %s </c>', [c, ss])
+      else
+        creds := Format('<c3> %.2f %s </c>', [c, ss]);
+      end;
+
+    result := Format('Credits on <b>%s</b>: %s (%s)', [sitename, creds, ratio]);
   finally
     x.free;
   end;
