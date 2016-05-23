@@ -9,7 +9,7 @@ procedure Uninitglobalskiplist;
 
 function Rehashglobalskiplist: boolean;
 
-function CheckForBadAssGroup(rls: string): boolean;
+function CheckForBadAssGroup(const rls: string): boolean;
 
 var
   globalgroupskip: TStringlist;
@@ -58,21 +58,24 @@ begin
   end;
 end;
 
-function CheckForBadAssGroup(rls: string): boolean;
+function CheckForBadAssGroup(const rls: string): boolean;
 var
-  r: TRegexpr; //i:integer;
+  r: TRegexpr;
 begin
   result := False;
   r := TRegexpr.Create;
-  r.Expression := '\-([^\-]+)$';
-  if r.Exec(rls) then
-  begin
-    if globalgroupskip.IndexOf(r.Match[1]) <> -1 then
-      result := True
-    else
-      result := False;
+  try
+    r.Expression := '\-([^\-]+)$';
+    if r.Exec(rls) then
+    begin
+      if globalgroupskip.IndexOf(r.Match[1]) <> -1 then
+        result := True
+      else
+        result := False;
+    end;
+  finally
+    r.free;
   end;
-  r.free;
 end;
 
 end.

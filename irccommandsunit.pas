@@ -285,7 +285,6 @@ function IrcDisplaySocks5(const netname, channel: string; params: string): boole
 function IrcTweakSocks5(const netname, channel: string; params: string): boolean;
 function IrcSetSocks5(const netname, channel: string; params: string): boolean;
 function IrcRehashSocks5(const netname, channel: string; params: string): boolean;
-//function IrcTweakSocks5(const netname, channel: string;params: string): Boolean;
 
 function IrcDisplayMappings(const netname, channel: string; params: string): boolean;
 
@@ -584,7 +583,7 @@ const
     (cmd: 'addsocks5'; hnd: IrcAddSocks5; minparams: 3; maxparams: 5; hlpgrp: 'doh_socks5'),
     (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'doh_socks5'),
     (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'doh_socks5'),
-    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 5; maxparams: 5; hlpgrp: 'doh_socks5'),
+    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
     (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
 
     (cmd: '- PRETIME -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
@@ -3727,8 +3726,6 @@ var
   xl: TStringList;
   i: integer;
 begin
-  //  Result := False;
-  // sitename:= UpperCase(SubString(params, ' ', 1));
   sitename := UpperCase(params);
   xl := TStringList.Create;
   xl.Delimiter := char(44);
@@ -3746,16 +3743,15 @@ begin
       end;
       if s.PermDown then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
-          [sitename]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set permdown.', [sitename]);
         continue;
       end;
       RawB(Netname, Channel, sitename, '', 'SITE INVITE ' + mynickname);
     end;
   finally
-    Result := True;
+    xl.Free;
   end;
-  xl.Free;
+  Result := True;
 end;
 
 function IrcRaw(const Netname, Channel: string; params: string): boolean;
@@ -3818,19 +3814,19 @@ begin
 
   x := TStringList.Create;
   y := TStringList.Create;
+  try
+
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
     if s.markeddown then
     begin
-      irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.',
-        [s.Name]);
+      irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.', [s.Name]);
       Continue;
     end;
     if (s.PermDown) then
     begin
-      irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.',
-        [s.Name]);
+      irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.',[s.Name]);
       Continue;
     end;
     x.DelimitedText := s.leechers;
@@ -3848,11 +3844,9 @@ begin
       Continue;
     end;
   end;
-  x.Free;
 
   if y.Count = 0 then
   begin
-    y.Free;
     irc_addtext(Netname, Channel, 'User %s not found on any sites', [username]);
     exit;
   end;
@@ -3860,7 +3854,10 @@ begin
   for i := 0 to y.Count - 1 do
     RawB(Netname, Channel, y[i], '', command);
 
-  y.Free;
+  finally
+    x.Free;
+    y.Free;
+  end;
 
   Result := True;
 end;
@@ -3918,23 +3915,22 @@ end;
   end;
 *)
 
-procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
-  out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
+//procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
+//  out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
+procedure SitesD(const Netname, Channel: string; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 var
   s: TSite;
   i: integer;
 begin
-  sitesup := TStringList.Create;
-  sitesdn := TStringList.Create;
-  sitespd := TStringList.Create;
-  sitesuk := TStringList.Create;
+  //sitesup := TStringList.Create;
+  //sitesdn := TStringList.Create;
+  //sitespd := TStringList.Create;
+  //sitesuk := TStringList.Create;
 
-  try
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites[i]);
-      if UpperCase(s.Name) = uppercase(config.ReadString(
-        'sites', 'admin_sitename', 'SLFTP')) then
+      if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
 
       if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
@@ -3945,17 +3941,12 @@ begin
         Continue;
       end;
       case s.working of
-        sstUp:
-          sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' +
-            IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
-        sstDown:
-          sitesdn.Add('<b>' + s.Name + '</b>');
-        sstUnknown:
-          sitesuk.Add('<b>' + s.Name + '</b>');
+        sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+        sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
+        sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
       end;
     end;
-  finally
-  end;
+
 end;
 
 procedure SitesC(const Netname, Channel: string);
@@ -3967,6 +3958,8 @@ begin
   sup := TStringList.Create;
   sd := TStringList.Create;
   suk := TStringList.Create;
+  try
+
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
@@ -3991,9 +3984,13 @@ begin
   irc_addtext(Netname, Channel, '??: ' + suk.commatext);
   irc_addtext(Netname, Channel, '##: %d UP:%d DN:%d ??:%d ',
     [sites.Count, sup.Count, sd.Count, suk.Count]);
-  sup.Free;
-  sd.Free;
-  suk.Free;
+
+  finally
+    sup.Free;
+    sd.Free;
+    suk.Free;
+  end;
+
 end;
 
 procedure SitesB(const Netname, Channel: string);
@@ -4076,12 +4073,12 @@ var
 begin
   Result := False;
   added := False;
+  s := nil;
+  db := 0;
   x := TStringList.Create;
   x.Delimiter := ' ';
   x.DelimitedText := UpperCase(params);
-  s := nil;
-
-  db := 0;
+  try
 
   if x.Count > 0 then
   begin
@@ -4153,7 +4150,10 @@ begin
   // if s.RCString('autologin','-1') <> '-1' then
   if s.RCInteger('autobnctest', 0) <> 0 then
     s.AutoBnctest;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 
   RemoveTN(tn);
 
@@ -4629,6 +4629,7 @@ begin
   y := TStringList.Create;
   y.Delimiter := ' ';
   y.DelimitedText := Names;
+  try
 
   for i := 0 to y.Count - 1 do
 
@@ -4639,39 +4640,6 @@ begin
       Result := False;
       exit;
     end;
-
-  (*
-    r.Expression:='[\+\-](.*?)$';
-    r.ModifierM:=True;
-    r.ModifierI:=True;
-    snames:=' ';
-
-    for I := 0 to y.Count - 1 do
-    if r.Exec(y.Strings[i]) then begin
-    s:=r.Match[1];
-    if not Check_For_Vailed_Chanrole(s) then  begin
-    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> %s is no valid chanrole.',[s]);
-    result:=False;
-    r.free;
-    Exit;
-    end;
-    end else begin
-    irc_addtext(Netname,Channel,'<c4><b>ERROR</c>:</b> whats todo with %s ?',[y.strings[i]]);
-    result:=False;
-    r.free;
-    Exit;
-    end;
-  *)
-  (*
-    z:=Tstringlist.Create;
-    z.Delimiter:=' ';
-    z.DelimitedText:=b.names;
-
-    for I := 0 to y.Count - 1 do begin
-    z.IndexOf(y.Strings[i]);
-    end;
-
-  *)
 
   b := FindIrcBlowfish(nn, blowchannel, False);
   if b <> nil then
@@ -4696,8 +4664,9 @@ begin
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
       [blowchannel, nn]));
 
-  // z.free;
-  // r.free;
+  finally
+    y.Free;
+  end;
 
   Result := True;
 end;
@@ -5244,8 +5213,11 @@ var
   i: integer;
   r: TRegExpr;
 begin
+  Result := False;
   r := TRegExpr.Create;
   r.ModifierI := True;
+  try
+
   for i := 0 to conditions.Count - 1 do
   begin
     if UpperCase(params) = 'COMMON' then
@@ -5256,22 +5228,26 @@ begin
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
     end
     else if params <> '' then
-    begin // if UpperCase(params) = 'COMMON' then begin
+    begin
       r.Expression := format('^%s[\w\d]+$', [params]);
       if r.Exec(TConditionClass(conditions[i]).Name) then
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name +
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
     end
     else
-    begin // end else if params <> '' then begin
+    begin
       if conditions[i] <> TBooleanCondition then
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name +
           ', ops: ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText)
       else
         irc_addtext(Netname, Channel, TConditionClass(conditions[i]).Name);
-    end; // end else begin //end else if params <> '' then begin
-  end; // for i:= 0 to conditions.Count -1 do begin
-  r.Free;
+    end;
+  end;
+
+  finally
+    r.Free;
+  end;
+
   Result := True;
 end;
 
@@ -5600,15 +5576,15 @@ end;
 
 function IrcSites(const Netname, Channel: string; params: string): boolean;
 var
-  spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
+  spd, sup, sdn, suk: TStringList;
   scount: integer;
 begin
-  //  Result := False;
   scount := sites.Count - 1;
   sup := TStringList.Create;
   spd := TStringList.Create;
   sdn := TStringList.Create;
   suk := TStringList.Create;
+  try
   SitesD(Netname, Channel, sup, sdn, suk, spd);
 
   IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
@@ -5619,11 +5595,13 @@ begin
     '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
   IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
     'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
-
+  finally
   sup.Free;
+  spd.Free;
   sdn.Free;
   suk.Free;
-  spd.Free;
+  end;
+
   Result := True;
 end;
 
@@ -5679,6 +5657,7 @@ begin
   end;
 
   x := TStringList.Create;
+  try
 
   irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
   irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s',
@@ -5707,7 +5686,9 @@ begin
   if s.RCString('notes', '') <> '' then
     irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
 
-  x.Free;
+  finally
+    x.Free;
+  end;
 
   Result := True;
 end;
@@ -5730,6 +5711,7 @@ begin
   end;
 
   x := TStringList.Create;
+  try
   sitesdat.ReadSection('site-' + sitename, x);
   x.Sort;
 
@@ -5791,7 +5773,10 @@ begin
       end;
     end;
   end;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 
   i := 0;
   while (not slshutdown) do
@@ -9637,8 +9622,7 @@ begin
 end;
  *)
 
-function IrcTweakSocks5(const Netname, Channel: string; params: string):
-  boolean;
+function IrcTweakSocks5(const Netname, Channel: string; params: string): boolean;
 var
   fname, ftrigger, fvalue: string;
   s5: TmSLSocks5;
@@ -9646,14 +9630,16 @@ begin
   Result := False;
 
   fname := SubString(params, ' ', 1);
-  ftrigger := SubString(params, ' ', 2);
+  ftrigger := AnsiLowerCase(SubString(params, ' ', 2));
   fvalue := SubString(params, ' ', 3);
+
   s5 := FindProxyByName(fname);
   if s5 = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Network with name %s!', [fname]);
+    irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [fname]);
     exit;
   end;
+
   try
     if ftrigger = 'host' then
       s5.host := fvalue;
@@ -9663,9 +9649,15 @@ begin
       s5.username := fvalue;
     if ftrigger = 'password' then
       s5.password := fvalue;
-  finally
-    Result := True;
+  except
+    on e: Exception do
+    begin
+      Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcTweakSocks5 saving value %s', [e.Message]);
+      exit;
+    end;
   end;
+
+  Result := True;
 end;
 
 function IrcAddSocks5(const Netname, Channel: string; params: string): boolean;
@@ -9722,32 +9714,38 @@ var
   trigger, Value: string;
   rx: TRegExpr;
 begin
-  Result := True;
+  Result := False;
+
   rx := TRegExpr.Create;
-  rx.ModifierI := True;
-  rx.Expression := '[\-]{1,2}(name|index) ([^\s]+)';
-  if rx.Exec(params) then
+  try
+    rx.ModifierI := True;
+    rx.Expression := '[\-]{1,2}(name|index) ([^\s]+)';
+    if rx.Exec(params) then
+    begin
+      trigger := AnsiUpperCase(rx.Match[1]);
+      Value := rx.Match[2];
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'dOH! something wrong!');
+      exit;
+    end;
+  finally
+    rx.Free;
+  end;
+
+  if ((trigger <> 'NAME') and (trigger <> 'INDEX')) then
   begin
-    trigger := rx.Match[1];
-    Value := rx.Match[2];
-  end
-  else
-  begin
-    irc_addtext(Netname, Channel, 'dOH! something wrong!');
+    irc_addtext(Netname, Channel, 'Use delsocks5 --NAME <socks5 name> OR --INDEX <# in listsocks5>');
     exit;
   end;
 
-  if ((UpperCase(trigger) <> 'NAME') and (UpperCase(trigger) <> 'INDEX')) then
-  begin
-    irc_addtext(Netname, Channel,
-      'Use delsocks5 --NAME <socks5 name> OR --INDEX <# in listsocks5>');
-    exit;
-  end;
-
-  if UpperCase(trigger) = 'NAME' then
+  if trigger = 'NAME' then
     Result := RemoveProxy(Value);
-  if UpperCase(trigger) = 'INDEX' then
+  if trigger = 'INDEX' then
     Result := RemoveProxy(StrToInt(Value));
+
+  Result := True;
 end;
 
 function IrcRehashSocks5(const Netname, Channel: string; params: string):
@@ -10901,39 +10899,6 @@ begin
   Result := True;
 end;
 
-(*
-
-function IrcSites(const Netname, Channel: string; params: string): boolean;
-var
-  spd, sup, sdn, suk: TStringList; // i,ii:integer;s,ss:String;
-  scount: integer;
-begin
-  //  Result := False;
-  scount := sites.Count - 2;
-  sup := TStringList.Create;
-  spd := TStringList.Create;
-  sdn := TStringList.Create;
-  suk := TStringList.Create;
-  SitesD(Netname, Channel, sup, sdn, suk, spd);
-
-  IrcLineBreak(Netname, Channel, sup.commatext, char('"'),
-    'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, sdn.commatext, char('"'),
-    'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, suk.commatext, char('"'),
-    '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
-  IrcLineBreak(Netname, Channel, spd.commatext, char('"'),
-    'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
-
-  sup.Free;
-  sdn.Free;
-  suk.Free;
-  spd.Free;
-  Result := True;
-end;
-
-*)
-
 function IrcShowAppStatus(const Netname, Channel: string; params: string): boolean;
 var
   rx: TRegexpr;
@@ -10957,11 +10922,11 @@ begin
   suk := TStringList.Create;
   try
     SitesD(Netname, Channel, sup, sdn, suk, spd);
+
     irc_addtext(Netname, Channel,
       '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
       [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
-    rx.Expression :=
-      'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
+    rx.Expression := 'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
     if rx.Exec(ReadAppQueueCaption) then
       irc_addtext(Netname, Channel,
         '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s',
@@ -10969,9 +10934,9 @@ begin
   finally
     rx.free;
     sup.Free;
+    spd.Free;
     sdn.Free;
     suk.Free;
-    spd.Free;
   end;
 
   (*

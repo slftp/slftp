@@ -12,7 +12,7 @@ procedure dupedbEndTransaction();
 
 procedure Addrlstodupedb(rls,section,event:string;pretime:longint;size:integer);
 
-procedure ReadDupeDB(rls:string; out pretime:integer; out size:integer);
+procedure ReadDupeDB(const rls: string; out pretime: integer; out size: integer);
 
 function dupeDBQuery(const q: string): string;
 
@@ -36,41 +36,33 @@ if q = '0' then result:=True else Result:=False;
 
 end;
 
-procedure ReadDupeDB(rls:string; out pretime:integer; out size:integer);
-var q:string;
-rx:Tregexpr;
+procedure ReadDupeDB(const rls: string; out pretime: integer; out size: integer);
+var
+ q: string;
+ rx: Tregexpr;
 begin
-irc_addtext('','','TRY TO READ PRETIME');
-  q:=    'SELECT ctime, size AS s '+#13#10;
-  q:= q+ 'FROM dupes ';
-  q:= q+ 'WHERE rlsname = '+chr(39)+rls+chr(39)+#13#10;
+  irc_addtext('','','TRY TO READ PRETIME');
+  q := 'SELECT ctime, size AS s '+#13#10;
+  q := q+ 'FROM dupes ';
+  q := q+ 'WHERE rlsname = '+chr(39)+rls+chr(39)+#13#10;
 
-  q:= dupeDBQuery(q);
-//  ss:= Elsosor(q);
- irc_addtext('','','RESULT: '+q);
+  q := dupeDBQuery(q);
+  irc_addtext('','','RESULT: '+q);
+
+  pretime := -1;
+  size := -1;
+
   rx:=Tregexpr.Create;
+  try
   rx.Expression:='([\d]+)\;([\d]+)';
-pretime:=-1;
-size:=-1;
-
-if rx.Exec(q) then begin
-pretime:= strtoint(rx.Match[1]);
-size:= strtoint(rx.Match[2]);
-
-end;
-//irc_addtext('','','%d -- %d',[pretime,size]);
-(*
-  while(true) do
+  if rx.Exec(q) then
   begin
-    ss:= Elsosor(q);
-    if  ss = '' then break;
-if rx.Exec(ss) then begin
-pretime:= strtoint(rx.Match[1]);
-size:= strtoint(rx.Match[2]);
-end;
-end;
-*)
-rx.free;
+    pretime := strtoint(rx.Match[1]);
+    size := strtoint(rx.Match[2]);
+  end;
+  finally
+    rx.free;
+  end;
 end;
 
 procedure Addrlstodupedb(rls,section,event:string;pretime:longint;size:integer);
@@ -86,7 +78,8 @@ begin
 end;
 
 function dupeDBQuery(const q: string): string;
-var s: Psqlite3_stmt;
+var
+  s: Psqlite3_stmt;
 begin
  s:= dupedb.Open(q);
  Result:= '';
@@ -95,7 +88,8 @@ begin
 end;
 
 procedure DupeDBInit;
-var s: string;
+var 
+  s: string;
 begin
   s:= Trim('dupe.db');
   dupedb:= TslSqliteDB.Create(s,'');
