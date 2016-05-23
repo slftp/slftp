@@ -219,7 +219,7 @@ begin
     indexes.open(indexerSelectPartially, [rls]);
     while indexes.Step(indexerSelectPartially) do
       Result := Result + indexes.column_text(indexerSelectPartially, 0) + '-' + indexes.column_text(indexerSelectPartially, 1) + '=' + indexes.column_text(indexerSelectPartially,
-        2) + ' => ' + indexes.column_text(indexerSelectPartially, 3) + #13#10;
+        2) + '/' + indexes.column_text(indexerSelectPartially, 3) + #13#10;
   finally
     indexer_lock.Leave;
   end;
