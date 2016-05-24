@@ -10780,7 +10780,7 @@ begin
 
       c := strtofloat(ss);
       ss := x.Match[3];
-      if UpperCase(x.Match[3]) = 'MB' then
+      if AnsiUpperCase(ss) = 'MB' then
       begin
         ss := 'MB';
         if c > 1024 then
@@ -10808,8 +10808,7 @@ begin
 
 end;
 
-function IrcShowCredits(const Netname, Channel: string; params: string):
-  boolean;
+function IrcShowCredits(const Netname, Channel: string; params: string): boolean;
 var
   i: integer;
   s: TSite;
@@ -10818,34 +10817,30 @@ var
   sitename: string;
 begin
   Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
+  sitename := AnsiUpperCase(SubString(params, ' ', 1));
 
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
+
       s := TSite(sites.Items[i]);
       if s = nil then
-      begin
         Continue;
-      end;
       if (s.PermDown) then
         Continue;
 
-      if s.working <> sstUp then
-      begin
-        irc_addtext(Netname, Channel,
-          'Site <b>%s</b> is offline. trying next one.', [s.Name]);
-        Continue;
-      end;
+      //if s.working <> sstUp then
+      //begin
+      //  irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline. trying next one.', [s.Name]);
+      //  Continue;
+      //end;
 
-      if ((s.working = sstDown) or (s.working = sstUnknown)) then
-      begin
-        Continue;
-      end;
+      //if ((s.working = sstDown) or (s.working = sstUnknown)) then
+      //  Continue;
+
       tn := AddNotify;
       try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
@@ -10860,24 +10855,29 @@ begin
           continue;
         end;
       end;
+
       irc_addtext(Netname, Channel, parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
       RemoveTN(tn);
     end;
   end
   else
-  begin // if sitename = '*' then begin
+  begin
     s := FindSiteByName(Netname, sitename);
     if s = nil then
     begin
       irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-      Result := False;
       exit;
     end;
     if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
     begin
-      Result := False;
       exit;
     end;
+    if (s.PermDown) then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitename]);
+      exit;
+    end;
+
     tn := AddNotify;
     try
       r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
@@ -10892,10 +10892,11 @@ begin
         Exit;
       end;
     end;
+
     irc_addtext(Netname, Channel, parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
     RemoveTN(tn);
+  end;
 
-  end; // end else begin //  if sitename = '*' then begin
   Result := True;
 end;
 
