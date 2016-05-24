@@ -36,24 +36,35 @@
 	      
 --==========================( NEW SLFTP.ini ITEMS )===============================-	    
 
-		[tasktvinfo]
-		daysbetweenlastUpdate=6
-                
-		[irc]
-		admin_forward_msgs=1
+		[sites]
+		ratio_regex=
+		credits_regex=
                 
 
 --===========================( KNOWN BUG in v1.5.* )================================-	      
 
-		The Sample thing
-		The MultiDisc thing
-		Sometimes slFtp tries to send into wrong folder -> Not AllowedFile error occur
+		sometimes for some people catching stops, need restart
+
+--=============================( SLFTP v1.5.2.5 )=================================- 
+		{+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to path/slftpsection *BETA*
+		{+} !testcolors to display a line with all the irc colors
+		{+} slftp.skip with regex - no need to add an entry for every language
+		    [skiplist-X264-HD-FR], [skiplist-X264-HD-NL], etc can be togehter now: [skiplist-X264-HD-*]
+		{^} slftp.precatcher entries can be mapped without a need to have it under [sections]
+		{^} !credits with colors, calculating, ... + matching more ftpd stat lines + option to change !credits regexps in slftp.ini
+		{^} Update to latest LibTar
+		{^} !indexquery results output changed
+		{^} Update of tvinfo to get excactly showvalues
+		{#} !setdown reply is correct now
+		{#} !tweaksocks5 don't respond always with "Too few parameters."
+		{#} !addsocks5 uppercases the input values now
+		{#} No more trying to trade into wrong subdirs, presites used as source when imdb rule is set
 		
 --=============================( SLFTP v1.5.2.2 )=================================- 
-		{#}	'Invalid argument index in format' error message fixed
+		{#} 'Invalid argument index in format' error message fixed
 		{#} !addgn is working again
 		{#} !setsocks5 is now case insensitive
-		{^}	No [SKIP] message after [PRE] message
+		{^} No [SKIP] message after [PRE] message
 	
 --=============================( SLFTP v1.5.2.1 )=================================- 	
 		{#} stop_on_englishcheck is working again. FYI: shamless is unequal to shamelessus! so disable the stop_on_englishcheck in slftp.ini
