@@ -36,6 +36,7 @@
 	      
 --==========================( NEW SLFTP.ini ITEMS )===============================-	    
 
+		//Use only if you know what you're doing
 		[sites]
 		ratio_regex=
 		credits_regex=
@@ -45,8 +46,8 @@
 
 		sometimes for some people catching stops, need restart
 
---=============================( SLFTP v1.5.2.5 )=================================- 
-		{+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to path/slftpsection *BETA*
+--=============================( SLFTP v1.5.3.0 )=================================- 
+		{+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to full path / slftp section *BETA*
 		{+} !testcolors to display a line with all the irc colors
 		{+} slftp.skip with regex - no need to add an entry for every language
 		    [skiplist-X264-HD-FR], [skiplist-X264-HD-NL], etc can be togehter now: [skiplist-X264-HD-*]
@@ -54,11 +55,12 @@
 		{^} !credits with colors, calculating, ... + matching more ftpd stat lines + option to change !credits regexps in slftp.ini
 		{^} Update to latest LibTar
 		{^} !indexquery results output changed
-		{^} Update of tvinfo to get excactly showvalues
+		{^} Update of tvinfo regexps to get excactly showvalues
 		{#} !setdown reply is correct now
 		{#} !tweaksocks5 don't respond always with "Too few parameters."
 		{#} !addsocks5 uppercases the input values now
-		{#} No more trying to trade into wrong subdirs, presites used as source when imdb rule is set
+		{#} No more trying to trade into wrong subdirs
+		{#} Use presites as source when imdb rules are set
 		
 --=============================( SLFTP v1.5.2.2 )=================================- 
 		{#} 'Invalid argument index in format' error message fixed
