@@ -1833,7 +1833,11 @@ end;
 
 procedure TslTCPThread.Start;
 begin
+{$IFDEF MSWINDOWS}
+connectionThread.Resume;
+{$ELSE}
   connectionThread.Start;
+{$ENDIF}  
 end;
 
 procedure TslTCPThread.Stop;
