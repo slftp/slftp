@@ -38,8 +38,8 @@
 
 		//Use only if you know what you're doing
 		[sites]
-		ratio_regex=
-		credits_regex=
+		ratio_regex=\[?(Ratio|R)\:?\s?\(?([\d\:\.]+|Unlimited|[\d\:\d]+)\]?
+		credits_regex=\[?(Credits|Creds|C)\:?\s?\(?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?
                 
 
 --===========================( KNOWN BUG in v1.5.* )================================-	      
