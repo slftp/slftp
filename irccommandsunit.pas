@@ -10771,12 +10771,14 @@ begin
       if Pos('-', ss) > 0 then
       begin
         minus := True;
-        ss := Csere(ss, '-', '');
+        ss := StringReplace(ss, '-', '', [rfReplaceAll, rfIgnoreCase]);
       end;
 
-      {$IFDEF MSWINDOWS}
-      ss := Csere(ss, '.', ',');
-      {$ENDIF}
+    {$IFDEF FPC}
+    ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    {$ELSE}
+    ss := StringReplace(ss, '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+    {$ENDIF}
 
       c := strtofloat(ss);
       ss := x.Match[3];
@@ -10838,7 +10840,7 @@ begin
       //  Continue;
       //end;
 
-      //if ((s.working = sstDown) or (s.working = sstUnknown)) then
+      //if ((s.working = sstDown) or (s.working = sstMarkedDown)) then
       //  Continue;
 
       tn := AddNotify;
