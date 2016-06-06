@@ -10825,23 +10825,13 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-
       s := TSite(sites.Items[i]);
       if s = nil then
         Continue;
+      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
       if (s.PermDown) then
         Continue;
-
-      //if s.working <> sstUp then
-      //begin
-      //  irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline. trying next one.', [s.Name]);
-      //  Continue;
-      //end;
-
-      //if ((s.working = sstDown) or (s.working = sstMarkedDown)) then
-      //  Continue;
 
       tn := AddNotify;
       try
