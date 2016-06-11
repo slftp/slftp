@@ -638,7 +638,7 @@ implementation
 
 uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit, debugunit, queueunit, tasksunit, mystrings, sitesunit, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console, slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
-  taskspeedtest, taskfilesize, statsunit, skiplists, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp, strUtils, inifiles,
+  taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp, strUtils, inifiles,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON;
 
@@ -10905,15 +10905,17 @@ var
   rx: TRegexpr;
   spd, sup, sdn, suk: TStringList;
 begin
-  irc_addtext(Netname, Channel, '<b>%s</b> is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>', [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started), DateTimeAsString(started)]);
   // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
-  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind',
-    [kb_list.Count, chr(39)]);
+  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind', [kb_list.Count, chr(39)]);
+
   irc_addtext(Netname, Channel, TheTVDbStatus);
+
   if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE then
     irc_addtext(Netname, Channel, dbaddpre_Status);
+
+  irc_addtext(Netname, Channel, 'Other Stats: %s <b>-</b> %s <b>-</b> %s', [dbaddurl_Status, dbaddimdb_Status, dbaddnfo_Status]);
 
   rx := TRegexpr.Create;
   rx.ModifierI := True;
@@ -10939,20 +10941,6 @@ begin
     sdn.Free;
     suk.Free;
   end;
-
-  (*
-    db_status := '';
-    if (dbaddpre_Status <> '') then
-      irc_addtext(Netname, Channel, '%s', [dbaddpre_Status]);
-    if (dbaddurl_Status <> '') then
-      db_status := db_status + ' <b>-</b> ' + dbaddurl_Status;
-    if (dbaddimdb_Status <> '') then
-      db_status := db_status + ' <b>-</b> ' + dbaddimdb_Status;
-    if (dbaddnfo_Status <> '') then
-      db_status := db_status + ' <b>-</b> ' + dbaddnfo_Status;
-    if (db_status <> '') then
-      irc_addtext(Netname, Channel, '%s', [db_status]);
-  *)
 
   Result := True;
 end;
