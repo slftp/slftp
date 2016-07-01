@@ -2257,31 +2257,38 @@ function TSite.IsAffil(affil: string): boolean;
 var
   x: TStringList;
 begin
-  x      := TStringList.Create;
+  x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := siteaffils;
   Result := x.IndexOf(affil) <> -1;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.IsSection(section: string): boolean;
 var
   x: TStringList;
 begin
-  x      := TStringList.Create;
+  x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := sections;
   Result := x.IndexOf(section) <> -1;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.IsUser(user: string): boolean;
 var
   x: TStringList;
 begin
-  x      := TStringList.Create;
+  x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := leechers;
@@ -2291,7 +2298,9 @@ begin
     x.DelimitedText := traders;
     Result := x.IndexOf(user) <> -1;
   end;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 
@@ -2302,6 +2311,7 @@ var
   i:  integer;
 begin
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := self.sections;
@@ -2322,7 +2332,10 @@ begin
   x.Sort;
   self.sections := x.DelimitedText;
   Result := x.DelimitedText;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.SetLeechers(users: string; remove: boolean): string;
@@ -2335,6 +2348,7 @@ begin
   voltmar := True;
   maxleechers := RCInteger('maxleechers', -1);
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := self.leechers;
@@ -2367,7 +2381,10 @@ begin
   x.Sort;
   self.leechers := x.DelimitedText;
   Result := x.DelimitedText;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.SetTraders(users: string; remove: boolean): string;
@@ -2380,6 +2397,7 @@ begin
   maxtraders := RCInteger('maxtraders', -1);
   voltmar := False;
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := self.traders;
@@ -2411,7 +2429,10 @@ begin
   x.Sort;
   self.traders := x.DelimitedText;
   Result := x.DelimitedText;
-  x.Free;
+
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.SetAffils(affils: string): string;
@@ -2423,6 +2444,7 @@ var
 begin
   x    := TStringList.Create;
   List := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   ExtractStrings([' ', ',', '|'], [], PChar(affils), List);
@@ -2438,8 +2460,11 @@ begin
   x.Sort;
   siteaffils := x.DelimitedText;
   Result     := x.DelimitedText;
-  List.Free;
-  x.Free;
+
+  finally
+    x.Free;
+    List.Free;
+  end;
 end;
 
 function TSite.AddAffil(affil: string): boolean;
@@ -2447,6 +2472,7 @@ var
   x: TStringList;
 begin
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := siteaffils;
@@ -2459,7 +2485,9 @@ begin
   end
   else
     Result := False;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.GetLeechers: string;
@@ -2496,13 +2524,16 @@ begin
     exit;
 
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.DelimitedText := leechers;
   if x.Count <= Result then
     Dec(Result, x.Count)
   else
     Result := 0;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.FreeTraderSlots: integer;
@@ -2514,13 +2545,16 @@ begin
     exit;
 
   x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.DelimitedText := traders;
   if x.Count <= Result then
     Dec(Result, x.Count)
   else
     Result := 0;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 procedure TSite.AutoBnctest;
@@ -2892,31 +2926,37 @@ begin
   if self.sw <> sswUnknown then
     Result := self.sw
   else
-    Result := TSiteSw(sitesdat.ReadInteger('site-' + Name, 'sw', integer(sswUnknown)));
+    Result := TSiteSw(sitesdat.ReadInteger('site-' + Name, 'sw', integer(sswUnknown))); // TODO: maybe use self.GetSw for it?
 end;
 
 function TSite.IsLeecher(user: string): boolean;
 var
   x: TStringList;
 begin
-  x      := TStringList.Create;
+  x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := leechers;
   Result := x.IndexOf(user) <> -1;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.IsTrader(user: string): boolean;
 var
   x: TStringList;
 begin
-  x      := TStringList.Create;
+  x := TStringList.Create;
+  try
   x.Delimiter := ' ';
   x.CaseSensitive := False;
   x.DelimitedText := traders;
   Result := x.IndexOf(user) <> -1;
-  x.Free;
+  finally
+    x.Free;
+  end;
 end;
 
 function TSite.GetNoannounce: boolean;
