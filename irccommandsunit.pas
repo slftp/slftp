@@ -793,7 +793,7 @@ begin
     exit;
   end;
 
-  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (0 < AnsiPos('ARCH-', section)) then
+  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (AnsiPos('ARCH-', section) = 0) then
   begin
     if (kb_sections.IndexOf(section) = -1) and (dir <> '') then
     begin
