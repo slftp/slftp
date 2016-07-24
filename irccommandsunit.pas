@@ -7090,14 +7090,9 @@ end;
 function IrcSkipReload(const Netname, Channel: string; params: string): boolean;
 begin
   try
-    (*
-      SkiplistStart;
-      Result:= True;
-    *)
     Result := SkiplistRehash;
   finally
-    irc_addtext(Netname, Channel, 'Skiplist rehased... (%d entries)',
-      [SkiplistCount]);
+    irc_addtext(Netname, Channel, 'Skiplist reloaded... (%d entries)', [SkiplistCount]);
   end;
 end;
 
