@@ -1543,34 +1543,33 @@ var
 begin
   Result := 0;
   try
-  idTCP := TslTCPSocket.Create;
+    idTCP := TslTCPSocket.Create;
 
-  try
+    try
+      if not SendProtP then exit;
 
-    if not SendProtP then exit;
+      if site.sw = sswDrftpd then
+      begin
+        if not Send('PRET RETR %s', [TranslateFilename(filename)]) then exit;
+        if not Read('PRET RETR %s') then exit;
+      end;
 
-    if site.sw = sswDrftpd then
-    begin
-      if not Send('PRET RETR %s', [TranslateFilename(filename)]) then exit;
-      if not Read('PRET RETR %s') then exit;
-    end;
+      if not Send('PASV') then exit;
+      if not Read('PASV') then exit;
 
-    if not Send('PASV') then exit;
-    if not Read('PASV') then exit;
-
-    if (lastResponseCode <> 227) then
-    begin
-      irc_addtext(todotask, Trim(lastResponse));
-      Result:= -1;
-      exit;
-    end;
-    ParsePasvString(lastResponse, host, port);
-    if port = 0 then
-    begin
-        irc_AddText(todotask, site.name+': couldnt parse passive string / '+filename);
+      if (lastResponseCode <> 227) then
+      begin
+        irc_addtext(todotask, Trim(lastResponse));
         Result:= -1;
         exit;
-    end;
+      end;
+      ParsePasvString(lastResponse, host, port);
+      if port = 0 then
+      begin
+          irc_AddText(todotask, site.name+': couldnt parse passive string / '+filename);
+          Result:= -1;
+          exit;
+      end;
 
       idTCP.Host := host;
       idTCP.Port := port;
@@ -1616,18 +1615,17 @@ begin
       if not Read() then exit;
 
       Result := 1;
-  finally
-    idTCP.Free;
-  end;
+    finally
+      idTCP.Free;
+    end;
 
- except
+  except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.LeechFile : %s', [e.Message]));
       exit;
     end;
   end;
-
 end;
 
 
@@ -2259,10 +2257,10 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := siteaffils;
-  Result := x.IndexOf(affil) <> -1;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := siteaffils;
+    Result := x.IndexOf(affil) <> -1;
   finally
     x.Free;
   end;
@@ -2274,10 +2272,10 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := sections;
-  Result := x.IndexOf(section) <> -1;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := sections;
+    Result := x.IndexOf(section) <> -1;
   finally
     x.Free;
   end;
@@ -2289,15 +2287,15 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := leechers;
-  Result := x.IndexOf(user) <> -1;
-  if not Result then
-  begin
-    x.DelimitedText := traders;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := leechers;
     Result := x.IndexOf(user) <> -1;
-  end;
+    if not Result then
+    begin
+      x.DelimitedText := traders;
+      Result := x.IndexOf(user) <> -1;
+    end;
   finally
     x.Free;
   end;
@@ -2312,27 +2310,26 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := self.sections;
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(sections, ' ', i);
-    if ss = '' then
-      Break;
-
-    if x.IndexOf(ss) <> -1 then
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := self.sections;
+    for i := 1 to 1000 do
     begin
-      if remove then
-        x.Delete(x.IndexOf(ss));
-    end
-    else
-      x.Add(ss);
-  end;
-  x.Sort;
-  self.sections := x.DelimitedText;
-  Result := x.DelimitedText;
+      ss := SubString(sections, ' ', i);
+      if ss = '' then
+        Break;
 
+      if x.IndexOf(ss) <> -1 then
+      begin
+        if remove then
+          x.Delete(x.IndexOf(ss));
+      end
+      else
+        x.Add(ss);
+    end;
+    x.Sort;
+    self.sections := x.DelimitedText;
+    Result := x.DelimitedText;
   finally
     x.Free;
   end;
@@ -2349,39 +2346,38 @@ begin
   maxleechers := RCInteger('maxleechers', -1);
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := self.leechers;
-  //  irc_addtexT('debug: '+IntToStr(maxleechers)+' '+x.DelimitedText);
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(users, ' ', i);
-    if ss = '' then
-      Break;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := self.leechers;
+    //  irc_addtexT('debug: '+IntToStr(maxleechers)+' '+x.DelimitedText);
+    for i := 1 to 1000 do
+    begin
+      ss := SubString(users, ' ', i);
+      if ss = '' then
+        Break;
 
-    if x.IndexOf(ss) <> -1 then
-    begin
-      if remove then
-        x.Delete(x.IndexOf(ss));
-    end
-    else
-    begin
-      if ((maxleechers = -1) or (x.Count + 1 <= maxleechers)) then
-        x.Add(ss)
+      if x.IndexOf(ss) <> -1 then
+      begin
+        if remove then
+          x.Delete(x.IndexOf(ss));
+      end
       else
       begin
-        if not voltmar then
+        if ((maxleechers = -1) or (x.Count + 1 <= maxleechers)) then
+          x.Add(ss)
+        else
         begin
-          // irc_Addtext('Limit reached');
-          voltmar := True;
+          if not voltmar then
+          begin
+            // irc_Addtext('Limit reached');
+            voltmar := True;
+          end;
         end;
       end;
     end;
-  end;
-  x.Sort;
-  self.leechers := x.DelimitedText;
-  Result := x.DelimitedText;
-
+    x.Sort;
+    self.leechers := x.DelimitedText;
+    Result := x.DelimitedText;
   finally
     x.Free;
   end;
@@ -2398,38 +2394,37 @@ begin
   voltmar := False;
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := self.traders;
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(users, ' ', i);
-    if ss = '' then
-      Break;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := self.traders;
+    for i := 1 to 1000 do
+    begin
+      ss := SubString(users, ' ', i);
+      if ss = '' then
+        Break;
 
-    if x.IndexOf(ss) <> -1 then
-    begin
-      if remove then
-        x.Delete(x.IndexOf(ss));
-    end
-    else
-    begin
-      if ((maxtraders = -1) or (x.Count + 1 <= maxtraders)) then
-        x.Add(ss)
+      if x.IndexOf(ss) <> -1 then
+      begin
+        if remove then
+          x.Delete(x.IndexOf(ss));
+      end
       else
       begin
-        if not voltmar then
+        if ((maxtraders = -1) or (x.Count + 1 <= maxtraders)) then
+          x.Add(ss)
+        else
         begin
-          // irc_Addtext('Limit reached');
-          voltmar := True;
+          if not voltmar then
+          begin
+            // irc_Addtext('Limit reached');
+            voltmar := True;
+          end;
         end;
       end;
     end;
-  end;
-  x.Sort;
-  self.traders := x.DelimitedText;
-  Result := x.DelimitedText;
-
+    x.Sort;
+    self.traders := x.DelimitedText;
+    Result := x.DelimitedText;
   finally
     x.Free;
   end;
@@ -2445,22 +2440,21 @@ begin
   x    := TStringList.Create;
   List := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  ExtractStrings([' ', ',', '|'], [], PChar(affils), List);
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    ExtractStrings([' ', ',', '|'], [], PChar(affils), List);
 
-  for i := 0 to List.Count - 1 do
-  begin
-    affil := List[i];
-    if affil = '' then
-      continue;
-    if x.IndexOf(affil) = -1 then
-      x.Add(affil);
-  end;
-  x.Sort;
-  siteaffils := x.DelimitedText;
-  Result     := x.DelimitedText;
-
+    for i := 0 to List.Count - 1 do
+    begin
+      affil := List[i];
+      if affil = '' then
+        continue;
+      if x.IndexOf(affil) = -1 then
+        x.Add(affil);
+    end;
+    x.Sort;
+    siteaffils := x.DelimitedText;
+    Result     := x.DelimitedText;
   finally
     x.Free;
     List.Free;
@@ -2473,18 +2467,18 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := siteaffils;
-  if x.IndexOf(affil) = -1 then
-  begin
-    x.Add(affil);
-    x.Sort;
-    siteaffils := x.DelimitedText;
-    Result     := True;
-  end
-  else
-    Result := False;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := siteaffils;
+    if x.IndexOf(affil) = -1 then
+    begin
+      x.Add(affil);
+      x.Sort;
+      siteaffils := x.DelimitedText;
+      Result     := True;
+    end
+    else
+      Result := False;
   finally
     x.Free;
   end;
@@ -2525,12 +2519,12 @@ begin
 
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.DelimitedText := leechers;
-  if x.Count <= Result then
-    Dec(Result, x.Count)
-  else
-    Result := 0;
+    x.Delimiter := ' ';
+    x.DelimitedText := leechers;
+    if x.Count <= Result then
+      Dec(Result, x.Count)
+    else
+      Result := 0;
   finally
     x.Free;
   end;
@@ -2935,10 +2929,10 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := leechers;
-  Result := x.IndexOf(user) <> -1;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := leechers;
+    Result := x.IndexOf(user) <> -1;
   finally
     x.Free;
   end;
@@ -2950,10 +2944,10 @@ var
 begin
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.CaseSensitive := False;
-  x.DelimitedText := traders;
-  Result := x.IndexOf(user) <> -1;
+    x.Delimiter := ' ';
+    x.CaseSensitive := False;
+    x.DelimitedText := traders;
+    Result := x.IndexOf(user) <> -1;
   finally
     x.Free;
   end;
