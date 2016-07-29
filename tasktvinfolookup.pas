@@ -80,11 +80,14 @@ begin
     getShowValues(name, showName);
 
     // Cut off Year tag
-    x.Expression := '[._-\s](\d{4})[\s._-]?$';
+    //x.Expression := '[._-\s](\d{4})[\s._-]?$'; <-- will cut every number with 4 digits at the end
+    x.Expression := '[._-\s]((19|20)\d\d)[\s._-]?$';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
-      if strtoint(year) < config.ReadInteger('', 'minimum_year_value', 2030) then
+      //if strtoint(year) < config.ReadInteger('', 'minimum_year_value', 2030) then
+      //we add 10 years to current year
+      if StrToInt(year) < (StrToInt(FormatDateTime('yyyy', Now)) + 10) then
       begin
         showName := x.Replace(showName, '');
         hadYear := True;
