@@ -76,39 +76,39 @@ begin
 end;
 
 
-function RemoveINT(grp:string):string;
-var  r:TRegexpr;
+function RemoveINT(grp: string): string;
+var r: TRegexpr;
 begin
   result:= grp;
   try
-    r:=TRegexpr.Create;
+    r := TRegexpr.Create;
     try
-      r.ModifierI:=True;
-      r.Expression:='[\-\_]int$';
-      result:=r.Replace(grp,'');
+      r.ModifierI := True;
+      r.Expression := '[\-\_]int$';
+      result := r.Replace(grp, '', False);
     finally
       r.free;
     end;
   except
-    result:= grp;
+    result := grp;
   end;
 end;
 
-function RemoveWEB(grp:string):string;
-var  r:TRegexpr;
+function RemoveWEB(grp: string): string;
+var r: TRegexpr;
 begin
-  result:=grp;
+  result := grp;
   try
-    r:=TRegexpr.Create;;
+    r := TRegexpr.Create;;
     try
-      r.ModifierI:=True;
-      r.Expression:='[\-\_]web$';
-      result:=r.Replace(grp,'');
+      r.ModifierI := True;
+      r.Expression := '[\-\_]web$';
+      result := r.Replace(grp, '', False);
     finally
       r.free;
     end;
   except
-    result:=grp;
+    result := grp;
   end;
 end;
 
