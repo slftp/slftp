@@ -62,7 +62,8 @@ unit ID3v2;
 interface
 
 uses
-  Classes, SysUtils, TntClasses, TntSysUtils;
+  Classes, SysUtils;
+//  Classes, SysUtils, TntClasses, TntSysUtils;
 
 const
   TAG_VERSION_2_2 = 2;                               { Code for ID3v2.2.x tag }
