@@ -200,7 +200,7 @@ begin
       rx.Expression := '(\d{4}|720p|1080p|' + ttags.DelimitedText + ').*$';
       season := 0;
       episode := 0;
-      showName := rx.Replace(rip, '');
+      showName := rx.Replace(rip, '', False);
 
     finally
       ttags.free;
