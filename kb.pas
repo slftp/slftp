@@ -1590,7 +1590,6 @@ var
   szo, szamoknelkul: string;
   db: integer;
   lrx: TRegexpr;
-
 begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
@@ -1621,6 +1620,7 @@ begin
 
       //nyelvkod.
       lrx := TRegexpr.Create;
+      try
       lrx.ModifierI := True;
       for I := 0 to mp3languages.Count - 1 do
       begin
@@ -1706,7 +1706,10 @@ begin
       lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
 
       mp3_va := lrx.Exec(rlsname);
-      lrx.Free;
+
+      finally
+        lrx.Free;
+      end;
 
       AddSource('CD'); // default
     except

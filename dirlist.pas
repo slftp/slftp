@@ -474,39 +474,37 @@ var tmp: string;
     akttimestamp: TDateTime;
     de: TDirListEntry;
     added: Boolean;
-
     dirmaszk, username, groupname, datum, filename: string;
     filesize: Integer;
     i, j: Integer;
-    rrgx,splx:TRegExpr;
+    rrgx, splx: TRegExpr;
 begin
-  added:= False;
+  added := False;
 
   if cache_completed then exit;
-  
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
-
 
   for i:= entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-      de:= TDirlistEntry(entries[i]);
-      de.megvanmeg:= False;
+      de := TDirlistEntry(entries[i]);
+      de.megvanmeg := False;
     except
       Continue;
     end;
   end;
 
-  rrgx:=TRegExpr.Create;
-  rrgx.ModifierI:=True;
-  rrgx.Expression:=global_skip;
-  splx:=TRegExpr.Create;
-  splx.ModifierI:=True;
+  rrgx := TRegExpr.Create;
+  try
+  rrgx.ModifierI := True;
+  rrgx.Expression := global_skip;
+  splx := TRegExpr.Create;
+  try
+  splx.ModifierI := True;
 //  splx.Expression:='^sample|cover?|sub?|proof$';
-  splx.Expression:='^sample$';
-
+  splx.Expression := '^sample$';
 
   while(true) do
   begin
@@ -517,9 +515,6 @@ begin
 //    if (lines_read > 2000) then break;
 
 //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-
-
-
 
     if (length(tmp) > 11) then
     begin
@@ -597,8 +592,6 @@ begin
           de.Sample := True;
         end;
 
-
-
         if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
         begin
           de.Free;
@@ -659,8 +652,14 @@ begin
     end;
 
   end;
-  rrgx.Free;
-  splx.Free;
+
+  finally
+    splx.Free;
+  end;
+
+  finally
+    rrgx.Free;
+  end;
 
 (*
   if ((need_mkdir) and (entries.Count > 0)) then
@@ -668,6 +667,8 @@ begin
     need_mkdir:= False;
   end;
 *)
+  finally
+  end;
 
 
   if parent = nil then // megvaltozhatott a MULTI CD statusz = changed the status MULTI CD
@@ -1384,22 +1385,25 @@ function TDirListEntry.Useful: Boolean;
 var
   rrgx: TRegExpr;
 begin
-  Result:= False;
+  Result := False;
   if filesize = 0 then exit;
   if directory then exit;
 
-  rrgx:=TRegExpr.Create;
-  rrgx.ModifierI:=True;
-  rrgx.Expression:=useful_skip;
+  rrgx := TRegExpr.Create;
+  try
+    rrgx.ModifierI := True;
+    rrgx.Expression := useful_skip;
 
-  if rrgx.Exec(filename) then
-  begin
+    if rrgx.Exec(filename) then
+    begin
+      Result := False;
+      exit;
+    end;
+
+  finally
     rrgx.Free;
-    Result:= False;
-    exit;
   end;
 
-  rrgx.Free;
   Result:= True;
 end;
 
