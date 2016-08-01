@@ -128,10 +128,12 @@ begin
   end;
 
   response := TStringList.Create;
+  try
   response.Text := slUrlGet(Format(url, [mainpazo.rls.rlsname]));
   debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s',
     [mainpazo.rls.rlsname, response.Text]);
   prex := TRegexpr.Create;
+  try
   prex.ModifierM := True;
   prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
   for i := 0 to response.Count - 1 do
@@ -148,8 +150,12 @@ begin
       //urlcount:=urlcount+1;
       //goto nexturl;
     end;
-  prex.Free;
-  response.Free;
+  finally
+    prex.Free;
+  end;
+  finally
+    response.Free;
+  end;
 end;
 
 function FetchTimeFromMYSQL(rls: TRelease): boolean;
@@ -209,6 +215,8 @@ begin
     exit;
 
   r := TRegexpr.Create;
+  try
+
   r.Expression := '^(\+|\-)([\d]+)$';
   try
     if r.Exec(fvalue) then
@@ -225,7 +233,11 @@ begin
   finally
     Result := True;
   end;
-  r.Free;
+
+  finally
+    r.Free;
+  end;
+
 end;
 
 end.

@@ -604,6 +604,7 @@ begin
     end;
 
     ts_data := TStringList.Create;
+    try
     ts_data.CaseSensitive := False;
     ts_data.Delimiter := ' ';
     ts_data.QuoteChar := '"';
@@ -614,7 +615,7 @@ begin
       on e: Exception do
       begin
         Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
-        ts_data.Free;
+        //ts_data.Free;
         exit;
       end;
     end;
@@ -694,11 +695,11 @@ begin
             MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
             Debug(dpError, rsections,
               Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s', [e.Message]));
-            ts_data.Free;
+            //ts_data.Free;
             exit;
           end;
         end;
-        ts_data.Free;
+        //ts_data.Free;
         exit;
       end;
     end;
@@ -714,7 +715,7 @@ begin
           Debug(dpError, rsections,
             Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
           irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
-          ts_data.Free;
+          //ts_data.Free;
           exit;
         end;
       end;
@@ -724,7 +725,10 @@ begin
       MyDebug('SiteChan dont look like an Event ...');
     end;
 
-    ts_data.Free;
+
+    finally
+      ts_data.Free;
+    end;
 
   end
   else
@@ -1226,13 +1230,16 @@ begin
   while intFound = 0 do
   begin
     fst := TStringList.Create();
-    fst.LoadFromFile(rules_path + SearchRec.Name);
-    for i := 0 to fst.Count - 1 do
-    begin
-      S := fst[i];
-      catcherFile.Add(S);
+    try
+      fst.LoadFromFile(rules_path + SearchRec.Name);
+      for i := 0 to fst.Count - 1 do
+      begin
+        S := fst[i];
+        catcherFile.Add(S);
+      end;
+    finally
+      fst.Free;
     end;
-    fst.Free;
     intFound := FindNext(SearchRec);
   end;
 
