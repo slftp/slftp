@@ -667,9 +667,6 @@ begin
     need_mkdir:= False;
   end;
 *)
-  finally
-  end;
-
 
   if parent = nil then // megvaltozhatott a MULTI CD statusz = changed the status MULTI CD
   begin
