@@ -662,16 +662,19 @@ begin
       Strings := TStrings(FSections.Objects[I]);
 
       if (split_site_data) then begin
-  		  if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then begin
+  		  if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then
+                  begin
   			  ListSplitFile := TStringList.Create;
     			for J := 0 to Strings.Count - 1 do begin
     			  S := Strings.Names[J];
 	    		  Found := False;
-		    	  for K := 1 to Length(splitredirectkeys) do begin
-    		  		if S = splitredirectkeys[K] then begin
+		    	  for K := 1 to Length(splitredirectkeys) do
+                          begin
+    		  		if S = splitredirectkeys[K] then
+                                begin
     			  	  Found := True;
-		    		    break;
-  				    end;
+		    		  break;
+  				end;
      			  end;
 	    		  if not Found then
 		      		if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
@@ -853,10 +856,13 @@ begin
               if FileExists(S) then
               begin
                 ListSplitFile := TStringList.Create;
-                ListSplitFile.LoadFromFile(S);
-                for J := 0 to ListSplitFile.Count - 1 do
-                  Strings.Add(ListSplitFile[J]);
-                ListSplitFile.Free;
+                try
+                  ListSplitFile.LoadFromFile(S);
+                  for J := 0 to ListSplitFile.Count - 1 do
+                    Strings.Add(ListSplitFile[J]);
+                finally
+                  ListSplitFile.Free;
+                end;
               end;
             end;
           end;

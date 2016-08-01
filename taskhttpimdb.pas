@@ -76,6 +76,7 @@ begin
   end;
 
   rr := TRegexpr.Create;
+  try
   rr.ModifierI := True;
 
   imdb_year := 0;
@@ -124,6 +125,7 @@ begin
 
   imdbdata := TDbImdbData.Create(imdb_id);
   rr2 := TRegexpr.Create;
+  try
   rr2.ModifierI := True;
   imdbdata.imdb_rating := -5;
   imdbdata.imdb_votes := -5;
@@ -500,8 +502,13 @@ begin
     end;
   end;
 
-  rr.free;
-  rr2.free;
+  finally
+    rr2.free;
+  end;
+  finally
+    rr.free;
+  end;
+
   imdbdata.imdb_id := imdb_id;
   imdbdata.imdb_year := imdb_year;
   imdbdata.imdb_stvm := imdb_stv;

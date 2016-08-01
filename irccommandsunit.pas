@@ -1158,25 +1158,27 @@ begin
 
   if (predir = '') then
   begin
-    irc_addtext(Netname, Channel,
-      'Site <b>%s</b> has no dir set for section <b>%s</b>.', [sitename, section]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section <b>%s</b>.', [sitename, section]);
     exit;
   end;
 
   predir := todaycsere(predir);
 
   d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
-  if d <> nil then
-  begin
-    for i := 0 to d.entries.Count - 1 do
+  try
+    if d <> nil then
     begin
-      de := TDirListEntry(d.entries[i]);
+      for i := 0 to d.entries.Count - 1 do
+      begin
+        de := TDirListEntry(d.entries[i]);
 
-      if de.directory then
-        irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename])
-      else
-        irc_addtext(Netname, Channel, '%s (%d)', [de.filename, de.filesize]);
+        if de.directory then
+          irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename])
+        else
+          irc_addtext(Netname, Channel, '%s (%d)', [de.filename, de.filesize]);
+      end;
     end;
+  finally
     d.Free;
   end;
 
@@ -1221,22 +1223,25 @@ begin
   predir := todaycsere(predir);
 
   d := DirlistB(Netname, Channel, sitename, predir);
-  if d <> nil then
-  begin
-    d.SortByModify;
-    for i := 0 to d.entries.Count - 1 do
+  try
+    if d <> nil then
     begin
-      if i >= amount then
-        break;
-      de := TDirListEntry(d.entries[i]);
-
-      if de.directory then
+      d.SortByModify;
+      for i := 0 to d.entries.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename]);
-      end
-      else
-        irc_addtext(Netname, Channel, '%s (%d)', [de.filename, de.filesize]);
+        if i >= amount then
+          break;
+        de := TDirListEntry(d.entries[i]);
+
+        if de.directory then
+        begin
+          irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename]);
+        end
+        else
+          irc_addtext(Netname, Channel, '%s (%d)', [de.filename, de.filesize]);
+      end;
     end;
+  finally
     d.Free;
   end;
 
@@ -3471,6 +3476,8 @@ begin
   end;
 
   ss := TStringList.Create;
+  try
+
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
@@ -3581,7 +3588,10 @@ begin
   *)
 
   Result := True;
-  ss.Free;
+
+  finally
+    ss.Free;
+  end;
 end;
 
 function IrcQueue(const Netname, Channel: string; params: string): boolean;
@@ -3592,6 +3602,7 @@ var
   rr: TRegExpr;
 begin
   rr := TRegExpr.Create;
+  try
   rr.ModifierI := True;
 
   show_tasks := 10;
@@ -3642,7 +3653,10 @@ begin
     end;
   end;
 
-  rr.Free;
+  finally
+    rr.Free;
+  end;
+
   Result := True;
 end;
 
@@ -7937,8 +7951,11 @@ begin
   begin
     sr := TSiteResponse(tn.responses[i]);
     d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
-    PickupSpeedtestFile(d, fsfilename, fsfilesize);
-    d.Free;
+    try
+      PickupSpeedtestFile(d, fsfilename, fsfilesize);
+    finally
+      d.Free;
+    end;
 
     if ((fsfilename = '') or (fsfilesize = 0)) then
     begin
@@ -8059,8 +8076,7 @@ begin
   Result := True;
 end;
 
-function IrcSpeedTestOut(const Netname, Channel: string; params: string):
-  boolean;
+function IrcSpeedTestOut(const Netname, Channel: string; params: string): boolean;
 var
   oparams, ss: string;
   s: TSite;
@@ -8129,15 +8145,18 @@ begin
   // Now look, this is already the source file Speedtest site
 
   d := DirlistB(Netname, Channel, fssitename, fsfilename, True);
-  if d = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Cant dirlist %s in %s.',
-      [fsfilename, fssitename]);
-    exit;
+  try
+    if d = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Cant dirlist %s in %s.', [fsfilename, fssitename]);
+      exit;
+    end;
+    // now we pick a file
+    PickupSpeedtestFile(d, fsfilename, fsfilesize);
+  finally
+    // we dont need the dirlist anymore.
+    d.Free;
   end;
-  // now we pick a file
-  PickupSpeedtestFile(d, fsfilename, fsfilesize);
-  d.Free; // we dont need the dirlist anymore.
 
   if ((fsfilesize = 0) or (fsfilename = '')) then
   begin
@@ -10265,7 +10284,10 @@ var
 begin
   //  Result := False;
   vsecs := TStringList.Create;
+  try
   vsval := TStringList.Create;
+  try
+
   if params = '' then
   begin
     spamcfg.ReadSections(vsecs);
@@ -10281,8 +10303,6 @@ begin
         vsecs.Strings[i] + ':</b> ', 9);
 
     end;
-    vsecs.Free;
-    vsval.Free;
     Result := True;
     exit;
   end;
@@ -10300,27 +10320,27 @@ begin
     IrcLineBreak(netname, channel, vsval.CommaText, '"', '<b>valid keys:</b> ',
       9);
 
-    vsecs.Free;
-    vsval.Free;
     Result := True;
     exit;
   end;
 
   if cvalue = '' then
   begin
-
     if spamcfg.ReadBool(csec, ckey, True) then
-      irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 1 (Announce)', [csec,
-        ckey])
+      irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 1 (Announce)', [csec, ckey])
     else
       irc_addtext(Netname, Channel, '<b>[%s] %s:</b> = 0 (Skip)', [csec, ckey]);
-    vsecs.Free;
-    vsval.Free;
+
     Result := True;
     exit;
   end;
-  vsecs.Free;
-  vsval.Free;
+
+  finally
+    vsval.Free;
+  end;
+  finally
+    vsecs.Free;
+  end;
 
   spamcfg.WriteInteger(csec, ckey, StrToIntDef(cvalue, 0));
   spamcfg.UpdateFile;
@@ -11311,8 +11331,7 @@ begin
   //we dont set result to true, to check if something went wrong...
 end;
 
-function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string):
-  boolean;
+function IrcUpdateTVMazeInfo(const Netname, Channel: string; params: string): boolean;
 var
   respo, tvmaze_id, tv_showname: string;
   otvr, newtvi: TTVInfoDB;
@@ -11327,9 +11346,12 @@ begin
   else
   begin
     otvr := getTVInfoByReleaseName(params);
-    tvmaze_id := otvr.tvmaze_id;
-    tv_showname := otvr.tv_showname;
-    otvr.free;
+    try
+      tvmaze_id := otvr.tvmaze_id;
+      tv_showname := otvr.tv_showname;
+    finally
+      otvr.free;
+    end;
   end;
 
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');

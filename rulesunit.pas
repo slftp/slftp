@@ -1298,12 +1298,15 @@ var
   c: TCondition;
 begin
   c := self.Create(nil);
-  Result := '';
-  for i := 0 to c.acceptedOperators.Count - 1 do
-    Result := Result + TConditionOperatorClass(c.acceptedOperators[i]).Name + ' ';
+  try
+    Result := '';
+    for i := 0 to c.acceptedOperators.Count - 1 do
+      Result := Result + TConditionOperatorClass(c.acceptedOperators[i]).Name + ' ';
 
-  Result := trim(Result);
-  c.Free;
+    Result := trim(Result);
+  finally
+    c.Free;
+  end;
 end;
 
 function TCondition.AsText: string;
@@ -2259,18 +2262,22 @@ begin
         if (a_sites_done.IndexOf(a_sitename) <> -1) or (a_sitename = '*') then
           continue;
         a_siterules := TStringList.Create;
+        try
 
-        for a_j := a_i to rules.Count - 1 do
-        begin
-          a_r := TRule(rules[a_j]);
-          if a_r.sitename <> a_sitename then
-            continue;
-          a_siterules.Add(a_r.AsText(True));
+          for a_j := a_i to rules.Count - 1 do
+          begin
+            a_r := TRule(rules[a_j]);
+            if a_r.sitename <> a_sitename then
+              continue;
+            a_siterules.Add(a_r.AsText(True));
+          end;
+
+          a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
+          a_sites_done.Add(a_sitename);
+
+        finally
+          a_siterules.Free;
         end;
-
-        a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
-        a_siterules.Free();
-        a_sites_done.Add(a_sitename);
       end;
     finally
       a_sites_done.Free;

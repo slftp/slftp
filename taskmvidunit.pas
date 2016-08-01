@@ -191,10 +191,12 @@ ujra:
     end;
 
 
-    j:= 0;
-    filecount:=0;
-    nfofile:= '';
-    d:= TDirlist.Create(s.Name, nil, nil, s.lastResponse);
+    j := 0;
+    filecount :=0;
+    nfofile := '';
+    d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
+    try
+
     for i:= 0 to d.entries.Count-1 do
     begin
       de:= TDirlistEntry(d.entries[i]);
@@ -212,7 +214,10 @@ if ((not de.Directory) and (de.filesize > 0) and (de.Extension <> '.jpg') and (d
 inc(filecount);
 
     end;
-    d.Free;
+
+    finally
+      d.Free;
+    end;
 
 if nfofile = '' then
   begin

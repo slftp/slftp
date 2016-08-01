@@ -46,6 +46,7 @@ var
   I: integer;
 begin
   skipfiles := TStringList.Create;
+  try
   skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
   fname := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
   path := config.ReadString(section, 'backup_dir', '');
@@ -54,6 +55,7 @@ begin
   path := MyIncludeTrailingSlash(path);
   ForceDirectories(path);
   tar := TTarWriter.Create(path + fname);
+  try
   EOFound := False;
   try
     if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then
@@ -73,7 +75,7 @@ begin
         else
           tar.AddFile(Res.Name, Res.Name);
         EOFound := FindNext(Res) <> 0;
-      end; //while not EOFound do begin
+      end;
   finally
     Result := True;
   end;
@@ -83,8 +85,15 @@ begin
 {$ELSE}
   FindClose(Res);
 {$ENDIF}
-  tar.Free;
-  skipfiles.Free;
+
+  finally
+    tar.Free;
+  end;
+
+  finally
+    skipfiles.Free;
+  end;
+
 end;
 
 procedure CreateBackup(s: string);

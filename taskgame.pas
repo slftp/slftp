@@ -107,7 +107,7 @@ var s: TSiteSlot;
     de: TDirListEntry;
     r: TPazoGameTask;
     d: TDirList;
-   event, nfofile: string;
+    event, nfofile: string;
 begin
   Result:= False;
   s:= slot;
@@ -137,9 +137,11 @@ ujra:
     end;
 
 
-    j:= 0;
-    nfofile:= '';
-    d:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+    j := 0;
+    nfofile := '';
+    d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+    try
+
     for i:= 0 to d.entries.Count-1 do
     begin
       de:= TDirlistEntry(d.entries[i]);
@@ -153,7 +155,10 @@ ujra:
         if k = 1 then j:= k;
       end;
     end;
-    d.Free;
+
+    finally
+      d.Free;
+    end;
 
   if (nfofile = '') then
   begin
