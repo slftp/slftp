@@ -89,7 +89,7 @@ begin
       //we add 10 years to current year
       if StrToInt(year) < (StrToInt(FormatDateTime('yyyy', Now)) + 10) then
       begin
-        showName := x.Replace(showName, '');
+        showName := x.Replace(showName, '', False);
         hadYear := True;
       end;
     end;
@@ -99,7 +99,7 @@ begin
     begin
       hadCountry := True;
       country := x.Match[1];
-      showName := x.Replace(showName, '');
+      showName := x.Replace(showName, '', False);
     end;
   finally
     x.free;
@@ -960,7 +960,7 @@ begin
     end;
 
     rx.Expression := '[\.\_]';
-    sname := rx.Replace(sname, ' ');
+    sname := rx.Replace(sname, ' ', False);
   finally
     rx.Free;
   end;
@@ -989,4 +989,3 @@ begin
 end;
 
 end.
-
