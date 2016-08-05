@@ -1,4 +1,4 @@
-o;?unit irccommandsunit;
+unit irccommandsunit;
 
 interface
 
