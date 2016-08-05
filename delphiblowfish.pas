@@ -151,10 +151,10 @@ end;
 procedure BlowfishEncryptECB;
 var
   xL, xR: DWord;
-  o: PChar;
+  o: PAnsiChar;
 begin
   Move(InData^,xL,4);
-  o:= PChar(InData)+4;
+  o:= PAnsiChar(InData)+4;
   Move(o^,xR,4);
   xL:= (xL shr 24) or ((xL shr 8) and $FF00) or ((xL shl 8) and $FF0000) or (xL shl 24);
   xR:= (xR shr 24) or ((xR shr 8) and $FF00) or ((xR shl 8) and $FF0000) or (xR shl 24);
@@ -179,17 +179,17 @@ begin
   xL:= (xL shr 24) or ((xL shr 8) and $FF00) or ((xL shl 8) and $FF0000) or (xL shl 24);
   xR:= (xR shr 24) or ((xR shr 8) and $FF00) or ((xR shl 8) and $FF0000) or (xR shl 24);
   Move(xR,OutData^,4);
-  o:= PChar(outdata)+4;
+  o:= PAnsiChar(outdata)+4;
   Move(xL,o^,4);
 end;
 
 procedure BlowfishDecryptECB;
 var
   xL, xR: DWord;
-  o: PChar;
+  o: PAnsiChar;
 begin
   Move(InData^,xL,4);
-  o:= PChar(InData)+4;
+  o:= PAnsiChar(InData)+4;
   Move(o^,xR,4);
   xL:= (xL shr 24) or ((xL shr 8) and $FF00) or ((xL shl 8) and $FF0000) or (xL shl 24);
   xR:= (xR shr 24) or ((xR shr 8) and $FF00) or ((xR shl 8) and $FF0000) or (xR shl 24);
@@ -214,7 +214,7 @@ begin
   xL:= (xL shr 24) or ((xL shr 8) and $FF00) or ((xL shl 8) and $FF0000) or (xL shl 24);
   xR:= (xR shr 24) or ((xR shr 8) and $FF00) or ((xR shl 8) and $FF0000) or (xR shl 24);
   Move(xR,OutData^,4);
-  o:= PChar(outdata)+4;
+  o:= PAnsiChar(outdata)+4;
   Move(xL,o^,4);
 end;
 

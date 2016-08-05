@@ -10,9 +10,9 @@ type TLoginTask = class(TTask)
      public
        noannounce: Boolean;
        readd: Boolean; // autobnctest-hez...
-       constructor Create(const netname, channel: string; site: string; kill: Boolean; readd: Boolean);
+       constructor Create(const netname, channel: AnsiString; site: AnsiString; kill: Boolean; readd: Boolean);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -23,7 +23,7 @@ const section = 'login';
 
 { TLoginTask }
 
-constructor TLoginTask.Create(const netname, channel: string; site: string; kill: Boolean; readd: Boolean);
+constructor TLoginTask.Create(const netname, channel: AnsiString; site: AnsiString; kill: Boolean; readd: Boolean);
 begin
   self.kill:= kill;
   self.readd:= readd;
@@ -99,7 +99,7 @@ vege:
   ready:= True;
 end;
 
-function TLoginTask.Name: string;
+function TLoginTask.Name: AnsiString;
 begin
   Result:= '';
   try

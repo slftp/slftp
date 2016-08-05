@@ -7,43 +7,43 @@ uses Classes, IniFiles, irc, kb;
 type
   TPretimeResult = record
     pretime: TDateTime;
-    mode: string;
+    mode: AnsiString;
   end;
 
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
   TAddPreMode = (apmMem, apmSQLITE, apmMYSQL, apmNone);
 
   TDbAddPre = class
-    rls: string;
+    rls: AnsiString;
     pretime: TDateTime;
-    constructor Create(rls: string; pretime: TDateTime);
+    constructor Create(rls: AnsiString; pretime: TDateTime);
     destructor Destroy; override;
   end;
 
-function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string;
-  event: string): boolean;
-function dbaddpre_GetRlz(rls: string): TDateTime;
-function dbaddpre_InsertRlz(rls, rls_section, Source: string): boolean;
+function dbaddpre_ADDPRE(netname, channel, nickname: AnsiString; params: AnsiString;
+  event: AnsiString): boolean;
+function dbaddpre_GetRlz(rls: AnsiString): TDateTime;
+function dbaddpre_InsertRlz(rls, rls_section, Source: AnsiString): boolean;
 function dbaddpre_GetCount: integer;
-function dbaddpre_GetPreduration(rlz_pretime: TDateTime): string;
-function dbaddpre_Status: string;
+function dbaddpre_GetPreduration(rlz_pretime: TDateTime): AnsiString;
+function dbaddpre_Status: AnsiString;
 
-function dbaddpre_Process(net, chan, nick, msg: string): boolean;
+function dbaddpre_Process(net, chan, nick, msg: AnsiString): boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
 procedure dbaddpreUnInit;
 
-function getPretime(rlz: string): TPretimeResult;
+function getPretime(rlz: AnsiString): TPretimeResult;
 
 //function ReadPretime(rlz: string): TDateTime;
-function ReadPretimeOverHTTP(rls: string): TDateTime;
-function ReadPretimeOverMYSQL(rls: string): TDateTime;
-function ReadPretimeOverSQLITE(rls: string): TDateTime;
+function ReadPretimeOverHTTP(rls: AnsiString): TDateTime;
+function ReadPretimeOverMYSQL(rls: AnsiString): TDateTime;
+function ReadPretimeOverSQLITE(rls: AnsiString): TDateTime;
 
 function GetPretimeMode: TPretimeLookupMOde;
-function pretimeModeToString(mode: TPretimeLookupMOde): string;
-function addPreModeToString(mode: TAddPreMode): string;
+function pretimeModeToString(mode: TPretimeLookupMOde): AnsiString;
+function addPreModeToString(mode: TAddPreMode): AnsiString;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMOde);
 procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
@@ -67,7 +67,7 @@ var
   sql_gettime: Psqlite3_stmt = nil;
 
   addprecmd: TStringList;
-  siteprecmd: string;
+  siteprecmd: AnsiString;
   kbadd_addpre: boolean;
   kbadd_sitepre: boolean;
 
@@ -79,7 +79,7 @@ var
   dbaddpre_plm1: TPretimeLookupMOde;
   dbaddpre_plm2: TPretimeLookupMOde;
 
-  config_taskpretime_url: string;
+  config_taskpretime_url: AnsiString;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMOde);
 begin
@@ -101,7 +101,7 @@ begin
   Result := dbaddpre_plm1;
 end;
 
-function pretimeModeToString(mode: TPretimeLookupMOde): string;
+function pretimeModeToString(mode: TPretimeLookupMOde): AnsiString;
 begin
   case mode of
     plmNone: Result := 'None';
@@ -111,7 +111,7 @@ begin
   end;
 end;
 
-function addPreModeToString(mode: TAddPreMode): string;
+function addPreModeToString(mode: TAddPreMode): AnsiString;
 begin
   case mode of
     apmMem: Result := 'Memory';
@@ -123,7 +123,7 @@ end;
 
 { TDbAddPre }
 
-constructor TDbAddPre.Create(rls: string; pretime: TDateTime);
+constructor TDbAddPre.Create(rls: AnsiString; pretime: TDateTime);
 begin
   self.rls := rls;
   self.pretime := pretime;
@@ -134,16 +134,16 @@ begin
   inherited;
 end;
 
-function GetPretimeURL: string;
+function GetPretimeURL: AnsiString;
 begin
   Result := config.readString(section, 'url', '');
 end;
 
-function ReadPretimeOverHTTP(rls: string): TDateTime;
+function ReadPretimeOverHTTP(rls: AnsiString): TDateTime;
 var
   response: TStringList;
   prex: TRegexpr;
-  url: string;
+  url: AnsiString;
   i: integer;
   read_count: integer;
 begin
@@ -209,7 +209,7 @@ begin
   end;
 end;
 
-function ReadPretimeOverSQLITE(rls: string): TDateTime;
+function ReadPretimeOverSQLITE(rls: AnsiString): TDateTime;
 var //time:int64;
   //    rlz_timestamp: String;
   i: integer;
@@ -241,9 +241,9 @@ begin
   end;
 end;
 
-function ReadPretimeOverMYSQL(rls: string): TDateTime;
+function ReadPretimeOverMYSQL(rls: AnsiString): TDateTime;
 var
-  q, mysql_result: string;
+  q, mysql_result: AnsiString;
 begin
   try
     mysql_lock.Enter;
@@ -275,7 +275,7 @@ begin
   end;
 end;
 
-function getPretime(rlz: string): TPretimeResult;
+function getPretime(rlz: AnsiString): TPretimeResult;
 begin
   Result.pretime := UnixToDateTime(0);
   Result.mode := 'None';
@@ -322,7 +322,7 @@ begin
 
 end;
 
-function ReadPretime(rlz: string): TDateTime;
+function ReadPretime(rlz: AnsiString): TDateTime;
 begin
   Result := UnixToDateTime(0);
 
@@ -364,9 +364,9 @@ begin
   end;
 end;
 
-function kb_Add_addpre(rls, section: string; event: string): integer;
+function kb_Add_addpre(rls, section: AnsiString; event: AnsiString): integer;
 var
-  rls_section: string;
+  rls_section: AnsiString;
 begin
   Result := -1;
 
@@ -390,11 +390,11 @@ begin
     rls_section, '', event, rls, '');
 end;
 
-function dbaddpre_ADDPRE(netname, channel, nickname: string; params: string;
-  event: string): boolean;
+function dbaddpre_ADDPRE(netname, channel, nickname: AnsiString; params: AnsiString;
+  event: AnsiString): boolean;
 var
-  rls: string;
-  rls_section: string;
+  rls: AnsiString;
+  rls_section: AnsiString;
 begin
   rls := '';
   rls := SubString(params, ' ', 1);
@@ -419,11 +419,11 @@ begin
   Result := True;
 end;
 
-function dbaddpre_GetRlz(rls: string): TDateTime;
+function dbaddpre_GetRlz(rls: AnsiString): TDateTime;
 var
   i: integer;
   addpredata: TDbAddPre;
-  q, mysql_result: string;
+  q, mysql_result: AnsiString;
 begin
   Result := UnixToDateTime(0);
 
@@ -514,10 +514,10 @@ begin
   end;
 end;
 
-function dbaddpre_InsertRlz(rls, rls_section, Source: string): boolean;
+function dbaddpre_InsertRlz(rls, rls_section, Source: AnsiString): boolean;
 var
   i: integer;
-  sql: string;
+  sql: AnsiString;
   pretime: TDateTime;
   addpredata: TDbAddPre;
 begin
@@ -629,7 +629,7 @@ end;
 function dbaddpre_GetCount: integer;
 var
   i: integer;
-  q, res: string;
+  q, res: AnsiString;
 begin
   Result := 0;
   case dbaddpre_mode of
@@ -665,7 +665,7 @@ begin
   end;
 end;
 
-function dbaddpre_GetPreduration(rlz_pretime: TDateTime): string;
+function dbaddpre_GetPreduration(rlz_pretime: TDateTime): AnsiString;
 var
   preage: int64;
 begin
@@ -687,7 +687,7 @@ begin
     Result := Format('%2.2d Sec', [preage mod 60]);
 end;
 
-function dbaddpre_Process(net, chan, nick, msg: string): boolean;
+function dbaddpre_Process(net, chan, nick, msg: AnsiString): boolean;
 var
   ii: integer;
 begin
@@ -724,7 +724,7 @@ begin
   end;
 end;
 
-function dbaddpre_Status: string;
+function dbaddpre_Status: AnsiString;
 begin
   Result := '';
   Result := Format('<b>Dupe.db</b>: %d Rips, with %d in Memory', [dbaddpre_GetCount, last_addpre.Count]);
@@ -742,7 +742,7 @@ end;
 
 procedure dbaddpreStart;
 var
-  db_pre_name: string;
+  db_pre_name: AnsiString;
 begin
 
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');

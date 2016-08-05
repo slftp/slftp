@@ -4,11 +4,11 @@ interface
 uses tasksunit;
 
 type TRawTask = class(TTask)
-       cmd: string;
-       dir: string;
-       constructor Create(const netname, channel: string;site: string; dir: string; cmd: string);
+       cmd: AnsiString;
+       dir: AnsiString;
+       constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; cmd: AnsiString);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -19,7 +19,7 @@ const section = 'raw';
 
 { TRawTask }
 
-constructor TRawTask.Create(const netname, channel: string;site: string; dir: string; cmd: string);
+constructor TRawTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; cmd: AnsiString);
 begin
   self.cmd:= cmd;
   self.dir:= dir;
@@ -56,7 +56,7 @@ ujra:
   ready:= True;
 end;
 
-function TRawTask.Name: string;
+function TRawTask.Name: AnsiString;
 begin
   try
     Result:= 'RAW '+site1+' -> '+cmd;

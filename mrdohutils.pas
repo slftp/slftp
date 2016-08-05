@@ -14,25 +14,25 @@ function ReadMaxUptimeRecord: Integer;
 
 procedure CheckForNewMaxUpTime;
 
-function CommonFileCheck: string;
+function CommonFileCheck: AnsiString;
 
 { # Path functions    #}
-function GetBINPath: string;
+function GetBINPath: AnsiString;
 
-function GetETCPath: string;
+function GetETCPath: AnsiString;
 
-function GetUSRPath: string;
-function GetHelpPath: string;
-function GetBACKUPPath: string;
-function GetCBACKUPPath: string;
-function GetDBSPath: string;
-function GetSRULESPath: string;
+function GetUSRPath: AnsiString;
+function GetHelpPath: AnsiString;
+function GetBACKUPPath: AnsiString;
+function GetCBACKUPPath: AnsiString;
+function GetDBSPath: AnsiString;
+function GetSRULESPath: AnsiString;
 
-function GetVARPath: string;
-function GetLOGSPath: string;
-function GetRLSLOGSPath: string;
+function GetVARPath: AnsiString;
+function GetLOGSPath: AnsiString;
+function GetRLSLOGSPath: AnsiString;
 
-function RandomHEXString(strlength: integer = 16): string;
+function RandomHEXString(strlength: integer = 16): AnsiString;
 
 var
   preurls: TEncStringlist;
@@ -43,7 +43,7 @@ implementation
 
 uses mainthread, DateUtils, sitesunit, mystrings;
 
-function RandomHEXString(strlength: integer = 16): string;
+function RandomHEXString(strlength: integer = 16): AnsiString;
 var
   temp: integer;
 begin
@@ -70,9 +70,9 @@ begin
   sitesdat.UpdateFile;
 end;
 
-function CommonFileCheck: string;
+function CommonFileCheck: AnsiString;
 var
-  s: string;
+  s: AnsiString;
 begin
   result := '';
   s := ExtractFilePath(ParamStr(0));
@@ -127,64 +127,64 @@ ExtractFilePath(ParamStr(0))
 PathDelim
 *)
 
-function Getrootpath: string;
+function Getrootpath: AnsiString;
 begin
   result := ExtractFilePath(ParamStr(0));
 end;
 
-function GetBINPath: string;
+function GetBINPath: AnsiString;
 begin
   result := Getrootpath + 'bin' + PathDelim;
 end;
 
-function GetETCPath: string;
+function GetETCPath: AnsiString;
 begin
   result := Format('%setc%s', [Getrootpath, PathDelim]);
 end;
 
 { --------------------------------------- }
 
-function GetUSRPath: string;
+function GetUSRPath: AnsiString;
 begin
   result := Format('%susr%s', [Getrootpath, PathDelim]);
 end;
 
-function GetDBSPath: string;
+function GetDBSPath: AnsiString;
 begin
   result := Format('%sdbs%s', [GetUSRPath, PathDelim]);
 end;
 
-function GetSRULESPath: string;
+function GetSRULESPath: AnsiString;
 begin
   result := Format('%ssiterules%s', [GetUSRPath, PathDelim]);
 end;
 
-function GetHelpPath: string;
+function GetHelpPath: AnsiString;
 begin
   result := Format('%shelp%s', [GetUSRPath, PathDelim]);
 end;
 
-function GetBACKUPPath: string;
+function GetBACKUPPath: AnsiString;
 begin
   result := Format('%sbackups%s', [GetUSRPath, PathDelim]);
 end;
 
-function GetCBACKUPPath: string;
+function GetCBACKUPPath: AnsiString;
 begin
   result := Format('%scustom_backups%s', [GetUSRPath, PathDelim]);
 end;
 
-function GetVARPath: string;
+function GetVARPath: AnsiString;
 begin
   result := Format('%svar%s', [Getrootpath, PathDelim]);
 end;
 
-function GetLOGSPath: string;
+function GetLOGSPath: AnsiString;
 begin
   result := Format('%slogs%s', [GetVARPath, PathDelim]);
 end;
 
-function GetRLSLOGSPath: string;
+function GetRLSLOGSPath: AnsiString;
 begin
   result := Format('%sreeleaselog%s', [GetVARPath, PathDelim]);
 end;

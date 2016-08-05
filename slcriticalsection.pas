@@ -12,11 +12,11 @@ type
     w: TObjectList;
     l: TCriticalSection;
     slshutdown: Boolean;
-    name: String;
+    name: AnsiString;
   public
-    constructor Create(name: String = '');
+    constructor Create(name: AnsiString = '');
     destructor Destroy; override;
-    function Enter(sname: String = ''): Boolean;
+    function Enter(sname: AnsiString = ''): Boolean;
     procedure Leave;
   end;
 
@@ -51,7 +51,7 @@ end;
 
 { TslCriticalSection }
 
-constructor TslCriticalSection.Create(name: String = '');
+constructor TslCriticalSection.Create(name: AnsiString = '');
 begin
   self.name :=  name;
   l:= TCriticalSection.Create;
@@ -90,7 +90,7 @@ begin
   inherited;
 end;
 
-function TslCriticalSection.Enter(sname: String = ''): Boolean;
+function TslCriticalSection.Enter(sname: AnsiString = ''): Boolean;
 label ujra;
 var procId: LongWord;
     event: TEvent;

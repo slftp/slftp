@@ -17,8 +17,8 @@ type
 
  sqlite3_callback = function (_para1:pointer; _para2:longint; _para3:PPchar; _para4:PPchar):longint;cdecl;
   busy_handler_func = function (_para1:pointer; _para2:longint):longint;cdecl;
-  sqlite3_set_authorizer_func = function (_para1:pointer; _para2:longint; _para3:Pchar; _para4:Pchar; _para5:Pchar; _para6:Pchar):longint;cdecl;
-  sqlite3_trace_func = procedure (_para1:pointer; _para2:Pchar);cdecl;
+  sqlite3_set_authorizer_func = function (_para1:pointer; _para2:longint; _para3:PAnsiChar; _para4:PAnsiChar; _para5:PAnsiChar; _para6:PAnsiChar):longint;cdecl;
+  sqlite3_trace_func = procedure (_para1:pointer; _para2:PAnsiChar);cdecl;
   sqlite3_progress_handler_func = function (_para1:pointer):longint;cdecl;
   sqlite3_commit_hook_func = function (_para1:pointer):longint;cdecl;
   bind_destructor_func = procedure (_para1:pointer);cdecl;
@@ -28,7 +28,7 @@ type
   sqlite3_set_auxdata_func = procedure (_para1:pointer);cdecl;
   sqlite3_result_func = procedure (_para1:pointer);cdecl;
   sqlite3_create_collation_func = function (_para1:pointer; _para2:longint; _para3:pointer; _para4:longint; _para5:pointer):longint;cdecl;
-  sqlite3_collation_needed_func = procedure (_para1:pointer; _para2:Psqlite3; eTextRep:longint; _para4:Pchar);cdecl;
+  sqlite3_collation_needed_func = procedure (_para1:pointer; _para2:Psqlite3; eTextRep:longint; _para4:PAnsiChar);cdecl;
 
 
   TslSqliteDB = class
@@ -38,16 +38,16 @@ type
     function Execute(stm: Psqlite3_stmt): boolean;
   public
     function column_count(stm: Psqlite3_stmt): Integer;
-    function column_name(stm: Psqlite3_stmt; index: Integer): string;
+    function column_name(stm: Psqlite3_stmt; index: Integer): AnsiString;
     function column_int(stm: Psqlite3_stmt; index: Integer): Integer;
     function column_int64(stm: Psqlite3_stmt; index: Integer): Int64;
     function column_double(stm: Psqlite3_stmt; index: Integer): Double;
-    function column_text(stm: Psqlite3_stmt; index: Integer): string;
+    function column_text(stm: Psqlite3_stmt; index: Integer): AnsiString;
 
     function Step(stm: Psqlite3_stmt): Boolean;
 
-    function Open(const sql: string): Psqlite3_stmt; overload;
-    function Open(const sql: string; const Args: array of const): Psqlite3_stmt; overload;
+    function Open(const sql: AnsiString): Psqlite3_stmt; overload;
+    function Open(const sql: AnsiString; const Args: array of const): Psqlite3_stmt; overload;
     function Open(stm: Psqlite3_stmt): Boolean; overload;
     function Open(stm: Psqlite3_stmt; const Args: array of const): Boolean; overload;
 
@@ -56,68 +56,68 @@ type
 
     function ExecSQL(stm: Psqlite3_stmt): Boolean; overload;
     function ExecSQL(stm: Psqlite3_stmt; const Args: array of const): Boolean; overload;
-    function ExecSQL(const sql: string): Boolean; overload;
-    function ExecSQL(const sql: string; const Args: array of const): Boolean; overload;
+    function ExecSQL(const sql: AnsiString): Boolean; overload;
+    function ExecSQL(const sql: AnsiString; const Args: array of const): Boolean; overload;
 
     function Close(var re: Psqlite3_stmt): Boolean;
 
-    constructor Create(const filename: string; pragma: string);
+    constructor Create(const filename: AnsiString; pragma: AnsiString);
     destructor Destroy; override;
   end;
   
 Var
   sqlite3_close : function (_para1:Psqlite3):longint;cdecl;
-  sqlite3_exec : function (_para1:Psqlite3; sql:Pchar; _para3:sqlite3_callback; _para4:pointer; errmsg:PPchar):longint;cdecl;
+  sqlite3_exec : function (_para1:Psqlite3; sql:PAnsiChar; _para3:sqlite3_callback; _para4:pointer; errmsg:PPchar):longint;cdecl;
   sqlite3_last_insert_rowid : function (_para1:Psqlite3):sqlite_int64;cdecl;
   sqlite3_changes : function (_para1:Psqlite3):longint;cdecl;
   sqlite3_total_changes : function (_para1:Psqlite3):longint;cdecl;
   sqlite3_interrupt : procedure (_para1:Psqlite3);cdecl;
-  sqlite3_complete : function (sql:Pchar):longint;cdecl;
+  sqlite3_complete : function (sql:PAnsiChar):longint;cdecl;
   sqlite3_complete16 : function (sql:pointer):longint;cdecl;
   sqlite3_busy_handler : function (_para1:Psqlite3; _para2:busy_handler_func; _para3:pointer):longint;cdecl;
   sqlite3_busy_timeout : function (_para1:Psqlite3; ms:longint):longint;cdecl;
-  sqlite3_get_table : function (_para1:Psqlite3; sql:Pchar; resultp:PPPchar; nrow:Plongint; ncolumn:Plongint; errmsg:PPchar):longint;cdecl;
+  sqlite3_get_table : function (_para1:Psqlite3; sql:PAnsiChar; resultp:PPPchar; nrow:Plongint; ncolumn:Plongint; errmsg:PPchar):longint;cdecl;
   sqlite3_free_table : procedure (result:PPchar);cdecl;
 // Todo: see how translate sqlite3_mprintf, sqlite3_vmprintf, sqlite3_snprintf
 //   sqlite3_mprintf : function (_para1:Pchar; args:array of const):Pchar;cdecl;
-  sqlite3_mprintf : function (_para1:Pchar):Pchar;cdecl;
+  sqlite3_mprintf : function (_para1:PAnsiChar):PAnsiChar;cdecl;
 //  sqlite3_vmprintf : function (_para1:Pchar; _para2:va_list):Pchar;cdecl;
-  sqlite3_free : procedure (z:Pchar);cdecl;
+  sqlite3_free : procedure (z:PAnsiChar);cdecl;
 //  sqlite3_snprintf : function (_para1:longint; _para2:Pchar; _para3:Pchar; args:array of const):Pchar;cdecl;
-  sqlite3_snprintf : function (_para1:longint; _para2:Pchar; _para3:Pchar):Pchar;cdecl;
+  sqlite3_snprintf : function (_para1:longint; _para2:PAnsiChar; _para3:PAnsiChar):PAnsiChar;cdecl;
   sqlite3_set_authorizer : function (_para1:Psqlite3; xAuth:sqlite3_set_authorizer_func; pUserData:pointer):longint;cdecl;
   sqlite3_trace : function (_para1:Psqlite3; xTrace:sqlite3_trace_func; _para3:pointer):pointer;cdecl;
   sqlite3_progress_handler : procedure (_para1:Psqlite3; _para2:longint; _para3:sqlite3_progress_handler_func; _para4:pointer);cdecl;
   sqlite3_commit_hook : function (_para1:Psqlite3; _para2:sqlite3_commit_hook_func; _para3:pointer):pointer;cdecl;
-  sqlite3_open : function (filename:Pchar; ppDb:PPsqlite3):longint;cdecl;
+  sqlite3_open : function (filename:PAnsiChar; ppDb:PPsqlite3):longint;cdecl;
   sqlite3_open16 : function (filename:pointer; ppDb:PPsqlite3):longint;cdecl;
   sqlite3_errcode : function (db:Psqlite3):longint;cdecl;
-  sqlite3_errmsg : function (_para1:Psqlite3):Pchar;cdecl;
+  sqlite3_errmsg : function (_para1:Psqlite3):PAnsiChar;cdecl;
   sqlite3_errmsg16 : function (_para1:Psqlite3):pointer;cdecl;
-  sqlite3_prepare : function (db:Psqlite3; zSql:Pchar; nBytes:longint; var ppStmt:Psqlite3_stmt; pzTail:PPchar):longint;cdecl;
+  sqlite3_prepare : function (db:Psqlite3; zSql:PAnsiChar; nBytes:longint; var ppStmt:Psqlite3_stmt; pzTail:PPchar):longint;cdecl;
   sqlite3_prepare16 : function (db:Psqlite3; zSql:pointer; nBytes:longint; ppStmt:PPsqlite3_stmt; pzTail:Ppointer):longint;cdecl;
   sqlite3_bind_blob : function (_para1:Psqlite3_stmt; _para2:longint; _para3:pointer; n:longint; _para5:bind_destructor_func):longint;cdecl;
   sqlite3_bind_double : function (_para1:Psqlite3_stmt; _para2:longint; _para3:double):longint;cdecl;
   sqlite3_bind_int : function (_para1:Psqlite3_stmt; _para2:longint; _para3:longint):longint;cdecl;
   sqlite3_bind_int64 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:sqlite_int64):longint;cdecl;
   sqlite3_bind_null : function (_para1:Psqlite3_stmt; _para2:longint):longint;cdecl;
-  sqlite3_bind_text : function (_para1:Psqlite3_stmt; _para2:longint; _para3:Pchar; n:longint; _para5:bind_destructor_func):longint;cdecl;
+  sqlite3_bind_text : function (_para1:Psqlite3_stmt; _para2:longint; _para3:PAnsiChar; n:longint; _para5:bind_destructor_func):longint;cdecl;
   sqlite3_bind_text16 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:pointer; _para4:longint; _para5:bind_destructor_func):longint;cdecl;
 //  sqlite3_bind_value : function (_para1:Psqlite3_stmt; _para2:longint; _para3:Psqlite3_value):longint;cdecl;
 //These overloaded functions were introduced to allow the use of SQLITE_STATIC and SQLITE_TRANSIENT
 //It's the c world man ;-)
   sqlite3_bind_blob1 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:pointer; n:longint; _para5:longint):longint;cdecl;
-  sqlite3_bind_text1 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:Pchar; n:longint; _para5:longint):longint;cdecl;
+  sqlite3_bind_text1 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:PAnsiChar; n:longint; _para5:longint):longint;cdecl;
   sqlite3_bind_text161 : function (_para1:Psqlite3_stmt; _para2:longint; _para3:pointer; _para4:longint; _para5:longint):longint;cdecl;
 
   sqlite3_bind_parameter_count : function (_para1:Psqlite3_stmt):longint;cdecl;
-  sqlite3_bind_parameter_name : function (_para1:Psqlite3_stmt; _para2:longint):Pchar;cdecl;
-  sqlite3_bind_parameter_index : function (_para1:Psqlite3_stmt; zName:Pchar):longint;cdecl;
+  sqlite3_bind_parameter_name : function (_para1:Psqlite3_stmt; _para2:longint):PAnsiChar;cdecl;
+  sqlite3_bind_parameter_index : function (_para1:Psqlite3_stmt; zName:PAnsiChar):longint;cdecl;
 //  sqlite3_clear_bindings : function (_para1:Psqlite3_stmt):longint;cdecl;
   sqlite3_column_count : function (pStmt:Psqlite3_stmt):longint;cdecl;
-  sqlite3_column_name : function (_para1:Psqlite3_stmt; _para2:longint):Pchar;cdecl;
+  sqlite3_column_name : function (_para1:Psqlite3_stmt; _para2:longint):PAnsiChar;cdecl;
   sqlite3_column_name16 : function (_para1:Psqlite3_stmt; _para2:longint):pointer;cdecl;
-  sqlite3_column_decltype : function (_para1:Psqlite3_stmt; i:longint):Pchar;cdecl;
+  sqlite3_column_decltype : function (_para1:Psqlite3_stmt; i:longint):PAnsiChar;cdecl;
   sqlite3_column_decltype16 : function (_para1:Psqlite3_stmt; _para2:longint):pointer;cdecl;
   sqlite3_step : function (_para1:Psqlite3_stmt):longint;cdecl;
   sqlite3_data_count : function (pStmt:Psqlite3_stmt):longint;cdecl;
@@ -130,12 +130,12 @@ Var
   sqlite3_column_double : function (_para1:Psqlite3_stmt; iCol:longint):double;cdecl;
   sqlite3_column_int : function (_para1:Psqlite3_stmt; iCol:longint):longint;cdecl;
   sqlite3_column_int64 : function (_para1:Psqlite3_stmt; iCol:longint):sqlite_int64;cdecl;
-  sqlite3_column_text : function (_para1:Psqlite3_stmt; iCol:longint):PChar;cdecl;
+  sqlite3_column_text : function (_para1:Psqlite3_stmt; iCol:longint):PAnsiChar;cdecl;
   sqlite3_column_text16 : function (_para1:Psqlite3_stmt; iCol:longint):pointer;cdecl;
   sqlite3_column_type : function (_para1:Psqlite3_stmt; iCol:longint):longint;cdecl;
   sqlite3_finalize : function (pStmt:Psqlite3_stmt):longint;cdecl;
   sqlite3_reset : function (pStmt:Psqlite3_stmt):longint;cdecl;
-  sqlite3_create_function : function (_para1:Psqlite3; zFunctionName:Pchar; nArg:longint; eTextRep:longint; _para5:pointer;        xFunc:create_function_func_func; xStep:create_function_step_func; xFinal:create_function_final_func):longint;cdecl;
+  sqlite3_create_function : function (_para1:Psqlite3; zFunctionName:PAnsiChar; nArg:longint; eTextRep:longint; _para5:pointer;        xFunc:create_function_func_func; xStep:create_function_step_func; xFinal:create_function_final_func):longint;cdecl;
   sqlite3_create_function16 : function (_para1:Psqlite3; zFunctionName:pointer; nArg:longint; eTextRep:longint; _para5:pointer;            xFunc:create_function_func_func; xStep:create_function_step_func; xFinal:create_function_final_func):longint;cdecl;
   sqlite3_aggregate_count : function (_para1:Psqlite3_context):longint;cdecl;
   sqlite3_value_blob : function (_para1:Psqlite3_value):pointer;cdecl;
@@ -144,7 +144,7 @@ Var
   sqlite3_value_double : function (_para1:Psqlite3_value):double;cdecl;
   sqlite3_value_int : function (_para1:Psqlite3_value):longint;cdecl;
   sqlite3_value_int64 : function (_para1:Psqlite3_value):sqlite_int64;cdecl;
-  sqlite3_value_text : function (_para1:Psqlite3_value):PChar;cdecl;
+  sqlite3_value_text : function (_para1:Psqlite3_value):PAnsiChar;cdecl;
   sqlite3_value_text16 : function (_para1:Psqlite3_value):pointer;cdecl;
   sqlite3_value_text16le : function (_para1:Psqlite3_value):pointer;cdecl;
   sqlite3_value_text16be : function (_para1:Psqlite3_value):pointer;cdecl;
@@ -155,21 +155,21 @@ Var
   sqlite3_set_auxdata : procedure (_para1:Psqlite3_context; _para2:longint; _para3:pointer; _para4:sqlite3_set_auxdata_func);cdecl;
   sqlite3_result_blob : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_double : procedure (_para1:Psqlite3_context; _para2:double);cdecl;
-  sqlite3_result_error : procedure (_para1:Psqlite3_context; _para2:Pchar; _para3:longint);cdecl;
+  sqlite3_result_error : procedure (_para1:Psqlite3_context; _para2:PAnsiChar; _para3:longint);cdecl;
   sqlite3_result_error16 : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint);cdecl;
   sqlite3_result_int : procedure (_para1:Psqlite3_context; _para2:longint);cdecl;
   sqlite3_result_int64 : procedure (_para1:Psqlite3_context; _para2:sqlite_int64);cdecl;
   sqlite3_result_null : procedure (_para1:Psqlite3_context);cdecl;
-  sqlite3_result_text : procedure (_para1:Psqlite3_context; _para2:Pchar; _para3:longint; _para4:sqlite3_result_func);cdecl;
+  sqlite3_result_text : procedure (_para1:Psqlite3_context; _para2:PAnsiChar; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_text16 : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_text16le : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_text16be : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_value : procedure (_para1:Psqlite3_context; _para2:Psqlite3_value);cdecl;     
-  sqlite3_create_collation : function (_para1:Psqlite3; zName:Pchar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
-  sqlite3_create_collation16 : function (_para1:Psqlite3; zName:Pchar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
+  sqlite3_create_collation : function (_para1:Psqlite3; zName:PAnsiChar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
+  sqlite3_create_collation16 : function (_para1:Psqlite3; zName:PAnsiChar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
   sqlite3_collation_needed : function (_para1:Psqlite3; _para2:pointer; _para3:sqlite3_collation_needed_func):longint;cdecl;
   sqlite3_collation_needed16 : function (_para1:Psqlite3; _para2:pointer; _para3:sqlite3_collation_needed_func):longint;cdecl;
-  sqlite3_libversion: function : PChar;cdecl;
+  sqlite3_libversion: function : PAnsiChar;cdecl;
   sqlite3_initialize: function : Longint;cdecl;
   sqlite3_shutdown: function : Longint;cdecl;
 
@@ -181,10 +181,10 @@ Var
 //  sqlite3_expired : function (_para1:Psqlite3_stmt):longint;cdecl;
 //function sqlite3_global_recover:longint;cdecl;
 
-function slSqliteVersion: string;
+function slSqliteVersion: AnsiString;
 
 var slsqlite_inited: Boolean = False;
-    slsqlite_error: string = '';
+    slsqlite_error: AnsiString = '';
 
 implementation
 
@@ -282,8 +282,8 @@ var
   h_libsqlite    : Integer = 0;
 
 
-function slSqlite_LoadProc(handle: Integer; const fnName: string; var fn: Pointer): Boolean;
-var fceName: string;
+function slSqlite_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
+var fceName: AnsiString;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -450,9 +450,9 @@ begin
   slsqlite_inited:= False;
 end;
 
-function slSqliteVersion: string;
+function slSqliteVersion: AnsiString;
 begin
-  Result:= String(SQLite3_libVersion);
+  Result:= AnsiString(SQLite3_libVersion);
 end;
 
 
@@ -460,7 +460,7 @@ end;
 
 function TslSqliteDB.Bind(stm: Psqlite3_stmt; const Args: array of const): Boolean;
 var i: Integer;
-    s: string;
+    s: AnsiString;
     d: Double;
 begin
   Result:= False;
@@ -475,33 +475,33 @@ begin
         vtString:
           begin
             s:= VString^;
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtAnsiString:
           begin
-            s:= string(VAnsiString);
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            s:= AnsiString(VAnsiString);
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtCurrency:
           begin
             s:= CurrToStr(VCurrency^);
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtVariant:
           begin
-            s:= string(VVariant^);
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            s:= AnsiString(VVariant^);
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtChar:
           begin
             s:= VChar;
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtObject,
         vtClass:
           begin
             s:= VObject.ClassName;
-            if 0 <> sqlite3_bind_text1(stm, i+1, PChar(s), length(s), SQLITE_STATIC) then exit;
+            if 0 <> sqlite3_bind_text1(stm, i+1, PAnsiChar(s), length(s), SQLITE_STATIC) then exit;
           end;
         vtPChar:
             if 0 <> sqlite3_bind_text1(stm, i+1, VPChar, StrLen(VPChar), SQLITE_STATIC) then exit;
@@ -517,8 +517,8 @@ begin
   Result:= True;
 end;
 
-constructor TslSqliteDB.Create(const filename: string; pragma: string);
-var ss: string;
+constructor TslSqliteDB.Create(const filename: AnsiString; pragma: AnsiString);
+var ss: AnsiString;
 begin
  if 0 <> SQLite3_Open(PChar(filename), @fSQLite) then
    raise Exception.Create('Cant open sqlite');
@@ -559,12 +559,12 @@ begin
   Result:= ExecSQL(stm, []);
 end;
 
-function TslSqliteDB.ExecSQL(const sql: string): Boolean;
+function TslSqliteDB.ExecSQL(const sql: AnsiString): Boolean;
 begin
   Result:= ExecSQL(sql, []);
 end;
 
-function TslSqliteDB.ExecSQL(const sql: string;
+function TslSqliteDB.ExecSQL(const sql: AnsiString;
   const Args: array of const): Boolean;
 var re: Psqlite3_stmt;
 begin
@@ -605,13 +605,13 @@ end;
 
 
 
-function TslSqliteDB.Open(const sql: string;
+function TslSqliteDB.Open(const sql: AnsiString;
   const Args: array of const): Psqlite3_stmt;
 var re: Psqlite3_stmt;
 begin
   Result:= nil;
 
-  if 0 <> sqlite3_prepare(fSQLite, PChar(sql), length(sql), re, nil) then exit;
+  if 0 <> sqlite3_prepare(fSQLite, PAnsiChar(sql), length(sql), re, nil) then exit;
 
   if not Bind(re, Args) then
   begin
@@ -622,7 +622,7 @@ begin
   Result:= re;
 end;
 
-function TslSqliteDB.Open(const sql: string): Psqlite3_stmt;
+function TslSqliteDB.Open(const sql: AnsiString): Psqlite3_stmt;
 begin
   Result:= Open(sql, []);
 end;
@@ -632,8 +632,8 @@ begin
   Result:= sqlite3_column_count(stm);
 end;
 
-function TslSqliteDB.column_name(stm: Psqlite3_stmt; index: Integer): string;
-var c: PChar;
+function TslSqliteDB.column_name(stm: Psqlite3_stmt; index: Integer): AnsiString;
+var c: PAnsiChar;
 begin
   Result:= '';
 
@@ -655,7 +655,7 @@ begin
   Result:= sqlite3_column_double(stm, index);
 end;
 
-function TslSqliteDB.column_text(stm: Psqlite3_stmt; index: Integer): string;
+function TslSqliteDB.column_text(stm: Psqlite3_stmt; index: Integer): AnsiString;
 begin
   Result:= StrPas(sqlite3_column_text(stm, index));
 end;

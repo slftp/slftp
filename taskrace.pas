@@ -9,49 +9,49 @@ type
     pazo_id: integer;
     mainpazo: TPazo;
     ps1, ps2: TPazoSite;
-    constructor Create(const netname, channel: string; site1: string;
-      site2: string; pazo: TPazo);
+    constructor Create(const netname, channel: AnsiString; site1: AnsiString;
+      site2: AnsiString; pazo: TPazo);
     destructor Destroy; override;
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    constructor Create(const netname, channel: string; site1: string;
-      site2: string; pazo: TPazo);
+    constructor Create(const netname, channel: AnsiString; site1: AnsiString;
+      site2: AnsiString; pazo: TPazo);
     destructor Destroy; override;
   end;
 
   TPazoDirlistTask = class(TPazoTask)
-    dir: string;
+    dir: AnsiString;
     is_pre: boolean;
     incompleteFill: boolean;
-    constructor Create(const netname, channel: string; site: string;
-      pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
+    constructor Create(const netname, channel: AnsiString; site: AnsiString;
+      pazo: TPazo; dir: AnsiString; is_pre: boolean; incompleteFill: boolean = False);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   TPazoMkdirTask = class(TPazoTask)
-    dir: string;
-    constructor Create(const netname, channel: string; site: string;
-      pazo: TPazo; dir: string);
+    dir: AnsiString;
+    constructor Create(const netname, channel: AnsiString; site: AnsiString;
+      pazo: TPazo; dir: AnsiString);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   TWaitTask = class(TTask)
   public
     event: TEvent;
-    wait_for: string;
+    wait_for: AnsiString;
     destructor Destroy; override;
-    constructor Create(const netname, channel: string; site1: string);
+    constructor Create(const netname, channel: AnsiString; site1: AnsiString);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   TPazoRaceTask = class(TPazoTask)
-    dir: string;
-    filename: string;
-    storfilename: string;
+    dir: AnsiString;
+    filename: AnsiString;
+    storfilename: AnsiString;
     rank: integer;
     filesize: integer;
     isSfv: boolean;
@@ -59,10 +59,10 @@ type
     isNFO: boolean;
     dontRemoveOtherSources: boolean;
     dst: TWaitTask;
-    constructor Create(const netname, channel: string; site1: string;
-      site2: string; pazo: TPazo; dir, filename: string; filesize, rank: integer);
+    constructor Create(const netname, channel: AnsiString; site1: AnsiString;
+      site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize, rank: integer);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
 implementation
@@ -77,8 +77,8 @@ const
 
   { TLoginTask }
 
-constructor TPazoPlainTask.Create(const netname, channel: string;
-  site1: string; site2: string; pazo: TPazo);
+constructor TPazoPlainTask.Create(const netname, channel: AnsiString;
+  site1: AnsiString; site2: AnsiString; pazo: TPazo);
 begin
   // egy taszk letrehozasakor es felszabaditasakor a queue lock mindig aktiv
   //tasks can create a queue and release the lock still active
@@ -108,8 +108,8 @@ begin
   inherited;
 end;
 
-constructor TPazoTask.Create(const netname, channel: string; site1: string;
-  site2: string; pazo: TPazo);
+constructor TPazoTask.Create(const netname, channel: AnsiString; site1: AnsiString;
+  site2: AnsiString; pazo: TPazo);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
   mainpazo.queuenumber.increase;
@@ -156,8 +156,8 @@ end;
 
 { TPazoDirlistTask }
 
-constructor TPazoDirlistTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; dir: string; is_pre: boolean; incompleteFill: boolean = False);
+constructor TPazoDirlistTask.Create(const netname, channel: AnsiString;
+  site: AnsiString; pazo: TPazo; dir: AnsiString; is_pre: boolean; incompleteFill: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
@@ -174,10 +174,10 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   d: TDirList;
-  aktdir: string;
+  aktdir: AnsiString;
   voltadd: boolean;
   numerrors: integer;
-  tname: string;
+  tname: AnsiString;
   ps: TPazoSite;
 begin
   numerrors := 0;
@@ -641,7 +641,7 @@ begin
   ready := True;
 end;
 
-function TPazoDirlistTask.Name: string;
+function TPazoDirlistTask.Name: AnsiString;
 begin
   try
     if is_pre then
@@ -659,8 +659,8 @@ end;
 
 { TPazoMkdirTask }
 
-constructor TPazoMkdirTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; dir: string);
+constructor TPazoMkdirTask.Create(const netname, channel: AnsiString;
+  site: AnsiString; pazo: TPazo; dir: AnsiString);
 begin
   self.dir := dir;
   inherited Create(netname, channel, site, '', pazo);
@@ -671,14 +671,14 @@ label
   ujra;
 var
   s: TSiteSlot;
-  aktdir, fulldir: string;
+  aktdir, fulldir: AnsiString;
   hiba: boolean;
   m: boolean;
   r: TRule;
-  e: string;
-  grp: string;
+  e: AnsiString;
+  grp: AnsiString;
   numerrors: integer;
-  tname: string;
+  tname: AnsiString;
 begin
   numerrors := 0;
   Result := False;
@@ -935,7 +935,7 @@ begin
   ready := True;
 end;
 
-function TPazoMkdirTask.Name: string;
+function TPazoMkdirTask.Name: AnsiString;
 begin
   try
     Result := 'MKDIR <b>' + site1 + '</b> ' + mainpazo.rls.rlsname + ' ' + dir;
@@ -946,8 +946,8 @@ end;
 
 { TPazoRaceTask }
 
-constructor TPazoRaceTask.Create(const netname, channel: string;
-  site1, site2: string; pazo: TPazo; dir, filename: string; filesize, rank: integer);
+constructor TPazoRaceTask.Create(const netname, channel: AnsiString;
+  site1, site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize, rank: integer);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
   self.dir := dir;
@@ -967,7 +967,7 @@ var
   ssrc, sdst: TSiteSlot;
   //kellssl: boolean; //kell = must
   RequireSSL: boolean;
-  host: string;
+  host: AnsiString;
   port: integer;
   byme: boolean;
   numerrors: integer;
@@ -975,13 +975,13 @@ var
   started, ended: TDateTime;
   fs: double;
   time_race: integer;
-  todir1, todir2: string;
+  todir1, todir2: AnsiString;
   rss, rsd: boolean;
-  tname: string;
-  speed_stat: string;
+  tname: AnsiString;
+  speed_stat: AnsiString;
   rrgx: TRegExpr;
   lastResponseCode: integer;
-  lastResponse: string;
+  lastResponse: AnsiString;
   fsize, racebw: double;
 begin
   Result := False;
@@ -1504,7 +1504,7 @@ begin
     // ilyenkor a dst szalon a legjobb ha lezarjuk a geci a socketet mert az ABOR meg a sok szar amugy sem hasznalhato.
     // es majd ugyis automatan ujrabejelentkezik a cumo
     // This is the best salon dst If you close the socket because of spunk ABOR a lot of crap anyway be used.
-    // And then anyway Automatic redial occurs in the Cumó
+    // And then anyway Automatic redial occurs in the CumC3
     sdst.DestroySocket(False);
 
     mainpazo.errorreason := 'No free slots?';
@@ -1759,7 +1759,7 @@ begin
   ready := True;
 end;
 
-function TPazoRaceTask.Name: string;
+function TPazoRaceTask.Name: AnsiString;
 begin
   try
     if mainpazo.rls = nil then
@@ -1775,7 +1775,7 @@ end;
 
 { TWaitTask }
 
-constructor TWaitTask.Create(const netname, channel: string; site1: string);
+constructor TWaitTask.Create(const netname, channel: AnsiString; site1: AnsiString);
 begin
   inherited Create(netname, channel, site1);
   event := TEvent.Create(nil, False, False, '');
@@ -1807,7 +1807,7 @@ begin
   ready := True;
 end;
 
-function TWaitTask.Name: string;
+function TWaitTask.Name: AnsiString;
 begin
   try
     Result := 'WAITTASK :' + wait_for;

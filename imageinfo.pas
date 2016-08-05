@@ -6,19 +6,19 @@ type
   TImageInfo = record
     width: Word;
     height: Word;
-    imagecreated_ts: string;
-    software: string;
-    camera: string;
+    imagecreated_ts: AnsiString;
+    software: AnsiString;
+    camera: AnsiString;
   end;
 
-function JPEGDimensions(Filename : string; var X, Y : Word) : boolean;
-function GetImageInfo(const filename: string; var i: TImageInfo): boolean;
+function JPEGDimensions(Filename : AnsiString; var X, Y : Word) : boolean;
+function GetImageInfo(const filename: AnsiString; var i: TImageInfo): boolean;
 
 implementation
 
 uses exif_EXIF, SysUtils, Classes;
 
-function GetImageInfo(const filename: string; var i: TImageInfo): boolean;
+function GetImageInfo(const filename: AnsiString; var i: TImageInfo): boolean;
 var id: TImgData;
 begin
   Result:= False;
@@ -60,7 +60,7 @@ begin
 end;
 
 
-function JPEGDimensions(Filename : string; var X, Y : Word) : boolean;
+function JPEGDimensions(Filename : AnsiString; var X, Y : Word) : boolean;
 var
   SegmentPos : Integer;
   SOIcount : Integer;

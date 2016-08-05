@@ -5,7 +5,7 @@ interface
 procedure MidnightInit;
 procedure MidnightUninit;
 procedure MidnightStart;
-function IsMidnight(section: string): Boolean;
+function IsMidnight(section: AnsiString): Boolean;
 
 implementation
 
@@ -17,7 +17,7 @@ var ms: TStringList;
 
 const rsections='midnight';
 
-function IsMidnight(section: string): Boolean;
+function IsMidnight(section: AnsiString): Boolean;
 var m: TDateTime;
 begin
   Result:= False;

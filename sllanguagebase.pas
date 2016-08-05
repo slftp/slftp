@@ -8,36 +8,36 @@ type
 
   TSLLanguages = class
   private
-    inisection, fexpression, flang: string;
+    inisection, fexpression, flang: AnsiString;
     ffileindex: integer;
   public
-    constructor Create(IniSection, Language, Expression: string; fileindex: integer);
+    constructor Create(IniSection, Language, Expression: AnsiString; fileindex: integer);
     procedure Rehash;
-    property Language: string Read flang;
-    property Expression: string Read fexpression;
+    property Language: AnsiString Read flang;
+    property Expression: AnsiString Read fexpression;
   end;
 
  //procedure SLLanguagesReload();overload;
  //procedure SLLanguagesReload(out status:string);overload;
 
-function SLLanguagesReload: string;
+function SLLanguagesReload: AnsiString;
 
-procedure SLLanguagesRehash(out status: string);
+procedure SLLanguagesRehash(out status: AnsiString);
 
 procedure SLLanguages_Init;
 procedure SLLanguages_Uninit;
 
-function SLLanguagesFindLanguage(Text: string; mp3language: boolean = False): string;
+function SLLanguagesFindLanguage(Text: AnsiString; mp3language: boolean = False): AnsiString;
   overload;
 function SLLanguagesFindLanguage(Text: TStringList;
-  mp3language: boolean = False): string; overload;
+  mp3language: boolean = False): AnsiString; overload;
 
 //procedure FindLanguage(text:);
 
-function FindSLLanguage(Language: string; mp3language: boolean = False): TSLLanguages;
+function FindSLLanguage(Language: AnsiString; mp3language: boolean = False): TSLLanguages;
 
 
-function FindLanguageOnDirectory(Text: string; mp3language: boolean = False): string;
+function FindLanguageOnDirectory(Text: AnsiString; mp3language: boolean = False): AnsiString;
 
 //(rls, section: string): string;
 
@@ -56,8 +56,8 @@ const
 
 {TSLLanguages}
 
-constructor TSLLanguages.Create(IniSection: string; Language: string;
-  Expression: string; fileindex: integer);
+constructor TSLLanguages.Create(IniSection: AnsiString; Language: AnsiString;
+  Expression: AnsiString; fileindex: integer);
 begin
   inisection := IniSection;
   ffileindex := fileindex;
@@ -72,7 +72,7 @@ end;
 
 {SLLanguages Find Utils}
 
-function FindSLLanguage(Language: string; mp3language: boolean = False): TSLLanguages;
+function FindSLLanguage(Language: AnsiString; mp3language: boolean = False): TSLLanguages;
 var
   i: integer;
 begin
@@ -86,7 +86,7 @@ begin
     end;
 end;
 
-function SLLanguagesFindLanguage(Text: string; mp3language: boolean = False): string;
+function SLLanguagesFindLanguage(Text: AnsiString; mp3language: boolean = False): AnsiString;
 var
   i:      integer;
   lrx:    TRegexpr;
@@ -126,10 +126,10 @@ begin
 
 end;
 
-function SLLanguagesFindLanguage(Text: TStringList; mp3language: boolean = False): string;
+function SLLanguagesFindLanguage(Text: TStringList; mp3language: boolean = False): AnsiString;
 var
   i: integer;
-  s: string;
+  s: AnsiString;
 begin
   if mp3language then begin
     Result := 'EN';
@@ -151,7 +151,7 @@ end;
 
 
 
-function FindLanguageOnDirectory(Text: string; mp3language: boolean = False): string;
+function FindLanguageOnDirectory(Text: AnsiString; mp3language: boolean = False): AnsiString;
 var
   i:      integer;
   lrx:    TRegexpr;
@@ -237,7 +237,7 @@ end;
 
 
 
-function SLLanguagesReload: string;
+function SLLanguagesReload: AnsiString;
 var
   i: integer;
   y: TStringList;
@@ -265,7 +265,7 @@ begin
   end;
 end;
 
-procedure SLLanguagesRehash(out status: string);
+procedure SLLanguagesRehash(out status: AnsiString);
 var
   i: integer;
 begin

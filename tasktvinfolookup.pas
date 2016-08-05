@@ -10,45 +10,45 @@ type
   TPazoTVInfoLookupTask = class(TPazoPlainTask)
   private
     attempt: integer;
-    initial_site: string;
+    initial_site: AnsiString;
   public
-    constructor Create(const netname, channel: string; site: string;
+    constructor Create(const netname, channel: AnsiString; site: AnsiString;
       pazo: TPazo; attempt: integer = 0);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   (*didn't work like i wanted :/*)
   TPazoHTTPUpdateTVInfoTask = class(TPazoPlainTask)
   private
-    showname: string;
-    tvmaze_id: string;
+    showname: AnsiString;
+    tvmaze_id: AnsiString;
   public
-    constructor Create(const netname, channel: string; site: string; pazo: TPazo; attempt: integer = 0);
+    constructor Create(const netname, channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: integer = 0);
     destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   (*for !addtvrage channels*)
 
   TPazoHTTPTVInfoTask = class(TTask)
   private
-    rls: string;
-    tvmaze_id: string;
+    rls: AnsiString;
+    tvmaze_id: AnsiString;
   public
-    constructor Create(const tvmaze_id: string; rls: string = '');
+    constructor Create(const tvmaze_id: AnsiString; rls: AnsiString = '');
     destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
-function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
-function findTheTVDbIDByName(name: string): string;
+function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''): TTVInfoDB;
+function findTheTVDbIDByName(name: AnsiString): AnsiString;
 
-function findTVMazeIDByName(name: string): string;
+function findTVMazeIDByName(name: AnsiString): AnsiString;
 
-function findTVMazeIDByNamev2(name: string; Netname: string = ''; Channel: string = ''): string;
+function findTVMazeIDByNamev2(name: AnsiString; Netname: AnsiString = ''; Channel: AnsiString = ''): AnsiString;
 
 implementation
 
@@ -58,14 +58,14 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
 const
   section = 'tasktvinfo';
 
-function findTVMazeIDByNamev2(name: string; Netname: string = ''; Channel: string = ''): string;
+function findTVMazeIDByNamev2(name: AnsiString; Netname: AnsiString = ''; Channel: AnsiString = ''): AnsiString;
 var
-  showA, showB, resp: string;
+  showA, showB, resp: AnsiString;
   x: TRegExpr;
   i: integer;
   ddate, res: TStringlist;
   fromIRC, hadYear, hadCountry: boolean;
-  tv_country, showName, year, country: string;
+  tv_country, showName, year, country: AnsiString;
   jl: TlkJSONlist;
 
 begin
@@ -139,9 +139,9 @@ begin
         if hadCountry then
         begin
           if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
-            tv_country := string(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+            tv_country := AnsiString(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
           if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
-            tv_country := string(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+            tv_country := AnsiString(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
           if tv_country = 'GB' then
             tv_country := 'UK';
           if UpperCase(tv_country) = uppercase(country) then
@@ -149,32 +149,32 @@ begin
             if fromIRC then
             begin
               irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
-                [string(jl.Child[i].Field['show'].Field['name'].Value),
-                string(jl.Child[i].Field['show'].Field['url'].Value),
+                [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
+                AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
                   irccmdprefix,
-                  string(jl.Child[i].Field['show'].Field['id'].Value),
+                  AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
                   Csere(showName, '.', ' '), country]);
               result := 'IRC';
             end
             else
-              result := string(jl.Child[i].Field['show'].Field['id'].Value);
+              result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value);
             //          result := True;
             Break;
           end;
           res.Add(
             Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
-            [string(jl.Child[i].Field['show'].Field['name'].Value),
+            [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
             tv_country,
-              string(jl.Child[i].Field['show'].Field['url'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
-              string(jl.Child[i].Field['show'].Field['id'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
               Csere(showName, '.', ' '), country]));
         end;
         if hadYear then
         begin
           ddate.Delimiter := '-';
           if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
-            ddate.DelimitedText := string(jl.Child[i].Field['show'].Field['premiered'].Value)
+            ddate.DelimitedText := AnsiString(jl.Child[i].Field['show'].Field['premiered'].Value)
           else
             ddate.DelimitedText := '1970-01-01';
           if year = ddate.Strings[0] then
@@ -182,24 +182,24 @@ begin
             if fromIRC then
             begin
               irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
-                [string(jl.Child[i].Field['show'].Field['name'].Value),
-                string(jl.Child[i].Field['show'].Field['url'].Value),
+                [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
+                AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
                   irccmdprefix,
-                  string(jl.Child[i].Field['show'].Field['id'].Value),
+                  AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
                   Csere(showName, '.', ' '), year]);
               result := 'IRC';
             end
             else
-              result := string(jl.Child[i].Field['show'].Field['id'].Value);
+              result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value);
             Break;
           end;
           res.Add(
             Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
-            [string(jl.Child[i].Field['show'].Field['name'].Value),
+            [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
             ddate.Strings[0],
-              string(jl.Child[i].Field['show'].Field['url'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
-              string(jl.Child[i].Field['show'].Field['id'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
               Csere(showName, '.', ' '), year]));
         end;
       end;
@@ -207,15 +207,15 @@ begin
       if ((not hadYear) and (not hadCountry)) then
       begin
         if not fromIRC then
-          result := string(jl.Child[i].Field['show'].Field['id'].Value)
+          result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value)
         else
         begin
           result := 'IRC';
           irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s',
-            [string(jl.Child[i].Field['show'].Field['name'].Value),
-            string(jl.Child[i].Field['show'].Field['url'].Value),
+            [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
+            AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
-              string(jl.Child[i].Field['show'].Field['id'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
               Csere(showName, '.', ' ')]);
         end;
         Break;
@@ -235,9 +235,9 @@ begin
   end;
 end;
 
-function findTVMazeIDByName(name: string): string;
+function findTVMazeIDByName(name: AnsiString): AnsiString;
 var
-  s, url, response: string;
+  s, url, response: AnsiString;
   js: TlkJSONobject;
 begin
   result := 'FAILED';
@@ -245,7 +245,7 @@ begin
   s := Csere(s, '.at.', '.@.');
   s := Csere(s, '_and_', '_&_');
   s := Csere(s, '_at_', '_@_');
-  s := Csere(s, '', chr(39));
+  s := Csere(s, '', Chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
 
@@ -269,7 +269,7 @@ begin
   js := TlkJSON.ParseText(response) as TlkJSONobject;
   try
     if js.Field['id'].SelfType <> jsNull then
-      result := string(js.Field['id'].Value)
+      result := AnsiString(js.Field['id'].Value)
     else
     begin
       result := '-1';
@@ -279,9 +279,9 @@ begin
   end;
 end;
 
-function findTheTVDbIDByName(name: string): string;
+function findTheTVDbIDByName(name: AnsiString): AnsiString;
 var
-  s, url, response: string;
+  s, url, response: AnsiString;
   js: TlkJSONobject;
 begin
   result := 'FAILED';
@@ -289,7 +289,7 @@ begin
   s := Csere(s, '.at.', '.@.');
   s := Csere(s, '_and_', '_&_');
   s := Csere(s, '_at_', '_@_');
-  s := Csere(s, '', chr(39));
+  s := Csere(s, '', Chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
   
@@ -317,7 +317,7 @@ begin
   js := TlkJSON.ParseText(response) as TlkJSONobject;
   try
     if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-      result := string(js.Field['externals'].Field['thetvdb'].Value)
+      result := AnsiString(js.Field['externals'].Field['thetvdb'].Value)
     else
     begin
       Debug(dpError, section, 'Cant find theTVDB id for ' + name);
@@ -329,9 +329,9 @@ begin
   end;
 end;
 
-function getGenreFromTheTVDb(id: string): string;
+function getGenreFromTheTVDb(id: AnsiString): AnsiString;
 var
-  s: string;
+  s: AnsiString;
   xml: TSLXMLDocument;
   gn, nn, n: TSLXMLNode;
   x: TStringlist;
@@ -376,7 +376,7 @@ var
   ep_nextnum, ep_prevnum: integer;
   se_nextnum, se_prevnum: integer;
   nextdt, prevdt: TDateTime;
-  airt: string;
+  airt: AnsiString;
   formatSettings: TFormatSettings;
   hadPrev, hadNext: boolean;
 begin
@@ -404,10 +404,10 @@ begin
       se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
       prevdt := UnixToDateTime(0);
 
-      if string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
+      if AnsiString(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
         airt := '00:00'
       else
-        airt := string(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
+        airt := AnsiString(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
       prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
       hadPrev := True;
       //      irc_addadmin('previousepisode => %dx%d %s ',[se_prevnum,ep_prevnum,DateTimeToStr(prevdt)]);
@@ -425,10 +425,10 @@ begin
       ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
       se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
       nextdt := UnixToDateTime(0);
-      if string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
+      if AnsiString(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
         airt := '00:00'
       else
-        airt := string(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
+        airt := AnsiString(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
       nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
       hadNext := True;
       //      irc_addadmin('nextepisode => %dx%d %s ',[se_nextnum,ep_nextnum,DateTimeToStr(nextdt)]);
@@ -499,15 +499,15 @@ begin
   end;
 end;
 
-function parseTVMazeInfos(jsonStr: string; Showname: string = ''): TTVInfoDB;
+function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''): TTVInfoDB;
 const
-  genreList: string = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
+  genreList: AnsiString = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
     'Fantasy, Food, Game Show, History, Horror, Home and Garden, News, Medical, Mini-Series, Music, Mystery, Reality, Romance, Science-Fiction, ' +
     'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';
 var
   tvr: TTVInfoDB;
   i: integer;
-  s: string;
+  s: AnsiString;
   js: TlkJSONobject;
   slGen, gTVDB: TStringlist;
   season, episdoe: Integer;
@@ -539,7 +539,7 @@ begin
     if js = nil then
       Exit;
 
-    tvr.tv_showname := string(js.Field['name'].Value);
+    tvr.tv_showname := AnsiString(js.Field['name'].Value);
 
     if LowerCase(tvr.tv_showname) = 'not found' then
     begin
@@ -547,40 +547,40 @@ begin
       Exit;
     end;
 
-    tvr.tvmaze_id := string(js.Field['id'].Value);
-    tvr.tv_url := string(js.Field['url'].Value);
+    tvr.tvmaze_id := AnsiString(js.Field['id'].Value);
+    tvr.tv_url := AnsiString(js.Field['url'].Value);
 
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
     else
-      tvr.tv_status := string(js.Field['status'].Value);
+      tvr.tv_status := AnsiString(js.Field['status'].Value);
 
     if js.Field['type'].SelfType = jsNull then
       tvr.tv_classification := 'unknown'
     else
 
-      tvr.tv_classification := string(js.Field['type'].Value);
+      tvr.tv_classification := AnsiString(js.Field['type'].Value);
 
     tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
     tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
 
     if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-      tvr.thetvdb_id := string(js.Field['externals'].Field['thetvdb'].Value);
+      tvr.thetvdb_id := AnsiString(js.Field['externals'].Field['thetvdb'].Value);
     if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then
-      tvr.tvrage_id := string(js.Field['externals'].Field['tvrage'].Value);
+      tvr.tvrage_id := AnsiString(js.Field['externals'].Field['tvrage'].Value);
 
     if js.Field['network'].SelfType = jsNull then
     begin
       if js.Field['webChannel'].SelfType <> jsNull then
       begin
-        tvr.tv_network := string(js.Field['webChannel'].Field['name'].Value);
+        tvr.tv_network := AnsiString(js.Field['webChannel'].Field['name'].Value);
         if js.Field['webChannel'].Field['country'].SelfType = jsNull then
         begin
           tvr.tv_country := 'unknown';
         end
         else
         begin
-          tvr.tv_country := string(js.Field['webChannel'].Field['country'].Field['code'].Value);
+          tvr.tv_country := AnsiString(js.Field['webChannel'].Field['country'].Field['code'].Value);
         end;
       end
       else
@@ -591,8 +591,8 @@ begin
     end
     else
     begin
-      tvr.tv_network := string(js.Field['network'].Field['name'].Value);
-      tvr.tv_country := string(js.Field['network'].Field['country'].Field['code'].Value);
+      tvr.tv_network := AnsiString(js.Field['network'].Field['name'].Value);
+      tvr.tv_country := AnsiString(js.Field['network'].Field['country'].Field['code'].Value);
     end;
 
     if js.Field['schedule'].SelfType <> jsNull then
@@ -667,8 +667,8 @@ end;
 
 { TPazoTheTVDbLookupTask }
 
-constructor TPazoTVInfoLookupTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; attempt: integer = 0);
+constructor TPazoTVInfoLookupTask.Create(const netname, channel: AnsiString;
+  site: AnsiString; pazo: TPazo; attempt: integer = 0);
 begin
   self.attempt := attempt;
   self.initial_site := site;
@@ -679,7 +679,7 @@ function TPazoTVInfoLookupTask.Execute(slot: Pointer): boolean;
 var
   tr: TTvRelease;
   r: TPazoTVInfoLookupTask;
-  showA, showB, tvmaz, sid, uurl: string;
+  showA, showB, tvmaz, sid, uurl: AnsiString;
   db_tvinfo: TTVInfoDB;
   ps: TPazoSite;
 begin
@@ -822,7 +822,7 @@ begin
   Result := True;
 end;
 
-function TPazoTVInfoLookupTask.Name: string;
+function TPazoTVInfoLookupTask.Name: AnsiString;
 begin
   try
     Result := format('TVInfo PazoID(%d) %s @ %s Count(%d)', [mainpazo.pazo_id, mainpazo.rls.rlsname, site1, attempt]);
@@ -833,7 +833,7 @@ end;
 
 //TPazoHTTPUpdateTVInfoTask
 
-constructor TPazoHTTPUpdateTVInfoTask.Create(const netname: string; const channel: string; site: string; pazo: TPazo; attempt: Integer = 0);
+constructor TPazoHTTPUpdateTVInfoTask.Create(const netname: AnsiString; const channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: Integer = 0);
 begin
 
   inherited Create(netname, channel, site, '', pazo);
@@ -845,7 +845,7 @@ begin
   inherited;
 end;
 
-function TPazoHTTPUpdateTVInfoTask.Name: string;
+function TPazoHTTPUpdateTVInfoTask.Name: AnsiString;
 begin
   Result := Format('httpUpdateTVInfo : %s', [showname]);
 end;
@@ -853,7 +853,7 @@ end;
 function TPazoHTTPUpdateTVInfoTask.Execute(slot: Pointer): boolean;
 var
   tvdb: TTVInfoDB;
-  response: string;
+  response: AnsiString;
   ps: TPazoSite;
 begin
   showname := TTvRelease(mainpazo.rls).showname;
@@ -901,7 +901,7 @@ end;
 
 { TPazoHTTPTVInfoTask }
 
-constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: string; rls: string =
+constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: AnsiString; rls: AnsiString =
   '');
 begin
   self.tvmaze_id := tvmaze_id;
@@ -909,7 +909,7 @@ begin
   inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 end;
 
-function TPazoHTTPTVInfoTask.Name: string;
+function TPazoHTTPTVInfoTask.Name: AnsiString;
 begin
   try
     Result := Format('httpTVMaze : %s', [tvmaze_id]);
@@ -927,7 +927,7 @@ function TPazoHTTPTVInfoTask.Execute(slot: Pointer): boolean;
 var
   tvdb: TTVInfoDB;
   rx: TRegExpr;
-  uurl, sname: string;
+  uurl, sname: AnsiString;
 
 begin
 

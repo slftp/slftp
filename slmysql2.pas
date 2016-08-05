@@ -114,13 +114,13 @@ type PMYSQL = Pointer;
          
        Pst_mysql_field = ^st_mysql_field;
        st_mysql_field = record
-            name : Pchar;             // Name of column
-            org_name : Pchar;         // Original column name, if an alias
-            table : Pchar;            // Table of column if column was a field
-            org_table : Pchar;        // Org table name, if table was an alias
-            db : Pchar;               // Database for table
-            catalog : Pchar;          // Catalog for table
-            def : Pchar;              // Default value (set by mysql_list_fields)
+            name : PAnsiChar;             // Name of column
+            org_name : PAnsiChar;         // Original column name, if an alias
+            table : PAnsiChar;            // Table of column if column was a field
+            org_table : PAnsiChar;        // Org table name, if table was an alias
+            db : PAnsiChar;               // Database for table
+            catalog : PAnsiChar;          // Catalog for table
+            def : PAnsiChar;              // Default value (set by mysql_list_fields)
             length : culong;          // Width of column (create length)
             max_length : culong;      // Max width for selected set
 
@@ -159,23 +159,23 @@ type PMYSQL = Pointer;
       mysql_affected_rows: function (mysql:PMYSQL):my_ulonglong;extdecl;
       mysql_insert_id: function (mysql:PMYSQL):my_ulonglong;extdecl;
       mysql_errno: function (mysql:PMYSQL):cuint;extdecl;
-      mysql_error: function (mysql:PMYSQL):Pchar;extdecl;
-      mysql_sqlstate: function (mysql:PMYSQL):Pchar;extdecl;
+      mysql_error: function (mysql:PMYSQL):PAnsiChar;extdecl;
+      mysql_sqlstate: function (mysql:PMYSQL):PAnsiChar;extdecl;
       mysql_warning_count: function (mysql:PMYSQL):cuint;extdecl;
-      mysql_info: function (mysql:PMYSQL):Pchar;extdecl;
+      mysql_info: function (mysql:PMYSQL):PAnsiChar;extdecl;
       mysql_thread_id: function (mysql:PMYSQL):culong;extdecl;
-      mysql_character_set_name: function (mysql:PMYSQL):Pchar;extdecl;
-      mysql_set_character_set: function (mysql:PMYSQL; csname:Pchar):cint;extdecl;
+      mysql_character_set_name: function (mysql:PMYSQL):PAnsiChar;extdecl;
+      mysql_set_character_set: function (mysql:PMYSQL; csname:PAnsiChar):cint;extdecl;
       mysql_init: function (mysql:PMYSQL):PMYSQL;extdecl;
-      mysql_ssl_set: function (mysql:PMYSQL; key:Pchar; cert:Pchar; ca:Pchar; capath:Pchar;
-                 cipher:Pchar):my_bool;extdecl;
-      mysql_change_user: function (mysql:PMYSQL; user:Pchar; passwd:Pchar; db:Pchar):my_bool;extdecl;
-      mysql_real_connect: function (mysql:PMYSQL; host:Pchar; user:Pchar; passwd:Pchar; db:Pchar;
-                 port:cuint; unix_socket:Pchar; clientflag:culong):PMYSQL;extdecl;
-      mysql_select_db: function (mysql:PMYSQL; db:Pchar):cint;extdecl;
-      mysql_query: function (mysql:PMYSQL; q:Pchar):cint;extdecl;
-      mysql_send_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;extdecl;
-      mysql_real_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;extdecl;
+      mysql_ssl_set: function (mysql:PMYSQL; key:PAnsiChar; cert:PAnsiChar; ca:PAnsiChar; capath:PAnsiChar;
+                 cipher:PAnsiChar):my_bool;extdecl;
+      mysql_change_user: function (mysql:PMYSQL; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar):my_bool;extdecl;
+      mysql_real_connect: function (mysql:PMYSQL; host:PAnsiChar; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar;
+                 port:cuint; unix_socket:PAnsiChar; clientflag:culong):PMYSQL;extdecl;
+      mysql_select_db: function (mysql:PMYSQL; db:PAnsiChar):cint;extdecl;
+      mysql_query: function (mysql:PMYSQL; q:PAnsiChar):cint;extdecl;
+      mysql_send_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;extdecl;
+      mysql_real_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;extdecl;
       mysql_store_result: function (mysql:PMYSQL):PMYSQL_RES;extdecl;
       mysql_use_result: function (mysql:PMYSQL):PMYSQL_RES;extdecl;
 
@@ -185,21 +185,21 @@ type PMYSQL = Pointer;
       mysql_kill: function (mysql:PMYSQL; pid:culong):cint;extdecl;
       mysql_set_server_option: function (mysql:PMYSQL; option:enum_mysql_set_option):cint;extdecl;
       mysql_ping: function (mysql:PMYSQL):cint;extdecl;
-      mysql_stat: function (mysql:PMYSQL):Pchar;extdecl;
-      mysql_get_server_info: function (mysql:PMYSQL):Pchar;extdecl;
-      mysql_get_client_info: function :Pchar;extdecl;
+      mysql_stat: function (mysql:PMYSQL):PAnsiChar;extdecl;
+      mysql_get_server_info: function (mysql:PMYSQL):PAnsiChar;extdecl;
+      mysql_get_client_info: function :PAnsiChar;extdecl;
       mysql_get_client_version: function :culong;extdecl;
-      mysql_get_host_info: function (mysql:PMYSQL):Pchar;extdecl;
+      mysql_get_host_info: function (mysql:PMYSQL):PAnsiChar;extdecl;
       mysql_get_server_version: function (mysql:PMYSQL):culong;extdecl;
       mysql_get_proto_info: function (mysql:PMYSQL):cuint;extdecl;
       mysql_thread_safe:function: cuint;extdecl;
 
-      mysql_list_dbs: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;extdecl;
+      mysql_list_dbs: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;extdecl;
 
 
-      mysql_list_tables: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;extdecl;
+      mysql_list_tables: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;extdecl;
       mysql_list_processes: function (mysql:PMYSQL):PMYSQL_RES;extdecl;
-      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:Pchar):cint;extdecl;
+      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:PAnsiChar):cint;extdecl;
       mysql_free_result: procedure (result:PMYSQL_RES);extdecl;
       mysql_data_seek: procedure (result:PMYSQL_RES; offset:my_ulonglong);extdecl;
       mysql_row_seek: function (result:PMYSQL_RES; offset:MYSQL_ROW_OFFSET):MYSQL_ROW_OFFSET;extdecl;
@@ -207,11 +207,11 @@ type PMYSQL = Pointer;
       mysql_fetch_row: function (result:PMYSQL_RES):MYSQL_ROW;extdecl;
       mysql_fetch_lengths: function (result:PMYSQL_RES):pculong;extdecl;
       mysql_fetch_field: function (result:PMYSQL_RES):PMYSQL_FIELD;extdecl;
-      mysql_list_fields: function (mysql:PMYSQL; table:Pchar; wild:Pchar):PMYSQL_RES;extdecl;
-      mysql_escape_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;extdecl;
-      mysql_hex_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;extdecl;
-      mysql_real_escape_string: function (mysql:PMYSQL; fto:Pchar; from:Pchar; length:culong):culong;extdecl;
-      mysql_debug: procedure (debug:Pchar);extdecl;
+      mysql_list_fields: function (mysql:PMYSQL; table:PAnsiChar; wild:PAnsiChar):PMYSQL_RES;extdecl;
+      mysql_escape_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;extdecl;
+      mysql_hex_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;extdecl;
+      mysql_real_escape_string: function (mysql:PMYSQL; fto:PAnsiChar; from:PAnsiChar; length:culong):culong;extdecl;
+      mysql_debug: procedure (debug:PAnsiChar);extdecl;
 
       mysql_rollback: function (mysql:PMYSQL):my_bool;extdecl;
       mysql_autocommit: function (mysql:PMYSQL; auto_mode:my_bool):my_bool;extdecl;
@@ -241,23 +241,23 @@ type PMYSQL = Pointer;
       mysql_affected_rows: function (mysql:PMYSQL):my_ulonglong;stdcall;
       mysql_insert_id: function (mysql:PMYSQL):my_ulonglong;stdcall;
       mysql_errno: function (mysql:PMYSQL):cuint;stdcall;
-      mysql_error: function (mysql:PMYSQL):Pchar;stdcall;
-      mysql_sqlstate: function (mysql:PMYSQL):Pchar;stdcall;
+      mysql_error: function (mysql:PMYSQL):PAnsiChar;stdcall;
+      mysql_sqlstate: function (mysql:PMYSQL):PAnsiChar;stdcall;
       mysql_warning_count: function (mysql:PMYSQL):cuint;stdcall;
-      mysql_info: function (mysql:PMYSQL):Pchar;stdcall;
+      mysql_info: function (mysql:PMYSQL):PAnsiChar;stdcall;
       mysql_thread_id: function (mysql:PMYSQL):culong;stdcall;
-      mysql_character_set_name: function (mysql:PMYSQL):Pchar;stdcall;
-      mysql_set_character_set: function (mysql:PMYSQL; csname:Pchar):cint;stdcall;
+      mysql_character_set_name: function (mysql:PMYSQL):PAnsiChar;stdcall;
+      mysql_set_character_set: function (mysql:PMYSQL; csname:PAnsiChar):cint;stdcall;
       mysql_init: function (mysql:PMYSQL):PMYSQL;stdcall;
-      mysql_ssl_set: function (mysql:PMYSQL; key:Pchar; cert:Pchar; ca:Pchar; capath:Pchar;
-                 cipher:Pchar):my_bool;stdcall;
-      mysql_change_user: function (mysql:PMYSQL; user:Pchar; passwd:Pchar; db:Pchar):my_bool;stdcall;
-      mysql_real_connect: function (mysql:PMYSQL; host:Pchar; user:Pchar; passwd:Pchar; db:Pchar;
-                 port:cuint; unix_socket:Pchar; clientflag:culong):PMYSQL;stdcall;
-      mysql_select_db: function (mysql:PMYSQL; db:Pchar):cint;stdcall;
-      mysql_query: function (mysql:PMYSQL; q:Pchar):cint;stdcall;
-      mysql_send_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;stdcall;
-      mysql_real_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;stdcall;
+      mysql_ssl_set: function (mysql:PMYSQL; key:PAnsiChar; cert:PAnsiChar; ca:PAnsiChar; capath:PAnsiChar;
+                 cipher:PAnsiChar):my_bool;stdcall;
+      mysql_change_user: function (mysql:PMYSQL; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar):my_bool;stdcall;
+      mysql_real_connect: function (mysql:PMYSQL; host:PAnsiChar; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar;
+                 port:cuint; unix_socket:PAnsiChar; clientflag:culong):PMYSQL;stdcall;
+      mysql_select_db: function (mysql:PMYSQL; db:PAnsiChar):cint;stdcall;
+      mysql_query: function (mysql:PMYSQL; q:PAnsiChar):cint;stdcall;
+      mysql_send_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;stdcall;
+      mysql_real_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;stdcall;
       mysql_store_result: function (mysql:PMYSQL):PMYSQL_RES;stdcall;
       mysql_use_result: function (mysql:PMYSQL):PMYSQL_RES;stdcall;
 
@@ -267,19 +267,19 @@ type PMYSQL = Pointer;
       mysql_kill: function (mysql:PMYSQL; pid:culong):cint;stdcall;
       mysql_set_server_option: function (mysql:PMYSQL; option:enum_mysql_set_option):cint;stdcall;
       mysql_ping: function (mysql:PMYSQL):cint;stdcall;
-      mysql_stat: function (mysql:PMYSQL):Pchar;stdcall;
-      mysql_get_server_info: function (mysql:PMYSQL):Pchar;stdcall;
-      mysql_get_client_info: function :Pchar;stdcall;
+      mysql_stat: function (mysql:PMYSQL):PAnsiChar;stdcall;
+      mysql_get_server_info: function (mysql:PMYSQL):PAnsiChar;stdcall;
+      mysql_get_client_info: function :PAnsiChar;stdcall;
       mysql_get_client_version: function :culong;stdcall;
-      mysql_get_host_info: function (mysql:PMYSQL):Pchar;stdcall;
+      mysql_get_host_info: function (mysql:PMYSQL):PAnsiChar;stdcall;
       mysql_get_server_version: function (mysql:PMYSQL):culong;stdcall;
       mysql_get_proto_info: function (mysql:PMYSQL):cuint;stdcall;
       mysql_thread_safe:function: cuint;stdcall;
-      mysql_list_dbs: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;stdcall;
+      mysql_list_dbs: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;stdcall;
 
-      mysql_list_tables: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;stdcall;
+      mysql_list_tables: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;stdcall;
       mysql_list_processes: function (mysql:PMYSQL):PMYSQL_RES;stdcall;
-      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:Pchar):cint;stdcall;
+      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:PAnsiChar):cint;stdcall;
       mysql_free_result: procedure (result:PMYSQL_RES);stdcall;
       mysql_data_seek: procedure (result:PMYSQL_RES; offset:my_ulonglong);stdcall;
       mysql_row_seek: function (result:PMYSQL_RES; offset:MYSQL_ROW_OFFSET):MYSQL_ROW_OFFSET;stdcall;
@@ -287,11 +287,11 @@ type PMYSQL = Pointer;
       mysql_fetch_row: function (result:PMYSQL_RES):MYSQL_ROW;stdcall;
       mysql_fetch_lengths: function (result:PMYSQL_RES):pculong;stdcall;
       mysql_fetch_field: function (result:PMYSQL_RES):PMYSQL_FIELD;stdcall;
-      mysql_list_fields: function (mysql:PMYSQL; table:Pchar; wild:Pchar):PMYSQL_RES;stdcall;
-      mysql_escape_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;stdcall;
-      mysql_hex_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;stdcall;
-      mysql_real_escape_string: function (mysql:PMYSQL; fto:Pchar; from:Pchar; length:culong):culong;stdcall;
-      mysql_debug: procedure (debug:Pchar);stdcall;
+      mysql_list_fields: function (mysql:PMYSQL; table:PAnsiChar; wild:PAnsiChar):PMYSQL_RES;stdcall;
+      mysql_escape_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;stdcall;
+      mysql_hex_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;stdcall;
+      mysql_real_escape_string: function (mysql:PMYSQL; fto:PAnsiChar; from:PAnsiChar; length:culong):culong;stdcall;
+      mysql_debug: procedure (debug:PAnsiChar);stdcall;
 
       mysql_rollback: function (mysql:PMYSQL):my_bool;stdcall;
       mysql_autocommit: function (mysql:PMYSQL; auto_mode:my_bool):my_bool;stdcall;
@@ -320,23 +320,23 @@ type PMYSQL = Pointer;
       mysql_affected_rows: function (mysql:PMYSQL):my_ulonglong;cdecl;
       mysql_insert_id: function (mysql:PMYSQL):my_ulonglong;cdecl;
       mysql_errno: function (mysql:PMYSQL):cuint;cdecl;
-      mysql_error: function (mysql:PMYSQL):Pchar;cdecl;
-      mysql_sqlstate: function (mysql:PMYSQL):Pchar;cdecl;
+      mysql_error: function (mysql:PMYSQL):PAnsiChar;cdecl;
+      mysql_sqlstate: function (mysql:PMYSQL):PAnsiChar;cdecl;
       mysql_warning_count: function (mysql:PMYSQL):cuint;cdecl;
-      mysql_info: function (mysql:PMYSQL):Pchar;cdecl;
+      mysql_info: function (mysql:PMYSQL):PAnsiChar;cdecl;
       mysql_thread_id: function (mysql:PMYSQL):culong;cdecl;
-      mysql_character_set_name: function (mysql:PMYSQL):Pchar;cdecl;
-      mysql_set_character_set: function (mysql:PMYSQL; csname:Pchar):cint;cdecl;
+      mysql_character_set_name: function (mysql:PMYSQL):PAnsiChar;cdecl;
+      mysql_set_character_set: function (mysql:PMYSQL; csname:PAnsiChar):cint;cdecl;
       mysql_init: function (mysql:PMYSQL):PMYSQL;cdecl;
-      mysql_ssl_set: function (mysql:PMYSQL; key:Pchar; cert:Pchar; ca:Pchar; capath:Pchar;
-                 cipher:Pchar):my_bool;cdecl;
-      mysql_change_user: function (mysql:PMYSQL; user:Pchar; passwd:Pchar; db:Pchar):my_bool;cdecl;
-      mysql_real_connect: function (mysql:PMYSQL; host:Pchar; user:Pchar; passwd:Pchar; db:Pchar;
-                 port:cuint; unix_socket:Pchar; clientflag:culong):PMYSQL;cdecl;
-      mysql_select_db: function (mysql:PMYSQL; db:Pchar):cint;cdecl;
-      mysql_query: function (mysql:PMYSQL; q:Pchar):cint;cdecl;
-      mysql_send_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;cdecl;
-      mysql_real_query: function (mysql:PMYSQL; q:Pchar; length:culong):cint;cdecl;
+      mysql_ssl_set: function (mysql:PMYSQL; key:PAnsiChar; cert:PAnsiChar; ca:PAnsiChar; capath:PAnsiChar;
+                 cipher:PAnsiChar):my_bool;cdecl;
+      mysql_change_user: function (mysql:PMYSQL; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar):my_bool;cdecl;
+      mysql_real_connect: function (mysql:PMYSQL; host:PAnsiChar; user:PAnsiChar; passwd:PAnsiChar; db:PAnsiChar;
+                 port:cuint; unix_socket:PAnsiChar; clientflag:culong):PMYSQL;cdecl;
+      mysql_select_db: function (mysql:PMYSQL; db:PAnsiChar):cint;cdecl;
+      mysql_query: function (mysql:PMYSQL; q:PAnsiChar):cint;cdecl;
+      mysql_send_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;cdecl;
+      mysql_real_query: function (mysql:PMYSQL; q:PAnsiChar; length:culong):cint;cdecl;
       mysql_store_result: function (mysql:PMYSQL):PMYSQL_RES;cdecl;
       mysql_use_result: function (mysql:PMYSQL):PMYSQL_RES;cdecl;
 
@@ -346,19 +346,19 @@ type PMYSQL = Pointer;
       mysql_kill: function (mysql:PMYSQL; pid:culong):cint;cdecl;
       mysql_set_server_option: function (mysql:PMYSQL; option:enum_mysql_set_option):cint;cdecl;
       mysql_ping: function (mysql:PMYSQL):cint;cdecl;
-      mysql_stat: function (mysql:PMYSQL):Pchar;cdecl;
-      mysql_get_server_info: function (mysql:PMYSQL):Pchar;cdecl;
-      mysql_get_client_info: function :Pchar;cdecl;
+      mysql_stat: function (mysql:PMYSQL):PAnsiChar;cdecl;
+      mysql_get_server_info: function (mysql:PMYSQL):PAnsiChar;cdecl;
+      mysql_get_client_info: function :PAnsiChar;cdecl;
       mysql_get_client_version: function :culong;cdecl;
-      mysql_get_host_info: function (mysql:PMYSQL):Pchar;cdecl;
+      mysql_get_host_info: function (mysql:PMYSQL):PAnsiChar;cdecl;
       mysql_get_server_version: function (mysql:PMYSQL):culong;cdecl;
       mysql_get_proto_info: function (mysql:PMYSQL):cuint;cdecl;
       mysql_thread_safe:function: cuint;cdecl;
-      mysql_list_dbs: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;cdecl;
+      mysql_list_dbs: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;cdecl;
 
-      mysql_list_tables: function (mysql:PMYSQL; wild:Pchar):PMYSQL_RES;cdecl;
+      mysql_list_tables: function (mysql:PMYSQL; wild:PAnsiChar):PMYSQL_RES;cdecl;
       mysql_list_processes: function (mysql:PMYSQL):PMYSQL_RES;cdecl;
-      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:Pchar):cint;cdecl;
+      mysql_options: function (mysql:PMYSQL; option:mysql_option; arg:PAnsiChar):cint;cdecl;
       mysql_free_result: procedure (result:PMYSQL_RES);cdecl;
       mysql_data_seek: procedure (result:PMYSQL_RES; offset:my_ulonglong);cdecl;
       mysql_row_seek: function (result:PMYSQL_RES; offset:MYSQL_ROW_OFFSET):MYSQL_ROW_OFFSET;cdecl;
@@ -366,11 +366,11 @@ type PMYSQL = Pointer;
       mysql_fetch_row: function (result:PMYSQL_RES):MYSQL_ROW;cdecl;
       mysql_fetch_lengths: function (result:PMYSQL_RES):pculong;cdecl;
       mysql_fetch_field: function (result:PMYSQL_RES):PMYSQL_FIELD;cdecl;
-      mysql_list_fields: function (mysql:PMYSQL; table:Pchar; wild:Pchar):PMYSQL_RES;cdecl;
-      mysql_escape_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;cdecl;
-      mysql_hex_string: function (fto:Pchar; from:Pchar; from_length:culong):culong;cdecl;
-      mysql_real_escape_string: function (mysql:PMYSQL; fto:Pchar; from:Pchar; length:culong):culong;cdecl;
-      mysql_debug: procedure (debug:Pchar);cdecl;
+      mysql_list_fields: function (mysql:PMYSQL; table:PAnsiChar; wild:PAnsiChar):PMYSQL_RES;cdecl;
+      mysql_escape_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;cdecl;
+      mysql_hex_string: function (fto:PAnsiChar; from:PAnsiChar; from_length:culong):culong;cdecl;
+      mysql_real_escape_string: function (mysql:PMYSQL; fto:PAnsiChar; from:PAnsiChar; length:culong):culong;cdecl;
+      mysql_debug: procedure (debug:PAnsiChar);cdecl;
 
       mysql_rollback: function (mysql:PMYSQL):my_bool;cdecl;
       mysql_autocommit: function (mysql:PMYSQL; auto_mode:my_bool):my_bool;cdecl;
@@ -387,25 +387,25 @@ type PMYSQL = Pointer;
     {$ENDIF}
 
 
-function mqwo(m:PMYSQL; q: string): Boolean; overload;
-function mqwo(m:PMYSQL; q: string; args: array of const): Boolean; overload;
+function mqwo(m:PMYSQL; q: AnsiString): Boolean; overload;
+function mqwo(m:PMYSQL; q: AnsiString; args: array of const): Boolean; overload;
 function mygetrow(r: PMYSQL_RES; var res: TStringDynArray): Boolean;
-function myquery(m:PMYSQL; q: string): PMYSQL_RES; overload;
-function myquery(m:PMYSQL; q: string; args: array of const): PMYSQL_RES; overload;
-function gcaa(m:PMYSQL; q: string; args: array of const; var res: TStringDynArray): Boolean; overload;
-function gcaa(m:PMYSQL; q: string; args: array of const; res: TStringList): Boolean; overload;
-function gc(m:PMYSQL; q: string; args: array of const): string;
-function slmysql_info: string;
-function slmysql_error(m: PMYSQL): string;
+function myquery(m:PMYSQL; q: AnsiString): PMYSQL_RES; overload;
+function myquery(m:PMYSQL; q: AnsiString; args: array of const): PMYSQL_RES; overload;
+function gcaa(m:PMYSQL; q: AnsiString; args: array of const; var res: TStringDynArray): Boolean; overload;
+function gcaa(m:PMYSQL; q: AnsiString; args: array of const; res: TStringList): Boolean; overload;
+function gc(m:PMYSQL; q: AnsiString; args: array of const): AnsiString;
+function slmysql_info: AnsiString;
+function slmysql_error(m: PMYSQL): AnsiString;
 
-Function InitialiseMysql(Const LibraryName : String) : Boolean; overload;
+Function InitialiseMysql(Const LibraryName : AnsiString) : Boolean; overload;
 Function InitialiseMysql : Boolean; overload;
 Procedure ReleaseMysql;
 
 var
   MysqlLibraryHandle : Integer = 0;
-  slmysql_liberror : string = '';
-  slmysql_LoadedLibrary : String = '';
+  slmysql_liberror : AnsiString = '';
+  slmysql_LoadedLibrary : AnsiString = '';
 
 
 
@@ -430,8 +430,8 @@ uses
 var 
   RefCount : integer;
 
-function slmysql_LoadProc(handle: Integer; const fnName: string; var fn: Pointer): Boolean;
-var fceName: string;
+function slmysql_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
+var fceName: AnsiString;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -448,7 +448,7 @@ begin
     Result:= True;
 end;
 
-Function TryInitialiseMysql(Const LibraryName : String) : Integer;
+Function TryInitialiseMysql(Const LibraryName : AnsiString) : Integer;
 begin
   Result := 0;
 
@@ -563,7 +563,7 @@ begin
 end;
 
 
-Function InitialiseMysql(Const LibraryName : String) : Boolean;
+Function InitialiseMysql(Const LibraryName : AnsiString) : Boolean;
 begin
   Result := False;
   if (TryInitialiseMysql(LibraryName) <> 0) then
@@ -597,10 +597,10 @@ begin
 end;
 
 
-function mqwo(m:PMYSQL; q: string): Boolean; overload;
-var mysql_err: string;
+function mqwo(m:PMYSQL; q: AnsiString): Boolean; overload;
+var mysql_err: AnsiString;
 begin
-  Result:= 0 = mysql_query(m, PChar(q));
+  Result:= 0 = mysql_query(m, PAnsiChar(q));
   mysql_err:= mysql_error(m);
   if mysql_err <> '' then
   begin
@@ -608,10 +608,10 @@ begin
   end;
 end;
 
-function mqwo(m:PMYSQL; q: string; args: array of const): Boolean; overload;
+function mqwo(m:PMYSQL; q: AnsiString; args: array of const): Boolean; overload;
 var newargs: TConstArray;
     i, j: Integer;
-    s2, s: string;
+    s2, s: AnsiString;
 begin
   SetLength(newargs, Length(args));
   try
@@ -623,7 +623,7 @@ begin
             s2:= args[i].VString^;
             j:= length(s2);
             SetLength(s, j*2+1);
-            j:= mysql_real_escape_string(m, PChar(s), PChar(s2), j);
+            j:= mysql_real_escape_string(m, PAnsiChar(s), PAnsiChar(s2), j);
             newargs[i]:= CreateVarRecFromString(Copy(s, 1, j));
           end;
         vtAnsiString:
@@ -631,7 +631,7 @@ begin
             s2:= AnsiString(args[i].VAnsiString);
             j:= length(s2);
             SetLength(s, j*2+1);
-            j:= mysql_real_escape_string(m, PChar(s), PChar(s2), j);
+            j:= mysql_real_escape_string(m, PAnsiChar(s), PAnsiChar(s2), j);
             newargs[i]:= CreateVarRecFromString(Copy(s, 1, j));
         end;
         vtWideString:
@@ -639,14 +639,14 @@ begin
             s2:= WideCharToString(args[i].VWideString);
             j:= length(s2);
             SetLength(s, j*2+1);
-            j:= mysql_real_escape_string(m, PChar(s), PChar(s2), j);
+            j:= mysql_real_escape_string(m, PAnsiChar(s), PAnsiChar(s2), j);
             newargs[i]:= CreateVarRecFromString(Copy(s, 1, j));
           end;
         vtChar:
           begin
             SetLength(s, 3);
             s2:= args[i].VChar;
-            j:= mysql_real_escape_string(m, PChar(s), PChar(s2), 1);
+            j:= mysql_real_escape_string(m, PAnsiChar(s), PAnsiChar(s2), 1);
             newargs[i]:= CreateVarRecFromString(Copy(s, 1, j));
           end;
       else
@@ -659,11 +659,11 @@ begin
   end;
 end;
 
-function myquery(m:PMYSQL; q: string): PMYSQL_RES;
+function myquery(m:PMYSQL; q: AnsiString): PMYSQL_RES;
 begin
   Result:= myquery(m, q, []);
 end;
-function myquery(m:PMYSQL; q: string; args: array of const): PMYSQL_RES;
+function myquery(m:PMYSQL; q: AnsiString; args: array of const): PMYSQL_RES;
 begin
   Result:= nil;
   if not mqwo(m, q, args) then
@@ -673,7 +673,7 @@ end;
 
 function mygetrow(r: PMYSQL_RES; var res: TStringDynArray): Boolean;
 var i, j: Integer;
-    row: array of pchar;
+    row: array of PAnsiChar;
     p: PPChar;
 begin
   Pointer(row):= nil;
@@ -695,7 +695,7 @@ begin
   Pointer(row):= nil;
   Result:= True;
 end;
-function gcaa(m:PMYSQL; q: string; args: array of const; var res: TStringDynArray): Boolean;
+function gcaa(m:PMYSQL; q: AnsiString; args: array of const; var res: TStringDynArray): Boolean;
 var r: PMYSQL_RES;
 begin
   Result:= False;
@@ -718,7 +718,7 @@ begin
   end;
 end;
 
-function gcaa(m:PMYSQL; q: string; args: array of const; res: TStringList): Boolean;
+function gcaa(m:PMYSQL; q: AnsiString; args: array of const; res: TStringList): Boolean;
 var r: PMYSQL_RES;
     re: TStringDynArray;
     mf: PMYSQL_FIELD;
@@ -753,7 +753,7 @@ begin
 end;
 
 
-function gc(m:PMYSQL; q: string; args: array of const): string;
+function gc(m:PMYSQL; q: AnsiString; args: array of const): AnsiString;
 var row: TStringDynArray;
 begin
   Result:= '';
@@ -770,11 +770,11 @@ begin
   end;
 end;
 
-function slmysql_info: string;
+function slmysql_info: AnsiString;
 begin
   Result:= StrPas(mysql_get_client_info);
 end;
-function slmysql_error(m: PMYSQL): string;
+function slmysql_error(m: PMYSQL): AnsiString;
 begin
   Result:= StrPas(mysql_error(m));
 end;

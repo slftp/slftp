@@ -34,15 +34,15 @@ const
 type
   TID3v2Info = record
       exists: Boolean;
-      Version: string;
+      Version: AnsiString;
       Size: Integer;
-      Title: string;
-      Artist: string;
-      Album: string;
+      Title: AnsiString;
+      Artist: AnsiString;
+      Album: AnsiString;
       Track: Byte;
-      Year: string;
-      Genre: string;
-      Comment: string;
+      Year: AnsiString;
+      Genre: AnsiString;
+      Comment: AnsiString;
   end;
 
   { Class TID3v2 }
@@ -52,42 +52,42 @@ type
       FExists: Boolean;
       FVersionID: Byte;
       FSize: Integer;
-      FTitle: string;
-      FArtist: string;
-      FAlbum: string;
+      FTitle: AnsiString;
+      FArtist: AnsiString;
+      FAlbum: AnsiString;
       FTrack: Byte;
-      FYear: string;
-      FGenre: string;
-      FComment: string;
-      procedure FSetTitle(const NewTitle: string);
-      procedure FSetArtist(const NewArtist: string);
-      procedure FSetAlbum(const NewAlbum: string);
+      FYear: AnsiString;
+      FGenre: AnsiString;
+      FComment: AnsiString;
+      procedure FSetTitle(const NewTitle: AnsiString);
+      procedure FSetArtist(const NewArtist: AnsiString);
+      procedure FSetAlbum(const NewAlbum: AnsiString);
       procedure FSetTrack(const NewTrack: Byte);
-      procedure FSetYear(const NewYear: string);
-      procedure FSetGenre(const NewGenre: string);
-      procedure FSetComment(const NewComment: string);
-      function GetVersionString: string;
+      procedure FSetYear(const NewYear: AnsiString);
+      procedure FSetGenre(const NewGenre: AnsiString);
+      procedure FSetComment(const NewComment: AnsiString);
+      function GetVersionString: AnsiString;
     public
       { Public declarations }
       constructor Create;                                     { Create object }
       procedure ResetData;                                   { Reset all data }
       procedure FillID3v2Info(var info: TID3v2Info);
       function ReadFromStream(s: TStream): Boolean;    { Load tag }
-      function ReadFromFile(const FileName: string): Boolean;     { Load tag }
+      function ReadFromFile(const FileName: AnsiString): Boolean;     { Load tag }
       property Exists: Boolean read FExists;              { True if tag found }
       property VersionID: Byte read FVersionID;                { Version code }
-      property Version: string read GetVersionString;                { Version code }
+      property Version: AnsiString read GetVersionString;                { Version code }
       property Size: Integer read FSize;                     { Total tag size }
-      property Title: string read FTitle write FSetTitle;        { Song title }
-      property Artist: string read FArtist write FSetArtist;    { Artist name }
-      property Album: string read FAlbum write FSetAlbum;       { Album title }
+      property Title: AnsiString read FTitle write FSetTitle;        { Song title }
+      property Artist: AnsiString read FArtist write FSetArtist;    { Artist name }
+      property Album: AnsiString read FAlbum write FSetAlbum;       { Album title }
       property Track: Byte read FTrack write FSetTrack;        { Track number }
-      property Year: string read FYear write FSetYear;         { Release year }
-      property Genre: string read FGenre write FSetGenre;        { Genre name }
-      property Comment: string read FComment write FSetComment;     { Comment }
+      property Year: AnsiString read FYear write FSetYear;         { Release year }
+      property Genre: AnsiString read FGenre write FSetGenre;        { Genre name }
+      property Comment: AnsiString read FComment write FSetComment;     { Comment }
   end;
 
-function ID3v2InfoToString( const i: TID3v2Info): string;  
+function ID3v2InfoToString( const i: TID3v2Info): AnsiString;  
 
 implementation
 
@@ -99,13 +99,13 @@ const
   ID3V2_FRAME_COUNT = 7;
 
   { Names of supported tag frames }
-  ID3V2_FRAME: array [1..ID3V2_FRAME_COUNT] of string =
+  ID3V2_FRAME: array [1..ID3V2_FRAME_COUNT] of AnsiString =
     ('TIT2', 'TPE1', 'TALB', 'TRCK', 'TYER', 'TCON', 'COMM');
 
 type
   { ID3v2 frame header }
   FrameHeader = record
-    ID: array [1..4] of Char;                                      { Frame ID }
+    ID: array [1..4] of AnsiChar;                                      { Frame ID }
     Size: Integer;                                    { Size excluding header }
     Flags: Word;                                                      { Flags }
   end;
@@ -113,17 +113,17 @@ type
   { ID3v2 header data - for internal use }
   TagInfo = record
     { Real structure of ID3v2 header }
-    ID: array [1..3] of Char;                                  { Always "ID3" }
+    ID: array [1..3] of AnsiChar;                                  { Always "ID3" }
     Version: Byte;                                           { Version number }
     Revision: Byte;                                         { Revision number }
     Flags: Byte;                                               { Flags of tag }
     Size: array [1..4] of Byte;                   { Tag size excluding header }
     { Extended data }
     FileSize: Integer;                                    { File size (bytes) }
-    Frame: array [1..ID3V2_FRAME_COUNT] of string;  { Information from frames }
+    Frame: array [1..ID3V2_FRAME_COUNT] of AnsiString;  { Information from frames }
   end;
 
-function ID3v2InfoToString( const i: TID3v2Info): string;
+function ID3v2InfoToString( const i: TID3v2Info): AnsiString;
 begin
   Result:= '';
   if i.exists then
@@ -171,7 +171,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure SetTagItem(const ID, Data: string; var Tag: TagInfo);
+procedure SetTagItem(const ID, Data: AnsiString; var Tag: TagInfo);
 var
   Iterator: Byte;
 begin
@@ -199,7 +199,7 @@ end;
 procedure ReadFrames(s: TStream; var Tag: TagInfo);
 var
   Frame: FrameHeader;
-  Data: array [1..250] of Char;
+  Data: array [1..250] of AnsiChar;
   DataPosition: Integer;
 begin
   try
@@ -222,7 +222,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function ExtractTrack(const TrackString: string): Byte;
+function ExtractTrack(const TrackString: AnsiString): Byte;
 var
   Index, Value, Code: Integer;
 begin
@@ -236,7 +236,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function ExtractGenre(const GenreString: string): string;
+function ExtractGenre(const GenreString: AnsiString): AnsiString;
 begin
   { Extract genre from string }
   Result := Trim(GenreString);
@@ -270,7 +270,7 @@ end;
 
 { ********************** Private functions & procedures ********************* }
 
-procedure TID3v2.FSetTitle(const NewTitle: string);
+procedure TID3v2.FSetTitle(const NewTitle: AnsiString);
 begin
   { Set song title }
   FTitle := TrimRight(NewTitle);
@@ -278,7 +278,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure TID3v2.FSetArtist(const NewArtist: string);
+procedure TID3v2.FSetArtist(const NewArtist: AnsiString);
 begin
   { Set artist name }
   FArtist := TrimRight(NewArtist);
@@ -286,7 +286,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure TID3v2.FSetAlbum(const NewAlbum: string);
+procedure TID3v2.FSetAlbum(const NewAlbum: AnsiString);
 begin
   { Set album title }
   FAlbum := TrimRight(NewAlbum);
@@ -302,7 +302,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure TID3v2.FSetYear(const NewYear: string);
+procedure TID3v2.FSetYear(const NewYear: AnsiString);
 begin
   { Set release year }
   FYear := TrimRight(NewYear);
@@ -310,7 +310,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure TID3v2.FSetGenre(const NewGenre: string);
+procedure TID3v2.FSetGenre(const NewGenre: AnsiString);
 begin
   { Set genre name }
   FGenre := TrimRight(NewGenre);
@@ -318,7 +318,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-procedure TID3v2.FSetComment(const NewComment: string);
+procedure TID3v2.FSetComment(const NewComment: AnsiString);
 begin
   { Set comment }
   FComment := TrimRight(NewComment);
@@ -382,7 +382,7 @@ begin
   end;
 end;
 
-function TID3v2.ReadFromFile(const FileName: string): Boolean;
+function TID3v2.ReadFromFile(const FileName: AnsiString): Boolean;
 var
   x: TFileStream;
 begin
@@ -398,7 +398,7 @@ end;
 
 
 
-function TID3v2.GetVersionString: string;
+function TID3v2.GetVersionString: AnsiString;
 begin
   Result:= '';;
   if VersionId <> 0 then

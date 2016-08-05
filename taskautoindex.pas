@@ -7,9 +7,9 @@ uses tasksunit;
 type
   TAutoIndexTask = class(TTask)
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
   private
-    function DoIndexing(slot: Pointer; const sectionname, path: string;
+    function DoIndexing(slot: Pointer; const sectionname, path: AnsiString;
       const aktszint: Integer): Integer;
      end;
 
@@ -67,7 +67,7 @@ begin
 end;
 
 
-function TAutoIndexTask.DoIndexing(slot: Pointer; const sectionname, path: string; const aktszint: Integer) : Integer;
+function TAutoIndexTask.DoIndexing(slot: Pointer; const sectionname, path: AnsiString; const aktszint: Integer) : Integer;
 var s: TSiteSlot;
     dl: TDirList;
     de: TDirListEntry;
@@ -165,7 +165,7 @@ function TAutoIndexTask.Execute(slot: Pointer): Boolean;
 var s: TSiteSlot;
     i: Integer;
     l: TAutoIndexTask;
-    ss, section, sectiondir: string;
+    ss, section, sectiondir: AnsiString;
     db: Integer;
 
   procedure UjraAddolas;
@@ -262,8 +262,8 @@ begin
   ready:= True;
 end;
 
-function TAutoIndexTask.Name: string;
-var cstr:string;
+function TAutoIndexTask.Name: AnsiString;
+var cstr:AnsiString;
 begin
   if ScheduleText <> '' then cstr:=format('(%s)',[ScheduleText]) else cstr:='';
   Result:=format('AUTOINDEX %s %s',[site1,cstr]);

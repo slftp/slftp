@@ -5,10 +5,10 @@ interface
 uses tasksunit;
 
 type TCWDTask = class(TTask)
-       dir: string;
-       constructor Create(const netname, channel: string;site, dir: string);
+       dir: AnsiString;
+       constructor Create(const netname, channel: AnsiString;site, dir: AnsiString);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -18,7 +18,7 @@ uses sitesunit, SysUtils, mystrings, DebugUnit;
 const section = 'cwd';
 { TLoginTask }
 
-constructor TCWDTask.Create(const netname, channel: string;site, dir: string);
+constructor TCWDTask.Create(const netname, channel: AnsiString;site, dir: AnsiString);
 begin
   self.dir:= dir;
   inherited Create(netname, channel, site);
@@ -46,7 +46,7 @@ ujra:
   ready:= True;
 end;
 
-function TCWDTask.Name: string;
+function TCWDTask.Name: AnsiString;
 begin
   try
     Result:= format('CWD %s -> %s', [site1,dir]);

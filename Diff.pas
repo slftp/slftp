@@ -6,7 +6,7 @@ unit Diff;
 * Date:             7 November 2009                                            *
 * Compilers:        Delphi 7 - Delphi2009                                      *
 * Author:           Angus Johnson - angusj-AT-myrealbox-DOT-com                *
-* Copyright:        © 2001-200( Angus Johnson                                  *
+* Copyright:        ) 2001-200( Angus Johnson                                  *
 *                                                                              *
 * Licence to use, terms and conditions:                                        *
 *                   The code in the TDiff component is released as freeware    *
@@ -66,7 +66,7 @@ type
   PIntArray = ^TIntArray;
   TIntArray = array[0 .. MAXINT div sizeof(integer) -1] of Integer;
   PChrArray = ^TChrArray;
-  TChrArray = array[0 .. MAXINT div sizeof(char) -1] of Char;
+  TChrArray = array[0 .. MAXINT div sizeof(char) -1] of AnsiChar;
 
   TChangeKind = (ckNone, ckAdd, ckDelete, ckModify);
 
@@ -76,7 +76,7 @@ type
     oldIndex1,
     oldIndex2 : integer;
     case boolean of
-      false   : (chr1, chr2 : Char);
+      false   : (chr1, chr2 : AnsiChar);
       true    : (int1, int2 : integer);
   end;
 
@@ -114,7 +114,7 @@ type
 
     //compare either and array of characters or an array of integers ...
     function Execute(pints1, pints2: PInteger; len1, len2: integer): boolean; overload;
-    function Execute(pchrs1, pchrs2: PChar; len1, len2: integer): boolean; overload;
+    function Execute(pchrs1, pchrs2: PAnsiChar; len1, len2: integer): boolean; overload;
 
     //Cancel allows interrupting excessively prolonged comparisons
     procedure Cancel;
@@ -143,7 +143,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function TDiff.Execute(pchrs1, pchrs2: PChar; len1, len2: integer): boolean;
+function TDiff.Execute(pchrs1, pchrs2: PAnsiChar; len1, len2: integer): boolean;
 var
   maxOscill, x1,x2, savedLen: integer;
   compareRec: PCompareRec;

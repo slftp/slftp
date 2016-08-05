@@ -6,18 +6,18 @@ uses Classes, IniFiles, irc, kb, Contnrs;
 
 type
   TDbGenre = class
-    rls: String;
-    genre: String;
-    constructor Create(rls, genre: string);
+    rls: AnsiString;
+    genre: AnsiString;
+    constructor Create(rls, genre: AnsiString);
     destructor Destroy; override;
   end;
 
-function dbaddgenre_Process(net, chan, nick, msg: string): Boolean;
-procedure dbaddgenre_SaveGenre(rls, genre: string);
-procedure dbaddgenre_addgenre(params: string);
-function dbaddgenre_ParseGenre(rls, genre: string): Boolean;
+function dbaddgenre_Process(net, chan, nick, msg: AnsiString): Boolean;
+procedure dbaddgenre_SaveGenre(rls, genre: AnsiString);
+procedure dbaddgenre_addgenre(params: AnsiString);
+function dbaddgenre_ParseGenre(rls, genre: AnsiString): Boolean;
 
-function dbaddgenre_Status: string;
+function dbaddgenre_Status: AnsiString;
 
 procedure dbaddgenreInit;
 procedure dbaddgenreStart;
@@ -36,10 +36,10 @@ const
   section = 'dbaddgenre';
 
 var
-  addgenrecmd: string;
+  addgenrecmd: AnsiString;
 
 { TDbGenre }
-constructor TDbGenre.Create(rls, genre: string);
+constructor TDbGenre.Create(rls, genre: AnsiString);
 begin
   self.rls := rls;
   self.genre := genre;
@@ -52,7 +52,7 @@ end;
 
 { Proc/Func }
 
-function dbaddgenre_Process(net, chan, nick, msg: string): Boolean;
+function dbaddgenre_Process(net, chan, nick, msg: AnsiString): Boolean;
 begin
   Result := False;
   if (1 = Pos(addgenrecmd, msg)) then
@@ -63,10 +63,10 @@ begin
   end;
 end;
 
-procedure dbaddgenre_addgenre(params: string);
+procedure dbaddgenre_addgenre(params: AnsiString);
 var
-  rls: string;
-  genre: string;
+  rls: AnsiString;
+  genre: AnsiString;
   i: Integer;
 begin
   if (Count(' ', params) > 1) then begin
@@ -99,7 +99,7 @@ begin
   end;
 end;
 
-procedure dbaddgenre_SaveGenre(rls, genre: string);
+procedure dbaddgenre_SaveGenre(rls, genre: AnsiString);
 var
   i: Integer;
   db_genre: TDbGenre;
@@ -130,10 +130,10 @@ begin
   end;
 end;
 
-function dbaddgenre_ParseGenre(rls, genre: string): Boolean;
+function dbaddgenre_ParseGenre(rls, genre: AnsiString): Boolean;
 var p: TPazo;
-    mp3genre: string;
-    ss: string;
+    mp3genre: AnsiString;
+    ss: AnsiString;
     i: Integer;
 begin
   Result:=False;
@@ -171,7 +171,7 @@ end;
 
 { Status }
 
-function dbaddgenre_Status: string;
+function dbaddgenre_Status: AnsiString;
 begin
   Result:='';
 

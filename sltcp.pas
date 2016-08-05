@@ -26,9 +26,9 @@ type
 
   TslSocks5 = class
     enabled: Boolean;
-    username: string;
-    password: string;
-    host: string;
+    username: AnsiString;
+    password: AnsiString;
+    host: AnsiString;
     port: Integer;
   end;
 
@@ -39,13 +39,13 @@ type
     fss: TStringStream;
     fSSL: PSSL;
     fSSLCTX: PSSL_CTX;
-    fBindIp: string;
+    fBindIp: AnsiString;
     fBindPort: Integer;
     fOnWaitingforSocket: TWaitingforsocketEvent;
-    socksextra: string;
+    socksextra: AnsiString;
     readlnsession: Boolean;
     function ConnectSocks5(timeout: Integer): Boolean;
-    function ConnectB(host: string; port: Integer; timeout: Integer; udp: Boolean): Boolean;
+    function ConnectB(host: AnsiString; port: Integer; timeout: Integer; udp: Boolean): Boolean;
     procedure DisconnectSSL;
     procedure ClearSocket;
     function IsFireing(timeout: Integer; shouldread, shouldwrite: Boolean): Boolean;
@@ -55,9 +55,9 @@ type
     procedure SetSSLContext(m: TslSSLMethod);
   public
     slSocket: TslSocket;
-    Host: string;
+    Host: AnsiString;
     Port: Integer;
-    error: string;
+    error: AnsiString;
 
     socks5: TslSocks5;
 
@@ -68,21 +68,21 @@ type
     function GetSocket(udp: Boolean = False; lReuse: Boolean = False): Boolean;
     function Accept(var newSocket: TslSocket): Boolean;
     function TurnToAccept: Boolean;
-    function BindHost(): string; overload;
-    function BindHost(host: string): Boolean; overload;
+    function BindHost(): AnsiString; overload;
+    function BindHost(host: AnsiString): Boolean; overload;
     function Connect(timeout: Integer = slDefaultTimeout; udp: Boolean = False): Boolean;
-    function Write(s: string; timeout: Integer = slDefaultTimeout): Boolean;
-    function WriteLn(s: string; timeout: Integer = slDefaultTimeout): Boolean;
+    function Write(s: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
+    function WriteLn(s: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
     function WriteBuffer(var Buf; BufSize: Integer; timeout: Integer = slDefaultTimeout): Boolean;
     function WriteStream(s: TStream; timeout: Integer = slDefaultTimeout; maxsend: Int64=0): Boolean;
     function SendStream(s: TStream; timeout: Integer = slDefaultTimeout; maxsend: Int64 = 0): Boolean;
-    function Read(var s: string; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean; overload;
+    function Read(var s: AnsiString; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean; overload;
     function Read(s: TStream; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean; overload;
-    function ReadLn(var line, alllines: string; timeout: Integer = slDefaultTimeout): Boolean;
+    function ReadLn(var line, alllines: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
 
     function Disconnect: Boolean;
     constructor Create; overload;
-    constructor Create(proxyname:string); overload;
+    constructor Create(proxyname:AnsiString); overload;
     procedure SetupSocket(c: TslSocket);
     destructor Destroy; override;
     function Listen(backlog: Integer): Boolean;
@@ -124,7 +124,7 @@ type
   TslSCHThread = class; // forward
   TCslSCHThread = class of TslSCHThread; // forward
   TslTCPServerThread = class; // forward
-  TslOnAcceptError = function (ls: TslTCPServerThread; error: string): Boolean of object;
+  TslOnAcceptError = function (ls: TslTCPServerThread; error: AnsiString): Boolean of object;
   TslTCPServer = class
   private
     fsslctx: PSSL_CTX;
@@ -142,7 +142,7 @@ type
   public
     cs: TCriticalSection;
     threads: TObjectList;
-    error: string;
+    error: AnsiString;
     backlog: Integer;
     maxclients: Integer;
     shouldstop: Boolean;
@@ -154,24 +154,24 @@ type
     destructor Destroy; override;
 
     function AllConnections: Integer;
-    function BindAdd(host: string; port: Integer): Boolean; overload;
+    function BindAdd(host: AnsiString; port: Integer): Boolean; overload;
     function BindAdd(port: Integer): Boolean; overload;
-    procedure BindDel(host: string; port: Integer); overload;
+    procedure BindDel(host: AnsiString; port: Integer); overload;
     procedure BindDel(port: Integer); overload;
     function Start(udp: Boolean = False): Boolean;
     procedure Stop;
 
-    function LoadCertificate(certfile: string): Boolean; overload;
-    function LoadCertificate(certfile, keyfile: string): Boolean; overload;
+    function LoadCertificate(certfile: AnsiString): Boolean; overload;
+    function LoadCertificate(certfile, keyfile: AnsiString): Boolean; overload;
   published
     property OnAcceptError: TslOnAcceptError read fOnAcceptError write fOnAcceptError; 
   end;
   TslTCPServerThread = class(TThread)
   private
     listenSocket: TslTCPSocket;
-    fBindIp: string;
+    fBindIp: AnsiString;
     fBindPort: Integer;
-    error: string;
+    error: AnsiString;
     function AllConnections: Integer;
     procedure FogadoResz;
     procedure WaitingForSocket(socket: TslTCPSocket; var ShouldQuit: Boolean);
@@ -181,7 +181,7 @@ type
   public
     clients: TObjectList;
     Server: TslTCPServer;
-    constructor Create(s: TslTCPServer; bindHost: string; bindPort: Integer; udp: Boolean = False);
+    constructor Create(s: TslTCPServer; bindHost: AnsiString; bindPort: Integer; udp: Boolean = False);
     procedure Execute; override;
     destructor Destroy; override;
   end;
@@ -213,7 +213,7 @@ function sendfile64(__out_fd:longint; __in_fd:longint; offset:Pointer; __count:s
 var
   slDefaultSocks5: TslSocks5;
   sltcp_LocalAddresses: TStringList;
-  sltcp_error: string;
+  sltcp_error: AnsiString;
   sltcp_inited: Boolean = False;
   sltcp_onwaitingforsocket: TWaitingForSocket = nil;
 
@@ -278,7 +278,7 @@ begin
   inherited Create;
 end;
 
-constructor TslTCPSocket.Create(proxyname: string);
+constructor TslTCPSocket.Create(proxyname: AnsiString);
 var sok5:TmSLSocks5;
 begin
 sok5:=FindProxyByName(proxyname);
@@ -447,7 +447,7 @@ begin
   end;
 end;
 
-function TslTCPSocket.ConnectB(host: string; port: Integer; timeout: Integer; udp: Boolean): Boolean;
+function TslTCPSocket.ConnectB(host: AnsiString; port: Integer; timeout: Integer; udp: Boolean): Boolean;
 var rc: Integer;
 begin
   Result:= False;
@@ -520,8 +520,8 @@ end;
 
 function TslTCPSocket.ConnectSocks5(timeout: Integer): Boolean;
 var
-  tempBuffer: array [0..255] of Char;
-  s: string;
+  tempBuffer: array [0..255] of AnsiChar;
+  s: AnsiString;
   pos: Integer;
   tempPort: Word;
 begin
@@ -675,7 +675,7 @@ begin
 end;
 
 function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
-var er: string;
+var er: AnsiString;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
 begin
@@ -716,7 +716,7 @@ begin
     if (fSSL = nil) then
     begin
       slERR_error_string(slERR_get_error(), @er[1]);
-      er:= String(PChar(er));
+      er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -736,7 +736,7 @@ begin
       begin
         error:= 'timeout';
         slERR_error_string(slERR_get_error(), @er[1]);
-        er:= String(PChar(er));
+        er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -769,7 +769,7 @@ begin
       else
       begin
         slERR_error_string(slERR_get_error(), @er[1]);
-        er:= String(PChar(er));
+        er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -793,7 +793,7 @@ begin
 end;
 
 function TslTCPSocket.AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
-var er: string;
+var er: AnsiString;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
 begin
@@ -833,7 +833,7 @@ begin
     if (fSSL = nil) then
     begin
       slERR_error_string(slERR_get_error(), @er[1]);
-      er:= String(PChar(er));
+      er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -853,7 +853,7 @@ begin
       begin
         error:= 'timeout';
         slERR_error_string(slERR_get_error(), @er[1]);
-        er:= String(PChar(er));
+        er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -886,7 +886,7 @@ begin
       else
       begin
         slERR_error_string(slERR_get_error(), @er[1]);
-        er:= String(PChar(er));
+        er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -910,7 +910,7 @@ begin
 end;
 
 
-function TslTCPSocket.Write(s: string; timeout: Integer = slDefaultTimeout): Boolean;
+function TslTCPSocket.Write(s: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
     Result:= WriteBuffer(s[1], Length(s), timeout);
@@ -1019,7 +1019,7 @@ begin
 end;
 
 
-function TslTCPSocket.ReadLn(var line, alllines: string; timeout: Integer = slDefaultTimeout): Boolean;
+function TslTCPSocket.ReadLn(var line, alllines: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   Result:= False;
   try
@@ -1048,7 +1048,7 @@ begin
   end;
 end;
 
-function TslTCPSocket.WriteLn(s: string; timeout: Integer = slDefaultTimeout): Boolean;
+function TslTCPSocket.WriteLn(s: AnsiString; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
     Result:= Write(s+slEOL, timeout);
@@ -1062,8 +1062,8 @@ begin
   end;
 end;
 
-function TslTCPSocket.BindHost(host: string): Boolean;
-var ip: string;
+function TslTCPSocket.BindHost(host: AnsiString): Boolean;
+var ip: AnsiString;
 begin
   Result:= False;
   error:= '';
@@ -1087,12 +1087,12 @@ begin
   Result:= True;
 end;
 
-function TslTCPSocket.BindHost: string;
+function TslTCPSocket.BindHost: AnsiString;
 begin
   Result:= fBindIp;
 end;
 
-function TslTCPSocket.Read(var s: string; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
+function TslTCPSocket.Read(var s: AnsiString; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
 begin
   try
     fss.Size:= 0;
@@ -1109,7 +1109,7 @@ begin
 end;
 
 function TslTCPSocket.Read(s: TStream; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
-var buffer: array[1..slBufferSize] of Char;
+var buffer: array[1..slBufferSize] of AnsiChar;
     aktolvasas, osszesolvasva, olvasva: Integer;
 begin
   Result:= False;
@@ -1331,7 +1331,7 @@ end;
 
 
 function TslTCPServer.BindAdd(port: Integer): Boolean;
-var s: string;
+var s: AnsiString;
 begin
   Result:= False;
   if ((Port < 1) or (Port > 65535)) then
@@ -1352,9 +1352,9 @@ begin
   Result:= True;
 end;
 
-function TslTCPServer.BindAdd(host: string; port: Integer): Boolean;
-var ip: string;
-    s: string;
+function TslTCPServer.BindAdd(host: AnsiString; port: Integer): Boolean;
+var ip: AnsiString;
+    s: AnsiString;
 begin
   Result:= False;
   ip:= slResolve(host, error);
@@ -1390,8 +1390,8 @@ begin
     error:= 'binding not found';
 end;
 
-procedure TslTCPServer.BindDel(host: string; port: Integer);
-var ip: string;
+procedure TslTCPServer.BindDel(host: AnsiString; port: Integer);
+var ip: AnsiString;
     i: Integer;
 begin
   ip:= slResolve(host, error);
@@ -1483,11 +1483,11 @@ begin
   end;
 end;
 
-function TslTCPServer.LoadCertificate(certfile: string): Boolean;
+function TslTCPServer.LoadCertificate(certfile: AnsiString): Boolean;
 begin
   Result:= LoadCertificate(certfile, certfile);
 end;
-function TslTCPServer.LoadCertificate(certfile, keyfile: string): Boolean;
+function TslTCPServer.LoadCertificate(certfile, keyfile: AnsiString): Boolean;
 begin
   Result:= False;
 
@@ -1501,14 +1501,14 @@ begin
     exit;
 	end;
 
-	if (slSSL_CTX_use_certificate_chain_file(fsslctx, PChar(certfile)) <= 0) then
+	if (slSSL_CTX_use_certificate_chain_file(fsslctx, PAnsiChar(certfile)) <= 0) then
   begin
     error:= slSSL_LastError();
     FreeCTX;
     exit;
   end;
 
-	if (slSSL_CTX_use_PrivateKey_file(fsslctx, PChar(keyfile), OPENSSL_SSL_FILETYPE_PEM) <=0 ) then
+	if (slSSL_CTX_use_PrivateKey_file(fsslctx, PAnsiChar(keyfile), OPENSSL_SSL_FILETYPE_PEM) <=0 ) then
   begin
     error:= slSSL_LastError();
     FreeCTX;
@@ -1558,7 +1558,7 @@ end;
 
 function TslTCPServer.Start(udp: Boolean = False): Boolean;
 var i, j, port: Integer;
-    host: string;
+    host: AnsiString;
     c: TslTCPServerThread;
 begin
   Result:= False;
@@ -1698,7 +1698,7 @@ begin
   end;
 end;
 
-constructor TslTCPServerThread.Create(s: TslTCPServer; bindHost: string; bindPort: Integer; udp: Boolean = False);
+constructor TslTCPServerThread.Create(s: TslTCPServer; bindHost: AnsiString; bindPort: Integer; udp: Boolean = False);
 begin
 
   fBindIp:= bindHost;

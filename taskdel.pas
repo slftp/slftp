@@ -6,14 +6,14 @@ uses  SyncObjs,SysUtils,tasksunit;
 
 type
     TDelReleaseTask = class(TTask)
-       dir: string;
+       dir: AnsiString;
        devent:TEvent;
-       constructor Create(const netname, channel: string; site: string; dir: string);
+       constructor Create(const netname, channel: AnsiString; site: AnsiString; dir: AnsiString);
        destructor Destroy;override;
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
   private
-    function RemoveDir(slot: Pointer; dir: string): Boolean;
+    function RemoveDir(slot: Pointer; dir: AnsiString): Boolean;
     end;
 
 implementation
@@ -24,7 +24,7 @@ const section = 'del';
 
 { TLoginTask }
 
-constructor TDelReleaseTask.Create(const netname, channel: string; site: string; dir: string);
+constructor TDelReleaseTask.Create(const netname, channel: AnsiString; site: AnsiString; dir: AnsiString);
 begin
   self.dir:= dir;
   devent:=TEvent.Create(nil, true, false, 'DEL_'+site+'-'+dir);
@@ -37,7 +37,7 @@ inherited;
 devent.free;
 end;
 
-function TDelReleaseTask.RemoveDir(slot: Pointer; dir: string): Boolean;
+function TDelReleaseTask.RemoveDir(slot: Pointer; dir: AnsiString): Boolean;
 var s: TSiteSlot;
     d: TDirList;
     i: Integer;
@@ -46,7 +46,7 @@ begin
   Result:= True;
   s:= slot;
   if not s.Dirlist(dir, False, True) then begin
-    irc_addtext(Netname,Channel,'can%st dirlist %s',[chr(39),Dir]);
+    irc_addtext(Netname,Channel,'can%st dirlist %s',[Chr(39),Dir]);
     exit;
   end;
   d:= TDirList.Create(s.site.name, nil, nil, s.lastResponse);
@@ -113,7 +113,7 @@ ujra:
   devent.setevent;
 end;
 
-function TDelReleaseTask.Name: string;
+function TDelReleaseTask.Name: AnsiString;
 begin
   try
     Result:=format('DELETE %s - %s',[site1,dir]);

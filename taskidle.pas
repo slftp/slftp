@@ -5,10 +5,10 @@ interface
 uses tasksunit;
 
 type TIdleTask = class(TTask)
-  idlecmd: string;
-  constructor Create(const netname, channel: string;site: string);
+  idlecmd: AnsiString;
+  constructor Create(const netname, channel: AnsiString;site: AnsiString);
   function Execute(slot: Pointer): Boolean; override;
-  function Name: string; override;
+  function Name: AnsiString; override;
 end;
 
 procedure TaskIdleInit;
@@ -25,7 +25,7 @@ var
 
 { TLoginTask }
 
-constructor TIdleTask.Create(const netname, channel: string;site: string);
+constructor TIdleTask.Create(const netname, channel: AnsiString;site: AnsiString);
 begin
   idlecmd:= idlecommands[myRand(0, idlecommands.Count-1)];
 
@@ -35,7 +35,7 @@ end;
 function TIdleTask.Execute(slot: Pointer): Boolean;
 label ujra;
 var s: TSiteSlot;
-    h: string;
+    h: AnsiString;
     p: Integer;
     numerrors: Integer;
 begin
@@ -82,7 +82,7 @@ ujra:
   ready:= True;
 end;
 
-function TIdleTask.Name: string;
+function TIdleTask.Name: AnsiString;
 begin
   try
     Result:= Format('IDLE <b>%s : %s</b>: %s',[site1, slot1name, idlecmd]);
@@ -92,7 +92,7 @@ begin
 end;
 
 procedure TaskIdleInit;
-var s, ss: string;
+var s, ss: AnsiString;
     i: Integer;
 begin
   idlecommands:= TStringList.Create;
