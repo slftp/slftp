@@ -605,126 +605,124 @@ begin
 
     ts_data := TStringList.Create;
     try
-    ts_data.CaseSensitive := False;
-    ts_data.Delimiter := ' ';
-    ts_data.QuoteChar := '"';
+      ts_data.CaseSensitive := False;
+      ts_data.Delimiter := ' ';
+      ts_data.QuoteChar := '"';
 
-    try
-      Data := FoCsupaszitas(Data); //main Stripping
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
-        //ts_data.Free;
-        exit;
-      end;
-    end;
-
-    ts_data.DelimitedText := Data;
-    // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
-    chno := '0';
-
-    try
-      rls := KibontasRiliz('SLFTP', chno, ts_data);
-    except
-      exit;
-    end;
-
-    (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
-
-        for i := 0 to ignorelista.Count - 1 do
-        begin
-          if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
-          begin
-            MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-            Debug(dpSpam, rsections, 'Nukeword ' + ignorelista[i] + ' found in ' + rls);
-            skiprlses.Add(rls);
-            //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
-            exit;
-          end;
-        end;
-     *)
-
-    for i := 0 to ts_data.Count - 1 do
-    begin
-      igindex := ignorelista.IndexOf(ts_data.Strings[i]);
-      if igindex > -1 then
-      begin
-        MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-        Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
-        skiprlses.Add(rls);
-        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
-        exit;
-      end;
-    end;
-
-    s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
-
-    s := ProcessDoReplace(s);
-
-    s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
-    ts_data.DelimitedText := s;
-
-    MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
-
-    for i := 0 to sc.sections.Count - 1 do
-    begin
-      ss := TSection(sc.sections[i]);
-      mind := True;
-      for j := 0 to ss.words.Count - 1 do
-      begin
-        if (ts_data.IndexOf(ss.words[j]) = -1) then
-        begin
-          mind := False;
-          // Irc_AddText('','','count: %d',[j]);
-          Break;
-        end;
-      end;
-
-      if ss.section = 'REQUEST' then
-        exit;
-
-      if (mind) then
-      begin
-        try
-          ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype,
-            ss.section, ts_data);
-        except
-          on e: Exception do
-          begin
-            MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
-            Debug(dpError, rsections,
-              Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s', [e.Message]));
-            //ts_data.Free;
-            exit;
-          end;
-        end;
-        //ts_data.Free;
-        exit;
-      end;
-    end;
-
-    if sc.sections.Count = 0 then
-    begin
       try
-        ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+        Data := FoCsupaszitas(Data); //main Stripping
       except
         on e: Exception do
         begin
-          MyDebug('[EXCEPTION] ProcessReleaseVegeB section count = 0: %s', [e.Message]);
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
-          irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
           //ts_data.Free;
           exit;
         end;
       end;
-    end
-    else
-    begin
-      MyDebug('SiteChan dont look like an Event ...');
-    end;
 
+      ts_data.DelimitedText := Data;
+      // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
+      chno := '0';
+
+      try
+        rls := KibontasRiliz('SLFTP', chno, ts_data);
+      except
+        exit;
+      end;
+
+      (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
+
+          for i := 0 to ignorelista.Count - 1 do
+          begin
+            if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
+            begin
+              MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
+              Debug(dpSpam, rsections, 'Nukeword ' + ignorelista[i] + ' found in ' + rls);
+              skiprlses.Add(rls);
+              //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
+              exit;
+            end;
+          end;
+       *)
+
+      for i := 0 to ts_data.Count - 1 do
+      begin
+        igindex := ignorelista.IndexOf(ts_data.Strings[i]);
+        if igindex > -1 then
+        begin
+          MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
+          Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
+          skiprlses.Add(rls);
+          //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
+          exit;
+        end;
+      end;
+
+      s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
+
+      s := ProcessDoReplace(s);
+
+      s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
+      ts_data.DelimitedText := s;
+
+      MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
+
+      for i := 0 to sc.sections.Count - 1 do
+      begin
+        ss := TSection(sc.sections[i]);
+        mind := True;
+        for j := 0 to ss.words.Count - 1 do
+        begin
+          if (ts_data.IndexOf(ss.words[j]) = -1) then
+          begin
+            mind := False;
+            // Irc_AddText('','','count: %d',[j]);
+            Break;
+          end;
+        end;
+
+        if ss.section = 'REQUEST' then
+          exit;
+
+        if (mind) then
+        begin
+          try
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
+          except
+            on e: Exception do
+            begin
+              MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
+              Debug(dpError, rsections,
+                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s', [e.Message]));
+              //ts_data.Free;
+              exit;
+            end;
+          end;
+          //ts_data.Free;
+          exit;
+        end;
+      end;
+
+      if sc.sections.Count = 0 then
+      begin
+        try
+          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+        except
+          on e: Exception do
+          begin
+            MyDebug('[EXCEPTION] ProcessReleaseVegeB section count = 0: %s', [e.Message]);
+            Debug(dpError, rsections,
+              Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
+            irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
+            //ts_data.Free;
+            exit;
+          end;
+        end;
+      end
+      else
+      begin
+        MyDebug('SiteChan dont look like an Event ...');
+      end;
 
     finally
       ts_data.Free;

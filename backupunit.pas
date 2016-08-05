@@ -23,9 +23,7 @@ var
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, slvision
-{$IFDEF MSWINDOWS}, Windows{$ENDIF}
-  ;
+  statsunit, indexer, dbtvinfo, slvision{$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 //PathDelim
 const
@@ -33,9 +31,9 @@ const
 
 function MakeBackup: boolean;
 (*
-[backup]
-# all listed files will NOT added to the backup.
-skipfiles=sqlite3.dll,ssleay32.dll,libmysql.dll,libeay32.dll
+  [backup]
+  # all listed files will NOT added to the backup.
+  skipfiles=sqlite3.dll,ssleay32.dll,libmysql.dll,libeay32.dll
 *)
 var
   path, fname: string;
@@ -47,53 +45,54 @@ var
 begin
   skipfiles := TStringList.Create;
   try
-  skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
-  fname := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
-  path := config.ReadString(section, 'backup_dir', '');
-  if not DirectoryExists(path) then
-    Mkdir(path);
-  path := MyIncludeTrailingSlash(path);
-  ForceDirectories(path);
-  tar := TTarWriter.Create(path + fname);
-  try
-  EOFound := False;
-  try
-    if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then
-    begin
-      result := false;
-      exit
-    end
-    else
+    skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
+    fname := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
+    path := config.ReadString(section, 'backup_dir', '');
+    if not DirectoryExists(path) then
+      Mkdir(path);
+    path := MyIncludeTrailingSlash(path);
+    ForceDirectories(path);
+    tar := TTarWriter.Create(path + fname);
+    EOFound := False;
+    try
+      if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then
+      begin
+        Result := False;
+        exit
+      end;
+
       while not EOFound do
       begin
         if skipfiles.Text <> '' then
         begin
           for I := 0 to skipfiles.Count - 1 do
+          begin
             if lowercase(Res.Name) <> lowercase(skipfiles.Strings[i]) then
+            begin
               tar.AddFile(Res.Name, Res.Name);
+            end;
+          end;
         end
         else
-          tar.AddFile(Res.Name, Res.Name);
+          begin
+            tar.AddFile(Res.Name, Res.Name);
+        end;
         EOFound := FindNext(Res) <> 0;
       end;
-  finally
-    Result := True;
-  end;
 
-{$IFDEF MSWINDOWS}
-  SysUtils.FindClose(Res);
-{$ELSE}
-  FindClose(Res);
-{$ENDIF}
+    finally
+      tar.Free;
+      {$IFDEF MSWINDOWS}
+        SysUtils.FindClose(Res);
+      {$ELSE}
+        FindClose(Res);
+      {$ENDIF}
+      Result := True;
+    end;
 
-  finally
-    tar.Free;
-  end;
-
-  finally
+   finally
     skipfiles.Free;
   end;
-
 end;
 
 procedure CreateBackup(s: string);
@@ -173,6 +172,7 @@ begin
         AddFile('slftp.preurls');
       Free;
     end;
+  
   except
     on e: Exception do
       debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
@@ -190,48 +190,48 @@ begin
   files := TStringList.Create;
   ages := TIntList.Create;
   try
-  if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
-  begin
-    repeat
-      if Pos('.tar', sr.Name) = length(sr.Name) - 3 then
-      begin
-        files.Add(sr.Name);
-        ages.Add(sr.Time);
-      end;
-    until FindNext(sr) <> 0;
-    {$IFDEF MSWINDOWS}
-      SysUtils.FindClose(sr);
-    {$ELSE}
-      FindClose(sr);
-    {$ENDIF}
-
-    while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
+    if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
     begin
-      //we search for the oldest
-      oldesti := -1;
-      oldest := 0;
-      for i := 0 to ages.Count - 1 do
-      begin
-        if ((oldest = 0) or (ages[i] < oldest)) then
+      repeat
+        if Pos('.tar', sr.Name) = length(sr.Name) - 3 then
         begin
-          oldesti := i;
-          oldest := ages[i];
+          files.Add(sr.Name);
+          ages.Add(sr.Time);
         end;
-      end;
-
-      if oldesti < 0 then
-        Break; // wtf?
-
+      until FindNext(sr) <> 0;
       {$IFDEF MSWINDOWS}
-        DeleteFile(PAnsiChar(s + files[oldesti]));
+        SysUtils.FindClose(sr);
       {$ELSE}
-        DeleteFile(s + files[oldesti]);
+        FindClose(sr);
       {$ENDIF}
 
-      files.Delete(oldesti);
-      ages.Delete(oldesti);
+      while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
+      begin
+        //we search for the oldest
+        oldesti := -1;
+        oldest := 0;
+        for i := 0 to ages.Count - 1 do
+        begin
+          if ((oldest = 0) or (ages[i] < oldest)) then
+          begin
+            oldesti := i;
+            oldest := ages[i];
+          end;
+        end;
+
+        if oldesti < 0 then
+          Break; // wtf?
+
+        {$IFDEF MSWINDOWS}
+          DeleteFile(PAnsiChar(s + files[oldesti]));
+        {$ELSE}
+          DeleteFile(s + files[oldesti]);
+        {$ENDIF}
+
+        files.Delete(oldesti);
+        ages.Delete(oldesti);
+      end;
     end;
-  end;
 
   finally
     ages.Free;
@@ -280,11 +280,10 @@ begin
   try
     (*
     if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
-         cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
-          if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
-          cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
-          *)
-
+      cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
+    if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
+      cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
+    *)
     if fileexists('mirktrade.conf') then
       cb.AddFile('mirktrade.conf');
     if fileexists('sites.dat') then
@@ -333,10 +332,12 @@ begin
     Result := True;
     //statsStart;
     //indexerStart;
+  
   except
     on e: Exception do
       error := e.Message;
   end;
+  
   if error = '' then
     Result := True;
 end;
@@ -350,7 +351,6 @@ end;
 
 function TSLBackup.Filename: string;
 begin
-  //result:=Format('slftp-backup-%d',[Datetimetounix(now)]);
   Result := Format('slftp-backup-%s', [FormatDateTime('yyyymmddhhnnss', Now)]);
 end;
 
@@ -377,8 +377,8 @@ begin
     x.CommaText := cf;
   try
     try
-      //
       Result := True;
+
     except
       on e: Exception do
       begin
@@ -386,9 +386,11 @@ begin
         Result := False;
       end;
     end;
+
   finally
     x.Free;
     slb.Free;
+
   end;
   backup_last_backup := Now;
 end;
