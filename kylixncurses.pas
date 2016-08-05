@@ -279,7 +279,7 @@ type
   function COLOR_PAIR(n : Integer) : Integer;
   function def_prog_mode : Integer; cdecl;
   {$EXTERNALSYM def_prog_mode}
-  function define_key(definitions : PChar; keycode : Integer) : Integer; cdecl;
+  function define_key(definitions : PAnsiChar; keycode : Integer) : Integer; cdecl;
   {$EXTERNALSYM define_key}
   function delwin(win : PWINDOW) : Integer; cdecl;
   {$EXTERNALSYM delwin}
@@ -338,7 +338,7 @@ type
   function unset_attr(win : PWINDOW; attr : Integer) : Integer;
   function waddch(win : PWINDOW; ch : chtype) : Integer; cdecl;
   {$EXTERNALSYM waddch}
-  function waddstr(win : PWINDOW; str : PChar) : Integer; cdecl;
+  function waddstr(win : PWINDOW; str : PAnsiChar) : Integer; cdecl;
   {$EXTERNALSYM waddstr}
   function wattr_get(win : PWINDOW; var attrs : attr_t; var pair : Word; opts : Pointer) : Integer; cdecl;
   {$EXTERNALSYM wattr_get}
@@ -360,7 +360,7 @@ type
   {$EXTERNALSYM werase}
   function wgetch(win : PWINDOW) : Integer; cdecl;
   {$EXTERNALSYM wgetch}
-  function wgetnstr(win : PWINDOW; str : PChar; n : Integer) : Integer; cdecl;
+  function wgetnstr(win : PWINDOW; str : PAnsiChar; n : Integer) : Integer; cdecl;
   {$EXTERNALSYM wgetnstr}
   function winch(win : PWINDOW) : chtype; cdecl;
   {$EXTERNALSYM winch}
@@ -368,7 +368,7 @@ type
   {$EXTERNALSYM winsch}
   function winsdelln(win : PWINDOW; n : Integer) : Integer; cdecl;
   {$EXTERNALSYM winsdelln}
-  function winsstr(win : PWINDOW; str : PChar) : Integer; cdecl;
+  function winsstr(win : PWINDOW; str : PAnsiChar) : Integer; cdecl;
   {$EXTERNALSYM winsstr}
   function wmouse_trafo(win : PWINDOW; var pY, pX : Integer; to_screen : Boolean) : Boolean; cdecl;
   {$EXTERNALSYM wmouse_trafo}
@@ -380,7 +380,7 @@ type
   {$EXTERNALSYM wtouchln}
     function wbkgd(_para1:PWINDOW; _para2:chtype):Longint; cdecl;
   {$EXTERNALSYM wbkgd}
-  function curses_version():PChar; cdecl;
+  function curses_version():PAnsiChar; cdecl;
   {$EXTERNALSYM curses_version}
 
 
@@ -396,7 +396,7 @@ const
 
   function cbreak : Integer; cdecl; external libname name 'cbreak';
   function def_prog_mode : Integer; cdecl; external libname name 'def_prog_mode';
-  function define_key(definitions : PChar; keycode : Integer) : Integer; cdecl; external libname name 'define_key';
+  function define_key(definitions : PAnsiChar; keycode : Integer) : Integer; cdecl; external libname name 'define_key';
   function delwin(win : PWINDOW) : Integer; cdecl; external libname name 'delwin';
   function echo : Integer; cdecl; external libname name 'echo';
   function endwin : Integer; cdecl; external libname name 'endwin';
@@ -423,7 +423,7 @@ const
   function timeout(delay : Integer) : Integer; cdecl; external libname name 'timeout';
   function ungetch(ch : Integer) : Integer; cdecl; cdecl; external libname name 'ungetch';
   function waddch(win : PWINDOW; ch : chtype) : Integer; cdecl; external libname name 'waddch';
-  function waddstr(win : PWINDOW; str : PChar) : Integer; cdecl; external libname name 'waddstr';
+  function waddstr(win : PWINDOW; str : PAnsiChar) : Integer; cdecl; external libname name 'waddstr';
   function wattr_get(win : PWINDOW; var attrs : attr_t; var pair : Word; opts : Pointer) : Integer; cdecl; external libname name 'wattr_get';
 //  function wattrset(win : PWindow; attrs : Integer) : Integer; cdecl; external libname name 'wattrset';
   function wclear(win : PWINDOW) : Integer; cdecl; external libname name 'wclear';
@@ -434,17 +434,17 @@ const
   function wenclose(win : PWINDOW; y, x : Integer) : Boolean; cdecl; external libname name 'wenclose';
   function werase(win : PWINDOW) : Integer; cdecl; external libname name 'werase';
   function wgetch(win : PWINDOW) : Integer; cdecl; external libname name 'wgetch';
-  function wgetnstr(win : PWINDOW; str : PChar; n : Integer) : Integer; cdecl;  external libname name 'wgetnstr';
+  function wgetnstr(win : PWINDOW; str : PAnsiChar; n : Integer) : Integer; cdecl;  external libname name 'wgetnstr';
   function winch(win : PWINDOW) : chtype; cdecl; external libname name 'winch';
   function winsch(win : PWINDOW; ch : chtype) : Integer; cdecl; external libname name 'winsch';
   function winsdelln(win : PWINDOW; n : Integer) : Integer; cdecl; external libname name 'winsdelln';
-  function winsstr(win : PWINDOW; str : PChar) : Integer; cdecl; external libname name 'winsstr';
+  function winsstr(win : PWINDOW; str : PAnsiChar) : Integer; cdecl; external libname name 'winsstr';
   function wmouse_trafo(win : PWINDOW; var pY, pX : Integer; to_screen : Boolean) : Boolean;  cdecl; external libname name 'wmouse_trafo';
   function wmove(win : PWINDOW; y, x : Integer) : Integer; cdecl; external libname name 'wmove';
   function wrefresh(win : PWINDOW) : Integer; cdecl; external libname name 'wrefresh';
   function wtouchln(_para1:PWINDOW; _para2:Longint; _para3:Longint; _para4:Longint):Longint; cdecl; external libname name 'wtouchln';
   function wbkgd(_para1:PWINDOW; _para2:chtype):Longint; cdecl;external libname name 'wbkgd';
-  function curses_version:PChar;cdecl;external  libname name 'curses_version';
+  function curses_version:PAnsiChar;cdecl;external  libname name 'curses_version';
 
   function getyx;
   begin

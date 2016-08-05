@@ -21,13 +21,13 @@ type
     FMask: Pointer;
     FSize: Integer;
   public
-    constructor Create(const MaskValue: string);
+    constructor Create(const MaskValue: AnsiString);
     destructor Destroy; override;
-    function Matches(const Filename: string): Boolean;
+    function Matches(const Filename: AnsiString): Boolean;
   end;
 
 
-function MatchesMask(const Filename, Mask: string): Boolean;
+function MatchesMask(const Filename, Mask: AnsiString): Boolean;
 
 implementation
 
@@ -38,29 +38,29 @@ const
 
 type
   PMaskSet = ^TMaskSet;
-  TMaskSet = set of Char;
+  TMaskSet = set of AnsiChar;
   TMaskStates = (msLiteral, msAny, msSet, msMBCSLiteral);
   TMaskState = record
     SkipTo: Boolean;
     case State: TMaskStates of
-      msLiteral: (Literal: Char);
+      msLiteral: (Literal: AnsiChar);
       msAny: ();
       msSet: (
         Negate: Boolean;
         CharSet: PMaskSet);
-      msMBCSLiteral: (LeadByte, TrailByte: Char);
+      msMBCSLiteral: (LeadByte, TrailByte: AnsiChar);
   end;
   PMaskStateArray = ^TMaskStateArray;
   TMaskStateArray = array[0..128] of TMaskState;
 
-function InitMaskStates(const Mask: string;
+function InitMaskStates(const Mask: AnsiString;
   var MaskStates: array of TMaskState): Integer;
 var
   I: Integer;
   SkipTo: Boolean;
-  Literal: Char;
-  LeadByte, TrailByte: Char;
-  P: PChar;
+  Literal: AnsiChar;
+  LeadByte, TrailByte: AnsiChar;
+  P: PAnsiChar;
   Negate: Boolean;
   CharSet: TMaskSet;
   Cards: Integer;
@@ -68,7 +68,7 @@ var
   procedure InvalidMask;
   begin
     raise EMaskException.CreateResFmt(@SInvalidMask, [Mask,
-      P - PChar(Mask) + 1]);
+      P - PAnsiChar(Mask) + 1]);
   end;
 
   procedure Reset;
@@ -110,8 +110,8 @@ var
 
   procedure ScanSet;
   var
-    LastChar: Char;
-    C: Char;
+    LastChar: AnsiChar;
+    C: AnsiChar;
   begin
     Inc(P);
     if P^ = '!' then
@@ -145,7 +145,7 @@ var
   end;
 
 begin
-  P := PChar(Mask);
+  P := PAnsiChar(Mask);
   I := 0;
   Cards := 0;
   Reset;
@@ -176,21 +176,21 @@ begin
   Result := I;
 end;
 
-function MatchesMaskStates(const Filename: string;
+function MatchesMaskStates(const Filename: AnsiString;
   const MaskStates: array of TMaskState): Boolean;
 type
   TStackRec = record
-    sP: PChar;
+    sP: PAnsiChar;
     sI: Integer;
   end;
 var
   T: Integer;
   S: array[0..MaxCards - 1] of TStackRec;
   I: Integer;
-  P: PChar;
+  P: PAnsiChar;
   loop_count: Integer;
 
-  procedure Push(P: PChar; I: Integer);
+  procedure Push(P: PAnsiChar; I: Integer);
   begin
     with S[T] do
     begin
@@ -200,7 +200,7 @@ var
     Inc(T);
   end;
 
-  function Pop(var P: PChar; var I: Integer): Boolean;
+  function Pop(var P: PAnsiChar; var I: Integer): Boolean;
   begin
     if T = 0 then
       Result := False
@@ -216,7 +216,7 @@ var
     end;
   end;
 
-  function Matches(P: PChar; Start: Integer): Boolean;
+  function Matches(P: PAnsiChar; Start: Integer): Boolean;
   var
     I: Integer;
   begin
@@ -263,7 +263,7 @@ var
 begin
   Result := True;
   T := 0;
-  P := PChar(Filename);
+  P := PAnsiChar(Filename);
   I := Low(MaskStates);
   loop_count:= 0;
   repeat
@@ -284,7 +284,7 @@ end;
 
 { TMask }
 
-constructor TMask.Create(const MaskValue: string);
+constructor TMask.Create(const MaskValue: AnsiString);
 var
   A: array[0..0] of TMaskState;
 begin
@@ -302,7 +302,7 @@ begin
   end;
 end;
 
-function TMask.Matches(const Filename: string): Boolean;
+function TMask.Matches(const Filename: AnsiString): Boolean;
 begin
   try
     Result := MatchesMaskStates(Filename, Slice(PMaskStateArray(FMask)^, FSize));
@@ -311,7 +311,7 @@ begin
   end;
 end;
 
-function MatchesMask(const Filename, Mask: string): Boolean;
+function MatchesMask(const Filename, Mask: AnsiString): Boolean;
 var
   CMask: TMask;
 begin

@@ -34,31 +34,31 @@ type
   //  TslSSLMethod = (slSSLv23, slTLSv1);
 
   TmSLSocks5 = class
-    Name: string;
+    Name: AnsiString;
   private
-    function GetHost: string;
-    procedure SetHost(Value: string);
+    function GetHost: AnsiString;
+    procedure SetHost(Value: AnsiString);
     function GetPort: integer;
     procedure SetPort(Value: integer);
-    function GetUsername: string;
-    procedure SetUsername(Value: string);
-    function GetPassword: string;
-    procedure SetPassword(Value: string);
+    function GetUsername: AnsiString;
+    procedure SetUsername(Value: AnsiString);
+    function GetPassword: AnsiString;
+    procedure SetPassword(Value: AnsiString);
     function GetStatus: boolean;
     procedure SetStatus(Value: boolean);
   public
-    constructor Create(bncname: string);
-    procedure WStr(key, Value: string);
-    function RStr(key, default: string): string;
-    procedure WInt(key: string; Value: integer);
-    function RInt(key: string; default: integer): integer;
-    procedure WBool(key: string; Value: boolean);
-    function RBool(key: string; default: boolean): boolean;
+    constructor Create(bncname: AnsiString);
+    procedure WStr(key, Value: AnsiString);
+    function RStr(key, default: AnsiString): AnsiString;
+    procedure WInt(key: AnsiString; Value: integer);
+    function RInt(key: AnsiString; default: integer): integer;
+    procedure WBool(key: AnsiString; Value: boolean);
+    function RBool(key: AnsiString; default: boolean): boolean;
 
-    property Host: string Read GetHost Write SetHost;
+    property Host: AnsiString Read GetHost Write SetHost;
     property Port: integer Read GetPort Write SetPort;
-    property Username: string Read GetUsername Write SetUsername;
-    property Password: string Read GetPassword Write SetPassword;
+    property Username: AnsiString Read GetUsername Write SetUsername;
+    property Password: AnsiString Read GetPassword Write SetPassword;
     property Enabled: boolean Read GetStatus Write SetStatus;
   end;
 
@@ -67,9 +67,9 @@ var
   proxys:   TObjectList = nil;
   socksini: TEncinifile;
 
-function FindProxyByName(Name: string): TmSLSocks5;
+function FindProxyByName(Name: AnsiString): TmSLSocks5;
 function RemoveProxy(index: integer): boolean; overload;
-function RemoveProxy(Name: string): boolean; overload;
+function RemoveProxy(Name: AnsiString): boolean; overload;
 
 implementation
 
@@ -77,51 +77,51 @@ uses debugunit, configunit, SysUtils;
 
 {###    Socks5 Class... ###}
 
-constructor TmSLSocks5.Create(bncname: string);
+constructor TmSLSocks5.Create(bncname: AnsiString);
 begin
   self.Name := bncname;
 end;
 
-procedure TmSLSocks5.WStr(key: string; Value: string);
+procedure TmSLSocks5.WStr(key: AnsiString; Value: AnsiString);
 begin
   socksini.WriteString(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-procedure TmSLSocks5.WInt(key: string; Value: integer);
+procedure TmSLSocks5.WInt(key: AnsiString; Value: integer);
 begin
   socksini.WriteInteger(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-procedure TmSLSocks5.WBool(key: string; Value: boolean);
+procedure TmSLSocks5.WBool(key: AnsiString; Value: boolean);
 begin
   socksini.WriteBool(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-function TmSLSocks5.RStr(key: string; default: string): string;
+function TmSLSocks5.RStr(key: AnsiString; default: AnsiString): AnsiString;
 begin
   Result := socksini.ReadString(Name, key, default);
 end;
 
-function TmSLSocks5.RInt(key: string; default: integer): integer;
+function TmSLSocks5.RInt(key: AnsiString; default: integer): integer;
 begin
   Result := socksini.ReadInteger(Name, key, default);
 end;
 
 
-function TmSLSocks5.RBool(key: string; default: boolean): boolean;
+function TmSLSocks5.RBool(key: AnsiString; default: boolean): boolean;
 begin
   Result := socksini.ReadBool(Name, key, default);
 end;
 
-procedure TmSLSocks5.SetHost(Value: string);
+procedure TmSLSocks5.SetHost(Value: AnsiString);
 begin
   WStr('Host', Value);
 end;
 
-function TmSLSocks5.GetHost: string;
+function TmSLSocks5.GetHost: AnsiString;
 begin
   Result := RStr('Host', '');
 end;
@@ -136,22 +136,22 @@ begin
   Result := RInt('Port', -1);
 end;
 
-procedure TmSLSocks5.SetUsername(Value: string);
+procedure TmSLSocks5.SetUsername(Value: AnsiString);
 begin
   WStr('Username', Value);
 end;
 
-function TmSLSocks5.GetUsername: string;
+function TmSLSocks5.GetUsername: AnsiString;
 begin
   Result := RStr('Username', '');
 end;
 
-procedure TmSLSocks5.SetPassword(Value: string);
+procedure TmSLSocks5.SetPassword(Value: AnsiString);
 begin
   WStr('Password', Value);
 end;
 
-function TmSLSocks5.GetPassword: string;
+function TmSLSocks5.GetPassword: AnsiString;
 begin
   Result := RStr('Password', '');
 end;
@@ -170,7 +170,7 @@ end;
 {###    Controling Jobs... ###}
 
 
-function FindProxyByName(Name: string): TmSLSocks5;
+function FindProxyByName(Name: AnsiString): TmSLSocks5;
 var
   I: integer;
 begin
@@ -232,7 +232,7 @@ end;
 
 
 
-function RemoveProxy(Name: string): boolean;
+function RemoveProxy(Name: AnsiString): boolean;
 begin
   if proxys.Remove(FindProxyByName(Name)) > -1 then
   begin
@@ -246,7 +246,7 @@ end;
 
 function RemoveProxy(index: integer): boolean;
 var
-  Name: string;
+  Name: AnsiString;
 begin
   Name := TmSLSocks5(proxys.Items[index]).Name;
   if proxys.Remove(proxys.Items[index]) > -1 then

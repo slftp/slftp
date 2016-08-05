@@ -5,9 +5,9 @@ interface
 uses tasksunit;
 
 type TQuitTask = class(TTask)
-       constructor Create(const netname, channel, site: string);
+       constructor Create(const netname, channel, site: AnsiString);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -18,7 +18,7 @@ uses sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
 
 const section = 'quit';
 
-constructor TQuitTask.Create(const netname, channel, site: string);
+constructor TQuitTask.Create(const netname, channel, site: AnsiString);
 begin
   inherited Create(netname, channel, site);
 end;
@@ -37,7 +37,7 @@ begin
     irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 end;
 
-function TQuitTask.Name: string;
+function TQuitTask.Name: AnsiString;
 begin
   try
     Result:= Format('QUIT <b>%s</b>',[site1]);

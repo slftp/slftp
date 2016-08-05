@@ -70,11 +70,11 @@ type
     procedure AssignToBitmap(Dest: TBitmap);
     procedure AssignToMetafile(Dest: TMetafile);
     procedure AssignToPicture(Dest: TPicture);
-    function GetAsText: string;
+    function GetAsText: AnsiString;
     function GetClipboardWindow: HWND;
     function GetFormatCount: Integer;
     function GetFormats(Index: Integer): Word;
-    procedure SetAsText(const Value: string);
+    procedure SetAsText(const Value: AnsiString);
   protected
     procedure AssignTo(Dest: TPersistent); override;
     procedure SetBuffer(Format: Word; var Buffer; Size: Integer);
@@ -89,13 +89,13 @@ type
     procedure Close; virtual;
     function GetComponent(Owner, Parent: TComponent): TComponent;
     function GetAsHandle(Format: Word): THandle;
-    function GetTextBuf(Buffer: PChar; BufSize: Integer): Integer;
+    function GetTextBuf(Buffer: PAnsiChar; BufSize: Integer): Integer;
     function HasFormat(Format: Word): Boolean;
     procedure Open; virtual;
     procedure SetComponent(Component: TComponent);
     procedure SetAsHandle(Format: Word; Value: THandle);
-    procedure SetTextBuf(Buffer: PChar);
-    property AsText: string read GetAsText write SetAsText;
+    procedure SetTextBuf(Buffer: PAnsiChar);
+    property AsText: AnsiString read GetAsText write SetAsText;
     property FormatCount: Integer read GetFormatCount;
     property Formats[Index: Integer]: Word read GetFormats;
   end;
@@ -255,7 +255,7 @@ begin
   end;
 end;
 
-function TClipboard.GetTextBuf(Buffer: PChar; BufSize: Integer): Integer;
+function TClipboard.GetTextBuf(Buffer: PAnsiChar; BufSize: Integer): Integer;
 var
   Data: THandle;
 begin
@@ -269,12 +269,12 @@ begin
   Close;
 end;
 
-procedure TClipboard.SetTextBuf(Buffer: PChar);
+procedure TClipboard.SetTextBuf(Buffer: PAnsiChar);
 begin
   SetBuffer(CF_TEXT, Buffer^, StrLen(Buffer) + 1);
 end;
 
-function TClipboard.GetAsText: string;
+function TClipboard.GetAsText: AnsiString;
 var
   Data: THandle;
 begin
@@ -282,7 +282,7 @@ begin
   Data := GetClipboardData(CF_TEXT);
   try
     if Data <> 0 then
-      Result := PChar(GlobalLock(Data))
+      Result := PAnsiChar(GlobalLock(Data))
     else
       Result := '';
   finally
@@ -298,9 +298,9 @@ begin
   Result := FClipboardWindow;
 end;
 
-procedure TClipboard.SetAsText(const Value: string);
+procedure TClipboard.SetAsText(const Value: AnsiString);
 begin
-  SetBuffer(CF_TEXT, PChar(Value)^, Length(Value) + 1);
+  SetBuffer(CF_TEXT, PAnsiChar(Value)^, Length(Value) + 1);
 end;
 
 procedure TClipboard.AssignToPicture(Dest: TPicture);

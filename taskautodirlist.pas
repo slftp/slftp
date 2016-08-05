@@ -6,10 +6,10 @@ uses tasksunit;
  
 type TAutoDirlistTask = class(TTask)
      private
-    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: string);
+    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
      public
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
  
 implementation
@@ -25,10 +25,10 @@ type
   TReqFillerThread = class(TThread)
   private
     p: TPazo;
-    secdir: string;
-    rlsname: string;
+    secdir: AnsiString;
+    rlsname: AnsiString;
   public
-    constructor Create(p: Tpazo; secdir, rlsname: string);
+    constructor Create(p: Tpazo; secdir, rlsname: AnsiString);
     procedure Execute; override;
   end;
  
@@ -38,19 +38,19 @@ var
 reqrgx:TRegExpr;
  
  
-procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: string);
+procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
 var x: TStringList;
     i, db: Integer;
-    sitename: string;
+    sitename: AnsiString;
     p: TPazo;
     ps: TPazoSite;
     rc: TCRelease;
     rls: TRelease;
     s: TSiteSlot;
-    ss: string;
-    datum: string;
-    maindir: string;
-    releasenametofind: string;
+    ss: AnsiString;
+    datum: AnsiString;
+    maindir: AnsiString;
+    releasenametofind: AnsiString;
     notdown: Boolean;
     site: TSite;
     pdt: TPazoDirlistTask;
@@ -154,7 +154,7 @@ function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
 var s: TSiteSlot;
     i, j: Integer;
     l: TAutoDirlistTask;
-    asection, ss, section, sectiondir: string;
+    asection, ss, section, sectiondir: AnsiString;
     dl: TDirList;
     de: TDirListEntry;
  
@@ -277,8 +277,8 @@ begin
   ready:= True;
 end;
  
-function TAutoDirlistTask.Name: string;
-var cstr:string;
+function TAutoDirlistTask.Name: AnsiString;
+var cstr:AnsiString;
 begin
   if ScheduleText <> '' then cstr:=format('(%s)',[ScheduleText]) else cstr:='';
   Result:=format('::AUTODIRLIST:: %s %s',[site1,cstr]);
@@ -286,7 +286,7 @@ end;
  
 { TReqFillerThread }
  
-constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: string);
+constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: AnsiString);
 begin
   self.p:= p;
   self.secdir:= secdir;

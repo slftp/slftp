@@ -10,26 +10,26 @@ type
   // ez az ose az osszes feladatnak
   TTask = class
   public
-    site1: string;
+    site1: AnsiString;
     ssite1: Pointer;
     slot1: Pointer;
-    slot1name: string;
-    site2: string;
+    slot1name: AnsiString;
+    site2: AnsiString;
     ssite2: Pointer;
     slot2: Pointer;
-    slot2name: string;
+    slot2name: AnsiString;
 
-    netname, channel: string;
+    netname, channel: AnsiString;
 
     dontremove: Boolean;
-    wantedslot: string;
+    wantedslot: AnsiString;
 
     created: TDateTime;// ez ugyanaz mint az added
     assigned: TDateTime;
     startat: TDateTime;// ennel elobb nem kezdodhet -- not begin with a primary
 
-    response: string;
-    announce: string;
+    response: AnsiString;
+    announce: AnsiString;
 
     ready: Boolean; // ready to free
     readyerror: Boolean;
@@ -47,8 +47,8 @@ type
 
     TryToAssign : Integer;
 
-    constructor Create(const netname, channel: string; site1: string); overload;
-    constructor Create(const netname, channel: string; site1, site2: string); overload;
+    constructor Create(const netname, channel: AnsiString; site1: AnsiString); overload;
+    constructor Create(const netname, channel: AnsiString; site1, site2: AnsiString); overload;
     destructor Destroy; override;
 
 
@@ -56,16 +56,16 @@ type
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
     // a slot parameter itt a calling slot
-    function Name: string; virtual; abstract;
-    function Fullname: string; virtual;
-    function UidText: string;
-    function ScheduleText: string;
+    function Name: AnsiString; virtual; abstract;
+    function Fullname: AnsiString; virtual;
+    function UidText: AnsiString;
+    function ScheduleText: AnsiString;
     procedure DebugTask;
   end;
 
 procedure Tasks_Init;
 procedure Tasks_Uninit;
-function FindTaskByUidText(uidtext: string): TTask;
+function FindTaskByUidText(uidtext: AnsiString): TTask;
 
 
 implementation
@@ -77,12 +77,12 @@ const section = 'task';
 var uidg: Integer = 1;
     uid_lock: TCriticalSection;
 
-constructor TTask.Create(const netname, channel: string; site1: string);
+constructor TTask.Create(const netname, channel: AnsiString; site1: AnsiString);
 begin
   Create(netname, channel, site1, '');
 end;
 
-constructor TTask.Create(const netname, channel: string; site1, site2: string);
+constructor TTask.Create(const netname, channel: AnsiString; site1, site2: AnsiString);
 begin
   created:= Now();
   assigned:=0;
@@ -142,8 +142,8 @@ begin
   inherited;
 end;
 
-function TTask.Fullname: string;
-var s_dep:string;
+function TTask.Fullname: AnsiString;
+var s_dep:AnsiString;
 begin
   try
     s_dep:=Format('[%s]',[dependencies.DelimitedText]);
@@ -154,14 +154,14 @@ begin
   end;
 end;
 
-function TTask.ScheduleText: string;
+function TTask.ScheduleText: AnsiString;
 begin
   Result:= '';
   if startat <> 0 then
     Result:= ' '+TimeToStr(startat);
 end;
 
-function TTask.UidText: string;
+function TTask.UidText: AnsiString;
 begin
   Result:= '#'+IntToStr(uid);
 end;
@@ -177,7 +177,7 @@ begin
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function FindTaskByUidText(uidtext: string): TTask;
+function FindTaskByUidText(uidtext: AnsiString): TTask;
 var i: Integer;
 begin
   Result:= nil;

@@ -7,11 +7,11 @@ procedure indexerInit;
 procedure indexerUninit;
 procedure indexerBeginTransaction();
 procedure indexerEndTransaction();
-function indexerQuery(var rls: string): string;
-function indexerQueryPartially(var rls: string): string;
-function indexerStat: string;
-procedure indexerAddRelease(const rls, site, section, path: string);
-procedure indexerRemoveSiteSection(const site, section: string);
+function indexerQuery(var rls: AnsiString): AnsiString;
+function indexerQueryPartially(var rls: AnsiString): AnsiString;
+function indexerStat: AnsiString;
+procedure indexerAddRelease(const rls, site, section, path: AnsiString);
+procedure indexerRemoveSiteSection(const site, section: AnsiString);
 function indexerCapable: Boolean;
 
 function IndexerAlive: boolean;
@@ -62,7 +62,7 @@ begin
   Result := indexes <> nil;
 end;
 
-procedure indexerAddRelease(const rls, site, section, path: string);
+procedure indexerAddRelease(const rls, site, section, path: AnsiString);
 begin
   if indexes = nil then
     exit;
@@ -77,7 +77,7 @@ begin
   end;
 end;
 
-procedure indexerRemoveSiteSection(const site, section: string);
+procedure indexerRemoveSiteSection(const site, section: AnsiString);
 begin
   if indexes = nil then
     exit;
@@ -96,7 +96,7 @@ end;
 
 procedure indexerStart;
 var
-  s: string;
+  s: AnsiString;
 begin
   if slsqlite_inited then
   begin
@@ -130,7 +130,7 @@ begin
   end;
 end;
 
-function indexerStat: string;
+function indexerStat: AnsiString;
 var
   all, db: Integer;
 begin
@@ -181,7 +181,7 @@ begin
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function indexerQuery(var rls: string): string;
+function indexerQuery(var rls: AnsiString): AnsiString;
 begin
   Result := '';
   if indexes = nil then
@@ -202,7 +202,7 @@ begin
   end;
 end;
 
-function indexerQueryPartially(var rls: string): string;
+function indexerQueryPartially(var rls: AnsiString): AnsiString;
 begin
   Result := '';
   if indexes = nil then

@@ -2,10 +2,10 @@ unit helper;
 
 interface
 
-function MyGetPass(prompt: string): string;
-function MyGetUsername: string;
+function MyGetPass(prompt: AnsiString): AnsiString;
+function MyGetUsername: AnsiString;
 procedure mySleep(sec: Integer; var slshutdown: Boolean);
-function ParsePZSOutputForGenre(s: string): string;
+function ParsePZSOutputForGenre(s: AnsiString): AnsiString;
 {$IFDEF FPC}
 function RandomRange(mmin, mmax: Integer): Integer;
 {$ENDIF}
@@ -32,7 +32,7 @@ end;
 
 
 {$IFDEF MSWINDOWS}
-function MyGetPass(prompt: string) : string;
+function MyGetPass(prompt: AnsiString) : AnsiString;
 var
   OldConsInMode, NewConsInMode: DWORD;
   hConsIn: THANDLE;
@@ -71,7 +71,7 @@ begin
 
 end;
 {$ELSE}
-function MyGetPass(prompt: string): string;
+function MyGetPass(prompt: AnsiString): AnsiString;
 begin
 {$IFDEF FPC}
   Result:= 'blabla';//StrPas(GetPass(PChar(prompt)));
@@ -82,8 +82,8 @@ end;
 {$ENDIF}
 
 {$IFDEF MSWINDOWS}
-function MyGetUsername: string;
-var buf: array[1..256] of char;
+function MyGetUsername: AnsiString;
+var buf: array[1..256] of AnsiChar;
     n: Cardinal;
 begin
   Result:= '';
@@ -93,7 +93,7 @@ begin
 end;
 
 {$ELSE}
-function MyGetUsername: string;
+function MyGetUsername: AnsiString;
 var pwentry: PPasswordRecord;
 begin
   Result:= '';
@@ -122,7 +122,7 @@ begin
   end;
 end;
 
-function ParsePZSOutputForGenre(s: string): string;
+function ParsePZSOutputForGenre(s: AnsiString): AnsiString;
 var i, j: Integer;
 begin
   Result:= '';

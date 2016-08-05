@@ -32,11 +32,11 @@ type
   end;
 
 procedure EncryptStreamToStream(input, ostream: TStream; const Key: array of byte; compressstream: Boolean = False);
-procedure EncryptStreamToFile(input: TStream; output: string; const Key: array of byte; compressstream: Boolean = False);
-procedure EncryptFileToFile(input: string; output: string; const Key: array of byte; compressstream: Boolean = False);
+procedure EncryptStreamToFile(input: TStream; output: AnsiString; const Key: array of byte; compressstream: Boolean = False);
+procedure EncryptFileToFile(input: AnsiString; output: AnsiString; const Key: array of byte; compressstream: Boolean = False);
 procedure DecryptStreamToStream(istream, output: TStream; const Key: array of byte; decompressstream: Boolean = False);
-procedure DecryptFileToStream(input: string; output: TStream; const Key: array of byte; decompressstream: Boolean = False);
-procedure DecryptFileToFile(input: string; output: string; const Key: array of byte; decompressstream: Boolean = False);
+procedure DecryptFileToStream(input: AnsiString; output: TStream; const Key: array of byte; decompressstream: Boolean = False);
+procedure DecryptFileToFile(input: AnsiString; output: AnsiString; const Key: array of byte; decompressstream: Boolean = False);
 
 implementation
 
@@ -58,7 +58,7 @@ end;
 
 procedure EncryptStreamToStream(input, ostream: TStream; const Key: array of byte; compressstream: Boolean = False);
 var read, aktread: Integer;
-    buf: array[1..BUFSIZE] of char;
+    buf: array[1..BUFSIZE] of AnsiChar;
     istream: TMemoryStream;
     zl: TCompressionStream;
     i, iteraciok: Integer;
@@ -111,7 +111,7 @@ begin
   end;
 end;
 
-procedure EncryptStreamToFile(input: TStream; output: string; const Key: array of byte; compressstream: Boolean = False);
+procedure EncryptStreamToFile(input: TStream; output: AnsiString; const Key: array of byte; compressstream: Boolean = False);
 var
     ostream: TFileStream;
 begin
@@ -122,7 +122,7 @@ begin
     ostream.Free;
   end;
 end;
-procedure EncryptFileToFile(input: string; output: string; const Key: array of byte; compressstream: Boolean = False);
+procedure EncryptFileToFile(input: AnsiString; output: AnsiString; const Key: array of byte; compressstream: Boolean = False);
 var x: TFileStream;
 begin
   if input = output then
@@ -140,7 +140,7 @@ begin
 end;
 procedure DecryptStreamToStream(istream, output: TStream; const Key: array of byte; decompressstream: Boolean = False);
 var read, aktread: Integer;
-    buf: array[1..BUFSIZE] of char;
+    buf: array[1..BUFSIZE] of AnsiChar;
     ostream: TMemoryStream;
     zl: TDecompressionStream;
     i, iteraciok: Integer;
@@ -196,7 +196,7 @@ begin
     b.Free;
   end;
 end;
-procedure DecryptFileToStream(input: string; output: TStream; const Key: array of byte; decompressstream: Boolean = False);
+procedure DecryptFileToStream(input: AnsiString; output: TStream; const Key: array of byte; decompressstream: Boolean = False);
 var istream: TFileStream;
 begin
   istream:= TFileStream.Create(input, fmOpenRead);
@@ -206,7 +206,7 @@ begin
     istream.Free;
   end;
 end;
-procedure DecryptFileToFile(input: string; output: string; const Key: array of byte; decompressstream: Boolean = False);
+procedure DecryptFileToFile(input: AnsiString; output: AnsiString; const Key: array of byte; decompressstream: Boolean = False);
 var x: TFileStream;
 begin
   if input = output then

@@ -5,30 +5,30 @@ interface
 
 
 
-procedure Console_QueueAdd(name, task: string);
-procedure Console_QueueDel(name: string);
-procedure Console_Slot_Add(name, s: string); overload;
-procedure Console_Slot_Close(const name: string);
+procedure Console_QueueAdd(name, task: AnsiString);
+procedure Console_QueueDel(name: AnsiString);
+procedure Console_Slot_Add(name, s: AnsiString); overload;
+procedure Console_Slot_Close(const name: AnsiString);
 
-procedure Console_Slot_Add(name, FormatStr: string; const Args: array of const);overload;
+procedure Console_Slot_Add(name, FormatStr: AnsiString; const Args: array of const);overload;
 procedure ConsoleStart;
 procedure Console_SiteStat(allsites, upsites, downsites, unknown: Cardinal);
 //procedure Console_QueueStat(queuedb: Cardinal);overload;
 procedure Console_QueueStat(queuedb, t_race, t_dir, t_auto, t_other: Cardinal);overload;
-procedure console_addline(const windowtitle, msg: string);
+procedure console_addline(const windowtitle, msg: AnsiString);
 procedure console_repaint();
-procedure console_delwindow(const windowtitle: string);
-procedure console_add_dummywindow(const windowtitle: string);
-procedure console_add_ircwindow(const windowtitle: string);
-procedure console_add_sitewindow(const windowtitle: string);
-function console_showwindow(const windowtitle: string): Boolean;
-function console_windows: string;
+procedure console_delwindow(const windowtitle: AnsiString);
+procedure console_add_dummywindow(const windowtitle: AnsiString);
+procedure console_add_ircwindow(const windowtitle: AnsiString);
+procedure console_add_sitewindow(const windowtitle: AnsiString);
+function console_showwindow(const windowtitle: AnsiString): Boolean;
+function console_windows: AnsiString;
 
 procedure ConsoleInit;
 procedure ConsoleUninit;
 
-function ReadAppQueueCaption:string;
-function ReadAppSitesCaption:string;
+function ReadAppQueueCaption:AnsiString;
+function ReadAppSitesCaption:AnsiString;
 
 var
   no_console_msg: Boolean;
@@ -62,16 +62,16 @@ type
   end;
   TslCommandWindowTask = class(TslTextBoxTask)
   private
-    windowtitle: string;
+    windowtitle: AnsiString;
   public
-    constructor Create(const windowtitle: string);
+    constructor Create(const windowtitle: AnsiString);
     function FindWindow: TslCommandWindow;
   end;
   TShowWindowTask = class(TslCommandWindowTask)
     procedure Execute; override;
   end;
   TDelWindowTask = class(TslCommandWindowTask)
-    constructor Create(const windowtitle: string);
+    constructor Create(const windowtitle: AnsiString);
     procedure Execute; override;
   end;
   TAddIrcWindowTask = class(TslCommandWindowTask)
@@ -94,34 +94,34 @@ type
   *)
   TTextBoxAddLineTask = class(TslCommandWindowTask)
   private
-    msg: string;
+    msg: AnsiString;
   public
-    constructor Create(const windowtitle, msg: string);
+    constructor Create(const windowtitle, msg: AnsiString);
     procedure Execute; override;
 (*    procedure OnConleTaskAdded(queue: TObjectList); override; *)
   end;
   TItemManageTask = class(TTextBoxAddLineTask)
   private
-    name: string;
+    name: AnsiString;
   end;
   TQueueItemAddTask = class(TItemManageTask)
   public
-    constructor Create(const name, msg: string);
+    constructor Create(const name, msg: AnsiString);
     procedure Execute; override;
   end;
   TQueueItemDelTask = class(TItemManageTask)
   public
-    constructor Create(const name: string);
+    constructor Create(const name: AnsiString);
     procedure Execute; override;
   end;
   TSlotItemAddTask = class(TItemManageTask)
   public
-    constructor Create(const name, msg: string);
+    constructor Create(const name, msg: AnsiString);
     procedure Execute; override;
   end;
   TSlotItemDelTask = class(TItemManageTask)
   public
-    constructor Create(const name: string);
+    constructor Create(const name: AnsiString);
     procedure Execute; override;
   end;
 
@@ -135,25 +135,25 @@ type
     cw: TslCommandWindow;
     slots: TslCommandWindow;
     queue: TslCommandWindow;
-    dir: string;
+    dir: AnsiString;
     main_timer: TMainTimer;
     inited: Boolean;
     sitesstat: TslLabel;
     m: TslMutualVisibilityControl;
-    function OnKeyDown(sender: TslEdit; c: Char; extended: Boolean): Boolean;
-    procedure OnAdminCommand(sender: TslEdit; const command: string);
-    procedure OnIrcCommand(Sender: TslEdit; const command: string);
-    procedure OnSiteCommand(Sender: TslEdit; const command: string);
+    function OnKeyDown(sender: TslEdit; c: AnsiChar; extended: Boolean): Boolean;
+    procedure OnAdminCommand(sender: TslEdit; const command: AnsiString);
+    procedure OnIrcCommand(Sender: TslEdit; const command: AnsiString);
+    procedure OnSiteCommand(Sender: TslEdit; const command: AnsiString);
   public
     queuestat: TslLabel;
-    function AddIrcWindow(const netname: string): TslCommandWindow;
-    function AddDummyWindow(const netname: string): TslCommandWindow;
-    function AddSiteWindow(const netname: string): TslCommandWindow;
+    function AddIrcWindow(const netname: AnsiString): TslCommandWindow;
+    function AddDummyWindow(const netname: AnsiString): TslCommandWindow;
+    function AddSiteWindow(const netname: AnsiString): TslCommandWindow;
     procedure MyOnExit(sender: TslControl);
     procedure MyOnShow(sender: TslControl);
     constructor Create;
     destructor Destroy; override;
-    function KeyEvent(c: Char; extended: Boolean): Boolean; override;
+    function KeyEvent(c: AnsiChar; extended: Boolean): Boolean; override;
   end;
 
 var app: TMySlApp;
@@ -172,16 +172,16 @@ begin
 
 end;
 
-function ReadAppQueueCaption:string;
+function ReadAppQueueCaption:AnsiString;
 begin
   result:=app.queuestat.caption;
 end;
-function ReadAppSitesCaption:string;
+function ReadAppSitesCaption:AnsiString;
 begin
 result:= app.sitesstat.caption;
 end;
 
-function consolestrip(const s: string): string;
+function consolestrip(const s: AnsiString): AnsiString;
 var i: Integer;
     skip: Integer;
 begin
@@ -215,7 +215,7 @@ begin
       dec(skip);
 end;
 
-function MyFindWindow(const windowtitle: string): TslCommandWindow;
+function MyFindWindow(const windowtitle: AnsiString): TslCommandWindow;
 var i: Integer;
     t: TslCommandWindow;
 begin
@@ -247,8 +247,8 @@ begin
   end;
 end;
 
-procedure console_addline(const windowtitle, msg: string);
-var w: string;
+procedure console_addline(const windowtitle, msg: AnsiString);
+var w: AnsiString;
 begin
   if app = nil then exit;
 
@@ -272,7 +272,7 @@ begin
   end;
 end;
 
-procedure console_add_ircwindow(const windowtitle: string);
+procedure console_add_ircwindow(const windowtitle: AnsiString);
 begin
   if (no_console_msg) then exit;
 
@@ -286,7 +286,7 @@ begin
   end;
 end;
 
-procedure console_add_dummywindow(const windowtitle: string);
+procedure console_add_dummywindow(const windowtitle: AnsiString);
 begin
   if app = nil then exit;
 
@@ -302,7 +302,7 @@ begin
   end;
 end;
 
-procedure console_add_sitewindow(const windowtitle: string);
+procedure console_add_sitewindow(const windowtitle: AnsiString);
 begin
   if (no_console_msg) then exit;
 
@@ -316,7 +316,7 @@ begin
   end;
 end;
 
-function console_windows: string;
+function console_windows: AnsiString;
 var i: Integer;
 begin
   Result:= '';
@@ -341,7 +341,7 @@ begin
   end;
 end;
 
-procedure console_delwindow(const windowtitle: string);
+procedure console_delwindow(const windowtitle: AnsiString);
 var t: TslCommandWindow;
 begin
   if app = nil then exit;
@@ -362,7 +362,7 @@ begin
   end;
 end;
 
-function console_showwindow(const windowtitle: string): Boolean;
+function console_showwindow(const windowtitle: AnsiString): Boolean;
 begin
   if app <> nil then
   begin  
@@ -445,7 +445,7 @@ begin
   end;
 end;
 
-procedure Console_Slot_Add(name, FormatStr: string; const Args: array of const);
+procedure Console_Slot_Add(name, FormatStr: AnsiString; const Args: array of const);
 begin
   if (no_console_slot) then exit;
   try
@@ -458,7 +458,7 @@ begin
   end;
 end;
 
-procedure Console_Slot_Add(name, s: string);
+procedure Console_Slot_Add(name, s: AnsiString);
 begin
   if (no_console_slot) then exit;
   try
@@ -472,7 +472,7 @@ begin
   end;
 end;
 
-procedure Console_Slot_Close(const name: string);
+procedure Console_Slot_Close(const name: AnsiString);
 begin
   if (no_console_slot) then exit;
   try
@@ -486,7 +486,7 @@ begin
   end;
 end;
 
-procedure Console_QueueAdd(name, task: string);
+procedure Console_QueueAdd(name, task: AnsiString);
 begin
   if (no_console_queue) then exit;
 
@@ -506,7 +506,7 @@ begin
   end;
 end;
 
-procedure Console_QueueDel(name: string);
+procedure Console_QueueDel(name: AnsiString);
 begin
   if (no_console_queue) then exit;
   
@@ -531,7 +531,7 @@ end;
 
 
 
-procedure TMySlApp.OnAdminCommand(sender: TslEdit; const command: string);
+procedure TMySlApp.OnAdminCommand(sender: TslEdit; const command: AnsiString);
 begin
   if 1 = Pos(irccmdprefix, command) then
   begin
@@ -598,7 +598,7 @@ end;
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
 label ujra;
-var p, p2: string;
+var p, p2: AnsiString;
     x: TEncStringList;
 begin
 ujra:
@@ -621,7 +621,7 @@ ujra:
       goto ujra;
     end;
 
-    p2:= 'r89ö234ur8weurw8ehjrusdhfiusehfr3489rhweiufhsdufhsdehr9384h5ö239842ö384h';
+    p2:= 'r89v234ur8weurw8ehjrusdhfiusehfr3489rhweiufhsdufhsdehr9384h5v239842v384h';
 
   end else
   begin
@@ -707,7 +707,7 @@ ujra:
     timers.Add( TslInfosTimer.Create(l_infos) );
 end;
 
-function TMySlApp.AddIrcWindow(const netname: string): TslCommandWindow;
+function TMySlApp.AddIrcWindow(const netname: AnsiString): TslCommandWindow;
 begin
   Result:= TslCommandWindow.Create(0,0,netname, 'Text:', nil);
   Result.textbox.maxlines:= config.ReadInteger(section, 'maxlines', 1000);
@@ -716,7 +716,7 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.KeyEvent(c: Char; extended: Boolean): Boolean;
+function TMySlApp.KeyEvent(c: AnsiChar; extended: Boolean): Boolean;
 begin
   if ((c = #27) and (inited)) then
   begin
@@ -728,8 +728,8 @@ begin
   Result:= inherited KeyEvent(c, extended);
 end;
 
-procedure TMySlApp.OnIrcCommand(Sender: TslEdit; const command: string);
-var t: string;
+procedure TMySlApp.OnIrcCommand(Sender: TslEdit; const command: AnsiString);
+var t: AnsiString;
 begin
   t:= TslWindow(sender.parent.parent.parent.parent).Title;
   if AnsiSameText(command, '/names') then
@@ -739,7 +739,7 @@ begin
     irc_addtext(SubString(t, ' ', 1), SubString(t, ' ', 2), command);
 end;
 
-function TMySlApp.AddSiteWindow(const netname: string): TslCommandWindow;
+function TMySlApp.AddSiteWindow(const netname: AnsiString): TslCommandWindow;
 begin
   Result:= TslCommandWindow.Create(0,0,netname, 'Command:', nil);
   Result.textbox.maxlines:= config.ReadInteger(section, 'maxlines', 1000);
@@ -748,8 +748,8 @@ begin
   Result.SetParent(m);
 end;
 
-procedure TMySlApp.OnSiteCommand(Sender: TslEdit; const command: string);
-var s,t: string;
+procedure TMySlApp.OnSiteCommand(Sender: TslEdit; const command: AnsiString);
+var s,t: AnsiString;
     rt: TRawTask;
 begin
   t:= TslWindow(sender.parent.parent.parent.parent).Title;
@@ -767,7 +767,7 @@ begin
   end;
 end;
 
-function TMySlApp.AddDummyWindow(const netname: string): TslCommandWindow;
+function TMySlApp.AddDummyWindow(const netname: AnsiString): TslCommandWindow;
 begin
   Result:= nil;
   if (no_console_queue and (UpperCase(netname) = 'QUEUE')) then exit;
@@ -779,12 +779,12 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.OnKeyDown(sender: TslEdit; c: Char;
+function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar;
   extended: Boolean): Boolean;
 var x, y: TStringList;
     i, j: Integer;
     l, ki: Integer;
-    word: string;
+    word: AnsiString;
 begin
   Result:= False;
 
@@ -930,7 +930,7 @@ end;
 
 { TslTextBoxTask }
 
-constructor TslCommandWindowTask.Create(const windowtitle: string);
+constructor TslCommandWindowTask.Create(const windowtitle: AnsiString);
 var w: TslCommandWindow;
 
 begin
@@ -949,7 +949,7 @@ end;
 
 { TTextBoxAddLineTask }
 
-constructor TTextBoxAddLineTask.Create(const windowtitle, msg: string);
+constructor TTextBoxAddLineTask.Create(const windowtitle, msg: AnsiString);
 begin
   inherited Create(windowtitle);
   self.msg:= msg;
@@ -957,7 +957,7 @@ end;
 
 procedure TTextBoxAddLineTask.Execute;
 var w: TslCommandWindow;
-    s, ss: string;
+    s, ss: AnsiString;
     i: Integer;
 begin
   try
@@ -1045,7 +1045,7 @@ end;
 
 { TDelWindowTask }
 
-constructor TDelWindowTask.Create(const windowtitle: string);
+constructor TDelWindowTask.Create(const windowtitle: AnsiString);
 begin
   inherited Create(windowtitle);
   remove:= True;
@@ -1134,7 +1134,7 @@ end;
 
 { TQueueItemAddTask }
 
-constructor TQueueItemAddTask.Create(const name, msg: string);
+constructor TQueueItemAddTask.Create(const name, msg: AnsiString);
 begin
   inherited Create('Queue', msg);
   self.name:= name;
@@ -1161,7 +1161,7 @@ end;
 
 { TQueueItemDelTask }
 
-constructor TQueueItemDelTask.Create(const name: string);
+constructor TQueueItemDelTask.Create(const name: AnsiString);
 begin
   inherited Create('Queue', '');
   self.name:= name;
@@ -1186,7 +1186,7 @@ end;
 
 { TSlotItemAddTask }
 
-constructor TSlotItemAddTask.Create(const name, msg: string);
+constructor TSlotItemAddTask.Create(const name, msg: AnsiString);
 begin
   inherited Create('Slots', msg);
   self.name:= name;
@@ -1213,7 +1213,7 @@ end;
 
 { TSlotItemDelTask }
 
-constructor TSlotItemDelTask.Create(const name: string);
+constructor TSlotItemDelTask.Create(const name: AnsiString);
 begin
   inherited Create('Slots', '');
   self.name:= name;

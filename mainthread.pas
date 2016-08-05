@@ -34,7 +34,7 @@ interface
 
 uses SysUtils;
 
-function Main_Init: string;
+function Main_Init: AnsiString;
 procedure Main_Run;
 procedure Main_Iter;
 procedure Main_Stop;
@@ -76,9 +76,9 @@ begin
   Result := slshutdown;
 end;
 
-function Main_Init: string;
+function Main_Init: AnsiString;
 var
-  ss, s: string;
+  ss, s: AnsiString;
 begin
   Result := '';
 

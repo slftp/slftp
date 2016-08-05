@@ -8,10 +8,10 @@ type
   PSSL_METHOD     = Pointer;
 
 
-function OpenSSLVersion: string;
-function OpenSSLShortVersion: string;
-function slSSL_LastError(): string; overload;
-function slSSL_LastError(ssl: PSSL; ec: Integer): string; overload;
+function OpenSSLVersion: AnsiString;
+function OpenSSLShortVersion: AnsiString;
+function slSSL_LastError(): AnsiString; overload;
+function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString; overload;
 
 const
   OPENSSL_SSL_ERROR_NONE = 0;
@@ -107,7 +107,7 @@ const
   slssl_default_cipher_list = 'ALL:!EXP'; 
 
 var slssl_inited: Boolean = False;
-    slssl_error: string;
+    slssl_error: AnsiString;
     slssl_ctx_sslv23_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_2_client: PSSL_CTX = nil;
@@ -116,10 +116,10 @@ var slssl_inited: Boolean = False;
   slRAND_Screen : procedure cdecl = nil;
   slOpenSSL_add_all_digests : procedure cdecl = nil;
   slOpenSSL_add_all_ciphers : procedure cdecl = nil;
-  slSSLeay_version: function(vertype: Integer): PChar cdecl = nil;
+  slSSLeay_version: function(vertype: Integer): PAnsiChar cdecl = nil;
   slEVP_cleanup : procedure cdecl = nil;
 
-  slSSL_CTX_set_cipher_list : function(arg0: PSSL_CTX; str: PChar):Integer cdecl = nil;
+  slSSL_CTX_set_cipher_list : function(arg0: PSSL_CTX; str: PAnsiChar):Integer cdecl = nil;
   slSSL_CTX_new : function(meth: PSSL_METHOD):PSSL_CTX cdecl = nil;
   slSSL_CTX_free : procedure(arg0: PSSL_CTX) cdecl = nil;
   slSSL_set_fd : function(s: PSSL; fd: Integer):Integer cdecl = nil;
@@ -128,9 +128,9 @@ var slssl_inited: Boolean = False;
   slSSL_free : procedure(ssl: PSSL) cdecl = nil;
   slSSL_accept : function(ssl: PSSL):Integer cdecl = nil;
   slSSL_connect : function(ssl: PSSL):Integer cdecl = nil;
-  slSSL_read : function(ssl: PSSL; buf: PChar; num: Integer):Integer cdecl = nil;
-  slSSL_peek : function(ssl: PSSL; buf: PChar; num: Integer):Integer cdecl = nil;
-  slSSL_write : function(ssl: PSSL; const buf: PChar; num: Integer):Integer cdecl = nil;
+  slSSL_read : function(ssl: PSSL; buf: PAnsiChar; num: Integer):Integer cdecl = nil;
+  slSSL_peek : function(ssl: PSSL; buf: PAnsiChar; num: Integer):Integer cdecl = nil;
+  slSSL_write : function(ssl: PSSL; const buf: PAnsiChar; num: Integer):Integer cdecl = nil;
   slSSL_shutdown : function(s: PSSL):Integer cdecl = nil;
   slSSL_get_error : function(s: PSSL; ret_code: Integer):Integer cdecl = nil;
 
@@ -152,7 +152,7 @@ var slssl_inited: Boolean = False;
   slENGINE_load_builtin_engines: procedure cdecl = nil;
   slSSL_load_error_strings : procedure cdecl = nil;
   slERR_get_error: function: Cardinal cdecl = nil;
-  slERR_error_string: function(e: Cardinal; buf: PChar): PChar cdecl = nil;
+  slERR_error_string: function(e: Cardinal; buf: PAnsiChar): PAnsiChar cdecl = nil;
 
   slSSL_CTX_set_default_verify_paths: function(ctx: PSSL_CTX): Integer; cdecl = nil;
   slSSL_CTX_set_options: function(ctx: PSSL_CTX; op: Longint):Longint cdecl = nil;
@@ -170,14 +170,14 @@ var slssl_inited: Boolean = False;
 
 
   // pem generalashoz fuggvenyek
-  slBIO_new_file: function(filename, mode: PChar): Pointer cdecl = nil;
+  slBIO_new_file: function(filename, mode: PAnsiChar): Pointer cdecl = nil;
   slRSA_generate_key: function(num: Integer; e: Cardinal; callback: Pointer; cb_arg: Pointer): Pointer cdecl = nil;
   slX509_REQ_new: function: Pointer cdecl = nil;
   slRSA_free: procedure(rsa: Pointer) cdecl = nil;
   slBIO_free: function(bio: Pointer): Integer cdecl = nil;
   slX509_NAME_new: function: Pointer cdecl = nil;
   slX509_REQ_free: procedure(req: Pointer) cdecl = nil;
-  slX509_NAME_ENTRY_create_by_txt: function(ne: Pointer; field: PChar; ntype: Integer; name: PChar; namelen: Integer): Pointer cdecl = nil;
+  slX509_NAME_ENTRY_create_by_txt: function(ne: Pointer; field: PAnsiChar; ntype: Integer; name: PAnsiChar; namelen: Integer): Pointer cdecl = nil;
   slX509_NAME_free: procedure(n: Pointer) cdecl = nil;
   slX509_NAME_add_entry: function(xn, xne: Pointer; nloc, nset: Integer): Integer cdecl = nil;
   slX509_REQ_set_subject_name: function(xr, xn: Pointer): Integer cdecl = nil;
@@ -188,12 +188,12 @@ var slssl_inited: Boolean = False;
   slX509_REQ_sign: function(x, pkey, md: Pointer): Integer cdecl = nil;
   slX509_REQ_to_X509: function(r: Pointer; day: Integer; pkey: Pointer): Pointer cdecl = nil;
   slX509_free: procedure(a: Pointer) cdecl = nil;
-  slPEM_write_bio_RSAPrivateKey: function(bp, x, enc: Pointer; kstr: Pchar; klen: Integer; cb, u: Pointer): Integer cdecl = nil;
+  slPEM_write_bio_RSAPrivateKey: function(bp, x, enc: Pointer; kstr: PAnsiChar; klen: Integer; cb, u: Pointer): Integer cdecl = nil;
   slPEM_write_bio_X509: function(bp, x: Pointer): integer cdecl = nil;
   slEVP_sha256: function: Pointer cdecl = nil;
 
-  slSSL_CTX_use_certificate_chain_file : function(ctx: PSSL_CTX; const _file: PChar):Integer cdecl = nil;
-  slSSL_CTX_use_PrivateKey_file: function(ctx: PSSL_CTX; const _file: PChar; _type: Integer):Integer cdecl = nil;
+  slSSL_CTX_use_certificate_chain_file : function(ctx: PSSL_CTX; const _file: PAnsiChar):Integer cdecl = nil;
+  slSSL_CTX_use_PrivateKey_file: function(ctx: PSSL_CTX; const _file: PAnsiChar; _type: Integer):Integer cdecl = nil;
   slSSL_CTX_check_private_key: function(ctx: PSSL_CTX):Integer cdecl = nil;
 
 
@@ -321,7 +321,7 @@ const
   fn_CRYPTO_set_dynlock_destroy_callback = 'CRYPTO_set_dynlock_destroy_callback';
 
 
-function OpenSSLVersion: string;
+function OpenSSLVersion: AnsiString;
 begin
   Result:= Format('%s %s %s %s',[
     slSSLeay_version(OPENSSL_SSLEAY_VERSION),
@@ -330,14 +330,14 @@ begin
     slSSLeay_version(OPENSSL_SSLEAY_PLATFORM)]);
 end;
 
-function OpenSSLShortVersion: string;
+function OpenSSLShortVersion: AnsiString;
 begin
   Result:= Copy(slSSLeay_version(OPENSSL_SSLEAY_VERSION), 9, 6);
 end;
 
 
-function slSsl_LoadProc(handle: Integer; const fnName: string; var fn: Pointer): Boolean;
-var fceName: string;
+function slSsl_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
+var fceName: AnsiString;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -359,20 +359,20 @@ type PslHandle = ^THandle;
 type TslCallBackLocks = array of THandle;
 var callback_locks: TslCallBackLocks =nil;
 
-function win32_dyn_create_function(filename: PChar; line: LongInt): PslHandle;
+function win32_dyn_create_function(filename: PAnsiChar; line: LongInt): PslHandle;
 begin
   GetMem(Result, SizeOf(THandle));
   if Result = nil then exit;
   Result^:= CreateMutex(nil, False, nil);
 end;
-procedure win32_dyn_destroy_function(l: PslHandle; filename: PChar; line: LongInt);
+procedure win32_dyn_destroy_function(l: PslHandle; filename: PAnsiChar; line: LongInt);
 begin
   if l = nil then exit;
 
   CloseHandle(l^);
   FreeMem(l);
 end;
-procedure win32_dyn_lock_function(mode: LongInt; l: PslHandle; filename: PChar; line: LongInt);
+procedure win32_dyn_lock_function(mode: LongInt; l: PslHandle; filename: PAnsiChar; line: LongInt);
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
 		WaitForSingleObject(l^,INFINITE)
@@ -380,7 +380,7 @@ begin
 		ReleaseMutex(l^);
 end;
 
-procedure win32_locking_callback(mode, ltype: Longint; filename: PChar; line: Longint); cdecl;
+procedure win32_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
 		WaitForSingleObject(callback_locks[ltype],INFINITE)
@@ -432,7 +432,7 @@ type
 
 var callback_locks: TslCallBackLocks =nil;
 
-function pthreads_dyn_create_function(filename: PChar; line: LongInt): PslLockHandle;
+function pthreads_dyn_create_function(filename: PAnsiChar; line: LongInt): PslLockHandle;
 begin
   GetMem(Result, SizeOf(TslLockHandle));
 
@@ -445,7 +445,7 @@ begin
 {$ENDIF}
 
 end;
-procedure pthreads_dyn_destroy_function(l: PslLockHandle; filename: PChar; line: LongInt);
+procedure pthreads_dyn_destroy_function(l: PslLockHandle; filename: PAnsiChar; line: LongInt);
 begin
   if l = nil then exit;
 
@@ -458,7 +458,7 @@ begin
 
   FreeMem(l);
 end;
-procedure pthreads_dyn_lock_function(mode: LongInt; l: PslLockHandle; filename: PChar; line: LongInt);
+procedure pthreads_dyn_lock_function(mode: LongInt; l: PslLockHandle; filename: PAnsiChar; line: LongInt);
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
 
@@ -480,7 +480,7 @@ begin
 
 end;
 
-procedure pthreads_locking_callback(mode, ltype: Longint; filename: PChar; line: Longint); cdecl;
+procedure pthreads_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
 		//pthread_mutex_lock(callback_locks[ltype])
@@ -802,8 +802,8 @@ begin
   slssl_inited:= False;
 end;
 
-function slSSL_LastError(): string;
-var s: string;
+function slSSL_LastError(): AnsiString;
+var s: AnsiString;
     db: Integer;
     i: Cardinal;
 begin
@@ -822,7 +822,7 @@ begin
 
   if db = 0 then Result:= 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
-function slSSL_LastError(ssl: PSSL; ec: Integer): string;
+function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString;
 begin
     ec:= slSSL_get_error(ssl, ec);
     case ec of
