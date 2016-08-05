@@ -1456,6 +1456,7 @@ begin
               ) then
           begin
             skiplisted:= True;
+            dirlist.skiped.Add(filename);
             irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> (?) file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));              
             exit;
           end;
