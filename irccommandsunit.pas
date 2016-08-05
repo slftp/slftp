@@ -10965,7 +10965,7 @@ begin
     // \s is importent for the right announce later...
     if x.Exec(params) then
       sresMAXi := StrToIntDef(x.Match[1], sresMAXi);
-    ssname := x.Replace(ssname, '');
+    ssname := x.Replace(ssname, '', False);
   finally
     x.Free;
   end;
@@ -11197,7 +11197,7 @@ begin
     else
     begin
       r.Expression := '200- ';
-      ss := r.Replace(ss, '');
+      ss := r.Replace(ss, '', False);
 
       r.Expression := Format(
         '\|\s*%s\s*\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
