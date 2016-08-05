@@ -37,7 +37,7 @@ const
 var
   addurlcmd: string;
 
-  { TDbUrl }
+{ TDbUrl }
 
 constructor TDbUrl.Create(rls, url: string);
 begin
@@ -150,6 +150,7 @@ begin
         end;
       end;
     end;
+
   finally
     rr.Free;
   end;

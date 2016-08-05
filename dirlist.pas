@@ -27,9 +27,9 @@ type
     filenamelc: string;
     filesize: Integer;
 
-    skiplisted: Boolean; // ez egyertelmu = it is a clear
-    racedbyme: Boolean;  // ha a kliens toltotte fel vegig = if the client is served up along
-    done: Boolean;       // siteon fent van mar = site is already
+    skiplisted: Boolean; // it is a clear (are these comments even right?)
+    racedbyme: Boolean;  // if the client is served up along (are these comments even right?)
+    done: Boolean;       // site is already (are these comments even right?)
 
     tradeCount: Integer;
 
@@ -141,7 +141,7 @@ type
 procedure  DirlistInit;
 procedure  DirlistUninit;
 
-//make it global to use it in other units with those variables
+// make it global to use it in other units with those variables
 var
   global_skip: String;
   useful_skip: String;
@@ -168,13 +168,13 @@ begin
     exit;
   end;
 
-(*
-  if error then
-  begin
-    Result:= True;
-    cache_completed:= Result;
-    exit;
-  end;
+  (*
+    if error then
+    begin
+      Result:= True;
+      cache_completed:= Result;
+      exit;
+    end;
   *)
 
   if parent <> nil then
@@ -481,13 +481,20 @@ var tmp: string;
 begin
   added := False;
 
-  if cache_completed then exit;
+  if cache_completed then
+    exit;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
   for i:= entries.Count -1 downto 0 do
   begin
-    try if i < 0 then Break; except Break; end;
+    try
+      if i < 0 then
+        Break;
+    except
+      Break;
+    end;
+
     try
       de := TDirlistEntry(entries[i]);
       de.megvanmeg := False;
@@ -498,177 +505,180 @@ begin
 
   rrgx := TRegExpr.Create;
   try
-  rrgx.ModifierI := True;
-  rrgx.Expression := global_skip;
-  splx := TRegExpr.Create;
-  try
-  splx.ModifierI := True;
-//  splx.Expression:='^sample|cover?|sub?|proof$';
-  splx.Expression := '^sample$';
+    rrgx.ModifierI := True;
+    rrgx.Expression := global_skip;
+    splx := TRegExpr.Create;
+    try
+      splx.ModifierI := True;
+      //splx.Expression:='^sample|cover?|sub?|proof$';
+      splx.Expression := '^sample$';
 
-  while(true) do
-  begin
-    tmp:= trim(Elsosor(s));
-
-    if tmp = '' then break;
-//    Inc(lines_read);
-//    if (lines_read > 2000) then break;
-
-//drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-
-    if (length(tmp) > 11) then
-    begin
-      if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
-        continue;
-
-      dirmaszk:= Fetch(tmp, ' '); // dirmaszk = dir mask
-      Fetch(tmp, ' '); // valami szam = No. of something
-      username:= Fetch(tmp, ' '); // dirmaszk = dir mask
-      groupname:= Fetch(tmp, ' '); // dirmaszk = dir mask
-      fileSize:= StrToIntDef(Fetch(tmp, ' '),-1); // dirmaszk = dir mask
-      if fileSize < 0 then Continue;
-      datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
-      filename:= Trim(tmp);
-     if filename = '' then Continue;
-
-      if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then continue;
-
-
-      if rrgx.Exec(filename) then
+      while(true) do
       begin
-        //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
-       Continue;
-      end;
+        tmp:= trim(Elsosor(s));
 
+        if tmp = '' then
+          break;
+        //Inc(lines_read);
+        //if (lines_read > 2000) then break;
 
-      // Dont add complet tag to dirlist entries
-      if ((dirmaszk[1] = 'd') or (filesize = 0)) then
-      begin
-        j:= TagComplete(filename);
-        if (j <> 0) then
+        //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+        if (length(tmp) > 11) then
         begin
-          complet_tag:= filename;
-          Continue;
-        end;
-      end;
+          if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
+            continue;
 
-      if (skiped.IndexOf(filename) <> -1) then
-        Continue;
+          dirmaszk:= Fetch(tmp, ' '); // dir mask
+          Fetch(tmp, ' '); // No. of something
+          username:= Fetch(tmp, ' '); // dir mask
+          groupname:= Fetch(tmp, ' '); // dir mask
+          fileSize:= StrToIntDef(Fetch(tmp, ' '),-1); // dir mask
 
-      if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
-      begin
-        Continue;
-      end;
+          if fileSize < 0 then
+            Continue;
 
-      akttimestamp:= Timestamp(datum);
+          datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
+          filename:= Trim(tmp);
 
-      de:= Find(filename);
-      if nil = de then
-      begin
-        de:= TDirListEntry.Create(filename, self);
+          if filename = '' then
+            Continue;
 
-        if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
-        begin
-          de.Free;
-          Continue;
-        end;
-        if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
-        begin
-          de.Free;
-          Continue;
-        end;
+          if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
+            continue;
 
-        de.username:= username;
-        de.groupname:= groupname;
-        de.timestamp:= akttimestamp;
-        de.done:= True;
-        de.justadded:= True;
-        de.directory := (dirmaszk[1] = 'd');
-        if not de.directory then
-          de.filesize:= filesize;
-
-        if ((de.directory) and (splx.Exec(filename))) then
-        begin
-          de.Sample := True;
-        end;
-
-        if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
-        begin
-          de.Free;
-          Continue;
-        end;
-
-        if ((not de.Directory) and (not (de.filesize > 0))) then
-        begin
-          de.Free;
-          Continue;
-        end;
-
-        // Dont add skip files to dirlist
-        if ((not de.Directory) and (skiplist <> nil)) then
-        begin
-          de.RegenerateSkiplist;
-          if (de.skiplisted) then
+          if rrgx.Exec(filename) then
           begin
-            de.free;
+            //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
             Continue;
           end;
+
+          // Dont add complet tag to dirlist entries
+          if ((dirmaszk[1] = 'd') or (filesize = 0)) then
+          begin
+            j:= TagComplete(filename);
+            if (j <> 0) then
+            begin
+              complet_tag:= filename;
+              Continue;
+            end;
+          end;
+
+          if (skiped.IndexOf(filename) <> -1) then
+            Continue;
+
+          if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
+          begin
+            Continue;
+          end;
+
+          akttimestamp:= Timestamp(datum);
+
+          de:= Find(filename);
+          if nil = de then
+          begin
+            de:= TDirListEntry.Create(filename, self);
+
+            if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
+            begin
+              de.Free;
+              Continue;
+            end;
+            if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
+            begin
+              de.Free;
+              Continue;
+            end;
+
+            de.username:= username;
+            de.groupname:= groupname;
+            de.timestamp:= akttimestamp;
+            de.done:= True;
+            de.justadded:= True;
+            de.directory := (dirmaszk[1] = 'd');
+
+            if not de.directory then
+              de.filesize:= filesize;
+
+            if ((de.directory) and (splx.Exec(filename))) then
+            begin
+              de.Sample := True;
+            end;
+
+            if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
+            begin
+              de.Free;
+              Continue;
+            end;
+
+            if ((not de.Directory) and (not (de.filesize > 0))) then
+            begin
+              de.Free;
+              Continue;
+            end;
+
+            // Dont add skip files to dirlist
+            if ((not de.Directory) and (skiplist <> nil)) then
+            begin
+              de.RegenerateSkiplist;
+              if (de.skiplisted) then
+              begin
+                de.free;
+                Continue;
+              end;
+            end;
+
+            if ((not de.Directory) and (AnsiLowerCase(de.Extension) = '.sfv') and (de.filesize > 0)) then
+            begin
+              sfv_status:= dlSFVFound;
+            end;
+
+            if (de.Directory) then
+            begin
+              de.subdirlist:= TDirlist.Create(site_name, de, skiplist);
+            end;
+
+            if (self.date_started = 0) then
+            begin
+              self.date_started:= Now();
+            end;
+
+            entries.Add(de);
+
+            LastChanged:= Now();
+            added:= True;
+          end
+          else if (de.filesize <> filesize) then
+          begin
+            if ((de.filesize <> filesize) or (de.username <> username)) then
+            begin
+              LastChanged:= Now();
+            end;
+
+            de.filesize:= filesize;
+            de.timestamp:= akttimestamp;
+            de.username:= username;
+            de.groupname:= groupname;
+          end;
+          de.megvanmeg:= True;
         end;
-
-        if ((not de.Directory) and (AnsiLowerCase(de.Extension) = '.sfv') and (de.filesize > 0)) then
-        begin
-          sfv_status:= dlSFVFound;
-        end;
-
-        if (de.Directory) then
-        begin
-          de.subdirlist:= TDirlist.Create(site_name, de, skiplist);
-        end;
-
-        if (self.date_started = 0) then
-        begin
-          self.date_started:= Now();
-        end;
-
-        entries.Add(de);
-
-        LastChanged:= Now();
-        added:= True;
-      end else
-      if (de.filesize <> filesize) then
-      begin
-        if ((de.filesize <> filesize) or (de.username <> username)) then
-        begin
-          LastChanged:= Now();
-        end;
-
-        de.filesize:= filesize;
-        de.timestamp:= akttimestamp;
-        de.username:= username;
-        de.groupname:= groupname;
       end;
-      de.megvanmeg:= True;
 
+    finally
+      splx.Free;
     end;
-
-  end;
-
-  finally
-    splx.Free;
-  end;
 
   finally
     rrgx.Free;
   end;
 
-(*
-  if ((need_mkdir) and (entries.Count > 0)) then
-  begin
-    need_mkdir:= False;
-  end;
-*)
+  (*
+    if ((need_mkdir) and (entries.Count > 0)) then
+    begin
+      need_mkdir:= False;
+    end;
+  *)
 
-  if parent = nil then // megvaltozhatott a MULTI CD statusz = changed the status MULTI CD
+  if parent = nil then // changed the status MULTI CD
   begin
     try
       SetSkiplists;
@@ -678,7 +688,8 @@ begin
         debugunit.Debug(dpError, section, 'SetSkiplists exception : %s', [e.Message]);
       end;
     end;
-  end else
+  end
+  else
   begin
     if ((entries.Count > 0) and (parent.Sample)) then
     begin
@@ -700,7 +711,6 @@ begin
         end;
       end;
     end;
-
     // now sort
     //Sort;
   end;
@@ -734,8 +744,8 @@ function DirListSorter(Item1, Item2: Pointer): Integer;
 var i1, i2: TDirlistEntry;
     c1, c2: Integer;
 begin
-// compare: -1 bekenhagyas, jo a sorrend ~ bekenhagyas, good order
-// compare:  1 csere  = replacement
+  //compare: -1 bekenhagyas, jo a sorrend ~ bekenhagyas, good order
+  //compare:  1 csere  = replacement
   Result:= 0;
   try
     i1:= TDirlistEntry(Item1);
@@ -814,7 +824,7 @@ begin
         c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
         c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
 
-  //    if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen  = This should not happen, because you will be skiplisted Kene
+        //if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen  = This should not happen, because you will be skiplisted Kene
 
         if (c1 > c2) then
           Result:= 1
@@ -832,7 +842,7 @@ begin
       c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
       c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
 
-  //    if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen
+      //if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen
 
       if (c1 > c2) then
         Result:= 1
@@ -865,18 +875,18 @@ end;
 function DirListModSorter(Item1, Item2: Pointer): Integer;
 var i1, i2: TDirlistEntry;
 begin
-// compare: -1 bekenhagyas, jo a sorrend     ~ good order
-// compare:  1 csere
+  // compare: -1 bekenhagyas, jo a sorrend     ~ good order
+  // compare:  1 csere
   i1:= TDirlistEntry(Item1);
   i2:= TDirlistEntry(Item2);
 
   Result:= CompareValue(i2.timestamp, i1.timestamp);
   (*
-  if i1.timestamp > i2.timestamp then
-    Result:= -1
-  else
-  if i1.timestamp < i2.timestamp then
-    Result:= 1;
+    if i1.timestamp > i2.timestamp then
+      Result:= -1
+    else
+    if i1.timestamp < i2.timestamp then
+      Result:= 1;
   *)
 end;
 

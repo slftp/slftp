@@ -140,21 +140,21 @@ ujra:
     j := 0;
     nfofile := '';
     d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+
     try
-
-    for i:= 0 to d.entries.Count-1 do
-    begin
-      de:= TDirlistEntry(d.entries[i]);
-      if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
-        nfofile:= de.filename;
-
-      if ((de.Directory) or (de.filesize = 0)) then
+      for i:= 0 to d.entries.Count-1 do
       begin
-        k:= TagComplete(de.filenamelc);
-        if j = 0 then j:= k;
-        if k = 1 then j:= k;
+        de:= TDirlistEntry(d.entries[i]);
+        if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
+          nfofile:= de.filename;
+
+        if ((de.Directory) or (de.filesize = 0)) then
+        begin
+          k:= TagComplete(de.filenamelc);
+          if j = 0 then j:= k;
+          if k = 1 then j:= k;
+        end;
       end;
-    end;
 
     finally
       d.Free;

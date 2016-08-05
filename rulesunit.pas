@@ -1304,6 +1304,7 @@ begin
       Result := Result + TConditionOperatorClass(c.acceptedOperators[i]).Name + ' ';
 
     Result := trim(Result);
+
   finally
     c.Free;
   end;
@@ -2252,9 +2253,9 @@ begin
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
     a_sites_done := TStringList.Create;
+
     try
       a_rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
-
       for a_i := 0 to rules.Count - 1 do
       begin
         a_r := TRule(rules[a_i]);
@@ -2262,8 +2263,8 @@ begin
         if (a_sites_done.IndexOf(a_sitename) <> -1) or (a_sitename = '*') then
           continue;
         a_siterules := TStringList.Create;
-        try
 
+        try
           for a_j := a_i to rules.Count - 1 do
           begin
             a_r := TRule(rules[a_j]);
@@ -2279,6 +2280,7 @@ begin
           a_siterules.Free;
         end;
       end;
+  
     finally
       a_sites_done.Free;
     end;
