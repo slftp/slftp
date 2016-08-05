@@ -137,7 +137,7 @@ begin
   if rr.Exec(mainsite) then
   begin
     rr2.Expression := '[\.\,]';
-    imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+    imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
   end
   else
   begin
@@ -146,7 +146,7 @@ begin
     if rr.Exec(mainsite) then
     begin
       rr2.Expression := '[\.\,]';
-      imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+      imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
     end
     else
     begin
@@ -156,7 +156,7 @@ begin
       if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
-        imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+        imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
       end
       else
       begin
@@ -176,7 +176,7 @@ begin
   if rr.Exec(mainsite) then
   begin
     rr2.Expression := '[\.\,]';
-    imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+    imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
   end
   else
   begin
@@ -186,7 +186,7 @@ begin
     if rr.Exec(mainsite) then
     begin
       rr2.Expression := '[\.\,]';
-      imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+      imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
     end
     else
     begin
@@ -195,7 +195,7 @@ begin
       if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
-        imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
+        imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
       end;
     end;
   end;
@@ -206,8 +206,8 @@ begin
   if rr.Exec(mainsite) then
   begin
     rr2.Expression := '[\.\,]';
-    imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], ''), 0);
-    imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[2], ''), 0);
+    imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
+    imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[2], '', False), 0);
   end;
 
   (*  Fetch Languages from iMDB  *)
