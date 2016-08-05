@@ -6,18 +6,18 @@ uses Classes, IniFiles, irc, kb, Contnrs;
 
 type
   TDbUrl = class
-    rls: string;
-    url: string;
-    constructor Create(rls, url: string);
+    rls: AnsiString;
+    url: AnsiString;
+    constructor Create(rls, url: AnsiString);
     destructor Destroy; override;
   end;
 
-function dbaddurl_Process(net, chan, nick, msg: string): Boolean;
-procedure dbaddurl_SaveUrl(rls, url: string);
-procedure dbaddurl_addurl(params: string);
-procedure dbaddurl_ParseUrl(rls, url: string);
+function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
+procedure dbaddurl_SaveUrl(rls, url: AnsiString);
+procedure dbaddurl_addurl(params: AnsiString);
+procedure dbaddurl_ParseUrl(rls, url: AnsiString);
 
-function dbaddurl_Status: string;
+function dbaddurl_Status: AnsiString;
 
 procedure dbaddurlInit;
 procedure dbaddurlStart;
@@ -35,11 +35,11 @@ const
   section = 'dbaddurl';
 
 var
-  addurlcmd: string;
+  addurlcmd: AnsiString;
 
 { TDbUrl }
 
-constructor TDbUrl.Create(rls, url: string);
+constructor TDbUrl.Create(rls, url: AnsiString);
 begin
   self.rls := rls;
   self.url := url;
@@ -52,7 +52,7 @@ end;
 
 { Proc/Func }
 
-function dbaddurl_Process(net, chan, nick, msg: string): Boolean;
+function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
 begin
   Result := False;
   if (1 = Pos(addurlcmd, msg)) then
@@ -63,10 +63,10 @@ begin
   end;
 end;
 
-procedure dbaddurl_addurl(params: string);
+procedure dbaddurl_addurl(params: AnsiString);
 var
-  rls: string;
-  url: string;
+  rls: AnsiString;
+  url: AnsiString;
   i: Integer;
 begin
   rls := '';
@@ -94,7 +94,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_SaveUrl(rls, url: string);
+procedure dbaddurl_SaveUrl(rls, url: AnsiString);
 var
   i: Integer;
   db_url: TDbUrl;
@@ -129,10 +129,10 @@ begin
   end;
 end;
 
-procedure dbaddurl_ParseUrl(rls, url: string);
+procedure dbaddurl_ParseUrl(rls, url: AnsiString);
 var
   rr: TRegexpr;
-  imdb_id: string;
+  imdb_id: AnsiString;
 begin
   rr := TRegexpr.Create;
   try
@@ -158,7 +158,7 @@ end;
 
 { Status }
 
-function dbaddurl_Status: string;
+function dbaddurl_Status: AnsiString;
 begin
   Result := '';
 

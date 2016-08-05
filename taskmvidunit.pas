@@ -10,15 +10,15 @@ type
     ss: TStringStream;
     ss1: TStringStream;
     attempt: Integer;
-    function FetchGenre(text: string): string;
+    function FetchGenre(text: AnsiString): AnsiString;
 //    function GetVideoSource(text:string):string;
 //    function GetFileCount(text:string):integer;
-    function GetVideoRegion(text:string):string;
+    function GetVideoRegion(text:AnsiString):AnsiString;
   public
-    constructor Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
 
@@ -32,7 +32,7 @@ const
 
 //  TPazoMVIDTask
 
-constructor TPazoMVIDTask.Create(const netname: string; const channel: string; site: string; pazo: TPazo; attempt: Integer);
+constructor TPazoMVIDTask.Create(const netname: AnsiString; const channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: Integer);
 begin
   ss:= TStringStream.Create('');
   ss1:= TStringStream.Create('');
@@ -48,7 +48,7 @@ begin
   inherited;
 end;
 
-function TPazoMVIDTask.GetVideoRegion(text: string): string;
+function TPazoMVIDTask.GetVideoRegion(text: AnsiString): AnsiString;
 var
   rrx:TRegexpr;
 begin
@@ -96,9 +96,9 @@ rrx.free;
 end;
 *)
 
-function TPazoMVIDTask.FetchGenre(text: string):string;
+function TPazoMVIDTask.FetchGenre(text: AnsiString):AnsiString;
 var i: Integer;
-    s: string;
+    s: AnsiString;
 //    rrx:TRegexpr;
 begin
   Result:= '';
@@ -158,7 +158,7 @@ var
   de: TDirListEntry;
   r: TPazoMVIDTask;
   d: TDirList;
-  regiono, nfofile, genre: string;
+  regiono, nfofile, genre: AnsiString;
     mvr:TMVIDRelease;
 begin
   Result:= False;
@@ -263,7 +263,7 @@ Result:= True;
 ready:= True;
 end;
 
-function TPazoMVIDTask.Name:string;
+function TPazoMVIDTask.Name:AnsiString;
 begin
   Result:= 'PMVID '+IntToStr(pazo_id);
 end;

@@ -105,9 +105,9 @@ type
  RegExprString = WideString;
  REChar = WideChar;
  {$ELSE}
- PRegExprChar = PChar;
+ PRegExprChar = PAnsiChar;
  RegExprString = AnsiString; //###0.952 was string
- REChar = Char;
+ REChar = AnsiChar;
  {$ENDIF}
  TREOp = REChar; // internal p-code type //###0.933
  PREOp = ^TREOp;
@@ -180,7 +180,7 @@ type
 
  TRegExpr = class;
 
- TRegExprReplaceFunction = function (ARegExpr : TRegExpr): string
+ TRegExprReplaceFunction = function (ARegExpr : TRegExpr): AnsiString
                                of object;
 
  TRegExpr = class
@@ -220,7 +220,7 @@ type
     // work variables for compiler's routines
     regparse : PRegExprChar;  // Input-scan pointer.
     regnpar : integer; // count.
-    regdummy : char;
+    regdummy : AnsiChar;
     regcode : PRegExprChar;   // Code-emit pointer; @regdummy = don't.
     regsize : integer; // Code size.
 
@@ -392,8 +392,8 @@ type
     property ModifierR : boolean index 2 read GetModifier write SetModifier;
     // Modifier /r - use r.e.syntax extended for russian,
     // (was property ExtSyntaxEnabled in previous versions)
-    // If true, then à-ÿ  additional include russian letter '¸',
-    // À-ß  additional include '¨', and à-ß include all russian symbols.
+    // If true, then `-  additional include russian letter '8',
+    // @-_  additional include '(', and `-_ include all russian symbols.
     // You have to turn it off if it may interfere with you national alphabet.
     // , initialized from RegExprModifierR
 
@@ -604,7 +604,7 @@ function QuoteRegExprMetaChars (const AStr : RegExprString) : RegExprString;
 // This function usefull for r.e. autogeneration from
 // user input
 
-function RegExprSubExpressions (const ARegExpr : string;
+function RegExprSubExpressions (const ARegExpr : AnsiString;
  ASubExprs : TStrings; AExtendedSyntax : boolean{$IFDEF DefParam}= False{$ENDIF}) : integer;
 // Makes list of subexpressions found in ARegExpr r.e.
 // In ASubExps every item represent subexpression,
@@ -789,7 +789,7 @@ function QuoteRegExprMetaChars (const AStr : RegExprString) : RegExprString;
  end; { of function QuoteRegExprMetaChars
 --------------------------------------------------------------}
 
-function RegExprSubExpressions (const ARegExpr : string;
+function RegExprSubExpressions (const ARegExpr : AnsiString;
  ASubExprs : TStrings; AExtendedSyntax : boolean{$IFDEF DefParam}= False{$ENDIF}) : integer;
  type
   TStackItemRec =  record //###0.945
@@ -1449,7 +1449,7 @@ procedure TRegExpr.Tail (p : PRegExprChar; val : PRegExprChar);
    // shr after subtraction to calculate widechar distance %-( )
    // so, if difference is negative we have .. the "feature" :(
    // I could wrap it in $IFDEF UniCode, but I didn't because
-   // "P – Q computes the difference between the address given
+   // "P  Q computes the difference between the address given
    // by P (the higher address) and the address given by Q (the
    // lower address)" - Delphi help quotation.
    else PRENextOff (scan + REOpSz)^ := val - scan; //###0.933
@@ -1560,17 +1560,17 @@ const
    #$418,#$419,#$41A,#$41B,#$41C,#$41D,#$41E,#$41F,
    #$420,#$421,#$422,#$423,#$424,#$425,#$426,#$427,
    #$428,#$429,#$42A,#$42B,#$42C,#$42D,#$42E,#$42F,#0);
- RusRangeLoLow = #$430{'à'};
- RusRangeLoHigh = #$44F{'ÿ'};
- RusRangeHiLow = #$410{'À'};
- RusRangeHiHigh = #$42F{'ß'};
+ RusRangeLoLow = #$430{'`'};
+ RusRangeLoHigh = #$44F{''};
+ RusRangeHiLow = #$410{'@'};
+ RusRangeHiHigh = #$42F{'_'};
 {$ELSE}
- RusRangeLo = 'àáâãäå¸æçèéêëìíîïðñòóôõö÷øùúûüýþÿ';
- RusRangeHi = 'ÀÁÂÃÄÅ¨ÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞß';
- RusRangeLoLow = 'à';
- RusRangeLoHigh = 'ÿ';
- RusRangeHiLow = 'À';
- RusRangeHiHigh = 'ß';
+ RusRangeLo = '`abcde8fghijklmnopqrstuvwxyz{|}~';
+ RusRangeHi = '@ABCDE(FGHIJKLMNOPQRSTUVWXYZ[\]^_';
+ RusRangeLoLow = '`';
+ RusRangeLoHigh = '';
+ RusRangeHiLow = '@';
+ RusRangeHiHigh = '_';
 {$ENDIF}
 
 function TRegExpr.CompileRegExpr (exp : PRegExprChar) : boolean;
@@ -3590,7 +3590,7 @@ procedure TRegExpr.SetInputString (const AInputString : RegExprString);
   fInputStart := PChar (fInputString);
   Len := length (fInputString);
   fInputEnd := PRegExprChar (integer (fInputStart) + Len); ??
-  !! startp/endp âñå ðàâíî áóäåò îïàñíî èñïîëüçîâàòü ?
+  !! startp/endp bqe p`bmn asder no`qmn hqonk|gnb`r| ?
   }
  end; { of procedure TRegExpr.SetInputString
 --------------------------------------------------------------}

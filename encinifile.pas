@@ -9,9 +9,9 @@ type
   private
     fPassHash: TslMD5Data;
   public
-    constructor Create(pass: string); overload;
+    constructor Create(pass: AnsiString); overload;
     constructor Create(pass: TslMD5Data); overload;
-    procedure LoadFromFile(const FileName: string); override;
+    procedure LoadFromFile(const FileName: AnsiString); override;
     procedure LoadFromStream(Stream: TStream); override;
     procedure SaveToStream(Stream: TStream); override; 
   end;
@@ -22,7 +22,7 @@ type
   PHashItem = ^THashItem;
   THashItem = record
     Next: PHashItem;
-    Key: string;
+    Key: AnsiString;
     Value: Integer;
   end;
 
@@ -30,48 +30,48 @@ type
   private
     Buckets: array of PHashItem;
   protected
-    function Find(const Key: string): PPHashItem;
-    function HashOf(const Key: string): Cardinal; virtual;
+    function Find(const Key: AnsiString): PPHashItem;
+    function HashOf(const Key: AnsiString): Cardinal; virtual;
   public
     constructor Create(Size: Cardinal = 256);
     destructor Destroy; override;
-    procedure Add(const Key: string; Value: Integer);
+    procedure Add(const Key: AnsiString; Value: Integer);
     procedure Clear;
-    procedure Remove(const Key: string);
-    function Modify(const Key: string; Value: Integer): Boolean;
-    function ValueOf(const Key: string): Integer;
+    procedure Remove(const Key: AnsiString);
+    function Modify(const Key: AnsiString; Value: Integer): Boolean;
+    function ValueOf(const Key: AnsiString): Integer;
   end;
 
   TMyCustomIniFile = class(TObject)
   private
-    FFileName: string;
+    FFileName: AnsiString;
   public
-    constructor Create(const FileName: string);
-    function SectionExists(const Section: string): Boolean;
-    function ReadString(const Section, Ident, Default: string): string; virtual; abstract;
-    procedure WriteString(const Section, Ident, Value: String); virtual; abstract;
-    function ReadInteger(const Section, Ident: string; Default: Longint): Longint; virtual;
-    procedure WriteInteger(const Section, Ident: string; Value: Longint); virtual;
-    function ReadBool(const Section, Ident: string; Default: Boolean): Boolean; virtual;
-    procedure WriteBool(const Section, Ident: string; Value: Boolean); virtual;
-    function ReadBinaryStream(const Section, Name: string; Value: TStream): Integer; virtual;
-    function ReadDate(const Section, Name: string; Default: TDateTime): TDateTime; virtual;
-    function ReadDateTime(const Section, Name: string; Default: TDateTime): TDateTime; virtual;
-    function ReadFloat(const Section, Name: string; Default: Double): Double; virtual;
-    function ReadTime(const Section, Name: string; Default: TDateTime): TDateTime; virtual;
-    procedure WriteBinaryStream(const Section, Name: string; Value: TStream); virtual;
-    procedure WriteDate(const Section, Name: string; Value: TDateTime); virtual;
-    procedure WriteDateTime(const Section, Name: string; Value: TDateTime); virtual;
-    procedure WriteFloat(const Section, Name: string; Value: Double); virtual;
-    procedure WriteTime(const Section, Name: string; Value: TDateTime); virtual;
-    procedure ReadSection(const Section: string; Strings: TStrings); virtual; abstract;
+    constructor Create(const FileName: AnsiString);
+    function SectionExists(const Section: AnsiString): Boolean;
+    function ReadString(const Section, Ident, Default: AnsiString): AnsiString; virtual; abstract;
+    procedure WriteString(const Section, Ident, Value: AnsiString); virtual; abstract;
+    function ReadInteger(const Section, Ident: AnsiString; Default: Longint): Longint; virtual;
+    procedure WriteInteger(const Section, Ident: AnsiString; Value: Longint); virtual;
+    function ReadBool(const Section, Ident: AnsiString; Default: Boolean): Boolean; virtual;
+    procedure WriteBool(const Section, Ident: AnsiString; Value: Boolean); virtual;
+    function ReadBinaryStream(const Section, Name: AnsiString; Value: TStream): Integer; virtual;
+    function ReadDate(const Section, Name: AnsiString; Default: TDateTime): TDateTime; virtual;
+    function ReadDateTime(const Section, Name: AnsiString; Default: TDateTime): TDateTime; virtual;
+    function ReadFloat(const Section, Name: AnsiString; Default: Double): Double; virtual;
+    function ReadTime(const Section, Name: AnsiString; Default: TDateTime): TDateTime; virtual;
+    procedure WriteBinaryStream(const Section, Name: AnsiString; Value: TStream); virtual;
+    procedure WriteDate(const Section, Name: AnsiString; Value: TDateTime); virtual;
+    procedure WriteDateTime(const Section, Name: AnsiString; Value: TDateTime); virtual;
+    procedure WriteFloat(const Section, Name: AnsiString; Value: Double); virtual;
+    procedure WriteTime(const Section, Name: AnsiString; Value: TDateTime); virtual;
+    procedure ReadSection(const Section: AnsiString; Strings: TStrings); virtual; abstract;
     procedure ReadSections(Strings: TStrings); virtual; abstract;
-    procedure ReadSectionValues(const Section: string; Strings: TStrings); virtual; abstract;
-    procedure EraseSection(const Section: string); virtual; abstract;
-    procedure DeleteKey(const Section, Ident: String); virtual; abstract;
+    procedure ReadSectionValues(const Section: AnsiString; Strings: TStrings); virtual; abstract;
+    procedure EraseSection(const Section: AnsiString); virtual; abstract;
+    procedure DeleteKey(const Section, Ident: AnsiString); virtual; abstract;
     procedure UpdateFile; virtual; abstract;
-    function ValueExists(const Section, Ident: string): Boolean;
-    property FileName: string read FFileName;
+    function ValueExists(const Section, Ident: AnsiString): Boolean;
+    property FileName: AnsiString read FFileName;
   end;
 
   { THashedStringList - A TStringList that uses TStringHash to improve the
@@ -88,8 +88,8 @@ type
     procedure Changed; override;
   public
     destructor Destroy; override;
-    function IndexOf(const S: string): Integer; override;
-    function IndexOfName(const Name: string): Integer; override;
+    function IndexOf(const S: AnsiString): Integer; override;
+    function IndexOfName(const Name: AnsiString): Integer; override;
   end;
 
 
@@ -98,33 +98,33 @@ type
   private
     il: TCriticalSection;
     fSima: Boolean;
-    FFilename: string;
+    FFilename: AnsiString;
     FPassHash: TslMD5Data;
     FSections: TStringList;
     fCompression: Boolean;
-    function AddSection(const Section: string): TStrings;
+    function AddSection(const Section: AnsiString): TStrings;
     function GetCaseSensitive: Boolean;
     procedure LoadValues;
     procedure SetCaseSensitive(Value: Boolean);
   public
     AutoUpdate: Boolean;
-    constructor Create(const FileName, Passphrase: string; autoupdate: Boolean = False; compression: Boolean = True); overload;
-    constructor Create(const FileName: string; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True); overload;
+    constructor Create(const FileName, Passphrase: AnsiString; autoupdate: Boolean = False; compression: Boolean = True); overload;
+    constructor Create(const FileName: AnsiString; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True); overload;
     destructor Destroy; override;
-    procedure LoadUnencrypted(filename: string);
-    procedure SaveUnencrypted(filename: string);
+    procedure LoadUnencrypted(filename: AnsiString);
+    procedure SaveUnencrypted(filename: AnsiString);
     procedure Clear;
-    procedure DeleteKey(const Section, Ident: String); override;
-    procedure EraseSection(const Section: string); override;
+    procedure DeleteKey(const Section, Ident: AnsiString); override;
+    procedure EraseSection(const Section: AnsiString); override;
     procedure GetStrings(List: TStrings);
-    procedure ReadSection(const Section: string; Strings: TStrings); override;
+    procedure ReadSection(const Section: AnsiString; Strings: TStrings); override;
     procedure ReadSections(Strings: TStrings); override;
-    procedure ReadSectionValues(const Section: string; Strings: TStrings); override;
-    function ReadString(const Section, Ident, Default: string): string; override;
+    procedure ReadSectionValues(const Section: AnsiString; Strings: TStrings); override;
+    function ReadString(const Section, Ident, Default: AnsiString): AnsiString; override;
     procedure SetStrings(List: TStrings);
     procedure UpdateFile; override;
-    procedure Rename(const FileName: string; Reload: Boolean);
-    procedure WriteString(const Section, Ident, Value: String); override;
+    procedure Rename(const FileName: AnsiString; Reload: Boolean);
+    procedure WriteString(const Section, Ident, Value: AnsiString); override;
     property CaseSensitive: Boolean read GetCaseSensitive write SetCaseSensitive;
   end;
 
@@ -135,7 +135,7 @@ uses SysUtils, slblowfish, configunit;
 
 { TStringHash }
 
-procedure TStringHash.Add(const Key: string; Value: Integer);
+procedure TStringHash.Add(const Key: AnsiString; Value: Integer);
 var
   Hash: Integer;
   Bucket: PHashItem;
@@ -178,7 +178,7 @@ begin
   inherited Destroy;
 end;
 
-function TStringHash.Find(const Key: string): PPHashItem;
+function TStringHash.Find(const Key: AnsiString): PPHashItem;
 var
   Hash: Integer;
 begin
@@ -193,7 +193,7 @@ begin
   end;
 end;
 
-function TStringHash.HashOf(const Key: string): Cardinal;
+function TStringHash.HashOf(const Key: AnsiString): Cardinal;
 var
   I: Integer;
 begin
@@ -203,7 +203,7 @@ begin
       Ord(Key[I]);
 end;
 
-function TStringHash.Modify(const Key: string; Value: Integer): Boolean;
+function TStringHash.Modify(const Key: AnsiString; Value: Integer): Boolean;
 var
   P: PHashItem;
 begin
@@ -217,7 +217,7 @@ begin
     Result := False;
 end;
 
-procedure TStringHash.Remove(const Key: string);
+procedure TStringHash.Remove(const Key: AnsiString);
 var
   P: PHashItem;
   Prev: PPHashItem;
@@ -231,7 +231,7 @@ begin
   end;
 end;
 
-function TStringHash.ValueOf(const Key: string): Integer;
+function TStringHash.ValueOf(const Key: AnsiString): Integer;
 var
   P: PHashItem;
 begin
@@ -245,12 +245,12 @@ end;
 
 { TMyCustomIniFile }
 
-constructor TMyCustomIniFile.Create(const FileName: string);
+constructor TMyCustomIniFile.Create(const FileName: AnsiString);
 begin
   FFileName := FileName;
 end;
 
-function TMyCustomIniFile.SectionExists(const Section: string): Boolean;
+function TMyCustomIniFile.SectionExists(const Section: AnsiString): Boolean;
 var
   S: TStrings;
 begin
@@ -263,10 +263,10 @@ begin
   end;
 end;
 
-function TMyCustomIniFile.ReadInteger(const Section, Ident: string;
+function TMyCustomIniFile.ReadInteger(const Section, Ident: AnsiString;
   Default: Longint): Longint;
 var
-  IntStr: string;
+  IntStr: AnsiString;
 begin
   IntStr := ReadString(Section, Ident, '');
   if (Length(IntStr) > 2) and (IntStr[1] = '0') and
@@ -275,20 +275,20 @@ begin
   Result := StrToIntDef(IntStr, Default);
 end;
 
-procedure TMyCustomIniFile.WriteInteger(const Section, Ident: string; Value: Longint);
+procedure TMyCustomIniFile.WriteInteger(const Section, Ident: AnsiString; Value: Longint);
 begin
   WriteString(Section, Ident, IntToStr(Value));
 end;
 
-function TMyCustomIniFile.ReadBool(const Section, Ident: string;
+function TMyCustomIniFile.ReadBool(const Section, Ident: AnsiString;
   Default: Boolean): Boolean;
 begin
   Result := ReadInteger(Section, Ident, Ord(Default)) <> 0;
 end;
 
-function TMyCustomIniFile.ReadDate(const Section, Name: string; Default: TDateTime): TDateTime;
+function TMyCustomIniFile.ReadDate(const Section, Name: AnsiString; Default: TDateTime): TDateTime;
 var
-  DateStr: string;
+  DateStr: AnsiString;
 begin
   DateStr := ReadString(Section, Name, '');
   Result := Default;
@@ -303,9 +303,9 @@ begin
   end;
 end;
 
-function TMyCustomIniFile.ReadDateTime(const Section, Name: string; Default: TDateTime): TDateTime;
+function TMyCustomIniFile.ReadDateTime(const Section, Name: AnsiString; Default: TDateTime): TDateTime;
 var
-  DateStr: string;
+  DateStr: AnsiString;
 begin
   DateStr := ReadString(Section, Name, '');
   Result := Default;
@@ -320,9 +320,9 @@ begin
   end;
 end;
 
-function TMyCustomIniFile.ReadFloat(const Section, Name: string; Default: Double): Double;
+function TMyCustomIniFile.ReadFloat(const Section, Name: AnsiString; Default: Double): Double;
 var
-  FloatStr: string;
+  FloatStr: AnsiString;
 begin
   FloatStr := ReadString(Section, Name, '');
   Result := Default;
@@ -337,9 +337,9 @@ begin
   end;
 end;
 
-function TMyCustomIniFile.ReadTime(const Section, Name: string; Default: TDateTime): TDateTime;
+function TMyCustomIniFile.ReadTime(const Section, Name: AnsiString; Default: TDateTime): TDateTime;
 var
-  TimeStr: string;
+  TimeStr: AnsiString;
 begin
   TimeStr := ReadString(Section, Name, '');
   Result := Default;
@@ -354,34 +354,34 @@ begin
   end;
 end;
 
-procedure TMyCustomIniFile.WriteDate(const Section, Name: string; Value: TDateTime);
+procedure TMyCustomIniFile.WriteDate(const Section, Name: AnsiString; Value: TDateTime);
 begin
   WriteString(Section, Name, DateToStr(Value));
 end;
 
-procedure TMyCustomIniFile.WriteDateTime(const Section, Name: string; Value: TDateTime);
+procedure TMyCustomIniFile.WriteDateTime(const Section, Name: AnsiString; Value: TDateTime);
 begin
   WriteString(Section, Name, DateTimeToStr(Value));
 end;
 
-procedure TMyCustomIniFile.WriteFloat(const Section, Name: string; Value: Double);
+procedure TMyCustomIniFile.WriteFloat(const Section, Name: AnsiString; Value: Double);
 begin
   WriteString(Section, Name, FloatToStr(Value));
 end;
 
-procedure TMyCustomIniFile.WriteTime(const Section, Name: string; Value: TDateTime);
+procedure TMyCustomIniFile.WriteTime(const Section, Name: AnsiString; Value: TDateTime);
 begin
   WriteString(Section, Name, TimeToStr(Value));
 end;
 
-procedure TMyCustomIniFile.WriteBool(const Section, Ident: string; Value: Boolean);
+procedure TMyCustomIniFile.WriteBool(const Section, Ident: AnsiString; Value: Boolean);
 const
-  Values: array[Boolean] of string = ('0', '1');
+  Values: array[Boolean] of AnsiString = ('0', '1');
 begin
   WriteString(Section, Ident, Values[Value]);
 end;
 
-function TMyCustomIniFile.ValueExists(const Section, Ident: string): Boolean;
+function TMyCustomIniFile.ValueExists(const Section, Ident: AnsiString): Boolean;
 var
   S: TStrings;
 begin
@@ -394,10 +394,10 @@ begin
   end;
 end;
 
-function TMyCustomIniFile.ReadBinaryStream(const Section, Name: string;
+function TMyCustomIniFile.ReadBinaryStream(const Section, Name: AnsiString;
   Value: TStream): Integer;
 var
-  Text: string;
+  Text: AnsiString;
   Stream: TMemoryStream;
   Pos: Integer;
 begin
@@ -412,7 +412,7 @@ begin
     try
       Pos := Stream.Position;
       Stream.SetSize(Stream.Size + Length(Text) div 2);
-      HexToBin(PChar(Text), PChar(Integer(Stream.Memory) + Stream.Position), Length(Text) div 2);
+      HexToBin(PChar(Text), PAnsiChar(Integer(Stream.Memory) + Stream.Position), Length(Text) div 2);
       Stream.Position := Pos;
       if Value <> Stream then
         Value.CopyFrom(Stream, Length(Text) div 2);
@@ -426,10 +426,10 @@ begin
     Result := 0;
 end;
 
-procedure TMyCustomIniFile.WriteBinaryStream(const Section, Name: string;
+procedure TMyCustomIniFile.WriteBinaryStream(const Section, Name: AnsiString;
   Value: TStream);
 var
-  Text: string;
+  Text: AnsiString;
   Stream: TMemoryStream;
 begin
   SetLength(Text, (Value.Size - Value.Position) * 2);
@@ -446,7 +446,7 @@ begin
         Stream.CopyFrom(Value, Value.Size - Value.Position);
         Stream.Position := 0;
       end;
-      BinToHex(PChar(Integer(Stream.Memory) + Stream.Position), PChar(Text),
+      BinToHex(PChar(Integer(Stream.Memory) + Stream.Position), PAnsiChar(Text),
         Stream.Size - Stream.Position);
     finally
       if Value <> Stream then
@@ -474,7 +474,7 @@ begin
   inherited Destroy;
 end;
 
-function TMyHashedStringList.IndexOf(const S: string): Integer;
+function TMyHashedStringList.IndexOf(const S: AnsiString): Integer;
 begin
   UpdateValueHash;
   if not CaseSensitive then
@@ -483,7 +483,7 @@ begin
     Result :=  FValueHash.ValueOf(S);
 end;
 
-function TMyHashedStringList.IndexOfName(const Name: string): Integer;
+function TMyHashedStringList.IndexOfName(const Name: AnsiString): Integer;
 begin
   UpdateNameHash;
   if not CaseSensitive then
@@ -496,7 +496,7 @@ procedure TMyHashedStringList.UpdateNameHash;
 var
   I: Integer;
   P: Integer;
-  Key: string;
+  Key: AnsiString;
 begin
   if FNameHashValid then Exit;
   
@@ -538,7 +538,7 @@ begin
   FValueHashValid := True;
 end;
 
-constructor TEncIniFile.Create(const FileName: string; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
+constructor TEncIniFile.Create(const FileName: AnsiString; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   inherited Create(FileName);
   il:= TCriticalSection.Create;
@@ -553,7 +553,7 @@ begin
   LoadValues;
 end;
 
-constructor TEncIniFile.Create(const FileName, Passphrase: string; autoupdate: Boolean = False; compression: Boolean = True);
+constructor TEncIniFile.Create(const FileName, Passphrase: AnsiString; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   if passPhrase = '' then
     fSima:= True;
@@ -572,7 +572,7 @@ begin
   inherited Destroy;
 end;
 
-function TEncIniFile.AddSection(const Section: string): TStrings;
+function TEncIniFile.AddSection(const Section: AnsiString): TStrings;
 begin
   Result := TMyHashedStringList.Create;
   try
@@ -595,7 +595,7 @@ begin
   il.Leave;
 end;
 
-procedure TEncIniFile.DeleteKey(const Section, Ident: String);
+procedure TEncIniFile.DeleteKey(const Section, Ident: AnsiString);
 var
   I, J: Integer;
   Strings: TStrings;
@@ -616,7 +616,7 @@ begin
   il.Leave;  
 end;
 
-procedure TEncIniFile.EraseSection(const Section: string);
+procedure TEncIniFile.EraseSection(const Section: AnsiString);
 var
   I: Integer;
 begin
@@ -649,8 +649,8 @@ var
   K: Integer;
   split_site_data: Boolean;
   Found: Boolean;
-  S: string;
-  const splitredirectkeys : array [1..8] of string = ( 'username', 'password', 'max_dn',
+  S: AnsiString;
+  const splitredirectkeys : array [1..8] of AnsiString = ( 'username', 'password', 'max_dn',
   'max_up', 'slots', 'ProxyName', 'NoLoginMSG', 'IRCNick' );
 begin
   split_site_data := config.ReadBool('sites', 'split_site_data', False);
@@ -744,7 +744,7 @@ begin
     Clear;
 end;
 
-procedure TEncIniFile.ReadSection(const Section: string;
+procedure TEncIniFile.ReadSection(const Section: AnsiString;
   Strings: TStrings);
 var
   I, J: Integer;
@@ -774,7 +774,7 @@ begin
   il.Leave;
 end;
 
-procedure TEncIniFile.ReadSectionValues(const Section: string;
+procedure TEncIniFile.ReadSectionValues(const Section: AnsiString;
   Strings: TStrings);
 var
   I: Integer;
@@ -793,7 +793,7 @@ begin
 end;
 
 function TEncIniFile.ReadString(const Section, Ident,
-  Default: string): string;
+  Default: AnsiString): AnsiString;
 var
   I: Integer;
   Strings: TStrings;
@@ -834,7 +834,7 @@ end;
 procedure TEncIniFile.SetStrings(List: TStrings);
 var
   I, J: Integer;
-  S: string;
+  S: AnsiString;
   Strings: TStrings;
   ListSplitFile: TStringList;
   split_site_data: Boolean;
@@ -918,17 +918,17 @@ begin
 end;
 
 
-procedure TEncIniFile.Rename(const FileName: string; Reload: Boolean);
+procedure TEncIniFile.Rename(const FileName: AnsiString; Reload: Boolean);
 begin
   FFileName := FileName;
   if Reload then
     LoadValues;
 end;
 
-procedure TEncIniFile.WriteString(const Section, Ident, Value: String);
+procedure TEncIniFile.WriteString(const Section, Ident, Value: AnsiString);
 var
   I: Integer;
-  S: string;
+  S: AnsiString;
   Strings: TStrings;
 begin
   il.Enter;
@@ -950,7 +950,7 @@ begin
   il.Leave;
 end;
 
-procedure TEncIniFile.SaveUnencrypted(filename: string);
+procedure TEncIniFile.SaveUnencrypted(filename: AnsiString);
 var
   List: TStringList;
 begin
@@ -967,7 +967,7 @@ begin
 end;
 
 
-procedure TEncIniFile.LoadUnencrypted(filename: string);
+procedure TEncIniFile.LoadUnencrypted(filename: AnsiString);
 var
   List: TStringList;
 begin
@@ -990,7 +990,7 @@ end;
 
 { TEncStringlist }
 
-constructor TEncStringlist.Create(pass: string);
+constructor TEncStringlist.Create(pass: AnsiString);
 begin
   fPassHash:= slMD5String(pass);
   inherited Create;
@@ -1002,7 +1002,7 @@ begin
   inherited Create;
 end;
 
-procedure TEncStringlist.LoadFromFile(const FileName: string);
+procedure TEncStringlist.LoadFromFile(const FileName: AnsiString);
 var
   Stream: TStream;
 begin

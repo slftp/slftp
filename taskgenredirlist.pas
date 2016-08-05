@@ -8,11 +8,11 @@ type
   TPazoGenreDirlistTask = class(TPazoPlainTask)
   private
     attempt: Integer;
-    function FetchGenre(filename: string): string;
+    function FetchGenre(filename: AnsiString): AnsiString;
   public
-    constructor Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
 implementation
@@ -24,13 +24,13 @@ const
 
 { TPazoGenreDirlistTask }
 
-constructor TPazoGenreDirlistTask.Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
+constructor TPazoGenreDirlistTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
 begin
   self.attempt:= attempt;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-function TPazoGenreDirlistTask.FetchGenre(filename: string): string;
+function TPazoGenreDirlistTask.FetchGenre(filename: AnsiString): AnsiString;
 var
   i: Integer;
 begin
@@ -56,7 +56,7 @@ var s: TSiteSlot;
     j: Integer;
     r: TPazoGenreDirlistTask;
     d: TDirList;
-    tagfile, genre: string;
+    tagfile, genre: AnsiString;
 begin
   Result:= False;
   s:= slot;
@@ -177,7 +177,7 @@ ujra:
   ready:= True;
 end;
 
-function TPazoGenreDirlistTask.Name: string;
+function TPazoGenreDirlistTask.Name: AnsiString;
 begin
   try
     Result:= Format('GENREDIRLIST: %s (Count:%d)',[mainpazo.rls.rlsname,attempt]);

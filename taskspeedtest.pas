@@ -6,25 +6,25 @@ uses tasksunit, sltcp;
 
 type
   TDelSpeedtestFileTask = class(TTask)
-    constructor Create(const netname, channel: string;site: string);
+    constructor Create(const netname, channel: AnsiString;site: AnsiString);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   TUploadSpeedtestFileTask = class(TTask)
   private
     idTCP: TslTCPSocket;
   public
-    constructor Create(const netname, channel: string;site: string);
+    constructor Create(const netname, channel: AnsiString;site: AnsiString);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
 
 procedure SpeedTestInit;
 
-var speedtestfilename: string;
+var speedtestfilename: AnsiString;
 
 
 implementation
@@ -35,8 +35,8 @@ const section = 'speedtest';
 
 { TDelSpeedtestFileTask }
 
-constructor TDelSpeedtestFileTask.Create(const netname, channel: string;
-  site: string);
+constructor TDelSpeedtestFileTask.Create(const netname, channel: AnsiString;
+  site: AnsiString);
 begin
   inherited Create(netname, channel, site);
 end;
@@ -44,7 +44,7 @@ end;
 function TDelSpeedtestFileTask.Execute(slot: Pointer): Boolean;
 label ujra;
 var s: TSiteSlot;
-    dir: string;
+    dir: AnsiString;
 begin
   Result:= False;
   s:= slot;
@@ -74,7 +74,7 @@ ujra:
   Result:= True;
 end;
 
-function TDelSpeedtestFileTask.Name: string;
+function TDelSpeedtestFileTask.Name: AnsiString;
 begin
   try
     Result:= 'DELSPEEDTESTFILE '+site1;
@@ -85,8 +85,8 @@ end;
 
 { TUploadSpeedtestFileTask }
 
-constructor TUploadSpeedtestFileTask.Create(const netname, channel: string;
-  site: string);
+constructor TUploadSpeedtestFileTask.Create(const netname, channel: AnsiString;
+  site: AnsiString);
 begin
   idTCP:= TslTCPSocket.Create;
   self.wanted_up:= True;
@@ -102,7 +102,7 @@ end;
 function TUploadSpeedtestFileTask.Execute(slot: Pointer): Boolean;
 label ujra;
 var s: TSiteSlot;
-    host, dir: string;
+    host, dir: AnsiString;
     port, probak: Integer;
     buffer: array[0..65535] of Byte;
     i, j, mb: Integer;
@@ -287,7 +287,7 @@ ujra:
   Result:= True;
 end;
 
-function TUploadSpeedtestFileTask.Name: string;
+function TUploadSpeedtestFileTask.Name: AnsiString;
 begin
   try
     Result:= 'UPLOADSPEEDTESTFILE '+site1;

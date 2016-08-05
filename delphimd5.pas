@@ -1,7 +1,7 @@
 {******************************************************************}
 {          MD5 Hashsum Evaluation Unit For Borland Delphi          }
 {                                                                  }
-{          Copyright © 2002 by Dimka Maslov                        }
+{          Copyright ) 2002 by Dimka Maslov                        }
 {          E-mail:   mail@endimus.com,                             }
 {          Web-site: http://www.endimus.com                        }
 {                                                                  }
@@ -31,12 +31,12 @@ type
 { The MD5String function evaluates the MD5 hashsum for
   a string. The S parameter specifies a string to
   evaluate hashsum }
-function MD5String(const S: string): TMD5Digest;
+function MD5String(const S: AnsiString): TMD5Digest;
 
 { The MD5File function evaluates the MD5 hashsum for
   a file. The FileName parameter specifies the name
   of a file to evaluate hashsum }
-function MD5File(const FileName: string): TMD5Digest;
+function MD5File(const FileName: AnsiString): TMD5Digest;
 
 { The MD5Stream function evaluates the MD5 hashsum for
   a stream. The Stream parameters specifies the
@@ -52,7 +52,7 @@ function MD5Buffer(const Buffer; Size: Integer): TMD5Digest;
 { The MD5DigestToStr function converts the result of
   a hashsum evaluation function into a string of
   hexadecimal digits }
-function MD5DigestToStr(const Digest: TMD5Digest): string;
+function MD5DigestToStr(const Digest: TMD5Digest): AnsiString;
 
 { The MD5DigestCompare function compares two
   TMD5Digest record variables. This function returns
@@ -364,7 +364,7 @@ begin
  MD5_memset(PByteArray(@Context), 0, SizeOf(Context));
 end;
 
-function MD5DigestToStr(const Digest: TMD5Digest): string;
+function MD5DigestToStr(const Digest: TMD5Digest): AnsiString;
 var
  i: Integer;
 begin
@@ -372,12 +372,12 @@ begin
  for i:=0 to 15 do Result:=Result+IntToHex(Digest.v[i], 2);
 end;
 
-function MD5String(const S: string): TMD5Digest;
+function MD5String(const S: AnsiString): TMD5Digest;
 begin
  Result:=MD5Buffer(S[1], Length(S));
 end;
 
-function MD5File(const FileName: string): TMD5Digest;
+function MD5File(const FileName: AnsiString): TMD5Digest;
 var
  F: TFileStream;
 begin

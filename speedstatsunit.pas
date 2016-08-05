@@ -5,27 +5,27 @@ uses Contnrs;
 
 type
   TSpeedStat = class
-    section,rlsname,src, dst: string;
+    section,rlsname,src, dst: AnsiString;
     speed: Double;
-    function ToString: string;
-    function ToStringEx: string;
-    constructor Create(src, dst: string; speed: Double); overload;
-    constructor Create(src, dst: string; speed: Double; rip,section:string); overload;
-    constructor Create(line: string); overload;
+    function ToString: AnsiString;
+    function ToStringEx: AnsiString;
+    constructor Create(src, dst: AnsiString; speed: Double); overload;
+    constructor Create(src, dst: AnsiString; speed: Double; rip,section:AnsiString); overload;
+    constructor Create(line: AnsiString); overload;
   end;
 
 //procedure SpeedStatAdd(const src, dst: string; const speed: Double); overload;
-procedure SpeedStatAdd(src, dst: string; speed: Double; section, rip:string); overload;
+procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip:AnsiString); overload;
 procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
 
 procedure SpeedStatsInit;
 procedure SpeedStatsUnInit;
 procedure SpeedStatsSave;
 procedure SpeedStatsStart;
-procedure SpeedStatsRecalc(const netname, channel: string);
-procedure SpeedStatsShowStats(const netname, channel, sitename: string);overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: string);overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section,rlsname: string);overload;
+procedure SpeedStatsRecalc(const netname, channel: AnsiString);
+procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString);overload;
+procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString);overload;
+procedure SpeedStatsShowStats(const netname, channel, sitename, section,rlsname: AnsiString);overload;
 
 
 //procedure SpeedStatsShowStats(const netname, channel, sitename, rlsname: string);overload;
@@ -96,7 +96,7 @@ begin
 end;
 
 
-function AvgSpeedByReleasename(const Rip: string): Double;
+function AvgSpeedByReleasename(const Rip: AnsiString): Double;
 var i, db: Integer;
     sum: Double;
     s: TSpeedStat;
@@ -124,7 +124,7 @@ begin
   end;
 end;
 
-function AvgSpeedBySection(const section: string): Double;
+function AvgSpeedBySection(const section: AnsiString): Double;
 var i, db: Integer;
     sum: Double;
     s: TSpeedStat;
@@ -152,7 +152,7 @@ begin
   end;
 end;
 
-function AvgSpeed(const src, dst: string): Double;overload;
+function AvgSpeed(const src, dst: AnsiString): Double;overload;
 var i, db: Integer;
     sum: Double;
     s: TSpeedStat;
@@ -181,7 +181,7 @@ begin
   end;
 end;
 
-function AvgSpeed(const src, dst, section: string): Double;overload;
+function AvgSpeed(const src, dst, section: AnsiString): Double;overload;
 var i, db: Integer;
     sum: Double;
     s: TSpeedStat;
@@ -210,7 +210,7 @@ begin
   end;
 end;
 
-function AvgSpeed(const src, dst, section, rip: string): Double;overload;
+function AvgSpeed(const src, dst, section, rip: AnsiString): Double;overload;
 var i, db: Integer;
     sum: Double;
     s: TSpeedStat;
@@ -240,7 +240,7 @@ begin
 end;
 
 
-procedure AddSites(const src, dst: string; x: TStringList);
+procedure AddSites(const src, dst: AnsiString; x: TStringList);
 var i: Integer;
     s: TSpeedStat;
 begin
@@ -274,7 +274,7 @@ begin
 end;
 
 
-function FindSite(const s: string): Boolean;
+function FindSite(const s: AnsiString): Boolean;
 begin
   Result:= False;
   if '' =  sitesdat.ReadString('site-'+s, 'username', '') then exit;
@@ -282,13 +282,13 @@ begin
   Result:= True;
 end;
 
-procedure SpeedStatsRecalc(const netname, channel: string);
+procedure SpeedStatsRecalc(const netname, channel: AnsiString);
 var i, j, speed_old, speed_new: Integer;
     min_speed, max_speed: Double;
     x, y: TStringList;
     d, diff: Double;
-    minr: string;
-    maxr: string;
+    minr: AnsiString;
+    maxr: AnsiString;
 begin
   speedstats_last_recalc:= Now();
 
@@ -436,12 +436,12 @@ begin
   x.Free;
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename: string);overload;
+procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString);overload;
 var x: TStringList;
     i: Integer;
     db: Integer;
     d: Double;
-    ss: string;
+    ss: AnsiString;
 begin
   irc_addtext(netname, channel, 'SpeedStats for <b>%s</b> :',[sitename]);
 
@@ -503,12 +503,12 @@ begin
   x.Free;
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: string);overload;
+procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString);overload;
 var x: TStringList;
     i: Integer;
     db: Integer;
     d: Double;
-    ss: string;
+    ss: AnsiString;
 begin
   irc_addtext(netname, channel, 'SpeedStats for <b>%s %s</b> :',[sitename, section]);
 
@@ -570,12 +570,12 @@ begin
   x.Free;
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: string);overload;
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);overload;
 var x: TStringList;
     i: Integer;
     db: Integer;
     d: Double;
-    ss: string;
+    ss: AnsiString;
 begin
   irc_addtext(netname, channel, 'SpeedStats for <b>%s %s %s</b> :',[sitename, section, rlsname]);
 
@@ -659,7 +659,7 @@ begin
 end;
 
 { TSpeedStat }
-constructor TSpeedStat.Create(line: string);
+constructor TSpeedStat.Create(line: AnsiString);
 begin
   src:= Fetch(line, ' ');
   dst:= Fetch(line, ' ');
@@ -668,14 +668,14 @@ begin
   section:=Fetch(line, ' ');
 end;
 
-constructor TSpeedStat.Create(src, dst: string; speed: Double);
+constructor TSpeedStat.Create(src, dst: AnsiString; speed: Double);
 begin
   self.src:= src;
   self.dst:= dst;
   self.speed:= speed;
 end;
 
-constructor TSpeedStat.Create(src: string; dst: string; speed: Double; rip: string; section: string);
+constructor TSpeedStat.Create(src: AnsiString; dst: AnsiString; speed: Double; rip: AnsiString; section: AnsiString);
 begin
   self.src:= src;
   self.dst:= dst;
@@ -684,7 +684,7 @@ begin
   self.rlsname:=rip;
 end;
 
-function TSpeedStat.ToString: string;
+function TSpeedStat.ToString: AnsiString;
 begin
   try
     Result:= FormaT('%s %s %f', [src, dst, speed]);
@@ -693,7 +693,7 @@ begin
   end;
 end;
 
-function TSpeedStat.ToStringEx:string;
+function TSpeedStat.ToStringEx:AnsiString;
 begin
   try
     Result:= FormaT('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
@@ -702,7 +702,7 @@ begin
   end;
 end;
 
-procedure SpeedStatAdd(const src, dst: string; const speed: Double); overload;
+procedure SpeedStatAdd(const src, dst: AnsiString; const speed: Double); overload;
 var s: TSpeedStat;
 begin
   try
@@ -721,7 +721,7 @@ begin
     end;
   end;
 end;
-procedure SpeedStatAdd(src, dst: string; speed: Double; section, rip:string); overload;
+procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip:AnsiString); overload;
 var s: TSpeedStat;
 begin
   try

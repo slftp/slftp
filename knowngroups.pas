@@ -8,7 +8,7 @@ type
 procedure KnowngroupsInit;
 procedure KnowngroupsUnInit;
 procedure KnowngroupsStart;
-function IsKnownGroup(section, groupname: string): TKnownGroup;
+function IsKnownGroup(section, groupname: AnsiString): TKnownGroup;
 
 implementation
 
@@ -27,7 +27,7 @@ end;
 
 procedure KnowngroupsStart;
 var f: TextFile;
-    s, section: string;
+    s, section: AnsiString;
     i: Integer;
 begin
   kg.clear;
@@ -76,7 +76,7 @@ begin
 end;
 
 
-function RemoveINT(grp: string): string;
+function RemoveINT(grp: AnsiString): AnsiString;
 var r: TRegexpr;
 begin
   result:= grp;
@@ -94,7 +94,7 @@ begin
   end;
 end;
 
-function RemoveWEB(grp: string): string;
+function RemoveWEB(grp: AnsiString): AnsiString;
 var r: TRegexpr;
 begin
   result := grp;
@@ -112,8 +112,8 @@ begin
   end;
 end;
 
-function IsKnownGroup(section, groupname: string): TKnownGroup;
-var s: string;
+function IsKnownGroup(section, groupname: AnsiString): TKnownGroup;
+var s: AnsiString;
 begin
   Result:= grp_notconfigured;
   try

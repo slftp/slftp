@@ -211,7 +211,7 @@ procedure ClrEol;
 }
 var
   Temp: DWord;
-  CharInfo: Char;
+  CharInfo: AnsiChar;
   Coord: TCoord;
   X,Y: DWord;
 begin
@@ -268,7 +268,7 @@ End;
 *************************************************************************}
 
 var
-   ScanCode : char;
+   ScanCode : AnsiChar;
    SpecialKey : boolean;
    DoingNumChars: Boolean;
    DoingNumCode: Byte;
@@ -454,7 +454,7 @@ begin
 end;
 
 
-function ReadKey: char;
+function ReadKey: AnsiChar;
 begin
   while (not KeyPressed) do
     Sleep(1);
