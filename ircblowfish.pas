@@ -8,22 +8,22 @@ type
   private
     KeyData: TBlowfishData;
   public
-    netname: string;
-    channel: string;
-    blowkey: string;
-    chankey: string;
-    names: string; // funkcionalitasa a csatornanak
+    netname: AnsiString;
+    channel: AnsiString;
+    blowkey: AnsiString;
+    chankey: AnsiString;
+    names: AnsiString; // funkcionalitasa a csatornanak
     inviteonly: Boolean;
-    procedure UpdateKey(blowkey: string);
-    constructor Create(netname, channel, blowkey: string; chankey: string = ''; inviteonly: Boolean = True);
+    procedure UpdateKey(blowkey: AnsiString);
+    constructor Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True);
 
-    function HasKey(key: string): Boolean;
+    function HasKey(key: AnsiString): Boolean;
   end;
 
-function irc_encrypt(netname, channel, dText: string; include_ok: Boolean = False): string;
-function irc_decrypt(netname, channel, eText: string): string;
-function irc_RegisterChannel(netname, channel, blowkey: string; chankey: string = ''; inviteonly: Boolean= False): TIrcBlowkey;
-function FindIrcBlowfish(netname, channel: string; acceptdefault: Boolean = True): TIrcBlowkey;
+function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;
+function irc_decrypt(netname, channel, eText: AnsiString): AnsiString;
+function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False): TIrcBlowkey;
+function FindIrcBlowfish(netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
 procedure IrcblowfishInit;
 procedure IrcblowfishUnInit;
 
@@ -33,19 +33,19 @@ implementation
 
 uses SysUtils, console, debugunit;
 
-const B64: string = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  section: string = 'ircblowfish';
+const B64: AnsiString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  section: AnsiString = 'ircblowfish';
 
 
 //perl compatible index, cause delphis pos works different
-function PCindex(w: string): Cardinal;
+function PCindex(w: AnsiString): Cardinal;
 begin
   Result:= Pos(w, B64);
   if Result > 0 then dec(Result);
 end;
 
-function PCsubstr(w: string; i: Integer): Char;
-var s: string;
+function PCsubstr(w: AnsiString; i: Integer): AnsiChar;
+var s: AnsiString;
 begin
   Result := #0;
   s:= Copy(w, i+1, 1);
@@ -53,8 +53,8 @@ begin
     Result:= s[1];
 end;
 
-function bytetoB64(ec: string): string;
-var dc: string;
+function bytetoB64(ec: AnsiString): AnsiString;
+var dc: AnsiString;
     left, right: Cardinal;
     i, k : Integer;
 begin
@@ -98,8 +98,8 @@ begin
   Result:= dc;
 end;
 
-function B64tobyte(ec: string): string;
-var dc: string;
+function B64tobyte(ec: AnsiString): AnsiString;
+var dc: AnsiString;
     k: Integer;
     i, right, left: Cardinal;
 begin
@@ -125,12 +125,12 @@ begin
 
      for i := 0 to 3 do
      begin
-       dc := dc + chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
+       dc := dc + Chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
      end;
 
      for i := 0 to 3 do
      begin
-       dc := dc + chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
+       dc := dc + Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
      end;
 
   end;
@@ -139,9 +139,9 @@ begin
 end;
 
 
-function set_key(key: string): string;
+function set_key(key: AnsiString): AnsiString;
 var i, keyLen: Integer;
-    newkey: string;
+    newkey: AnsiString;
 begin
   Result := key;
   if(length(key) < 8) then
@@ -160,7 +160,7 @@ begin
   end;
 end;
 
-function FindIrcBlowfish(netname, channel: string; acceptdefault: Boolean = True): TIrcBlowkey;
+function FindIrcBlowfish(netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
 var i: Integer;
     bf: TIrcBlowkey;
 begin
@@ -182,8 +182,8 @@ begin
     Result:= nil;
 end;
 
-function irc_encrypt(netname, channel, dText: string; include_ok: Boolean = False): string;
-var temp, eText: string;
+function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;
+var temp, eText: AnsiString;
     i: Integer;
     bf: TIrcBlowkey;
 begin
@@ -208,7 +208,7 @@ begin
     for i:= 1 to length(dText) div 8 do
     begin
       temp:= Copy(dText, 1+(i-1)*8,8);
-      BlowfishEncryptECB(bf.KeyData, PChar(temp), PChar(temp));
+      BlowfishEncryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
       eText := eText + bytetoB64(temp);
     end;
 
@@ -221,8 +221,8 @@ begin
 end;
 
 
-function irc_decrypt(netname, channel, eText: string): string;
-var temp, dText: string;
+function irc_decrypt(netname, channel, eText: AnsiString): AnsiString;
+var temp, dText: AnsiString;
     i : Integer;
     bf: TIrcBlowkey;
 begin
@@ -238,7 +238,7 @@ begin
   begin
      temp := B64tobyte(Copy(eText,1+(i-1)*12,12));
      SetLength(temp, 8);
-     BlowfishDecryptECB(bf.KeyData, PChar(temp), PChar(temp));
+     BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
      dText := dtext + temp;
   end;
 
@@ -248,7 +248,7 @@ end;
 
 { TIrcBlowkey }
 
-constructor TIrcBlowkey.Create(netname, channel, blowkey: string; chankey: string = ''; inviteonly: Boolean = True);
+constructor TIrcBlowkey.Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True);
 begin
   self.channel:= channel;
   self.chankey:= chankey;
@@ -257,7 +257,7 @@ begin
   UpdateKey(blowkey);
 end;
 
-function TIrcBlowkey.HasKey(key: string): Boolean;
+function TIrcBlowkey.HasKey(key: AnsiString): Boolean;
 begin
   Result:= False;
   key:= ' '+UpperCase(key)+' ';
@@ -265,17 +265,17 @@ begin
     Result:= True;
 end;
 
-procedure TIrcBlowKey.UpdateKey(blowkey: string);
+procedure TIrcBlowKey.UpdateKey(blowkey: AnsiString);
 const
     IV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
-var myKey: string;
+var myKey: AnsiString;
 begin
   self.blowkey:= blowkey;
   if blowkey <> '' then
   begin
     myKey:= set_key(blowkey);
     SetLength(myKey, length(myKey));
-    BlowfishInit(KeyData, PChar(myKey), Length(myKey), @iv);
+    BlowfishInit(KeyData, PAnsiChar(myKey), Length(myKey), @iv);
   end
   else
     myKey:= '';
@@ -296,7 +296,7 @@ begin
 end;
 
 // ezt a fuggvenyt csak irc_lock mellett szabad hivni!
-function irc_RegisterChannel(netname, channel, blowkey: string; chankey: string = ''; inviteonly: Boolean= False): TIrcBlowkey;
+function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False): TIrcBlowkey;
 begin
   Result:= FindIrcBlowfish(netname, channel, False);
   if nil = Result then

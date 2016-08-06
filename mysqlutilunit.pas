@@ -31,7 +31,7 @@ procedure MySQLUninit;
 procedure MySQLStart;
 
 function MySQLConnected: boolean;
-function MySQLInsertQuery(sql: string; args: array of const): boolean;
+function MySQLInsertQuery(sql: AnsiString; args: array of const): boolean;
 
 implementation
 
@@ -45,7 +45,7 @@ var
   mysqlth:    TMySQLThread;
   mysqlevent: TEvent = nil;
 
-  mysql_host, mysql_user, mysql_pass, mysql_dbname: string;
+  mysql_host, mysql_user, mysql_pass, mysql_dbname: AnsiString;
   mysql_port, mysql_ping: integer;
 
 procedure MySQLInit;
@@ -76,8 +76,8 @@ begin
     Debug(dpError, section, '[ERROR] mysql_init', []);
     exit;
   end;
-  if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
-    PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname),
+  if slmysql2.mysql_real_connect(mysqldb, PAnsiChar(mysql_host),
+    PAnsiChar(mysql_user), PAnsiChar(mysql_pass), PAnsiChar(mysql_dbname),
     mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
   begin
     Debug(dpError, section, '[ERROR] mysql_real_connect: %s', [mysql_error(mysqldb)]);
@@ -135,7 +135,7 @@ begin
   end;
 end;
 
-function MySQLInsertQuery(sql: string; args: array of const): boolean;
+function MySQLInsertQuery(sql: AnsiString; args: array of const): boolean;
 //var
 //  mysql_err: string;
 begin
@@ -188,8 +188,8 @@ begin
             mysqldb := mysql_init(nil);
             if mysqldb <> nil then
             begin
-              if slmysql2.mysql_real_connect(mysqldb, PChar(mysql_host),
-                PChar(mysql_user), PChar(mysql_pass), PChar(mysql_dbname),
+              if slmysql2.mysql_real_connect(mysqldb, PAnsiChar(mysql_host),
+                PAnsiChar(mysql_user), PAnsiChar(mysql_pass), PAnsiChar(mysql_dbname),
                 mysql_port, nil, CLIENT_MULTI_STATEMENTS) = nil then
               begin
                 Debug(dpError, section, '[ERROR] mysql_real_connect: %s',

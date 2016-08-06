@@ -47,10 +47,10 @@ type
         ss: TStringStream;
         attempt: Integer;
     public
-        constructor Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
+        constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
         destructor Destroy; override;
         function Execute(slot: Pointer): Boolean; override;
-        function Name: string; override;
+        function Name: AnsiString; override;
         procedure PostResults(imdb : TDbImdb);
 end;
 
@@ -65,7 +65,7 @@ const
 
 { TPazoImdbTask }
 
-constructor TPazoImdbTask.Create(const netname, channel: string;site: string; pazo: TPazo; attempt: Integer);
+constructor TPazoImdbTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
 begin
     ss:=TStringStream.Create('');
     self.attempt:=attempt;
@@ -147,7 +147,7 @@ begin
     inherited;
 end;
 
-function TPazoImdbTask.Name: string;
+function TPazoImdbTask.Name: AnsiString;
 begin
   try
     Result:=Format('PIMDB (PazoID:%d) %s [Count:%d]',[pazo_id,mainpazo.rls.rlsname,attempt]);

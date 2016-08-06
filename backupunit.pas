@@ -4,7 +4,7 @@ interface
 
 procedure BackupBackup;
 
-function CustomBackup(var error: string): boolean;
+function CustomBackup(var error: AnsiString): boolean;
 
 type
   TSLBackup = class
@@ -12,8 +12,8 @@ type
     fCustom: boolean;
   public
     constructor Create(custombackup: boolean = False);
-    function Filename: string;
-    function FilePath: string;
+    function Filename: AnsiString;
+    function FilePath: AnsiString;
     function Backup: boolean;
   end;
 
@@ -36,7 +36,7 @@ function MakeBackup: boolean;
   skipfiles=sqlite3.dll,ssleay32.dll,libmysql.dll,libeay32.dll
 *)
 var
-  path, fname: string;
+  path, fname: AnsiString;
   tar: TTarWriter;
   Res: TSearchRec;
   EOFound: boolean;
@@ -95,9 +95,9 @@ begin
   end;
 end;
 
-procedure CreateBackup(s: string);
+procedure CreateBackup(s: AnsiString);
 var
-  vbname: string;
+  vbname: AnsiString;
 begin
 
   vbname := s + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
@@ -179,7 +179,7 @@ begin
   end;
 end;
 
-procedure DeleteOldBackups(s: string);
+procedure DeleteOldBackups(s: AnsiString);
 var
   sr: TSearchRec;
   files: TStringList;
@@ -242,7 +242,7 @@ end;
 
 procedure BackupBackup;
 var
-  s: string;
+  s: AnsiString;
 begin
   s := config.ReadString(section, 'backup_dir', '');
   if s <> '' then
@@ -263,10 +263,10 @@ begin
   backup_last_backup := Now;
 end;
 
-function CustomBackup(var error: string): boolean;
+function CustomBackup(var error: AnsiString): boolean;
 var
   cb: TTarWriter;
-  s: string;
+  s: AnsiString;
 begin
   //indexerUninit;
   //statsUninit;
@@ -349,14 +349,14 @@ begin
   fCustom := custombackup;
 end;
 
-function TSLBackup.Filename: string;
+function TSLBackup.Filename: AnsiString;
 begin
   Result := Format('slftp-backup-%s', [FormatDateTime('yyyymmddhhnnss', Now)]);
 end;
 
-function TSLBackup.FilePath: string;
+function TSLBackup.FilePath: AnsiString;
 var
-  s: string;
+  s: AnsiString;
 begin
   s := config.ReadString(section, 'backup_dir', '');
   s := MyIncludeTrailingSlash(s);
@@ -367,7 +367,7 @@ end;
 function TSLBackup.Backup: boolean;
 var
   slb: TTarWriter;
-  cf: string;
+  cf: AnsiString;
   x: TStringList;
 begin
   x := TStringList.Create;

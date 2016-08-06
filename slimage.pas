@@ -2,7 +2,7 @@ unit slimage;
 
 interface
 
-function MyImgResize(const src, dst: string;ujXmeret,ujYmeret: Integer): Boolean; overload;
+function MyImgResize(const src, dst: AnsiString;ujXmeret,ujYmeret: Integer): Boolean; overload;
 
 implementation
 
@@ -14,7 +14,7 @@ uses
 {$ENDIF}
   SysUtils
 ;
-function MyImgResize(const src, dst: string;ujXmeret,ujYmeret: Integer): Boolean; overload;
+function MyImgResize(const src, dst: AnsiString;ujXmeret,ujYmeret: Integer): Boolean; overload;
 {$IFDEF FPC}
 var p: TProcess;
 {$ENDIF}

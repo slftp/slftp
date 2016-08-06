@@ -47,9 +47,9 @@ type
       procedure SetResolution(const x,y : Integer); virtual;
       procedure GetCursorPos(var x,y : Integer); virtual; abstract;
       procedure GotoXY(x, y: SmallInt); virtual; abstract;
-      procedure Write(s: string); virtual; abstract;
+      procedure Write(s: AnsiString); virtual; abstract;
 
-      function ReadKey: char; virtual; abstract;
+      function ReadKey: AnsiChar; virtual; abstract;
       function KeyPressed: Boolean; virtual; abstract;
       procedure TextColor(Color: Byte); virtual; abstract;
       procedure TextBackground(Color: Byte); virtual; abstract;
@@ -61,7 +61,7 @@ type
     end;
 
 {$IFNDEF MSWINDOWS}
-function NCurses_version: string;
+function NCurses_version: AnsiString;
 {$ENDIF}
 
 var
@@ -104,7 +104,7 @@ type
       ConsoleScreenBufferInfo : Console_screen_buffer_info;
        TextAttr: Byte;
       function slKeyPressed: Boolean;
-      function slReadKey: Char;
+      function slReadKey: AnsiChar;
     protected
       procedure UpdateCon; override;
     public
@@ -114,9 +114,9 @@ type
       procedure SetResolution(const x, y: Integer); override;
       procedure GetCursorPos(var x, y: Integer); override;
       procedure GotoXY(x, y: SmallInt); override;
-      procedure Write(s: string); override;
+      procedure Write(s: AnsiString); override;
 
-      function ReadKey: char; override;
+      function ReadKey: AnsiChar; override;
       function KeyPressed: Boolean; override;
       procedure TextBackground(Color: Byte); override;
       procedure TextColor(Color: Byte); override;
@@ -177,7 +177,7 @@ type
        prev_textattr : integer;
        cp : array [0..7,0..7] of integer; { color pair array }
        Procedure nWinColor(win : pWindow; att : integer);
-       Procedure nWrite(win : pWindow; s : string);
+       Procedure nWrite(win : pWindow; s : AnsiString);
        Function nSetColorPair(att : integer) : integer;
        Function CursesAtts(att : byte) : longint;
        procedure nClrScr(win : pWindow; att : integer);
@@ -189,14 +189,14 @@ type
       procedure GetResolution(var x, y: Integer); override;
       procedure GetCursorPos(var x, y: Integer); override;
       procedure GotoXY(x, y: SmallInt); override;
-      procedure Write(s: string); override;
+      procedure Write(s: AnsiString); override;
 
       procedure SetResolution(const x, y: Integer); override;
       procedure TextColor(Color: Byte); override;
       procedure TextBackground(Color: Byte); override;
       procedure HighVideo; override;
       procedure LowVideo; override;
-      function ReadKey: char; override;
+      function ReadKey: AnsiChar; override;
       function KeyPressed: Boolean; override;
       Procedure ClrScr; override;
       procedure cursoron; override;
@@ -227,7 +227,7 @@ end;
 procedure TslScreen.ClrScr;
 var px,py: Integer;
     i: Integer;
-    s: string;
+    s: AnsiString;
 begin
   GetResolution(px, py);
   s:= Format('%'+IntToStr(pX)+'s', [' ']);
@@ -449,7 +449,7 @@ const
   );
 
 var
-  ExtendedChar: Char = #0;
+  ExtendedChar: AnsiChar = #0;
 
 
 function FindKeyCode(KeyCode: Smallint): PKey; {$IFDEF INLINES}inline;{$ENDIF}
@@ -498,7 +498,7 @@ begin
   end;
 end;
 
-function TslWindowsScreen.slReadKey: Char;
+function TslWindowsScreen.slReadKey: AnsiChar;
 var
   InputRec: TInputRecord;
   NumRead: Cardinal;
@@ -559,7 +559,7 @@ begin
   SetConsoleTextAttribute(hStdOut, TextAttr);
 end;
 
-function TslWindowsScreen.ReadKey: char;
+function TslWindowsScreen.ReadKey: AnsiChar;
 begin
   Result:= slReadKey;
 //  if ((Result = #3) and (Assigned(OnCtrlC))) then
@@ -628,7 +628,7 @@ begin
   SetConsoleCursorPosition(hStdOut, NewPos);
 end;
 
-procedure TslWindowsScreen.Write(s: string);
+procedure TslWindowsScreen.Write(s: AnsiString);
 begin
   System.Write(s);
 end;
@@ -719,9 +719,9 @@ begin
 end;
 
 
-Function nReadkey(win : pWindow) : char;
+Function nReadkey(win : pWindow) : AnsiChar;
 var
-   c : char;
+   c : AnsiChar;
    l : longint;
    xtnded : boolean;
 Begin
@@ -816,12 +816,12 @@ Begin
    if l = 10 then
       nReadkey := #13
    else
-      nReadkey := chr(ord(l));
+      nReadkey := Chr(ord(l));
 End;
 
 
 constructor TslUnixScreen.Create;
-var s: string;
+var s: AnsiString;
     i,j: Integer;
 begin
   inherited;
@@ -841,12 +841,12 @@ begin
       { define the the alt'd keysets for ncurses }
       { alt/a .. atl/z }
       for i := ord('a') to ord('z') do Begin
-         s := #27+chr(i)+#0;
+         s := #27+Chr(i)+#0;
          define_key(@s[1],(KEY_ALTA-97)+i);
       End;
       { alt/1 .. alt/9 }
       for i := 1 to 9 do Begin
-         s := #27+chr(48+i)+#0;
+         s := #27+Chr(48+i)+#0;
          define_key(@s[1],(KEY_ALT1-1)+i);
       End;
       s := #27+'0'+#0; define_key(@s[1],KEY_ALT0);     { alt/0 }
@@ -889,7 +889,7 @@ Begin
 
 end;
 
-function TslUnixScreen.ReadKey: char;
+function TslUnixScreen.ReadKey: AnsiChar;
 begin
    Readkey := nReadkey(w);
 end;
@@ -1031,9 +1031,9 @@ Begin
 End;
 
 { write a string to a window at the current cursor position }
-Procedure TslUnixScreen.nWrite(win : pWindow; s : string);
+Procedure TslUnixScreen.nWrite(win : pWindow; s : AnsiString);
 var
-   ps : array [0..255] of char;       { for use with pchars }
+   ps : array [0..255] of AnsiChar;       { for use with pchars }
 
 Begin
    If TextAttr <> prev_textattr Then
@@ -1050,7 +1050,7 @@ End;
  =========================================================================}
 
 { used by CrtWrite }
-Procedure TslUnixScreen.Write(s : string);
+Procedure TslUnixScreen.Write(s : AnsiString);
 Begin
    nWrite(w,s);
 End;
@@ -1073,9 +1073,9 @@ begin
   inherited;
 end;
 
-function NCurses_version: string;
+function NCurses_version: AnsiString;
 begin
-  Result:= string(curses_version());
+  Result:= AnsiString(curses_version());
 end;
 
 {$ENDIF}

@@ -7,7 +7,7 @@ unit HashUnit;
 // Date:            16-JAN-2004                                                .
 // Target:          Win32, Delphi 7                                            .
 // Author:          Angus Johnson - angusj-AT-myrealbox-DOT-com                .
-// Copyright;       © 2003-2004 Angus Johnson                                  .
+// Copyright;       ) 2003-2004 Angus Johnson                                  .
 // -----------------------------------------------------------------------------
 
 interface
@@ -15,7 +15,7 @@ interface
 uses
   SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
-function HashLine(const line: string; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
 
 implementation
 
@@ -91,7 +91,7 @@ const
 
 //CRC algorithm courtesy of Earl F. Glynn ...
 //(http://www.efg2.com/Lab/Mathematics/CRC.htm)
-function CalcCRC32(p: pchar; length: integer): dword;
+function CalcCRC32(p: PAnsiChar; length: integer): dword;
 var
   i: integer;
 begin
@@ -105,10 +105,10 @@ begin
 end;
 //--------------------------------------------------------------------------
 
-function HashLine(const line: string; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
 var
   i, j, len: integer;
-  s: string;
+  s: AnsiString;
 begin
   s := line;
   if IgnoreBlanks then

@@ -5,7 +5,7 @@ interface
 type
   TConstArray = array of TVarRec;
 
-function CreateVarRecFromString(s: string): TVarRec;
+function CreateVarRecFromString(s: AnsiString): TVarRec;
   
 // Copies a TVarRec and its contents. If the content is referenced
 // the value will be copied to a new location and the reference
@@ -100,7 +100,7 @@ begin
   end;
 end;
 
-function CreateVarRecFromString(s: string): TVarRec;
+function CreateVarRecFromString(s: AnsiString): TVarRec;
 begin
   FillChar(Result, Sizeof(TVarRec), 0);
   Result.VType:= vtAnsiString;

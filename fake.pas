@@ -44,7 +44,7 @@ const sFakeSection='fake';
 //this code is finde as well,      we fill fakes with all sections an insert on pos 0 a empty string for global settings.
 
 procedure ReadFakeSettings;
-var s: string;
+var s: AnsiString;
     i, j: integer;
     f: TFakeSettings;
 begin
@@ -230,30 +230,30 @@ end;
 
 
 (*
-'Short rls',                // 1
-[19:26:52] [Ar04n]                                            'Few different chars',      // 2
-[19:26:52] [Ar04n]                                            'Many different chars',     // 3
-[19:26:52] [Ar04n]                                            'Many short words',         // 4
-[19:26:53] [Ar04n]                                            'Many dots',                // 5
-[19:26:55] [Ar04n]                                            'Banned char in rls',       // 6
-[19:26:55] [Ar04n]                                            'Number is 1. char',        // 7
-[19:26:57] [Ar04n]                                            'Mexican wave',             // 8
-[19:26:57] [Ar04n]                                            'Many vocal/consonant',     // 9
-[19:26:59] [Ar04n]                                            'Error in round brackets',  // 10
-[19:27:01] [Ar04n]                                            'Number in word',           // 11
-[19:27:01] [Ar04n]                                            'Banned word',              // 12
-[19:27:03] [Ar04n]                                            'Banned+wildcard',          // 13
-[19:27:05] [Ar04n]                                            '3 double chars in a word', // 14
-[19:27:05] [Ar04n]                                            'CUE/DIR/NFO/TRACK FIX',    // 15
-[19:27:07] [Ar04n]                                            'Repeating in rls',         // 16
-[19:27:07] [Ar04n]                                            'Invalid grp',              // 17
-[19:27:09] [Ar04n]                                            'wtf not mp3?',             // 18
-[19:27:11] [Ar04n]                                            'Not realgrp!'              // 19
+'Short rls',                // 1
+[19:26:52] [Ar04n]                                            'Few different chars',      // 2
+[19:26:52] [Ar04n]                                            'Many different chars',     // 3
+[19:26:52] [Ar04n]                                            'Many short words',         // 4
+[19:26:53] [Ar04n]                                            'Many dots',                // 5
+[19:26:55] [Ar04n]                                            'Banned char in rls',       // 6
+[19:26:55] [Ar04n]                                            'Number is 1. char',        // 7
+[19:26:57] [Ar04n]                                            'Mexican wave',             // 8
+[19:26:57] [Ar04n]                                            'Many vocal/consonant',     // 9
+[19:26:59] [Ar04n]                                            'Error in round brackets',  // 10
+[19:27:01] [Ar04n]                                            'Number in word',           // 11
+[19:27:01] [Ar04n]                                            'Banned word',              // 12
+[19:27:03] [Ar04n]                                            'Banned+wildcard',          // 13
+[19:27:05] [Ar04n]                                            '3 double chars in a word', // 14
+[19:27:05] [Ar04n]                                            'CUE/DIR/NFO/TRACK FIX',    // 15
+[19:27:07] [Ar04n]                                            'Repeating in rls',         // 16
+[19:27:07] [Ar04n]                                            'Invalid grp',              // 17
+[19:27:09] [Ar04n]                                            'wtf not mp3?',             // 18
+[19:27:11] [Ar04n]                                            'Not realgrp!'              // 19
 *)
 
 procedure FakeCheckI(r: TRelease; f: TFakeSettings);
 var
-    s,s2: string;
+    s,s2: AnsiString;
    ii, i, j: Integer;
     rovid: Integer;
 begin
@@ -276,7 +276,7 @@ begin
 
   if (r.maganhangzok >= f.fake_many_vocal) then
   begin
-    r.fakereason:= 'Many vocal/consonant '+IntToStr(r.maganhangzok);
+    r.fakereason:= 'Many vocal/consonant '+IntToStr(r.maganhangzok);
     exit;
   end;
 
@@ -314,7 +314,7 @@ begin
 
   if rovid >= f.fake_many_short_words_count then
   begin
-    r.fakereason:= 'Many short words';
+    r.fakereason:= 'Many short words';
     exit;
   end;
 
@@ -385,14 +385,14 @@ end; //if f.fake_banned_words[i] = r.words[ii] then begin
   end;
 
 
-//[19:27:07] [Ar04n]                                            'Repeating in rls',         // 16
+//[19:27:07] [Ar04n]                                            'Repeating in rls',         // 16
   r.fake:= False;
 end;
 
 procedure FakeCheckMP3(r: TMP3Release; f: TFakeSettings);
 var i, j, k: Integer;
     johetbetu, johetszam: Boolean;
-    s: string;
+    s: AnsiString;
 begin
 
   r.fake:= True;

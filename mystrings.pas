@@ -36,87 +36,87 @@ interface
 
 uses Classes;
 
-function onlyEnglishAlpha(s: string): string;
+function onlyEnglishAlpha(s: AnsiString): AnsiString;
 
-function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): string;
+function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): AnsiString;
 
 function WhenDidThisHappen(SecondsElapsed: int64): TDateTime;
 
-function LeftStr(const Source: string; Count: integer): string;
-function RightStr(const Source: string; Count: integer): string;
+function LeftStr(const Source: AnsiString; Count: integer): AnsiString;
+function RightStr(const Source: AnsiString; Count: integer): AnsiString;
 function MinMax(aValue, minimal, maximum: integer): integer;
-function SubString(const s, seperator: string; index: integer): string;
-function Csere(const Source, old, new: string): string;
-function AtConvert(Source: string; style: integer): string;
-function RightStrv2(const Source: string; Count: integer): string;
-function myEncode(what: string): string;//spaceket  csereli at
-function myDecode(what: string): string;
-function CleanString(mit: string): string;
-function Count(const mi, miben: string): integer;
-function RPos(SubStr: char; Str: string): integer;
-function FillCharL(what, t: integer; whit: char): string;
-function GetLastDir(g: string): string;
-function ExtractUrlFileName(url: string): string;
-function ExtractFileNameWithoutExt(fname: string): string;
-function BufStr(B: array of byte; APos, ALen: integer): string;
-procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: string);
-function FillCharR(w: string; ig: integer; withc: char): string;
-function ReadBetweenSeperators(s, sep1, sep2: string; var from: integer): string;
-function validemail(em: string): boolean;
-function MakeStringLeft(mi, mivel: string; c: integer): string;
-function MakeStringCenter(mi, mivel: string; c: integer): string;
-function MakeStringRight(mi, mivel: string; c: integer): string;
-function MakeFullPath(s: string): string;
+function SubString(const s, seperator: AnsiString; index: integer): AnsiString;
+function Csere(const Source, old, new: AnsiString): AnsiString;
+function AtConvert(Source: AnsiString; style: integer): AnsiString;
+function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
+function myEncode(what: AnsiString): AnsiString;//spaceket  csereli at
+function myDecode(what: AnsiString): AnsiString;
+function CleanString(mit: AnsiString): AnsiString;
+function Count(const mi, miben: AnsiString): integer;
+function RPos(SubStr: AnsiChar; Str: AnsiString): integer;
+function FillCharL(what, t: integer; whit: AnsiChar): AnsiString;
+function GetLastDir(g: AnsiString): AnsiString;
+function ExtractUrlFileName(url: AnsiString): AnsiString;
+function ExtractFileNameWithoutExt(fname: AnsiString): AnsiString;
+function BufStr(B: array of byte; APos, ALen: integer): AnsiString;
+procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: AnsiString);
+function FillCharR(w: AnsiString; ig: integer; withc: AnsiChar): AnsiString;
+function ReadBetweenSeperators(s, sep1, sep2: AnsiString; var from: integer): AnsiString;
+function validemail(em: AnsiString): boolean;
+function MakeStringLeft(mi, mivel: AnsiString; c: integer): AnsiString;
+function MakeStringCenter(mi, mivel: AnsiString; c: integer): AnsiString;
+function MakeStringRight(mi, mivel: AnsiString; c: integer): AnsiString;
+function MakeFullPath(s: AnsiString): AnsiString;
 function GetByte(i, b: longword): byte;
 function GetInteger(b1, b2, b3, b4: byte): longword;
-function UrlEncode(const DecodedStr: string; Pluses: boolean): string; overload;
-function UrlEncode(const DecodedStr: string): string; overload;
-function UrlDecode(const EncodedStr: string): string;
-function MyToday: string;
-function MyTimeToStr(x: TDateTime): string;
-function MyStrToTime(x: string): TDateTime;
-function MyDateToStr(x: TDateTime): string;
-function MyStrToDate(x: string): TDateTime;
-function NoToTime(x: integer): string; overload;
-function NoToTime(s: string): string; overload;
-function Szovegge(szam: integer): string; overload;
-function Szovegge(d: double): string; overload;
-function myStrToFloat(s: string): double; overload;
-function myStrToFloat(s: string; def: double): double; overload;
-function CheckTAXNumber(TAxNumber: string; BornDate: TDateTime = 0): boolean;
-function CheckCompanyTaxNumber(TaxNumber: string): integer;
-function IsValidEmail(const Value: string): boolean;
-procedure MyWriteLn(s: string);
-function MyCopy(b: array of byte; index, len: integer): string;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: boolean): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString; overload;
+function UrlDecode(const EncodedStr: AnsiString): AnsiString;
+function MyToday: AnsiString;
+function MyTimeToStr(x: TDateTime): AnsiString;
+function MyStrToTime(x: AnsiString): TDateTime;
+function MyDateToStr(x: TDateTime): AnsiString;
+function MyStrToDate(x: AnsiString): TDateTime;
+function NoToTime(x: integer): AnsiString; overload;
+function NoToTime(s: AnsiString): AnsiString; overload;
+function Szovegge(szam: integer): AnsiString; overload;
+function Szovegge(d: double): AnsiString; overload;
+function myStrToFloat(s: AnsiString): double; overload;
+function myStrToFloat(s: AnsiString; def: double): double; overload;
+function CheckTAXNumber(TAxNumber: AnsiString; BornDate: TDateTime = 0): boolean;
+function CheckCompanyTaxNumber(TaxNumber: AnsiString): integer;
+function IsValidEmail(const Value: AnsiString): boolean;
+procedure MyWriteLn(s: AnsiString);
+function MyCopy(b: array of byte; index, len: integer): AnsiString;
 function myRand(mini, maxi: integer): integer;
-function ParseResponseCode(s: string): integer;
+function ParseResponseCode(s: AnsiString): integer;
 
 {$IFDEF MSWINDOWS}
-function GetWinDir: string;
-function GetTempDir: string;
-function GetContentType(fname: string): string;
+function GetWinDir: AnsiString;
+function GetTempDir: AnsiString;
+function GetContentType(fname: AnsiString): AnsiString;
 {$ENDIF}
-function MyIncludeTrailingSlash(s: string): string;
-function CombineDirectories(dir1, dir2: string): string;
-function ParsePasvString(s: string; var host: string; var port: integer): boolean;
+function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
+function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
+function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
 
-function Szam(c: char): boolean;
-function Szamokszama(s: string): integer;
-function CsakSzamok(s: string): string;
+function Szam(c: AnsiChar): boolean;
+function Szamokszama(s: AnsiString): integer;
+function CsakSzamok(s: AnsiString): AnsiString;
 
-function GetFileContents(fn: string): string;
-function Fetch(var osszes: string; const Args: array of char): string; overload;
-function Fetch(var osszes: string; sep: char): string; overload;
-function Elsosor(var osszes: string): string;
-function todaycsere(const s: string; datum: TDateTime = 0): string;
-function InArray(const s: string; const d: array of string;
+function GetFileContents(fn: AnsiString): AnsiString;
+function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString; overload;
+function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString; overload;
+function Elsosor(var osszes: AnsiString): AnsiString;
+function todaycsere(const s: AnsiString; datum: TDateTime = 0): AnsiString;
+function InArray(const s: AnsiString; const d: array of AnsiString;
   casesensitive: boolean = True): boolean;
 
-function BoolToStr(Value: boolean; const TS, FS: string): string; overload;
-function BoolToStr(Value: boolean): string; overload;
+function BoolToStr(Value: boolean; const TS, FS: AnsiString): AnsiString; overload;
+function BoolToStr(Value: boolean): AnsiString; overload;
 
 
-procedure splitString(const Source: string; const Delimiter: string;
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
   const Dest: TStringList);
 
 implementation
@@ -127,7 +127,7 @@ uses SysUtils, Math
 {$ENDIF}
   , DateUtils;
 
-procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: string);
+procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: AnsiString);
 var
   Len: integer;
 begin
@@ -139,7 +139,7 @@ begin
     FillChar(b[APos + Len], ALen - Len, $00);
 end;
 
-function BufStr(B: array of byte; APos, ALen: integer): string;
+function BufStr(B: array of byte; APos, ALen: integer): AnsiString;
 begin
   SetString(Result, nil, ALen);
   Move(b[APos], Result[1], ALen);
@@ -149,7 +149,7 @@ begin
 end;
 
 {$IFDEF MSWINDOWS}
-function GetWinDir: string;
+function GetWinDir: AnsiString;
 var
   a: array[1..255] of byte;
   i: integer;
@@ -158,7 +158,7 @@ begin
   Result := BufStr(a, 0, i);
 end;
 
-function GetTempDir: string;
+function GetTempDir: AnsiString;
 var
   a: array[1..255] of byte;
   i: integer;
@@ -169,9 +169,9 @@ end;
 
 {$ENDIF}
 
-function Count(const mi, miben: string): integer;
+function Count(const mi, miben: AnsiString): integer;
 var
-  s: string;
+  s: AnsiString;
   i: integer;
 begin
   s      := '';
@@ -187,7 +187,7 @@ begin
   end;
 end;
 
-function LeftStr(const Source: string; Count: integer): string;
+function LeftStr(const Source: AnsiString; Count: integer): AnsiString;
 var
   i: integer;
 begin
@@ -196,7 +196,7 @@ begin
     Result := Result + Source[i];
 end;
 
-function RightStr(const Source: string; Count: integer): string;
+function RightStr(const Source: AnsiString; Count: integer): AnsiString;
 var
   i: integer;
 begin
@@ -205,7 +205,7 @@ begin
     Result := Result + Source[i];
 end;
 
-function RightStrv2(const Source: string; Count: integer): string;
+function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
 var
   i: integer;
 begin
@@ -258,9 +258,9 @@ begin
 end;
 *)
 
-function SubString(const s, seperator: string; index: integer): string;
+function SubString(const s, seperator: AnsiString; index: integer): AnsiString;
 var
-  akts: string;
+  akts: AnsiString;
   sz:   integer;
   i, l: integer;
 begin
@@ -292,12 +292,12 @@ begin
   until False;
 end;
 
-function Csere(const Source, old, new: string): string;
+function Csere(const Source, old, new: AnsiString): AnsiString;
 begin
   Result := StringReplace(Source, old, new, [rfReplaceAll, rfIgnoreCase]);
 end;
 
-function AtConvert(Source: string; style: integer): string;
+function AtConvert(Source: AnsiString; style: integer): AnsiString;
 var
   i: integer;
   nemkell: boolean;
@@ -343,18 +343,18 @@ begin
   end;
 end;
 
-function myDecode(what: string): string;
+function myDecode(what: AnsiString): AnsiString;
 begin
-  Result := Csere(what, ' ', '\éáûûáé/');
+  Result := Csere(what, ' ', '\ia{{ai/');
 end;
 
-function myEncode(what: string): string;
+function myEncode(what: AnsiString): AnsiString;
 begin
-  Result := Csere(what, '\éáûûáé/', ' ');
+  Result := Csere(what, '\ia{{ai/', ' ');
 end;
 
 //lecsereli az osszes nemfajlnevkaraktert
-function CleanString(mit: string): string;
+function CleanString(mit: AnsiString): AnsiString;
 begin
   mit    := Csere(mit, '/', '-');
   mit    := Csere(mit, ':', '-');
@@ -369,7 +369,7 @@ end;
 
 
 
-function FillCharL(what, t: integer; whit: char): string;
+function FillCharL(what, t: integer; whit: AnsiChar): AnsiString;
 var
   i: integer;
 begin
@@ -378,14 +378,14 @@ begin
     Result := whit + Result;
 end;
 
-function GetLastDir(g: string): string;
+function GetLastDir(g: AnsiString): AnsiString;
 begin
   if ((length(g) > 0) and (g[length(g)] = '\')) then
     Delete(g, length(g), 1);
   Result := RightStrv2(g, RPos('\', g));
 end;
 
-function ExtractUrlFileName(url: string): string;
+function ExtractUrlFileName(url: AnsiString): AnsiString;
 var
   i: integer;
 begin
@@ -395,15 +395,15 @@ begin
     Result := Copy(url, i + 1, 200);
 end;
 
-function ExtractFileNameWithoutExt(fname: string): string;
+function ExtractFileNameWithoutExt(fname: AnsiString): AnsiString;
 var
-  tmp: string;
+  tmp: AnsiString;
 begin
   tmp    := ExtractFileName(fname);
   Result := Copy(tmp, 1, length(tmp) - length(ExtractFileExt(fname)));
 end;
 
-function FillCharR(w: string; ig: integer; withc: char): string;
+function FillCharR(w: AnsiString; ig: integer; withc: AnsiChar): AnsiString;
 var
   i: integer;
 begin
@@ -412,9 +412,9 @@ begin
     Result := Result + withc;
 end;
 
-function ReadBetweenSeperators(s, sep1, sep2: string; var from: integer): string;
+function ReadBetweenSeperators(s, sep1, sep2: AnsiString; var from: integer): AnsiString;
 var
-  tmp, tmp2: string;
+  tmp, tmp2: AnsiString;
   k, tmpv, v: integer;
   ok: boolean;
 begin
@@ -455,7 +455,7 @@ end;
 
 
 
-function validemail(em: string): boolean;
+function validemail(em: AnsiString): boolean;
 var
   i1, i2: integer;
 begin
@@ -468,7 +468,7 @@ begin
 end;
 
 
-function MakeStringLeft(mi, mivel: string; c: integer): string;
+function MakeStringLeft(mi, mivel: AnsiString; c: integer): AnsiString;
 var
   i: integer;
 begin
@@ -477,7 +477,7 @@ begin
     Result := Result + mivel;
 end;
 
-function MakeStringCenter(mi, mivel: string; c: integer): string;
+function MakeStringCenter(mi, mivel: AnsiString; c: integer): AnsiString;
 var
   s: integer;
 begin
@@ -487,7 +487,7 @@ begin
   Result := MakeStringRight(Result, ' ', c);
 end;
 
-function MakeStringRight(mi, mivel: string; c: integer): string;
+function MakeStringRight(mi, mivel: AnsiString; c: integer): AnsiString;
 var
   i: integer;
 begin
@@ -497,7 +497,7 @@ begin
 end;
 
 
-function MakeFullPath(s: string): string;
+function MakeFullPath(s: AnsiString): AnsiString;
 var
   x: integer;
 begin
@@ -529,7 +529,7 @@ begin
   Result := Result + b1;
 end;
 
-function UrlEncode(const DecodedStr: string; Pluses: boolean): string;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: boolean): AnsiString;
 var
   I: integer;
 begin
@@ -551,13 +551,13 @@ begin
     end;
 end;
 
-function UrlEncode(const DecodedStr: string): string;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString;
 begin
   Result := URLEncode(DecodedStr, True);
 end;
 
 
-function HexToInt(HexStr: string): int64;
+function HexToInt(HexStr: AnsiString): int64;
 var
   RetVar: int64;
   i:      byte;
@@ -586,7 +586,7 @@ begin
 end;
 
 
-function UrlDecode(const EncodedStr: string): string;
+function UrlDecode(const EncodedStr: AnsiString): AnsiString;
 var
   I: integer;
 begin
@@ -615,7 +615,7 @@ end;
 
 
 {$IFDEF MSWINDOWS}
-function GetContentType(fname: string): string;
+function GetContentType(fname: AnsiString): AnsiString;
 var
   x: TRegistry;
 begin
@@ -632,7 +632,7 @@ end;
 
 {$ENDIF}
 
-function MyToday: string;
+function MyToday: AnsiString;
 var
   y, m, d: word;
 begin
@@ -640,17 +640,17 @@ begin
   Result := Format('%.4d-%.2d-%.2d', [y, m, d]);
 end;
 
-function MyDateToStr(x: TDateTime): string;
+function MyDateToStr(x: TDateTime): AnsiString;
 begin
   Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', x);
 end;
 
-function MyTimeToStr(x: TDateTime): string;
+function MyTimeToStr(x: TDateTime): AnsiString;
 begin
   Result := FormatDateTime('hh:nn', x);
 end;
 
-function MyStrToTime(x: string): TDateTime;
+function MyStrToTime(x: AnsiString): TDateTime;
 var
   h, m: integer;
 begin
@@ -660,7 +660,7 @@ begin
 end;
 
 
-function MyStrToDate(x: string): TDateTime;
+function MyStrToDate(x: AnsiString): TDateTime;
 var
   y, m, d, h, mm, s: integer;
 begin
@@ -675,7 +675,7 @@ begin
 end;
 
 
-function NoToTime(x: integer): string;
+function NoToTime(x: integer): AnsiString;
 begin
   Result := IntToStr(8 + (x div 2)) + ':';
   if (x mod 2 = 0) then
@@ -684,16 +684,16 @@ begin
     Result := Result + '30';
 end;
 
-function NoToTime(s: string): string;
+function NoToTime(s: AnsiString): AnsiString;
 begin
   Result := NoToTime(StrToInt(s)) + '-' + NoToTime(StrToInt(s) + 1);
 end;
 
 
-procedure betuzz(var s: string; number: integer);
+procedure betuzz(var s: AnsiString; number: integer);
 const
-  kicsik: array[0..8] of string =
-    ('egy', 'kettõ', 'három', 'négy', 'öt', 'hat', 'hét', 'nyolc', 'kilenc');
+  kicsik: array[0..8] of AnsiString =
+    ('egy', 'kettu', 'harom', 'nigy', 'vt', 'hat', 'hit', 'nyolc', 'kilenc');
 var
   num: integer;
 begin
@@ -705,7 +705,7 @@ begin
     begin
       s := s + kicsik[(num div 100) - 1];
     end;
-    s   := s + 'száz';
+    s   := s + 'szaz';
     num := num mod 100;
   end;
 
@@ -716,19 +716,19 @@ begin
       8: s := s + 'nyolcvan';
       7: s := s + 'hetven';
       6: s := s + 'hatvan';
-      5: s := s + 'ötven';
+      5: s := s + 'vtven';
       4: s := s + 'negyven';
       3: s := s + 'harminc';
       2:
         if (num mod 10 <> 0) then
           s := s + 'huszon'
         else
-          s := s + 'húsz';
+          s := s + 'hzsz';
       1:
         if (num mod 10 <> 0) then
           s := s + 'tizen'
         else
-          s := s + 'tíz';
+          s := s + 'tmz';
     end; //end of case
   end;
 
@@ -738,32 +738,32 @@ begin
 end;
 
 
-function Szovegge(szam: integer): string;
+function Szovegge(szam: integer): AnsiString;
 const
   SZMAX = 4;
 type
   TCuccok = record
     ertek: integer;
-    s:     string
+    s:     AnsiString
   end;
   TTablazat = array[1..SZMAX] of TCuccok;
 
 const
   ertekek: TTablazat = (
-    (ertek: 1000000000; s: 'milliárd'),
-    (ertek: 1000000; s: 'millió'),
+    (ertek: 1000000000; s: 'milliard'),
+    (ertek: 1000000; s: 'millis'),
     (ertek: 1000; s: 'ezer'),
     (ertek: 1; s: '')
     );
 var
   orig, i:  integer;
-  betukkel: string;
+  betukkel: AnsiString;
 begin
   Result := '';
   if szam < 0 then
   begin
     szam   := szam * -1;
-    Result := 'mínusz ';
+    Result := 'mmnusz ';
   end;
 
   orig := szam;
@@ -782,7 +782,7 @@ begin
 
 end;
 
-function Szovegge(d: double): string;
+function Szovegge(d: double): AnsiString;
 var
   a: integer;
 begin
@@ -791,9 +791,9 @@ begin
 end;
 
 
-function myStrToFloat(s: string; def: double): double;
+function myStrToFloat(s: AnsiString; def: double): double;
 var
-  x: string;
+  x: AnsiString;
   d: integer;
   e: integer;
 begin
@@ -817,12 +817,12 @@ begin
   end;
 end;
 
-function myStrToFloat(s: string): double;
+function myStrToFloat(s: AnsiString): double;
 begin
   Result := myStrToFloat(s, -1);
 end;
 
-function CheckTAXNumber(TAxNumber: string; BornDate: TDateTime = 0): boolean;
+function CheckTAXNumber(TAxNumber: AnsiString; BornDate: TDateTime = 0): boolean;
 var
   index, napok_szama, crc: integer;
 begin
@@ -856,16 +856,16 @@ begin
   end;
 end;
 
-function CheckCompanyTaxNumber(TaxNumber: string): integer;
+function CheckCompanyTaxNumber(TaxNumber: AnsiString): integer;
 {************************************************
-* Adószám ellenõrzése
-* Visszatérési érték:
-* - 0: Jó adószám
-* - -1: Rossz a kapott érték hossza (csak 11 /elválasztás nélkül/ vagy 13 /elválasztással/ karakter lehet)
-* - -2: A kapott érték nem csak számjegyet tartalmaz (kivéve: elválasztás)
-* - -3: A 9. helyen nem 1,2 vagy 3 szerepel (adómentes, adóköteles,EVA)
-* - -4: Az utolsó két számjegy nem a következõk egyike: 02-20, 22-44, 41
-* - -5: A kapott érték CDV hibás
+* Adsszam ellenurzise
+* Visszatirisi irtik:
+* - 0: Js adsszam
+* - -1: Rossz a kapott irtik hossza (csak 11 /elvalasztas nilk|l/ vagy 13 /elvalasztassal/ karakter lehet)
+* - -2: A kapott irtik nem csak szamjegyet tartalmaz (kivive: elvalasztas)
+* - -3: A 9. helyen nem 1,2 vagy 3 szerepel (adsmentes, adskvteles,EVA)
+* - -4: Az utolss kit szamjegy nem a kvvetkezuk egyike: 02-20, 22-44, 41
+* - -5: A kapott irtik CDV hibas
 ************************************************}
 const
   aCDV: array[1..4] of integer = (9, 7, 3, 1);
@@ -873,7 +873,7 @@ var
   i:     int64;
   j:     integer;
   nCDV:  integer;
-  cTemp: string;
+  cTemp: AnsiString;
 begin
   if not (length(TaxNumber) in [11, 13]) then
   begin
@@ -923,9 +923,9 @@ begin
   Result := 0;
 end;
 
-function IsValidEmail(const Value: string): boolean;
+function IsValidEmail(const Value: AnsiString): boolean;
 
-  function CheckAllowed(const s: string): boolean;
+  function CheckAllowed(const s: AnsiString): boolean;
   var
     i: integer;
   begin
@@ -941,7 +941,7 @@ function IsValidEmail(const Value: string): boolean;
 
 var
   i: integer;
-  namePart, serverPart: string;
+  namePart, serverPart: AnsiString;
 begin // of IsValidEmail
   Result := False;
   i      := Pos('@', Value);
@@ -960,7 +960,7 @@ begin // of IsValidEmail
   Result := CheckAllowed(namePart) and CheckAllowed(serverPart);
 end;
 
-procedure MyWriteLn(s: string);
+procedure MyWriteLn(s: AnsiString);
 {$IFDEF DEBUG}var f: TextFile;{$ENDIF}
 begin
 {$IFDEF DEBUG}
@@ -973,7 +973,7 @@ begin
 end;
 
 
-function MyCopy(b: array of byte; index, len: integer): string;
+function MyCopy(b: array of byte; index, len: integer): AnsiString;
 var
   i: integer;
 begin
@@ -987,7 +987,7 @@ begin
   Result := Random(maxi - mini + 1) + mini;
 end;
 
-function RPos(SubStr: char; Str: string): integer;
+function RPos(SubStr: AnsiChar; Str: AnsiString): integer;
 var
   m, i: integer;
 begin
@@ -1001,7 +1001,7 @@ begin
     end;
 end;
 
-function RTrimCRLF(const s: string): string;
+function RTrimCRLF(const s: AnsiString): AnsiString;
 var
   db, i, j: integer;
 begin
@@ -1016,7 +1016,7 @@ begin
   Result := Copy(s, 1, j - db);
 end;
 
-function ParseResponseCode(s: string): integer;
+function ParseResponseCode(s: AnsiString): integer;
 var
   p, l: integer;
 begin
@@ -1036,7 +1036,7 @@ begin
   end;
 end;
 
-function CombineDirectories(dir1, dir2: string): string;
+function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
 begin
   if dir1 <> '' then
     Result := MyIncludeTrailingSlash(dir1) + dir2
@@ -1044,7 +1044,7 @@ begin
     Result := dir2;
 end;
 
-function MyIncludeTrailingSlash(s: string): string;
+function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
 begin
   if length(s) > 0 then
   begin
@@ -1056,7 +1056,7 @@ begin
     Result := '/';
 end;
 
-function ParsePasvString(s: string; var host: string; var port: integer): boolean;
+function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
 begin
   Result := False;
 
@@ -1076,12 +1076,12 @@ begin
   Result := True;
 end;
 
-function Szam(c: char): boolean;
+function Szam(c: AnsiChar): boolean;
 begin
   Result := ((c >= '0') and (c <= '9'));
 end;
 
-function Szamokszama(s: string): integer;
+function Szamokszama(s: AnsiString): integer;
 var
   i: integer;
 begin
@@ -1091,7 +1091,7 @@ begin
       Inc(Result);
 end;
 
-function CsakSzamok(s: string): string;
+function CsakSzamok(s: AnsiString): AnsiString;
 var
   i: integer;
 begin
@@ -1104,10 +1104,10 @@ begin
       Result := Result + s[i];
 end;
 
-function GetFileContents(fn: string): string;
+function GetFileContents(fn: AnsiString): AnsiString;
 var
   x: TextFile;
-  s: string;
+  s: AnsiString;
 begin
   if FileExists(fn) then
   begin
@@ -1127,7 +1127,7 @@ end;
 
 
 
-function Fetch(var osszes: string; const Args: array of char): string;
+function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString;
 var
   elso, utolso: integer;
   i, j:    integer;
@@ -1164,20 +1164,20 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: string; sep: char): string;
+function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString;
 begin
   Result := Fetch(osszes, [sep]);
 end;
 
-function Elsosor(var osszes: string): string;
+function Elsosor(var osszes: AnsiString): AnsiString;
 begin
   Result := Fetch(osszes, [#13, #10]);
 end;
 
 
-function todaycsere(const s: string; datum: TDateTime = 0): string;
+function todaycsere(const s: AnsiString; datum: TDateTime = 0): AnsiString;
 var
-  yyyy, yy, mm, dd, ww: string;
+  yyyy, yy, mm, dd, ww: AnsiString;
 begin
   if datum = 0 then
     datum := Now();
@@ -1197,7 +1197,7 @@ begin
   Result := Csere(Result, '<ww>', ww);
 end;
 
-function InArray(const s: string; const d: array of string;
+function InArray(const s: AnsiString; const d: array of AnsiString;
   casesensitive: boolean = True): boolean;
 var
   i: integer;
@@ -1220,10 +1220,10 @@ begin
 end;
 
 {$WARNINGS OFF}
-function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): string;
+function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): AnsiString;
 var
   i, seci, mini, houri, dayi, weeki, monthi, yeari:    int64;
-  imsg, secs, mins, hours, days, weeks, months, years: string;
+  imsg, secs, mins, hours, days, weeks, months, years: AnsiString;
 begin
   Result := '-1';
   if (aThen = 0) then
@@ -1410,7 +1410,7 @@ begin
   Result  := Now - dtsec;
 end;
 
-function BoolToStr(Value: boolean; const TS, FS: string): string; overload;
+function BoolToStr(Value: boolean; const TS, FS: AnsiString): AnsiString; overload;
 begin
   if Value then
     Result := TS
@@ -1418,7 +1418,7 @@ begin
     Result := FS;
 end;
 
-function BoolToStr(Value: boolean): string; overload;
+function BoolToStr(Value: boolean): AnsiString; overload;
 begin
   Result := BoolToStr(Value, 'TRUE', 'FALSE');
 end;
@@ -1426,7 +1426,7 @@ end;
 
 
 
-procedure splitString(const Source: string; const Delimiter: string;
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
   const Dest: TStringList);
 var
   Count: integer;
@@ -1460,7 +1460,7 @@ end;
 
 
 
-function onlyEnglishAlpha(s: string): string;
+function onlyEnglishAlpha(s: AnsiString): AnsiString;
 var
   i: integer;
 begin
