@@ -4,9 +4,9 @@ interface
 uses Classes, tasksunit;
 
 type TRulesTask = class(TTask)
-       constructor Create(const netname, channel: string;site: string);
+       constructor Create(const netname, channel: AnsiString;site: AnsiString);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -18,7 +18,7 @@ const section = 'taskrules';
 
 { TRulesTask }
 
-constructor TRulesTask.Create(const netname, channel: string;site: string);
+constructor TRulesTask.Create(const netname, channel: AnsiString;site: AnsiString);
 begin
   inherited Create(netname, channel, site);
 end;
@@ -26,16 +26,16 @@ end;
 function TRulesTask.Execute(slot: Pointer): Boolean;
 label ujra;
 var s: TSiteSlot;
-    cmd : String;
+    cmd : AnsiString;
     t: TRulesTask;
     i: Integer;
-    rules, ss: String;
+    rules, ss: AnsiString;
     f: TStringlist;
     new_rules, old_rules: TStringList;
     hash_new_rules, hash_old_rules : TList;
-    rules_path, rules_file: String;
+    rules_path, rules_file: AnsiString;
     Diff: TDiff;
-    news_file: String;
+    news_file: AnsiString;
     news_x: TEncStringList;
     numerrors: Integer;
 begin
@@ -244,7 +244,7 @@ ujra:
   ready:= True;
 end;
 
-function TRulesTask.Name: string;
+function TRulesTask.Name: AnsiString;
 begin
   Result:= 'AUTORULES '+ScheduleText;
 end;

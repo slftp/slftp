@@ -15,7 +15,7 @@ Subject : Handling of "tar" files
 ===============================================================================================
 Author  : Stefan Heymann
           Eschenweg 3
-          72076 Tübingen
+          72076 T|bingen
           GERMANY
 
 E-Mail:   stefan@destructor.de
@@ -162,15 +162,15 @@ TYPE
                   FBytesToGo  : INT64;     // Bytes until the next Header Record
                 PUBLIC
                   CONSTRUCTOR Create (Stream   : TStream);                                OVERLOAD;
-                  CONSTRUCTOR Create (Filename : STRING;
+                  CONSTRUCTOR Create (Filename : AnsiString;
                                       FileMode : WORD = fmOpenRead OR fmShareDenyWrite);  OVERLOAD;
                   DESTRUCTOR Destroy;                                       OVERRIDE;
                   PROCEDURE Reset;                                         // Reset File Pointer
                   FUNCTION  FindNext (VAR DirRec : TTarDirRec) : BOOLEAN;  // Reads next Directory Info Record. FALSE if EOF reached
                   PROCEDURE ReadFile (Buffer   : POINTER); OVERLOAD;       // Reads file data for last Directory Record
                   PROCEDURE ReadFile (Stream   : TStream); OVERLOAD;       // -;-
-                  PROCEDURE ReadFile (Filename : STRING);  OVERLOAD;       // -;-
-                  FUNCTION  ReadFile : STRING;           OVERLOAD;         // -;-  RawByteString in D2009+. Not active due to FPC unicode architecture not being finalized
+                  PROCEDURE ReadFile (Filename : AnsiString);  OVERLOAD;       // -;-
+                  FUNCTION  ReadFile : AnsiString;           OVERLOAD;         // -;-  RawByteString in D2009+. Not active due to FPC unicode architecture not being finalized
 
                   PROCEDURE GetFilePos (VAR Current, Size : INT64);        // Current File Position
                   PROCEDURE SetFilePos (NewPos : INT64);                   // Set new Current File Position
@@ -193,9 +193,9 @@ TYPE
                  CONSTRUCTOR CreateEmpty;
                PUBLIC
                  CONSTRUCTOR Create (TargetStream   : TStream);                            OVERLOAD;
-                 CONSTRUCTOR Create (TargetFilename : STRING; Mode : INTEGER = fmCreate);  OVERLOAD;
+                 CONSTRUCTOR Create (TargetFilename : AnsiString; Mode : INTEGER = fmCreate);  OVERLOAD;
                  DESTRUCTOR Destroy; OVERRIDE;                   // Writes End-Of-File Tag
-                 PROCEDURE AddFile   (Filename : STRING;  TarFilename : AnsiString = '');
+                 PROCEDURE AddFile   (Filename : AnsiString;  TarFilename : AnsiString = '');
                  PROCEDURE AddStream (Stream   : TStream; TarFilename : AnsiString; FileDateGmt : TDateTime);
                  PROCEDURE AddString (Contents : Ansistring;  TarFilename : AnsiString; FileDateGmt : TDateTime);  // RawByteString
                  PROCEDURE AddDir          (Dirname            : AnsiString; DateGmt : TDateTime; MaxDirSize : INT64 = 0);
@@ -214,7 +214,7 @@ TYPE
 
 // --- Some useful constants
 CONST
-  FILETYPE_NAME : ARRAY [TFileType] OF STRING =
+  FILETYPE_NAME : ARRAY [TFileType] OF AnsiString =
                   ('Regular', 'Link', 'Symbolic Link', 'Char File', 'Block File',
                    'Directory', 'FIFO File', 'Contiguous', 'Dir Dump', 'Multivol', 'Volume Header');
 
@@ -226,9 +226,9 @@ CONST
   EXECUTE_PERMISSIONS = [tpExecuteByOwner, tpExecuteByGroup, tpExecuteByOther];
 
 
-FUNCTION  PermissionString      (Permissions : TTarPermissions) : STRING;
-FUNCTION  ConvertFilename       (Filename    : STRING)          : STRING;
-FUNCTION  FileTimeGMT           (FileName    : STRING)          : TDateTime;  OVERLOAD;
+FUNCTION  PermissionString      (Permissions : TTarPermissions) : AnsiString;
+FUNCTION  ConvertFilename       (Filename    : AnsiString)          : AnsiString;
+FUNCTION  FileTimeGMT           (FileName    : AnsiString)          : TDateTime;  OVERLOAD;
 FUNCTION  FileTimeGMT           (SearchRec   : TSearchRec)      : TDateTime;  OVERLOAD;
 PROCEDURE ClearDirRec           (VAR DirRec  : TTarDirRec);
 
@@ -241,7 +241,7 @@ IMPLEMENTATION
 
 IMPLEMENTATION
 
-FUNCTION PermissionString (Permissions : TTarPermissions) : STRING;
+FUNCTION PermissionString (Permissions : TTarPermissions) : AnsiString;
 BEGIN
   Result := '';
   IF tpReadByOwner    IN Permissions THEN Result := Result + 'r' ELSE Result := Result + '-';
@@ -256,7 +256,7 @@ BEGIN
 END;
 
 
-FUNCTION ConvertFilename  (Filename : STRING) : STRING;
+FUNCTION ConvertFilename  (Filename : AnsiString) : AnsiString;
 // Converts the filename to Unix conventions
 // could be empty and inlined away for FPC. FPC I/O should be 
 // forward/backward slash safe.
@@ -268,7 +268,7 @@ BEGIN
   (*$ENDIF *)
 END;
 
-FUNCTION FileTimeGMT (FileName: STRING): TDateTime;
+FUNCTION FileTimeGMT (FileName: AnsiString): TDateTime;
          // Returns the Date and Time of the last modification of the given File
          // The Result is zero if the file could not be found
          // The Result is given in UTC (GMT) time zone
@@ -568,7 +568,7 @@ BEGIN
 END;
 
 
-CONSTRUCTOR TTarArchive.Create (Filename : STRING; FileMode : WORD);
+CONSTRUCTOR TTarArchive.Create (Filename : AnsiString; FileMode : WORD);
 BEGIN
   INHERITED Create;
   FStream     := TFileStream.Create (Filename, FileMode);
@@ -597,7 +597,7 @@ FUNCTION  TTarArchive.FindNext (VAR DirRec : TTarDirRec) : BOOLEAN;
           // Reads next Directory Info Record
           // The Stream pointer must point to the first byte of the tar header
 VAR
-  Rec          : ARRAY [0..RECORDSIZE-1] OF CHAR;
+  Rec          : ARRAY [0..RECORDSIZE-1] OF AnsiChar;
   CurFilePos   : INTEGER;
   Header       : TTarHeader ABSOLUTE Rec;
   I            : INTEGER;
@@ -702,7 +702,7 @@ BEGIN
 END;
 
 
-PROCEDURE TTarArchive.ReadFile (Filename : STRING);
+PROCEDURE TTarArchive.ReadFile (Filename : AnsiString);
           // Reads file data for the last Directory Record.
           // The entire file is saved in the given Filename
 VAR
@@ -717,7 +717,7 @@ BEGIN
 END;
 
 
-FUNCTION  TTarArchive.ReadFile : STRING;
+FUNCTION  TTarArchive.ReadFile : AnsiString;
           // Reads file data for the last Directory Record. The entire file is returned
           // as a large ANSI string.
 VAR
@@ -780,7 +780,7 @@ BEGIN
 END;
 
 
-CONSTRUCTOR TTarWriter.Create (TargetFilename : STRING; Mode : INTEGER = fmCreate);
+CONSTRUCTOR TTarWriter.Create (TargetFilename : AnsiString; Mode : INTEGER = fmCreate);
 BEGIN
   CreateEmpty;
   FStream     := TFileStream.Create (TargetFilename, Mode);
@@ -800,7 +800,7 @@ BEGIN
 END;
 
 
-PROCEDURE TTarWriter.AddFile   (Filename : STRING;  TarFilename : AnsiString = '');
+PROCEDURE TTarWriter.AddFile   (Filename : AnsiString;  TarFilename : AnsiString = '');
 VAR
   S    : TFileStream;
   Date : TDateTime;
@@ -821,7 +821,7 @@ END;
 PROCEDURE TTarWriter.AddStream (Stream : TStream; TarFilename : AnsiString; FileDateGmt : TDateTime);
 VAR
   DirRec      : TTarDirRec;
-  Rec         : ARRAY [0..RECORDSIZE-1] OF CHAR;
+  Rec         : ARRAY [0..RECORDSIZE-1] OF AnsiChar;
   BytesToRead : INT64;      // Bytes to read from the Source Stream
   BlockSize   : INT64;      // Bytes to write out for the current record
 BEGIN
@@ -973,7 +973,7 @@ PROCEDURE TTarWriter.Finalize;
           // Data after this tag will be ignored
           // The destructor calls this automatically if you didn't do it before
 VAR
-  Rec : ARRAY [0..RECORDSIZE-1] OF CHAR;
+  Rec : ARRAY [0..RECORDSIZE-1] OF AnsiChar;
 BEGIN
   FillChar (Rec, SizeOf (Rec), 0);
   FStream.Write (Rec, RECORDSIZE);

@@ -2,7 +2,7 @@ unit tags;
 
 interface
 
-function TagComplete(filename: string): Integer;
+function TagComplete(filename: AnsiString): Integer;
 procedure TagsInit;
 procedure TagsUninit;
 
@@ -12,7 +12,7 @@ uses Classes, SysUtils, mystrings, configunit, debugunit, RegExpr;
 
 const
   section = 'tags';
-  ftprush_regex: string = '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)';
+  ftprush_regex: AnsiString = '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)';
 
 var
   tags_complete: TStringList = nil;
@@ -22,7 +22,7 @@ var
 //  1 if complete
 // -1 if incomplete
 //  0 otherwise, if nothing matched
-function TagComplete(filename: string): Integer;
+function TagComplete(filename: AnsiString): Integer;
 var
   i, j: Integer;
   voltszam: Boolean; // voltszam = I was an ass
@@ -97,7 +97,7 @@ end;
 procedure TagsInit;
 var 
   i: Integer;
-  s, ss: string;
+  s, ss: AnsiString;
 begin
   tags_complete := TStringList.Create;
   s := LowerCase(config.ReadString(section, 'complete', '')); // milyen elbaszott egy kibaszott szarfoshugygeci ez

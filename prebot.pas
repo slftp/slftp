@@ -4,23 +4,23 @@ interface
 
 uses Classes, irc;
 
-function IrcLame(const netname, channel: string; params: string): boolean;
-function IrcPretest(const netname, channel: string; params: string): boolean;
-function IrcPredir(const netname, channel: string; params: string): boolean;
-function IrcPrecmd(const netname, channel: string; params: string): boolean;
-function IrcPre(const netname, channel: string; params: string): boolean;
-function IrcCheck(const netname, channel: string; params: string): boolean;
-function IrcBatchAdd(const netname, channel: string; params: string): boolean;
-function IrcBatchDel(const netname, channel: string; params: string): boolean;
+function IrcLame(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPretest(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPre(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcCheck(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcBatchAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcBatchDel(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-function IrcListPreContent(const netname, channel: string; params: string): boolean;
+function IrcListPreContent(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-function IrcSetReexamineTime(const netname, channel: string; params: string): boolean;
+function IrcSetReexamineTime(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-function IrcSetSkipPre(const netname, channel: string; params: string): boolean;
+function IrcSetSkipPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 
-function IrcCheckForExistsRip(const netname, channel: string; params: string): boolean;
+function IrcCheckForExistsRip(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 
 procedure PrebotInit;
@@ -40,7 +40,7 @@ const
   section   = 'irccommands';
   rrsection = 'prebot';
 
-procedure RecalcSizeValue(const Value: int64; out size: double; out sizevalue: string);
+procedure RecalcSizeValue(const Value: int64; out size: double; out sizevalue: AnsiString);
 begin
   size      := Value;
   sizevalue := 'byte';
@@ -63,11 +63,11 @@ end;
 
 
 
-function IrcSetSkipPre(const netname, channel: string; params: string): boolean;
+function IrcSetSkipPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s:     TSite;
   ii, i: integer;
-  spstatus, sitename: string;
+  spstatus, sitename: AnsiString;
 begin
   Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -171,7 +171,7 @@ begin
 
 end;
 
-function IrcSetReexamineTime(const netname, channel: string; params: string): boolean;
+function IrcSetReexamineTime(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   ttime: integer;
 begin
@@ -180,9 +180,9 @@ begin
   begin
     ttime := config.ReadInteger(rrsection, 'predir_re_examine_time', -1);
     if ttime = -1 then
-      irc_addtext(netname, channel, 'No value set. So we use 5 sec' + chr(39) + 's.')
+      irc_addtext(netname, channel, 'No value set. So we use 5 sec' + Chr(39) + 's.')
     else
-      irc_addtext(netname, channel, 'we wait ' + IntToStr(ttime) + ' sec' + chr(39) + 's.');
+      irc_addtext(netname, channel, 'we wait ' + IntToStr(ttime) + ' sec' + Chr(39) + 's.');
     Result := True;
   end
   else
@@ -202,11 +202,11 @@ end;
 
 
 
-function IrcLame(const netname, channel: string; params: string): boolean;
+function IrcLame(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s:     TSite;
   i:     integer;
-  sitename, section, predir, dir: string;
+  sitename, section, predir, dir: AnsiString;
   d:     TDirlist;
   de:    TDirListEntry;
   added: boolean;
@@ -214,7 +214,7 @@ var
   tn:    TTaskNotify;
   addednumber: integer;
   sr:    TSiteResponse;
-  genre: string;
+  genre: AnsiString;
   genremode: boolean;
   pazo_id: integer;
   p:     TPazo;
@@ -360,10 +360,10 @@ begin
 
 end;
 
-function IrcPredir(const netname, channel: string; params: string): boolean;
+function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename: string;
-  predir:   string;
+  sitename: AnsiString;
+  predir:   AnsiString;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
   predir   := SubString(params, ' ', 2);
@@ -371,12 +371,12 @@ begin
   Result := IrcSetDir(netname, channel, sitename + ' PRE ' + predir);
 end;
 
-function IrcPrecmd(const netname, channel: string; params: string): boolean;
+function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename: string;
+  sitename: AnsiString;
   s:      TSite;
-  precmd: string;
-  section: string;
+  precmd: AnsiString;
+  section: AnsiString;
 begin
   Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -414,26 +414,26 @@ begin
   Result := True;
 end;
 
-function IrcPre(const netname, channel: string; params: string): boolean;
+function IrcPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s:      TSite;
-  group, dir: string;
+  group, dir: AnsiString;
   rc:     TDirlistTask;
   rl:     TDirlistTask;
   rr:     TRawTask;
   tn1, tn2, tn3: TTaskNotify;
   added:  boolean;
-  sectiontype, section: string;
+  sectiontype, section: AnsiString;
   i:      integer;
   sr:     TSiteResponse;
   d:      TDirList;
   addednumber: integer;
   elozo:  TDateTime;
-  precmd: string;
+  precmd: AnsiString;
   mind, maxd: TDateTime;
-  mins, maxs: string;
-  ripper: string;
-  genre, addcmd: string;
+  mins, maxs: AnsiString;
+  ripper: AnsiString;
+  genre, addcmd: AnsiString;
   osszesmeretf: double;
   p:      TPazo;
   ps:     TPazoSite;
@@ -827,8 +827,8 @@ begin
 
   //  irc_addtext(netname, channel,'We will wait %dsec%ss and check the predirs over.. so hang %0:d sec%1:ss :)',[sleep_value,chr(39)]);
   irc_addtext(netname, channel, 'We will wait ' + IntToStr(sleep_value) +
-    'sec' + chr(39) + 's and check the predirs over.. so hang ' + IntToStr(
-    sleep_value) + ' sec' + chr(39) + 's :)');
+    'sec' + Chr(39) + 's and check the predirs over.. so hang ' + IntToStr(
+    sleep_value) + ' sec' + Chr(39) + 's :)');
   sleep_value := sleep_value * 1000;
   Sleep(sleep_value);
 
@@ -912,9 +912,9 @@ begin
   *)
 end;
 
-function IrcPretest(const netname, channel: string; params: string): boolean;
+function IrcPretest(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  command, section, sectiontype, predir, dir, sitename: string;
+  command, section, sectiontype, predir, dir, sitename: AnsiString;
   s: TSite;
 begin
   Result   := False;
@@ -963,7 +963,7 @@ begin
 end;
 
 
-function webstuff(dir: string): boolean;
+function webstuff(dir: AnsiString): boolean;
 var
   i: integer;
 begin
@@ -976,17 +976,17 @@ begin
     end;
 end;
 
-function IsMP3(section, rls: string): boolean;
+function IsMP3(section, rls: AnsiString): boolean;
 begin
   Result := FindSectionHandler(section) = TMP3Release;
 end;
 
-function IrcBatch(const netname, channel: string; params: string): boolean;
+function IrcBatch(const netname, channel: AnsiString; params: AnsiString): boolean;
 label
   ujkor;
 var
-  s, ss: string;
-  sitename, section, dir, ripper: string;
+  s, ss: AnsiString;
+  sitename, section, dir, ripper: AnsiString;
   i:     integer;
   site:  TSite;
   p:     TPazo;
@@ -1108,9 +1108,9 @@ begin
   Result := True;
 end;
 
-function IrcBatchAdd(const netname, channel: string; params: string): boolean;
+function IrcBatchAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, section, dir, ripper: string;
+  sitename, section, dir, ripper: AnsiString;
   s: TSite;
 begin
   Result := False;
@@ -1169,9 +1169,9 @@ begin
   Result := True;
 end;
 
-function IrcBatchDel(const netname, channel: string; params: string): boolean;
+function IrcBatchDel(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, dir, ripper: string;
+  sitename, dir, ripper: AnsiString;
   i: integer;
 begin
   Result := False;
@@ -1194,10 +1194,10 @@ begin
 end;
 
 
-function IrcCheck(const netname, channel: string; params: string): boolean;
+function IrcCheck(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s:   TSite;
-  sttr, aksizestring, sizestring, predir, section, sitename, dir: string;
+  sttr, aksizestring, sizestring, predir, section, sitename, dir: AnsiString;
   tn:  TTaskNotify;
  nfofound, added: boolean;
   sr:  TSiteResponse;
@@ -1495,9 +1495,9 @@ begin
     Result := True;
 end;
 
-function IrcCheckForExistsRip(const netname, channel: string; params: string): boolean;
+function IrcCheckForExistsRip(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  SOK, SBAD, predir, rip: string;
+  SOK, SBAD, predir, rip: AnsiString;
   s:     TSite;
   ii, I: integer;
   d:     TDirlist;
@@ -1564,11 +1564,11 @@ begin
 end;
 
 
-function IrcListPreContent(const netname, channel: string; params: string): boolean;
+function IrcListPreContent(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s:      TSite;
   ii, i:  integer;
-  predir: string;
+  predir: AnsiString;
   d:      TDirlist;
   de:     TDirListEntry;
   plist:  TStringList;

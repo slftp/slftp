@@ -5,8 +5,8 @@ interface
 type
   TDebugPriority = (dpError, dpMessage, dpSpam, dpNone);
 
-procedure Debug(priority: TDebugPriority; section, msg: string); overload;
-procedure Debug(priority: TDebugPriority; const section, FormatStr: string;
+procedure Debug(priority: TDebugPriority; section, msg: AnsiString); overload;
+procedure Debug(priority: TDebugPriority; const section, FormatStr: AnsiString;
   const Args: array of const); overload;
 procedure DebugInit;
 procedure DebugUnInit;
@@ -14,9 +14,9 @@ procedure DebugUnInit;
 procedure HandleDebugFile;
 
 
-function Debug_logfilename: string;
+function Debug_logfilename: AnsiString;
 function Debug_flushlines: integer;
-function Debug_categorystr: string;
+function Debug_categorystr: AnsiString;
 function Debug_verbosity: TDebugPriority;
 function Debug_MaxFileSize: integer;
 
@@ -65,9 +65,9 @@ begin
 {$ENDIF}
 end;
 
-procedure Debug(priority: TDebugPriority; section, msg: string); overload;
+procedure Debug(priority: TDebugPriority; section, msg: AnsiString); overload;
 var
-  nowstr: string;
+  nowstr: AnsiString;
 begin
   //HandleDebugFile;
   if debug_verbosity = TDebugPriority(3) then
@@ -102,7 +102,7 @@ begin
   end;
 end;
 
-procedure Debug(priority: TDebugPriority; const section, FormatStr: string;
+procedure Debug(priority: TDebugPriority; const section, FormatStr: AnsiString;
   const Args: array of const); overload;
 begin
   try
@@ -205,7 +205,7 @@ begin
 end;
 
 
-function Debug_logfilename: string;
+function Debug_logfilename: AnsiString;
 begin
   Result := config.ReadString(section, 'debugfile',
     ExtractFilePath(ParamStr(0)) + 'slftp.log');
@@ -216,7 +216,7 @@ begin
   Result := config.ReadInteger(section, 'flushlines', 16);
 end;
 
-function Debug_categorystr: string;
+function Debug_categorystr: AnsiString;
 begin
   Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
 end;

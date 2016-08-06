@@ -3,14 +3,14 @@ unit slhelper;
 interface
 
 
-function Elsosor(var osszes: string): string;
-function IsIP(AIP: string): boolean;
-function TInAddrToString(var AInAddr): string;
-procedure TranslateStringToTInAddr(AIP: string; var AInAddr);
-function Fetch(var osszes: string; const Args: array of char): string; overload;
-function Fetch(var osszes: string; sep: char): string; overload;
-function UrlEncode(const DecodedStr: String; Pluses: Boolean): String; overload;
-function UrlEncode(const DecodedStr: String): String; overload;
+function Elsosor(var osszes: AnsiString): AnsiString;
+function IsIP(AIP: AnsiString): boolean;
+function TInAddrToString(var AInAddr): AnsiString;
+procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
+function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString; overload;
+function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: Boolean): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString; overload;
 
 implementation
 
@@ -28,7 +28,7 @@ uses
 ;
 
 
-function Fetch(var osszes: string; const Args: array of char): string;
+function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString;
 var elso, utolso: Integer;
     i,j: Integer;
     megvolt: Boolean;
@@ -63,12 +63,12 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: string; sep: char): string;
+function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString;
 begin
   Result:= Fetch(osszes, [sep]);
 end;
 
-function Elsosor(var osszes: string): string;
+function Elsosor(var osszes: AnsiString): AnsiString;
 begin
   Result:= Fetch(osszes, [#13,#10]);
 end;
@@ -87,11 +87,11 @@ begin
 end;
 *)
 
-function IsIP(AIP: string): boolean;
+function IsIP(AIP: AnsiString): boolean;
 var
-  s1, s2, s3, s4: string;
+  s1, s2, s3, s4: AnsiString;
 
-  function ByteIsOk(const AByte: string): boolean;
+  function ByteIsOk(const AByte: AnsiString): boolean;
   begin
     result := (StrToIntDef(AByte, -1) > -1) and (StrToIntDef(AByte, 256) < 256);
   end;
@@ -105,7 +105,7 @@ begin
 end;
 
 {$IFDEF FPC}
-function TInAddrToString(var AInAddr): string;
+function TInAddrToString(var AInAddr): AnsiString;
 begin
   with TInAddr(AInAddr) do begin
     result := IntToStr(s_bytes[1]) + '.' + IntToStr(s_bytes[2]) + '.' + IntToStr(s_bytes[3]) + '.'    {Do not Localize}
@@ -113,7 +113,7 @@ begin
   end;
 end;
 {$ELSE}
-function TInAddrToString(var AInAddr): string;
+function TInAddrToString(var AInAddr): AnsiString;
 begin
   with TInAddr(AInAddr).S_un_b do begin
     result := IntToStr(s_b1) + '.' + IntToStr(s_b2) + '.' + IntToStr(s_b3) + '.'    {Do not Localize}
@@ -123,7 +123,7 @@ end;
 {$ENDIF}
 
 {$IFDEF FPC}
-procedure TranslateStringToTInAddr(AIP: string; var AInAddr);
+procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
 begin
   with TInAddr(AInAddr) do
   begin
@@ -134,7 +134,7 @@ begin
   end;
 end;
 {$ELSE}
-procedure TranslateStringToTInAddr(AIP: string; var AInAddr);
+procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
 begin
   with TInAddr(AInAddr).S_un_b do begin
     s_b1 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
@@ -191,7 +191,7 @@ end;
 *)
 
 
-function UrlEncode(const DecodedStr: String; Pluses: Boolean): String;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: Boolean): AnsiString;
 var
   I: Integer;
 begin
@@ -213,7 +213,7 @@ begin
     end;
 end;
 
-function UrlEncode(const DecodedStr: String): String;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString;
 begin
   Result:= URLEncode(DecodedStr, True);
 end;

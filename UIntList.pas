@@ -67,9 +67,9 @@ Type
 
     function Sum: Integer;
 
-    procedure LoadFromFile(const FileName: string); virtual;
+    procedure LoadFromFile(const FileName: AnsiString); virtual;
     procedure LoadFromStream(Stream:TStream); virtual;
-    procedure SaveToFile(const FileName: string); virtual;
+    procedure SaveToFile(const FileName: AnsiString); virtual;
     procedure SaveToStream(Stream: TStream);
 
     property Duplicates: TDuplicates read FDuplicates write FDuplicates;
@@ -100,7 +100,7 @@ end;
 
 
 const
-  sDuplicateInt:string='Cannot add integer because it already exists';
+  sDuplicateInt:AnsiString='Cannot add integer because it already exists';
   sListIndexError='List index Error';
   SSortedListError='Cannont insert to sorted list';
 
@@ -350,7 +350,7 @@ begin
 end;
 
 {************* SaveToFile **************}
-procedure TIntList.SaveToFile(const FileName: string);
+procedure TIntList.SaveToFile(const FileName: AnsiString);
 var
   Stream: TStream;
 begin
@@ -380,7 +380,7 @@ end;
 
 
 {************ LoadfromFIle ***********}
-procedure TIntList.LoadFromFile(const FileName: string);
+procedure TIntList.LoadFromFile(const FileName: AnsiString);
 var
   Stream: TStream;
 begin

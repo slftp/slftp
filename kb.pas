@@ -42,15 +42,15 @@ type
 
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
-    rlsname: string;
-    rlsnamewogrp: string;
-    section: string;
+    rlsname: AnsiString;
+    rlsnamewogrp: AnsiString;
+    section: AnsiString;
     words: TStringList;
     tags: TStringList;
-    groupname: string;
+    groupname: AnsiString;
     internal: boolean;
     disks: integer;
-    kb_event: string;
+    kb_event: AnsiString;
     languages: TStringList;
 
     legnagyobbcd: integer;
@@ -59,16 +59,16 @@ type
     subs: boolean;
 
     fake: boolean;
-    fakereason: string;
+    fakereason: AnsiString;
 
-    event: string;
+    event: AnsiString;
 
     pretime: TDateTime;
     cpretime: int64;
     pred: boolean;
 
     pretimefound: boolean;
-    pretimefrom: string;
+    pretimefrom: AnsiString;
 
     //fakecheckinghez
     dots: integer;
@@ -79,84 +79,84 @@ type
 
     knowngroup: TKnownGroup;
 
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
 
-    function ExtraInfo: string; virtual;
+    function ExtraInfo: AnsiString; virtual;
 
-    function Aktualizald(extrainfo: string): boolean; virtual;
+    function Aktualizald(extrainfo: AnsiString): boolean; virtual;
 
-    function AsText(pazo_id: integer = -1): string; virtual;
+    function AsText(pazo_id: integer = -1): AnsiString; virtual;
 
     function Aktualizal(p: TObject): boolean; virtual;
 
     procedure SetPretime(TimeStamp: int64 = 0);
-    class function Name: string; virtual; abstract;
-    class function DefaultSections: string; virtual; abstract;
-    class function SectionAccepted(section: string): boolean;
+    class function Name: AnsiString; virtual; abstract;
+    class function DefaultSections: AnsiString; virtual; abstract;
+    class function SectionAccepted(section: AnsiString): boolean;
   end;
 
   T0DayRelease = class(TRelease)
   public
-    nulldaysource: string;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    nulldaysource: AnsiString;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
   end;
 
   TMP3Release = class(TRelease)
     mp3year: integer;
-    mp3lng: string;
-    mp3genre: string;
-    mp3source: string;
-    mp3types1: string;
-    mp3types2: string;
-    mp3types3: string;
+    mp3lng: AnsiString;
+    mp3genre: AnsiString;
+    mp3source: AnsiString;
+    mp3types1: AnsiString;
+    mp3types2: AnsiString;
+    mp3types3: AnsiString;
 
     //    mp3flac:boolean;
     mp3_numdisks: integer;
-    mp3_number_of: string;
+    mp3_number_of: AnsiString;
 
     mp3_va: boolean;
 
     function Bootleg: boolean;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     //    destructor Destroy; override;
-    function ExtraInfo: string; override;
+    function ExtraInfo: AnsiString; override;
 
-    function Aktualizald(extrainfo: string): boolean; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    function Aktualizald(extrainfo: AnsiString): boolean; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
     function Numdisks: integer;
     function Aktualizal(p: TObject): boolean; override;
-    function mp3type(s: string): boolean;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
+    function mp3type(s: AnsiString): boolean;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
   private
-    function Evszam(s: string): boolean;
-    procedure AddSource(src: string);
-    procedure NumberOfDisksTag(tag: string; var Source: string; var disks:
+    function Evszam(s: AnsiString): boolean;
+    procedure AddSource(src: AnsiString);
+    procedure NumberOfDisksTag(tag: AnsiString; var Source: AnsiString; var disks:
       integer);
   end;
 
   TNFORelease = class(TRelease)
-    nfogenre: string;
-    function ExtraInfo: string; override;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    nfogenre: AnsiString;
+    function ExtraInfo: AnsiString; override;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     //    destructor Destroy; override;
-    function Aktualizald(extrainfo: string): boolean; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    function Aktualizald(extrainfo: AnsiString): boolean; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
     function Aktualizal(p: TObject): boolean; override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
   end;
 
   TIMDBRelease = class(TRelease)
-    imdb_id: string;
+    imdb_id: AnsiString;
     imdb_year: integer;
     imdb_languages: TStringList;
     imdb_countries: TStringList;
@@ -169,53 +169,53 @@ type
     imdb_wide: boolean;
     imdb_festival: boolean;
     imdb_stvm: boolean;
-    imdb_stvs: string;
+    imdb_stvs: AnsiString;
 
-    function ExtraInfo: string; override;
+    function ExtraInfo: AnsiString; override;
     destructor Destroy; override;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
-    function Aktualizald(extrainfo: string): boolean; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    function Aktualizald(extrainfo: AnsiString): boolean; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
     function Aktualizal(p: TObject): boolean; override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
   end;
 
   TTVRelease = class(TRelease)
-    showname: string;
+    showname: AnsiString;
     episode: integer;
     season: integer;
     premier_year: integer;
     ended_year: integer;
-    country: string;
-    classification: string;
+    country: AnsiString;
+    classification: AnsiString;
     scripted: boolean;
     //genres: string;
     genres: TStringList;
-    network: string;
+    network: AnsiString;
     runtime: integer;
     seasons: integer;
-    status: string;
+    status: AnsiString;
     running: boolean;
     currentseason: boolean;
     currentepisode: boolean;
     currentair: boolean;
     daily: boolean;
-    showid: string; // aka TVMaze ID
-    thetvdbid: string;
-    tvrageid: string;
-    tvtag: string;
+    showid: AnsiString; // aka TVMaze ID
+    thetvdbid: AnsiString;
+    tvrageid: AnsiString;
+    tvtag: AnsiString;
     //    currentAir:boolean;
-    function ExtraInfo: string; override;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    function ExtraInfo: AnsiString; override;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     destructor Destroy; override;
-    function Aktualizald(extrainfo: string): boolean; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    function Aktualizald(extrainfo: AnsiString): boolean; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
     function Aktualizal(p: TObject): boolean; override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
   end;
 
   TMVIDRelease = class(TRelease)
@@ -224,23 +224,23 @@ type
     mvid_Genre: TStringList;
     //   mvid_languages:string;
     mvid_languages: TStringList;
-    mvid_source: string;
+    mvid_source: AnsiString;
     mvid_pal: boolean;
     mvid_ntsc: boolean;
     mvid_va: boolean;
     mvid_live: boolean;
     mvid_year: integer;
-    function ExtraInfo: string; override;
+    function ExtraInfo: AnsiString; override;
     destructor Destroy; override;
-    constructor Create(rlsname, section: string; FakeChecking: boolean = True;
+    constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     //    constructor Create(rlsname, section: string; FakeChecking: Boolean = True); override;
     //    constructor CustomCreate(rlsname, section: string; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
-    function Aktualizald(extrainfo: string): boolean; override;
-    function AsText(pazo_id: integer = -1): string; override;
+    function Aktualizald(extrainfo: AnsiString): boolean; override;
+    function AsText(pazo_id: integer = -1): AnsiString; override;
     function Aktualizal(p: TObject): boolean; override;
-    class function Name: string; override;
-    class function DefaultSections: string; override;
+    class function Name: AnsiString; override;
+    class function DefaultSections: AnsiString; override;
   end;
 
   TCRelease = class of TRelease;
@@ -260,12 +260,12 @@ type
 
   //function kb_pretime(rlsname:string):TDateTime;
 
-function renameCheck(pattern, i, len: integer; rls: string): boolean;
-function kb_Add(const netname, channel: string;
-  sitename, section, genre, event, rls, cdno: string; dontFire: boolean = False;
+function renameCheck(pattern, i, len: integer; rls: AnsiString): boolean;
+function kb_Add(const netname, channel: AnsiString;
+  sitename, section, genre, event, rls, cdno: AnsiString; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
-function FindSectionHandler(section: string): TCRelease;
+function FindSectionHandler(section: AnsiString): TCRelease;
 
 procedure kb_FreeList;
 procedure kb_Save;
@@ -276,7 +276,7 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
-function GotGroupname(rlz: string): string;
+function GotGroupname(rlz: AnsiString): AnsiString;
 
 var
   kb_sections: TStringList;
@@ -311,7 +311,7 @@ uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
 
 type
   TSectionRelease = record
-    section: string;
+    section: AnsiString;
     r: TCRelease;
   end;
   TSectionHandlers = array[0..6] of TCRelease;
@@ -323,7 +323,7 @@ var
 
   sectionhandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease);
 
-  addpreechocmd: string;
+  addpreechocmd: AnsiString;
 
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
@@ -348,7 +348,7 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
 
-function FindSectionHandler(section: string): TCRelease;
+function FindSectionHandler(section: AnsiString): TCRelease;
 var
   i: integer;
 begin
@@ -361,10 +361,10 @@ begin
     end;
 end;
 
-function RemoveGroupname(rlz: string): string;
+function RemoveGroupname(rlz: AnsiString): AnsiString;
 var
   x: TStringList;
-  g, s: string;
+  g, s: AnsiString;
 begin
   x := TStringList.Create;
   try
@@ -386,10 +386,10 @@ begin
   end;
 end;
 
-function GotGroupname(rlz: string): string;
+function GotGroupname(rlz: AnsiString): AnsiString;
 var
   x: TStringList;
-  s: string;
+  s: AnsiString;
 begin
   x := TStringList.Create;
   try
@@ -409,9 +409,9 @@ begin
   end;
 end;
 
-function renameCheck(pattern, i, len: integer; rls: string): boolean;
+function renameCheck(pattern, i, len: integer; rls: AnsiString): boolean;
 var
-  ss: string;
+  ss: AnsiString;
 begin
   Result := False;
 
@@ -453,13 +453,13 @@ begin
     Result := True;
 end;
 
-function trimmedShitChecker(section, rls: string): boolean;
+function trimmedShitChecker(section, rls: AnsiString): boolean;
 begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel: string;
-  sitename, section, genre, event, rls, cdno: string; dontFire: boolean = False;
+function kb_AddB(const netname, channel: AnsiString;
+  sitename, section, genre, event, rls, cdno: AnsiString; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
 var
@@ -467,12 +467,12 @@ var
   r: TRelease;
   rc: TCRelease;
   s: TSite;
-  ss: string;
+  ss: AnsiString;
   added: boolean;
   p: TPazo;
   ps, psource: TPazoSite;
   rule_result: TRuleAction;
-  rlz, grp: string;
+  rlz, grp: AnsiString;
   dlt: TPazoDirlistTask;
   l: TLoginTask;
 begin
@@ -1146,8 +1146,8 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel: string;
-  sitename, section, genre, event, rls, cdno: string; dontFire: boolean = False;
+function kb_Add(const netname, channel: AnsiString;
+  sitename, section, genre, event, rls, cdno: AnsiString; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
 begin
@@ -1198,13 +1198,13 @@ begin
   Result := False;
 end;
 
-function TRelease.Aktualizald(extrainfo: string): boolean;
+function TRelease.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   aktualizalva := False;
   Result := False;
 end;
 
-function TRelease.AsText(pazo_id: integer = -1): string;
+function TRelease.AsText(pazo_id: integer = -1): AnsiString;
 begin
   Result := '';
   try
@@ -1245,11 +1245,11 @@ begin
   end;
 end;
 
-constructor TRelease.Create(rlsname, section: string; FakeChecking: boolean =
+constructor TRelease.Create(rlsname, section: AnsiString; FakeChecking: boolean =
   True;
   SavedPretime: int64 = -1);
 var
-  vlang, s: string;
+  vlang, s: AnsiString;
   i, j: integer;
   rrgx: TRegExpr;
   ii: integer;
@@ -1471,12 +1471,12 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
 
-function TRelease.ExtraInfo: string;
+function TRelease.ExtraInfo: AnsiString;
 begin
   Result := '';
 end;
 
-class function TRelease.SectionAccepted(section: string): boolean;
+class function TRelease.SectionAccepted(section: AnsiString): boolean;
 var
   i: integer;
   x: TStringList;
@@ -1501,7 +1501,7 @@ end;
 
 { TMP3Release }
 
-function TMP3Release.Evszam(s: string): boolean;
+function TMP3Release.Evszam(s: AnsiString): boolean;
 var
   i: integer;
 begin
@@ -1531,7 +1531,7 @@ begin
   end;
 end;
 
-procedure TMP3Release.AddSource(src: string);
+procedure TMP3Release.AddSource(src: AnsiString);
 begin
   if mp3source = '' then
     mp3source := src;
@@ -1543,7 +1543,7 @@ begin
   end;*)
 end;
 
-procedure TMP3Release.NumberOfDisksTag(tag: string; var Source: string;
+procedure TMP3Release.NumberOfDisksTag(tag: AnsiString; var Source: AnsiString;
   var disks: integer);
 var
   i: integer;
@@ -1580,14 +1580,14 @@ begin
   end;
 end;
 
-constructor TMP3Release.Create(rlsname, section: string;
+constructor TMP3Release.Create(rlsname, section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
   kotojelekszama: integer;
   types: integer;
   j: integer;
-  szo, szamoknelkul: string;
+  szo, szamoknelkul: AnsiString;
   db: integer;
   lrx: TRegexpr;
 begin
@@ -1711,7 +1711,7 @@ begin
     FakeCheck(self);
 end;
 
-function TMP3Release.Aktualizald(extrainfo: string): boolean;
+function TMP3Release.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   Result := False;
   if length(extrainfo) > length(mp3genre) then
@@ -1722,7 +1722,7 @@ begin
   end;
 end;
 
-function TMP3Release.AsText(pazo_id: integer = -1): string;
+function TMP3Release.AsText(pazo_id: integer = -1): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
 
@@ -1797,22 +1797,22 @@ begin
   end;
 end;
 
-function TMP3Release.ExtraInfo: string;
+function TMP3Release.ExtraInfo: AnsiString;
 begin
   Result := Mp3genre;
 end;
 
-class function TMP3Release.Name: string;
+class function TMP3Release.Name: AnsiString;
 begin
   Result := 'TMP3Release';
 end;
 
-class function TMP3Release.DefaultSections: string;
+class function TMP3Release.DefaultSections: AnsiString;
 begin
   Result := 'MP3';
 end;
 
-function TMP3Release.mp3type(s: string): boolean;
+function TMP3Release.mp3type(s: AnsiString): boolean;
 begin
   Result := False;
   if ((AnsiSameText(mp3types1, s)) or (AnsiSameText(mp3types2, s)) or
@@ -1857,7 +1857,7 @@ begin
   end;
 end;
 
-function TNFORelease.Aktualizald(extrainfo: string): boolean;
+function TNFORelease.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   Result := False;
   if length(extrainfo) > length(nfogenre) then
@@ -1868,30 +1868,30 @@ begin
   end;
 end;
 
-function TNFORelease.AsText(pazo_id: integer = -1): string;
+function TNFORelease.AsText(pazo_id: integer = -1): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'nfo genre: ' + nfogenre + #13#10;
 end;
 
-constructor TNFORelease.Create(rlsname, section: string;
+constructor TNFORelease.Create(rlsname, section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
   nfogenre := '';
 end;
 
-class function TNFORelease.DefaultSections: string;
+class function TNFORelease.DefaultSections: AnsiString;
 begin
   Result := 'MDVDR MV MHD';
 end;
 
-function TNFORelease.ExtraInfo: string;
+function TNFORelease.ExtraInfo: AnsiString;
 begin
   Result := nfogenre;
 end;
 
-class function TNFORelease.Name: string;
+class function TNFORelease.Name: AnsiString;
 begin
   Result := 'TNFORelease';
 end;
@@ -1988,13 +1988,13 @@ begin
   Result := True;
 end;
 
-function TTVRelease.Aktualizald(extrainfo: string): boolean;
+function TTVRelease.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   aktualizalva := True;
   Result := False;
 end;
 
-function TTVRelease.AsText(pazo_id: integer): string;
+function TTVRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
@@ -2029,7 +2029,7 @@ begin
 
 end;
 
-constructor TTVRelease.Create(rlsname: string; section: string;
+constructor TTVRelease.Create(rlsname: AnsiString; section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   c_episode: int64;
@@ -2052,17 +2052,17 @@ begin
 
 end;
 
-class function TTVRelease.DefaultSections: string;
+class function TTVRelease.DefaultSections: AnsiString;
 begin
   Result := 'TV TVDVDRIP TVDVDR TV720 TV1080';
 end;
 
-function TTVRelease.ExtraInfo: string;
+function TTVRelease.ExtraInfo: AnsiString;
 begin
   Result := showname; // todo + egyeb infok, scripted, akarmi
 end;
 
-class function TTVRelease.Name: string;
+class function TTVRelease.Name: AnsiString;
 begin
   Result := 'TTVRelease';
 end;
@@ -2075,13 +2075,13 @@ end;
 
 { T0DayRelease }
 
-function T0DayRelease.AsText(pazo_id: integer): string;
+function T0DayRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + '0daysource: ' + nulldaysource + #13#10;
 end;
 
-constructor T0DayRelease.Create(rlsname: string; section: string;
+constructor T0DayRelease.Create(rlsname: AnsiString; section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   i, j: integer;
@@ -2110,12 +2110,12 @@ begin
     FakeCheck(self);
 end;
 
-class function T0DayRelease.DefaultSections: string;
+class function T0DayRelease.DefaultSections: AnsiString;
 begin
   Result := '0DAY,PDA';
 end;
 
-class function T0DayRelease.Name: string;
+class function T0DayRelease.Name: AnsiString;
 begin
   Result := 'T0dayRelease';
 end;
@@ -2216,12 +2216,12 @@ begin
 
 end;
 
-function TIMDBRelease.Aktualizald(extrainfo: string): boolean;
+function TIMDBRelease.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   Result := False;
 end;
 
-function TIMDBRelease.AsText(pazo_id: integer): string;
+function TIMDBRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'IMDB id: ' + imdb_id + #13#10;
@@ -2242,7 +2242,7 @@ begin
   Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
 end;
 
-constructor TIMDBRelease.Create(rlsname: string; section: string;
+constructor TIMDBRelease.Create(rlsname: AnsiString; section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -2252,7 +2252,7 @@ begin
   imdb_genres := TStringList.Create;
 end;
 
-class function TIMDBRelease.DefaultSections: string;
+class function TIMDBRelease.DefaultSections: AnsiString;
 begin
   Result := 'DIVX DVDR';
 end;
@@ -2265,12 +2265,12 @@ begin
   inherited;
 end;
 
-function TIMDBRelease.ExtraInfo: string;
+function TIMDBRelease.ExtraInfo: AnsiString;
 begin
   Result := imdb_id;
 end;
 
-class function TIMDBRelease.Name: string;
+class function TIMDBRelease.Name: AnsiString;
 begin
   Result := 'TIMDBRelease';
 end;
@@ -2299,7 +2299,7 @@ begin
   // aktualizalva := True;
 end;
 
-function TMVIDRelease.AsText(pazo_id: integer): string;
+function TMVIDRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   //  Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
@@ -2314,12 +2314,12 @@ begin
   Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
 end;
 
-function TMVIDRelease.Aktualizald(extrainfo: string): boolean;
+function TMVIDRelease.Aktualizald(extrainfo: AnsiString): boolean;
 begin
   Result := False;
 end;
 
-constructor TMVIDRelease.Create(rlsname: string; section: string;
+constructor TMVIDRelease.Create(rlsname: AnsiString; section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   mvrx: TRegexpr;
@@ -2350,7 +2350,7 @@ begin
   end;
 end;
 
-class function TMVIDRelease.DefaultSections: string;
+class function TMVIDRelease.DefaultSections: AnsiString;
 begin
   Result := 'MVID';
 end;
@@ -2362,28 +2362,28 @@ begin
   inherited;
 end;
 
-function TMVIDRelease.ExtraInfo: string;
+function TMVIDRelease.ExtraInfo: AnsiString;
 begin
   Result := IntToStr(FileCount);
 end;
 
-class function TMVIDRelease.Name: string;
+class function TMVIDRelease.Name: AnsiString;
 begin
   Result := 'TMVIDRelease';
 end;
 
 {!--- KB Utils ---?}
 
-function GetKbPazo(p: TPazo): string;
+function GetKbPazo(p: TPazo): AnsiString;
 begin
   Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
     IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + p.rls.kb_event;
 end;
 
-procedure AddKbPazo(line: string);
+procedure AddKbPazo(line: AnsiString);
 var
-  section, rlsname, extra, event: string;
+  section, rlsname, extra, event: AnsiString;
   added: TDateTime;
   p: TPazo;
   r: TRelease;
@@ -2585,7 +2585,7 @@ procedure kb_Init;
 var
   i: integer;
   x: TStringList;
-  ss: string;
+  ss: AnsiString;
   //  xin: Tinifile;
 begin
   kb_last_saved := Now();
@@ -2936,7 +2936,7 @@ var
   ps, pss: TPazoSite;
   p: TPazo;
   inc_srcsite, inc_dstsite: TSite;
-  inc_srcdir, inc_dstdir: string;
+  inc_srcdir, inc_dstdir: AnsiString;
   inc_rc: TCRelease;
   inc_rls: TRelease;
   inc_p: TPazo;
@@ -3220,7 +3220,7 @@ end;
 procedure TKBThread.Execute;
 var
   i, j: integer;
-  username: string;
+  username: AnsiString;
   p: TPazo;
   ps: TPazoSite;
 begin

@@ -8,8 +8,8 @@ type
   TslHTTP = class(TslTCPSocket)
   private
     procedure Cleanup;
-    function GetProxyName: string;
-    procedure SetProxyName(value: string);
+    function GetProxyName: AnsiString;
+    procedure SetProxyName(value: AnsiString);
   public
     CustomHeaders: TStringList;
     ResponseHeaders: TStringList;
@@ -21,17 +21,17 @@ type
     Timeout: Integer;
     constructor Create;
     destructor Destroy; override;
-    function Get(const url: string): Boolean; overload;
-    function Get(const url: string; params: TStringList; output: TStream = nil):
+    function Get(const url: AnsiString): Boolean; overload;
+    function Get(const url: AnsiString; params: TStringList; output: TStream = nil):
       Boolean; overload;
-    function Post(const url: string; content: string): Boolean; overload;
-    function Post(const url: string; content: TStringList): Boolean; overload;
+    function Post(const url: AnsiString; content: AnsiString): Boolean; overload;
+    function Post(const url: AnsiString; content: TStringList): Boolean; overload;
 
-    property ProxyName: string read GetProxyName write SetProxyName;
+    property ProxyName: AnsiString read GetProxyName write SetProxyName;
   end;
 
-function slUrlGet(url: string): string; overload;
-function slUrlGet(url, params: string): string; overload;
+function slUrlGet(url: AnsiString): AnsiString; overload;
+function slUrlGet(url, params: AnsiString): AnsiString; overload;
 
 implementation
 
@@ -40,12 +40,12 @@ uses SysUtils, slhelper, socks5, configunit, debugunit,regexpr, irc;
 const
   section = 'http';
 
-function slUrlGet(url: string): string;
+function slUrlGet(url: AnsiString): AnsiString;
 begin
   Result := slUrlGet(url, '');
 end;
 
-function slUrlGet(url, params: string): string;
+function slUrlGet(url, params: AnsiString): AnsiString;
 var
   y: TStringList;
 begin
@@ -109,24 +109,24 @@ begin
   inherited;
 end;
 
-function TslHTTP.GetProxyName: string;
+function TslHTTP.GetProxyName: AnsiString;
 begin
   Result := '';
 end;
 
-procedure TslHTTP.SetProxyName(value: string);
+procedure TslHTTP.SetProxyName(value: AnsiString);
 begin
   //
 end;
 
-function TslHTTP.Get(const url: string; params: TStringList; output: TStream =
+function TslHTTP.Get(const url: AnsiString; params: TStringList; output: TStream =
   nil): Boolean;
 const
   headernekszantresz = 8192;
 var
 rx:TRegexpr;
-sss,  s, ss, paramsstr: string;
-  uri: string;
+sss,  s, ss, paramsstr: AnsiString;
+  uri: AnsiString;
   i: Integer;
   olvass: Integer;
   httpsmode: Boolean;
@@ -324,10 +324,10 @@ end;
 
 end;
 
-function TslHTTP.Post(const url: string; content: string): Boolean;
+function TslHTTP.Post(const url: AnsiString; content: AnsiString): Boolean;
 var
-  s, ss: string;
-  uri: string;
+  s, ss: AnsiString;
+  uri: AnsiString;
   i: Integer;
   httpsmode: Boolean;
   post_count: Integer;
@@ -442,9 +442,9 @@ begin
   Result := True;
 end;
 
-function TslHTTP.Post(const url: string; content: TStringList): Boolean;
+function TslHTTP.Post(const url: AnsiString; content: TStringList): Boolean;
 var
-  contentstr: string;
+  contentstr: AnsiString;
   i: Integer;
 begin
 
@@ -461,7 +461,7 @@ begin
 
 end;
 
-function TslHTTP.Get(const url: string): Boolean;
+function TslHTTP.Get(const url: AnsiString): Boolean;
 begin
   Result := Get(url, nil);
 end;

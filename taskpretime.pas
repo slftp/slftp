@@ -13,20 +13,20 @@ type
     //duperes:PDupeResults;
 //    foctime: int64;
     vctime: int64;
-    url: string;
+    url: AnsiString;
     function FetchTimeFromPHP: boolean;
     //    function FetchTimeFromMYSQL:boolean;
   public
-    constructor Create(const netname, channel: string; site: string;
+    constructor Create(const netname, channel: AnsiString; site: AnsiString;
       pazo: TPazo; attempt: integer);
     function Execute(slot: Pointer): boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
   TSLOffset = class
   private
     fNewtime, fOldtime: int64;
-    fvalue: string;
+    fvalue: AnsiString;
   public
     constructor Create;
     function ReCalcTimeStamp(oldtime: int64): boolean;
@@ -45,12 +45,12 @@ uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings,
 const
   section = 'taskpretime';
 
-function GetPretimeURL: string; overload;
+function GetPretimeURL: AnsiString; overload;
 begin
   Result := config.readString(section, 'url', '');
 end;
 
-function GetPretimeURL(index: integer): string; overload;
+function GetPretimeURL(index: integer): AnsiString; overload;
 begin
   if index <= preurls.Count then
     Result := preurls.Strings[index];
@@ -58,8 +58,8 @@ end;
 
 { TPazoPretimeLookup }
 
-constructor TPazoPretimeLookupTask.Create(const netname, channel: string;
-  site: string; pazo: TPazo; attempt: integer);
+constructor TPazoPretimeLookupTask.Create(const netname, channel: AnsiString;
+  site: AnsiString; pazo: TPazo; attempt: integer);
 begin
   self.attempt := attempt;
   inherited Create(netname, channel, site, '', pazo);
@@ -166,7 +166,7 @@ begin
   Result := True;
 end;
 
-function TPazoPretimeLookupTask.Name: string;
+function TPazoPretimeLookupTask.Name: AnsiString;
 begin
   try
     Result := Format('<b>::PRETIME:</b> %s [ID:%d] [Round:%d]',
