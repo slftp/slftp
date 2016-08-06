@@ -76,7 +76,7 @@ type
 {$IFDEF UNICODE}
   PMBChar = PWideChar;
 {$ELSE}
-  PMBChar = PChar;
+  PMBChar = PAnsiChar;
 {$ENDIF}
 
 const
@@ -129,37 +129,37 @@ const
 type
   PHostEnt = ^THostEnt;
   THostEnt = packed record
-    h_name: PChar;                 // official name of host
-    h_aliases: ^PChar;             // alias list
+    h_name: PAnsiChar;                 // official name of host
+    h_aliases: ^PAnsiChar;             // alias list
     h_addrtype: Smallint;          // host address type
     h_length: Smallint;            // length of address
     case Byte of
-      0: (h_address_list: ^PChar);
-      1: (h_addr: ^PChar);         // address, for backward compat
+      0: (h_address_list: ^PAnsiChar);
+      1: (h_addr: ^PAnsiChar);         // address, for backward compat
   end;
 
 //  It is assumed here that a network number
 //  fits in 32 bits.
   PNetEnt = ^TNetEnt;
   TNetEnt = packed record
-    n_name: PChar;                 // official name of net
-    n_aliases: ^PChar;             // alias list
+    n_name: PAnsiChar;                 // official name of net
+    n_aliases: ^PAnsiChar;             // alias list
     n_addrtype: Smallint;          // net address type
     n_net: u_long;                 // network #
   end;
 
   PServEnt = ^TServEnt;
   TServEnt = packed record
-    s_name: PChar;                 // official service name
-    s_aliases: ^PChar;             // alias list
+    s_name: PAnsiChar;                 // official service name
+    s_aliases: ^PAnsiChar;             // alias list
     s_port: Smallint;              // protocol to use
-    s_proto: PChar;                // port #
+    s_proto: PAnsiChar;                // port #
   end;
 
   PProtoEnt = ^TProtoEnt;
   TProtoEnt = packed record
-    p_name: PChar;                 // official protocol name
-    p_aliases: ^Pchar;             // alias list
+    p_name: PAnsiChar;                 // official protocol name
+    p_aliases: ^PAnsiChar;             // alias list
     p_proto: Smallint;             // protocol #
   end;
 
@@ -406,9 +406,9 @@ type
       0: (sin_family : u_short;
           sin_port   : u_short;
           sin_addr   : TInAddr;
-          sin_zero   : array[0..7] of Char);
+          sin_zero   : array[0..7] of AnsiChar);
       1: (sa_family  : u_short;
-          sa_data    : array[0..13] of Char)
+          sa_data    : array[0..13] of AnsiChar)
   end;
   PSockAddrIn = ^TSockAddrIn;
   TSockAddr   = TSockAddrIn;
@@ -683,11 +683,11 @@ type
   TWSAData = packed record
     wVersion       : Word;
     wHighVersion   : Word;
-    szDescription  : Array[0..wsadescription_len] of Char;
-    szSystemStatus : Array[0..wsasys_status_len] of Char;
+    szDescription  : Array[0..wsadescription_len] of AnsiChar;
+    szSystemStatus : Array[0..wsasys_status_len] of AnsiChar;
     iMaxSockets    : Word;
     iMaxUdpDg      : Word;
-    lpVendorInfo   : PChar;
+    lpVendorInfo   : PAnsiChar;
   end;
 
 { wsaoverlapped = Record
@@ -708,7 +708,7 @@ type
 
   WSABUF = packed record
     len: U_LONG;  { the length of the buffer }
-    buf: PChar; { the pointer to the buffer }
+    buf: PAnsiChar; { the pointer to the buffer }
   end {WSABUF};
   PWSABUF = ^WSABUF;
   LPWSABUF = PWSABUF;
@@ -837,7 +837,7 @@ type
     iSecurityScheme: Integer;
     dwMessageSize: LongInt;
     dwProviderReserved: LongInt;
-    szProtocol: Array[0..WSAPROTOCOL_LEN+1-1] of Char;
+    szProtocol: Array[0..WSAPROTOCOL_LEN+1-1] of AnsiChar;
   end {TWSAProtocol_InfoA};
   PWSAProtocol_InfoA = ^TWSAProtocol_InfoA;
   LPWSAProtocol_InfoA = PWSAProtocol_InfoA;
@@ -1081,16 +1081,16 @@ type
 
   TWSAQuerySetA = packed record
     dwSize                  : DWORD;
-    lpszServiceInstanceName : PChar;
+    lpszServiceInstanceName : PAnsiChar;
     lpServiceClassId        : PGUID;
     lpVersion               : PWSAVERSION;
-    lpszComment             : PChar;
+    lpszComment             : PAnsiChar;
     dwNameSpace             : DWORD;
     lpNSProviderId          : PGUID;
-    lpszContext             : PChar;
+    lpszContext             : PAnsiChar;
     dwNumberOfProtocols     : DWORD;
     lpafpProtocols          : PAFProtocols;
-    lpszQueryString         : PChar;
+    lpszQueryString         : PAnsiChar;
     dwNumberOfCsAddrs       : DWORD;
     lpcsaBuffer             : PCSADDR_INFO;
     dwOutputFlags           : DWORD;
@@ -1157,7 +1157,7 @@ type
 
 { Service Installation/Removal Data Types. }
   TWSANSClassInfoA = packed record
-    lpszName    : PChar;
+    lpszName    : PAnsiChar;
     dwNameSpace : DWORD;
     dwValueType : DWORD;
     dwValueSize : DWORD;
@@ -1188,7 +1188,7 @@ type
 
   TWSAServiceClassInfoA = packed record
     lpServiceClassId     : PGUID;
-    lpszServiceClassName : PChar;
+    lpszServiceClassName : PAnsiChar;
     dwCount              : DWORD;
     lpClassInfos         : PWSANSClassInfoA;
   end;
@@ -1221,7 +1221,7 @@ type
     dwNameSpace    : DWORD;
     fActive        : DWORD{Bool};
     dwVersion      : DWORD;
-    lpszIdentifier : PChar;
+    lpszIdentifier : PAnsiChar;
   end;
   PWSANameSpace_InfoA = ^TWSANameSpace_InfoA;
   LPWSANameSpace_InfoA = PWSANameSpace_InfoA;
@@ -1267,11 +1267,11 @@ type
   lpfn_IOCTLSOCKET = function ( const s: TSocket; const cmd: DWORD; var arg: u_long ): Integer; stdcall;
   lpfn_GETPEERNAME = function ( const s: TSocket; const name: PSockAddr; var namelen: Integer ): Integer; stdcall;
   lpfn_GETSOCKNAME = function ( const s: TSocket; const name: PSockAddr; var namelen: Integer ): Integer; stdcall;
-  lpfn_GETSOCKOPT = function ( const s: TSocket; const level, optname: Integer; optval: PChar; var optlen: Integer ): Integer; stdcall;
+  lpfn_GETSOCKOPT = function ( const s: TSocket; const level, optname: Integer; optval: PAnsiChar; var optlen: Integer ): Integer; stdcall;
   lpfn_HTONL = function (hostlong: u_long): u_long; stdcall;
   lpfn_HTONS = function (hostshort: u_short): u_short; stdcall;
-  lpfn_INET_ADDR = function (cp: PChar): u_long; stdcall;
-  lpfn_INET_NTOA = function (inaddr: TInAddr): PChar; stdcall;
+  lpfn_INET_ADDR = function (cp: PAnsiChar): u_long; stdcall;
+  lpfn_INET_NTOA = function (inaddr: TInAddr): PAnsiChar; stdcall;
   lpfn_LISTEN = function ( const s: TSocket; backlog: Integer ): Integer; stdcall;
   lpfn_NTOHL = function (netlong: u_long): u_long; stdcall;
   lpfn_NTOHS = function (netshort: u_short): u_short; stdcall;
@@ -1280,28 +1280,28 @@ type
   lpfn_SELECT = function (nfds: Integer; readfds, writefds, exceptfds: PFDSet; timeout: PTimeVal ): Integer; stdcall;
   lpfn_SEND = function ( const s: TSocket; var Buf; len, flags: Integer ): Integer; stdcall;
   lpfn_SENDTO = function ( const s: TSocket; var Buf; const len, flags: Integer; const addrto: PSockAddr; const tolen: Integer ): Integer; stdcall;
-  lpfn_SETSOCKOPT = function ( const s: TSocket; const level, optname: Integer; optval: PChar; const optlen: Integer ): Integer; stdcall;
+  lpfn_SETSOCKOPT = function ( const s: TSocket; const level, optname: Integer; optval: PAnsiChar; const optlen: Integer ): Integer; stdcall;
   lpfn_SHUTDOWN = function ( const s: TSocket; const how: Integer ): Integer; stdcall;
   lpfn_SOCKET = function ( const af, istruct, protocol: Integer ): TSocket; stdcall;
   lpfn_GETHOSTBYADDR = function ( addr: Pointer; const len, addrtype: Integer ): PHostEnt; stdcall;
-  lpfn_GETHOSTBYNAME = function ( name: PChar ): PHostEnt; stdcall;
-  lpfn_GETHOSTNAME = function ( name: PChar; len: Integer ): Integer; stdcall;
-  lpfn_GETSERVBYPORT = function ( const port: Integer; const proto: PChar ): PServEnt; stdcall;
-  lpfn_GETSERVBYNAME = function ( const name, proto: PChar ): PServEnt; stdcall;
+  lpfn_GETHOSTBYNAME = function ( name: PAnsiChar ): PHostEnt; stdcall;
+  lpfn_GETHOSTNAME = function ( name: PAnsiChar; len: Integer ): Integer; stdcall;
+  lpfn_GETSERVBYPORT = function ( const port: Integer; const proto: PAnsiChar ): PServEnt; stdcall;
+  lpfn_GETSERVBYNAME = function ( const name, proto: PAnsiChar ): PServEnt; stdcall;
   lpfn_GETPROTOBYNUMBER = function ( const proto: Integer ): PProtoEnt; stdcall;
-  lpfn_GETPROTOBYNAME = function ( const name: PChar ): PProtoEnt; stdcall;
+  lpfn_GETPROTOBYNAME = function ( const name: PAnsiChar ): PProtoEnt; stdcall;
   lpfn_WSASETLASTERROR = procedure ( const iError: Integer ); stdcall;
   lpfn_WSAGETLASTERROR = function : Integer; stdcall;
   lpfn_WSAISBLOCKING = function : BOOL; stdcall;
   lpfn_WSAUNHOOKBLOCKINGHOOK = function : Integer; stdcall;
   lpfn_WSASETBLOCKINGHOOK = function ( lpBlockFunc: TFarProc ): TFarProc; stdcall;
   lpfn_WSACANCELBLOCKINGCALL = function : Integer; stdcall;
-  lpfn_WSAASYNCGETSERVBYNAME = function ( HWindow: HWND; wMsg: u_int; name, proto, buf: PChar; buflen: Integer ): THandle; stdcall;
-  lpfn_WSAASYNCGETSERVBYPORT = function ( HWindow: HWND; wMsg, port: u_int; proto, buf: PChar; buflen: Integer ): THandle; stdcall;
-  lpfn_WSAASYNCGETPROTOBYNAME = function ( HWindow: HWND; wMsg: u_int; name, buf: PChar; buflen: Integer ): THandle; stdcall;
-  lpfn_WSAASYNCGETPROTOBYNUMBER = function ( HWindow: HWND; wMsg: u_int; number: Integer; buf: PChar; buflen: Integer ): THandle; stdcall;
-  lpfn_WSAASYNCGETHOSTBYNAME = function ( HWindow: HWND; wMsg: u_int; name, buf: PChar; buflen: Integer ): THandle; stdcall;
-  lpfn_WSAASYNCGETHOSTBYADDR = function ( HWindow: HWND; wMsg: u_int; addr: PChar; len, istruct: Integer; buf: PChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETSERVBYNAME = function ( HWindow: HWND; wMsg: u_int; name, proto, buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETSERVBYPORT = function ( HWindow: HWND; wMsg, port: u_int; proto, buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETPROTOBYNAME = function ( HWindow: HWND; wMsg: u_int; name, buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETPROTOBYNUMBER = function ( HWindow: HWND; wMsg: u_int; number: Integer; buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETHOSTBYNAME = function ( HWindow: HWND; wMsg: u_int; name, buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
+  lpfn_WSAASYNCGETHOSTBYADDR = function ( HWindow: HWND; wMsg: u_int; addr: PAnsiChar; len, istruct: Integer; buf: PAnsiChar; buflen: Integer ): THandle; stdcall;
   lpfn_WSACANCELASYNCREQUEST = function ( hAsyncTaskHandle: THandle ): Integer; stdcall;
   lpfn_WSAASYNCSELECT = function ( const s: TSocket; HWindow: HWND; wMsg: u_int; lEvent: Longint ): Integer; stdcall;
   lpfn___WSAFDISSET = function ( const s: TSocket; var FDSet: TFDSet ): Bool; stdcall;
@@ -1363,13 +1363,13 @@ type
 	  dwTimeout : DWORD; fAlertable : LongBool ): DWORD; stdcall;
 
   lpfn_WSAADDRESSTOSTRINGA = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_InfoA;
-	  const lpszAddressString : PChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
+	  const lpszAddressString : PAnsiChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
   lpfn_WSAADDRESSTOSTRINGW = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_InfoW;
 	  const lpszAddressString : PWideChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
   lpfn_WSAADDRESSTOSTRING = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_Info;
 	  const lpszAddressString : PMBChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
 
-  lpfn_WSASTRINGTOADDRESSA = function ( const AddressString : PChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_InfoA;
+  lpfn_WSASTRINGTOADDRESSA = function ( const AddressString : PAnsiChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_InfoA;
 	  var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
   lpfn_WSASTRINGTOADDRESSW = function ( const AddressString : PWideChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_InfoW;
 	  var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
@@ -1404,7 +1404,7 @@ type
   lpfn_WSAENUMNAMESPACEPROVIDERSW = function ( var lpdwBufferLength: DWORD; const lpnspBuffer: LPWSANameSpace_InfoW ): Integer; stdcall;
   lpfn_WSAENUMNAMESPACEPROVIDERS = function ( var lpdwBufferLength: DWORD; const lpnspBuffer: LPWSANameSpace_Info ): Integer; stdcall;
 
-  lpfn_WSAGETSERVICECLASSNAMEBYCLASSIDA = function ( const lpServiceClassId: PGUID; lpszServiceClassName: PChar; var lpdwBufferLength: DWORD ): Integer; stdcall;
+  lpfn_WSAGETSERVICECLASSNAMEBYCLASSIDA = function ( const lpServiceClassId: PGUID; lpszServiceClassName: PAnsiChar; var lpdwBufferLength: DWORD ): Integer; stdcall;
   lpfn_WSAGETSERVICECLASSNAMEBYCLASSIDW = function ( const lpServiceClassId: PGUID; lpszServiceClassName: PWideChar; var lpdwBufferLength: DWORD ): Integer; stdcall;
   lpfn_WSAGETSERVICECLASSNAMEBYCLASSID = function ( const lpServiceClassId: PGUID; lpszServiceClassName: PMBChar; var lpdwBufferLength: DWORD ): Integer; stdcall;
 
@@ -1735,8 +1735,8 @@ type
 
 	SOCKADDR_IPX = packed record
 		sa_family : u_short;
-		sa_netnum : Array [0..3] of Char;
-		sa_nodenum : Array [0..5] of Char;
+		sa_netnum : Array [0..3] of AnsiChar;
+		sa_nodenum : Array [0..5] of AnsiChar;
 		sa_socket : u_short;
 	end;
 	TSOCKADDR_IPX = SOCKADDR_IPX;
@@ -1980,7 +1980,7 @@ type
 	SOCKADDR_NB = packed record
 		snb_family : Smallint;
 		snb_type   : u_short;
-		snb_name   : array[0..NETBIOS_NAME_LENGTH-1] of Char;
+		snb_name   : array[0..NETBIOS_NAME_LENGTH-1] of AnsiChar;
 	end;
   TSockAddrNB  = SOCKADDR_NB;
   PSockAddrNB  = ^SOCKADDR_NB;
@@ -1994,7 +1994,7 @@ const
 	NETBIOS_TYPE_QUICK_GROUP  = $0003;
 
 //	A macro convenient for setting up NETBIOS SOCKADDRs.
-procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const Name : PChar; const Port : Char );
+procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const Name : PAnsiChar; const Port : AnsiChar );
 
 
 
@@ -2077,7 +2077,7 @@ type
 		Layer2Protocol              : DWORD; // User information layer 2 protocol
 		// Identifies the user-specified layer-two protocol.
 		// Only used if the Layer2Protocol parameter is set to BLLI_L2_USER_SPECIFIED.
-		// The valid values range from zero–127.
+		// The valid values range from zero127.
 		// Corresponds to the User specified layer 2 protocol information field in the B-LLI information element. 		
 		Layer2UserSpecifiedProtocol : DWORD; // User specified layer 2 protocol information
 		// Identifies the layer-three protocol.
@@ -2086,7 +2086,7 @@ type
 		Layer3Protocol              : DWORD; // User information layer 3 protocol
 		// Identifies the user-specified layer-three protocol.
 		// Only used if the Layer3Protocol parameter is set to BLLI_L3_USER_SPECIFIED.
-		// The valid values range from zero–127.
+		// The valid values range from zero127.
 		// Corresponds to the User specified layer 3 protocol information field in the B-LLI information element.
 		Layer3UserSpecifiedProtocol : DWORD; // User specified layer 3 protocol information
 		// Identifies the layer-three Initial Protocol Identifier.
@@ -2481,9 +2481,9 @@ type
 	end;
 
 function slWinsock2Loaded : Boolean;
-function slWinsock2BuildError( const ATitle : String; AWin32Error : DWORD ): string;
+function slWinsock2BuildError( const ATitle : AnsiString; AWin32Error : DWORD ): AnsiString;
 
-var slWinsock2error: string = '';
+var slWinsock2error: AnsiString = '';
 
 //=============================================================
 implementation
@@ -2508,7 +2508,7 @@ begin
   Result := hWS2Dll <> 0;
 end;
 
-function slWinsock2BuildError( const ATitle : String; AWin32Error : DWORD ): string;
+function slWinsock2BuildError( const ATitle : AnsiString; AWin32Error : DWORD ): AnsiString;
 begin
   if AWin32Error=0 then
   begin
@@ -2540,7 +2540,7 @@ type
   WS2StubEntry = record
     StubProc : Pointer;
     ProcVar : PPointer;
-    Name : PChar;
+    Name : PAnsiChar;
   end;
 
 function WS2Call( AStubEntryIndex : DWORD ) : Pointer; forward;
@@ -2911,7 +2911,7 @@ begin
 end;
 
 //  A macro convenient for setting up NETBIOS SOCKADDRs.
-procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const Name : PChar; const Port : Char );
+procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const Name : PAnsiChar; const Port : AnsiChar );
 var len : Integer;
 begin
   if snb<>nil then with snb^ do

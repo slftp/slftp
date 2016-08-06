@@ -7,13 +7,13 @@ uses delphimasks, RegExpr;
 type
   TslMask = class
   private
-    fMask: string;
+    fMask: AnsiString;
     dm: TMask;
     rm: TRegExpr;
   public
-    function Matches( const s: string ): Boolean;
-    constructor Create( const mask: string );
-    property mask: string read fMask;
+    function Matches( const s: AnsiString ): Boolean;
+    constructor Create( const mask: AnsiString );
+    property mask: AnsiString read fMask;
     destructor Destroy; override;
   end;
 
@@ -26,7 +26,7 @@ const ssection = 'slmasks';
 
 { TslMask }
 
-constructor TslMask.Create(const mask: string);
+constructor TslMask.Create(const mask: AnsiString);
 var l: Integer;
 begin
   fMask:= mask;
@@ -63,7 +63,7 @@ begin
   inherited;
 end;
 
-function TslMask.Matches(const s: string): Boolean;
+function TslMask.Matches(const s: AnsiString): Boolean;
 begin
   Result:= False;
   if dm <> nil then

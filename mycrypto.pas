@@ -4,11 +4,11 @@ interface
 
 uses Classes, slmd5;
 
-function GenPem(certpath: string; keylen: Integer; commonname: string): Boolean;
+function GenPem(certpath: AnsiString; keylen: Integer; commonname: AnsiString): Boolean;
 procedure MycryptoStart(pp: TslMD5Data);
 procedure MycryptoStop;
-function DecryptUDP(s: string): string;
-function EncryptUDP(s: string): string;
+function DecryptUDP(s: AnsiString): AnsiString;
+function EncryptUDP(s: AnsiString): AnsiString;
 procedure  MyCryptoInit;
 procedure MyCryptoUnInit;
 
@@ -25,7 +25,7 @@ const section = 'crypto';
 var KeyData: TBlowfishData;
 
 
-function GenPem(certpath: string; keylen: Integer; commonname: string): Boolean;
+function GenPem(certpath: AnsiString; keylen: Integer; commonname: AnsiString): Boolean;
 var b, r, xn, x, xr, xne, evp: Pointer;
 begin
   Result:= False;
@@ -57,7 +57,7 @@ begin
     exit;
   end;
 
-  xne := slX509_NAME_ENTRY_create_by_txt(nil, 'CN', OPENSSL_V_ASN1_APP_CHOOSE, PChar(commonname), Length(commonname));
+  xne := slX509_NAME_ENTRY_create_by_txt(nil, 'CN', OPENSSL_V_ASN1_APP_CHOOSE, PAnsiChar(commonname), Length(commonname));
   if (xne = nil) then
   begin
     slBIO_free(b);
@@ -142,7 +142,7 @@ end;
 
 procedure MycryptoStart(pp: TslMD5Data);
 const IV: array[0..7] of Byte = (0,0,0,0,0,0,0,0);
-var cert: string;
+var cert: AnsiString;
 begin
   cert:= config.ReadString(section, 'certificate', 'slftp.pem');
   if not FileExists(cert) then
@@ -162,7 +162,7 @@ begin
 end;
 
 
-function DecryptUDP(s: string): string;
+function DecryptUDP(s: AnsiString): AnsiString;
 var p: Byte;
     l: Integer;
 begin
@@ -180,16 +180,16 @@ begin
 end;
 
 
-function EncryptUDP(s: string): string;
+function EncryptUDP(s: AnsiString): AnsiString;
 var p: Byte;
-    block: array[0..MAX_UDP_PACKET-1] of Char;
+    block: array[0..MAX_UDP_PACKET-1] of AnsiChar;
 begin
   Result:= '';
 
   if Length(s) + UDP_MAX_PADDING > MAX_UDP_PACKET then exit;
 
   p:= Byte(RandomRange(UDP_MIN_PADDING, UDP_MAX_PADDING));
-  block[0]:= Char(p);
+  block[0]:= AnsiChar(p);
   Move(s[1], block[p], length(s));
 
   BlowfishReset(KeyData);

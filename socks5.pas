@@ -7,14 +7,14 @@ uses sltcp,mslproxys;
 procedure Socks5Init;
 procedure SetupSocks5(c: TslTCPSocket; usesocks5: Boolean);
 
-procedure mSLSetupSocks5(proxyname:string;c: TslTCPSocket; usesocks5: Boolean);
+procedure mSLSetupSocks5(proxyname:AnsiString;c: TslTCPSocket; usesocks5: Boolean);
 
 implementation
 
 uses configunit;
 const section='socks5';
 
-procedure mSLSetupSocks5(proxyname:string;c: TslTCPSocket; usesocks5: Boolean);
+procedure mSLSetupSocks5(proxyname:AnsiString;c: TslTCPSocket; usesocks5: Boolean);
 var so5:TmSLSocks5;
 begin
 so5:= FindProxyByName(proxyname);

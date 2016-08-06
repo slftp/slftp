@@ -11,15 +11,15 @@ procedure NukeSave;
 
 type
   TNukeQueueItem = class
-    site: string;
-    section: string;
-    yyyy: string;
-    yy: string;
-    mm: string;
-    dd: string;
-    rip: string;
+    site: AnsiString;
+    section: AnsiString;
+    yyyy: AnsiString;
+    yy: AnsiString;
+    mm: AnsiString;
+    dd: AnsiString;
+    rip: AnsiString;
     multiplier: Integer;
-    reason: string;
+    reason: AnsiString;
   end;
 
 var nukequeue: TObjectList;
@@ -43,7 +43,7 @@ procedure NukeStart;
 var x: TEncStringlist;
     i: Integer;
     n: TNukeQueueItem;
-    fn: string;
+    fn: AnsiString;
 begin
   fn:= ExtractfilePath(ParamStr(0))+'slftp.nukequeue';
   if not fileExists(fn) then exit;
@@ -76,7 +76,7 @@ procedure NukeSave;
 var x: TEncStringlist;
     i: Integer;
     n: TNukeQueueItem;
-    s: string;
+    s: AnsiString;
 begin
   x:= TEncStringlist.Create(passphrase);
   try

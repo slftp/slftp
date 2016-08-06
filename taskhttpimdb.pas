@@ -7,13 +7,13 @@ uses Classes, pazo, tasksunit, sltcp;
 type
   TPazoHTTPImdbTask = class(TTask)
   private
-    rls: string;
-    imdb_id: string;
+    rls: AnsiString;
+    imdb_id: AnsiString;
   public
-    constructor Create(const imdb_id: string; rls: string);
+    constructor Create(const imdb_id: AnsiString; rls: AnsiString);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: string; override;
+    function Name: AnsiString; override;
   end;
 
 implementation
@@ -27,7 +27,7 @@ const
 
   { TPazoHTTPImdbTask }
 
-constructor TPazoHTTPImdbTask.Create(const imdb_id: string; rls: string);
+constructor TPazoHTTPImdbTask.Create(const imdb_id: AnsiString; rls: AnsiString);
 begin
   self.imdb_id := imdb_id;
   self.rls := rls;
@@ -42,10 +42,10 @@ var
   imdbdata: TDbImdbData;
   rr, rr2: TRegexpr;
   imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang,
-    imdb_genr, imdb_countr, imdb_lang, imdb_region: string;
+    imdb_genr, imdb_countr, imdb_lang, imdb_region: AnsiString;
   ir: TImdbRelease;
 
-  mainsite, rlsdatesite, businesssite: string;
+  mainsite, rlsdatesite, businesssite: AnsiString;
 begin
   Result:=False;
 
@@ -526,7 +526,7 @@ begin
   Result := True;
 end;
 
-function TPazoHTTPImdbTask.Name: string;
+function TPazoHTTPImdbTask.Name: AnsiString;
 begin
   try
     Result := Format('HTTPImdb %s : %s', [rls, imdb_id]);

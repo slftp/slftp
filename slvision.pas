@@ -72,14 +72,14 @@ type
     procedure SetColors; virtual;
     procedure VisibilityChanged(c: TslControl); virtual;
     function TakesInputFocus(): TslControl; virtual;
-    function KeyEvent(c: char; extended: boolean): boolean; virtual;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; virtual;
 
     procedure LostFocus(); virtual;
-    procedure Write(ca: TslRect; const x, y: integer; s: string; hossz: integer = 0);
+    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString; hossz: integer = 0);
       overload; virtual;
-    procedure Write(const x, y: integer; s: string; hossz: integer = 0); overload;
-    procedure Write(const x, y: integer; c: char); overload;
-    function BackgroundCharacter: char; virtual;
+    procedure Write(const x, y: integer; s: AnsiString; hossz: integer = 0); overload;
+    procedure Write(const x, y: integer; c: AnsiChar); overload;
+    function BackgroundCharacter: AnsiChar; virtual;
   public
     children: TObjectList;
     procedure SetParent(control: TslControl);
@@ -89,8 +89,8 @@ type
     procedure AddControl(control: TslControl); virtual;
     property Parent: TslControl Read fParent;
     procedure Repaint; virtual;
-    function Name: string;
-    procedure Dump(prefix: string = '');
+    function Name: AnsiString;
+    procedure Dump(prefix: AnsiString = '');
     function FocusedControl: TslControl;
     function app: TslControl;
     procedure GotoXy(ca: TslRect; x, y: integer); overload; virtual;
@@ -129,7 +129,7 @@ type
     fixedHeight: integer;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     procedure SizeChanged;
-    function BackgroundCharacter: char; override;
+    function BackgroundCharacter: AnsiChar; override;
   public
     Left, Top, Right, Bottom: integer;
     constructor Create(Width, Height: integer; parent: TslControl); overload;
@@ -141,33 +141,33 @@ type
 
 
   TslEdit      = class;
-  TslOnKeyDown = function(Sender: TslEdit; c: char;
+  TslOnKeyDown = function(Sender: TslEdit; c: AnsiChar;
     extended: boolean): boolean of object;
 
   TslEdit = class(TslAlignedControl)
   private
-    fText:      string;
+    fText:      AnsiString;
     fcursor:    integer;
     fwindow:    integer;
     fOnKeyDown: TslOnKeyDown;
     lastcharonly: boolean;
-    procedure SetText(Value: string);
+    procedure SetText(Value: AnsiString);
     procedure SetCursor(Value: integer);
   public
     maxwidth:     integer;
-    passwordchar: char;
+    passwordchar: AnsiChar;
     constructor Create(Left, Top, Width: integer; parent: TslControl);
     procedure SetColors; override;
     procedure Repaint; override;
     function TakesInputFocus: TslControl; override;
-    function KeyEvent(c: char; extended: boolean): boolean; override;
-    property Text: string Read fText Write SetText;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    property Text: AnsiString Read fText Write SetText;
     property Cursor: integer Read fCursor Write SetCursor;
     property Window: integer Read fWindow;
     property OnKeyDown: TslOnKeyDown Read fOnKeyDown Write fOnKeyDown;
   end;
 
-  TslCommandEvent = procedure(Sender: TslEdit; const command: string) of object;
+  TslCommandEvent = procedure(Sender: TslEdit; const command: AnsiString) of object;
 
   TslCommandEdit = class(TslEdit)
   private
@@ -178,7 +178,7 @@ type
     maxcommands: integer;
     destructor Destroy; override;
     constructor Create(Left, Top, Width: integer; parent: TslControl);
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
     property OnCommand: TslCommandEvent Read fOnCommand Write fOnCommand;
   end;
 
@@ -187,13 +187,13 @@ type
   TslLabel = class(TslAlignedControl)
   protected
     fCaption: TStringList;
-    function GetCaption(): string;
-    procedure SetCaption(Value: string);
+    function GetCaption(): AnsiString;
+    procedure SetCaption(Value: AnsiString);
   public
     Alignment: TslTextAlignment;
-    constructor Create(Caption: string; parent: TslControl); overload;
+    constructor Create(Caption: AnsiString; parent: TslControl); overload;
     destructor Destroy; override;
-    property Caption: string Read GetCaption Write SetCaption;
+    property Caption: AnsiString Read GetCaption Write SetCaption;
     procedure Repaint; override;
   end;
 
@@ -205,29 +205,29 @@ type
     procedure SetColors; override;
     constructor Create(modalResult: TslModalResult; parent: TslControl);
     function TakesInputFocus(): TslControl; override;
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
     property OnClick: TslEvent Read fOnClick Write fOnClick;
     function Width: integer; override;
   end;
 
   TslTextBox = class(TslAlignedControl)
   private
-    function GetText: string;
-    procedure SetText(const Value: string);
+    function GetText: AnsiString;
+    procedure SetText(const Value: AnsiString);
   public
     updateing: boolean;
     fText:     TStringList;
     maxlines:  integer;
-    procedure AddLine(const s: string);
+    procedure AddLine(const s: AnsiString);
     procedure BeginUpdate;
     procedure EndUpdate;
-    procedure LoadFromFile(filename: string);
+    procedure LoadFromFile(filename: AnsiString);
     constructor Create(Width, Height: integer; parent: TslControl); overload;
     destructor Destroy; override;
     procedure Repaint; override;
     function MaxWidth: integer; override;
     function MaxHeight: integer; override;
-    property Text: string Read GetText Write SetText;
+    property Text: AnsiString Read GetText Write SetText;
   end;
 
 
@@ -244,7 +244,7 @@ type
     hScrollBar: TslHorizontalScrollbar;
     vScrollBar: TslVerticalScrollbar;
     procedure GotoXy(ca: TslRect; x, y: integer); override;
-    procedure Write(ca: TslRect; const x, y: integer; s: string;
+    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString;
       hossz: integer = 0); override;
     function MaxWidth: integer;
     function MaxHeight: integer;
@@ -270,7 +270,7 @@ type
     constructor Create(parent: TslControl);
     function Width: integer; override;
     procedure Repaint; override;
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
   end;
 
   TslVerticalScrollbar = class(TslScrollbar)
@@ -278,7 +278,7 @@ type
     constructor Create(parent: TslControl);
     function Height: integer; override;
     procedure Repaint; override;
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
   end;
 
   TslScrollControl = class(TslAlignedControl)
@@ -291,7 +291,7 @@ type
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     constructor Create(Width, Height: integer; parent: TslControl); overload;
     procedure AddControl(control: TslControl); override;
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
   end;
 
 
@@ -303,17 +303,17 @@ type
   TslWindow = class(TslScrollControl)
   private
     fTitle: TslLabel;
-    function GetTitle: string;
-    procedure SetTitle(const Value: string);
+    function GetTitle: AnsiString;
+    procedure SetTitle(const Value: AnsiString);
   public
     modal: boolean;
     modalResult: TslModalResult;
     function TakesInputFocus(): TslControl; override;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     procedure SetColors; override;
-    constructor Create(Width, Height: integer; title: string; parent: TslControl);
+    constructor Create(Width, Height: integer; title: AnsiString; parent: TslControl);
     function ShowModal: TslModalResult;
-    property Title: string Read GetTitle Write SetTitle;
+    property Title: AnsiString Read GetTitle Write SetTitle;
   end;
 
   TslCommandWindow = class(TslWindow)
@@ -324,7 +324,7 @@ type
     commandedit: TslCommandEdit;
 
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
-    constructor Create(Width, Height: integer; title, Caption: string;
+    constructor Create(Width, Height: integer; title, Caption: AnsiString;
       parent: TslControl);
   end;
 
@@ -374,7 +374,7 @@ type
   private
     visibleControl: TslControl;
   public
-    function KeyEvent(c: char; extended: boolean): boolean; override;
+    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
     procedure VisibilityChanged(c: TslControl); override;
     procedure AddControl(control: TslControl); override;
   end;
@@ -389,13 +389,13 @@ type
     fConsoleToUpdate: TStringList;
     procedure slOnResize;
     procedure slOnCtrlC;
-    procedure ShowMessage(const s: string);
+    procedure ShowMessage(const s: AnsiString);
     procedure CopyConsoleTasks;
-    function InputQuery(const title, Caption: string; var reply: string;
+    function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
       password: boolean = False): boolean;
   protected
     procedure SetColors; override;
-    function BackgroundCharacter: char; override;
+    function BackgroundCharacter: AnsiChar; override;
   public
     shouldquit: boolean;
     l_clock:    TslLabel;
@@ -404,7 +404,7 @@ type
     timers:     TObjectList;
     menubartop: TslMenubar;
     menubarbottom: TslMenubar;
-    procedure Write(ca: TslRect; const x, y: integer; s: string;
+    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString;
       hossz: integer = 0); override;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     destructor Destroy; override;
@@ -431,8 +431,8 @@ type
   public
     remove:      boolean;
     textbox:     TslTextBox;
-    windowTitle: string;
-    constructor Create(windowTitle: string; textbox: TslTextBox);
+    windowTitle: AnsiString;
+    constructor Create(windowTitle: AnsiString; textbox: TslTextBox);
   end;
 
   TslClockTimer = class(TslTimer)
@@ -460,9 +460,9 @@ type
   end;
 
 
-procedure ShowMessage(const s: string);
-function InputQuery(const title, Caption: string; var reply: string;
-  password: boolean = False; replyfile: string = ''): boolean;
+procedure ShowMessage(const s: AnsiString);
+function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
+  password: boolean = False; replyfile: AnsiString = ''): boolean;
 procedure SetFocus(control: TslControl);
 
 var
@@ -484,16 +484,16 @@ var
   slig, lvtf: integer;
 
 
-procedure ShowMessage(const s: string);
+procedure ShowMessage(const s: AnsiString);
 begin
   if slApp <> nil then
     slApp.ShowMessage(s);
 end;
 
-function ReadFile(const filename: string): string;
+function ReadFile(const filename: AnsiString): AnsiString;
 var
   f: TextFile;
-  s: string;
+  s: AnsiString;
 begin
   Result := '';
   AssignFile(f, filename);
@@ -506,8 +506,8 @@ begin
   CloseFile(f);
 end;
 
-function InputQuery(const title, Caption: string; var reply: string;
-  password: boolean = False; replyfile: string = ''): boolean;
+function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
+  password: boolean = False; replyfile: AnsiString = ''): boolean;
 begin
   Result := False;
 
@@ -587,7 +587,7 @@ end;
 
 procedure TslApplication.ProcessMessages;
 var
-  c: char;
+  c: AnsiChar;
   extended: boolean;
   i: integer;
   k: boolean;
@@ -764,7 +764,7 @@ begin
 end;
 
 procedure TslApplication.Write(ca: TslRect; const x, y: integer;
-  s: string; hossz: integer);
+  s: AnsiString; hossz: integer);
 var
   mx, vx: integer;
 begin
@@ -802,7 +802,7 @@ begin
   slscreen.Write(s);
 end;
 
-function TslApplication.BackgroundCharacter: char;
+function TslApplication.BackgroundCharacter: AnsiChar;
 begin
 {$IFDEF MSWINDOWS}
   Result := Chr(176);
@@ -811,7 +811,7 @@ begin
 {$ENDIF}
 end;
 
-procedure TslApplication.ShowMessage(const s: string);
+procedure TslApplication.ShowMessage(const s: AnsiString);
 var
   l: TslLabel;
   w: TslWindow;
@@ -841,8 +841,8 @@ begin
   slScreen.GotoXY(ca.Left + x - 1, ca.Top + y - 1);
 end;
 
-function TslApplication.InputQuery(const title, Caption: string;
-  var reply: string; password: boolean): boolean;
+function TslApplication.InputQuery(const title, Caption: AnsiString;
+  var reply: AnsiString; password: boolean): boolean;
 var
   w: TslWindow;
   m: integer;
@@ -1067,7 +1067,7 @@ begin
 
 end;
 
-function TslControl.KeyEvent(c: char; extended: boolean): boolean;
+function TslControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := False;
 
@@ -1207,7 +1207,7 @@ begin
   Repaint;
 end;
 
-function TslControl.Name: string;
+function TslControl.Name: AnsiString;
 begin
   Result := ClassName;
   if focused then
@@ -1216,7 +1216,7 @@ begin
     Result := Result + ' (#' + IntToStr(focus.sli) + ')';
 end;
 
-procedure TslControl.Dump(prefix: string);
+procedure TslControl.Dump(prefix: AnsiString);
 var
   i: integer;
   c: TslControl;
@@ -1229,19 +1229,19 @@ begin
   end;
 end;
 
-procedure TslControl.Write(ca: TslRect; const x, y: integer; s: string;
+procedure TslControl.Write(ca: TslRect; const x, y: integer; s: AnsiString;
   hossz: integer = 0);
 begin
   if parent <> nil then
     parent.Write(ca, x, y, s, hossz);
 end;
 
-procedure TslControl.Write(const x, y: integer; s: string; hossz: integer = 0);
+procedure TslControl.Write(const x, y: integer; s: AnsiString; hossz: integer = 0);
 begin
   Write(ca, x, y, s, hossz);
 end;
 
-procedure TslControl.Write(const x, y: integer; c: char);
+procedure TslControl.Write(const x, y: integer; c: AnsiChar);
 begin
   Write(x, y, c, 1);
 end;
@@ -1260,7 +1260,7 @@ begin
 end;
 
 
-function TslControl.BackgroundCharacter: char;
+function TslControl.BackgroundCharacter: AnsiChar;
 begin
   if parent <> nil then
     Result := parent.BackgroundCharacter
@@ -1360,7 +1360,7 @@ end;
 procedure TslMenubar.Repaint;
 var
   i: integer;
-  s: string;
+  s: AnsiString;
 begin
   if Visible <> slvVisible then
     exit;
@@ -1408,7 +1408,7 @@ end;
 
 { TslFixPanel }
 
-function TslAlignedControl.BackgroundCharacter: char;
+function TslAlignedControl.BackgroundCharacter: AnsiChar;
 begin
   Result := ' ';
 end;
@@ -1467,7 +1467,7 @@ end;
 
 { TslLabel }
 
-constructor TslLabel.Create(Caption: string; parent: TslControl);
+constructor TslLabel.Create(Caption: AnsiString; parent: TslControl);
 begin
   fCaption := TStringList.Create;
   inherited Create(Length(Caption), 1, parent);
@@ -1481,7 +1481,7 @@ begin
   inherited;
 end;
 
-function TslLabel.GetCaption: string;
+function TslLabel.GetCaption: AnsiString;
 begin
   Result := fCaption.Text;
 end;
@@ -1511,7 +1511,7 @@ begin
 
 end;
 
-procedure TslLabel.SetCaption(Value: string);
+procedure TslLabel.SetCaption(Value: AnsiString);
 var
   lx, ly, i: integer;
 begin
@@ -1623,9 +1623,9 @@ end;
 
 procedure TslBackground.Repaint;
 var
-  s: string;
+  s: AnsiString;
   i: integer;
-  c: char;
+  c: AnsiChar;
 begin
   if Visible <> slvVisible then
     exit;
@@ -1722,7 +1722,7 @@ procedure TslInfosTimer.OnTimer;
 var
   x, y:    integer;
   i, i_chans: integer;
-  s_rules: string;
+  s_rules: AnsiString;
 begin
   slScreen.GetCursorPos(x, y);
   try
@@ -1759,7 +1759,7 @@ end;
 { TslWindow }
 
 
-constructor TslWindow.Create(Width, Height: integer; title: string; parent: TslControl);
+constructor TslWindow.Create(Width, Height: integer; title: AnsiString; parent: TslControl);
 var
   tmp: TslScrollArea;
 begin
@@ -1793,7 +1793,7 @@ begin
   end;
 end;
 
-function TslWindow.GetTitle: string;
+function TslWindow.GetTitle: AnsiString;
 begin
   Result := Trim(fTitle.Caption);
 end;
@@ -1801,20 +1801,20 @@ end;
 procedure TslFrame.Repaint;
 {$IFDEF MSWINDOWS}
 const
-  frameChars: array[False..True, 1..6] of char = (
-    (chr(196), chr(179), chr(218), chr(191), chr(192), chr(217)),
-    (chr(205), chr(186), chr(201), chr(187), chr(200), chr(188))
+  frameChars: array[False..True, 1..6] of AnsiChar = (
+    (chr(196), Chr(179), Chr(218), Chr(191), Chr(192), Chr(217)),
+    (chr(205), Chr(186), Chr(201), Chr(187), Chr(200), Chr(188))
     );
  {$ELSE}
-const frameChars : array[false..true, 1..6] of char = (
-    ('-', '|', ',', '.',  '`', '´'),
-    ('-', '|', ',', '.',  '`', '´')
+const frameChars : array[false..true, 1..6] of AnsiChar = (
+    ('-', '|', ',', '.',  '`', '4'),
+    ('-', '|', ',', '.',  '`', '4')
  );
 {$ENDIF}
 
 var
   i: integer;
-  s: string;
+  s: AnsiString;
   focused: boolean;
 begin
   if Visible <> slvVisible then
@@ -1896,7 +1896,7 @@ begin
     Result := ca.Width;
 end;
 
-procedure TslWindow.SetTitle(const Value: string);
+procedure TslWindow.SetTitle(const Value: AnsiString);
 begin
   fTitle.Caption := ' ' + Value + ' ';
 end;
@@ -1993,7 +1993,7 @@ begin
   Left   := 1;
 end;
 
-function TslHorizontalScrollbar.KeyEvent(c: char; extended: boolean): boolean;
+function TslHorizontalScrollbar.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := False;
   if not extended then
@@ -2011,11 +2011,11 @@ end;
 
 procedure TslHorizontalScrollbar.Repaint;
 var
-  s:    string;
+  s:    AnsiString;
   i:    integer;
   m, c: integer;
   a, x: integer;
-  p:    char;
+  p:    AnsiChar;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2040,13 +2040,13 @@ begin
 
 
 {$IFDEF MSWINDOWS}
-  Write(1, 1, chr(17));
+  Write(1, 1, Chr(17));
   s := '';
   for i := 2 to ca.Width - 1 do
-    s := s + chr(177);
+    s := s + Chr(177);
   Write(2, 1, s);
-  Write(ca.Width, 1, chr(16));
-  p := chr(254);
+  Write(ca.Width, 1, Chr(16));
+  p := Chr(254);
 {$ELSE}
   write(1, 1, '<');
   s:= '';
@@ -2110,7 +2110,7 @@ begin
     Result := 0;
 end;
 
-function TslVerticalScrollbar.KeyEvent(c: char; extended: boolean): boolean;
+function TslVerticalScrollbar.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := False;
   if not extended then
@@ -2138,7 +2138,7 @@ var
   i: integer;
   a, m, c: integer;
   x: integer;
-  p: char;
+  p: AnsiChar;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2161,11 +2161,11 @@ begin
   GetClientArea(ca, self);
 
 {$IFDEF MSWINDOWS}
-  Write(1, 1, chr(30));
+  Write(1, 1, Chr(30));
   for i := 2 to ca.Height - 1 do
-    Write(1, i, chr(177));
-  Write(1, ca.Height, chr(31));
-  p := chr(254);
+    Write(1, i, Chr(177));
+  Write(1, ca.Height, Chr(31));
+  p := Chr(254);
 {$ELSE}
   write(1, 1, '^');
   for i:= 2 to ca.height-1 do
@@ -2240,7 +2240,7 @@ begin
   end;
 end;
 
-function TslScrollControl.KeyEvent(c: char; extended: boolean): boolean;
+function TslScrollControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := inherited KeyEvent(c, extended);
 
@@ -2367,7 +2367,7 @@ begin
 end;
 
 procedure TslScrollArea.Write(ca: TslRect; const x, y: integer;
-  s: string; hossz: integer);
+  s: AnsiString; hossz: integer);
 var
   nx, ny: integer;
 begin
@@ -2420,7 +2420,7 @@ begin
     visibleControl := control;
 end;
 
-function TslMutualVisibilityControl.KeyEvent(c: char; extended: boolean): boolean;
+function TslMutualVisibilityControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 var
   i: integer;
 begin
@@ -2473,7 +2473,7 @@ end;
 
 { TslTextBox }
 
-procedure TslTextBox.AddLine(const s: string);
+procedure TslTextBox.AddLine(const s: AnsiString);
 begin
   fText.Add(s);
   if not updateing then
@@ -2512,15 +2512,15 @@ begin
   Repaint;
 end;
 
-function TslTextBox.GetText: string;
+function TslTextBox.GetText: AnsiString;
 begin
   Result := fText.Text;
 end;
 
-procedure TslTextBox.LoadFromFile(filename: string);
+procedure TslTextBox.LoadFromFile(filename: AnsiString);
 var
   f: TextFile;
-  s: string;
+  s: AnsiString;
 begin
   if not FileExists(filename) then
     exit;
@@ -2569,7 +2569,7 @@ begin
 
 end;
 
-procedure TslTextBox.SetText(const Value: string);
+procedure TslTextBox.SetText(const Value: AnsiString);
 begin
   fText.Text := Value;
   EndUpdate;
@@ -2579,7 +2579,7 @@ end;
 
 constructor TslButton.Create(modalResult: TslModalResult; parent: TslControl);
 const
-  ModalCaptions: array[0..3] of string = ('', 'Ok', 'Cancel', '-');
+  ModalCaptions: array[0..3] of AnsiString = ('', 'Ok', 'Cancel', '-');
 begin
   self.modalResult := modalResult;
   inherited Create(ModalCaptions[integer(modalResult)], parent);
@@ -2606,7 +2606,7 @@ begin
   end;
 end;
 
-function TslButton.KeyEvent(c: char; extended: boolean): boolean;
+function TslButton.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := False;
   if ((c = #13) and (not extended)) then
@@ -2666,7 +2666,7 @@ begin
   cursor := 1;
 end;
 
-function TslEdit.KeyEvent(c: char; extended: boolean): boolean;
+function TslEdit.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := True;
 {$IFDEF MSWINDOWS}
@@ -2742,7 +2742,7 @@ procedure TslEdit.Repaint;
 var
   i: integer;
   l: integer;
-  c: char;
+  c: AnsiChar;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2754,7 +2754,7 @@ begin
   c := ' ';
   if window <> 0 then
 {$IFDEF MSWINDOWS}
-    c := chr(17);
+    c := Chr(17);
 {$ELSE}
     c:= '<';
 {$ENDIF}
@@ -2797,7 +2797,7 @@ begin
   c := ' ';
   if l - window >= ca.Width then
 {$IFDEF MSWINDOWS}
-    c := chr(16);
+    c := Chr(16);
 {$ELSE}
     c:= '>';
 {$ENDIF}
@@ -2845,7 +2845,7 @@ begin
   Repaint;
 end;
 
-procedure TslEdit.SetText(Value: string);
+procedure TslEdit.SetText(Value: AnsiString);
 begin
   fText := Value;
   if maxwidth > 0 then
@@ -2873,7 +2873,7 @@ begin
   inherited;
 end;
 
-function TslCommandEdit.KeyEvent(c: char; extended: boolean): boolean;
+function TslCommandEdit.KeyEvent(c: AnsiChar; extended: boolean): boolean;
 begin
   Result := True;
   if ((extended) and (c = #72)) then // felfele nyil -- up arrow
@@ -2931,7 +2931,7 @@ end;
 { TslCommandWindow }
 
 constructor TslCommandWindow.Create(Width, Height: integer;
-  title, Caption: string; parent: TslControl);
+  title, Caption: AnsiString; parent: TslControl);
 var
   cp:  TslFixHeightPanel;
   fw:  TslFixWidthPanel;
@@ -3021,7 +3021,7 @@ end;
 
 { TslTextBoxTask }
 
-constructor TslTextBoxTask.Create(windowTitle: string; textbox: TslTextBox);
+constructor TslTextBoxTask.Create(windowTitle: AnsiString; textbox: TslTextBox);
 begin
   self.windowTitle := windowTitle;
   self.textbox     := textbox;

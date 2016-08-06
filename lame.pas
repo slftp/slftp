@@ -7,38 +7,38 @@ uses Classes;
 type
   TLameInfo = record
     lame_present: Boolean;  
-    lame_version: string;
+    lame_version: AnsiString;
     lame_tagversion: Integer;
-    lame_lowpass: string;
-    lame_stereomode: string;
+    lame_lowpass: AnsiString;
+    lame_stereomode: AnsiString;
     lame_bitrate: Integer;
-    lame_source_frequency: string;
+    lame_source_frequency: AnsiString;
     lame_ath: Integer;
     lame_noiseshaping: Boolean;
     lame_unwise: Boolean;
-    lame_vbrmethod: string;
-    lame_preset: string;
+    lame_vbrmethod: AnsiString;
+    lame_preset: AnsiString;
     lame_gain: Integer;
-    error: string;
+    error: AnsiString;
   end;
   TID3v1Info = record
     id3_present: Boolean;
-    id3_version: string;
-    id3_title: string;
-    id3_artist: string;
-    id3_album: string;
+    id3_version: AnsiString;
+    id3_title: AnsiString;
+    id3_artist: AnsiString;
+    id3_album: AnsiString;
     id3_track: Byte;
-    id3_year: string;
-    id3_genre: string;
-    id3_comment: string;
+    id3_year: AnsiString;
+    id3_genre: AnsiString;
+    id3_comment: AnsiString;
   end;
 
-function MP3Info(filename: string): string;
+function MP3Info(filename: AnsiString): AnsiString;
 function Lame_Check(var buffer: array of Byte; offset: Integer; var dest_info: TLameInfo): Integer; overload;
 function Lame_Check(stuff: TStream; offset: Integer; var dest_info: TLameInfo): Integer; overload;
 function ID3_Check(var buffer: array of Byte; var dest_info: TID3v1Info): Integer;
-function ID3v1InfoToString( const i: TID3v1Info): string;
-function LameInfoToString(const l: TLameInfo): string;
+function ID3v1InfoToString( const i: TID3v1Info): AnsiString;
+function LameInfoToString(const l: TLameInfo): AnsiString;
 
 const
   LAME_BUFFER_SIZE = 16384*2;
@@ -50,7 +50,7 @@ uses SysUtils, mystrings;
 
 
 const
-  genres : Array[0..147] of string = (
+  genres : Array[0..147] of AnsiString = (
  'Blues',
  'Classic Rock',
  'Country',
@@ -205,7 +205,7 @@ const
 type
   TIndexedString = record
     index: Integer;
-    value: string;
+    value: AnsiString;
   end;
 
 const
@@ -272,7 +272,7 @@ begin
 
 end;
 
-function QueryIndex(index: Integer; const iv: array of TIndexedString): string;
+function QueryIndex(index: Integer; const iv: array of TIndexedString): AnsiString;
 var i: Integer;
 begin
   Result:= '';
@@ -453,7 +453,7 @@ begin
 	Result:= -1;
 end;
 
-function LameInfoToString(const l: TLameInfo): string;
+function LameInfoToString(const l: TLameInfo): AnsiString;
 begin
 //Format('%s.%d %s %u %u %u %u %u %u',
 //        [dest_info.lame_version, dest_info.lame_tagversion, dest_info.lame_vbrmethod,
@@ -477,7 +477,7 @@ begin
   );
 end;
 
-function ID3v1InfoToString( const i: TID3v1Info): string;
+function ID3v1InfoToString( const i: TID3v1Info): AnsiString;
 begin
   Result:= '';
   if i.id3_present then
@@ -486,7 +486,7 @@ end;
 
 
 
-function MP3Info(filename: string): string;
+function MP3Info(filename: AnsiString): AnsiString;
 var i: Integer;
     buf1: array[0..LAME_BUFFER_SIZE-1] of Byte;
     buf2: array[0..ID3V1_BUFFER_SIZE-1] of Byte;

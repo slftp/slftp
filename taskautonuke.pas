@@ -8,7 +8,7 @@ type TAutoNukeTask = class(TTask)
      private
      public
        function Execute(slot: Pointer): Boolean; override;
-       function Name: string; override;
+       function Name: AnsiString; override;
      end;
 
 implementation
@@ -25,7 +25,7 @@ function TAutoNukeTask.Execute(slot: Pointer): Boolean;
 label ujra;
 var s: TSiteSlot;
     i: Integer;
-    ss: string;
+    ss: AnsiString;
     l: TAutoNukeTask;
     n: TNukeQueueItem;
     b: Boolean;
@@ -129,7 +129,7 @@ ujra:
   ready:= True;
 end;
 
-function TAutoNukeTask.Name: string;
+function TAutoNukeTask.Name: AnsiString;
 begin
   Result:= 'AUTONUKE '+site1+ScheduleText;
 end;

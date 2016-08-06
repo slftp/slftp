@@ -9,15 +9,15 @@ procedure statsInit;
 procedure statsUninit;
 procedure statsBeginTransaction();
 procedure statsEndTransaction();
-function statsQuery(const q: string): string;
+function statsQuery(const q: AnsiString): AnsiString;
 
 function StatsAlive:boolean;
 
-procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: String);
+procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
 
-procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: string);
+procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
 
-procedure StatRaces(netname, channel, sitename, periode: string; detail: Boolean);
+procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
 
 
 implementation
@@ -36,11 +36,11 @@ begin
   if stats = nil then result:= False else result:=true;
 end;
 
-function statsQuery(const q: string): string;
+function statsQuery(const q: AnsiString): AnsiString;
 var s: Psqlite3_stmt;
     i: Integer;
     size: Double;
-    s_unit: String;
+    s_unit: AnsiString;
 begin
   s := stats.Open(q);
   i := 1;
@@ -67,13 +67,13 @@ begin
   end;
 end;
 
-procedure StatRaces(netname, channel, sitename, periode: string; detail: Boolean);
-var q: String;
-    s_size: String;
+procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
+var q: AnsiString;
+    s_size: AnsiString;
     size: Double;
-    s_unit: String;
+    s_unit: AnsiString;
     s: Psqlite3_stmt;
-    sql_periode: String;
+    sql_periode: AnsiString;
 begin
   sql_periode := 'start of month';
   if (periode = 'DAY') then
@@ -81,7 +81,7 @@ begin
 
   irc_addtext(netname, channel, Format('%s race stats of site: <b>%s</b>', [periode, sitename]));
 
-  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
+  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+');';
   s := stats.Open(q);
   while stats.Step(s) do
   begin
@@ -107,7 +107,7 @@ begin
     irc_addtext(netname, channel, Format('TOTAL <b>out</b> %.2f %s (%s files)', [size, s_unit,stats.column_text(s, 0)]));
   end;
 
-  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
+  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+');';
   s := stats.Open(q);
   while stats.Step(s) do
   begin
@@ -136,7 +136,7 @@ begin
   if not detail then Exit;
   
 
-  q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitedst ORDER BY sitedst';
+  q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+') GROUP BY sitedst ORDER BY sitedst';
   s := stats.Open(q);
   while stats.Step(s) do
   begin
@@ -162,7 +162,7 @@ begin
     irc_addtext(netname, channel, Format('<b>to</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
   end;
 
-  q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
+  q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
   s := stats.Open(q);
   while stats.Step(s) do
   begin
@@ -190,7 +190,7 @@ begin
 end;
 
 procedure statsStart;
-var s: string;
+var s: AnsiString;
 begin
   if slsqlite_inited then
   begin
@@ -255,7 +255,7 @@ begin
   end;
 end;
 
-procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: String);
+procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
 var s_src, s_dst: TSite;
 begin
   if stats = nil then exit;
@@ -280,10 +280,10 @@ begin
   end;
 end;
 
-procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: string);
+procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
 var i: Integer;
     de: TDirlistEntry;
-    u: string;
+    u: AnsiString;
 begin
   if d = nil then exit;
   if d.entries = nil then exit;
