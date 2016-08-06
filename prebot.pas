@@ -1502,12 +1502,9 @@ var
   ii, I: integer;
   d:     TDirlist;
   de:    TDirListEntry;
-  plist: TStringList;
-
 begin
 //  Result := False;
   rip    := params;
-  plist  := TStringList.Create;
   SOK    := '';
   SBAD   := '';
 
@@ -1531,45 +1528,40 @@ begin
 
 //    queue_lock.Leave;
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-    if d <> nil then
-    begin
-      for ii := 0 to d.entries.Count - 1 do
-      begin
-        de := TDirListEntry(d.entries[ii]);
-        if ((de.directory) and (de.filename = rip)) then
-        begin
-          if SOK = '' then
-            SOK := s.Name
-          else
-            SOK := SOK + ', ' + s.Name;
-          //  Irc_addtext(Netname,CHannel,'%s on %s',[de.filename,s.name]);
-          //  plist.Values[de.filename]:=plist.Values[de.filename]+' '+s.name;
-        end
-        else
-        begin//  if ((de.directory) and (de.filename = rip))  then begin
-          if SBAD = '' then
-            SOK  := s.Name
-          else
-            SBAD := SBAD + ', ' + s.Name;
+    try
 
-        end; //  end else begin//  if ((de.directory) and (de.filename = rip))  then begin
+      if d <> nil then
+      begin
+        for ii := 0 to d.entries.Count - 1 do
+        begin
+          de := TDirListEntry(d.entries[ii]);
+          if ((de.directory) and (de.filename = rip)) then
+          begin
+            if SOK = '' then
+              SOK := s.Name
+            else
+              SOK := SOK + ', ' + s.Name;
+          end
+          else
+          begin
+            if SBAD = '' then
+              SOK  := s.Name
+            else
+              SBAD := SBAD + ', ' + s.Name;
+          end;
+        end;
       end;
+
+    finally
       d.Free;
     end;
-  end;//for I := 0 to sites.Count - 1 do begin
-
-  //  plist.Values['OK']:=SOK;
-  //  plist.Values['BAD']:=SBAD;
+  end;
 
   irc_addtext(netname, channel, '<c3>%s</c>%s', [SOK]);
   irc_addtext(netname, channel, '<c4>%s</c>%s', [SBAD]);
 
-  plist.Free;
   Result := True;
-
 end;
-
-
 
 
 function IrcListPreContent(const netname, channel: string; params: string): boolean;
@@ -1583,21 +1575,73 @@ var
 begin
   Result := False;
   plist  := TStringList.Create;
+  try
 
-  if params = '*' then
-  begin
+    if params = '*' then
+    begin
 
-    for I := 0 to sites.Count - 1 do
+      for I := 0 to sites.Count - 1 do
+      begin
+        queue_lock.Enter;
+        s := TSite(sites.Items[i]);
+        if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+          continue;
+
+        if s.SkipPre then
+        begin
+          irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [s.Name]);
+          continue;
+        end;
+
+        try
+          predir := s.sectiondir['PRE'];
+        except
+          on E: Exception do
+            irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+        end;
+        queue_lock.Leave;
+        if predir = '' then
+        begin
+          Irc_AddText(Netname, Channel, '', []);
+          Continue;
+        end;
+
+        //  Irc_addtext(Netname,CHannel,'Going for: %s',[s.name]);
+
+        d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
+        try
+          if d <> nil then
+          begin
+            for ii := 0 to d.entries.Count - 1 do
+            begin
+              de := TDirListEntry(d.entries[ii]);
+              if de.directory then
+              begin
+                //  Irc_addtext(Netname,CHannel,'%s on %s',[de.filename,s.name]);
+                plist.Values[de.filename] := plist.Values[de.filename] + ' ' + s.Name;
+              end;
+            end;
+          end;
+
+        finally
+          d.Free;
+        end;
+
+      end;
+
+      for I := 0 to pList.Count - 1 do
+        Irc_addtext(Netname, CHannel, '%s ( %s )', [plist.Names[i], plist.ValueFromIndex[i]]);
+
+    end
+    else
     begin
       queue_lock.Enter;
-      s := TSite(sites.Items[i]);
-      if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        continue;
-
-      if s.SkipPre then
+      s := FindSiteByName(netname, params);
+      if s = nil then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [s.Name]);
-        continue;
+        //irc_addtext(netname,channel,'site not valid');
+        queue_lock.Leave;
+        exit;
       end;
 
       try
@@ -1606,85 +1650,44 @@ begin
         on E: Exception do
           irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
       end;
+
       queue_lock.Leave;
       if predir = '' then
       begin
-        Irc_AddText(Netname, Channel, '', []);
-        Continue;
+        Irc_AddText(Netname, Channel, 'No valid path for section %s found on %s ',
+          ['PRE', s.Name]);
+        Exit;
       end;
 
-      //  Irc_addtext(Netname,CHannel,'Going for: %s',[s.name]);
+      Irc_addtext(Netname, CHannel, 'Read content for %s:', [s.Name]);
 
       d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-      if d <> nil then
-      begin
-        for ii := 0 to d.entries.Count - 1 do
+      try
+        if d <> nil then
         begin
-          de := TDirListEntry(d.entries[ii]);
-          if de.directory then
+          for ii := 0 to d.entries.Count - 1 do
           begin
-            //  Irc_addtext(Netname,CHannel,'%s on %s',[de.filename,s.name]);
-            plist.Values[de.filename] := plist.Values[de.filename] + ' ' + s.Name;
+            de := TDirListEntry(d.entries[ii]);
+            if de.directory then
+            begin
+              Irc_addtext(Netname, CHannel, '%s', [de.filename]);
+              //  plist.Values[de.filename]:=plist.Values[de.filename]+' '+s.name;
+            end;
           end;
         end;
+      finally
         d.Free;
       end;
-    end;//for I := 0 to sites.Count - 1 do begin
 
-    for I := 0 to pList.Count - 1 do
-      Irc_addtext(Netname, CHannel, '%s ( %s )', [plist.Names[i], plist.ValueFromIndex[i]]);
+      //for I := 0 to pList.Count - 1 do
+      //Irc_addtext(Netname,CHannel,'%s ( %s )',[plist.Names[i],plist.ValueFromIndex[i]]);
 
-  end
-  else
-  begin
-    queue_lock.Enter;
-    s := FindSiteByName(netname, params);
-    if s = nil then
-    begin
-      //irc_addtext(netname,channel,'site not valid');
-      queue_lock.Leave;
-      exit;
     end;
 
-    try
-      predir := s.sectiondir['PRE'];
-    except
-      on E: Exception do
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-    end;
-
-    queue_lock.Leave;
-    if predir = '' then
-    begin
-      Irc_AddText(Netname, Channel, 'No valid path for section %s found on %s ',
-        ['PRE', s.Name]);
-      Exit;
-    end;
-
-    Irc_addtext(Netname, CHannel, 'Read content for %s:', [s.Name]);
-
-    d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-    if d <> nil then
-    begin
-      for ii := 0 to d.entries.Count - 1 do
-      begin
-        de := TDirListEntry(d.entries[ii]);
-        if de.directory then
-        begin
-          Irc_addtext(Netname, CHannel, '%s', [de.filename]);
-          //  plist.Values[de.filename]:=plist.Values[de.filename]+' '+s.name;
-        end;
-      end;
-      d.Free;
-    end;
-
-    //for I := 0 to pList.Count - 1 do
-    //Irc_addtext(Netname,CHannel,'%s ( %s )',[plist.Names[i],plist.ValueFromIndex[i]]);
-
+  finally
+    plist.Free;
   end;
 
-
-  plist.Free;
   Result := True;
 end;
 
