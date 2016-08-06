@@ -661,39 +661,53 @@ begin
       List.Add('[' + FSections[I] + ']');
       Strings := TStrings(FSections.Objects[I]);
 
-      if (split_site_data) then begin
-  		  if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then begin
+      if (split_site_data) then
+      begin
+        if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then
+        begin
   			  ListSplitFile := TStringList.Create;
-    			for J := 0 to Strings.Count - 1 do begin
+    			for J := 0 to Strings.Count - 1 do
+          begin
     			  S := Strings.Names[J];
 	    		  Found := False;
-		    	  for K := 1 to Length(splitredirectkeys) do begin
-    		  		if S = splitredirectkeys[K] then begin
+		    	  for K := 1 to Length(splitredirectkeys) do
+            begin
+    		  		if S = splitredirectkeys[K] then
+              begin
     			  	  Found := True;
 		    		    break;
-  				    end;
+              end;
      			  end;
 	    		  if not Found then
 		      		if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
-				        Found := True;
-    			  if Found then
+                Found := True;
+
+            if Found then
 	      			List.Add(Strings[J])
-		  	    else
-			    	  ListSplitFile.Add(Strings[J])
-  			  end;
-  	  		S := FSections[I];
+
+          else
+	      	  ListSplitFile.Add(Strings[J])
+		      end;
+
+          S := FSections[I];
 	  	  	S := Copy(S, 6, Length(S)-5);
   	  		S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
   		  	ListSplitFile.SaveToFile(S);
   			  ListSplitFile.Free;
-  		  end else begin
+  		  end
+        else
+        begin
   			  for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
   		  end;
-	    end else begin
-      for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
-      List.Add('');
+
+      end
+      else
+      begin
+        for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
+        List.Add('');
+      end;
     end;
-    end;
+
   finally
     List.EndUpdate;
   end;
@@ -712,12 +726,15 @@ begin
     begin
       DecryptFileToStream(fFilename, myS, fPassHash, fCompression);
       List.LoadFromStream(myS);
-    end else
+    end
+    else
     begin
       List.LoadFromFile(fFilename);
     end;
+
     try
       SetStrings(List);
+
     finally
       List.Free;
       myS.Free;
@@ -853,10 +870,13 @@ begin
               if FileExists(S) then
               begin
                 ListSplitFile := TStringList.Create;
-                ListSplitFile.LoadFromFile(S);
-                for J := 0 to ListSplitFile.Count - 1 do
-                  Strings.Add(ListSplitFile[J]);
-                ListSplitFile.Free;
+                try
+                  ListSplitFile.LoadFromFile(S);
+                  for J := 0 to ListSplitFile.Count - 1 do
+                    Strings.Add(ListSplitFile[J]);
+                finally
+                  ListSplitFile.Free;
+                end;
               end;
             end;
           end;

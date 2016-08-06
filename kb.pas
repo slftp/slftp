@@ -1590,7 +1590,6 @@ var
   szo, szamoknelkul: string;
   db: integer;
   lrx: TRegexpr;
-
 begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
@@ -1614,99 +1613,90 @@ begin
         mp3year := year;
       if mp3year = 0 then
         exit;
-      // nem talaltuk meg az evszamot. Szopas, folosleges folytatni.     //We did not find out the year. Sucking, useless to continue.
+      //We did not find out the year. Sucking, useless to continue.
 
       if ((not Internal) and (evszamindex + 3 = tags.Count)) then
         groupname := tags[evszamindex + 1] + '_' + tags[evszamindex + 2]; //tweak
 
       //nyelvkod.
       lrx := TRegexpr.Create;
-      lrx.ModifierI := True;
-      for I := 0 to mp3languages.Count - 1 do
-      begin
-        lrx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
-        if lrx.Exec(rlsname) then
+      try
+        lrx.ModifierI := True;
+        for I := 0 to mp3languages.Count - 1 do
         begin
-          mp3lng := mp3languages[i];
-          Break;
-        end;
-      end;
-
-      if mp3lng = '' then
-        mp3lng := 'EN';
-
-      // most atkonvertaljuk evszamindexet a words szarnak megfelelore
-      //      Inc(evszamindex, words.Count - tags.Count);
-
-      //megkeressuk masodik kotojel utani szo indexet
-      //      szoindex := 0;
-      kotojelekszama := 0;
-      for i := 1 to length(rlsname) do
-      begin
-        //        if rlsname[i] = '_' then
-        //          Inc(szoindex)
-        //        else
-        if rlsname[i] = '-' then
-        begin
-          //          Inc(szoindex);
-          Inc(kotojelekszama);
-          if (kotojelekszama = 2) then
-            Break;
-        end;
-      end;
-
-      if kotojelekszama < 2 then
-        exit;
-      (*
-            kezdoindex := Min(szoindex, words.Count - 1);
-            kezdoindex := Min(kezdoindex, evszamindex - 3);
-            kezdoindex := Max(kezdoindex, 0);
-      *)
-      types := 0;
-      mp3_numdisks := 1;
-
-      //    for i:= 0 to words.Count -1 do
-      for i := words.Count - 1 downto 1 do //from 0day.
-        //    for i:= kezdoindex to evszamindex-1 do <-- oSource!
-      begin
-        //1CD 99DVD
-
-        szo := ' ' + words[i] + ' ';
-        db := 0;
-        NumberOfDisksTag(words[i], szamoknelkul, db);
-        for j := 0 to mp3sources.Count - 1 do
-        begin
-          if (AnsiContainsText(mp3sources.ValueFromIndex[j], szo)) then
+          lrx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
+          if lrx.Exec(rlsname) then
           begin
-            AddSource(mp3sources.Names[j]);
-            Break;
-          end
-          else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
-            szamoknelkul))) then
-          begin
-            AddSource(mp3sources.Names[j]);
-            mp3_numdisks := db;
-            mp3_number_of := words[i];
+            mp3lng := mp3languages[i];
             Break;
           end;
         end;
 
-        if ((types < 3) and (mp3types.IndexOf(words[i]) <> -1)) then
+        if mp3lng = '' then
+          mp3lng := 'EN';
+
+        kotojelekszama := 0;
+        for i := 1 to length(rlsname) do
         begin
-          Inc(types);
-          case types of
-            1: mp3types1 := words[i];
-            2: mp3types2 := words[i];
-            3: mp3types3 := words[i];
+          if rlsname[i] = '-' then
+          begin
+            Inc(kotojelekszama);
+            if (kotojelekszama = 2) then
+              Break;
           end;
         end;
-      end; // end of tag kereses
 
-      lrx.ModifierI := True;
-      lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+        if kotojelekszama < 2 then
+          exit;
 
-      mp3_va := lrx.Exec(rlsname);
-      lrx.Free;
+        types := 0;
+        mp3_numdisks := 1;
+
+        //for i:= 0 to words.Count -1 do
+        for i := words.Count - 1 downto 1 do //from 0day.
+        //for i:= kezdoindex to evszamindex-1 do <-- oSource!
+        begin
+          //1CD 99DVD
+
+          szo := ' ' + words[i] + ' ';
+          db := 0;
+          NumberOfDisksTag(words[i], szamoknelkul, db);
+          for j := 0 to mp3sources.Count - 1 do
+          begin
+            if (AnsiContainsText(mp3sources.ValueFromIndex[j], szo)) then
+            begin
+              AddSource(mp3sources.Names[j]);
+              Break;
+            end
+            else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
+              szamoknelkul))) then
+            begin
+              AddSource(mp3sources.Names[j]);
+              mp3_numdisks := db;
+              mp3_number_of := words[i];
+              Break;
+            end;
+          end;
+
+          if ((types < 3) and (mp3types.IndexOf(words[i]) <> -1)) then
+          begin
+            Inc(types);
+            case types of
+              1: mp3types1 := words[i];
+              2: mp3types2 := words[i];
+              3: mp3types3 := words[i];
+            end;
+          end;
+        end; // end of tag kereses
+
+        lrx.ModifierI := True;
+        lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+
+        mp3_va := lrx.Exec(rlsname);
+
+      finally
+        lrx.Free;
+      end;
 
       AddSource('CD'); // default
     except

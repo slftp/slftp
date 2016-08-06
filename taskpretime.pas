@@ -128,28 +128,37 @@ begin
   end;
 
   response := TStringList.Create;
-  response.Text := slUrlGet(Format(url, [mainpazo.rls.rlsname]));
-  debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s',
-    [mainpazo.rls.rlsname, response.Text]);
-  prex := TRegexpr.Create;
-  prex.ModifierM := True;
-  prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
-  for i := 0 to response.Count - 1 do
-    if prex.Exec(response.strings[i]) then
-    begin
-      vctime := PrepareTimestamp(StrToInt(prex.Match[2]));
-      //vctime:=PrepareOffSet(strtoint(prex.Match[2]));
-      mainpazo.rls.cpretime := vctime;
-      mainpazo.rls.pretime := UnixToDateTime(vctime);
-      Result := True;
-    end
-    else
-    begin
-      //urlcount:=urlcount+1;
-      //goto nexturl;
+  try
+    response.Text := slUrlGet(Format(url, [mainpazo.rls.rlsname]));
+    debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [mainpazo.rls.rlsname, response.Text]);
+    prex := TRegexpr.Create;
+    try
+      prex.ModifierM := True;
+      prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
+      for i := 0 to response.Count - 1 do
+      begin
+        if prex.Exec(response.strings[i]) then
+        begin
+          vctime := PrepareTimestamp(StrToInt(prex.Match[2]));
+          //vctime:=PrepareOffSet(strtoint(prex.Match[2]));
+          mainpazo.rls.cpretime := vctime;
+          mainpazo.rls.pretime := UnixToDateTime(vctime);
+          Result := True;
+        end
+        else
+        begin
+          //urlcount:=urlcount+1;
+          //goto nexturl;
+        end;
+      end;
+
+    finally
+      prex.Free;
     end;
-  prex.Free;
-  response.Free;
+
+  finally
+    response.Free;
+  end;
 end;
 
 function FetchTimeFromMYSQL(rls: TRelease): boolean;
@@ -209,6 +218,8 @@ begin
     exit;
 
   r := TRegexpr.Create;
+  try
+
   r.Expression := '^(\+|\-)([\d]+)$';
   try
     if r.Exec(fvalue) then
@@ -225,7 +236,11 @@ begin
   finally
     Result := True;
   end;
-  r.Free;
+
+  finally
+    r.Free;
+  end;
+
 end;
 
 end.

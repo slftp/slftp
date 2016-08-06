@@ -37,7 +37,7 @@ const
 var
   addurlcmd: string;
 
-  { TDbUrl }
+{ TDbUrl }
 
 constructor TDbUrl.Create(rls, url: string);
 begin
@@ -135,21 +135,25 @@ var
   imdb_id: string;
 begin
   rr := TRegexpr.Create;
-  rr.ModifierI := True;
-  rr.Expression := 'tt(\d{6,7})';
-  if rr.exec(url) then
-  begin
-    imdb_id := 'tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
-    try
-      dbaddimdb_SaveImdb(rls, imdb_id);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
+  try
+    rr.ModifierI := True;
+    rr.Expression := 'tt(\d{6,7})';
+    if rr.exec(url) then
+    begin
+      imdb_id := 'tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
+      try
+        dbaddimdb_SaveImdb(rls, imdb_id);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
+        end;
       end;
     end;
+
+  finally
+    rr.Free;
   end;
-  rr.Free;
 end;
 
 { Status }
