@@ -6148,20 +6148,24 @@ end;
 
 function IrcAuto(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
-  //  Result := False;
+  Result := False;
   try
     if params <> '' then
     begin
       if params = '0' then
+      begin
         sitesdat.WriteBool('precatcher', 'auto', False);
+        irc_addtext(Netname, Channel, Format('Auto is disabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+      end;
+
       if params = '1' then
+      begin
         sitesdat.WriteBool('precatcher', 'auto', True);
-      irc_addtext(Netname, Channel,
-        'Auto is: ' + IntToStr(integer(precatcherauto)));
+        irc_addtext(Netname, Channel, Format('Auto is enabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+      end;
     end
     else
-      irc_addtext(Netname, Channel,
-        'Auto is: ' + IntToStr(integer(precatcherauto)));
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: %s [1 means enabled - 0 means disabled]', [IntToStr(integer(precatcherauto))]));
   finally
     Result := True;
   end;
