@@ -1306,11 +1306,18 @@ begin
     begin
       readyerror := True;
       ps2.SetFileError(netname, channel, dir, filename);
-      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' +
-        lastResponse + ' ' + tname);
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + lastResponse + ' ' + tname);
       exit;
     end;
-
+    
+    if ( (lastResponseCode = 530) AND (0 < AnsiPos('not allowed in this file name', lastResponse)) ) then
+    begin
+      readyerror := True;
+      ps2.SetFileError(netname, channel, dir, filename);
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + lastResponse + ' ' + tname);
+      exit;
+    end;
+    
     if ( (lastResponseCode = 533) AND 
     ( (0 < AnsiPos('You must upload sfv first', lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', lastResponse)) OR (0 < AnsiPos('File not found in sfv', lastResponse)) ) ) then
     begin
@@ -1320,38 +1327,9 @@ begin
       exit;
     end;
 
-    //if (((lastResponseCode = 533) and
-    //  (0 < AnsiPos('You must upload sfv first', lastResponse)))) then
-    //begin
-    //  ps2.ParseDupe(netname, channel, dir, filename, False);
-    //  readyerror := True;
-    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    //  exit;
-    //end;
-
-    //if (((lastResponseCode = 533) and
-    //  (0 < AnsiPos('does not exist in the sfv', lastResponse)))) then
-    //begin
-    //  ps2.ParseDupe(netname, channel, dir, filename, False);
-    //  readyerror := True;
-    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    //  exit;
-    //end;
-
-    //if (((lastResponseCode = 533) and (0 < AnsiPos('File not found in sfv', lastResponse)))) then
-    //begin
-    //  ps2.ParseDupe(netname, channel, dir, filename, False);
-    //  readyerror := True;
-    //  Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    //  exit;
-    //end;
-
-
-
     if ( (lastResponseCode = 425) AND (0 < AnsiPos('Connection refused', lastResponse)) ) then
     begin
-      irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s',
-        [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+      irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
       ssrc.Quit;
       sdst.Quit;
       goto ujra;
@@ -1379,8 +1357,7 @@ begin
     end
     else if (lastResponseCode = 553) then
     begin
-      ps2.ParseXdupe(netname, channel, dir, lastResponse,
-        ps2.ParseDupe(netname, channel, dir, filename, False));
+      ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
       ready := True;
       Result := True;
       Debug(dpMessage, c_section, '<-- DUPE ' + tname);
@@ -1388,13 +1365,10 @@ begin
     end
     else
     begin
-      Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s',
-        [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
-      irc_Adderror(Format('<c4>[ERROR]</c> unknown error %s after STOR (%s) : %d %s',
-        [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+      Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
+      irc_Adderror(Format('<c4>[ERROR]</c> unknown error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
       sdst.DestroySocket(False);
-      mainpazo.errorreason := Format('unknown error %s after STOR (%s) : %d %s',
-        [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+      mainpazo.errorreason := Format('unknown error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
       readyerror := True;
     end;
     Debug(dpMessage, c_section, '<- ' + tname);
