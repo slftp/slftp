@@ -1480,9 +1480,10 @@ begin
   try
     dl := dirlist.FindDirlist(dir);
     if dl = nil then
+    begin
       pazo.errorreason := 'Dirlist is NIL';
-    if dl = nil then
       exit;
+    end;
 
     de := dl.Find(filename);
     if de <> nil then
@@ -1495,11 +1496,12 @@ begin
       de.error := True;
       dl.entries.Add(de);
     end;
+    
+    Result := True;
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.SetFileError: %s', [e.Message]));
       Result := False;
     end;
   end;
