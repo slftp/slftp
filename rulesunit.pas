@@ -4507,7 +4507,6 @@ end;
 class function TConditionTVDailyShow.Description: AnsiString;
 begin
   Result := TVDailyShowDescription;
-  //+#13#10;
 end;
 
 class function TConditionTVDailyShow.Name: AnsiString;
@@ -4534,7 +4533,6 @@ end;
 class function TConditionTVCurrentEpisiode.Description: AnsiString;
 begin
   Result := TVCurrentEpisiodeDescription;
-  //+#13#10;
 end;
 
 class function TConditionTVCurrentEpisiode.Name: AnsiString;
@@ -4556,12 +4554,11 @@ begin
   end;
 end;
 
-{ TConditionTVCurrentSeason }
+{ TConditionTVCurrent }
 
 class function TConditionTVCurrentOnAir.Description: AnsiString;
 begin
-  Result := TVCurrentSeasonDescription;
-  //+#13#10;
+  Result := TVCurrentOnAirDescription;
 end;
 
 class function TConditionTVCurrentOnAir.Name: AnsiString;
@@ -4588,7 +4585,6 @@ end;
 class function TConditionTVCurrentSeason.Description: AnsiString;
 begin
   Result := TVCurrentSeasonDescription;
-  //+#13#10;
 end;
 
 class function TConditionTVCurrentSeason.Name: AnsiString;
