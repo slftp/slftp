@@ -9087,52 +9087,51 @@ end;
 function IrcTweak(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   ss1, ss2, s1, s2, s3: AnsiString;
-
   x: TRegExpr;
 begin
   s1 := SubString(params, ' ', 1);
   s2 := SubString(params, ' ', 2);
-  s3 := RightStrV2(params, length(s1) + 1 + length(s2) + 1);
+  s3 := lowercase(RightStrV2(params, length(s1) + 1 + length(s2) + 1));
   ss1 := SubString(s1, '-', 1);
   ss2 := SubString(s1, '-', 2);
 
   x := TRegExpr.Create;
-  x.ModifierI := True;
-  x.Expression := '(site\-|ircnet\-|mysql\-)(.*?)$';
-  if not x.Exec(s1) then
-  begin
+  try
+    x.ModifierI := True;
+    x.Expression := '(site\-|ircnet\-|mysql\-)(.*?)$';
+    if not x.Exec(s1) then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>. Need to start with (site\-|ircnet\-|mysql\-).</c>');
+      exit;
+    end
+    else
+      s1 := lowercase(ss1) + '-' + uppercase(ss2);
+
+  finally
     x.Free;
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-    Result := False;
-    exit;
-  end
-  else
-    s1 := lowercase(ss1) + '-' + uppercase(ss2);
-  x.Free;
+  end;
 
   if s3 = '' then
     irc_addtext(Netname, Channel, 'Value is: ' + sitesdat.ReadString(s1, s2, ''))
   else
   begin
-
     try
       sitesdat.WriteString(s1, s2, s3);
     except
       on E: Exception do
       begin
         Debug(dpError, section, '[EXCEPTION] IrcTweak : %s', [e.Message]);
-        Result := False;
         Exit;
       end;
     end;
 
-    // irc_addtext(netname, channel, 'New value is: '+sitesdat.ReadString(s1, s2, ''));
+    irc_addtext(netname, channel, 'New value is: '+sitesdat.ReadString(s1, s2, ''));
   end;
+
   Result := True;
 end;
 
 /// dOH mODz
-
 function Irctestoffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   voctime, vctime, vnow, cnow: int64;
@@ -9146,53 +9145,57 @@ begin
   vnow := -1;
   url := '';
   x := TRegExpr.Create;
-  x.Expression := '^(\S+) (\S+) (\S+) (\S+) (\S+)$';
-  irc_addtext(Netname, Channel, 'Offset TEST');
-  // Irc_AddText(netname,channel,'Trigger: %s : Value: %d ',[offset.Trigger,offset.OffSetValue]);
+  try
+    x.Expression := '^(\S+) (\S+) (\S+) (\S+) (\S+)$';
+    irc_addtext(Netname, Channel, 'Offset TEST');
+    // Irc_AddText(netname,channel,'Trigger: %s : Value: %d ',[offset.Trigger,offset.OffSetValue]);
 
-  if params <> '' then
-  begin
-    response := slUrlGet(format(url, [params]));
-    if x.Exec(response) then
+    if params <> '' then
     begin
-      voctime := strtoint64(x.Match[2]);
-      // vctime:=offset.NewCtime(voctime);
-    end;
-    if ((voctime <> -99) and (vctime <> -99)) then
-    begin
-      s := format('[%d] %s', [voctime, DateTimeAsString(
-          UnixToDateTime(voctime))]) + #13#10;
-      ss := format('[%d] %s', [vctime, DateTimeAsString(
-          UnixToDateTime(vctime))]) + #13#10;
-      s := s + '' + DatetimetoStr(UnixToDateTime(voctime));
-      ss := ss + '' + DatetimetoStr(UnixToDateTime(vctime));
+      response := slUrlGet(format(url, [params]));
+      if x.Exec(response) then
+      begin
+        voctime := strtoint64(x.Match[2]);
+        // vctime:=offset.NewCtime(voctime);
+      end;
+      if ((voctime <> -99) and (vctime <> -99)) then
+      begin
+        s := format('[%d] %s', [voctime, DateTimeAsString(
+            UnixToDateTime(voctime))]) + #13#10;
+        ss := format('[%d] %s', [vctime, DateTimeAsString(
+            UnixToDateTime(vctime))]) + #13#10;
+        s := s + '' + DatetimetoStr(UnixToDateTime(voctime));
+        ss := ss + '' + DatetimetoStr(UnixToDateTime(vctime));
+      end
+      else
+      begin
+        s := 'No Pretime Found!';
+        ss := 'No Pretime Found!';
+      end; // if ((voctime <> -99) and (vctime <> -99)) then begin
+      irc_addtext(Netname, Channel, 'Database Time:');
+      irc_addtext(Netname, Channel, s);
+      irc_addtext(Netname, Channel, 'Fixed Time:');
+      irc_addtext(Netname, Channel, ss);
+      
     end
     else
-    begin
-      s := 'No Pretime Found!';
-      ss := 'No Pretime Found!';
-    end; // if ((voctime <> -99) and (vctime <> -99)) then begin
-    irc_addtext(Netname, Channel, 'Database Time:');
-    irc_addtext(Netname, Channel, s);
-    irc_addtext(Netname, Channel, 'Fixed Time:');
-    irc_addtext(Netname, Channel, ss);
-    x.Free;
-  end
-  else
-  begin // if params <> '' then begin
-    cnow := DateTimeToUnix(now);
+    begin // if params <> '' then begin
+      cnow := DateTimeToUnix(now);
 
-    irc_addtext(Netname, Channel, 'Offset TEST');
-    // (%s%sh)',[vtrigger,offset.OffSet]);
-    // Irc_AddText(netname,channel,'Trigger: %s : Value: %d ',[vtrigger,offset.OffSetValue]);
-    irc_addtext(Netname, Channel, 'Realtime: %d (%s)',
-      [cnow, DatetimetoStr(UnixToDateTime(cnow))]);
-    irc_addtext(Netname, Channel, 'Fixxedtime: %d (%s)',
-      [vnow, DatetimetoStr(UnixToDateTime(vnow))]);
+      irc_addtext(Netname, Channel, 'Offset TEST');
+      // (%s%sh)',[vtrigger,offset.OffSet]);
+      // Irc_AddText(netname,channel,'Trigger: %s : Value: %d ',[vtrigger,offset.OffSetValue]);
+      irc_addtext(Netname, Channel, 'Realtime: %d (%s)',
+        [cnow, DatetimetoStr(UnixToDateTime(cnow))]);
+      irc_addtext(Netname, Channel, 'Fixxedtime: %d (%s)',
+        [vnow, DatetimetoStr(UnixToDateTime(vnow))]);
+    end;
+  
+  finally
+    x.Free;
   end;
 
   Result := True;
-
 end;
 
 { IrcKillAll }
@@ -9202,26 +9205,21 @@ var
   i: integer;
   rx: TRegExpr;
 begin
-  //  Result := False;
+  Result := False;
   rx := TRegExpr.Create;
   try
     rx.ModifierI := False;
     rx.Expression := 'AUTOLOGIN';
-    // Irc_AddText(Netname,Channel,'Try to kill '+inttostr(tasks.Count)+' tasks plz w8...');
-    // for i:= tasks.Count -1 downto Max(tasks.Count -10, 0) do begin
+    // Irc_AddText(Netname, Channel, 'Try to kill %s tasks plz w8...', [IntToStr(tasks.Count)]);
     for i := 0 to tasks.Count - 1 do
       if not rx.Exec(TPazoTask(tasks[i]).Fullname) then
       begin
-        // if TTask(tasks[i]) then
-        irc_addtext(Netname, Channel, 'Removing Task -> %s',
-          [TPazoTask(tasks[i]).Fullname]);
+        irc_addtext(Netname, Channel, 'Removing Task -> %s', [TPazoTask(tasks[i]).Fullname]);
         try
           tasks.Remove(TPazoTask(tasks[i]));
         except
           on E: Exception do
-            Irc_AddText(Netname, Channel,
-              '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s',
-              [e.Message]);
+            Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
         end;
 
       end
@@ -9230,7 +9228,6 @@ begin
 
   finally
     rx.Free;
-    // Irc_AddText(Netname,Channel,'Destroy command sended to all tasks now wait a bit ;)');
   end;
   Result := True;
 end;
@@ -9242,7 +9239,6 @@ var
   sit: TSite;
 begin
   snam := UpperCase(SubString(params, ' ', 1));
-  // RightStrv2(params, length(ircnick)+1);
   ircnick := SubString(params, ' ', 2);
 
   sit := FindSiteByName('', snam);
