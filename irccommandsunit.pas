@@ -9090,8 +9090,8 @@ var
   x: TRegExpr;
 begin
   s1 := SubString(params, ' ', 1);
-  s2 := SubString(params, ' ', 2);
-  s3 := lowercase(RightStrV2(params, length(s1) + 1 + length(s2) + 1));
+  s2 := lowercase(SubString(params, ' ', 2));
+  s3 := RightStrV2(params, length(s1) + 1 + length(s2) + 1);
   ss1 := SubString(s1, '-', 1);
   ss2 := SubString(s1, '-', 2);
 
