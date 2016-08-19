@@ -795,7 +795,7 @@ begin
   begin
     if (kb_sections.IndexOf(section) = -1) and (dir <> '') then
     begin
-      irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file.',
+      irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file at [sections] and/or [mappings].',
         [section, section]);
       exit;
     end;
@@ -5788,7 +5788,7 @@ begin
   i := -1;
   section := UpperCase(SubString(params, ' ', 1));
 
-  if precatcher.sectionlist.IndexOfName(section) <> -1 then
+  if kb_sections.IndexOf(section) <> -1 then
   begin
     sitename := '';
     dir := SubString(params, ' ', 2);
@@ -5798,14 +5798,15 @@ begin
     sitename := section;
     section := UpperCase(SubString(params, ' ', 2));
 
-    if precatcher.sectionlist.IndexOfName(section) = -1 then
+    if kb_sections.IndexOf(section) = -1 then
     begin
-      irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Section was not found in slftp.precatcher file.');
+      irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file at [sections] and/or [mappings].');
       exit;
     end;
 
     dir := SubString(params, ' ', 3);
   end;
+
   if ((dir = '') or (dir = section) or (sitename = dir)) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: No valid Rip found!');
@@ -5817,14 +5818,13 @@ begin
 
   try
     // i:= kb_add(netname, channel, '', section, '', 'NEWDIR', dir, '', True);
-    i := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR', dir, '',
-      True);
+    i := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR', dir, '', True);
 
   except
     on E: Exception do
     begin
-      irc_addtext(Netname, Channel, format('[EXCEPTION] IrcLookup_kb_add : %s',
-        [E.Message]));
+      irc_addtext(Netname, Channel, format('[EXCEPTION] IrcLookup_kb_add : %s', [E.Message]));
+      exit;
     end;
   end;
 
