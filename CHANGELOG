@@ -47,6 +47,7 @@
 
 --=============================( SLFTP v1.5.3.1 )=================================- 
 		{#} !rulehelp tvcurrent shows correct help
+		{#} !lookup works with sections which are only mapped. Don't need to be under [sections]
 		{^} !tweak automatically switch to lowercase values
 		{^} RegExpr updated to latest version
 		{^} Archive sections can be added with !setdir using ARCH-SECTIONNAME
