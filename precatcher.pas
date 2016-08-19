@@ -496,7 +496,7 @@ begin
 
     if section = '' then
     begin
-      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections]!', [sitename, rls]);
+      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
       MyDebug('No section?! ' + sitename + '@' + rls);
       exit;
     end;
