@@ -412,7 +412,7 @@ var
   cdno: AnsiString;
   s: AnsiString;
 begin
-  // megvan, mar csak ki kell bontani a riliznevet
+  // we only need to extract the rlsname
   try
     rls := KibontasRiliz(sitename, cdno, ts_data);
   except
@@ -438,42 +438,9 @@ begin
     if (skiprlses.IndexOf(rls) <> -1) then
     begin
       MyDebug('Rls found in SkipRlses ...');
-      Debug(dpSpam, rsections, 'Rls found in SkipRlses ...');
+      Debug(dpSpam, rsections, Format('Rls %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]])); // not sure if it works
       exit;
     end;
-
-    (* wadoh: i moved the replace stuff to  FoCsupaszitas, now we reraplce befor any catchline checkes.
-
-      // elso korben megnezzuk van e ignoreword ra  -- this is the first place you look at to ignoreword
-        s:= Csere(ts_data.DelimitedText, rls, '');
-        // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
-        s:= ProcessDoReplace(s);
-
-        ts_data.DelimitedText:= s;
-
-        *)
-    (* Xperia : i dont think it can help
-        // most levagjuk a sor veget ahol mar a juzer taglineja kezdodik vagyis barmi fassag lehet
-        try
-          j:= -1;
-          for i:= 0 to tagline.Count -1 do
-          begin
-            j:= ts_data.IndexOf(tagline[i]);
-            if j <> -1 then
-              Break;
-          end;
-          if j <> -1 then
-          begin
-            k:= ts_data.Count - j;
-            for i:= 1 to k do
-            begin
-              ts_data.Delete(j);
-            end;
-          end;
-        except
-          exit;
-        end;
-    *)
 
     if event <> 'REQUEST' then
     begin
@@ -485,7 +452,6 @@ begin
         if not precatcher_debug then
           irc_addadmin('<b><c14>Info</c></b>: Skipped group detected!: ' + rls);
         skiprlses.Add(rls);
-        //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Skipped group detected', [FormatDateTime('hh:nn:ss', Now)]));
         exit;
       end;
 
@@ -494,31 +460,14 @@ begin
     // removing double spaces
     s := ts_data.DelimitedText;
 
-    MyDebug('Cleanedup line wo rlsname: %s', [s]);
-    Debug(dpSpam, rsections, 'Cleanedup line wo rlsname: %s', [s]);
+    MyDebug('Cleaned up line with rlsname: %s', [s]);
+    Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
     s := ' ' + s + ' ';
 
     if section = '' then
     begin
       section := KibontasSection(s, section);
     end;
-
-    (*
-    if section = '' then
-    begin
-      section:= sectionhelper.Values[rls];
-
-      if section <> '' then
-      begin
-        MyDebug('Section by helper: %s', [section]);
-        Debug(dpSpam, rsections, 'Section by helper: %s', [section]);
-      end;
-    end else
-    begin
-      MyDebug('Section: %s', [section]);
-      Debug(dpSpam, rsections, 'Section: %s', [section]);
-    end;
-    *)
 
     MyDebug('Section: %s', [section]);
 
@@ -538,6 +487,7 @@ begin
       end;
 
     end;
+
     if oldsection <> section then
     begin
       MyDebug('Mapped section: %s', [section]);
@@ -546,7 +496,7 @@ begin
 
     if section = '' then
     begin
-      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found.', [sitename, rls]);
+      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
       MyDebug('No section?! ' + sitename + '@' + rls);
       exit;
     end;
@@ -620,10 +570,9 @@ begin
         end;
       end;
 
+      // We do the [replace] sectional exchanges
       ts_data.DelimitedText := Data;
-      // megcsinaljuk a [replace] szekcios csereket  -- We do the [replace] sectional exchanges
       chno := '0';
-
       try
         rls := KibontasRiliz('SLFTP', chno, ts_data);
       except
@@ -653,7 +602,6 @@ begin
           MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
           Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
           skiprlses.Add(rls);
-          //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
           exit;
         end;
       end;
@@ -682,7 +630,10 @@ begin
         end;
 
         if ss.section = 'REQUEST' then
+        begin
+          // maybe we can do something here to automatically fill requests with a 'site search' like those mirc scripts do
           exit;
+        end;
 
         if (mind) then
         begin
@@ -693,7 +644,7 @@ begin
             begin
               MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
               Debug(dpError, rsections,
-                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s', [e.Message]));
+                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
               //ts_data.Free;
               exit;
             end;
@@ -907,13 +858,14 @@ var
 begin
   rx := TRegexpr.Create;
   try
-  rx.ModifierI := True;
-  rx.ModifierM := True;
-  rx.Expression := '^(\#|\/\/)';
-  if rx.Exec(s) then
-  begin
-    exit;
-  end;
+    rx.ModifierI := True;
+    rx.ModifierM := True;
+    rx.Expression := '^(\#|\/\/)';
+
+    if rx.Exec(s) then
+    begin
+      exit;
+    end;
 
   finally
     rx.Free;
@@ -944,13 +896,14 @@ var
 begin
   rx := TRegexpr.Create;
   try
-  rx.ModifierI := True;
-  rx.ModifierM := True;
-  rx.Expression := '^(\#|\/\/)';
-  if rx.Exec(s) then
-  begin
-    exit;
-  end;
+    rx.ModifierI := True;
+    rx.ModifierM := True;
+    rx.Expression := '^(\#|\/\/)';
+
+    if rx.Exec(s) then
+    begin
+      exit;
+    end;
 
   finally
     rx.Free;
@@ -980,33 +933,32 @@ var
 begin
   rx := TRegexpr.Create;
   try
-  rx.ModifierI := True;
-  rx.ModifierM := True;
-  rx.Expression := '^(\#|\/\/)';
-  if rx.Exec(s) then
-  begin
-    exit;
-  end;
+    rx.ModifierI := True;
+    rx.ModifierM := True;
+    rx.Expression := '^(\#|\/\/)';
 
-  if Count(';', s) = 2 then
-  begin
-    ss := SubString(s, ';', 3);
-    rx.Expression := '(\/.*?\/i?)';
-    if rx.Exec(ss) then
+    if rx.Exec(s) then
     begin
-      repeat
-        mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2),
-          rx.Match[1]));
-      until not rx.ExecNext;
-    end
-    else
-    begin
-      db := Count(',', ss);
-      for i := 1 to db + 1 do
-        mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2),
-          SubString(ss, ',', i)));
+      exit;
     end;
-  end;
+
+    if Count(';', s) = 2 then
+    begin
+      ss := SubString(s, ';', 3);
+      rx.Expression := '(\/.*?\/i?)';
+      if rx.Exec(ss) then
+      begin
+        repeat
+          mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2), rx.Match[1]));
+        until not rx.ExecNext;
+      end
+      else
+      begin
+        db := Count(',', ss);
+        for i := 1 to db + 1 do
+          mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2), SubString(ss, ',', i)));
+      end;
+    end;
 
   finally
     rx.Free;
@@ -1067,6 +1019,7 @@ begin
   begin
     s := catcherFile[i];
     s := SubString(s, ';', 4);
+
     if s = sitename then
     begin
       catcherFile.Delete(i);
@@ -1077,29 +1030,9 @@ begin
   end;
 end;
 
-(*
-procedure Precatcher_DelSiteChans(sitename: string);
-var i: Integer;
-    s: string;
-begin
-catcherFile.BeginUpdate;
-try
-//for I := 0 to catcherFile.Count - 1 do begin
-for I := catcherFile.Count - 1 downto 0 do begin
-s:= catcherFile[i];
-s:= SubString(s, ';',4);
-if s = sitename then catcherFile.Delete(i);
-end;
-finally
-catcherFile.EndUpdate;
-end;
-end;
-*)
-
 function precatcher_logfilename: AnsiString;
 begin
   Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
-
 end;
 
 procedure Precatcher_Init;
@@ -1124,7 +1057,7 @@ begin
 
   huntartunk := sehun;
 
-  // ezt itt most csak azert hogy jo sorrendben hivodjanak meg az inicializaciok
+  // ezt itt most csak azert hogy jo sorrendben hivodjanak meg az inicializaciok -- Now it here just so that good order should call the initialization ??
   catcherFilename := ExtractFilePath(ParamStr(0)) + 'slftp.chans';
   catcherFile := TEncStringList.Create(passphrase);
 
@@ -1145,9 +1078,7 @@ begin
   end;
 
   precatcher_spamevents := TStringList.Create;
-  precatcher_spamevents.CommaText :=
-    spamcfg.ReadString('precatcher', 'anounce_event', '');
-
+  precatcher_spamevents.CommaText := spamcfg.ReadString('precatcher', 'anounce_event', '');
 end;
 
 procedure Precatcher_UnInit;
@@ -1259,39 +1190,11 @@ begin
   PrecatcherReBuild;
 end;
 
-function precatcher_auto: boolean;
-begin
-  Result := sitesdat.ReadBool('precatcher', 'auto', False);
-end;
-
-(*  Old one not able to do a real reload....
-
-procedure PrecatcherReload();
-var f: TextFile;
-    s: string;
-    i: Integer;
-begin
-  sectionlist.Clear;
-
-  AssignFile(f, ExtractFilePath(ParamStr(0))+'slftp.precatcher');
-{$I-} Reset(f); {$I+}
-  if IOResult = 0 then
-  begin
-    while (not Eof(f)) do
-    begin
-      ReadLn(f,s);
-      ProcessConfigLine(s);
-    end;
-    CloseFile(f);
-  end;
-  sections.Clear;
-  for i:= 0 to sectionlist.Count -1 do
-    if sections.Indexof(sectionlist.Names[i]) = -1 then
-      sections.Add(sectionlist.Names[i]);
-
-end;
-
-*)
+// isn't used -- only function precatcherauto from below
+//function precatcher_auto: boolean;
+//begin
+//  Result := sitesdat.ReadBool('precatcher', 'auto', False);
+//end;
 
 procedure PrecatcherReload();
 var
@@ -1365,8 +1268,7 @@ begin
     //ss:=ss+'COUNTS:'+#13#10;
     ss := ss +
       Format('Sections(%d) Mapping(%d) Replace|from/to:(%d/%d) Ignorlist(%d)',
-      [kb_sections.Count, mappingslist.Count, replacefrom.Count,
-      replaceto.Count, ignorelista.Count]);
+      [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
   end;
   status := ss;
 end;

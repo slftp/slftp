@@ -3152,12 +3152,12 @@ end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);
 begin
-  WCString('IRCNick', Value);
+  WCString('ircnick', Value);
 end;
 
 function TSite.GetIRCNick: AnsiString;
 begin
-  Result := RCString('IRCNick', '');
+  Result := RCString('ircnick', '');
 end;
 
 procedure TSite.SetProxyName(Value: AnsiString);
