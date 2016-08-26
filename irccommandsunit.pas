@@ -951,7 +951,7 @@ end;
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename1, sitename2: AnsiString;
-  speed: integer;
+  i, speed: integer;
   s1, s2: TSite;
 begin
   Result := False;
@@ -971,22 +971,39 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
     exit;
   end;
-  s2 := FindSiteByName(Netname, sitename2);
-  if s2 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
-    exit;
-  end;
 
-  if speed > 0 then
+  if ( (sitename2 = 'GLFTPD') or (sitename2 = 'DRFTPD') or (sitename2 = 'IOFTPD') ) then
   begin
-    sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
-    sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
+    for i := 0 to sites.Count - 1 do
+    begin
+      s2 := TSite(sites[i]);
+      if ( sitename2 = AnsiUpperCase(s2.SiteSoftWareToSTring) ) then
+      begin
+        sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
+        sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
+        irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [sitename1, s2.Name]);
+      end;
+    end;
   end
   else
   begin
-    sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
-    sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
+    s2 := FindSiteByName(Netname, sitename2);
+    if s2 = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+      exit;
+    end;
+
+    if speed > 0 then
+    begin
+      sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
+      sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
+    end
+    else
+    begin
+      sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
+      sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
+    end;
   end;
 
   Result := True;
