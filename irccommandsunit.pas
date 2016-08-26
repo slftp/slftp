@@ -951,7 +951,7 @@ end;
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename1, sitename2: AnsiString;
-  i, speed: integer;
+  i, j, speed: integer;
   s1, s2: TSite;
 begin
   Result := False;
@@ -959,32 +959,80 @@ begin
   sitename2 := UpperCase(SubString(params, ' ', 2));
   speed := StrToIntDef(SubString(params, ' ', 3), -1);
 
-  if ((speed >= 10) or (speed < 0)) then
+  if ( (speed >= 10) or (speed < 0) ) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
-
-  s1 := FindSiteByName(Netname, sitename1);
-  if s1 = nil then
+  
+  if (sitename1 = sitename2) then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>. Your doing a loop!</c>');
     exit;
   end;
 
-  if ( (sitename2 = 'GLFTPD') or (sitename2 = 'DRFTPD') or (sitename2 = 'IOFTPD') ) then
+  if ( (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      s1 := TSite(sites[i]);
+      
+      if (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') then
+      begin
+        for j := 0 to sites.Count - 1 do
+        begin
+          s2 := TSite(sites[j]);
+          sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+          sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+        end;
+      end
+      else
+      begin
+        s2 := FindSiteByName(Netname, sitename2);
+        if s2 = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+          exit;
+        end;
+        if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
+          sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
+          sitesdat.WriteInteger('speed-to-' + sitename2, s1.Name, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, sitename2]);
+        end;
+      end;
+    end
+  else if ( (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
   begin
     for i := 0 to sites.Count - 1 do
     begin
       s2 := TSite(sites[i]);
-      if ( sitename2 = AnsiUpperCase(s2.SiteSoftWareToSTring) ) then
+      
+      if (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') then
       begin
-        sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
-        sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
-        irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [sitename1, s2.Name]);
+        for j := 0 to sites.Count - 1 do
+        begin
+          s1 := TSite(sites[j]);
+          sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+          sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+        end;
+      end
+      else
+      begin
+        s1 := FindSiteByName(Netname, sitename1);
+        if s1 = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
+          exit;
+        end;
+        if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
+          sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
+          sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [sitename1, s2.Name]);
+        end;
       end;
-    end;
-  end
+    end
   else
   begin
     s2 := FindSiteByName(Netname, sitename2);
