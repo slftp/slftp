@@ -971,20 +971,34 @@ begin
     exit;
   end;
 
-  if ( (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
+  if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
   begin
     for i := 0 to sites.Count - 1 do
     begin
       s1 := TSite(sites[i]);
       
-      if (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') then
+      if ( (sitename2 = '*') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
       begin
         for j := 0 to sites.Count - 1 do
         begin
           s2 := TSite(sites[j]);
-          sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
-          sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+          if ( s1.Name = s2.Name ) then
+            continue;
+          
+          if ( sitename2 = '*' ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+            continue;
+          end;
+          
+          if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+          end;
         end;
       end
       else
@@ -995,6 +1009,10 @@ begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
           exit;
         end;
+        
+        if ( s1.Name = s2.Name ) then
+          continue;
+        
         if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
           sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
           sitesdat.WriteInteger('speed-to-' + sitename2, s1.Name, speed);
@@ -1002,20 +1020,34 @@ begin
         end;
       end;
     end
-  else if ( (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
+  else if ( (sitename2 = '*') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
   begin
     for i := 0 to sites.Count - 1 do
     begin
       s2 := TSite(sites[i]);
       
-      if (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') then
+      if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
       begin
         for j := 0 to sites.Count - 1 do
         begin
           s1 := TSite(sites[j]);
-          sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
-          sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+          if ( s2.Name = s1.Name ) then
+            continue;
+          
+          if ( sitename1 = '*' ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+            continue;
+          end;
+          
+          if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+          end;
         end;
       end
       else
@@ -1026,6 +1058,10 @@ begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
           exit;
         end;
+        
+        if ( s2.Name = s1.Name ) then
+          continue;
+        
         if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
           sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
           sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
