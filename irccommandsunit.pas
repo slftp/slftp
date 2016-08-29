@@ -971,13 +971,14 @@ begin
     exit;
   end;
 
-  if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
+  // sitename1[1] = '.' for setroute by location ( need to be setup as .se )
+  if ( (sitename1 = '*') or (sitename1[1] = '.') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
   begin
     for i := 0 to sites.Count - 1 do
     begin
       s1 := TSite(sites[i]);
       
-      if ( (sitename2 = '*') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
+      if ( (sitename2 = '*') or (sitename2[1] = '.') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
       begin
         for j := 0 to sites.Count - 1 do
         begin
@@ -991,6 +992,17 @@ begin
             sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
             irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
             continue;
+          end;
+          
+          if ( sitename2[1] = '.' ) then
+          begin
+            if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
+            begin
+              sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+              sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+              continue;
+            end;
           end;
           
           if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
@@ -1012,6 +1024,17 @@ begin
         
         if ( s1.Name = s2.Name ) then
           continue;
+          
+        if ( sitename1[1] = '.' ) then
+        begin
+          if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+            continue;
+          end;
+        end;
         
         if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
           sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
@@ -1042,6 +1065,17 @@ begin
             continue;
           end;
           
+          if ( sitename1[1] = '.' ) then
+          begin
+            if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
+            begin
+              sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+              sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+              continue;
+            end;
+          end;
+          
           if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
           begin
             sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
@@ -1061,6 +1095,17 @@ begin
         
         if ( s2.Name = s1.Name ) then
           continue;
+          
+        if ( sitename1[1] = '.' ) then
+        begin
+          if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+            continue;
+          end;
+        end;
         
         if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
           sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
