@@ -5931,7 +5931,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  country := RightStrV2(params, length(sitename) + 1);
+  country := AnsiUpperCase(RightStrV2(params, length(sitename) + 1));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -5939,6 +5939,13 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
+  
+  if ( country[1] <> '.' ) then
+  begin
+    irc_addtext(Netname, Channel, 'The location/country of your site need to begin with a dot!');
+    exit;
+  end;
+  
   s.WCString('country', country);
   irc_addtext(Netname, Channel, country);
 
