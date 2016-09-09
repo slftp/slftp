@@ -4766,7 +4766,7 @@ begin
   rules.Add(r);
   RulesSave;
   
-  irc_addtext(Netname, Channel, '<b>Added<b>: %d', [rules.Count - 1]);
+  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [rules.Count - 1, r.AsText(True)]);
 
   Result := True;
 end;
@@ -4819,7 +4819,7 @@ begin
   rules.Insert(id, r);
   RulesSave;
 
-  irc_addtext(Netname, Channel, '<b>Inserted<b>: %d', [id]);
+  irc_addtext(Netname, Channel, '<b>Inserted<b>: %d %s', [id, r.AsText(True)]);
 
   Result := True;
 end;
@@ -4947,6 +4947,8 @@ begin
   end;
       
   RulesSave;
+  
+  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, src_section]);
       
   //  except
   //    on E: Exception do
