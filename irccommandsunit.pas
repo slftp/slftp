@@ -4743,33 +4743,30 @@ begin
     exit;
   end;
 
-  s := nil;
-  if sitename <> '*' then
+  s := FindSiteByName(Netname, sitename);
+  if ((s = nil) and (sitename <> '*')) then
   begin
-    s := FindSiteByName(Netname, sitename);
-    if (nil = s) then
-    begin
-      irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-      exit;
-    end;
+    irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [sitename]);
+    exit;
   end;
+
   if ((section <> '*') and (s <> nil) and (s.sectiondir[section] = '')) then
   begin
-    irc_addtext(Netname, Channel, 'Site %s has no section %s.',
-      [sitename, section]);
+    irc_addtext(Netname, Channel, 'Site %s has no section %s.', [sitename, section]);
     exit;
   end;
 
   r := AddRule(rule, error);
   if ((r = nil) or (error <> '')) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
   rules.Add(r);
-
   RulesSave;
+  
+  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [rules.Count - 1, r.AsText(True)]);
 
   Result := True;
 end;
@@ -4794,34 +4791,35 @@ begin
   end;
 
   s := FindSiteByName(Netname, sitename);
-  if ((nil = s) and (sitename <> '*')) then
+  if ((s = nil) and (sitename <> '*')) then
   begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
+    irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [sitename]);
     exit;
   end;
+  
   if ((section <> '*') and (s <> nil) and (s.sectiondir[section] = '')) then
   begin
-    irc_addtext(Netname, Channel, 'Site %s has no section %s.',
-      [sitename, section]);
+    irc_addtext(Netname, Channel, 'Site %s has no section %s.', [sitename, section]);
     exit;
   end;
 
   if ((id < 0) or (id >= rules.Count)) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id');
+    irc_addtext(Netname, Channel, 'Incorrect rule ID!');
     exit;
   end;
 
   r := AddRule(rule, error);
   if ((r = nil) or (error <> '')) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
   rules.Insert(id, r);
-
   RulesSave;
+
+  irc_addtext(Netname, Channel, '<b>Inserted<b>: %d %s', [id, r.AsText(True)]);
 
   Result := True;
 end;
@@ -4846,15 +4844,15 @@ begin
   end;
 
   s := FindSiteByName(Netname, sitename);
-  if ((nil = s) and (sitename <> '*')) then
+  if ((s = nil) and (sitename <> '*')) then
   begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
+    irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [sitename]);
     exit;
   end;
+  
   if ((section <> '*') and (s <> nil) and (s.sectiondir[section] = '')) then
   begin
-    irc_addtext(Netname, Channel, 'Site %s has no section %s.',
-      [sitename, section]);
+    irc_addtext(Netname, Channel, 'Site %s has no section %s.', [sitename, section]);
     exit;
   end;
 
@@ -4867,14 +4865,14 @@ begin
   r := AddRule(rule, error);
   if ((r = nil) or (error <> '')) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
   irc_addtext(Netname, Channel, '<b>Modified<b>: %d %s <u><b>to</b></u> %s', [id, TRule(rules[id]).AsText(True), r.AsText(True)]);
+
   rules.Delete(id);
   rules.Insert(id, r);
-
   RulesSave;
 
   Result := True;
@@ -4889,14 +4887,76 @@ begin
 
   if ((id < 0) or (id >= rules.Count)) then
   begin
-
     irc_addtext(Netname, Channel, 'Incorrect rule id (%s)', [params]);
     exit;
   end;
 
-  Irc_AddText(netname, channel, '<b>Deleted</b>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
+  Irc_AddText(netname, channel, '<c4><b>Deleted</b></c>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
+
   rules.Delete(id);
   RulesSave;
+
+  Result := True;
+end;
+
+function IrcRuleCopy(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  rr, r: TRule;
+  rule, error, src_s, dst_s, src_section: AnsiString;
+  ss: TSite;
+  i: integer;
+begin
+  Result := False;
+  src_s := UpperCase(SubString(params, ' ', 1));
+  dst_s := UpperCase(SubString(params, ' ', 2));
+  src_section := UpperCase(SubString(params, ' ', 3));
+
+  ss := FindSiteByName('', src_s);
+  if ss = nil then
+  begin
+    irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [src_s]);
+    exit;
+  end;
+
+  ss := FindSiteByName('', dst_s);
+  if ss = nil then
+  begin
+    irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [dst_s]);
+    exit;
+  end;
+
+  //queue_lock.Enter;
+  //try
+  //  try
+    
+  for i := 0 to rules.Count - 1 do
+  begin
+    r := TRule(rules.Items[i]);
+    if ((r.sitename = src_s) and (r.section = src_section)) then
+    begin
+      rule := dst_s + ' ' + src_section + ' ' + r.AsText(False);
+      rr := nil;
+      rr := AddRule(rule, error);
+      if ((rr = nil) or (error <> '')) then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
+        Continue;
+      end;
+      rules.Add(rr);
+    end;
+  end;
+      
+  RulesSave;
+  
+  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, src_section]);
+      
+  //  except
+  //    on E: Exception do
+  //      irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in IrcRuleCopy: %s', [E.Message]));
+  //  end;
+  //finally
+  //  queue_lock.Leave;
+  //end;
 
   Result := True;
 end;
@@ -4909,9 +4969,7 @@ begin
 
   if FindConditionClassByName(params) = nil then
   begin
-    irc_addtext(Netname, Channel,
-      '<c4>Rule condition "<b>%s</b>" not found!</c>', [params]);
-    Result := True;
+    irc_addtext(Netname, Channel, '<c4>Rule condition "<b>%s</b>" not found!</c>', [params]);
     exit;
   end;
 
@@ -4926,13 +4984,13 @@ begin
         if ss = '' then
           break;
         irc_addtext(Netname, Channel, ss);
-      end; // while(true)do begin
+      end;
+
       if conditions[i] <> TBooleanCondition then
-        irc_addtext(Netname, Channel, '<b>Accepted ops:</b> ' +
-          TConditionClass(conditions[i]).AcceptedOperatorsAsText);
+        irc_addtext(Netname, Channel, '<b>Accepted ops:</b> ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
       break;
     end;
-  end; // else
+  end;
 
   Result := True;
 end;
@@ -4950,12 +5008,9 @@ begin
   if sitename <> '*' then
   begin
     s := FindSiteByName('', sitename);
-
     if s = nil then
     begin
-      irc_addtext(Netname, Channel,
-        '<c4><b>ERROR</b></c>: %s is no valid site!', [sitename]);
-      Result := False;
+      irc_addtext(Netname, Channel, '<c4>ERROR</c>: Site %s not found.', [sitename]);
       exit;
     end;
 
@@ -4963,14 +5018,12 @@ begin
     begin
       if not s.IsSection(section) then
       begin
-        Result := False;
-        irc_addtext(Netname, Channel,
-          '<c4><b>ERROR</b></c>: %s is not valid section!', [section]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</b></c>: %s is not valid section!', [section]);
         exit;
       end;
     end;
 
-  end; // if s <> '*' then begin
+  end;
 
   // display global rules
   if (((sitename <> '*') or (section <> '*')) or
@@ -11045,69 +11098,6 @@ begin
       '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
   Result := True;
 
-end;
-
-function IrcRuleCopy(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  rr, r: TRule;
-  rule, error, src_s, dst_s, src_section: AnsiString;
-  ss: TSite;
-  i: integer;
-begin
-  //  Result := False;
-  src_s := UpperCase(SubString(params, ' ', 1));
-  dst_s := UpperCase(SubString(params, ' ', 2));
-  src_section := UpperCase(SubString(params, ' ', 3));
-
-  ss := FindSiteByName('', src_s);
-  if ss = nil then
-  begin
-    irc_addtext(Netname, Channel,
-      '<c4>ERROR</c>: %s is not a valid site.', [src_s]);
-    Result := True;
-    exit;
-  end;
-  ss := FindSiteByName('', dst_s);
-  if ss = nil then
-  begin
-    irc_addtext(Netname, Channel,
-      '<c4>ERROR</c>: %s is not a valid site.', [src_s]);
-    Result := True;
-    exit;
-  end;
-
-  queue_lock.Enter;
-  try
-    try
-      for i := 0 to rules.Count - 1 do
-      begin
-
-        r := TRule(rules.Items[i]);
-        if ((r.sitename = src_s) and (r.section = src_section)) then
-        begin
-          rule := dst_s + ' ' + src_section + ' ' + r.AsText(False);
-          // Irc_addtext(netname, channel,'%s',[rule]);
-          rr := nil;
-          rr := AddRule(rule, error);
-          if ((rr = nil) or (error <> '')) then
-          begin
-            irc_addtext(Netname, Channel,
-              '<c4><b>Syntax error</b>:</c> %s', [error]);
-            Continue;
-          end;
-          rules.Add(rr);
-        end;
-      end; // for I := 0 to rules.count - 1 do begin
-      RulesSave;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in IrcRuleCopy: %s', [E.Message]));
-    end;
-  finally
-    queue_lock.Leave;
-  end;
-  Result := True;
 end;
 
 function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString):
