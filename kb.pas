@@ -72,8 +72,8 @@ type
 
     //fakecheckinghez
     dots: integer;
-    karakterszam: integer;
-    maganhangzok: integer;
+    number_of_chars: integer;
+    vowels: integer;
 
     year: integer;
 
@@ -1332,20 +1332,20 @@ begin
     end;
 
     dots := 0;
-    karakterszam := 0;
-    maganhangzok := 0;
+    number_of_chars := 0;
+    vowels := 0;
     s := '';
     for i := 1 to length(rlsname) do
     begin
       if 0 = Pos(rlsname[i], s) then
       begin
-        Inc(karakterszam);
+        Inc(number_of_chars);
         s := s + rlsname[i];
       end;
       if rlsname[i] = '.' then
         Inc(dots);
       if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-        Inc(maganhangzok);
+        Inc(vowels);
     end;
 
     rlsnamewogrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
