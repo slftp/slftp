@@ -374,42 +374,35 @@ end;
 function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
-  s:      TSite;
+  s: TSite;
   precmd: AnsiString;
   section: AnsiString;
 begin
-  Result   := False;
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  section  := UpperCase(SubString(params, ' ', 2));
+  section := UpperCase(SubString(params, ' ', 2));
+  precmd := RightStrv2(params, length(sitename) + 1 + length(section) + 1);
+
   if kb_sections.IndexOf(section) = -1 then
   begin
-    precmd  := RightStrv2(params, length(sitename) + 1);
-    section := 'PRE';
-  end
-  else
-  begin
-    section := UpperCase(section);
-    precmd  := RightStrv2(params, length(sitename) + 1 + length(sitename) + 1);
+    irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file at [sections] and/or [mappings].', [section, section]);
+    exit;
   end;
 
   if (0 = Pos('<rlsname>', precmd)) then
   begin
-    irc_addtext(netname, channel, 'Syntax error.');
+    irc_addtext(netname, channel, 'Syntax error. <rlsname> not found in precmd!');
     exit;
   end;
 
-  queue_lock.Enter;
   s := FindSiteByName(netname, sitename);
   if s = nil then
   begin
     irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
-    queue_lock.Leave;
     exit;
   end;
 
   s.sectionprecmd[section] := precmd;
-
-  queue_lock.Leave;
 
   Result := True;
 end;
