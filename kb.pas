@@ -43,7 +43,7 @@ type
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
     rlsname: AnsiString;
-    rlsnamewogrp: AnsiString;
+    rlsnamewithoutgrp: AnsiString;
     section: AnsiString;
     words: TStringList;
     tags: TStringList;
@@ -1245,9 +1245,7 @@ begin
   end;
 end;
 
-constructor TRelease.Create(rlsname, section: AnsiString; FakeChecking: boolean =
-  True;
-  SavedPretime: int64 = -1);
+constructor TRelease.Create(rlsname, section: AnsiString; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   vlang, s: AnsiString;
   i, j: integer;
@@ -1277,8 +1275,7 @@ begin
         self.cpretime := SavedPretime;
       except
         on e: Exception do
-          irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)',
-            [rlsname, SavedPretime, e.Message]));
+          irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)', [rlsname, SavedPretime, e.Message]));
       end;
     end
     else
@@ -1287,8 +1284,7 @@ begin
         SetPretime;
       except
         on e: Exception do
-          irc_Adderror(Format('TRelease.Create: Exception SetPretime %s (%s)',
-            [rlsname, e.Message]));
+          irc_Adderror(Format('TRelease.Create: Exception SetPretime %s (%s)', [rlsname, e.Message]));
       end;
     end;
 
@@ -1305,28 +1301,27 @@ begin
     Internal := False;
 
     rrgx := TRegExpr.Create;
+    try
+    
     rrgx.ModifierI := True;
     rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
     if rrgx.Exec(rlsname) then
       Internal := True;
-    //rrgx.free;
 
     //detect groupname
     groupname := '';
-    //rrgx:=TRegExpr.Create;
     rrgx.ModifierI := True;
     rrgx.Expression := '\-([^\-]+)$';
     if rrgx.Exec(rlsname) then
     begin
       groupname := rrgx.Match[1];
     end;
-    //rrgx.free;
+
+    //old way if groupname not found by regex
     if (groupname = '') then
     begin
-      // old way
       if uppercase(words.strings[words.Count - 1]) = 'INT' then
-        groupname := words.strings[words.Count - 2] + '_' +
-          words.strings[words.Count - 1]
+        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
       else
         groupname := words.strings[words.Count - 1];
     end;
@@ -1348,14 +1343,13 @@ begin
         Inc(vowels);
     end;
 
-    rlsnamewogrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     if not use_new_language_base then
     begin
 
       if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
       begin
-
         for I := 0 to mp3languages.Count - 1 do
         begin
           rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
@@ -1398,6 +1392,10 @@ begin
         languages.Add('EN')
       else
         languages.Add('English');
+    end;
+    
+    finally
+      rrgx.free;
     end;
 
     knowngroup := IsKnownGroup(section, groupname);
