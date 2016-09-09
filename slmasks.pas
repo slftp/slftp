@@ -29,23 +29,24 @@ const ssection = 'slmasks';
 constructor TslMask.Create(const mask: AnsiString);
 var l: Integer;
 begin
-  fMask:= mask;
-  l:= length(mask);
+  fMask := mask;
+  l := length(mask);
   if l = 0 then exit;
 
   if ((mask[1] = '/') and (mask[l]='/')) then
   begin
-    rm:= TRegExpr.Create;
-    rm.Expression:= Copy(mask, 2, l-2);
+    rm := TRegExpr.Create;
+    rm.Expression := Copy(mask, 2, l-2);
   end
   else
   if ((mask[1] = '/') and (mask[l-1]='/') and (mask[l]='i')) then
   begin
-    rm:= TRegExpr.Create;
-    rm.ModifierI:= True;
-    rm.Expression:= Copy(mask, 2, l-3);
-  end else
-    dm:= TMask.Create(mask);
+    rm := TRegExpr.Create;
+    rm.ModifierI := True;
+    rm.Expression := Copy(mask, 2, l-3);
+  end
+  else
+    dm := TMask.Create(mask);
 end;
 
 destructor TslMask.Destroy;
@@ -53,26 +54,26 @@ begin
   if dm <> nil then
   begin
     dm.Free;
-    dm:= nil;
+    dm := nil;
   end;
   if rm <> nil then
   begin
     rm.Free;
-    rm:= nil;
+    rm := nil;
   end;
   inherited;
 end;
 
 function TslMask.Matches(const s: AnsiString): Boolean;
 begin
-  Result:= False;
+  Result := False;
   if dm <> nil then
-    Result:= dm.Matches(s)
+    Result := dm.Matches(s)
   else
   if rm <> nil then
   begin
     try
-      Result:= rm.Exec(s)
+      Result := rm.Exec(s)
     except on e: Exception do
       debug(dpError, ssection, 'Regexp exception: %s %s',[fmask, e.Message]);
     end;
