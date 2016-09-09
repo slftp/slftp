@@ -48,14 +48,14 @@
 --=============================( SLFTP v1.5.3.1 )=================================- 
 		{#} !rulehelp tvcurrent shows correct help
 		{#} !lookup works with sections which are only mapped. Don't need to be under [sections]
+		{#} Now !lookup works with sections which are only mapped - like everywhere else
+		{#} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
 		{^} !addrule shows inserted ID
 		{^} !rulecp, !ruleins shows more info - overall the output msgs are identical for every rulecmd
 		{^} !tweak automatically switch to lowercase values
 		{^} RegExpr updated to latest version
 		{^} Archive sections can be added with !setdir using ARCH-SECTIONNAME
 		{^} !status shows SSL Version now + URL, IMDB and NFO count are back
-		{#} Now !lookup works with sections which are only mapped - like everywhere else
-		{#} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
 
 --=============================( SLFTP v1.5.3.0 )=================================- 
 		{+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to full path / slftp section *BETA*
