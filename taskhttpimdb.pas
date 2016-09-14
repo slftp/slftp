@@ -212,8 +212,9 @@ begin
 
   (*  Fetch Languages from iMDB  *)
   // Expression designed to work with new and old layouts of iMDB (04/10/2010)
+  // new 'relaxed' expression to work with latest imdb changes (13/9/2016)
   rr2.Expression :=
-    '<a\s*(onclick=\"[^\"]+\")?\s*href=\"\/(Sections\/)?Languages?\/[^"]*"[^>]*>([^<]+)<\/a>';
+    '<a[^>]+href=[^>]+>([^<]+)<\/a>';
   // Trying new layout of iMDB first
   rr.Expression :=
     '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
@@ -221,7 +222,7 @@ begin
   begin
     if rr2.Exec(rr.Match[1]) then
     begin
-      repeat imdb_lang := imdb_lang + rr2.Match[3] + ',';
+      repeat imdb_lang := imdb_lang + rr2.Match[1] + ',';
       until not rr2.ExecNext;
     end;
   end
@@ -241,17 +242,17 @@ begin
   imdbdata.imdb_languages.CommaText := imdb_lang;
 
   (*  Fetch Countries from iMDB  *)
-
   // Expression designed to work with new and old layouts of iMDB (04/10/2010)
+  // new 'relaxed' expression to work with latest imdb changes (13/9/2016)
   rr2.Expression :=
-    '<a\s*(onclick=\"[^\"]+\")?\s*href=\"\/(Sections\/)?Country?\/[^"]*"[^>]*>([^<]+)<\/a>';
+    '<a[^>]+href=[^>]+>([^<]+)<\/a>';
   // Trying new layout of iMDB first
   rr.Expression :=
     '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
   if rr.Exec(mainsite) then
   begin
     if rr2.Exec(rr.Match[1]) then
-      repeat imdb_countr := imdb_countr + rr2.Match[3] + ',';
+      repeat imdb_countr := imdb_countr + rr2.Match[1] + ',';
       until not rr2.ExecNext;
   end
   else
