@@ -1,7 +1,5 @@
 unit fake;
 
-// todo implement
-
 interface
 
 uses Classes, SysUtils, kb;
@@ -11,7 +9,7 @@ procedure FakeCheck(r: TRelease);
 procedure FakesInit;
 procedure FakesUninit;
 
-function FakesRehash:boolean;
+function FakesRehash: boolean;
 
 implementation
 
@@ -34,57 +32,52 @@ type
       destructor Destroy; override;
      end;
 
-
 var fakes: TStringList;
 
-const sFakeSection='fake';
+const sFakeSection = 'fake';
 
 
-
-//this code is finde as well,      we fill fakes with all sections an insert on pos 0 a empty string for global settings.
-
+//we create fakes for all sections and insert on pos 0 a empty string for global settings.
 procedure ReadFakeSettings;
 var s: AnsiString;
     i, j: integer;
     f: TFakeSettings;
 begin
-  fakes.Text:= kb_sections.Text;
+  fakes.Text := kb_sections.Text;
   fakes.Insert(0, '');
-  for i:= 0 to fakes.Count -1 do
+  for i := 0 to fakes.Count - 1 do
   begin
-    f:= TFakeSettings.Create;
+    f := TFakeSettings.Create;
 
-
-    f.enabled:= config.ReadBool(sFakeSection,'fake_'+fakes[i]+'_enabled', False);
-
+    f.enabled := config.ReadBool(sFakeSection, 'fake_'+fakes[i]+'_enabled', True);
     if f.enabled then
     begin
-      f.fake_min_release_length:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_min_release_length', 10);
-      f.fake_few_different_chars:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_few_different_chars', 8);
-      f.fake_many_different_chars:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_different_chars', 18);
-      f.fake_many_dots:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_dots', 8);
-      f.fake_many_short_words_length:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_short_words_length', 2);
-      f.fake_many_short_words_count:= config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_short_words_count', 3);
-      f.fake_banned_words.DelimitedText:= config.ReadString(sFakeSection, 'fake_'+fakes[i]+'_banned_words', 'scene auto deluser');
-      f.fake_many_vocal:= config.ReadInteger(sFakeSection, 'fake_'+fakes[i]+'_many_vocal', 10);
+      f.fake_min_release_length := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_min_release_length', 10);
+      f.fake_few_different_chars := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_few_different_chars', 8);
+      f.fake_many_different_chars := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_different_chars', 18);
+      f.fake_many_dots := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_dots', 8);
+      f.fake_many_short_words_length := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_short_words_length', 2);
+      f.fake_many_short_words_count := config.ReadInteger(sFakeSection,'fake_'+fakes[i]+'_many_short_words_count', 3);
+      f.fake_banned_words.DelimitedText := config.ReadString(sFakeSection, 'fake_'+fakes[i]+'_banned_words', 'scene auto deluser P2P childporn');
+      f.fake_many_vocal := config.ReadInteger(sFakeSection, 'fake_'+fakes[i]+'_many_vocal', 10);
 
-      for j:= 1 to 100 do
+      for j := 1 to 100 do
       begin
-        s:= config.ReadString(sFakeSection, 'fake_'+fakes[i]+'_groups'+IntToStr(j), '');
+        s := config.ReadString(sFakeSection, 'fake_'+fakes[i]+'_groups'+IntToStr(j), '');
         if s = '' then
           Break;
 
         if j = 1 then
-         f.fake_groups.DelimitedText:= s
+         f.fake_groups.DelimitedText := s
         else
-         f.fake_groups.DelimitedText:= f.fake_groups.DelimitedText+' '+s;
+         f.fake_groups.DelimitedText := f.fake_groups.DelimitedText+' '+s;
+
       end;
 
     end;
+
     fakes.Objects[i]:= f;
   end;
-
-
 end;
 
 
@@ -169,24 +162,19 @@ end;
 *)
 
 
-
-
-
-
-function FakesRehash:boolean;
+function FakesRehash: boolean;
 begin
-    result:=True;
+    result := True;
     fakes.Clear;
-try
-    ReadFakeSettings;
-except on E: Exception do
-result:=False;
+
+    try
+      ReadFakeSettings;
+    except 
+      on E: Exception do
+        result := False;
+    end;
+
 end;
-
-
-end;
-
-
 
 procedure FakeStart;
 begin
@@ -195,42 +183,40 @@ end;
 
 procedure FakesInit;
 begin
-  fakes:= TStringList.Create;
-  fakes.CaseSensitive:= False;
+  fakes := TStringList.Create;
+  fakes.CaseSensitive := False;
 end;
 
 procedure FakesUninit;
 var i: Integer;
 begin
-  Debug(dpSpam, sFakeSection, 'Uninit1');
-  for i:= 0 to fakes.Count -1 do
+  Debug(dpSpam, sFakeSection, 'Uninit1 at FakesUninit');
+  for i := 0 to fakes.Count - 1 do
   begin
     fakes.Objects[i].Free;
-    fakes.Objects[i]:= nil;
+    fakes.Objects[i] := nil;
   end;
   fakes.Free;
-  Debug(dpSpam, sFakeSection, 'Uninit2');  
+  Debug(dpSpam, sFakeSection, 'Uninit2 at FakesUninit');  
 end;
 
 { TFakeSettings }
-
 constructor TFakeSettings.Create;
 begin
-  fake_banned_words:= TStringList.Create;
-  fake_groups:= TStringList.Create;
+  fake_banned_words := TStringList.Create;
+  fake_groups := TStringList.Create;
 end;
 
 destructor TFakeSettings.Destroy;
 begin
   fake_banned_words.Free;
   fake_groups.Free;
-
   inherited;
 end;
 
 
 (*
-'Short rls',                // 1
+[19:26:52] [Ar04n]                                            'Short rls',                // 1
 [19:26:52] [Ar04n]                                            'Few different chars',      // 2
 [19:26:52] [Ar04n]                                            'Many different chars',     // 3
 [19:26:52] [Ar04n]                                            'Many short words',         // 4
@@ -250,187 +236,167 @@ end;
 [19:27:09] [Ar04n]                                            'wtf not mp3?',             // 18
 [19:27:11] [Ar04n]                                            'Not realgrp!'              // 19
 *)
-
 procedure FakeCheckI(r: TRelease; f: TFakeSettings);
 var
-    s,s2: AnsiString;
-   ii, i, j: Integer;
-    rovid: Integer;
+  s,s2: AnsiString;
+  ii, i, j: Integer;
+  short: Integer;
 begin
-  r.fake:= True;
+  r.fake := True;
 
- 
   if length(r.rlsname) < f.fake_min_release_length then
   begin
-    r.fakereason:= 'Too short.';
+    r.fakereason := Format('Too short rlsname. length rlsname %d < fake_min_release_length %d', [length(r.rlsname), f.fake_min_release_length]);
     exit;
   end;
 
-
-
-  if(Lowercase(Copy(r.rlsname,1,3)) = 'mp3') then
+  if (Lowercase(Copy(r.rlsname,1,3)) = 'mp3') then
   begin
-    r.fakereason:= 'begins with mp3 :) brz protection';
+    r.fakereason := 'rlsname begins with mp3, better stop here.';
     exit;
   end;
 
-  if (r.maganhangzok >= f.fake_many_vocal) then
+  if (r.vowels >= f.fake_many_vocal) then
   begin
-    r.fakereason:= 'Many vocal/consonant '+IntToStr(r.maganhangzok);
+    r.fakereason := Format('Many vowels/vocal/consonant %d >= fake_many_vocal %d', [r.vowels, f.fake_many_vocal]);
     exit;
   end;
 
-  if (r.karakterszam <= f.fake_few_different_chars) then
+  if (r.number_of_chars <= f.fake_few_different_chars) then
   begin
-    r.fakereason:= 'Few different chars '+IntToStr(r.karakterszam);
+    r.fakereason := Format('Few different chars %d <= fake_few_different_chars %d', [r.number_of_chars, f.fake_few_different_chars]);
     exit;
   end;
-  if (r.karakterszam >= f.fake_many_different_chars) then
+
+  if (r.number_of_chars >= f.fake_many_different_chars) then
   begin
-    r.fakereason:= 'Many different chars '+IntToStr(r.karakterszam);
+    r.fakereason := Format('Many different chars %d >= fake_many_different_chars %d', [r.number_of_chars, f.fake_many_different_chars]);
     exit;
   end;
+  
   if (r.dots >= f.fake_many_dots) then
   begin
-    r.fakereason:= 'Many dots'+IntToStr(r.dots);
+    r.fakereason := Format('Many dots %d >= fake_many_dots %d', [r.dots, f.fake_many_dots]);
     exit;
   end;
 
   if (r.groupname = '') then
   begin
-    r.fakereason:= 'Invalid groupname';
+    r.fakereason := 'Invalid (empty!) groupname.';
     exit;
   end;
 
-
-  rovid:= 0;
-  for i:= 0 to r.words.Count -1 do
+  short := 0;
+  for i := 0 to r.words.Count - 1 do
   begin
-    if ((i < r.words.Count -1) and ((r.words[i]='Ltd') or (r.words[i]='Ed'))) then
+    if ((i < r.words.Count - 1) and ( (r.words[i] = 'Ltd') or (r.words[i] = 'Ed') ) ) then
       Continue;
     if (length(r.words[i]) <= f.fake_many_short_words_length) then
-      inc(rovid);
+      inc(short);
   end;
 
-  if rovid >= f.fake_many_short_words_count then
+  if short >= f.fake_many_short_words_count then
   begin
-    r.fakereason:= 'Many short words';
+    r.fakereason := Format('Many short words %d >= fake_many_short_words_count %d', [short, f.fake_many_short_words_count]);
     exit;
   end;
 
-  s:= LowerCase(r.rlsname);
-  s:= Csere(s, '3', 'e');
-  s:= Csere(s, '1', 'i');
-  s:= Csere(s, '4', 'a');
+  s := LowerCase(r.rlsname);
+  s := Csere(s, '3', 'e');
+  s := Csere(s, '1', 'i');
+  s := Csere(s, '4', 'a');
 
   //kiszedjuk ismetlodo botuket
-  s2:= '';
-  for i:= 1 to length(s) do
+  //Extraction is repeated botuket <-- wtf is 'botuket'?
+  s2 := '';
+  for i := 1 to length(s) do
     if ((i = 1) or (s[i-1] <> s[i])) then
-      s2:= s2+ s[i];
+      s2 := s2+ s[i];
 
-  s:= s2;
-  s2:= ReverseString(s);
+  s := s2;
+  s2 := ReverseString(s);
 
-  for i := 0 to f.fake_banned_words.Count - 1 do begin
-  for ii  := 0 to r.words.count - 1 do begin
-
-  if lowercase(f.fake_banned_words[i]) = lowercase(r.words[ii]) then begin
-r.fakereason:= 'Banned word: '+f.fake_banned_words[i];
-Exit;
-end; //if f.fake_banned_words[i] = r.words[i] then begin
-
-if lowercase(f.fake_banned_words[i]) = ReverseString(lowercase(r.words[ii])) then begin
-r.fakereason:= 'Banned word: '+f.fake_banned_words[i];
-Exit;
-end; //if f.fake_banned_words[i] = r.words[ii] then begin
-
-  end; //  for ii  := 0 to r.words.count - 1 do begin
-  end; //  for i := 0 to f.fake_banned_words.Count - 1 do begin
-
-
-
-(*
-  for i:= 0 to f.fake_banned_words.Count -1 do begin
-    j:= Pos(f.fake_banned_words[i], s);
-    if ((j = 1) or ((j > 1) and (s[j-1] in [' ','_','-','.']))) then begin
-      r.fakereason:= 'Banned word: '+f.fake_banned_words[i];
-      exit;
-    end;
-    j:= Pos(f.fake_banned_words[i], s2);
-    if ((j = 1) or ((j > 1) and (s2[j-1] in [' ','_','-','.']))) then  begin
-      r.fakereason:= 'Banned word: '+f.fake_banned_words[i];
-      exit;
-    end;
-  end;
-*)
-
-
-  s:= '';
-  for i:= 0 to r.words.Count -1 do
+  for i := 0 to f.fake_banned_words.Count - 1 do
   begin
-    for j:= 1 to length(r.words[i]) do
+    for ii := 0 to r.words.count - 1 do
     begin
-      if ((0 = Pos(r.words[i][j], s)) and (not Szam(r.words[i][j]))) then
+      if lowercase(f.fake_banned_words[i]) = lowercase(r.words[ii]) then
       begin
-        s:= s + r.words[i][j];
+        r.fakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
+        exit;
+      end;
 
-        if ((0 <> Pos(r.words[i][j]+r.words[i][j]+r.words[i][j], r.words[i])) and (-1 = kb_sections.IndexOf(r.words[i]))) then
-        begin
-          r.fakereason:= '3 same chars in a word';
-          Exit;
-        end;
+      if lowercase(f.fake_banned_words[i]) = ReverseString(lowercase(r.words[ii])) then
+      begin
+        r.fakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
+        exit;
       end;
     end;
   end;
 
+  s := '';
+  for i := 0 to r.words.Count - 1 do
+  begin
+    for j := 1 to length(r.words[i]) do
+    begin
+      if ((0 = Pos(r.words[i][j], s)) and (not Szam(r.words[i][j]))) then
+      begin
+        s := s + r.words[i][j];
 
-//[19:27:07] [Ar04n]                                            'Repeating in rls',         // 16
-  r.fake:= False;
+        if ((0 <> Pos(r.words[i][j]+r.words[i][j]+r.words[i][j], r.words[i])) and (-1 = kb_sections.IndexOf(r.words[i]))) then
+        begin
+          r.fakereason:= '3 same chars in a word';
+          exit;
+        end;
+
+      end;
+    end;
+  end;
+
+  r.fake := False;
 end;
 
 procedure FakeCheckMP3(r: TMP3Release; f: TFakeSettings);
-var i, j, k: Integer;
-    johetbetu, johetszam: Boolean;
-    s: AnsiString;
+var
+  i, j, k: Integer;
+  johetbetu, johetszam: Boolean;
+  s: AnsiString;
 begin
+  r.fake := True;
 
-  r.fake:= True;
-
-  for i:= 0 to r.words.Count -2 do
+  for i := 0 to r.words.Count - 2 do
   begin
     if (r.mp3_number_of = r.words[i]) then
       Break;
 
-    j:= SzamokSzama(r.words[i]);
-    k:= length(r.words[i]);
+    j := SzamokSzama(r.words[i]);
+    k := length(r.words[i]);
 
     if ((j >0) and (k = j + 2)) then
     begin
-      s:= LowerCase(Copy(r.words[i], k-1,2));
-
+      s := LowerCase(Copy(r.words[i], k-1,2));
       if ((-1 = StrToIntDef(s, -1)) and (not ((s = 'th') or (s = 'rd') or (s  = 'nd')))) then
       begin
-        r.fakereason:= 'Number in word: '+r.words[i];
+        r.fakereason := Format('Number in word: %s', [r.words[i]]);
         exit;
       end;
     end;
 
     if ((j > 0) and (k <> j)) then
     begin
-      // katalogusszamot ki kell meg hagyni
-      johetbetu:= True;
-      johetszam:= True;
+      // katalogusszamot ki kell meg hagyni <-> Catalog number should be left out
+      johetbetu := True;
+      johetszam := True;
 
-      for k:= 1 to length(r.words[i]) do
+      for k := 1 to length(r.words[i]) do
       begin
         if (Szam(r.words[i][k])) then
         begin
           if johetszam then
-            johetbetu:= False
+            johetbetu := False
           else
           begin
-            r.fakereason:= 'Number in word: '+r.words[i];
+            r.fakereason := Format('Number in word: %s', [r.words[i]]);
             exit;
           end;
         end
@@ -438,7 +404,7 @@ begin
         begin
           if not johetbetu then
           begin
-            r.fakereason:= 'Number in word: '+r.words[i];
+            r.fakereason := Format('Number in word: %s', [r.words[i]]);
             exit;
           end;
         end;
@@ -446,50 +412,46 @@ begin
     end;
   end;
 
-  r.fake:= False;
+  r.fake := False;
 end;
 
 
-
-
-
-
-
-
 procedure FakeCheck(r: TRelease);
-var i: integer;
-    fs: TFakeSettings;
+var
+  i: integer;
+  fs: TFakeSettings;
 begin
 
   try
-    r.fake:= False;
-    if TFakeSettings(fakes.Objects[0]).enabled then
-      FakeCheckI(r, TFakeSettings(fakes.Objects[0]));// generalis fake checking
+    r.fake := False;
 
+    if TFakeSettings(fakes.Objects[0]).enabled then
+      FakeCheckI(r, TFakeSettings(fakes.Objects[0])); // general/global fake check
+
+    // general/global check is not fake, now we check for section fake rules if exist
     if not r.fake then
     begin
-      //generalisan nem fake, most megnezzuk hogy szekcionalisan az e
-      i:= fakes.IndexOf(r.section);
+      i := fakes.IndexOf(r.section);
 
       if i <> -1 then
       begin
-        fs:= TFakeSettings(fakes.Objects[i]);
-
+        fs := TFakeSettings(fakes.Objects[i]);
 
         if fs.enabled then
         begin
-          FakeCheckI(r, fs); // sectionre vonatkozo fake checking kozos resze
-          // most jonnek a section fuggo plusz ellenorzesek
+          FakeCheckI(r, fs);  // section relating checking of common fake parts
 
+          // now we come to additional section checks
           if not r.fake then
           begin
             if r is TMP3Release then
-              FakeCheckMP3(TMP3Release(r), fs); // mp3ra vonatkozo fake checking
+              FakeCheckMP3(TMP3Release(r), fs); // mp3 relating fake checking
           end;
 
         end;
       end;
     end;
+
   except
     on E: Exception do
     begin
