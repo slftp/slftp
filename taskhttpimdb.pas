@@ -107,7 +107,7 @@ begin
 
   (*  Fetch MovieTitle/Extra/Year from iMDB *)
   rr.Expression :=
-    '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|Video|Video Game)?\s*(\d{4})((\-|&ndash;)\d{4}?\s*(&nbsp;)?)?(\/.+)?\)( - IMDB)?<\/title>';
+    '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)\d{4}?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
   if rr.Exec(mainsite) then
   begin
     imdb_year := StrToInt(rr.Match[4]);
@@ -349,8 +349,7 @@ begin
     //  rr.Expression:='<h1><small>Release dates for<br>[\r\n\s]+<\/small>[\r\n\s]+<a class[^>]+>[^<]+<\/a> <span>\(.+\) \((TV|V|VG)\)';
     //	rr.Expression:='<h1><small>Release dates for<br><\/small><a class[^>]+>[^<]+<\/a> <span>\(.+\) \((TV|V|VG)\)';
     //  if rr.Exec(text) then begin
-    if ((imdb_extra = 'TV') or (imdb_extra = 'Video Game') or (imdb_extra =
-      'Video')) then
+    if ((imdb_extra = 'TV') or (imdb_extra = 'TV Movie') or (imdb_extra = 'Video Game') or (imdb_extra = 'Video')) then
     begin
       imdbdata.imdb_stvm := True;
       imdb_stv := True;
