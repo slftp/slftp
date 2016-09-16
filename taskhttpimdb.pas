@@ -471,7 +471,7 @@ begin
 
       //Sometimes imdb box office has no screens for cine stuff, so we need to be tricky ;) yay i love that game :)
       rr.Expression :=
-        '<a href="\/title\/tt\d+\/business\?ref_=.*?"[\r\n\s]+class=\"link ghost\" >Box Office\/Business<\/a>';
+        '<a href="\/title\/tt\d+\/business\?ref_=.*?"[\r\n\s]+class=\"quicklink quicklinkGray\" >Box Office\/Business<\/a>';
       if not rr.Exec(mainsite) then
       begin
         imdb_stv := True;
@@ -481,7 +481,7 @@ begin
       end;
 
       rr.Expression :=
-        '<h\d>Box\s*Office<\/h\d>.*?<h\d class="inline">Gross\:<\/h\d>';
+        '<h\d[^>]>Box\s*Office<\/h\d>.*?<h\d class="inline">Gross\:<\/h\d>';
       if not rr.Exec(mainsite) then
       begin
         imdb_stv := True;
