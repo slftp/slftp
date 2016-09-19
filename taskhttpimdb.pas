@@ -406,14 +406,14 @@ begin
     if s <> '' then
     begin
       rr2.ModifierI := True;
-      rr2.Expression := '(DVD|video|TV)\s?premiere'; // 'TV' taken from Optimus Autotrader
+      rr2.Expression := '(DVD|video|TV)(\s|\.|\-)?premiere'; // 'TV' taken from Optimus Autotrader
       if rr2.Exec(s) then
       begin
         imdbdata.imdb_stvs := Format('%s (%s %s)', [rr2.Match[0], rr.Match[2], rr.Match[3]]);
         imdb_stv := True;
       end;
       (*  Fetching Festival infos for imdb_country  *)
-      rr2.Expression := 'F(estival|ilmfest|est|ilm\.Market)'; // 'Film.Market' taken from Optimus Autotrader
+      rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market)'; // 'Film Market' taken from Optimus Autotrader
       if rr2.Exec(s) then
         imdbdata.imdb_festival := True;
     end;
