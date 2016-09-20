@@ -17,7 +17,7 @@ procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesiz
 
 procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
 
-procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
+procedure StatRaces(netname, channel, sitename, periode: AnsiString; detailed: Boolean);
 
 
 implementation
@@ -67,7 +67,7 @@ begin
   end;
 end;
 
-procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
+procedure StatRaces(netname, channel, sitename, periode: AnsiString; detailed: Boolean);
 var q: AnsiString;
     s_size: AnsiString;
     size: Double;
@@ -254,7 +254,7 @@ begin
       irc_addtext(netname, channel, Format('TOTAL <b>in</b> %.2f %s (%s files)', [ size, s_unit,stats.column_text(s, 0)]));
     end;
 
-    if not detail then Exit;
+    if not detailed then Exit;
 
 
     q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitedst ORDER BY sitedst';
