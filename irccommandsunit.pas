@@ -8223,14 +8223,23 @@ end;
 
 function IrcStatRaces(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, periode: AnsiString;
+  sitename, period: AnsiString;
   detailed: Boolean;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
-  periode := UpperCase(SubString(params, ' ', 2));
+  period := trim(UpperCase(SubString(params, ' ', 2)));
   detailed := StrToBoolDef(SubString(params, ' ', 3), True);
 
-  StatRaces(Netname, Channel, sitename, periode, detailed);
+  irc_addtext(netname, channel, Format('period input: %s', [period]));
+
+  if ( (period <> 'MONTH') or (period <> 'YEAR') ) then
+  begin
+    period := 'DAY';
+  end;
+  
+  irc_addtext(netname, channel, Format('period output: %s', [period]));
+
+  StatRaces(Netname, Channel, sitename, period, detailed);
 
   Result := True;
 end;

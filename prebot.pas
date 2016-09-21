@@ -40,28 +40,6 @@ const
   section   = 'irccommands';
   rrsection = 'prebot';
 
-procedure RecalcSizeValue(const Value: int64; out size: double; out sizevalue: AnsiString);
-begin
-  size      := Value;
-  sizevalue := 'byte';
-  if size >= 1024 then
-  begin
-    sizevalue := 'KB';
-    size      := size / 1024;
-  end;
-  if size >= 1024 then
-  begin
-    sizevalue := 'MB';
-    size      := size / 1024;
-  end;
-  if size >= 1024 then
-  begin
-    sizevalue := 'GB';
-    size      := size / 1024;
-  end;
-end;
-
-
 
 function IrcSetSkipPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
