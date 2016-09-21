@@ -81,11 +81,15 @@ begin
   files_all_out := 0;
   size_all_out := 0;
   size_all_in := 0;
-  sql_periode := 'start of month';
-  
+
   if (periode = 'DAY') then
   begin
     sql_periode := 'start of day';
+  end
+  else
+  begin
+    periode = 'MONTH';
+    sql_periode := 'start of month';
   end;
 
   if sitename = '*' then
@@ -95,7 +99,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
 
-      irc_addtext(netname, channel, Format('%s race stats of site: <b>%s</b>', [periode, TSite(sites.Items[i]).Name]));
+      irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [periode, TSite(sites.Items[i]).Name]));
 
       q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+TSite(sites.Items[i]).Name+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
       s := stats.Open(q);
@@ -128,7 +132,7 @@ begin
           s_unit := 'TB';
         end;
 
-        irc_addtext(netname, channel, Format('TOTAL FOR %s <b>out</b> <c04>%.2f</c> %s (%s files)', [TSite(sites.Items[i]).Name, size, s_unit, stats.column_text(s, 0)]));
+        irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
       end;
 
       q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+TSite(sites.Items[i]).Name+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
@@ -162,7 +166,7 @@ begin
           s_unit := 'TB';
         end;
 
-        irc_addtext(netname, channel, Format('TOTAL FOR %s <b>in</b> <c09>%.2f</c> %s (%s files)', [TSite(sites.Items[i]).Name, size, s_unit, stats.column_text(s, 0)]));
+        irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
       end;
 
     end;
@@ -186,11 +190,11 @@ begin
       s_unit := 'TB';
     end;
 
-    irc_addtext(netname, channel, Format('<b>Total In+Out:</b> <c07>%.2f</c> %s (%d files)', [size_all_out, s_unit, files_all_out]));
+    irc_addtext(netname, channel, Format('<b>Total In + Out:</b> <c07>%.2f</c> %s (%d files)', [size_all_out, s_unit, files_all_out]));
   end
   else
   begin
-    irc_addtext(netname, channel, Format('%s race stats of site: <b>%s</b>', [periode, sitename]));
+    irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [periode, sitename]));
 
     q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
     s := stats.Open(q);
@@ -220,7 +224,7 @@ begin
         s_unit := 'TB';
       end;
 
-      irc_addtext(netname, channel, Format('TOTAL <b>out</b> %.2f %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+      irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
     end;
 
     q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+');';
@@ -251,7 +255,7 @@ begin
         s_unit := 'TB';
       end;
 
-      irc_addtext(netname, channel, Format('TOTAL <b>in</b> %.2f %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+      irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
     end;
 
     if not detailed then Exit;
@@ -284,7 +288,7 @@ begin
         s_unit := 'TB';
       end;
 
-      irc_addtext(netname, channel, Format('<b>to</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
+      irc_addtext(netname, channel, Format('<b>to</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
     end;
 
     q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_periode+chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
@@ -315,7 +319,7 @@ begin
         s_unit := 'TB';
       end;
 
-      irc_addtext(netname, channel, Format('<b>from</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
+      irc_addtext(netname, channel, Format('<b>from</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
     end;
 
   end;
