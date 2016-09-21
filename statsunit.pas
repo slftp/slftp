@@ -82,14 +82,18 @@ begin
   size_all_out := 0;
   size_all_in := 0;
 
-  if (periode = 'DAY') then
+  if (periode = 'MONTH') then
   begin
-    sql_periode := 'start of day';
+    sql_periode := 'start of month';
+  end
+  else if (periode = 'YEAR') then
+  begin
+    sql_periode := 'start of year';
   end
   else
   begin
-    periode = 'MONTH';
-    sql_periode := 'start of month';
+    periode = 'DAY';
+    sql_periode := 'start of day';
   end;
 
   if sitename = '*' then
