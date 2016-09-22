@@ -8227,17 +8227,22 @@ var
   detailed: Boolean;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
-  period := trim(UpperCase(SubString(params, ' ', 2)));
+  period := UpperCase(SubString(params, ' ', 2));
   detailed := StrToBoolDef(SubString(params, ' ', 3), True);
 
-  irc_addtext(netname, channel, Format('period input: %s', [period]));
+  if (sitename <> '*') then
+  begin
+    if FindSiteByName(Netname, sitename) = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+      exit;
+    end;
+  end;
 
-  if ( (period <> 'MONTH') or (period <> 'YEAR') ) then
+  if ((period <> 'YEAR') and (period <> 'MONTH')) then
   begin
     period := 'DAY';
   end;
-  
-  irc_addtext(netname, channel, Format('period output: %s', [period]));
 
   StatRaces(Netname, Channel, sitename, period, detailed);
 
