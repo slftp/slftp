@@ -447,7 +447,7 @@ const
     (cmd: 'statusersbygroup'; hnd: IrcStatUsersByGroup; minparams: 1; maxparams: 3; hlpgrp: ''),
     (cmd: 'statusersbygroupbysite'; hnd: IrcStatUsersByGroupBySite; minparams: 2; maxparams: 4; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 2; hlpgrp: ''),
+    (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 3; hlpgrp: ''),
 
     (cmd: '- LEECH SLOTS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'delayleech'; hnd: IrcDelayLeech; minparams: 1; maxparams: 4; hlpgrp: ''),
@@ -8223,12 +8223,29 @@ end;
 
 function IrcStatRaces(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename: AnsiString;
-  periode: AnsiString;
+  sitename, period: AnsiString;
+  detailed: Boolean;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
-  periode := UpperCase(SubString(params, ' ', 2));
-  StatRaces(Netname, Channel, sitename, periode, True);
+  period := UpperCase(SubString(params, ' ', 2));
+  detailed := StrToBoolDef(SubString(params, ' ', 3), True);
+
+  if (sitename <> '*') then
+  begin
+    if FindSiteByName(Netname, sitename) = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+      exit;
+    end;
+  end;
+
+  if ((period <> 'YEAR') and (period <> 'MONTH')) then
+  begin
+    period := 'DAY';
+  end;
+
+  StatRaces(Netname, Channel, sitename, period, detailed);
+
   Result := True;
 end;
 
