@@ -650,8 +650,10 @@ end;
 
 { TPazo }
 
-function TPazo.AddSite(sitename, maindir: AnsiString; delay: boolean = True):
-  TPazoSite;
+// TODO: Remove it add replace all calls to AddSite with TPazoSite.Create(self, s.Name, sectiondir);
+// TPazo.AddSites is used from kb_AddB, which calls TPazoSite.Create() 
+// Sometime before TPazoSite.AddSites called AddSite but was changed to create TPazoSite instantly!
+function TPazo.AddSite(sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
 begin
   Result := TPazoSite.Create(self, sitename, maindir);
   if delay then
@@ -1063,6 +1065,7 @@ begin
   end;
 end;
 
+// TODO: Add a calling value to skip skippre, don't respect delaysetup (not needed for spreading) and remove AddSitesForSpread() then.
 function TPazo.AddSites: boolean;
 var
   s: TSite;
@@ -1089,8 +1092,7 @@ begin
       sectiondir := s.sectiondir[rls.section];
       if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <>
-          plmNone then
+        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
         begin
           if (DateTimeToUnix(rls.pretime) <> 0) then
           begin
@@ -1103,6 +1105,7 @@ begin
 
               ps := TPazoSite.Create(self, s.Name, sectiondir);
               ps.status := rssNotAllowed;
+              ps.DelaySetup;
               if s.IsAffil(rls.groupname) then
                 ps.status := rssShouldPre;
               sites.Add(ps);
@@ -1115,8 +1118,10 @@ begin
 
           Result := True;
           //ps:= AddSite(s.name, sectiondir);
+
           ps := TPazoSite.Create(self, s.Name, sectiondir);
           ps.status := rssNotAllowed;
+          ps.DelaySetup;
           if s.IsAffil(rls.groupname) then
             ps.status := rssShouldPre;
           sites.Add(ps);
@@ -1129,8 +1134,7 @@ begin
 end;
 
 // just a copy of AddSites, but only for spread, to use skippre value...
-//maybe we cann add it to AddSite, but i dont wanna messup any dev. of _xp :)
-
+// maybe we can add it to AddSite, but i dont wanna messup any dev. of _xp :)
 function TPazo.AddSitesForSpread: boolean;
 var
   s: TSite;
