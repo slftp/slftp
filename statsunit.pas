@@ -17,7 +17,10 @@ procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesiz
 
 procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
 
-procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
+procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
+
+
+procedure RecalcSizeValue(var size: double; out sizevalue: AnsiString; StartWithByte: Boolean = True);
 
 
 implementation
@@ -67,125 +70,325 @@ begin
   end;
 end;
 
-procedure StatRaces(netname, channel, sitename, periode: AnsiString; detail: Boolean);
-var q: AnsiString;
-    s_size: AnsiString;
-    size: Double;
-    s_unit: AnsiString;
-    s: Psqlite3_stmt;
-    sql_periode: AnsiString;
+procedure RecalcSizeValue(var size: double; out sizevalue: AnsiString; StartWithByte: Boolean = True);
 begin
-  sql_periode := 'start of month';
-  if (periode = 'DAY') then
-    sql_periode := 'start of day';
-
-  irc_addtext(netname, channel, Format('%s race stats of site: <b>%s</b>', [periode, sitename]));
-
-  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+');';
-  s := stats.Open(q);
-  while stats.Step(s) do
+  if StartWithByte then
   begin
-    {$IFDEF FPC}
-    s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ELSE}
-    s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ENDIF}
-    size := StrToFloatDef(s_size, 0);
-    s_unit := 'KB';
-    if size > 1024  then begin
+    sizevalue := 'byte';
+    if size >= 1024 then
+    begin
+      sizevalue := 'KB';
       size := size / 1024;
-      s_unit := 'MB';
     end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'TB';
-    end;
-    irc_addtext(netname, channel, Format('TOTAL <b>out</b> %.2f %s (%s files)', [size, s_unit,stats.column_text(s, 0)]));
+  end
+  else
+  begin
+    sizevalue := 'KB';
   end;
 
-  q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+');';
-  s := stats.Open(q);
-  while stats.Step(s) do
+  if size >= 1024 then
   begin
-    {$IFDEF FPC}
-    s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ELSE}
-    s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ENDIF}
-    size := StrToFloatDef(s_size, 0);
-    s_unit := 'KB';
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'MB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'TB';
-    end;
-    irc_addtext(netname, channel, Format('TOTAL <b>in</b> %.2f %s (%s files)', [ size, s_unit,stats.column_text(s, 0)]));
+    sizevalue := 'MB';
+    size := size / 1024;
+  end;
+  if size >= 1024 then
+  begin
+    sizevalue := 'GB';
+    size := size / 1024;
+  end;
+  if size >= 1024 then
+  begin
+    sizevalue := 'TB';
+    size := size / 1024;
   end;
 
-  if not detail then Exit;
-  
+end;
 
-  q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+') GROUP BY sitedst ORDER BY sitedst';
-  s := stats.Open(q);
-  while stats.Step(s) do
+procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
+var
+  q, sql_period: AnsiString;
+  s: Psqlite3_stmt;
+  s_size, s_unit: AnsiString;
+  size, size_all_out, size_all_in: Double;
+  i, files_per_site_in, files_per_site_out, files_all_in, files_all_out: Integer;
+begin
+  files_per_site_out := 0;
+  files_per_site_in := 0;
+  files_all_in := 0;
+  files_all_out := 0;
+  size_all_out := 0;
+  size_all_in := 0;
+
+  if (period = 'MONTH') then
   begin
-    {$IFDEF FPC}
-    s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ELSE}
-    s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ENDIF}
-    size := StrToFloatDef(s_size, 0);
-    s_unit := 'KB';
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'MB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'TB';
-    end;
-    irc_addtext(netname, channel, Format('<b>to</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
+    sql_period := 'start of month';
+  end
+  else if (period = 'YEAR') then
+  begin
+    sql_period := 'start of year';
+  end
+  else
+  begin
+    sql_period := 'start of day';
   end;
 
-  q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+Chr(39)+sitename+Chr(39)+' AND ts > date('+Chr(39)+'now'+Chr(39)+','+Chr(39)+sql_periode+Chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
-  s := stats.Open(q);
-  while stats.Step(s) do
+  if sitename = '*' then
   begin
-    {$IFDEF FPC}
-    s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ELSE}
-    s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-    {$ENDIF}
-    size := StrToFloatDef(s_size, 0);
+    for i := 0 to sites.Count - 1 do
+    begin
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
+
+      irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [period, TSite(sites.Items[i]).Name]));
+
+      q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+TSite(sites.Items[i]).Name+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+');';
+      s := stats.Open(q);
+      while stats.Step(s) do
+      begin
+        {$IFDEF FPC}
+          s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        {$ELSE}
+          s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        {$ENDIF}
+        size := StrToFloatDef(s_size, 0);
+        size_all_out := size + size_all_out;
+        files_per_site_out := StrToInt(stats.column_text(s, 0));
+        files_all_out := files_all_out + files_per_site_out;
+
+{
+        s_unit := 'KB';
+        if size > 1024 then
+        begin
+          size := size / 1024;
+          s_unit := 'MB';
+        end;
+        if size > 1024 then
+        begin
+          size := size / 1024;
+          s_unit := 'GB';
+        end;
+        if size > 1024 then
+        begin
+          size := size / 1024;
+          s_unit := 'TB';
+        end;
+}
+
+        RecalcSizeValue(size, s_unit, False);
+
+        irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+      end;
+
+      q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+TSite(sites.Items[i]).Name+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+');';
+      s := stats.Open(q);
+      while stats.Step(s) do
+      begin
+        {$IFDEF FPC}
+          s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        {$ELSE}
+          s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        {$ENDIF}
+        size := StrToFloatDef(s_size, 0);
+        size_all_in := size + size_all_in;
+        files_per_site_in := StrToInt(stats.column_text(s, 0));
+        files_all_in := files_all_in + files_per_site_in;
+
+{
+        s_unit := 'KB';
+        if size > 1024 then
+        begin
+          size := size / 1024;
+          s_unit := 'MB';
+        end;
+        if size > 1024 then
+        begin
+         size := size / 1024;
+         s_unit := 'GB';
+        end;
+        if size > 1024 then
+        begin
+          size := size / 1024;
+          s_unit := 'TB';
+        end;
+}
+
+        RecalcSizeValue(size, s_unit, False);
+
+        irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+      end;
+
+    end;
+
+{
+    //in and out files/size are the same
+    // size_all_out == size_all_in
     s_unit := 'KB';
-    if size > 1024  then begin
-      size := size / 1024;
+    if size_all_out > 1024 then
+    begin
+      size_all_out := size_all_out / 1024;
       s_unit := 'MB';
     end;
-    if size > 1024  then begin
-      size := size / 1024;
+    if size_all_out > 1024 then
+    begin
+      size_all_out := size_all_out / 1024;
       s_unit := 'GB';
     end;
-    if size > 1024  then begin
-      size := size / 1024;
+    if size_all_out > 1024 then
+    begin
+      size_all_out := size_all_out / 1024;
       s_unit := 'TB';
     end;
-    irc_addtext(netname, channel, Format('<b>from</b> %s : %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit,stats.column_text(s, 1)]));
+}
+
+    RecalcSizeValue(size_all_out, s_unit, False);
+
+    irc_addtext(netname, channel, Format('<b>Total In + Out:</b> <c07>%.2f</c> %s (%d files)', [size_all_out, s_unit, files_all_out]));
+  end
+  else
+  begin
+    irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [period, sitename]));
+
+    q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+');';
+    s := stats.Open(q);
+    while stats.Step(s) do
+    begin
+      {$IFDEF FPC}
+        s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
+      size := StrToFloatDef(s_size, 0);
+
+{
+      s_unit := 'KB';
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'MB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'GB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'TB';
+      end;
+}
+
+      RecalcSizeValue(size, s_unit, False);
+
+      irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+    end;
+
+    q := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+');';
+    s := stats.Open(q);
+    while stats.Step(s) do
+    begin
+      {$IFDEF FPC}
+        s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
+      size := StrToFloatDef(s_size, 0);
+
+{
+      s_unit := 'KB';
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'MB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'GB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'TB';
+      end;
+}
+      RecalcSizeValue(size, s_unit, False);
+
+      irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
+    end;
+
+    if not detailed then Exit;
+
+    q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+') GROUP BY sitedst ORDER BY sitedst';
+    s := stats.Open(q);
+    while stats.Step(s) do
+    begin
+      {$IFDEF FPC}
+        s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
+      size := StrToFloatDef(s_size, 0);
+
+{
+      s_unit := 'KB';
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'MB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'GB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'TB';
+      end;
+}
+
+      RecalcSizeValue(size, s_unit, False);
+
+      irc_addtext(netname, channel, Format('  <b>to</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
+    end;
+
+    q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
+    s := stats.Open(q);
+    while stats.Step(s) do
+    begin
+      {$IFDEF FPC}
+        s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
+      size := StrToFloatDef(s_size, 0);
+
+{
+      s_unit := 'KB';
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'MB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'GB';
+      end;
+      if size > 1024 then
+      begin
+        size := size / 1024;
+        s_unit := 'TB';
+      end;
+}
+
+      RecalcSizeValue(size, s_unit, False);
+
+      irc_addtext(netname, channel, Format('  <b>from</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
+    end;
+
   end;
 end;
 
