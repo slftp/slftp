@@ -558,7 +558,6 @@ begin
     if js.Field['type'].SelfType = jsNull then
       tvr.tv_classification := 'unknown'
     else
-
       tvr.tv_classification := AnsiString(js.Field['type'].Value);
 
     tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
@@ -566,6 +565,7 @@ begin
 
     if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       tvr.thetvdb_id := AnsiString(js.Field['externals'].Field['thetvdb'].Value);
+
     if js.Field['externals'].Field['tvrage'].SelfType <> jsNull then
       tvr.tvrage_id := AnsiString(js.Field['externals'].Field['tvrage'].Value);
 
@@ -592,13 +592,14 @@ begin
     else
     begin
       tvr.tv_network := AnsiString(js.Field['network'].Field['name'].Value);
-      tvr.tv_country := AnsiString(js.Field['network'].Field['country'].Field['code'].Value);
-    end;
-
-    if js.Field['schedule'].SelfType <> jsNull then
-    begin
-      for i := 0 to js.Field['schedule'].Field['days'].Count - 1 do
-        tvr.tv_days.Add(string(js.Field['schedule'].Field['days'].Child[i].Value));
+      if js.Field['network'].Field['country'].SelfType = jsNull then
+      begin
+        tvr.tv_country := 'unknown';
+      end
+      else
+      begin
+        tvr.tv_country := AnsiString(js.Field['network'].Field['country'].Field['code'].Value);
+      end;
     end;
 
     if tvr.tv_country = 'US' then
@@ -606,36 +607,57 @@ begin
     if tvr.tv_country = 'GB' then
       tvr.tv_country := 'UK';
 
+    if js.Field['schedule'].SelfType <> jsNull then
+    begin
+      for i := 0 to js.Field['schedule'].Field['days'].Count - 1 do
+        tvr.tv_days.Add(string(js.Field['schedule'].Field['days'].Child[i].Value));
+    end;
+
+
+    // if an error occur while calling xml.LoadFromStream(ts); in function getGenreFromTheTVDb
+    // we create a debug message with showname and ID for further debug
+    // WE STILL GET GENRE FROM TVMAZE, SO NO EMPTY GENRE IF TVMAZE HAS GENRES!
     try
 
       if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
-
         gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
 
         for I := 0 to gTVDB.Count - 1 do
           if slGen.IndexOf(gTVDB.Strings[i]) > -1 then
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
-
-if js.Field['genres'].SelfType  <> jsNull then begin
-
-      for I := 0 to js.Field['genres'].Count - 1 do
-        if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
-          tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
-  end else irc_addAdmin('genre is null');
-
+      
     except on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB genre Exception : %s - Show: %s (ID: %d)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
+      irc_addadmin(e.Message);
+    end;
+    end;
+
+      if js.Field['genres'].SelfType <> jsNull then
       begin
-        irc_addadmin(e.Message);
+        for I := 0 to js.Field['genres'].Count - 1 do
+          if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
+            tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
       end;
 
-    end;
+      //end
+      //else
+      //irc_addAdmin('genre is null');
+
+    //except on E: Exception do
+    //  begin
+    //    irc_addadmin(e.Message);
+    //  end;
+
+    //end;
 
     if js.Field['premiered'].SelfType <> jsNull then
       tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4), -1)
     else
       tvr.tv_premiered_year := -1;
+
       tvr.tv_endedyear := -1;
       tvr.tv_next_ep := -10;
       tvr.tv_next_season := -10;
