@@ -632,7 +632,7 @@ begin
     except on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB genre Exception : %s - Show: %s (ID: %d)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
-      irc_addadmin(e.Message);
+      irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB genre Exception : %s - Show: %s (ID: %d)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]);
     end;
     end;
 
