@@ -615,6 +615,7 @@ begin
 
 
     // if an error occur while calling xml.LoadFromStream(ts); in function getGenreFromTheTVDb
+    // [ error: In 'stream:' (line 1 pos 55): Expected whitespace ]
     // we create a debug message with showname and ID for further debug
     // WE STILL GET GENRE FROM TVMAZE, SO NO EMPTY GENRE IF TVMAZE HAS GENRES!
     try
