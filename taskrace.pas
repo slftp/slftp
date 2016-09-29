@@ -672,7 +672,7 @@ label
 var
   s: TSiteSlot;
   aktdir, fulldir: AnsiString;
-  hiba: boolean;
+  failure: boolean;
   m: boolean;
   r: TRule;
   e: AnsiString;
@@ -717,8 +717,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask error: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask error: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
@@ -735,6 +734,7 @@ begin
 
   m := IsMidnight(mainpazo.rls.section);
 
+  //change working directory
   try
     if not s.Cwd(ps1.maindir, m) then
     begin
@@ -747,14 +747,13 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section,
-        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
   end;
 
+  //print working directory
   try
     if m then
     begin
@@ -771,8 +770,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section,
-        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist:%s', [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist:%s', [e.Message]));
       readyerror := True;
       exit;
     end;
@@ -816,7 +814,7 @@ begin
           irc_Adderror(s.todotask, '<c4>[DENIED]</c> %s', [tname]);
         end;
 
-          hiba := True;
+          failure := True;
       end
       else
       begin
@@ -828,14 +826,14 @@ begin
     begin
       if (0 <> AnsiPos('status of', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
     end
     else if (s.lastResponseCode = 533) then
     begin
       if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
       begin
-        hiba := True;
+        failure := True;
       end;
       if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
       begin
@@ -844,7 +842,7 @@ begin
           irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
         end;
 
-          hiba := True;
+          failure := True;
       end;
     end
     else if ((0 <> AnsiPos('Denied', s.lastResponse)) or (0 <> AnsiPos('Denying', s.lastResponse))) then
@@ -874,7 +872,7 @@ begin
       begin
         irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
       end;
-      hiba := True;
+      failure := True;
     end
     else
     begin
@@ -883,17 +881,18 @@ begin
         irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
       end;
 
-      hiba := True;
+      failure := True;
     end;
 
-  end;
 
+
+  end;
+}
 
   try
-    if (hiba) then
+    if (failure) then
     begin
-      fulldir := MyIncludeTrailingSlash(ps1.maindir) +
-        MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+      fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
       if not s.Cwd(fulldir) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
@@ -907,6 +906,7 @@ begin
         exit;
       end;
     end;
+
     ps1.MkdirReady(dir);
   except
     on e: Exception do
@@ -930,9 +930,9 @@ begin
 
   Debug(dpMessage, c_section, '<-- ' + tname);
 
-  Result := True;
-  readyerror := hiba;
+  readyerror := failure;
   ready := True;
+  Result := True;
 end;
 
 function TPazoMkdirTask.Name: AnsiString;
