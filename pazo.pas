@@ -1331,10 +1331,12 @@ begin
   if d <> nil then
   begin
     debug(dpSpam, section, 'MkdirReady ' + Name + ' ' + dir);
+    // Result will be true if need_mkdir is true even if try..except fails! So we say MkdirReady is true (ready)
     if d.need_mkdir then
     begin
       Result := True;
     end;
+    // dir exist, we can set need_mkdir to false
     d.need_mkdir := False;
     d.dependency_mkdir := '';
   end;
@@ -1344,12 +1346,11 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section,
-        'TPazoSite.MkdirReady exception in RemovePazoMKDIR : %s',
-        [e.Message]);
+      Debug(dpError, section, 'TPazoSite.MkdirReady exception in RemovePazoMKDIR : %s', [e.Message]);
       exit;
     end;
   end;
+
   Result := True;
 end;
 
@@ -1357,14 +1358,15 @@ function TPazoSite.MkdirError(dir: AnsiString): boolean;
 var
   d: TDirList;
 begin
-  //  Result:= False;
+  Result := False;
 
   d := dirlist.FindDirlist(dir);
+  // dirlist was found but there is some error with this dir
+  // so we set need_mkdir back to true!
   if d <> nil then
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
-    irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>',
-      [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
+    irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
     d.need_mkdir := True;
     d.error := True;
   end;
@@ -1904,6 +1906,7 @@ procedure TPazoSite.MarkSiteAsFailed(echomsg: boolean = False);
 begin
   error := True;
   Debug(dpSpam, section, Format('--> TPazoSite.MarkSiteAsFailed', []));
+
   try
     dirlistgaveup := True;
 
@@ -1911,16 +1914,15 @@ begin
     RemoveDirlistTasks(pazo.pazo_id, Name);
 
     if echomsg then
-      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b>',
-        [pazo.rls.section, pazo.rls.rlsname, Name]));
+      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name]));
+
   except
     on e: Exception do
     begin
-      Debug(dpError, section,
-        Format('[EXCEPTION] TPazoSite.MarkSiteAsFailed: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.MarkSiteAsFailed: %s', [e.Message]));
     end;
   end;
+
   Debug(dpSpam, section, Format('<-- TPazoSite.MarkSiteAsFailed', []));
 end;
 
