@@ -778,7 +778,8 @@ end;
 function TSiteSlot.Cwd(dir: AnsiString; force: boolean = False): boolean;
 begin
   Result := False;
-  dir    := MyIncludeTrailingSlash(dir);
+  dir := MyIncludeTrailingSlash(dir);
+  
   if ((dir <> aktdir) or (force)) then
   begin
     if ((site.legacydirlist) or (force)) then
@@ -787,15 +788,18 @@ begin
         exit;
       if not Read('CWD') then
         exit;
+
       if (lastResponseCode = 250) then
       begin
         if (0 <> Pos('250- Matched ', lastresponse)) then
         begin
           Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+
           if dir[1] <> '/' then
             aktdir := aktdir + dir
           else
             aktdir := dir;
+
           Result := True;
           exit;
         end;
