@@ -780,32 +780,131 @@ begin
   if not s.Mkdir(aktdir) then
     goto ujra;
 
-  hiba := False;
-
+  failure := False;
 
   if s.lastResponseCode <> 257 then
   begin
+
+    case s.lastResponseCode of
+      550:
+        begin
+          //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
+          if (0 <> AnsiPos('File exists', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('already exists', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
+          begin
+            if config.ReadBool(c_section, 'autoruleadd', True) then
+            begin
+              if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) then
+              begin
+                // auto adding blacklist rule for group
+                e := s.lastResponse;
+                grp := Fetch(e, ' ');
+                grp := Fetch(e, ' '); // second word
+                e := '';
+                Debug(dpMessage, c_section, 'Adding grp %s to blacklist on %s', [grp, site1]);
+                irc_Addadmin(Format('Adding Group %s to blacklist on %s', [grp, site1]));
+
+                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, grp]), e);
+                if ((r <> nil) and (e = '')) then
+                begin
+                  rules.Insert(0, r);
+                  RulesSave;
+                end;
+              end;
+            end;
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            failure := True;
+          end
+          else
+          begin
+            Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+            irc_Addadmin(Format('TPazoMkdirTask respone error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+            failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+          end;
+        end;
+      213:
+        begin
+          if (0 <> AnsiPos('status of', s.lastResponse)) then
+          begin
+            failure := False;
+          end;
+        end;
+      533:
+        begin
+          if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
+          begin
+            failure := True;
+          end;
+          if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
+          begin
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
+            end;
+            failure := True;
+          end;
+        end;
+    else
+      begin
+        if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+        begin
+          irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+        end;
+        Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+        irc_Addadmin(Format('TPazoMkdirTask respone error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+        failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+      end;
+    end;
+
+  end;
+
+{
+  if s.lastResponseCode <> 257 then
+  begin
+
     if (s.lastResponseCode = 550) then
     begin
       if (0 <> AnsiPos('File exists', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('already exists', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '') then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
       begin
