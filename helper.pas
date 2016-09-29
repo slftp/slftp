@@ -6,9 +6,6 @@ function MyGetPass(prompt: AnsiString): AnsiString;
 function MyGetUsername: AnsiString;
 procedure mySleep(sec: Integer; var slshutdown: Boolean);
 function ParsePZSOutputForGenre(s: AnsiString): AnsiString;
-{$IFDEF FPC}
-function RandomRange(mmin, mmax: Integer): Integer;
-{$ENDIF}
 
 implementation
 
@@ -21,13 +18,6 @@ uses SysUtils, StrUtils,
   {$ELSE}
     Libc;
   {$ENDIF}
-{$ENDIF}
-
-{$IFDEF FPC}
-function RandomRange(mmin, mmax: Integer): Integer;
-begin
-  Result:= Random(mmax-mmin+1) + mmin;
-end;
 {$ENDIF}
 
 
@@ -74,7 +64,7 @@ end;
 function MyGetPass(prompt: AnsiString): AnsiString;
 begin
 {$IFDEF FPC}
-  Result:= 'blabla';//StrPas(GetPass(PChar(prompt)));
+  Result := 'blabla';//StrPas(GetPass(PChar(prompt)));
 {$ELSE}
   Result:= StrPas(GetPass(PChar(prompt)));
 {$ENDIF}
@@ -86,36 +76,35 @@ function MyGetUsername: AnsiString;
 var buf: array[1..256] of AnsiChar;
     n: Cardinal;
 begin
-  Result:= '';
+  Result := '';
 
   if (False <> GetUserName(@buf, n)) then
-    Result:= Copy(buf, 1, n-1);
+    Result := Copy(buf, 1, n-1);
 end;
-
 {$ELSE}
 function MyGetUsername: AnsiString;
 var pwentry: PPasswordRecord;
 begin
-  Result:= '';
+  Result := '';
 
   // pick up the current user's username
 {$IFDEF FPC}
 {$IFDEF LINUX}
-  pwentry:= fpgetpwuid(fpgetuid());
+  pwentry := fpgetpwuid(fpgetuid());
   {$ENDIF}
   {$ELSE}
-  pwentry:= getpwuid(getuid());
+  pwentry := getpwuid(getuid());
 {$ENDIF}
   if (pwentry = nil) then exit;
 
-  Result:= StrPas(pwentry^.pw_name);
+  Result := StrPas(pwentry^.pw_name);
 end;
 {$ENDIF}
 
 procedure mySleep(sec: Integer; var slshutdown: Boolean);
 var i: integer;
 begin
-  for i:= 1 to sec*2 do
+  for i := 1 to sec*2 do
   begin
     Sleep(500);
     if slshutdown then Exit;
@@ -125,11 +114,11 @@ end;
 function ParsePZSOutputForGenre(s: AnsiString): AnsiString;
 var i, j: Integer;
 begin
-  Result:= '';
-  i:= Pos('226- | Genre  : ', s);
+  Result := '';
+  i := Pos('226- | Genre  : ', s);
   if i = 0 then exit;
-  j:= PosEx('|', s, i + 10);
-  Result:= Trim(Copy(s, i+16, j-i-17));
+  j := PosEx('|', s, i + 10);
+  Result := Trim(Copy(s, i+16, j-i-17));
 end;
 
 end.
