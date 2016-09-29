@@ -53,7 +53,7 @@
 		{#} Now !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
 		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
-		{#} Bug with delayupload and delayleech was fixed
+		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
 		{^} fake check is enabled by default [check slftp.ini] & fakereason tells you more info why it's fake
 		{^} displaying of movie status (stv/limited/festival/wide/cine) on irc imdb announce
 		{^} network/country change on tvmaze gets saved now
