@@ -786,6 +786,37 @@ begin
   begin
 
     case s.lastResponseCode of
+      213:
+        begin
+          if (0 <> AnsiPos('status of', s.lastResponse)) then
+          begin
+            failure := False;
+          end;
+        end;
+
+      530:
+        begin
+          if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then // 530 Make Directory Access denied - Due to Regexp configuration
+          begin
+            failure := True;
+          end;
+        end;
+
+      533:
+        begin
+          if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
+          begin
+            failure := True;
+          end;
+          if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
+          begin
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
+            end;
+            failure := True;
+          end;
+        end;  
       550:
         begin
           //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
@@ -797,10 +828,14 @@ begin
           begin
             failure := False;
           end
-          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
+
+          else if ((0 <> AnsiPos('it was last created at', s.lastResponse)) and (dir <> '')) then
           begin
-            failure := False;
+            // to hopefully avoid loops with 550- Sample already exists in the dupelog, it was last created at 030116
+            // also for Proofs, Covers, ...
+            failure := True;
           end
+
           else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
           begin
             failure := False;
@@ -809,12 +844,37 @@ begin
           begin
             failure := False;
           end
+          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := False;
+          end
+
+          else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
+          begin
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            failure := True;
+          end
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and (0 <> AnsiPos('Read-only file system', s.lastResponse)) ) then // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
+          begin
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            // TODO: setdown site, no transfer possible but more checking needed if it's only for current directory or for whole site
+            // if only current directory, we should not setdown site - but we can find out with some testing ;)
+            failure := True;
+          end
+
           else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
           begin
             if config.ReadBool(c_section, 'autoruleadd', True) then
             begin
               if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) then
               begin
+                // TODO: maybe we can just use TRelease.groupname instead of catch it from last response
                 // auto adding blacklist rule for group
                 e := s.lastResponse;
                 grp := Fetch(e, ' ');
@@ -842,28 +902,6 @@ begin
             Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
             irc_Addadmin(Format('TPazoMkdirTask respone error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
             failure := True;  // we don't know if it's a really error or not, so we better say it's failed
-          end;
-        end;
-      213:
-        begin
-          if (0 <> AnsiPos('status of', s.lastResponse)) then
-          begin
-            failure := False;
-          end;
-        end;
-      533:
-        begin
-          if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
-          begin
-            failure := True;
-          end;
-          if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
-          begin
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
-            begin
-              irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
-            end;
-            failure := True;
           end;
         end;
     else
