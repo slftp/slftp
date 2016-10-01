@@ -48,9 +48,9 @@
 --=============================( SLFTP v1.5.3.1 )=================================- 
 		{+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
 		{+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together
+		{#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now
 		{#} !rulehelp tvcurrent shows correct help
-		{#} !lookup works with sections which are only mapped. Don't need to be under [sections]
-		{#} Now !lookup works with sections which are only mapped - like everywhere else
+		{#} !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
 		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
