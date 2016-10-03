@@ -5620,14 +5620,22 @@ begin
 
     if x.Strings[i] = 'sslmethod' then
     begin
-      irc_addtext(Netname, Channel, ' %s: %s (%s)',
-        [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
       Continue;
     end;
 
     if x.Strings[i] = 'sw' then
-      irc_addtext(Netname, Channel, ' %s: %s (%s)',
-        [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)])
+    begin
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)]);
+      Continue;
+    end;
+
+    if x.Strings[i] = 'country' then
+    begin
+      j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))), CountryCodes);
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), CountryNames[j_sec]]);
+      continue;
+    end
     else
     begin
       if ((x.Strings[i] = 'sections') or (x.Strings[i] = 'autoindexsections')) then
@@ -5939,11 +5947,12 @@ end;
 
 function IrcCountry(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, country: AnsiString;
+  sitename, country, countrywithoutdot: AnsiString;
+  i: Integer;
   s: TSite;
 begin
   Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
+  sitename := AnsiUpperCase(SubString(params, ' ', 1));
   country := AnsiUpperCase(RightStrV2(params, length(sitename) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -5952,15 +5961,23 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  
+
   if ( country[1] <> '.' ) then
   begin
-    irc_addtext(Netname, Channel, 'The location/country of your site need to begin with a dot!');
+    irc_addtext(Netname, Channel, 'The location/country need to begin with a dot!');
     exit;
   end;
-  
+
+  countrywithoutdot := copy(country, 2, length(country));
+  i := AnsiIndexText(countrywithoutdot, CountryCodes);
+  if not ( i > -1 ) then
+  begin
+    irc_addtext(Netname, Channel, 'Country %s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements', [country]);
+    exit;
+  end;
+
   s.WCString('country', country);
-  irc_addtext(Netname, Channel, country);
+  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country, CountryNames[i]]);
 
   Result := True;
 end;
