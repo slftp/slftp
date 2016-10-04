@@ -3010,7 +3010,7 @@ begin
   // optional setting, if empty it well be set to dn
   pre_dn := StrToIntDef(SubString(params, ' ',4), 0);
 
-  if (up = 0) or (dn = 0) then
+  if (up < 0) or (dn < 0) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
