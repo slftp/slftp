@@ -856,8 +856,8 @@ begin
           end
           else
           begin
-            Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
-            irc_Addadmin(Format('TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+            Debug(dpError, c_section, 'TPazoMkdirTask unhandled 550 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+            irc_Addadmin(Format('TPazoMkdirTask unhandled 550 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
             failure := True;  // we don't know if it's a really error or not, so we better say it's failed
           end;
         end;
@@ -867,8 +867,8 @@ begin
         begin
           irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
         end;
-        Debug(dpMessage, c_section, 'TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
-        irc_Addadmin(Format('TPazoMkdirTask response error, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+        Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+        irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
         failure := True;  // we don't know if it's a really error or not, so we better say it's failed
       end;
     end;
@@ -1292,8 +1292,8 @@ begin
         end;
       else
         begin
-          Debug(dpMessage, c_section, 'TPazoRaceTask response error, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask response error, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
         end;
     end;
 
@@ -1472,10 +1472,14 @@ begin
 
       else
         begin
-          Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
-          irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
-          sdst.DestroySocket(False);
+          //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
+          //irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]));
+
           mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+          sdst.DestroySocket(False);
           readyerror := True;
           Debug(dpMessage, c_section, '<- ' + tname);
           exit;
@@ -1704,7 +1708,9 @@ begin
     end
     else
     begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+      //irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]));
     end;
 
 
