@@ -1850,49 +1850,7 @@ begin
       exit;
     end;
   end;
-  debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
 
-  ended := Now;
-  time_race := MilliSecondsBetween(ended, started);
-  response := IntToStr(time_race);
-
-  //for src
-  if ((ssrc.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse))) then
-  begin
-    ssrc.site.sslfxp := srNeeded;
-
-    if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-    begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s',
-        [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
-    end;
-
-    goto ujra;
-  end
-  else if (ssrc.lastResponseCode <> 226) then
-  begin
-    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s',
-        [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
-  end;
-
-  //for dst
-  if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
-  begin
-    sdst.site.sslfxp := srNeeded;
-
-    if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-    begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s',
-        [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
-    end;
-
-    goto ujra;
-  end
-  else if (sdst.lastResponseCode <> 226) then
-  begin
-    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s, %s %d %s',
-        [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
-  end;
 
 
   //TODO: [ERROR FXP] TPazoRaceTask DST/0, RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 421 421 Timeout (60 seconds): closing control connection.
@@ -1901,6 +1859,136 @@ begin
 
   //TODO: [ERROR FXP] TPazoRaceTask SRC/2: RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s07 (36) 426 426- Slow transfer: 0B/s too slow for section GAMES, at leas
   // maybe lower routing if this occur several times on same routes (Issue #46)
+
+
+
+  case ssrc.lastResponseCode of
+  {
+    421:  //new one
+      begin
+        if (0 < AnsiPos('Sendfile error', ssrc.lastResponse)) then //complete msg: 426 Sendfile error: Broken pipe
+        begin
+          //try again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        end;
+        if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then //complete msg: 421 Timeout (60 seconds): closing control connection.
+        begin
+          //try again or just exit, because timeout -> bad routing, offline?
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        end;
+      end;
+  }
+    522:
+      begin
+        if (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse)) then
+        begin
+          ssrc.site.sslfxp := srNeeded;
+          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          end;
+          goto ujra;
+        end;
+      end;
+
+    else  //to get other errors to put here
+      begin
+        if (ssrc.lastResponseCode <> 226) then
+        begin
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, ssrc.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, ssrc.lastResponse]));
+        end;
+      end;
+  end;
+
+
+{
+  //for src
+  if ((ssrc.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse))) then
+  begin
+    ssrc.site.sslfxp := srNeeded;
+
+    if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+    begin
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+    end;
+
+    goto ujra;
+  end
+  else if (ssrc.lastResponseCode <> 226) then
+  begin
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+  end;
+}
+
+
+
+
+
+
+
+
+
+  case sdst.lastResponseCode of
+  {
+    426:  //new one
+      begin
+        if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then //complete msg: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+        begin
+          //lower routing from srcsite to dstsite
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+        end;
+      end;
+  }
+    522:
+      begin
+        if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
+        begin
+          sdst.site.sslfxp := srNeeded;
+          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+          end;
+          goto ujra;
+        end
+      end;
+
+    else  //to get other errors to put here
+      begin
+        if (sdst.lastResponseCode <> 226) then
+        begin
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]));
+        end;
+      end;
+  end;
+
+{
+  //for dst
+  if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
+  begin
+    sdst.site.sslfxp := srNeeded;
+
+    if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+    begin
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+    end;
+
+    goto ujra;
+  end
+  else if (sdst.lastResponseCode <> 226) then
+  begin
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+  end;
+}
+
+
+  // *** transfer was successful! ***
+  debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
+  ended := Now;
+  time_race := MilliSecondsBetween(ended, started);
+  response := IntToStr(time_race);
+
 
 
   byme := False;
@@ -1966,8 +2054,7 @@ begin
       fs := mainpazo.PFileSize(dir, filename);
       if (fs > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
       begin
-        SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section,
-          mainpazo.rls.rlsname);
+        SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
       end;
     except
       on E: Exception do
@@ -1990,8 +2077,7 @@ begin
         fs := mainpazo.PFileSize(dir, filename);
         if (fs > 0) and (time_race > 0) then
         begin
-
-          racebw := fs * 1000 / time_race / 1024; // / 1024;
+          racebw := fs * 1000 / time_race / 1024;
           fsize := fs / 1024;
 
           if (filesize > 1024) then
@@ -2021,8 +2107,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
     end;
   end;
 
