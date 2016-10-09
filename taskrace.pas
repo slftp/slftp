@@ -1957,8 +1957,8 @@ begin
       begin
         if (sdst.lastResponseCode <> 226) then
         begin
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]));
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]));
         end;
       end;
   end;
