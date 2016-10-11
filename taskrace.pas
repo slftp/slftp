@@ -1863,21 +1863,60 @@ begin
 
 
   case ssrc.lastResponseCode of
-  {
-    421:  //new one
+  
+    421:
       begin
-        if (0 < AnsiPos('Sendfile error', ssrc.lastResponse)) then //complete msg: 426 Sendfile error: Broken pipe
-        begin
-          //try again
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
-        end;
-        if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then //complete msg: 421 Timeout (60 seconds): closing control connection.
+      
+        //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+        if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then
         begin
           //try again or just exit, because timeout -> bad routing, offline?
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          goto ujra;
         end;
+        
       end;
-  }
+
+
+  
+    426:
+    begin
+    
+      //COMPLETE MSG: 426 Sendfile error: Broken pipe.
+      if (0 < AnsiPos('Sendfile error', ssrc.lastResponse)) then
+      begin
+        //try again
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        goto ujra;
+      end;
+    
+      //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
+      //              426 Transfer was aborted - File has been deleted on the master
+      if (0 < AnsiPos('File has been deleted on the master', ssrc.lastResponse)) then
+      begin
+        //exit here, try again won't help if file don't get traded just again after deleting
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        mainpazo.errorreason := 'File has been deletec on the master';
+        readyerror := True;
+        exit;
+      end;
+
+      //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section 0DAY, at least 1000B/s required.
+      //              426- Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+      //              426 Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+      if (0 < AnsiPos('Slow transfer', ssrc.lastResponse)) then
+      begin
+        //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        goto ujra;
+      end;
+      
+    end;
+  
+
+
+
+  
     522:
       begin
         if (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse)) then
@@ -1930,16 +1969,40 @@ begin
 
 
   case sdst.lastResponseCode of
-  {
-    426:  //new one
+  
+    426:
       begin
-        if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then //complete msg: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+      
+        //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+        if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then
         begin
-          //lower routing from srcsite to dstsite
+          //try again, maybe lower routing from srcsite to dstsite
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto ujra;
         end;
+    
+        //COMPLETE MSG: 426- Read timed out
+        //              426 Transfer failed, deleting file
+        if (0 < AnsiPos('Read timed out', sdst.lastResponse)) then
+        begin
+          //try again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto ujra;
+        end;
+      
+        //COMPLETE MSG: 426- Socket closed
+        //              426 Transfer failed, deleting file
+        //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s 
+        if (0 < AnsiPos('Socket closed', sdst.lastResponse)) then
+        begin
+          //try again, maybe lower routing if happens again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto ujra;
+        end;
+      
       end;
-  }
+
+  
     522:
       begin
         if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
