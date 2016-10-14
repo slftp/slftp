@@ -613,12 +613,12 @@ end;
 
 procedure TMyIrcThread.SetProxyName(value: AnsiString);
 begin
-  sitesdat.WriteString('ircnet-' + netname, 'ProxyName', Value);
+  sitesdat.WriteString('ircnet-' + netname, 'proxyname', Value);
 end;
 
 function TMyIrcThread.GetProxyName: AnsiString;
 begin
-  result := sitesdat.ReadString('ircnet-' + netname, 'ProxyName', '!!NOIN!!');
+  result := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
 end;
 
 procedure TMyIrcThread.IrcSetupSocket;

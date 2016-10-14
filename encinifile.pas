@@ -650,8 +650,8 @@ var
   split_site_data: Boolean;
   Found: Boolean;
   S: AnsiString;
-  const splitredirectkeys : array [1..9] of AnsiString = ( 'username', 'password', 'max_dn', 'max_pre_dn',
-  'max_up', 'slots', 'ProxyName', 'NoLoginMSG', 'IRCNick' );
+  const splitredirectkeys : array [1..9] of AnsiString = ('username', 'password', 'max_dn', 'max_pre_dn',
+  'max_up', 'slots', 'proxyname', 'nologinmsg', 'ircnick');
 begin
   split_site_data := config.ReadBool('sites', 'split_site_data', False);
   List.BeginUpdate;
