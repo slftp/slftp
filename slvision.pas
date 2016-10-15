@@ -804,11 +804,11 @@ end;
 
 function TslApplication.BackgroundCharacter: AnsiChar;
 begin
-{$IFDEF MSWINDOWS}
-  Result := Chr(176);
-{$ELSE}
-  Result:= ' ';
-{$ENDIF}
+  {$IFDEF MSWINDOWS}
+    Result := Chr(176);
+  {$ELSE}
+    Result:= ' ';
+  {$ENDIF}
 end;
 
 procedure TslApplication.ShowMessage(const s: AnsiString);
@@ -816,23 +816,24 @@ var
   l: TslLabel;
   w: TslWindow;
 begin
-  l     := TslLabel.Create(s, nil);
+  l := TslLabel.Create(s, nil);
   l.Top := 2;
 
   w := TslWindow.Create(l.Width + 8, l.Height + 6, 'Message', nil);
-  w.Visible := slvHidden;
+  try
+    w.Visible := slvHidden;
 
-  l.SetParent(w);
+    l.SetParent(w);
 
+    with TslButton.Create(mrOk, w) do
+      Bottom := 2;
 
+    //  dump;
 
-  with TslButton.Create(mrOk, w) do
-    Bottom := 2;
-
-  //  dump;
-
-  w.ShowModal;
-  w.Free;
+    w.ShowModal;
+  finally
+    w.Free;
+  end;
 end;
 
 
