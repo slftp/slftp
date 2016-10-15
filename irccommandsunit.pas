@@ -11387,23 +11387,21 @@ begin
   Result := True;
 end;
 
-function IrcRecalcFreeslots(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcRecalcFreeslots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   site: TSite;
   i: integer;
   x: TStringList;
 begin
-  //  Result   := False;
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
 
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).RecalcFreeslots;
     end;
@@ -11411,23 +11409,25 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
+    try
+      x.commatext := sitename;
 
-    for i := 0 to x.Count - 1 do
-    begin
-      site := FindSiteByName(Netname, x.Strings[i]);
-      if site = nil then
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
+        site := FindSiteByName(Netname, x.Strings[i]);
+        if site = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        site.RecalcFreeslots;
       end;
-      site.RecalcFreeslots;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
-  Result := True;
 
+  Result := True;
 end;
 
 // Testing functions
