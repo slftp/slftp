@@ -3068,8 +3068,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).WCInteger('maxupperrip', upperrip);
     end;
@@ -3077,19 +3076,21 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        s.WCInteger('maxupperrip', upperrip);
       end;
-      s.WCInteger('maxupperrip', upperrip);
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
