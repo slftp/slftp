@@ -3033,20 +3033,23 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        s.max_dn := dn;
+        s.max_pre_dn := pre_dn;
+        s.max_up := up;
       end;
-      s.max_dn := dn;
-      s.max_pre_dn := pre_dn;
-      s.max_up := up;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
