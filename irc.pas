@@ -520,34 +520,35 @@ var
   channel, nn: AnsiString;
   b: TIrcBlowKey;
 begin
-
   // register other sitechan keys
   x := TStringList.Create;
-  sitesdat.ReadSections(x);
-  for i := 0 to x.Count - 1 do
-  begin
-    if (1 = Pos('channel-', x[i])) then
-    begin
-      nn := SubString(x[i], '-', 2);
-      channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
-      b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
-      b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
-    end;
-  end;
-
-  // create other network threads
-  sitesdat.ReadSections(x);
-  if (config.ReadBool(section, 'enabled', True)) then
-  begin
+  try
+    sitesdat.ReadSections(x);
     for i := 0 to x.Count - 1 do
-      if (1 = Pos('ircnet-', x[i])) then
+    begin
+      if (1 = Pos('channel-', x[i])) then
       begin
-        myIrcThreads.Add(TMyIrcThread.Create(Copy(x[i], 8, 1000)));
-        sleep(500);
+        nn := SubString(x[i], '-', 2);
+        channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
+        b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
+        b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
       end;
-  end;
-  x.Free;
+    end;
 
+    // create other network threads
+    sitesdat.ReadSections(x);
+    if (config.ReadBool(section, 'enabled', True)) then
+    begin
+      for i := 0 to x.Count - 1 do
+        if (1 = Pos('ircnet-', x[i])) then
+        begin
+          myIrcThreads.Add(TMyIrcThread.Create(Copy(x[i], 8, 1000)));
+          sleep(500);
+        end;
+    end;
+  finally
+    x.Free;
+  end;
 end;
 
 { TMyIrcThread }
