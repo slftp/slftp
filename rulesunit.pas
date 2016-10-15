@@ -2090,88 +2090,87 @@ begin
     exit;
 
   p.srcsite := ps.Name;
-  Debug(dpSpam, 'rules', '-> ' + Format('%s: %s %s',
-    [ps.Name, p.rls.section, p.rls.rlsname]));
+  Debug(dpSpam, 'rules', '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
   y := TStringList.Create;
-  //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
-  y.Assign(ps.speed_from);
-  (*
-    try
-      y.CustomSort(myspeedcomparer);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
+  try
+    //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
+    y.Assign(ps.speed_from);
+    (*
+      try
+        y.CustomSort(myspeedcomparer);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
+        end;
       end;
-    end;
-  *)
-  for i := 0 to y.Count - 1 do
-  begin
-    try
-      if i > y.Count then
+    *)
+    for i := 0 to y.Count - 1 do
+    begin
+      try
+        if i > y.Count then
+          Break;
+      except
         Break;
-    except
-      Break;
-    end;
-    try
-      dstps := p.FindSite(y.Names[i]);
-      if dstps = nil then
-        Continue;
+      end;
+      try
+        dstps := p.FindSite(y.Names[i]);
+        if dstps = nil then
+          Continue;
 
-      if (dstps.Name <> ps.Name) then
-      begin
-        if (dstps.AllPre) then
+        if (dstps.Name <> ps.Name) then
         begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Affil';
-          Continue;
-        end;
-
-        if dstps.error then
-          Continue;
-
-        dstps_s := FindSiteByName('', dstps.Name);
-        if dstps_s = nil then
-          Continue;
-
-        if (dstps_s.working = sstDown) or (dstps_s.PermDown) then
-        begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Down';
-          Continue;
-        end;
-
-        p.dstsite := dstps.Name;
-        // aztan hogy allowed e...
-        if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
-        begin
-          if (ps.status in [rssShouldPre, rssRealPre]) then
+          if (dstps.AllPre) then
           begin
-            if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
-              dstps_s.GetRank(p.rls.section)) + 100) then
-              Result := True;
-          end
-          else
+            if (dstps.reason = '') then
+              dstps.reason := 'Affil';
+            Continue;
+          end;
+
+          if dstps.error then
+            Continue;
+
+          dstps_s := FindSiteByName('', dstps.Name);
+          if dstps_s = nil then
+            Continue;
+
+          if (dstps_s.working = sstDown) or (dstps_s.PermDown) then
           begin
-            if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
-              dstps_s.GetRank(p.rls.section)) then
-              Result := True;
+            if (dstps.reason = '') then
+              dstps.reason := 'Down';
+            Continue;
+          end;
+
+          p.dstsite := dstps.Name;
+          // aztan hogy allowed e...
+          if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
+          begin
+            if (ps.status in [rssShouldPre, rssRealPre]) then
+            begin
+              if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section)) + 100) then
+                Result := True;
+            end
+            else
+            begin
+              if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section)) then
+                Result := True;
+            end;
           end;
         end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
-        Result := False;
-        Break;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, 'rules', Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
+          Result := False;
+          Break;
+        end;
       end;
     end;
+    Debug(dpSpam, 'rules', '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
+  finally
+    y.Free;
   end;
-  Debug(dpSpam, 'rules', '<- ' + Format('%s: %s %s',
-    [ps.Name, p.rls.section, p.rls.rlsname]));
-  y.Free;
 end;
 
 procedure RulesOrder(p: TPazo);
