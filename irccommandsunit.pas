@@ -7702,8 +7702,7 @@ begin
   end;
 end;
 
-function IrcSpeedTestIn(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSpeedTestIn(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   oparams, ss: AnsiString;
   s: TSite;
@@ -7782,8 +7781,7 @@ begin
       Continue;
 
     s := FindSiteByName(Netname, ss);
-    ds := TDirlistTask.Create(Netname, Channel, s.Name,
-      s.sectiondir['SPEEDTEST'], True);
+    ds := TDirlistTask.Create(Netname, Channel, s.Name, s.sectiondir['SPEEDTEST'], True);
     tn.tasks.Add(ds);
     AddTask(ds);
     Inc(added);
@@ -7800,138 +7798,136 @@ begin
   speedtestsites := TStringList.Create;
   speedtestfilenames := TStringList.Create;
   speedtestfilesizes := TIntList.Create;
-
-  if tn.responses.Count <> added then
-  begin
-    RemoveTN(tn);
-    irc_addtext(Netname, Channel, 'ERROR: Incorrect number of responses?!');
-  end;
-
-  for i := 0 to tn.responses.Count - 1 do
-  begin
-    sr := TSiteResponse(tn.responses[i]);
-    d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
-    try
-      PickupSpeedtestFile(d, fsfilename, fsfilesize);
-    finally
-      d.Free;
-    end;
-
-    if ((fsfilename = '') or (fsfilesize = 0)) then
+  try
+    if tn.responses.Count <> added then
     begin
       RemoveTN(tn);
-      speedtestsites.Free;
-      speedtestfilenames.Free;
-      speedtestfilesizes.Free;
-
-      irc_addtext(Netname, Channel,
-        'Site %s has no suitable file for speedtesting, check slftp.ini',
-        [sr.sitename]);
-      exit;
+      irc_addtext(Netname, Channel, 'ERROR: Incorrect number of responses?!');
     end;
 
-    speedtestsites.Add(sr.sitename);
-    speedtestfilenames.Add(fsfilename);
-    speedtestfilesizes.Add(fsfilesize);
-  end;
-
-  RemoveTN(tn);
-
-  // es most kezdodik a moka, megcsinaljuk a pazot meg a szarjait
-  // And now the fun begins, you do make a shit pazot
-
-  firstsite := nil;
-  params := oparams;
-
-  p := PazoAdd(nil);
-
-  kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
-  while (True) do
-  begin
-    ss := Fetch(params, ' ');
-    if ss = '' then
-      break;
-
-    s := FindSiteByName(Netname, ss);
-    ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
-    if p.sites.Count > 1 then
-      ps.AddDestination(firstsite, 1)
-    else
-      firstsite := ps;
-  end;
-
-  if firstsite = nil then
-  begin
-    irc_addtext(Netname, Channel, 'wtf?');
-    exit;
-  end;
-
-  for i := 1 to p.sites.Count - 1 do
-  begin
-
-    ps := TPazoSite(p.sites[i]);
-
-    if not IrcSpeedTestCleanup(Netname, Channel, firstsite.Name) then
+    for i := 0 to tn.responses.Count - 1 do
     begin
-      irc_addtext(Netname, Channel,
-        'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
-      exit;
-    end;
+      sr := TSiteResponse(tn.responses[i]);
+      d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
+      try
+        PickupSpeedtestFile(d, fsfilename, fsfilesize);
+      finally
+        d.Free;
+      end;
 
-    j := speedtestsites.IndexOf(ps.Name);
-    if j = -1 then
-      Continue; // wtf?
-    fsfilename := speedtestfilenames[j];
-    fsfilesize := speedtestfilesizes[j];
-    fsfilesizemb := fsfilesize / 1024 / 1024;
-
-    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s (using %s / %d bytes)',
-      [ps.Name, firstsite.Name, fsfilename, fsfilesize]);
-
-    tn := AddNotify;
-
-    t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p,
-      '', fsfilename, fsfilesize, 1);
-    t.storfilename := speedtestfilename;
-    tn.tasks.Add(t);
-    AddTask(t);
-
-    tn.event.WaitFor($FFFFFFFF);
-
-    if tn.responses.Count = 1 then
-    begin
-      sr := TSiteResponse(tn.responses[0]);
-      j := StrToIntDef(sr.response, 0);
-      if j <> 0 then
+      if ((fsfilename = '') or (fsfilesize = 0)) then
       begin
-        d2 := j;
-        d2 := d2 / 1000;
-        d1 := j;
-        d1 := fsfilesize / d1;
-        j := SpeedStatsScale(d1);
-        if ((j >= 1) and (j <= 9)) then
-          irc_addtext(Netname, Channel,
-            '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs) : %srouteset %s %s %d',
-            [ps.Name, firstsite.Name, d1, fsfilesizemb, d2, irccmdprefix,
-            ps.Name, firstsite.Name, j])
+        RemoveTN(tn);
+        //speedtestsites.Free;
+        //speedtestfilenames.Free;
+        //speedtestfilesizes.Free;
+
+        irc_addtext(Netname, Channel, 'Site %s has no suitable file for speedtesting, check slftp.ini', [sr.sitename]);
+        exit;
+      end;
+
+      speedtestsites.Add(sr.sitename);
+      speedtestfilenames.Add(fsfilename);
+      speedtestfilesizes.Add(fsfilesize);
+    end;
+
+    RemoveTN(tn);
+
+    // es most kezdodik a moka, megcsinaljuk a pazot meg a szarjait
+    // And now the fun begins, you do make a shit pazot
+
+    firstsite := nil;
+    params := oparams;
+
+    p := PazoAdd(nil);
+
+    kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+    while (True) do
+    begin
+      ss := Fetch(params, ' ');
+      if ss = '' then
+        break;
+
+      s := FindSiteByName(Netname, ss);
+      ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
+      if p.sites.Count > 1 then
+        ps.AddDestination(firstsite, 1)
+      else
+        firstsite := ps;
+    end;
+
+    if firstsite = nil then
+    begin
+      irc_addtext(Netname, Channel, 'wtf?');
+      exit;
+    end;
+
+    for i := 1 to p.sites.Count - 1 do
+    begin
+
+      ps := TPazoSite(p.sites[i]);
+
+      if not IrcSpeedTestCleanup(Netname, Channel, firstsite.Name) then
+      begin
+        irc_addtext(Netname, Channel,
+          'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
+        exit;
+      end;
+
+      j := speedtestsites.IndexOf(ps.Name);
+      if j = -1 then
+        Continue; // wtf?
+      fsfilename := speedtestfilenames[j];
+      fsfilesize := speedtestfilesizes[j];
+      fsfilesizemb := fsfilesize / 1024 / 1024;
+
+      irc_addtext(Netname, Channel, 'Speedtesting %s -> %s (using %s / %d bytes)', [ps.Name, firstsite.Name, fsfilename, fsfilesize]);
+
+      tn := AddNotify;
+
+      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, '', fsfilename, fsfilesize, 1);
+      t.storfilename := speedtestfilename;
+      tn.tasks.Add(t);
+      AddTask(t);
+
+      tn.event.WaitFor($FFFFFFFF);
+
+      if tn.responses.Count = 1 then
+      begin
+        sr := TSiteResponse(tn.responses[0]);
+        j := StrToIntDef(sr.response, 0);
+        if j <> 0 then
+        begin
+          d2 := j;
+          d2 := d2 / 1000;
+          d1 := j;
+          d1 := fsfilesize / d1;
+          j := SpeedStatsScale(d1);
+          if ((j >= 1) and (j <= 9)) then
+            irc_addtext(Netname, Channel,
+              '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs) : %srouteset %s %s %d',
+              [ps.Name, firstsite.Name, d1, fsfilesizemb, d2, irccmdprefix,
+              ps.Name, firstsite.Name, j])
+          else
+            irc_addtext(Netname, Channel,
+              '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs)',
+              [ps.Name, firstsite.Name, d1, fsfilesizemb, d2]);
+        end
         else
-          irc_addtext(Netname, Channel,
-            '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs)',
-            [ps.Name, firstsite.Name, d1, fsfilesizemb, d2]);
+          irc_addtext(Netname, Channel, '%s -> %s failed.',
+            [ps.Name, firstsite.Name]);
       end
       else
-        irc_addtext(Netname, Channel, '%s -> %s failed.',
-          [ps.Name, firstsite.Name]);
-    end
-    else
-      irc_addtext(Netname, Channel, '%s -> %s failed, site responses is:%d',
-        [ps.Name, firstsite.Name, tn.responses.Count]);
-    RemoveTN(tn);
-  end;
+        irc_addtext(Netname, Channel, '%s -> %s failed, site responses is:%d',
+          [ps.Name, firstsite.Name, tn.responses.Count]);
+      RemoveTN(tn);
+    end;
 
-  speedtestsites.Free;
-  speedtestfilenames.Free;
-  speedtestfilesizes.Free;
+  finally
+    speedtestsites.Free;
+    speedtestfilenames.Free;
+    speedtestfilesizes.Free;
+  end;
 
   Result := True;
 end;
