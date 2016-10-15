@@ -52,19 +52,21 @@ begin
   Result := '';
   try
     y := TStringList.Create;
-    y.Text := params;
-    with TslHTTP.Create do
-    begin
-      if Get(url, y) then
-        Result := Response.ReadString(Response.Size); // read all
-      Free;
+    try
+      y.Text := params;
+      with TslHTTP.Create do
+      begin
+        if Get(url, y) then
+          Result := Response.ReadString(Response.Size); // read all
+        Free;
+      end;
+    finally
+      y.Free;
     end;
-    y.Free;
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] slUrlGet %s : %s', [url,
-        e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] slUrlGet %s : %s', [url, e.Message]));
     end;
   end;
 end;
