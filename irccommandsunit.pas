@@ -7115,37 +7115,41 @@ begin
   begin
     x := TStringList.Create;
     y := TStringList.Create;
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := TSite(sites[i]);
-      x.DelimitedText := s.leechers;
-      for j := 0 to x.Count - 1 do
-        if y.IndexOf(x[j]) = -1 then
-          y.Add(x[j]);
-      x.DelimitedText := s.traders;
-      for j := 0 to x.Count - 1 do
-        if y.IndexOf(x[j]) = -1 then
-          y.Add(x[j]);
-    end;
-    x.Free;
-
-    y.Sort;
-
-    ss := '';
-    for i := 0 to y.Count - 1 do
-    begin
-      if ss <> '' then
-        ss := ss + ' ';
-      if (((i + 1) mod 10) = 0) then
+    try
+      for i := 0 to sites.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, ss);
-        ss := '';
+        s := TSite(sites[i]);
+        x.DelimitedText := s.leechers;
+        for j := 0 to x.Count - 1 do
+          if y.IndexOf(x[j]) = -1 then
+            y.Add(x[j]);
+        x.DelimitedText := s.traders;
+        for j := 0 to x.Count - 1 do
+          if y.IndexOf(x[j]) = -1 then
+            y.Add(x[j]);
+      end;
+      //x.Free;
+
+      y.Sort;
+
+      ss := '';
+      for i := 0 to y.Count - 1 do
+      begin
+        if ss <> '' then
+          ss := ss + ' ';
+        if (((i + 1) mod 10) = 0) then
+        begin
+          irc_addtext(Netname, Channel, ss);
+          ss := '';
+        end;
+
+        ss := ss + y[i];
       end;
 
-      ss := ss + y[i];
+    finally
+      x.Free;
+      y.Free;
     end;
-
-    y.Free;
 
   end;
   if (trim(ss) <> '') then
