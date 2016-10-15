@@ -67,7 +67,6 @@ var
   fromIRC, hadYear, hadCountry: boolean;
   tv_country, showName, year, country: AnsiString;
   jl: TlkJSONlist;
-
 begin
   result := 'FAILED';
   hadYear := False;
@@ -80,12 +79,11 @@ begin
     getShowValues(name, showName);
 
     // Cut off Year tag
-    //x.Expression := '[._-\s](\d{4})[\s._-]?$'; <-- will cut every number with 4 digits at the end
+    // x.Expression := '[._-\s](\d{4})[\s._-]?$'; <-- will cut every number with 4 digits at the end
     x.Expression := '[._-\s]((19|20)\d\d)[\s._-]?$';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
-      //if strtoint(year) < config.ReadInteger('', 'minimum_year_value', 2030) then
       //we add 10 years to current year
       if StrToInt(year) < (StrToInt(FormatDateTime('yyyy', Now)) + 10) then
       begin
@@ -97,9 +95,9 @@ begin
     x.Expression := '[._-\s](US|UK|AU|CA|NZ)[\s._-]?$';
     if x.Exec(showName) then
     begin
-      hadCountry := True;
       country := x.Match[1];
       showName := x.Replace(showName, '', False);
+      hadCountry := True;
     end;
   finally
     x.free;
@@ -142,24 +140,20 @@ begin
             tv_country := AnsiString(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
           if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
             tv_country := AnsiString(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+
+          // USA not needed, it just added for old rules made when tvrage was alive - shows are tagged with US
+          //if tv_country = 'US' then
+          //  tv_country := 'USA';
           if tv_country = 'GB' then
             tv_country := 'UK';
+            
           if UpperCase(tv_country) = uppercase(country) then
           begin
-            if fromIRC then
+            if not fromIRC then
             begin
-              irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
-                [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
-                AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
-                  irccmdprefix,
-                  AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
-                  Csere(showName, '.', ' '), country]);
-              result := 'IRC';
-            end
-            else
               result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value);
-            //          result := True;
-            Break;
+              Break;
+            end;
           end;
           res.Add(
             Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
@@ -179,19 +173,11 @@ begin
             ddate.DelimitedText := '1970-01-01';
           if year = ddate.Strings[0] then
           begin
-            if fromIRC then
+            if not fromIRC then
             begin
-              irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s %s',
-                [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
-                AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
-                  irccmdprefix,
-                  AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
-                  Csere(showName, '.', ' '), year]);
-              result := 'IRC';
-            end
-            else
               result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value);
-            Break;
+              Break;
+            end;
           end;
           res.Add(
             Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
@@ -204,29 +190,35 @@ begin
         end;
       end;
 
+
+
+
       if ((not hadYear) and (not hadCountry)) then
       begin
         if not fromIRC then
-          result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value)
-        else
         begin
-          result := 'IRC';
-          irc_addtext(Netname, Channel, '<b>%s</b>: %s => %saddtvinfo %s %s',
+          result := AnsiString(jl.Child[i].Field['show'].Field['id'].Value);
+          Break;
+        end;
+
+         res.Add(
+            Format('<b>%s</b>: %s => %saddtvinfo %s %s',
             [AnsiString(jl.Child[i].Field['show'].Field['name'].Value),
-            AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
+              AnsiString(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
               AnsiString(jl.Child[i].Field['show'].Field['id'].Value),
-              Csere(showName, '.', ' ')]);
-        end;
-        Break;
+              Csere(showName, '.', ' ')]));
       end;
 
     end;
 
-    //No match found, so we announce the resuls
-
-    if ((result = 'FAILED') and (fromIRC)) then
-      result := res.CommaText;
+    if fromIRC then
+    begin
+      if (res.Count = 0) then
+        result := 'FAILED'
+      else
+        result := res.CommaText;
+    end;
 
   finally
     jl.free;

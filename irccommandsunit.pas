@@ -11032,9 +11032,7 @@ begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
   ssname := RightStrV2(params, length(sid) + 1);
-  sresMAXi := strtointdef(config.ReadString('tasktvinfo',
-    'max_sid_lookup_results',
-    '5'), 5);
+  sresMAXi := strtointdef(config.ReadString('tasktvinfo', 'max_sid_lookup_results', '5'), 5);
 
   x := TRegExpr.Create;
   try
@@ -11054,29 +11052,25 @@ begin
     getShowValues(ssname, showname);
     resp := findTVMazeIDByNamev2(showname, netname, channel);
 
-    if resp = 'IRC' then
-    begin
-      result := True;
-      Exit;
-    end;
-
     if resp <> 'FAILED' then
     begin
       res := TStringlist.Create;
       try
         res.CommaText := resp;
-        irc_addtext(Netname, Channel, '<b><c5>TVInfo</c></b>: No match for %s found.', [showname]);
         for I := 0 to res.Count - 1 do
         begin
-          irc_addtext(netname, channel, res.Strings[i]);
           if i >= sresMAXi then
             break;
+          irc_addtext(netname, channel, res.Strings[i]);
         end;
-        result := true
       finally
         res.free;
       end;
-    end;
+    end
+    else
+      irc_addtext(Netname, Channel, '<b><c5>TVInfo</c></b>: No match for %s found.', [showname]);
+
+    result := True;
     Exit;
   end;
 
