@@ -1124,15 +1124,17 @@ var
   i: Integer;
 begin
   x := TStringList.Create;
-  x.DelimitedText := channels.Values[chan];
-  i := x.IndexOf(nick);
-  if i = -1 then
-    x.Add(nick);
-  channels.Values[chan] := x.DelimitedText;
+  try
+    x.DelimitedText := channels.Values[chan];
+    i := x.IndexOf(nick);
+    if i = -1 then
+      x.Add(nick);
+    channels.Values[chan] := x.DelimitedText;
 
-  status := 'online (' + channelsList + ')';
-
-  x.Free;
+    status := 'online (' + channelsList + ')';
+  finally
+    x.Free;
+  end;
 end;
 
 function TMyIrcThread.IrcProcessLine(s: AnsiString): Boolean;
