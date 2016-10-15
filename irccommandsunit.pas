@@ -2411,51 +2411,54 @@ var
   ss: AnsiString;
   //  outs: TStringList;
 begin
-  x := TStringList.Create;
   section := UpperCase(params);
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-    if section <> '' then
+  x := TStringList.Create;
+  try
+    for i := 0 to sites.Count - 1 do
     begin
-      if s.sectiondir[section] <> '' then
+      s := TSite(sites[i]);
+      if section <> '' then
       begin
-        j := s.RCInteger('ranklock-' + section, 0);
-        if j <> 0 then
+        if s.sectiondir[section] <> '' then
         begin
-          x.Add(s.Name + '(L)' + '=' + s.RCString('ranklock-' + section, '1'));
-        end
-        else
-        begin
-          x.Add(s.Name + '=' + s.RCString('rank-' + section, '1'));
+          j := s.RCInteger('ranklock-' + section, 0);
+          if j <> 0 then
+          begin
+            x.Add(s.Name + '(L)' + '=' + s.RCString('ranklock-' + section, '1'));
+          end
+          else
+          begin
+            x.Add(s.Name + '=' + s.RCString('rank-' + section, '1'));
+          end;
         end;
+      end
+      else
+      begin
+        j := s.RCInteger('ranklock', 0);
+        if j <> 0 then
+          x.Add(s.Name + '=' + IntToStr(j));
       end;
-    end
-    else
-    begin
-      j := s.RCInteger('ranklock', 0);
-      if j <> 0 then
-        x.Add(s.Name + '=' + IntToStr(j));
     end;
-  end;
 
-  x.CustomSort(mySpeedComparer);
+    x.CustomSort(mySpeedComparer);
 
-  ss := '';
-  for i := 0 to x.Count - 1 do
-  begin
+    ss := '';
+    for i := 0 to x.Count - 1 do
+    begin
+      if ss <> '' then
+        ss := ss + ', ';
+      ss := ss + '"' + x.Names[i] + ' ' + x.ValueFromIndex[i] + '"';
+      if (i + 1 mod 10 = 0) then
+      begin
+        irc_addtext(Netname, Channel, ss);
+        ss := '';
+      end;
+    end;
     if ss <> '' then
-      ss := ss + ', ';
-    ss := ss + '"' + x.Names[i] + ' ' + x.ValueFromIndex[i] + '"';
-    if (i + 1 mod 10 = 0) then
-    begin
-      irc_addtext(Netname, Channel, ss);
-      ss := '';
-    end;
+      IrcLineBreak(Netname, Channel, ss);
+  finally
+    x.Free;
   end;
-  if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss);
-  x.Free;
   Result := True;
 end;
 
