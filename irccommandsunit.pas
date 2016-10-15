@@ -10618,8 +10618,7 @@ begin
   Result := True;
 end;
 
-function IrcSLFTPConfig(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSLFTPConfig(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   x, y: TStringList;
   csec, ckey, cvalue, s: AnsiString;
@@ -10628,108 +10627,108 @@ begin
   Result := False;
   x := TStringList.Create;
   y := TStringList.Create;
-  s := '';
-  ii := 0;
-  // ok, we have no parameter, so we announce all sections.
-  if params = '' then
-  begin
+  try
+    s := '';
+    ii := 0;
+    // ok, we have no parameter, so we announce all sections.
+    if params = '' then
+    begin
+      config.ReadSections(x);
+      irc_addtext(Netname, Channel, '<b>Valid config sections</b>:');
+      for i := 0 to x.Count - 1 do
+      begin
+        if ii = 7 then
+        begin
+          ii := 0;
+          s := s + #10#13;
+        end;
+        s := s + x.Strings[i] + ',';
+        Inc(ii);
+      end;
+      Delete(s, length(s), 1);
+      irc_addtext(Netname, Channel, s);
+      //x.Free;
+      //y.Free;
+      Result := True;
+      exit;
+    end;
+
+    csec := SubString(params, ' ', 1);
+    ckey := SubString(params, ' ', 2);
+    cvalue := SubString(params, ' ', 3);
+
+    // we have a section but no key, so we announce all keys we have.
+    // should we add a ini-section check? x.indexof(csec) ??!
+    if ((csec <> '') and (ckey = '')) then
+    begin
+      config.ReadSection(csec, x);
+      irc_addtext(Netname, Channel, '<b>Valid config keys for section</b>: <b>%s</b>', [csec]);
+
+      for i := 0 to x.Count - 1 do
+      begin
+        if ii = 7 then
+        begin
+          ii := 0;
+          s := s + #10#13;
+        end;
+        s := s + x.Strings[i] + ',';
+        Inc(ii);
+      end;
+      Delete(s, length(s), 1);
+      irc_addtext(Netname, Channel, s);
+      //x.Free;
+      //y.Free;
+      Result := True;
+      exit;
+    end;
+
+    // ok over here we have a section and a key ...   over here we have 2 checks to not screw the ini file!
     config.ReadSections(x);
-    irc_addtext(Netname, Channel, '<b>Valid config sections</b>:');
-    for i := 0 to x.Count - 1 do
+    if x.IndexOf(csec) = -1 then
     begin
-      if ii = 7 then
-      begin
-        ii := 0;
-        s := s + #10#13;
-      end;
-      s := s + x.Strings[i] + ',';
-      Inc(ii);
+      //x.Free;
+      //y.Free;
+      irc_addtext(Netname, Channel, 'Section %s was not found!', [csec]);
+      exit;
     end;
-    Delete(s, length(s), 1);
-    irc_addtext(Netname, Channel, s);
-    x.Free;
-    y.Free;
-    Result := True;
-    exit;
-  end;
 
-  csec := SubString(params, ' ', 1);
-  ckey := SubString(params, ' ', 2);
-  cvalue := SubString(params, ' ', 3);
+    config.ReadSection(csec, y);
 
-  // we have a section but no key, so we announce all keys we have.
-  // should we add a ini-section check? x.indexof(csec) ??!
-  if ((csec <> '') and (ckey = '')) then
-  begin
-
-    config.ReadSection(csec, x);
-    irc_addtext(Netname, Channel,
-      '<b>Valid config keys for section</b>: <b>%s</b>', [csec]);
-
-    for i := 0 to x.Count - 1 do
+    if y.IndexOf(ckey) = -1 then
     begin
-      if ii = 7 then
-      begin
-        ii := 0;
-        s := s + #10#13;
-      end;
-      s := s + x.Strings[i] + ',';
-      Inc(ii);
+      //x.Free;
+      //y.Free;
+      irc_addtext(Netname, Channel, 'Key %s was not found in section %s!', [ckey, csec]);
+      exit;
     end;
-    Delete(s, length(s), 1);
-    irc_addtext(Netname, Channel, s);
-    x.Free;
-    y.Free;
-    Result := True;
-    exit;
-  end;
 
-  // ok over here we have a section and a key ...   over here we have 2 checks to not screw the ini file!
-  config.ReadSections(x);
-  if x.IndexOf(csec) = -1 then
-  begin
-    x.Free;
-    y.Free;
-    irc_addtext(Netname, Channel, 'Section %s was not found!', [csec]);
-    exit;
-  end;
-
-  config.ReadSection(csec, y);
-
-  if y.IndexOf(ckey) = -1 then
-  begin
-    x.Free;
-    y.Free;
-    irc_addtext(Netname, Channel, 'Key %s was not found in section %s!',
-      [ckey, csec]);
-    exit;
-  end;
-
-  // value is empty and we only announce current value...
-  if cvalue = '' then
-  begin
-
-    s := config.ReadString(csec, ckey, 'nil');
-    irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
-  end
-  else
-  begin
-    // here the real deal start!
-    try
-      config.WriteString(csec, ckey, cvalue);
-      config.UpdateFile;
+    // value is empty and we only announce current value...
+    if cvalue = '' then
+    begin
       s := config.ReadString(csec, ckey, 'nil');
       irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
-    except
-      on E: Exception do
-      begin
-        irc_addtext(Netname, Channel, 'Exception : %s', [E.Message]);
+    end
+    else
+    begin
+      // here the real deal start!
+      try
+        config.WriteString(csec, ckey, cvalue);
+        config.UpdateFile;
+        s := config.ReadString(csec, ckey, 'nil');
+        irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
+      except
+        on E: Exception do
+        begin
+          irc_addtext(Netname, Channel, 'Exception : %s', [E.Message]);
+        end;
       end;
     end;
+
+  finally
+    x.Free;
+    y.Free;
   end;
 
-  x.Free;
-  y.Free;
   Result := True;
 end;
 
