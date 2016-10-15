@@ -1095,8 +1095,8 @@ begin
 
     irc_Addadmin('Try to part ' + channels.Names[i]);
 
+    channels.BeginUpdate;
     try
-      channels.BeginUpdate;
       channels.Delete(i);
     finally
       channels.EndUpdate;
@@ -1108,15 +1108,17 @@ begin
   end;
 
   x := TStringList.Create;
-  x.DelimitedText := channels.Values[chan];
-  i := x.IndexOf(nick);
-  if i <> -1 then
-    x.Delete(i);
-  channels.Values[chan] := x.DelimitedText;
+  try
+    x.DelimitedText := channels.Values[chan];
+    i := x.IndexOf(nick);
+    if i <> -1 then
+      x.Delete(i);
+    channels.Values[chan] := x.DelimitedText;
 
-  status := 'online (' + channelsList + ')';
-
-  x.Free;
+    status := 'online (' + channelsList + ')';
+  finally
+    x.Free;
+  end;
 end;
 
 procedure TMyIrcThread.chanjoin(chan, nick: AnsiString);
