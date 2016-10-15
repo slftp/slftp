@@ -2183,59 +2183,62 @@ var
   fositeIndex, aktsiteIndex: integer;
 begin
   x := TStringList.Create;
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    try
-      x.Add(TPazoSite(p.sites[i]).Name);
-    except
-      break;
-    end;
-  end;
-
-  for i := 0 to x.Count - 1 do
-  begin
-    fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
-    for j := 0 to rtpl.Count - 1 do
+  try
+    for i := 0 to p.sites.Count - 1 do
     begin
-      r := TRule(rtpl[j]);
-      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+      try
+        x.Add(TPazoSite(p.sites[i]).Name);
+      except
+        break;
+      end;
+    end;
+
+    for i := 0 to x.Count - 1 do
+    begin
+      fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+      for j := 0 to rtpl.Count - 1 do
       begin
-        s := r.conditions.AtConditionName;
-        if s <> '' then
+        r := TRule(rtpl[j]);
+        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
         begin
-          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-          if (aktsiteIndex > fositeIndex) then
+          s := r.conditions.AtConditionName;
+          if s <> '' then
           begin
-            p.sites.Move(aktsiteIndex, fositeIndex);
-            fositeIndex := fositeIndex + 1;
-            // meg kell nezni egyezik e ezzel...
-            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            if (aktsiteIndex > fositeIndex) then
+            begin
+              p.sites.Move(aktsiteIndex, fositeIndex);
+              fositeIndex := fositeIndex + 1;
+              // meg kell nezni egyezik e ezzel... || english: You have to watch this match with
+              // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+            end;
+          end;
+        end;
+      end;
+
+      for j := 0 to rules.Count - 1 do
+      begin
+        r := TRule(rules[j]);
+        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+        begin
+          s := r.conditions.AtConditionName;
+          if s <> '' then
+          begin
+            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            if (aktsiteIndex > fositeIndex) then
+            begin
+              p.sites.Move(aktsiteIndex, fositeIndex);
+              fositeIndex := fositeIndex + 1;
+              // meg kell nezni egyezik e ezzel... || english: You have to watch this match with
+              // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+            end;
           end;
         end;
       end;
     end;
-
-    for j := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[j]);
-      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-      begin
-        s := r.conditions.AtConditionName;
-        if s <> '' then
-        begin
-          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-          if (aktsiteIndex > fositeIndex) then
-          begin
-            p.sites.Move(aktsiteIndex, fositeIndex);
-            fositeIndex := fositeIndex + 1;
-            // meg kell nezni egyezik e ezzel...
-            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
-          end;
-        end;
-      end;
-    end;
+  finally
+    x.Free;
   end;
-  x.Free;
 end;
 
 procedure RulesSave;
