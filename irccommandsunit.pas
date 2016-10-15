@@ -10770,8 +10770,7 @@ begin
   Result := True;
 end;
 
-function IrcChanSetSitename(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcChanSetSitename(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sname, nname, chans: AnsiString;
   b: TIrcBlowkey;
@@ -10802,21 +10801,22 @@ begin
 
   x := TStringList.Create;
   y := TStringList.Create;
-  x.commatext := chans;
+  try
+    x.commatext := chans;
 
-  for i := 0 to x.Count - 1 do
-  begin
-    b := FindIrcBlowfish(nname, x.Strings[i], False);
-    if b <> nil then
-      y.Add(x.Strings[i])
-    else
-      irc_addtext(Netname, Channel,
-        format('<c4><b>ERROR</c></b>: Channel <b>%s@%s</b> not found!',
-        [x.Strings[i], nname]));
+    for i := 0 to x.Count - 1 do
+    begin
+      b := FindIrcBlowfish(nname, x.Strings[i], False);
+      if b <> nil then
+        y.Add(x.Strings[i])
+      else
+        irc_addtext(Netname, Channel, format('<c4><b>ERROR</c></b>: Channel <b>%s@%s</b> not found!', [x.Strings[i], nname]));
+    end;
+    s.WCString('irc_channels', nname + ';' + y.commatext);
+  finally
+    y.Free;
+    x.Free;
   end;
-  s.WCString('irc_channels', nname + ';' + y.commatext);
-  y.Free;
-  x.Free;
   Result := True;
 end;
 
