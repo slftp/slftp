@@ -9686,7 +9686,7 @@ end;
 function IrcAllRuleDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitess, sectionss: TStringList;
-  //  s:     TSite;
+  // s: TSite;
   sitename, section: AnsiString;
   ii, i: integer;
 begin
@@ -9696,53 +9696,56 @@ begin
 
   sitess := TStringList.Create;
   sectionss := TStringList.Create;
-
-  if sitename = '*' then
-  begin
-    if section = '' then
+  try
+    if sitename = '*' then
     begin
-      for i := 0 to sites.Count - 1 do
+      if section = '' then
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-          'admin_sitename', 'SLFTP')) then
-          Continue;
+        for i := 0 to sites.Count - 1 do
+        begin
+          if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+            Continue;
 
-        RulesRemove(TSite(sites.Items[i]).Name, '');
+          RulesRemove(TSite(sites.Items[i]).Name, '');
+        end;
+      end
+      else
+      begin
+        sectionss.commatext := section;
+        for i := 0 to sites.Count - 1 do
+        begin
+          for ii := 0 to sectionss.Count - 1 do
+          begin
+            if TSite(sites.Items[i]).IsSection(sectionss.Strings[ii]) then
+              RulesRemove(TSite(sites.Items[i]).Name, sectionss.Strings[ii]);
+            // else irc_addtext(netname,channel,'Sections "%s" not found on site: %s',[sectionss.Strings[ii],TSite(sites.Items[i]).name])
+          end;
+        end;
       end;
-    end
+
+    end;
+
+    sitess.commatext := sitename;
+
+    if section = '' then
+      for i := 0 to sitess.Count - 1 do
+        RulesRemove(sitess.Strings[i], '')
     else
-    begin // if sections = '' then begin
+    begin
       sectionss.commatext := section;
-      for i := 0 to sites.Count - 1 do
+      for i := 0 to sitess.Count - 1 do
       begin
         for ii := 0 to sectionss.Count - 1 do
-        begin
-          if TSite(sites.Items[i]).IsSection(sectionss.Strings[ii]) then
-            RulesRemove(TSite(sites.Items[i]).Name, sectionss.Strings[ii]);
-          // else irc_addtext(netname,channel,'Sections "%s" not found on site: %s',[sectionss.Strings[ii],TSite(sites.Items[i]).name])
-        end; // for iI := 0 to sectionss.Count -1 do begin
-      end; // for I := 0 to sites.Count - 1 do begin
-    end; // end else begin //if sections = '' then begin
+          RulesRemove(sitess.Strings[i], sectionss.Strings[ii]);
+      end;
+    end;
 
-  end; // else begin//for I := 0 to sites.Count - 1 do begin
+  finally
+    sitess.Free;
+    sectionss.Free;
+  end;
 
-  sitess.commatext := sitename;
-
-  if section = '' then
-    for i := 0 to sitess.Count - 1 do
-      RulesRemove(sitess.Strings[i], '')
-  else
-  begin
-    sectionss.commatext := section;
-    for i := 0 to sitess.Count - 1 do
-    begin
-      for ii := 0 to sectionss.Count - 1 do
-        RulesRemove(sitess.Strings[i], sectionss.Strings[ii]);
-    end; // for I := 0 to sitess.Count - 1 do begin
-  end; // if sections = '' then for I := 0 to sitess.Count - 1 do RulesRemove(sitess.Strings[i],'') else begin
   Result := True;
-  sitess.Free;
-  sectionss.Free;
 end;
 
 function IrcSetMYSQLData(const Netname, Channel: AnsiString; params: AnsiString):
