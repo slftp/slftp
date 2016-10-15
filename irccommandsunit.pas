@@ -10177,7 +10177,7 @@ var
   i: integer;
   x: TStringList;
 begin
-  //  Result    := False;
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   s_pretime := SubString(params, ' ', 3);
@@ -10192,22 +10192,17 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if ((pretime = -10) or (pretime >= 0)) then
         TSite(sites.Items[i]).sectionpretime[section] := pretime;
       if (TSite(sites.Items[i]).sectionpretime[section] <> -1) then
       begin
-        irc_addtext(Netname, Channel,
-          'Pretime for <b>%s</b> in %s is<c7> %d</c>',
-          [TSite(sites.Items[i]).Name, section, TSite(sites.Items[i])
-          .sectionpretime[section]]);
+        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>', [TSite(sites.Items[i]).Name, section, TSite(sites.Items[i]).sectionpretime[section]]);
       end
       else
       begin
-        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set',
-          [TSite(sites.Items[i]).Name, section]);
+        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set', [TSite(sites.Items[i]).Name, section]);
       end;
 
     end;
@@ -10215,33 +10210,32 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
+    try
+      x.commatext := sitename;
 
-    for i := 0 to x.Count - 1 do
-    begin
-      site := FindSiteByName(Netname, x.Strings[i]);
-      if site = nil then
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
-      end;
-      if ((pretime = -10) or (pretime >= 0)) then
-        site.sectionpretime[section] := pretime;
-      if (site.sectionpretime[section] <> -1) then
-      begin
-        irc_addtext(Netname, Channel,
-          'Pretime for <b>%s</b> in %s is<c7> %d</c>',
-          [sitename, section, site.sectionpretime[section]]);
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set',
-          [sitename, section]);
-      end;
+        site := FindSiteByName(Netname, x.Strings[i]);
+        if site = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        if ((pretime = -10) or (pretime >= 0)) then
+          site.sectionpretime[section] := pretime;
+        if (site.sectionpretime[section] <> -1) then
+        begin
+          irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>', [sitename, section, site.sectionpretime[section]]);
+        end
+        else
+        begin
+          irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set', [sitename, section]);
+        end;
 
+      end;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
 
   Result := True;
