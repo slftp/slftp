@@ -823,21 +823,22 @@ var
   ss: AnsiString;
 begin
   x := TStringList.Create;
-  x.Sorted := True;
-  sitesdat.ReadSection('speed-from-' + sitename, x);
-  ss := '';
-  ii := x.Count;
-  for i := 0 to x.Count - 1 do
-  begin
-    if ss <> '' then
-      ss := ss + ', ';
-    ss := ss + x[i] + ' ' + sitesdat.ReadString('speed-from-' + sitename, x[i],
-      '');
+  try
+    x.Sorted := True;
+    sitesdat.ReadSection('speed-from-' + sitename, x);
+    ss := '';
+    ii := x.Count;
+    for i := 0 to x.Count - 1 do
+    begin
+      if ss <> '' then
+        ss := ss + ', ';
+      ss := ss + x[i] + ' ' + sitesdat.ReadString('speed-from-' + sitename, x[i], '');
+    end;
+  finally
+    x.Free;
   end;
-  x.Clear;
   if ss <> '' then
-    irc_addtext(Netname, Channel, '<b>%s (%d)</b> -> <b>%s</b>',
-      [sitename, ii, ss]);
+    irc_addtext(Netname, Channel, '<b>%s (%d)</b> -> <b>%s</b>', [sitename, ii, ss]);
 
 end;
 
@@ -848,24 +849,27 @@ var
   ss: AnsiString;
 begin
   x := TStringList.Create;
-  x.Sorted := True;
-  sitesdat.ReadSection('speed-from-' + sitename, x);
-  ss := '';
-  ii := x.Count;
-  for i := 0 to x.Count - 1 do
-  begin
-    if ss <> '' then
-      ss := ss + ', ';
-    if (sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') <> '') then
+  try
+    x.Sorted := True;
+    sitesdat.ReadSection('speed-from-' + sitename, x);
+    ss := '';
+    ii := x.Count;
+    for i := 0 to x.Count - 1 do
     begin
-      ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') + '(L)' + '"';
-    end
-    else
-    begin
-      ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-from-' + sitename, x[i], '') + '"';
+      if ss <> '' then
+        ss := ss + ', ';
+      if (sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') <> '') then
+      begin
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') + '(L)' + '"';
+      end
+      else
+      begin
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-from-' + sitename, x[i], '') + '"';
+      end;
     end;
+  finally
+    x.Free;
   end;
-  x.Free;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), format('<b>%s (%d)</b> -> ', [sitename, ii]));
   // LineBreak(ss,format('<b>%s (%d)</b> -> ',[sitename,ii]),lines);
@@ -879,23 +883,23 @@ var
   ss: AnsiString;
 begin
   x := TStringList.Create;
-  x.Sorted := True;
-  sitesdat.ReadSection('speed-to-' + sitename, x);
-  ss := '';
-  for i := 0 to x.Count - 1 do
-  begin
+  try
+    x.Sorted := True;
+    sitesdat.ReadSection('speed-to-' + sitename, x);
+    ss := '';
+    for i := 0 to x.Count - 1 do
+    begin
+      if ss <> '' then
+        ss := ss + ', ';
+      ss := ss + x[i] + ' ' + sitesdat.ReadString('speed-to-' + sitename, x[i], '');
+    end;
     if ss <> '' then
-      ss := ss + ', ';
-    ss := ss + x[i] + ' ' + sitesdat.ReadString('speed-to-' + sitename, x[i],
-      '');
+    begin
+      irc_addtext(Netname, Channel, '<b>%s (%d)</b> <- <b>%s</b>', [sitename, x.Count, ss]);
+    end;
+  finally
+    x.Free;
   end;
-  if ss <> '' then
-  begin
-
-    irc_addtext(Netname, Channel, '<b>%s (%d)</b> <- <b>%s</b>', [sitename, x.Count, ss]);
-  end;
-
-  x.Free;
 
 end;
 
@@ -906,24 +910,27 @@ var
   ss: AnsiString;
 begin
   x := TStringList.Create;
-  x.Sorted := True;
-  sitesdat.ReadSection('speed-to-' + sitename, x);
-  ss := '';
-  ii := x.Count;
-  for i := 0 to x.Count - 1 do
-  begin
-    if ss <> '' then
-      ss := ss + ', ';
-    if (sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') <> '') then
+  try
+    x.Sorted := True;
+    sitesdat.ReadSection('speed-to-' + sitename, x);
+    ss := '';
+    ii := x.Count;
+    for i := 0 to x.Count - 1 do
     begin
-      ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') + '(L)' + '"';
-    end
-    else
-    begin
-      ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-to-' + sitename, x[i], '') + '"';
+      if ss <> '' then
+        ss := ss + ', ';
+      if (sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') <> '') then
+      begin
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') + '(L)' + '"';
+      end
+      else
+      begin
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-to-' + sitename, x[i], '') + '"';
+      end;
     end;
+  finally
+    x.Free;
   end;
-  x.Free;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), format('<b>%s (%d)</b> <- ', [sitename, ii]));
   // LineBreak(ss,format('<b>%s (%d)</b> -> ',[sitename,ii]),lines);
@@ -3132,8 +3139,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).maxidle := maxidle;
       if idleinterval <> 0 then
@@ -3143,23 +3149,23 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        s.maxidle := maxidle;
+        if idleinterval <> 0 then
+          s.idleinterval := idleinterval;
       end;
-      s.maxidle := maxidle;
-      if idleinterval <> 0 then
-        s.idleinterval := idleinterval;
-
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
@@ -3187,8 +3193,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).io_timeout := iotimeout;
       TSite(sites.Items[i]).connect_timeout := connnecttimeout;
@@ -3197,21 +3202,23 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
-      end;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
 
-      s.io_timeout := iotimeout;
-      s.connect_timeout := connnecttimeout;
+        s.io_timeout := iotimeout;
+        s.connect_timeout := connnecttimeout;
+      end;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
 
   Result := True;
@@ -3245,8 +3252,7 @@ begin
       s.RemoveAutoDirlist;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>autodirlist</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>autodirlist</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3255,8 +3261,7 @@ begin
       s.RemoveAutoNuke;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>autonuke</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>autonuke</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3264,8 +3269,7 @@ begin
       s.RemoveAutoBnctest;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>autobnctest</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>autobnctest</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3273,8 +3277,7 @@ begin
       s.RemoveAutoRules;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>autorules</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>autorules</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3285,20 +3288,21 @@ begin
       indexerRemoveSiteSection(s.Name, '');
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>autoindex</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>autoindex</b> failed : %s', [E.Message]);
     end;
 
     try
       x := TStringList.Create;
-      sitesdat.ReadSection('site-' + sitename, x);
-      for i := 0 to x.Count - 1 do
-        sitesdat.DeleteKey('site-' + sitename, x.Strings[i]);
-      x.Free;
+      try
+        sitesdat.ReadSection('site-' + sitename, x);
+        for i := 0 to x.Count - 1 do
+          sitesdat.DeleteKey('site-' + sitename, x.Strings[i]);
+      finally
+        x.Free;
+      end;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Wipeing section SITE-%s failed : %s',
-          [sitename, E.Message]);
+        irc_addtext(Netname, Channel, 'Wipeing section SITE-%s failed : %s', [sitename, E.Message]);
     end;
 
     try
@@ -3307,15 +3311,13 @@ begin
 
       for i := 0 to sites.Count - 1 do
       begin
-        sitesdat.DeleteKey('speed-from-' + TSite(sites.Items[i]).Name,
-          sitename);
+        sitesdat.DeleteKey('speed-from-' + TSite(sites.Items[i]).Name, sitename);
         sitesdat.DeleteKey('speed-to-' + TSite(sites.Items[i]).Name, sitename);
       end;
 
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>routes</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>routes</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3323,8 +3325,7 @@ begin
       RulesSave;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, '<b>Rules remove</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, '<b>Rules remove</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3333,8 +3334,7 @@ begin
       RanksReload;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>ranks</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>ranks</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3342,16 +3342,14 @@ begin
       PrecatcherRebuild;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>catches</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>catches</b> failed : %s', [E.Message]);
     end;
 
     try
       sitesdat.EraseSection('site-' + sitename);
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Erase <b>site section</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Erase <b>site section</b> failed : %s', [E.Message]);
     end;
 
     try
@@ -3359,8 +3357,7 @@ begin
 
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Remove <b>TSite Object</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Remove <b>TSite Object</b> failed : %s', [E.Message]);
     end;
     Result := True;
 
@@ -4146,39 +4143,38 @@ var
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
-
   trigger := SubString(params, ' ', 2);
 
   if nil = FindIrcnetwork(nn) then
   begin
-    irc_addtext(Netname, Channel,
-      'Network with name %s does not exists!', [nn]);
+    irc_addtext(Netname, Channel, 'Network with name %s does not exists!', [nn]);
     exit;
   end;
+
   irc_addtext(Netname, Channel, 'IRC network: ' + nn);
   x := TStringList.Create;
-  sitesdat.ReadSection('ircnet-' + nn, x);
-  x.Sort;
-  for i := 0 to x.Count - 1 do
-  begin
-    if Copy(x[i], 1, 3) <> 'bnc' then
+  try
+    sitesdat.ReadSection('ircnet-' + nn, x);
+    x.Sort;
+    for i := 0 to x.Count - 1 do
     begin
-      if ((x[i] = 'password') and (trigger <> '--plain')) then
-        Continue;
-      irc_addtext(Netname, Channel, ' %s: %s',
-        [x[i], sitesdat.ReadString('ircnet-' + nn, x[i], '')]);
+      if Copy(x[i], 1, 3) <> 'bnc' then
+      begin
+        if ((x[i] = 'password') and (trigger <> '--plain')) then
+          Continue;
+        irc_addtext(Netname, Channel, ' %s: %s', [x[i], sitesdat.ReadString('ircnet-' + nn, x[i], '')]);
+      end;
     end;
+  finally
+    x.Free;
   end;
-  x.Free;
   i := 0;
   while (not slshutdown) do
   begin
     host := sitesdat.ReadString('ircnet-' + nn, 'bnc_host-' + IntToStr(i), '');
     if host = '' then
       break;
-    irc_addtext(Netname, Channel, ' bnc: %s:%d',
-      [host, sitesdat.ReadInteger('ircnet-' + nn, 'bnc_port-' + IntToStr(i),
-        0)]);
+    irc_addtext(Netname, Channel, ' bnc: %s:%d', [host, sitesdat.ReadInteger('ircnet-' + nn, 'bnc_port-' + IntToStr(i), 0)]);
     Inc(i);
   end;
   Result := True;
@@ -4350,60 +4346,58 @@ begin
   params := UpperCase(trim(params));
   ircth := FindIrcnetwork(params);
   x := TStringList.Create;
-  if ircth <> nil then
-  begin
+  try
+    if ircth <> nil then
+    begin
+      try
+        sitesdat.ReadSection('ircnet-' + params, x);
+        for ii := 0 to x.Count - 1 do
+          sitesdat.DeleteKey('ircnet-' + params, x.Strings[ii]);
+        sitesdat.EraseSection('ircnet-' + params);
+        myIrcThreads.Remove(ircth);
+      except
+        on E: Exception do
+          irc_addtext(Netname, Channel, 'Erase <b>irc-net</b> failed : %s', [E.Message]);
+      end;
+    end;
+
+    // most meg le kell wipeolnunk a siteokrol is ezt a networkot
     try
-      sitesdat.ReadSection('ircnet-' + params, x);
-      for ii := 0 to x.Count - 1 do
-        sitesdat.DeleteKey('ircnet-' + params, x.Strings[ii]);
-      sitesdat.EraseSection('ircnet-' + params);
-      myIrcThreads.Remove(ircth);
+      for i := 0 to sites.Count - 1 do
+      begin
+        s := sites[i] as TSite;
+        if s.RCString('ircnet', '') = params then
+        begin
+          s.DeleteKey('ircnet');
+        end;
+      end;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Erase <b>irc-net</b> failed : %s',
-          [E.Message]);
-    end; // try
-  end; // if ircth <> nil then begin
-
-  // most meg le kell wipeolnunk a siteokrol is ezt a networkot
-  try
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := sites[i] as TSite;
-      if s.RCString('ircnet', '') = params then
-      begin
-        s.DeleteKey('ircnet');
-      end;
+        irc_addtext(Netname, Channel, 'Erase <b>ircnet from sites</b> failed : %s', [E.Message]);
     end;
-  except
-    on E: Exception do
-      irc_addtext(Netname, Channel,
-        'Erase <b>ircnet from sites</b> failed : %s', [E.Message]);
-  end; // try
 
-  // most meg le kell torolnunk a chanjait
-  i := 0;
-  try
-    while (i < chankeys.Count) do
-    begin
-      b := chankeys[i] as TIrcBlowkey;
-      if b.Netname = params then
+    // most meg le kell torolnunk a chanjait
+    i := 0;
+    try
+      while (i < chankeys.Count) do
       begin
-        sitesdat.EraseSection('channel-' + b.Netname + '-' + b.Channel);
-        chankeys.Remove(b);
-        Dec(i);
+        b := chankeys[i] as TIrcBlowkey;
+        if b.Netname = params then
+        begin
+          sitesdat.EraseSection('channel-' + b.Netname + '-' + b.Channel);
+          chankeys.Remove(b);
+          Dec(i);
+        end;
+        Inc(i);
       end;
-      Inc(i);
+    except
+      on E: Exception do
+        irc_addtext(Netname, Channel, 'Erase <b>channels</b> failed : %s', [E.Message]);
     end;
-  except
-    on E: Exception do
-      irc_addtext(Netname, Channel, 'Erase <b>channels</b> failed : %s',
-        [E.Message]);
-  end; // try
-
-  x.Free;
+  finally
+    x.Free;
+  end;
   Result := True;
-
 end;
 
 function IrcJump(const Netname, Channel: AnsiString; params: AnsiString): boolean;
