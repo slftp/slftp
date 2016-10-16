@@ -804,11 +804,11 @@ end;
 
 function TslApplication.BackgroundCharacter: AnsiChar;
 begin
-{$IFDEF MSWINDOWS}
-  Result := Chr(176);
-{$ELSE}
-  Result:= ' ';
-{$ENDIF}
+  {$IFDEF MSWINDOWS}
+    Result := Chr(176);
+  {$ELSE}
+    Result:= ' ';
+  {$ENDIF}
 end;
 
 procedure TslApplication.ShowMessage(const s: AnsiString);
@@ -816,23 +816,24 @@ var
   l: TslLabel;
   w: TslWindow;
 begin
-  l     := TslLabel.Create(s, nil);
+  l := TslLabel.Create(s, nil);
   l.Top := 2;
 
   w := TslWindow.Create(l.Width + 8, l.Height + 6, 'Message', nil);
-  w.Visible := slvHidden;
+  try
+    w.Visible := slvHidden;
 
-  l.SetParent(w);
+    l.SetParent(w);
 
+    with TslButton.Create(mrOk, w) do
+      Bottom := 2;
 
+    //  dump;
 
-  with TslButton.Create(mrOk, w) do
-    Bottom := 2;
-
-  //  dump;
-
-  w.ShowModal;
-  w.Free;
+    w.ShowModal;
+  finally
+    w.Free;
+  end;
 end;
 
 
@@ -841,46 +842,48 @@ begin
   slScreen.GotoXY(ca.Left + x - 1, ca.Top + y - 1);
 end;
 
-function TslApplication.InputQuery(const title, Caption: AnsiString;
-  var reply: AnsiString; password: boolean): boolean;
+function TslApplication.InputQuery(const title, Caption: AnsiString; var reply: AnsiString; password: boolean): boolean;
 var
   w: TslWindow;
   m: integer;
   e: TslEdit;
 begin
-  m := 20; // ez a min
+  m := 20; // this is the minimum
   if (length(title) > m) then
     m := length(title);
   if (length(Caption) > m) then
     m := length(Caption);
 
   w := TslWindow.Create(m + 4, 8, title, nil);
-  with TslLabel.Create(Caption, w) do
-  begin
-    Left := 2;
-    Top  := 2;
+  try
+    with TslLabel.Create(Caption, w) do
+    begin
+      Left := 2;
+      Top  := 2;
+    end;
+
+
+    with TslButton.Create(mrOk, w) do
+    begin
+      Left   := 4;
+      Bottom := 2;
+    end;
+
+    with TslButton.Create(mrCancel, w) do
+    begin
+      Right  := 4;
+      Bottom := 2;
+    end;
+
+    e := TslEdit.Create(2, 3, m, w);
+    if password then
+      e.passwordchar := '*';
+
+    Result := mrOk = w.showmodal;
+    reply  := e.Text;
+  finally
+    w.Free;
   end;
-
-
-  with TslButton.Create(mrOk, w) do
-  begin
-    Left   := 4;
-    Bottom := 2;
-  end;
-
-  with TslButton.Create(mrCancel, w) do
-  begin
-    Right  := 4;
-    Bottom := 2;
-  end;
-
-  e := TslEdit.Create(2, 3, m, w);
-  if password then
-    e.passwordchar := '*';
-
-  Result := mrOk = w.showmodal;
-  reply  := e.Text;
-  w.Free;
 end;
 
 procedure TslApplication.AddConsoleTask(t: TslConsoleTask);
