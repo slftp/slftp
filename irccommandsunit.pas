@@ -358,7 +358,8 @@ const
     (cmd: 'slotsshow'; hnd: IrcSlotsShow; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'rebuildslot'; hnd: IrcRebuildSlot; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'recalcfreeslots'; hnd: IrcRecalcFreeslots; minparams: 1; maxparams: 1; hlpgrp: 'site'),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''), (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 3; hlpgrp: 'site'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),
     (cmd: 'timeout'; hnd: IrcTimeout; minparams: 3; maxparams: 3; hlpgrp: 'site'),
@@ -3004,48 +3005,56 @@ var
   sitename: AnsiString;
   x: TStringList;
   s: TSite;
-  up, dn: integer;
+  up, dn, pre_dn: integer;
   i: integer;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   up := StrToIntDef(SubString(params, ' ', 2), 0);
   dn := StrToIntDef(SubString(params, ' ', 3), 0);
+  // optional setting, if empty it well be set to dn
+  pre_dn := StrToIntDef(SubString(params, ' ',4), 0);
 
-  if (up = 0) or (dn = 0) then
+  if (up < 0) or (dn < 0) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
+  
+  if (pre_dn = 0) then
+    pre_dn := dn;
 
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).max_dn := dn;
+      TSite(sites.Items[i]).max_pre_dn := pre_dn;
       TSite(sites.Items[i]).max_up := up;
     end;
   end
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        s.max_dn := dn;
+        s.max_pre_dn := pre_dn;
+        s.max_up := up;
       end;
-      s.max_dn := dn;
-      s.max_up := up;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
