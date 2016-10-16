@@ -7216,23 +7216,25 @@ begin
   end;
 
   x := TStringList.Create;
-  x.DelimitedText := th.ChanNicks(ch);
-
-  s := '';
-  for i := 0 to x.Count - 1 do
-  begin
-    if (i + 1) mod 10 = 0 then
+  try
+    x.DelimitedText := th.ChanNicks(ch);
+    s := '';
+    for i := 0 to x.Count - 1 do
     begin
-      irc_addtext(Netname, Channel, s);
-      s := '';
+      if (i + 1) mod 10 = 0 then
+      begin
+        irc_addtext(Netname, Channel, s);
+        s := '';
+      end;
+      if s <> '' then
+        s := s + ', ';
+      s := s + x[i];
     end;
     if s <> '' then
-      s := s + ', ';
-    s := s + x[i];
+      irc_addtext(Netname, Channel, s);
+  finally
+    x.Free;
   end;
-  if s <> '' then
-    irc_addtext(Netname, Channel, s);
-  x.Free;
 
   Result := True;
 end;
