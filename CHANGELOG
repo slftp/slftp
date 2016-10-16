@@ -48,12 +48,14 @@
 --=============================( SLFTP v1.5.3.1 )=================================- 
 		{+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
 		{+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together
+		{+} Set max_pre_dn via !maxupdn - will use this amount to leech a PRE
 		{#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now
 		{#} !rulehelp tvcurrent shows correct help
 		{#} !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
 		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
+		{^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload
 		{^} fake check is enabled by default [check slftp.ini] & fakereason tells you more info why it's fake
 		{^} displaying of movie status (stv/limited/festival/wide/cine) on irc imdb announce
 		{^} network/country change on tvmaze gets saved now
