@@ -7554,7 +7554,6 @@ begin
   end
   else
   begin
-
     i := StrToIntDef(params, 0);
     if i < 1 then
     begin
@@ -7572,18 +7571,17 @@ begin
       x.EndUpdate;
       x.SaveToFile(fn);
     finally
-      Result := True;
+      x.Free;
     end;
-    x.Free;
+    Result := True;
   end;
-
 end;
 
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename, section, rip: AnsiString;
 begin
-  //  Result   := False;
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   rip := SubString(params, ' ', 3);
