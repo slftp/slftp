@@ -8877,31 +8877,28 @@ var
   s, s3: AnsiString;
 begin
   x := TStringList.Create;
-  sitesdat.ReadSection('site-' + s1, x);
-  for i := 0 to x.Count - 1 do
-  begin
-    if ((1 = Pos('delay' + s2, x[i])) and (0 <> Pos('-min', x[i]))) then
+  try
+    sitesdat.ReadSection('site-' + s1, x);
+    for i := 0 to x.Count - 1 do
     begin
-      s := x[i];
-      Fetch(s, '-');
-      s3 := Fetch(s, '-');
+      if ((1 = Pos('delay' + s2, x[i])) and (0 <> Pos('-min', x[i]))) then
+      begin
+        s := x[i];
+        Fetch(s, '-');
+        s3 := Fetch(s, '-');
+        minv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-min', 0);
+        maxv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max', 0);
 
-      minv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' +
-        s3 + '-min', 0);
-      maxv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' +
-        s3 + '-max', 0);
-      if (minv = 0) or (maxv = 0) then
-        irc_addtext(Netname, Channel, 'Delaying ' + s2 +
-          ' feature is disabled for site %s, section: %s', [s1, s3])
-      else
-        irc_addtext(Netname, Channel, 'Delay ' + s2 +
-          ' on site %s, section %s: min delay %d, max delay: %d',
-          [s1, s3, minv, maxv]);
+        if (minv = 0) or (maxv = 0) then
+          irc_addtext(Netname, Channel, 'Delaying ' + s2 + ' feature is disabled for site %s, section: %s', [s1, s3])
+        else
+          irc_addtext(Netname, Channel, 'Delay ' + s2 + ' on site %s, section %s: min delay %d, max delay: %d', [s1, s3, minv, maxv]);
 
+      end;
     end;
+  finally
+    x.Free;
   end;
-  x.Free;
-
 end;
 
 procedure DeleteDelay(Netname, Channel, s1, s2, s3: AnsiString);
