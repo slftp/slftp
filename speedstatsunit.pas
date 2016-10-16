@@ -283,157 +283,163 @@ begin
 end;
 
 procedure SpeedStatsRecalc(const netname, channel: AnsiString);
-var i, j, speed_old, speed_new: Integer;
-    min_speed, max_speed: Double;
-    x, y: TStringList;
-    d, diff: Double;
-    minr: AnsiString;
-    maxr: AnsiString;
+var
+  i, j, speed_old, speed_new: Integer;
+  min_speed, max_speed: Double;
+  x, y: TStringList;
+  d, diff: Double;
+  minr: AnsiString;
+  maxr: AnsiString;
 begin
-  speedstats_last_recalc:= Now();
+  speedstats_last_recalc := Now();
 
   Debug(dpMessage, r_section, 'Recalculating speed stats begin');
   //irc_Addconsole('--> SpeedStatsRecalc : '+FormatDateTime('hh:nn:ss', now));
 
-  x:= TStringList.Create;
-  y:= TStringList.Create;
+  x := TStringList.Create;
+  y := TStringList.Create;
+  try
+    AddSites('', '', x);
 
-  AddSites('', '', x);
-
-  // eloszor a kimeno sebessegeket rekalibraljuk
-  minr:= '';
-  maxr:= '';
-  min_speed:= 1000000000;
-  max_speed:= 0;
-  for i:= 0 to x.Count -1 do
-  begin
-    AddSites(x[i], '', y);
-    for j:= 0 to y.Count -1 do
+    // eloszor a kimeno sebessegeket rekalibraljuk
+    minr := '';
+    maxr := '';
+    min_speed := 1000000000;
+    max_speed := 0;
+    for i := 0 to x.Count - 1 do
     begin
-      d:= AvgSpeed(x[i], y[j]);
-      if d < min_speed then
-      begin
-        min_speed:= d;
-        minr:= x[i]+'->'+y[j];
-      end;
-      if d > max_speed then
-      begin
-        max_speed:= d;
-        maxr:= x[i]+'->'+y[j];
-      end;
-    end;
-  end;
-
-  if max_speed > min_speed then
-  begin
-    if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
-    begin
-      irc_SendSPEEDSTATS(Format('Min speed %.1f (%s), max is %.1f (%s)', [min_speed, minr, max_speed, maxr]));
-    end else
-    begin
-      irc_addtext(netname, channel, 'Min speed %.1f (%s), max is %.1f (%s)', [min_speed, minr, max_speed, maxr]);
-    end;
-
-    diff:= max_speed - min_speed;
-    for i:= 0 to x.Count -1 do
-    begin
-      if not FindSite(x[i]) then Continue;
-
       AddSites(x[i], '', y);
-      for j:= 0 to y.Count -1 do
+      for j := 0 to y.Count - 1 do
       begin
-        if not FindSite(y[j]) then Continue;
-
-        if (sitesdat.ValueExists('speedlock-from-'+x[i], y[j])) then
+        d := AvgSpeed(x[i], y[j]);
+        if d < min_speed then
         begin
-          irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], sitesdat.ReadInteger('speed-from-'+x[i], y[j], 0)]));
-          Continue;
+          min_speed := d;
+          minr := x[i] + '->' + y[j];
         end;
-
-        d:= AvgSpeed(x[i], y[j]);
-        if d <> 0 then
+        if d > max_speed then
         begin
+          max_speed := d;
+          maxr := x[i] + '->' + y[j];
+        end;
+      end;
+    end;
 
-          speed_old:= sitesdat.ReadInteger('speed-from-'+x[i], y[j], 0);
-          if speed_old <> 0 then
+    if max_speed > min_speed then
+    begin
+      if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
+      begin
+        irc_SendSPEEDSTATS(Format('Min speed %.1f (%s), max is %.1f (%s)', [min_speed, minr, max_speed, maxr]));
+      end
+      else
+      begin
+        irc_addtext(netname, channel, 'Min speed %.1f (%s), max is %.1f (%s)', [min_speed, minr, max_speed, maxr]);
+      end;
+
+      diff := max_speed - min_speed;
+      for i := 0 to x.Count - 1 do
+      begin
+        if not FindSite(x[i]) then Continue;
+
+        AddSites(x[i], '', y);
+        for j := 0 to y.Count - 1 do
+        begin
+          if not FindSite(y[j]) then Continue;
+
+          if (sitesdat.ValueExists('speedlock-from-' + x[i], y[j])) then
           begin
-            speed_new:= Round((d - min_speed) / diff * 8)+1;
-            if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> speed_old)) then
-            begin
-              if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
-              begin
-                irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]));
-              end else
-              begin
-                irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]);
-              end;
+            irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], sitesdat.ReadInteger('speed-from-' + x[i], y[j], 0)]));
+            Continue;
+          end;
 
-              sitesdat.WriteInteger('speed-from-'+x[i], y[j], speed_new);
-              sitesdat.WriteInteger('speed-to-'+y[j], x[i], speed_new);
+          d := AvgSpeed(x[i], y[j]);
+          if d <> 0 then
+          begin
+
+            speed_old := sitesdat.ReadInteger('speed-from-' + x[i], y[j], 0);
+            if speed_old <> 0 then
+            begin
+              speed_new := Round((d - min_speed) / diff * 8) + 1;
+              if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> speed_old)) then
+              begin
+                if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
+                begin
+                  irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]));
+                end else
+                begin
+                  irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]);
+                end;
+
+                sitesdat.WriteInteger('speed-from-' + x[i], y[j], speed_new);
+                sitesdat.WriteInteger('speed-to-' + y[j], x[i], speed_new);
+              end;
             end;
           end;
         end;
       end;
-    end;
 
+    end;
+  finally
+    y.Free;
+    x.Free;
   end;
-  y.Free;
-  x.Free;
 
   //irc_Addconsole('<-- SpeedStatsRecalc : '+FormatDateTime('hh:nn:ss', now));
   Debug(dpMessage, r_section, 'Recalculating speed stats end');
 end;
 
 function SpeedStatsScale(toscale: Double): Integer;
-var i, j: Integer;
-    min_speed, max_speed: Double;
-    x, y: TStringList;
-    d, diff: Double;
+var
+  i, j: Integer;
+  min_speed, max_speed: Double;
+  x, y: TStringList;
+  d, diff: Double;
 begin
-  Result:= 0;
+  Result := 0;
 
+  x := TStringList.Create;
+  y := TStringList.Create;
+  try
+    AddSites('', '', x);
 
-  x:= TStringList.Create;
-  y:= TStringList.Create;
-
-  AddSites('', '', x);
-
-  // eloszor a kimeno sebessegeket rekalibraljuk
-  min_speed:= 1000000000;
-  max_speed:= 0;
-  for i:= 0 to x.Count -1 do
-  begin
-    AddSites(x[i], '', y);
-    for j:= 0 to y.Count -1 do
+    // eloszor a kimeno sebessegeket rekalibraljuk
+    min_speed := 1000000000;
+    max_speed := 0;
+    for i := 0 to x.Count - 1 do
     begin
-      d:= AvgSpeed(x[i], y[j]);
-      if d < min_speed then
+      AddSites(x[i], '', y);
+      for j := 0 to y.Count - 1 do
       begin
-        min_speed:= d;
-      end;
-      if d > max_speed then
-      begin
-        max_speed:= d;
+        d := AvgSpeed(x[i], y[j]);
+        if d < min_speed then
+        begin
+          min_speed := d;
+        end;
+        if d > max_speed then
+        begin
+          max_speed := d;
+        end;
       end;
     end;
-  end;
 
-  if max_speed > min_speed then
-  begin
-    if ((max_speed > toscale) and (min_speed < toscale)) then
+    if max_speed > min_speed then
     begin
-      diff:= max_speed - min_speed;
-      Result:= Round((toscale - min_speed) / diff * 8)+1;
-    end
-    else
-    if max_speed < toscale then
-      Result:= 9
-    else
-    if min_speed > toscale then
-      Result:= 1;
+      if ((max_speed > toscale) and (min_speed < toscale)) then
+      begin
+        diff := max_speed - min_speed;
+        Result := Round((toscale - min_speed) / diff * 8) + 1;
+      end
+      else
+      if max_speed < toscale then
+        Result := 9
+      else
+      if min_speed > toscale then
+        Result := 1;
+    end;
+  finally
+    y.Free;
+    x.Free;
   end;
-  y.Free;
-  x.Free;
 end;
 
 procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString);overload;
