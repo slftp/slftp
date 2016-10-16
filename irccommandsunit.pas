@@ -6347,7 +6347,7 @@ var
   i: integer;
   x: TStringList;
 begin
-  //  Result := True;
+  Result := True;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
 
@@ -6355,49 +6355,44 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
       TSite(sites.Items[i]).WCInteger('autologin', status);
-      irc_addtext(Netname, Channel, 'Autologin of %s is: %d',
-        [TSite(sites.Items[i]).Name,
-        integer(TSite(sites.Items[i]).RCBool('autologin', False))]);
+      irc_addtext(Netname, Channel, 'Autologin of %s is: %d', [TSite(sites.Items[i]).Name, integer(TSite(sites.Items[i]).RCBool('autologin', False))]);
     end;
-
   end
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
-      end;
+        s := FindSiteByName(Netname, x.Strings[i]);
 
-      if (s.PermDown) then
-      begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
-          [x.Strings[i]]);
-        Continue;
-      end;
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
 
-      if status > -1 then
-      begin
-        s.WCInteger('autologin', status);
-      end;
-      irc_addtext(Netname, Channel, 'Autologin of %s is: %d',
-        [sitename, integer(s.RCBool('autologin', False))]);
+        if (s.PermDown) then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.', [x.Strings[i]]);
+          Continue;
+        end;
 
+        if status > -1 then
+        begin
+          s.WCInteger('autologin', status);
+        end;
+        irc_addtext(Netname, Channel, 'Autologin of %s is: %d', [sitename, integer(s.RCBool('autologin', False))]);
+      end;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
