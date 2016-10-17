@@ -2584,12 +2584,13 @@ var
   i: integer;
   x: TStringList;
   ss: AnsiString;
-  // xin: Tinifile;
+  //  xin: Tinifile;
 begin
   kb_last_saved := Now();
-  // kbevent := TEvent.Create(nil, false, false, 'PRETIME_WAIT_EVENT');
+  //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
   noannouncesections := TStringList.Create;
-  noannouncesections.DelimitedText := config.ReadString(rsections, 'noannouncesection', '');
+  noannouncesections.DelimitedText :=
+    config.ReadString(rsections, 'noannouncesection', '');
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -2600,14 +2601,11 @@ begin
   begin
     kb_sectionhandlers.Add(sectionhandlers[i].Name);
     x := TStringList.Create;
-    try
-      x.CaseSensitive := False;
-      x.Delimiter := ',';
-      x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name, sectionhandlers[i].DefaultSections);
-      kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := x;
-    finally
-      x.Free;
-    end;
+    x.CaseSensitive := False;
+    x.Delimiter := ',';
+    x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name,
+      sectionhandlers[i].DefaultSections);
+    kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := x;
   end;
 
   kb_trimmed_rls := THashedStringList.Create;
@@ -2623,9 +2621,9 @@ begin
 
   rename_patterns := 4;
 
-  // xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  // xin.ReadSection('sections', kb_sections);
-  // xin.Free;
+  //xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  //  xin.ReadSection('sections', kb_sections);
+  //  xin.Free;
 
   mp3genres := TStringList.Create;
   mp3genres.Delimiter := ' ';
@@ -2647,7 +2645,10 @@ begin
   mp3languages.Delimiter := ' ';
   mp3languages.QuoteChar := '"';
   mp3languages.CaseSensitive := False;
-  mp3languages.DelimitedText := UpperCase(config.ReadString(rsections, 'mp3languages', ''));
+  mp3languages.DelimitedText :=
+    UpperCase(config.ReadString(rsections, 'mp3languages', ''));
+
+  x := TStringList.Create;
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
@@ -2656,23 +2657,22 @@ begin
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
 
-  x := TStringList.Create;
-  try
-    config.ReadSection(rsections, x);
-    for i := 0 to x.Count - 1 do
+  config.ReadSection(rsections, x);
+  for i := 0 to x.Count - 1 do
+  begin
+    if (1 = Pos('mp3source_', x[i])) then
     begin
-      if (1 = Pos('mp3source_', x[i])) then
-      begin
-        mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
-      end
-      else if (1 = Pos('0daysource_', x[i])) then
-      begin
-        nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
-      end;
+      mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] :=
+        ' ' + config.ReadString(rsections, x[i], '') + ' ';
+    end
+    else if (1 = Pos('0daysource_', x[i])) then
+    begin
+      nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] :=
+        ' ' + config.ReadString(rsections, x[i], '') + ' ';
     end;
-  finally
-    x.Free;
   end;
+
+  x.Free;
 
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
@@ -2681,7 +2681,10 @@ begin
 
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
-  kb_languages.DelimitedText := Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ','), #10, ',');
+  kb_languages.DelimitedText :=
+    Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) +
+    'slftp.languages'),
+    #13, ','), #10, ',');
 
   //sectionhelper:= THashedStringList.Create;
 
@@ -2691,30 +2694,37 @@ begin
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
-      {$IFDEF MSWINDOWS}
-        DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
-      {$ELSE}
-        DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
-      {$ENDIF}
+{$IFDEF MSWINDOWS}
+      DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+{$ELSE}
+      DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
+{$ENDIF}
     finally
       x.Free;
     end;
   end;
 
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
+  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) +
+    'slftp.imdbcountries');
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
   kb_skip := THashedStringList.Create;
 
-  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
-  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', False);
-  renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
+  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker',
+    True);
+  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker',
+    False);
+  renamed_release_checker := config.ReadBool(rsections,
+    'renamed_release_checker', False);
   //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
-  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', True);
-  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', True);
-  try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 900);
+  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
+    False);
+  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete',
+    True);
+  try_to_complete_after := config.ReadInteger(rsections,
+    'try_to_complete_after', 900);
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);

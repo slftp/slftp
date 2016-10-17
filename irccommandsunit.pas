@@ -2411,54 +2411,51 @@ var
   ss: AnsiString;
   //  outs: TStringList;
 begin
-  section := UpperCase(params);
   x := TStringList.Create;
-  try
-    for i := 0 to sites.Count - 1 do
+  section := UpperCase(params);
+  for i := 0 to sites.Count - 1 do
+  begin
+    s := TSite(sites[i]);
+    if section <> '' then
     begin
-      s := TSite(sites[i]);
-      if section <> '' then
+      if s.sectiondir[section] <> '' then
       begin
-        if s.sectiondir[section] <> '' then
-        begin
-          j := s.RCInteger('ranklock-' + section, 0);
-          if j <> 0 then
-          begin
-            x.Add(s.Name + '(L)' + '=' + s.RCString('ranklock-' + section, '1'));
-          end
-          else
-          begin
-            x.Add(s.Name + '=' + s.RCString('rank-' + section, '1'));
-          end;
-        end;
-      end
-      else
-      begin
-        j := s.RCInteger('ranklock', 0);
+        j := s.RCInteger('ranklock-' + section, 0);
         if j <> 0 then
-          x.Add(s.Name + '=' + IntToStr(j));
+        begin
+          x.Add(s.Name + '(L)' + '=' + s.RCString('ranklock-' + section, '1'));
+        end
+        else
+        begin
+          x.Add(s.Name + '=' + s.RCString('rank-' + section, '1'));
+        end;
       end;
-    end;
-
-    x.CustomSort(mySpeedComparer);
-
-    ss := '';
-    for i := 0 to x.Count - 1 do
+    end
+    else
     begin
-      if ss <> '' then
-        ss := ss + ', ';
-      ss := ss + '"' + x.Names[i] + ' ' + x.ValueFromIndex[i] + '"';
-      if (i + 1 mod 10 = 0) then
-      begin
-        irc_addtext(Netname, Channel, ss);
-        ss := '';
-      end;
+      j := s.RCInteger('ranklock', 0);
+      if j <> 0 then
+        x.Add(s.Name + '=' + IntToStr(j));
     end;
-    if ss <> '' then
-      IrcLineBreak(Netname, Channel, ss);
-  finally
-    x.Free;
   end;
+
+  x.CustomSort(mySpeedComparer);
+
+  ss := '';
+  for i := 0 to x.Count - 1 do
+  begin
+    if ss <> '' then
+      ss := ss + ', ';
+    ss := ss + '"' + x.Names[i] + ' ' + x.ValueFromIndex[i] + '"';
+    if (i + 1 mod 10 = 0) then
+    begin
+      irc_addtext(Netname, Channel, ss);
+      ss := '';
+    end;
+  end;
+  if ss <> '' then
+    IrcLineBreak(Netname, Channel, ss);
+  x.Free;
   Result := True;
 end;
 
@@ -3082,7 +3079,8 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
+        'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).WCInteger('maxupperrip', upperrip);
     end;
@@ -3090,21 +3088,19 @@ begin
   else
   begin
     x := TStringList.Create;
-    try
-      x.commatext := sitename;
-      for i := 0 to x.Count - 1 do
+    x.commatext := sitename;
+    for i := 0 to x.Count - 1 do
+    begin
+      s := FindSiteByName(Netname, x.Strings[i]);
+      if s = nil then
       begin
-        s := FindSiteByName(Netname, x.Strings[i]);
-        if s = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-          Continue;
-        end;
-        s.WCInteger('maxupperrip', upperrip);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
+          [x.Strings[i]]);
+        Continue;
       end;
-    finally
-      x.Free;
+      s.WCInteger('maxupperrip', upperrip);
     end;
+    x.Free;
   end;
   Result := True;
 end;
@@ -7119,41 +7115,37 @@ begin
   begin
     x := TStringList.Create;
     y := TStringList.Create;
-    try
-      for i := 0 to sites.Count - 1 do
-      begin
-        s := TSite(sites[i]);
-        x.DelimitedText := s.leechers;
-        for j := 0 to x.Count - 1 do
-          if y.IndexOf(x[j]) = -1 then
-            y.Add(x[j]);
-        x.DelimitedText := s.traders;
-        for j := 0 to x.Count - 1 do
-          if y.IndexOf(x[j]) = -1 then
-            y.Add(x[j]);
-      end;
-      //x.Free;
-
-      y.Sort;
-
-      ss := '';
-      for i := 0 to y.Count - 1 do
-      begin
-        if ss <> '' then
-          ss := ss + ' ';
-        if (((i + 1) mod 10) = 0) then
-        begin
-          irc_addtext(Netname, Channel, ss);
-          ss := '';
-        end;
-
-        ss := ss + y[i];
-      end;
-
-    finally
-      x.Free;
-      y.Free;
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites[i]);
+      x.DelimitedText := s.leechers;
+      for j := 0 to x.Count - 1 do
+        if y.IndexOf(x[j]) = -1 then
+          y.Add(x[j]);
+      x.DelimitedText := s.traders;
+      for j := 0 to x.Count - 1 do
+        if y.IndexOf(x[j]) = -1 then
+          y.Add(x[j]);
     end;
+    x.Free;
+
+    y.Sort;
+
+    ss := '';
+    for i := 0 to y.Count - 1 do
+    begin
+      if ss <> '' then
+        ss := ss + ' ';
+      if (((i + 1) mod 10) = 0) then
+      begin
+        irc_addtext(Netname, Channel, ss);
+        ss := '';
+      end;
+
+      ss := ss + y[i];
+    end;
+
+    y.Free;
 
   end;
   if (trim(ss) <> '') then
@@ -7745,7 +7737,8 @@ begin
   end;
 end;
 
-function IrcSpeedTestIn(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedTestIn(const Netname, Channel: AnsiString; params: AnsiString):
+  boolean;
 var
   oparams, ss: AnsiString;
   s: TSite;
@@ -7824,7 +7817,8 @@ begin
       Continue;
 
     s := FindSiteByName(Netname, ss);
-    ds := TDirlistTask.Create(Netname, Channel, s.Name, s.sectiondir['SPEEDTEST'], True);
+    ds := TDirlistTask.Create(Netname, Channel, s.Name,
+      s.sectiondir['SPEEDTEST'], True);
     tn.tasks.Add(ds);
     AddTask(ds);
     Inc(added);
@@ -7841,136 +7835,138 @@ begin
   speedtestsites := TStringList.Create;
   speedtestfilenames := TStringList.Create;
   speedtestfilesizes := TIntList.Create;
-  try
-    if tn.responses.Count <> added then
+
+  if tn.responses.Count <> added then
+  begin
+    RemoveTN(tn);
+    irc_addtext(Netname, Channel, 'ERROR: Incorrect number of responses?!');
+  end;
+
+  for i := 0 to tn.responses.Count - 1 do
+  begin
+    sr := TSiteResponse(tn.responses[i]);
+    d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
+    try
+      PickupSpeedtestFile(d, fsfilename, fsfilesize);
+    finally
+      d.Free;
+    end;
+
+    if ((fsfilename = '') or (fsfilesize = 0)) then
     begin
       RemoveTN(tn);
-      irc_addtext(Netname, Channel, 'ERROR: Incorrect number of responses?!');
-    end;
+      speedtestsites.Free;
+      speedtestfilenames.Free;
+      speedtestfilesizes.Free;
 
-    for i := 0 to tn.responses.Count - 1 do
-    begin
-      sr := TSiteResponse(tn.responses[i]);
-      d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
-      try
-        PickupSpeedtestFile(d, fsfilename, fsfilesize);
-      finally
-        d.Free;
-      end;
-
-      if ((fsfilename = '') or (fsfilesize = 0)) then
-      begin
-        RemoveTN(tn);
-        //speedtestsites.Free;
-        //speedtestfilenames.Free;
-        //speedtestfilesizes.Free;
-
-        irc_addtext(Netname, Channel, 'Site %s has no suitable file for speedtesting, check slftp.ini', [sr.sitename]);
-        exit;
-      end;
-
-      speedtestsites.Add(sr.sitename);
-      speedtestfilenames.Add(fsfilename);
-      speedtestfilesizes.Add(fsfilesize);
-    end;
-
-    RemoveTN(tn);
-
-    // es most kezdodik a moka, megcsinaljuk a pazot meg a szarjait
-    // And now the fun begins, you do make a shit pazot
-
-    firstsite := nil;
-    params := oparams;
-
-    p := PazoAdd(nil);
-
-    kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
-    while (True) do
-    begin
-      ss := Fetch(params, ' ');
-      if ss = '' then
-        break;
-
-      s := FindSiteByName(Netname, ss);
-      ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
-      if p.sites.Count > 1 then
-        ps.AddDestination(firstsite, 1)
-      else
-        firstsite := ps;
-    end;
-
-    if firstsite = nil then
-    begin
-      irc_addtext(Netname, Channel, 'wtf?');
+      irc_addtext(Netname, Channel,
+        'Site %s has no suitable file for speedtesting, check slftp.ini',
+        [sr.sitename]);
       exit;
     end;
 
-    for i := 1 to p.sites.Count - 1 do
+    speedtestsites.Add(sr.sitename);
+    speedtestfilenames.Add(fsfilename);
+    speedtestfilesizes.Add(fsfilesize);
+  end;
+
+  RemoveTN(tn);
+
+  // es most kezdodik a moka, megcsinaljuk a pazot meg a szarjait
+  // And now the fun begins, you do make a shit pazot
+
+  firstsite := nil;
+  params := oparams;
+
+  p := PazoAdd(nil);
+
+  kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+  while (True) do
+  begin
+    ss := Fetch(params, ' ');
+    if ss = '' then
+      break;
+
+    s := FindSiteByName(Netname, ss);
+    ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
+    if p.sites.Count > 1 then
+      ps.AddDestination(firstsite, 1)
+    else
+      firstsite := ps;
+  end;
+
+  if firstsite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'wtf?');
+    exit;
+  end;
+
+  for i := 1 to p.sites.Count - 1 do
+  begin
+
+    ps := TPazoSite(p.sites[i]);
+
+    if not IrcSpeedTestCleanup(Netname, Channel, firstsite.Name) then
     begin
-
-      ps := TPazoSite(p.sites[i]);
-
-      if not IrcSpeedTestCleanup(Netname, Channel, firstsite.Name) then
-      begin
-        irc_addtext(Netname, Channel,
-          'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
-        exit;
-      end;
-
-      j := speedtestsites.IndexOf(ps.Name);
-      if j = -1 then
-        Continue; // wtf?
-      fsfilename := speedtestfilenames[j];
-      fsfilesize := speedtestfilesizes[j];
-      fsfilesizemb := fsfilesize / 1024 / 1024;
-
-      irc_addtext(Netname, Channel, 'Speedtesting %s -> %s (using %s / %d bytes)', [ps.Name, firstsite.Name, fsfilename, fsfilesize]);
-
-      tn := AddNotify;
-
-      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, '', fsfilename, fsfilesize, 1);
-      t.storfilename := speedtestfilename;
-      tn.tasks.Add(t);
-      AddTask(t);
-
-      tn.event.WaitFor($FFFFFFFF);
-
-      if tn.responses.Count = 1 then
-      begin
-        sr := TSiteResponse(tn.responses[0]);
-        j := StrToIntDef(sr.response, 0);
-        if j <> 0 then
-        begin
-          d2 := j;
-          d2 := d2 / 1000;
-          d1 := j;
-          d1 := fsfilesize / d1;
-          j := SpeedStatsScale(d1);
-          if ((j >= 1) and (j <= 9)) then
-            irc_addtext(Netname, Channel,
-              '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs) : %srouteset %s %s %d',
-              [ps.Name, firstsite.Name, d1, fsfilesizemb, d2, irccmdprefix,
-              ps.Name, firstsite.Name, j])
-          else
-            irc_addtext(Netname, Channel,
-              '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs)',
-              [ps.Name, firstsite.Name, d1, fsfilesizemb, d2]);
-        end
-        else
-          irc_addtext(Netname, Channel, '%s -> %s failed.',
-            [ps.Name, firstsite.Name]);
-      end
-      else
-        irc_addtext(Netname, Channel, '%s -> %s failed, site responses is:%d',
-          [ps.Name, firstsite.Name, tn.responses.Count]);
-      RemoveTN(tn);
+      irc_addtext(Netname, Channel,
+        'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
+      exit;
     end;
 
-  finally
-    speedtestsites.Free;
-    speedtestfilenames.Free;
-    speedtestfilesizes.Free;
+    j := speedtestsites.IndexOf(ps.Name);
+    if j = -1 then
+      Continue; // wtf?
+    fsfilename := speedtestfilenames[j];
+    fsfilesize := speedtestfilesizes[j];
+    fsfilesizemb := fsfilesize / 1024 / 1024;
+
+    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s (using %s / %d bytes)',
+      [ps.Name, firstsite.Name, fsfilename, fsfilesize]);
+
+    tn := AddNotify;
+
+    t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p,
+      '', fsfilename, fsfilesize, 1);
+    t.storfilename := speedtestfilename;
+    tn.tasks.Add(t);
+    AddTask(t);
+
+    tn.event.WaitFor($FFFFFFFF);
+
+    if tn.responses.Count = 1 then
+    begin
+      sr := TSiteResponse(tn.responses[0]);
+      j := StrToIntDef(sr.response, 0);
+      if j <> 0 then
+      begin
+        d2 := j;
+        d2 := d2 / 1000;
+        d1 := j;
+        d1 := fsfilesize / d1;
+        j := SpeedStatsScale(d1);
+        if ((j >= 1) and (j <= 9)) then
+          irc_addtext(Netname, Channel,
+            '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs) : %srouteset %s %s %d',
+            [ps.Name, firstsite.Name, d1, fsfilesizemb, d2, irccmdprefix,
+            ps.Name, firstsite.Name, j])
+        else
+          irc_addtext(Netname, Channel,
+            '%s -> %s => %.1f kB/s (%.1fmB sent in %.1fs)',
+            [ps.Name, firstsite.Name, d1, fsfilesizemb, d2]);
+      end
+      else
+        irc_addtext(Netname, Channel, '%s -> %s failed.',
+          [ps.Name, firstsite.Name]);
+    end
+    else
+      irc_addtext(Netname, Channel, '%s -> %s failed, site responses is:%d',
+        [ps.Name, firstsite.Name, tn.responses.Count]);
+    RemoveTN(tn);
   end;
+
+  speedtestsites.Free;
+  speedtestfilenames.Free;
+  speedtestfilesizes.Free;
 
   Result := True;
 end;
@@ -9725,7 +9721,7 @@ end;
 function IrcAllRuleDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitess, sectionss: TStringList;
-  // s: TSite;
+  //  s:     TSite;
   sitename, section: AnsiString;
   ii, i: integer;
 begin
@@ -9735,56 +9731,53 @@ begin
 
   sitess := TStringList.Create;
   sectionss := TStringList.Create;
-  try
-    if sitename = '*' then
-    begin
-      if section = '' then
-      begin
-        for i := 0 to sites.Count - 1 do
-        begin
-          if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-            Continue;
 
-          RulesRemove(TSite(sites.Items[i]).Name, '');
-        end;
-      end
-      else
-      begin
-        sectionss.commatext := section;
-        for i := 0 to sites.Count - 1 do
-        begin
-          for ii := 0 to sectionss.Count - 1 do
-          begin
-            if TSite(sites.Items[i]).IsSection(sectionss.Strings[ii]) then
-              RulesRemove(TSite(sites.Items[i]).Name, sectionss.Strings[ii]);
-            // else irc_addtext(netname,channel,'Sections "%s" not found on site: %s',[sectionss.Strings[ii],TSite(sites.Items[i]).name])
-          end;
-        end;
-      end;
-
-    end;
-
-    sitess.commatext := sitename;
-
+  if sitename = '*' then
+  begin
     if section = '' then
-      for i := 0 to sitess.Count - 1 do
-        RulesRemove(sitess.Strings[i], '')
-    else
     begin
+      for i := 0 to sites.Count - 1 do
+      begin
+        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
+          'admin_sitename', 'SLFTP')) then
+          Continue;
+
+        RulesRemove(TSite(sites.Items[i]).Name, '');
+      end;
+    end
+    else
+    begin // if sections = '' then begin
       sectionss.commatext := section;
-      for i := 0 to sitess.Count - 1 do
+      for i := 0 to sites.Count - 1 do
       begin
         for ii := 0 to sectionss.Count - 1 do
-          RulesRemove(sitess.Strings[i], sectionss.Strings[ii]);
-      end;
-    end;
+        begin
+          if TSite(sites.Items[i]).IsSection(sectionss.Strings[ii]) then
+            RulesRemove(TSite(sites.Items[i]).Name, sectionss.Strings[ii]);
+          // else irc_addtext(netname,channel,'Sections "%s" not found on site: %s',[sectionss.Strings[ii],TSite(sites.Items[i]).name])
+        end; // for iI := 0 to sectionss.Count -1 do begin
+      end; // for I := 0 to sites.Count - 1 do begin
+    end; // end else begin //if sections = '' then begin
 
-  finally
-    sitess.Free;
-    sectionss.Free;
-  end;
+  end; // else begin//for I := 0 to sites.Count - 1 do begin
 
+  sitess.commatext := sitename;
+
+  if section = '' then
+    for i := 0 to sitess.Count - 1 do
+      RulesRemove(sitess.Strings[i], '')
+  else
+  begin
+    sectionss.commatext := section;
+    for i := 0 to sitess.Count - 1 do
+    begin
+      for ii := 0 to sectionss.Count - 1 do
+        RulesRemove(sitess.Strings[i], sectionss.Strings[ii]);
+    end; // for I := 0 to sitess.Count - 1 do begin
+  end; // if sections = '' then for I := 0 to sitess.Count - 1 do RulesRemove(sitess.Strings[i],'') else begin
   Result := True;
+  sitess.Free;
+  sectionss.Free;
 end;
 
 function IrcSetMYSQLData(const Netname, Channel: AnsiString; params: AnsiString):
@@ -10220,7 +10213,7 @@ var
   i: integer;
   x: TStringList;
 begin
-  Result := False;
+  //  Result    := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   s_pretime := SubString(params, ' ', 3);
@@ -10235,17 +10228,22 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
+        'admin_sitename', 'SLFTP')) then
         Continue;
       if ((pretime = -10) or (pretime >= 0)) then
         TSite(sites.Items[i]).sectionpretime[section] := pretime;
       if (TSite(sites.Items[i]).sectionpretime[section] <> -1) then
       begin
-        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>', [TSite(sites.Items[i]).Name, section, TSite(sites.Items[i]).sectionpretime[section]]);
+        irc_addtext(Netname, Channel,
+          'Pretime for <b>%s</b> in %s is<c7> %d</c>',
+          [TSite(sites.Items[i]).Name, section, TSite(sites.Items[i])
+          .sectionpretime[section]]);
       end
       else
       begin
-        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set', [TSite(sites.Items[i]).Name, section]);
+        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set',
+          [TSite(sites.Items[i]).Name, section]);
       end;
 
     end;
@@ -10253,32 +10251,33 @@ begin
   else
   begin
     x := TStringList.Create;
-    try
-      x.commatext := sitename;
+    x.commatext := sitename;
 
-      for i := 0 to x.Count - 1 do
+    for i := 0 to x.Count - 1 do
+    begin
+      site := FindSiteByName(Netname, x.Strings[i]);
+      if site = nil then
       begin
-        site := FindSiteByName(Netname, x.Strings[i]);
-        if site = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-          Continue;
-        end;
-        if ((pretime = -10) or (pretime >= 0)) then
-          site.sectionpretime[section] := pretime;
-        if (site.sectionpretime[section] <> -1) then
-        begin
-          irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>', [sitename, section, site.sectionpretime[section]]);
-        end
-        else
-        begin
-          irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set', [sitename, section]);
-        end;
-
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
+          [x.Strings[i]]);
+        Continue;
       end;
-    finally
-      x.Free;
+      if ((pretime = -10) or (pretime >= 0)) then
+        site.sectionpretime[section] := pretime;
+      if (site.sectionpretime[section] <> -1) then
+      begin
+        irc_addtext(Netname, Channel,
+          'Pretime for <b>%s</b> in %s is<c7> %d</c>',
+          [sitename, section, site.sectionpretime[section]]);
+      end
+      else
+      begin
+        irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is not set',
+          [sitename, section]);
+      end;
+
     end;
+    x.Free;
   end;
 
   Result := True;
@@ -10655,7 +10654,8 @@ begin
   Result := True;
 end;
 
-function IrcSLFTPConfig(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSLFTPConfig(const Netname, Channel: AnsiString; params: AnsiString):
+  boolean;
 var
   x, y: TStringList;
   csec, ckey, cvalue, s: AnsiString;
@@ -10664,112 +10664,113 @@ begin
   Result := False;
   x := TStringList.Create;
   y := TStringList.Create;
-  try
-    s := '';
-    ii := 0;
-    // ok, we have no parameter, so we announce all sections.
-    if params = '' then
-    begin
-      config.ReadSections(x);
-      irc_addtext(Netname, Channel, '<b>Valid config sections</b>:');
-      for i := 0 to x.Count - 1 do
-      begin
-        if ii = 7 then
-        begin
-          ii := 0;
-          s := s + #10#13;
-        end;
-        s := s + x.Strings[i] + ',';
-        Inc(ii);
-      end;
-      Delete(s, length(s), 1);
-      irc_addtext(Netname, Channel, s);
-      //x.Free;
-      //y.Free;
-      Result := True;
-      exit;
-    end;
-
-    csec := SubString(params, ' ', 1);
-    ckey := SubString(params, ' ', 2);
-    cvalue := SubString(params, ' ', 3);
-
-    // we have a section but no key, so we announce all keys we have.
-    // should we add a ini-section check? x.indexof(csec) ??!
-    if ((csec <> '') and (ckey = '')) then
-    begin
-      config.ReadSection(csec, x);
-      irc_addtext(Netname, Channel, '<b>Valid config keys for section</b>: <b>%s</b>', [csec]);
-
-      for i := 0 to x.Count - 1 do
-      begin
-        if ii = 7 then
-        begin
-          ii := 0;
-          s := s + #10#13;
-        end;
-        s := s + x.Strings[i] + ',';
-        Inc(ii);
-      end;
-      Delete(s, length(s), 1);
-      irc_addtext(Netname, Channel, s);
-      //x.Free;
-      //y.Free;
-      Result := True;
-      exit;
-    end;
-
-    // ok over here we have a section and a key ...   over here we have 2 checks to not screw the ini file!
+  s := '';
+  ii := 0;
+  // ok, we have no parameter, so we announce all sections.
+  if params = '' then
+  begin
     config.ReadSections(x);
-    if x.IndexOf(csec) = -1 then
+    irc_addtext(Netname, Channel, '<b>Valid config sections</b>:');
+    for i := 0 to x.Count - 1 do
     begin
-      //x.Free;
-      //y.Free;
-      irc_addtext(Netname, Channel, 'Section %s was not found!', [csec]);
-      exit;
-    end;
-
-    config.ReadSection(csec, y);
-
-    if y.IndexOf(ckey) = -1 then
-    begin
-      //x.Free;
-      //y.Free;
-      irc_addtext(Netname, Channel, 'Key %s was not found in section %s!', [ckey, csec]);
-      exit;
-    end;
-
-    // value is empty and we only announce current value...
-    if cvalue = '' then
-    begin
-      s := config.ReadString(csec, ckey, 'nil');
-      irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
-    end
-    else
-    begin
-      // here the real deal start!
-      try
-        config.WriteString(csec, ckey, cvalue);
-        config.UpdateFile;
-        s := config.ReadString(csec, ckey, 'nil');
-        irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
-      except
-        on E: Exception do
-        begin
-          irc_addtext(Netname, Channel, 'Exception : %s', [E.Message]);
-        end;
+      if ii = 7 then
+      begin
+        ii := 0;
+        s := s + #10#13;
       end;
+      s := s + x.Strings[i] + ',';
+      Inc(ii);
     end;
-
-  finally
+    Delete(s, length(s), 1);
+    irc_addtext(Netname, Channel, s);
     x.Free;
     y.Free;
+    Result := True;
+    exit;
   end;
 
+  csec := SubString(params, ' ', 1);
+  ckey := SubString(params, ' ', 2);
+  cvalue := SubString(params, ' ', 3);
+
+  // we have a section but no key, so we announce all keys we have.
+  // should we add a ini-section check? x.indexof(csec) ??!
+  if ((csec <> '') and (ckey = '')) then
+  begin
+
+    config.ReadSection(csec, x);
+    irc_addtext(Netname, Channel,
+      '<b>Valid config keys for section</b>: <b>%s</b>', [csec]);
+
+    for i := 0 to x.Count - 1 do
+    begin
+      if ii = 7 then
+      begin
+        ii := 0;
+        s := s + #10#13;
+      end;
+      s := s + x.Strings[i] + ',';
+      Inc(ii);
+    end;
+    Delete(s, length(s), 1);
+    irc_addtext(Netname, Channel, s);
+    x.Free;
+    y.Free;
+    Result := True;
+    exit;
+  end;
+
+  // ok over here we have a section and a key ...   over here we have 2 checks to not screw the ini file!
+  config.ReadSections(x);
+  if x.IndexOf(csec) = -1 then
+  begin
+    x.Free;
+    y.Free;
+    irc_addtext(Netname, Channel, 'Section %s was not found!', [csec]);
+    exit;
+  end;
+
+  config.ReadSection(csec, y);
+
+  if y.IndexOf(ckey) = -1 then
+  begin
+    x.Free;
+    y.Free;
+    irc_addtext(Netname, Channel, 'Key %s was not found in section %s!',
+      [ckey, csec]);
+    exit;
+  end;
+
+  // value is empty and we only announce current value...
+  if cvalue = '' then
+  begin
+
+    s := config.ReadString(csec, ckey, 'nil');
+    irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
+  end
+  else
+  begin
+    // here the real deal start!
+    try
+      config.WriteString(csec, ckey, cvalue);
+      config.UpdateFile;
+      s := config.ReadString(csec, ckey, 'nil');
+      irc_addtext(Netname, Channel, '[%s]%s=<b>%s</b>', [csec, ckey, s]);
+    except
+      on E: Exception do
+      begin
+        irc_addtext(Netname, Channel, 'Exception : %s', [E.Message]);
+      end;
+    end;
+  end;
+
+  x.Free;
+  y.Free;
   Result := True;
 end;
 
-function IrcChanSetSitename(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcChanSetSitename(const Netname, Channel: AnsiString; params: AnsiString):
+  boolean;
 var
   sname, nname, chans: AnsiString;
   b: TIrcBlowkey;
@@ -10800,22 +10801,21 @@ begin
 
   x := TStringList.Create;
   y := TStringList.Create;
-  try
-    x.commatext := chans;
+  x.commatext := chans;
 
-    for i := 0 to x.Count - 1 do
-    begin
-      b := FindIrcBlowfish(nname, x.Strings[i], False);
-      if b <> nil then
-        y.Add(x.Strings[i])
-      else
-        irc_addtext(Netname, Channel, format('<c4><b>ERROR</c></b>: Channel <b>%s@%s</b> not found!', [x.Strings[i], nname]));
-    end;
-    s.WCString('irc_channels', nname + ';' + y.commatext);
-  finally
-    y.Free;
-    x.Free;
+  for i := 0 to x.Count - 1 do
+  begin
+    b := FindIrcBlowfish(nname, x.Strings[i], False);
+    if b <> nil then
+      y.Add(x.Strings[i])
+    else
+      irc_addtext(Netname, Channel,
+        format('<c4><b>ERROR</c></b>: Channel <b>%s@%s</b> not found!',
+        [x.Strings[i], nname]));
   end;
+  s.WCString('irc_channels', nname + ';' + y.commatext);
+  y.Free;
+  x.Free;
   Result := True;
 end;
 
@@ -11423,21 +11423,23 @@ begin
   Result := True;
 end;
 
-function IrcRecalcFreeslots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRecalcFreeslots(const Netname, Channel: AnsiString; params: AnsiString):
+  boolean;
 var
   sitename: AnsiString;
   site: TSite;
   i: integer;
   x: TStringList;
 begin
-  Result := False;
+  //  Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
 
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
+        'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).RecalcFreeslots;
     end;
@@ -11445,25 +11447,23 @@ begin
   else
   begin
     x := TStringList.Create;
-    try
-      x.commatext := sitename;
+    x.commatext := sitename;
 
-      for i := 0 to x.Count - 1 do
+    for i := 0 to x.Count - 1 do
+    begin
+      site := FindSiteByName(Netname, x.Strings[i]);
+      if site = nil then
       begin
-        site := FindSiteByName(Netname, x.Strings[i]);
-        if site = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-          Continue;
-        end;
-        site.RecalcFreeslots;
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
+          [x.Strings[i]]);
+        Continue;
       end;
-    finally
-      x.Free;
+      site.RecalcFreeslots;
     end;
+    x.Free;
   end;
-
   Result := True;
+
 end;
 
 // Testing functions
