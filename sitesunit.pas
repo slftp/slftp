@@ -1835,14 +1835,11 @@ begin
   sites.Add(TSite.Create(admin_sitename));
 
   x := TStringList.Create;
-  try
-    sitesdat.ReadSections(x);
-    for i := 0 to x.Count - 1 do
-      if 1 = Pos('site-', x[i]) then
-        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
-  finally
-    x.Free;
-  end;
+  sitesdat.ReadSections(x);
+  for i := 0 to x.Count - 1 do
+    if 1 = Pos('site-', x[i]) then
+      sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+  x.Free;
   debug(dpSpam, section, 'SitesStart end');
 end;
 
