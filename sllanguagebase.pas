@@ -204,24 +204,24 @@ begin
   //should we rename this file to slftp.languagebase ?
 
   y := TStringList.Create;
-  try
-    y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
-    for I := 0 to y.Count - 1 do
-    begin
-      if ((y.Strings[i][1] = '[') and (y.Strings[i][length(y.Strings[i])] = ']')) then
-        Continue;
+  y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+  for I := 0 to y.Count - 1 do
+  begin
 
-      sllanguages.Add(TSLLanguages.Create('languages', SubString(y.Strings[i], '=', 1), SubString(y.Strings[i], '=', 2), i));
-    end;
+    if ((y.Strings[i][1] = '[') and (y.Strings[i][length(y.Strings[i])] = ']')) then
+      Continue;
 
-    slmp3languages := TStringList.Create;
-    slmp3languages.Delimiter := ' ';
-    slmp3languages.QuoteChar := '"';
-    slmp3languages.CaseSensitive := False;
-    slmp3languages.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
-  finally
-    y.Free;
+    sllanguages.Add(TSLLanguages.Create('languages', SubString(y.Strings[i], '=', 1),
+      SubString(y.Strings[i], '=', 2), i));
   end;
+
+  slmp3languages := TStringList.Create;
+  slmp3languages.Delimiter := ' ';
+  slmp3languages.QuoteChar := '"';
+  slmp3languages.CaseSensitive := False;
+  slmp3languages.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
+
+  y.Free;
 
   Debug(dpSpam, rsections, 'Done! ' + IntToStr(sllanguages.Count));
 end;

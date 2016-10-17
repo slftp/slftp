@@ -779,81 +779,80 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar; extended: Boolean): Boolean;
-var
-  x, y: TStringList;
-  i, j: Integer;
-  l, ki: Integer;
-  word: AnsiString;
+function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar;
+  extended: Boolean): Boolean;
+var x, y: TStringList;
+    i, j: Integer;
+    l, ki: Integer;
+    word: AnsiString;
 begin
-  Result := False;
+  Result:= False;
 
   if ((c = #9) and (not extended) and (sender.Text <> '')) then
   begin
-    Result := True;
-    x := TStringList.Create;
-    y := TStringList.Create;
-    try
-      x.Delimiter := ' ';
-      x.DelimitedText := sender.Text;
-      l := 1;
-      ki := -1;
-      word := '';
-      for i := 0 to x.Count - 1 do
+    Result:= True;
+    x:= TStringList.Create;
+    x.Delimiter:= ' ';
+    y:= TStringList.Create;
+    x.DelimitedText:= sender.Text;
+    l:= 1;
+    ki:= -1;
+    word:= '';
+    for i:= 0 to x.Count -1 do
+    begin
+      if l + length(x[i]) >= sender.Cursor then
       begin
-        if l + length(x[i]) >= sender.Cursor then
-        begin
-          ki := i;
-          word := x[i];
-          Break;
-        end;
-        inc(l, length(x[i])+1);
+        ki:= i;
+        word:= x[i];
+        Break;
       end;
-
-
-      if word <> '' then
-      begin
-        word := Copy(word, 1, sender.Cursor - l);
-
-        (*
-        for i := 0 to sectionhelper.Count - 1 do
-          if AnsiStartsText(word, sectionhelper.Names[i]) then
-          begin
-            y.Add(sectionhelper.Names[i]);
-          end;
-        *)
-
-        if y.Count > 0 then
-        begin
-          word := y[0];
-          i := 1;
-          while (i <= length(word)) do
-          begin
-
-            for j := 1 to y.Count - 1 do
-            begin
-              if not AnsiSameText(Copy(word, 1, i), Copy(y[j], 1, i)) then
-              begin
-                word := Copy(word, 1, i-1);
-                Break;
-              end;
-            end;
-
-            inc(i);
-          end;
-
-          if word <> '' then
-          begin
-            x[ki] := word;
-            sender.Text := x.DelimitedText;
-            sender.Cursor := l + length(word);
-          end;
-        end;
-      end;
-    finally
-      y.Free;
-      x.Free;
+      inc(l, length(x[i])+1);
     end;
+
+
+    if word <> '' then
+    begin
+      word:= Copy(word, 1, sender.Cursor - l);
+
+      (*
+      for i:= 0 to sectionhelper.Count -1 do
+        if AnsiStartsText(word, sectionhelper.Names[i]) then
+        begin
+          y.Add(sectionhelper.Names[i]);
+        end;
+      *)
+
+      if y.Count > 0 then
+      begin
+        word:= y[0];
+        i:= 1;
+        while (i <= length(word)) do
+        begin
+
+          for j:= 1 to y.Count -1 do
+          begin
+            if not AnsiSameText(Copy(word, 1, i), Copy(y[j], 1, i)) then
+            begin
+              word:= Copy(word, 1, i-1);
+              Break;
+            end;
+          end;
+
+          inc(i);
+        end;
+
+        if word <> '' then
+        begin
+          x[ki]:= word;
+          sender.Text:= x.DelimitedText;
+          sender.Cursor:= l + length(word);
+        end;
+      end;
+    end;
+
+    y.Free;
+    x.Free;
+    //
   end;
 end;
 
