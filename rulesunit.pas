@@ -2090,87 +2090,88 @@ begin
     exit;
 
   p.srcsite := ps.Name;
-  Debug(dpSpam, 'rules', '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
+  Debug(dpSpam, 'rules', '-> ' + Format('%s: %s %s',
+    [ps.Name, p.rls.section, p.rls.rlsname]));
 
   y := TStringList.Create;
-  try
-    //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
-    y.Assign(ps.speed_from);
-    (*
-      try
-        y.CustomSort(myspeedcomparer);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
-        end;
-      end;
-    *)
-    for i := 0 to y.Count - 1 do
-    begin
-      try
-        if i > y.Count then
-          Break;
-      except
-        Break;
-      end;
-      try
-        dstps := p.FindSite(y.Names[i]);
-        if dstps = nil then
-          Continue;
-
-        if (dstps.Name <> ps.Name) then
-        begin
-          if (dstps.AllPre) then
-          begin
-            if (dstps.reason = '') then
-              dstps.reason := 'Affil';
-            Continue;
-          end;
-
-          if dstps.error then
-            Continue;
-
-          dstps_s := FindSiteByName('', dstps.Name);
-          if dstps_s = nil then
-            Continue;
-
-          if (dstps_s.working = sstDown) or (dstps_s.PermDown) then
-          begin
-            if (dstps.reason = '') then
-              dstps.reason := 'Down';
-            Continue;
-          end;
-
-          p.dstsite := dstps.Name;
-          // aztan hogy allowed e...
-          if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
-          begin
-            if (ps.status in [rssShouldPre, rssRealPre]) then
-            begin
-              if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section)) + 100) then
-                Result := True;
-            end
-            else
-            begin
-              if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section)) then
-                Result := True;
-            end;
-          end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, 'rules', Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
-          Result := False;
-          Break;
-        end;
+  //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
+  y.Assign(ps.speed_from);
+  (*
+    try
+      y.CustomSort(myspeedcomparer);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
       end;
     end;
-    Debug(dpSpam, 'rules', '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
-  finally
-    y.Free;
+  *)
+  for i := 0 to y.Count - 1 do
+  begin
+    try
+      if i > y.Count then
+        Break;
+    except
+      Break;
+    end;
+    try
+      dstps := p.FindSite(y.Names[i]);
+      if dstps = nil then
+        Continue;
+
+      if (dstps.Name <> ps.Name) then
+      begin
+        if (dstps.AllPre) then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'Affil';
+          Continue;
+        end;
+
+        if dstps.error then
+          Continue;
+
+        dstps_s := FindSiteByName('', dstps.Name);
+        if dstps_s = nil then
+          Continue;
+
+        if (dstps_s.working = sstDown) or (dstps_s.PermDown) then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'Down';
+          Continue;
+        end;
+
+        p.dstsite := dstps.Name;
+        // aztan hogy allowed e...
+        if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
+        begin
+          if (ps.status in [rssShouldPre, rssRealPre]) then
+          begin
+            if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
+              dstps_s.GetRank(p.rls.section)) + 100) then
+              Result := True;
+          end
+          else
+          begin
+            if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
+              dstps_s.GetRank(p.rls.section)) then
+              Result := True;
+          end;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
+        Result := False;
+        Break;
+      end;
+    end;
   end;
+  Debug(dpSpam, 'rules', '<- ' + Format('%s: %s %s',
+    [ps.Name, p.rls.section, p.rls.rlsname]));
+  y.Free;
 end;
 
 procedure RulesOrder(p: TPazo);
@@ -2182,62 +2183,59 @@ var
   fositeIndex, aktsiteIndex: integer;
 begin
   x := TStringList.Create;
-  try
-    for i := 0 to p.sites.Count - 1 do
-    begin
-      try
-        x.Add(TPazoSite(p.sites[i]).Name);
-      except
-        break;
-      end;
+  for i := 0 to p.sites.Count - 1 do
+  begin
+    try
+      x.Add(TPazoSite(p.sites[i]).Name);
+    except
+      break;
     end;
-
-    for i := 0 to x.Count - 1 do
-    begin
-      fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
-      for j := 0 to rtpl.Count - 1 do
-      begin
-        r := TRule(rtpl[j]);
-        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-        begin
-          s := r.conditions.AtConditionName;
-          if s <> '' then
-          begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-            if (aktsiteIndex > fositeIndex) then
-            begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
-              fositeIndex := fositeIndex + 1;
-              // meg kell nezni egyezik e ezzel... || english: You have to watch this match with
-              // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
-            end;
-          end;
-        end;
-      end;
-
-      for j := 0 to rules.Count - 1 do
-      begin
-        r := TRule(rules[j]);
-        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-        begin
-          s := r.conditions.AtConditionName;
-          if s <> '' then
-          begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-            if (aktsiteIndex > fositeIndex) then
-            begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
-              fositeIndex := fositeIndex + 1;
-              // meg kell nezni egyezik e ezzel... || english: You have to watch this match with
-              // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
-            end;
-          end;
-        end;
-      end;
-    end;
-  finally
-    x.Free;
   end;
+
+  for i := 0 to x.Count - 1 do
+  begin
+    fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+    for j := 0 to rtpl.Count - 1 do
+    begin
+      r := TRule(rtpl[j]);
+      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+      begin
+        s := r.conditions.AtConditionName;
+        if s <> '' then
+        begin
+          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+          if (aktsiteIndex > fositeIndex) then
+          begin
+            p.sites.Move(aktsiteIndex, fositeIndex);
+            fositeIndex := fositeIndex + 1;
+            // meg kell nezni egyezik e ezzel...
+            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+          end;
+        end;
+      end;
+    end;
+
+    for j := 0 to rules.Count - 1 do
+    begin
+      r := TRule(rules[j]);
+      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+      begin
+        s := r.conditions.AtConditionName;
+        if s <> '' then
+        begin
+          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+          if (aktsiteIndex > fositeIndex) then
+          begin
+            p.sites.Move(aktsiteIndex, fositeIndex);
+            fositeIndex := fositeIndex + 1;
+            // meg kell nezni egyezik e ezzel...
+            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+          end;
+        end;
+      end;
+    end;
+  end;
+  x.Free;
 end;
 
 procedure RulesSave;

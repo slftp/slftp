@@ -23,51 +23,46 @@ const rsections = 'indexer';
 { TAutoSectionTask }
 
 function IndexFindNfo(dl: TDirList): TDirListEntry;
-var
-  de: TDirlistEntry;
-  //i: Integer;
-  rx: TRegexpr;
+var de: TDirlistEntry;
+    //i: Integer;
+    rx: TRegexpr;
 begin
-  Result := nil;
   rx := TRegexpr.Create;
+  rx.Expression := config.ReadString(rsections, 'expect_nfo_files', '');
+  Result := nil;
   try
-    rx.Expression := config.ReadString(rsections, 'expect_nfo_files', '');
-    try
-      de := dl.FindNfo;
-      if (de <> nil) then
+  de := dl.FindNfo;
+  if (de <> nil) then
+  begin
+    if not rx.exec(de.filename) then
+    begin
+      Result := de;
+      exit;
+    end;
+  end;
+  
+(*
+    for i:= 0 to dl.entries.Count -1 do
+    begin
+      de:= TDirlistEntry(dl.entries[i]);
+      if ((de.Extension = '.nfo') and (de.filesize > 0)) then
       begin
         if not rx.exec(de.filename) then
         begin
-          Result := de;
-          exit;
+          Result:= de;
+          break;
         end;
-      end;
-    
-  (*
-      for i:= 0 to dl.entries.Count -1 do
-      begin
-        de:= TDirlistEntry(dl.entries[i]);
-        if ((de.Extension = '.nfo') and (de.filesize > 0)) then
-        begin
-          if not rx.exec(de.filename) then
-          begin
-            Result:= de;
-            break;
-          end;
-        end;
-      end;
-  *)
-
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] IndexFindNfo: %s', [e.Message]));
-        Result := nil;
       end;
     end;
+*)
 
-  finally
     rx.free;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] IndexFindNfo: %s', [e.Message]));
+      Result:= nil;
+    end;
   end;
 end;
 
