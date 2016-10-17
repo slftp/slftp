@@ -107,7 +107,7 @@ begin
 
   (*  Fetch MovieTitle/Extra/Year from iMDB *)
   rr.Expression :=
-    '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)\d{4}?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
+    '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)(\d{4})?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
   if rr.Exec(mainsite) then
   begin
     imdb_year := StrToInt(rr.Match[4]);
