@@ -788,24 +788,18 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7><b>[NEW %s]</b></c> <b>%s</b> @ <b>%s</b>',
-                [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format(
-                '<c7>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
-                [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
           end;
         end
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format(
-              '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
-              [section, rls, sitename, p.sl.sectionname,
-              dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3>%s ago</c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
         end;
       end;
     end
