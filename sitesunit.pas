@@ -114,6 +114,8 @@ type
 
     function GetMaxDn: integer;
     procedure SetMaxDn(Value: integer);
+    function GetMaxPreDn: integer;
+    procedure SetMaxPreDn(Value: integer);
     function GetMaxUp: integer;
     procedure SetMaxUp(Value: integer);
     function GetMaxIdle: integer;
@@ -270,6 +272,7 @@ type
     property noannounce: boolean Read GetNoannounce Write SetNoAnnounce;
     property working: TSiteStatus Read fWorking Write SetWorking;
     property max_dn: integer Read GetMaxDn Write SetMaxDn;
+    property max_pre_dn: integer Read GetMaxPreDn Write SetMaxPreDn;
     property max_up: integer Read GetMaxUp Write SetMaxUp;
     property maxidle: integer Read Getmaxidle Write Setmaxidle;
     property idleinterval: integer Read Getidleinterval Write Setidleinterval;
@@ -1980,20 +1983,44 @@ begin
   Result := RCInteger('io_timeout', 15);
 end;
 
+function TSite.GetMaxIdle: integer;
+begin
+  Result := RCInteger('max_idle', 120);
+end;
+
+
 function TSite.GetMaxDn: integer;
 begin
   Result := RCInteger('max_dn', 2);
 end;
 
-function TSite.GetMaxIdle: integer;
+procedure TSite.SetMaxDn(Value: integer);
 begin
-  Result := RCInteger('max_idle', 120);
+  WCInteger('max_dn', Value);
+end;
+
+function TSite.GetMaxPreDn: integer;
+begin
+  // if max_pre_dn is not set, we use max_dn value to avoid bugs when users
+  // haven't setup their maxupdn again after using new version with this feature
+  Result := RCInteger('max_pre_dn', max_dn);
+end;
+
+procedure TSite.SetMaxPreDn(Value: integer);
+begin
+  WCInteger('max_pre_dn', Value);
 end;
 
 function TSite.GetMaxUp: integer;
 begin
   Result := RCInteger('max_up', 2);
 end;
+
+procedure TSite.SetMaxUp(Value: integer);
+begin
+  WCInteger('max_up', Value);
+end;
+
 
 procedure TSite.Setconnect_timeout(const Value: integer);
 begin
@@ -2010,19 +2037,9 @@ begin
   WCInteger('io_timeout', Value);
 end;
 
-procedure TSite.SetMaxDn(Value: integer);
-begin
-  WCInteger('max_dn', Value);
-end;
-
 procedure TSite.SetMaxIdle(Value: integer);
 begin
   WCInteger('max_idle', Value);
-end;
-
-procedure TSite.SetMaxUp(Value: integer);
-begin
-  WCInteger('max_up', Value);
 end;
 
 function TSite.Getsslmethod: TSSLMethods;

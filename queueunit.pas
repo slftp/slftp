@@ -313,10 +313,9 @@ begin
     if s2.freeslots = 0 then
       exit;
 
-    // eloszor megnezzuk hogy nincs e mar folyamatban ez a feltoltes ugyanide
-    //first watch that is not already in this process is the same place Upload
+    // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.activeTransfers.IndexOf(t.dir + t.filename) <> -1 then
-      exit; // mar kuldjuk erre a destination sitera ugyanezt. -- have sent this to the same destination site.
+      exit; // we are already sending this file to the same destination site
 
     ss1 := nil;
     sso := False;
@@ -343,8 +342,18 @@ begin
     end;
     if ss1 = nil then
       exit;
-    if s1.num_dn >= ss1.site.max_dn then
-      exit;
+      
+    // or use 'if t.ps1.AllPre then' from pazo.pas but will also pre true when status = rssShouldPre
+    if t.ps1.status = rssRealPre then
+    begin
+      if s1.num_dn >= ss1.site.max_pre_dn then
+        exit;
+    end
+    else
+    begin 
+      if s1.num_dn >= ss1.site.max_dn then
+        exit;
+    end;
 
 
     ss2 := nil;
@@ -386,7 +395,7 @@ begin
           if ((tpr.site2 = t.site1) and (tpr.site1 = t.site2) and
             (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
           begin
-            // already trading the oposit route
+            // already trading the opposite route
             exit;
           end;
         end;
@@ -397,13 +406,11 @@ begin
     if s2.num_up >= ss2.site.max_up then
       exit;
 
-
-    // itt meg mindig lehet nyug, megnezzuk hany szalon lehet feltolteni ugyanahhoz a rilizhez ezen a siteon
-    // always be in the sun, look at how many salons can upload it to the same rilizhez this site
+    // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
     i := ss2.RCInteger('maxupperrip', 0);
     if ((i > 0) and (t.ps2.activeTransfers.Count >= i)) then
     begin
-      //placeholder for debug-msg.
+      Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
       exit;
     end;
 

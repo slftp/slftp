@@ -358,7 +358,8 @@ const
     (cmd: 'slotsshow'; hnd: IrcSlotsShow; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'rebuildslot'; hnd: IrcRebuildSlot; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'recalcfreeslots'; hnd: IrcRecalcFreeslots; minparams: 1; maxparams: 1; hlpgrp: 'site'),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''), (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 3; hlpgrp: 'site'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),
     (cmd: 'timeout'; hnd: IrcTimeout; minparams: 3; maxparams: 3; hlpgrp: 'site'),
@@ -639,6 +640,8 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler, RegExpr, mslproxys, slhttp, strUtils, inifiles,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON;
+
+  {$I countrycodes.inc}
 
 const
   section = 'irccommands';
@@ -2999,48 +3002,56 @@ var
   sitename: AnsiString;
   x: TStringList;
   s: TSite;
-  up, dn: integer;
+  up, dn, pre_dn: integer;
   i: integer;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   up := StrToIntDef(SubString(params, ' ', 2), 0);
   dn := StrToIntDef(SubString(params, ' ', 3), 0);
+  // optional setting, if empty it well be set to dn
+  pre_dn := StrToIntDef(SubString(params, ' ',4), 0);
 
-  if (up = 0) or (dn = 0) then
+  if (up < 0) or (dn < 0) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
+  
+  if (pre_dn = 0) then
+    pre_dn := dn;
 
   if sitename = '*' then
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       TSite(sites.Items[i]).max_dn := dn;
+      TSite(sites.Items[i]).max_pre_dn := pre_dn;
       TSite(sites.Items[i]).max_up := up;
     end;
   end
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        s.max_dn := dn;
+        s.max_pre_dn := pre_dn;
+        s.max_up := up;
       end;
-      s.max_dn := dn;
-      s.max_up := up;
+    finally
+      x.Free;
     end;
-    x.Free;
   end;
   Result := True;
 end;
@@ -5607,14 +5618,22 @@ begin
 
     if x.Strings[i] = 'sslmethod' then
     begin
-      irc_addtext(Netname, Channel, ' %s: %s (%s)',
-        [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
       Continue;
     end;
 
     if x.Strings[i] = 'sw' then
-      irc_addtext(Netname, Channel, ' %s: %s (%s)',
-        [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)])
+    begin
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)]);
+      Continue;
+    end;
+
+    if x.Strings[i] = 'country' then
+    begin
+      j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))), CountryCodes);
+      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), CountryNames[j_sec]]);
+      continue;
+    end
     else
     begin
       if ((x.Strings[i] = 'sections') or (x.Strings[i] = 'autoindexsections')) then
@@ -5926,12 +5945,13 @@ end;
 
 function IrcCountry(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, country: AnsiString;
+  sitename, country, countrywithoutdot: AnsiString;
+  i: Integer;
   s: TSite;
 begin
   Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  country := RightStrV2(params, length(sitename) + 1);
+  sitename := AnsiUpperCase(SubString(params, ' ', 1));
+  country := AnsiUpperCase(RightStrV2(params, length(sitename) + 1));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -5939,8 +5959,23 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
+
+  if ( country[1] <> '.' ) then
+  begin
+    irc_addtext(Netname, Channel, 'The location/country need to begin with a dot!');
+    exit;
+  end;
+
+  countrywithoutdot := copy(country, 2, length(country));
+  i := AnsiIndexText(countrywithoutdot, CountryCodes);
+  if not ( i > -1 ) then
+  begin
+    irc_addtext(Netname, Channel, 'Country %s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements', [country]);
+    exit;
+  end;
+
   s.WCString('country', country);
-  irc_addtext(Netname, Channel, country);
+  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country, CountryNames[i]]);
 
   Result := True;
 end;
@@ -11023,9 +11058,7 @@ begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
   ssname := RightStrV2(params, length(sid) + 1);
-  sresMAXi := strtointdef(config.ReadString('tasktvinfo',
-    'max_sid_lookup_results',
-    '5'), 5);
+  sresMAXi := strtointdef(config.ReadString('tasktvinfo', 'max_sid_lookup_results', '5'), 5);
 
   x := TRegExpr.Create;
   try
@@ -11045,29 +11078,25 @@ begin
     getShowValues(ssname, showname);
     resp := findTVMazeIDByNamev2(showname, netname, channel);
 
-    if resp = 'IRC' then
-    begin
-      result := True;
-      Exit;
-    end;
-
     if resp <> 'FAILED' then
     begin
       res := TStringlist.Create;
       try
         res.CommaText := resp;
-        irc_addtext(Netname, Channel, '<b><c5>TVInfo</c></b>: No match for %s found.', [showname]);
         for I := 0 to res.Count - 1 do
         begin
-          irc_addtext(netname, channel, res.Strings[i]);
           if i >= sresMAXi then
             break;
+          irc_addtext(netname, channel, res.Strings[i]);
         end;
-        result := true
       finally
         res.free;
       end;
-    end;
+    end
+    else
+      irc_addtext(Netname, Channel, '<b><c5>TVInfo</c></b>: No match for %s found.', [showname]);
+
+    result := True;
     Exit;
   end;
 
