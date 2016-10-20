@@ -1630,8 +1630,10 @@ begin
     case lastResponseCode of
       425, 426:
         begin
+          //COMPLETE MSG: 425 Can't open data connection.
+          //COMPLETE MSG: 426 Read timed out
           if ( (0 < AnsiPos('t open data connection', lastResponse)) or (0 < AnsiPos('Read timed out', lastResponse)) ) then
-          begin   //425 .. t open data connection                               //426 .. Read timed out
+          begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
           end;
@@ -1656,6 +1658,21 @@ begin
             goto TryAgain;
           end;
         end;
+
+
+      503:
+        begin
+
+          //COMPLETE MSG: 503 Bad sequence of commands.
+          if (0 < AnsiPos('Bad sequence of commands', lastResponse)) then
+          begin
+            // something went wrong while sending commands, try again should solve it
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
+            goto TryAgain;
+          end;
+
+        end;
+
 
       550, 553:
         begin
@@ -1972,10 +1989,23 @@ begin
 
 
   case sdst.lastResponseCode of
+
+    421:
+    begin
+      
+      //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+      if (0 < AnsiPos('Timeout', sdst.lastResponse)) then
+      begin
+        //try again or just exit, because timeout -> bad routing, offline?
+        irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+        goto TryAgain;
+      end;
+        
+    end;
   
     426:
       begin
-      
+      {
         //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
         if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then
         begin
@@ -1983,7 +2013,7 @@ begin
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
           goto TryAgain;
         end;
-    
+      }
         //COMPLETE MSG: 426- Read timed out
         //              426 Transfer failed, deleting file
         if (0 < AnsiPos('Read timed out', sdst.lastResponse)) then
