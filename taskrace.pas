@@ -1233,6 +1233,9 @@ begin
     exit;
   end;
 
+  // from https://wiki.filezilla-project.org/FTP_over_TLS
+  // Communication encrypted: PROT C
+  // Communication + Data encrypted: PROT P
   if ((ssrc.site.sslfxp = srNeeded) or (sdst.site.sslfxp = srNeeded)) then
   begin
     RequireSSL := True;
@@ -1260,6 +1263,8 @@ begin
 
   if (RequireSSL) then
   begin
+    // https://www.flashfxp.com/forum/flashfxp/general-discussion/13218-cpsv-vs-sscn.html
+    // maybe use SSCN instead of CPSV + fallback if SSCN isn't supported (e.g. ioftpd)
     if not ssrc.Send('CPSV') then
       goto TryAgain;
   end
