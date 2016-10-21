@@ -1072,8 +1072,8 @@ var
   tname: AnsiString;
   speed_stat: AnsiString;
   rrgx: TRegExpr;
-  lastResponseCode: integer;
-  lastResponse: AnsiString;
+  //lastResponseCode: integer;
+  //lastResponse: AnsiString;
   fsize, racebw: double;
 begin
   Result := False;
@@ -1271,32 +1271,30 @@ begin
   if not ssrc.Read('PASV') then
     goto TryAgain;
 
-  lastResponseCode := ssrc.lastResponseCode;
-  lastResponse := ssrc.lastResponse;
+  //lastResponseCode := ssrc.lastResponseCode;
+  //lastResponse := ssrc.lastResponse;
 
-  if lastResponseCode <> 227 then
+  if ssrc.lastResponseCode <> 227 then
   begin
-
-    case lastResponseCode of
+    case ssrc.lastResponseCode of
       500:
         begin
-          if (0 <> AnsiPos('You need to use a client supporting PRET', lastResponse)) then
+          if (0 <> AnsiPos('You need to use a client supporting PRET', ssrc.lastResponse)) then
           begin
             ssrc.site.sw := sswDrftpd;
             ssrc.site.legacydirlist := True;
           end;
-          if ((RequireSSL) and (0 < AnsiPos('understood', lastResponse))) then
+          if ((RequireSSL) and (0 < AnsiPos('understood', ssrc.lastResponse))) then
           begin
             ssrc.site.sslfxp := srUnsupported;
           end;
         end;
       else
         begin
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, ssrc.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, ssrc.lastResponse]));
         end;
     end;
-
     readyerror := True;
     mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1304,7 +1302,7 @@ begin
   end;
 
   try
-    ParsePasvString(lastResponse, host, port);
+    ParsePasvString(ssrc.lastResponse, host, port);
   except
     on e: Exception do
     begin
@@ -1327,10 +1325,10 @@ begin
   if not sdst.Read('PORT') then
     goto TryAgain;
 
-  lastResponseCode := sdst.lastResponseCode;
-  lastResponse := sdst.lastResponse;
+  //lastResponseCode := sdst.lastResponseCode;
+  //lastResponse := sdst.lastResponse;
 
-  if ((lastResponseCode = 500) and (0 <> AnsiPos('You need to use a client supporting PRET', lastResponse))) then
+  if ((sdst.lastResponseCode = 500) and (0 <> AnsiPos('You need to use a client supporting PRET', sdst.lastResponse))) then
   begin
     sdst.site.sw := sswDrftpd;
   end;
@@ -1344,32 +1342,32 @@ begin
     goto TryAgain;
   end;
 
-  lastResponseCode := sdst.lastResponseCode;
-  lastResponse := sdst.lastResponse;
+  //lastResponseCode := sdst.lastResponseCode;
+  //lastResponse := sdst.lastResponse;
 
   Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(storfilename)]);
-  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
+  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [sdst.lastResponse]);
 
-  if lastResponseCode <> 150 then
+  if sdst.lastResponseCode <> 150 then
   begin
 
-    case lastResponseCode of
+    case sdst.lastResponseCode of
       400:
         begin
-          if (0 < AnsiPos('SFVFile still transferring', lastResponse)) then
+          if (0 < AnsiPos('SFVFile still transferring', sdst.lastResponse)) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
         end;
 
       425:
         begin
-          if (0 < AnsiPos('Connection refused', lastResponse)) then
+          if (0 < AnsiPos('Connection refused', sdst.lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+            irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]));
             ssrc.Quit;
             sdst.Quit;
             goto TryAgain;
@@ -1378,25 +1376,25 @@ begin
 
       427, 530:
         begin
-          if ( (0 < AnsiPos('Use SSL FXP', lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)) ) then
+          if ( (0 < AnsiPos('Use SSL FXP', sdst.lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', sdst.lastResponse)) ) then
           begin //427 .. Use SSL FXP                                    //530 .. USE SECURE DATA CONNECTION
             sdst.site.sslfxp := srNeeded;
             irc_AddINFO('[iNFO] SSLFXP Need for: ' + sdst.Name);
             goto TryAgain;
           end;
 
-          if (0 < AnsiPos('not allowed in this file name', lastResponse)) then
+          if (0 < AnsiPos('not allowed in this file name', sdst.lastResponse)) then
           begin   //530 .. not allowed in this file name
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
         end;
 
       450, 452, 553:
         begin
-          if ( (0 < AnsiPos('out of disk space', lastResponse)) or (0 < AnsiPos('No space left on device', lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
+          if ( (0 < AnsiPos('out of disk space', sdst.lastResponse)) or (0 < AnsiPos('No space left on device', sdst.lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', sdst.lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.Setoutofspace;
             if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
@@ -1410,24 +1408,24 @@ begin
             exit;
           end;
 
-          if ( (0 < AnsiPos('Multiple SFV files not allowed.', lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', lastResponse)) ) then
-          begin     //lastResponseCode for both is 553
+          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
+          begin     //sdst.lastResponseCode for both is 553
             readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
 
-          if (0 < AnsiPos('Upload denied by pre_check script', lastResponse)) then
+          if (0 < AnsiPos('Upload denied by pre_check script', sdst.lastResponse)) then
           begin     //553 .. Upload denied by pre_check script
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
 
-          if (lastResponseCode = 553) then
-          begin //we still have an error with lastResponseCode = 553
-            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+          if (sdst.lastResponseCode = 553) then
+          begin //we still have an error with sdst.lastResponseCode = 553
+            ps2.ParseXdupe(netname, channel, dir, sdst.lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE ' + tname);
@@ -1437,9 +1435,9 @@ begin
 
       500, 550:
         begin
-          if (0 < AnsiPos('No such directory', lastResponse)) then
+          if (0 < AnsiPos('No such directory', sdst.lastResponse)) then
           begin   //550 .. No such directory
-            irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, lastResponse]));
+            irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, sdst.lastResponse]));
 
             if (dir = '') then
             begin
@@ -1447,11 +1445,11 @@ begin
             end;
 
             readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
 
-          //if above one don't match, we still have an error with lastResponseCode = 500 or lastResponseCode = 550
+          //if above one don't match, we still have an error with sdst.lastResponseCode = 500 or sdst.lastResponseCode = 550
           ps2.ParseDupe(netname, channel, dir, filename, False);
           ready := True;
           Result := True;
@@ -1461,24 +1459,24 @@ begin
 
       533:
         begin
-          if ( (0 < AnsiPos('You must upload sfv first', lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', lastResponse)) OR (0 < AnsiPos('File not found in sfv', lastResponse)) ) then
+          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
           end;
         end;
 
       else
         begin
-          //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
-          //irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+          //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 200)]));
+          //irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]));
 
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]));
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, sdst.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, sdst.lastResponse]));
 
-          mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+          mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
           sdst.DestroySocket(False);
           readyerror := True;
           Debug(dpMessage, c_section, '<- ' + tname);
@@ -1616,23 +1614,23 @@ begin
     goto TryAgain;
   end;
 
-  lastResponseCode := ssrc.lastResponseCode;
-  lastResponse := ssrc.lastResponse;
+  //lastResponseCode := ssrc.lastResponseCode;
+  //lastResponse := ssrc.lastResponse;
 
   Debug(dpSpam, 'taskrace', '--> SENT: RETR %s', [ssrc.TranslateFilename(filename)]);
-  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
+  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [ssrc.lastResponse]);
 
   started := Now;
 
-  if lastResponseCode <> 150 then
+  if ssrc.lastResponseCode <> 150 then
   begin
 
-    case lastResponseCode of
+    case ssrc.lastResponseCode of
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.
           //COMPLETE MSG: 426 Read timed out
-          if ( (0 < AnsiPos('t open data connection', lastResponse)) or (0 < AnsiPos('Read timed out', lastResponse)) ) then
+          if ( (0 < AnsiPos('t open data connection', ssrc.lastResponse)) or (0 < AnsiPos('Read timed out', ssrc.lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
@@ -1641,7 +1639,7 @@ begin
 
       427, 530:
         begin
-          if ((0 < AnsiPos('Use SSL FXP', lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse))) then
+          if ((0 < AnsiPos('Use SSL FXP', ssrc.lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', ssrc.lastResponse))) then
           begin   //427 .. Use SSL FXP                               //530 .. USE SECURE DATA CONNECTION
             ssrc.site.sslfxp := srNeeded;
             // must do one read on destination
@@ -1664,7 +1662,7 @@ begin
         begin
 
           //COMPLETE MSG: 503 Bad sequence of commands.
-          if (0 < AnsiPos('Bad sequence of commands', lastResponse)) then
+          if (0 < AnsiPos('Bad sequence of commands', ssrc.lastResponse)) then
           begin
             // something went wrong while sending commands, try again should solve it
             irc_Adderror(ssrc.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
@@ -1676,14 +1674,14 @@ begin
 
       550, 553:
         begin
-          if (0 < AnsiPos('credit', LowerCase(lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
+          if (0 < AnsiPos('credit', LowerCase(ssrc.lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
           begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
             // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
             ssrc.site.SetKredits;
           end;
 
-          if (0 < AnsiPos('Taglines Enforced', lastResponse)) then
+          if (0 < AnsiPos('Taglines Enforced', ssrc.lastResponse)) then
           begin
             if not ssrc.Send('SITE TAGLINE %s', ['SLFTP.4tw']) then
               goto TryAgain;
@@ -1693,7 +1691,7 @@ begin
             goto TryAgain_RETR;
           end;
 
-          if (0 < AnsiPos('Permission denied', lastResponse)) then
+          if (0 < AnsiPos('Permission denied', ssrc.lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
@@ -1701,7 +1699,7 @@ begin
 
           //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
           //              553 You have reached your maximum simultaneous downloads allowed (maybe not complete response) [GLFTPD]
-          if ( (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', lastResponse)) or (0 < AnsiPos('Your have reached your maximum of', lastResponse)) ) then
+          if ( (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', ssrc.lastResponse)) or (0 < AnsiPos('Your have reached your maximum of', ssrc.lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
@@ -1713,14 +1711,14 @@ begin
 
 
     if (
-      ( (lastResponseCode = 550) AND (
-        (0 < AnsiPos('No such file or directory', lastResponse)) or (0 < AnsiPos('Unable to load your own user file', lastResponse)) or 
-        (0 < AnsiPos('File not found', lastResponse)) or (0 < AnsiPos('File unavailable', lastResponse)) ) ) 
+      ( (ssrc.lastResponseCode = 550) AND (
+        (0 < AnsiPos('No such file or directory', ssrc.lastResponse)) or (0 < AnsiPos('Unable to load your own user file', ssrc.lastResponse)) or 
+        (0 < AnsiPos('File not found', ssrc.lastResponse)) or (0 < AnsiPos('File unavailable', ssrc.lastResponse)) ) ) 
       OR 
-      ( (lastResponseCode = 426) AND ( 
-        (0 < AnsiPos('File has been deleted on the master', lastResponse)) or (0 < AnsiPos('is being deleted', lastResponse)) or
-        (0 < AnsiPos('found in any root', lastResponse)) or (0 < AnsiPos('Transfer was aborted', lastResponse)) or
-        (0 < AnsiPos('Slave is offline', lastResponse)) ) ) 
+      ( (ssrc.lastResponseCode = 426) AND ( 
+        (0 < AnsiPos('File has been deleted on the master', ssrc.lastResponse)) or (0 < AnsiPos('is being deleted', ssrc.lastResponse)) or
+        (0 < AnsiPos('found in any root', ssrc.lastResponse)) or (0 < AnsiPos('Transfer was aborted', ssrc.lastResponse)) or
+        (0 < AnsiPos('Slave is offline', ssrc.lastResponse)) ) ) 
     ) then
     begin
       if spamcfg.readbool(c_section, 'No_such_file_or_directory', True) then
@@ -1728,9 +1726,9 @@ begin
     end
     else
     begin
-      //irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
-      Debug(dpError, c_section, 'TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]);
-      irc_Addadmin(Format('TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]));
+      //irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, ssrc.lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, ssrc.lastResponse]));
     end;
 
 
