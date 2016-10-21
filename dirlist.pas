@@ -951,21 +951,27 @@ begin
 end;
 
 function TDirList.Find(filename: AnsiString): TDirListEntry;
-var i: Integer;
-    de: TDirListEntry;
+var
+  i: Integer;
+  de: TDirListEntry;
 begin
-  Result:= nil;
+  Result := nil;
   if entries.Count = 0 then
     exit;
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
-    try if i < 0 then Break; except Break; end;
     try
-      de:= TDirListEntry(entries[i]);
+      if i < 0 then
+        Break;
+    except
+      Break;
+    end;
+    try
+      de := TDirListEntry(entries[i]);
       if (AnsiUpperCase(de.filename) = AnsiUpperCase(filename)) then
       begin
-        Result:= de;
+        Result := de;
         Break;
       end;
     except
