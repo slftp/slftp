@@ -63,9 +63,8 @@ var
   s, s1, s2: AnsiString;
   akt: TSkipList;
   addhere: TObjectList;
-  //  isdupe: boolean;
+  // isdupe: boolean;
 begin
-
   skiplist_to_clean.Clear;
   //more memory frinedly
   skiplist_to_clean.Assign(skiplist);
@@ -108,6 +107,8 @@ begin
       end;
     end;
   end;
+
+  FreeAndNil(akt);
 
   CloseFile(f);
 
