@@ -929,15 +929,14 @@ begin
         s := Stats(False, False);
         if ((lastannounceirc <> s) and (s <> '')) then
         begin
-          irc_addstats('<c10>[STATS]</c> ' + rls.section + ' ' + rls.rlsname +
-            ' (' + IntToStr(StatsAllFiles) + '):');
+          irc_addstats('<c10>[<b>STATS</b>]</c> ' + rls.section + ' ' + rls.rlsname + ' (' + IntToStr(StatsAllFiles) + '):');
           irc_AddstatsB(Stats(False, True));
           lastannounceirc := s;
         end;
       end
       else
       begin
-        irc_addstats('<c10>[STATS]</c> Pazo Stopped.');
+        irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
       end;
     end;
   end;
