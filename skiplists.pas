@@ -108,7 +108,8 @@ begin
     end;
   end;
 
-  FreeAndNil(akt);
+  // with this there is a Access Violation - dunno why
+  // FreeAndNil(akt);
 
   CloseFile(f);
 
