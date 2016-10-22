@@ -797,7 +797,7 @@ begin
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3>%s ago</c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
         end;
       end;
     end
@@ -845,10 +845,7 @@ begin
           if (DateTimeToUnix(r.pretime) <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
-              irc_Addadmin(Format(
-                '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>) (%s)',
-                [section, rls, sitename, dbaddpre_GetPreduration(
-                  r.pretime), r.pretimefrom]));
+              irc_Addadmin(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
