@@ -278,61 +278,65 @@ begin
   ForceDirectories(s);
   cb := TTarWriter.Create(s + 'slbackup-' + FormatDateTime('yyyy-mm-dd_hhnnss', Now) + '.tar');
   try
-    (*
-    if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
-      cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
-    if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
-      cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
-    *)
-    if fileexists('mirktrade.conf') then
-      cb.AddFile('mirktrade.conf');
-    if fileexists('sites.dat') then
-      cb.AddFile('sites.dat');
-    if fileexists('slftp.chans') then
-      cb.AddFile('slftp.chans');
-    if fileexists('slftp.history') then
-      cb.AddFile('slftp.history');
-    if fileexists('slftp.ini') then
-      cb.AddFile('slftp.ini');
-    if fileexists('slftp.cini') then
-      cb.AddFile('slftp.cini');
-    if fileexists('slftp.kb') then
-      cb.AddFile('slftp.kb');
-    if fileexists('slftp.news') then
-      cb.AddFile('slftp.news');
-    if fileexists('slftp.nukequeue') then
-      cb.AddFile('slftp.nukequeue');
-    if fileexists('slftp.pem') then
-      cb.AddFile('slftp.pem');
-    if fileexists('slftp.precatcher') then
-      cb.AddFile('slftp.precatcher');
-    if fileexists('slftp.ranks') then
-      cb.AddFile('slftp.ranks');
-    if fileexists('slftp.renames') then
-      cb.AddFile('slftp.renames');
-    if fileexists('slftp.rules') then
-      cb.AddFile('slftp.rules');
-    if fileexists('slftp.skip') then
-      cb.AddFile('slftp.skip');
-    if fileexists('slftp.speedstats') then
-      cb.AddFile('slftp.speedstats');
-    if fileexists('slftp.languages') then
-      cb.AddFile('slftp.languages');
-    if fileexists('slftp.knowngroups') then
-      cb.AddFile('slftp.knowngroups');
-    if fileexists('slftp.socks5') then
-      cb.AddFile('slftp.socks5');
-    if fileexists('slftp.imdbcountries') then
-      cb.AddFile('slftp.imdbcountries');
-    if fileexists('languagebase.slftp') then
-      cb.AddFile('languagebase.slftp');
-    if fileexists('slftp.preurls') then
-      cb.AddFile('slftp.preurls');
-    cb.Free;
-    Result := True;
-    //statsStart;
-    //indexerStart;
-  
+    try
+      (*
+      if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
+        cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
+      if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
+        cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
+      *)
+      if fileexists('mirktrade.conf') then
+        cb.AddFile('mirktrade.conf');
+      if fileexists('sites.dat') then
+        cb.AddFile('sites.dat');
+      if fileexists('slftp.chans') then
+        cb.AddFile('slftp.chans');
+      if fileexists('slftp.history') then
+        cb.AddFile('slftp.history');
+      if fileexists('slftp.ini') then
+        cb.AddFile('slftp.ini');
+      if fileexists('slftp.cini') then
+        cb.AddFile('slftp.cini');
+      if fileexists('slftp.kb') then
+        cb.AddFile('slftp.kb');
+      if fileexists('slftp.news') then
+        cb.AddFile('slftp.news');
+      if fileexists('slftp.nukequeue') then
+        cb.AddFile('slftp.nukequeue');
+      if fileexists('slftp.pem') then
+        cb.AddFile('slftp.pem');
+      if fileexists('slftp.precatcher') then
+        cb.AddFile('slftp.precatcher');
+      if fileexists('slftp.ranks') then
+        cb.AddFile('slftp.ranks');
+      if fileexists('slftp.renames') then
+        cb.AddFile('slftp.renames');
+      if fileexists('slftp.rules') then
+        cb.AddFile('slftp.rules');
+      if fileexists('slftp.skip') then
+        cb.AddFile('slftp.skip');
+      if fileexists('slftp.speedstats') then
+        cb.AddFile('slftp.speedstats');
+      if fileexists('slftp.languages') then
+        cb.AddFile('slftp.languages');
+      if fileexists('slftp.knowngroups') then
+        cb.AddFile('slftp.knowngroups');
+      if fileexists('slftp.socks5') then
+        cb.AddFile('slftp.socks5');
+      if fileexists('slftp.imdbcountries') then
+        cb.AddFile('slftp.imdbcountries');
+      if fileexists('languagebase.slftp') then
+        cb.AddFile('languagebase.slftp');
+      if fileexists('slftp.preurls') then
+        cb.AddFile('slftp.preurls');
+
+      Result := True;
+      //statsStart;
+      //indexerStart;
+    finally
+      cb.Free;
+    end;
+
   except
     on e: Exception do
       error := e.Message;
