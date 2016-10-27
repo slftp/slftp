@@ -753,18 +753,42 @@ end;
 
 procedure TSiteSlot.ProcessFeat;
 begin
-(*
-211-Extensions supported:
- PRET
- AUTH SSL
- PBSZ
- CPSV
- SSCN
- CLNT
- NOOP
- MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
-211 End
-*)
+{
+* GLFTPD *
+  211- Extensions supported:
+   AUTH TLS
+   AUTH SSL
+   PBSZ
+   PROT
+   CPSV
+   SSCN
+   MDTM
+   SIZE
+   REST STREAM
+   SYST
+  211 End
+}
+
+{
+* DRFTPD *
+  211-Extensions supported:
+   PRET
+   AUTH SSL
+   PBSZ
+   CPSV
+   SSCN
+   CLNT
+   NOOP
+   MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
+  211 End
+}
+
+{
+* IOFTPD *
+  FEAT
+  500 'FEAT': Command not understood
+  * found on https://bugs.kde.org/show_bug.cgi?id=114100
+}
   if (0 < Pos('PRET', lastResponse)) then
   begin
     if site.sw <> sswDrftpd then
@@ -775,13 +799,20 @@ begin
   begin
     if site.sw <> sswGlftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
+  end
+  else
+  if (0 < Pos('Command not understood', lastResponse)) then
+  begin
+    if site.sw <> sswIoftpd then
+      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
   end;
 end;
 
 function TSiteSlot.Cwd(dir: AnsiString; force: boolean = False): boolean;
 begin
   Result := False;
-  dir    := MyIncludeTrailingSlash(dir);
+  dir := MyIncludeTrailingSlash(dir);
+  
   if ((dir <> aktdir) or (force)) then
   begin
     if ((site.legacydirlist) or (force)) then
@@ -790,15 +821,18 @@ begin
         exit;
       if not Read('CWD') then
         exit;
+
       if (lastResponseCode = 250) then
       begin
         if (0 <> Pos('250- Matched ', lastresponse)) then
         begin
           Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+
           if dir[1] <> '/' then
             aktdir := aktdir + dir
           else
             aktdir := dir;
+
           Result := True;
           exit;
         end;
