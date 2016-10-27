@@ -167,7 +167,7 @@ end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
 label
-  ujra;
+  TryAgain;
 var
   s: TSiteSlot;
   i: integer;
@@ -175,7 +175,7 @@ var
   r, r_dst: TPazoDirlistTask;
   d: TDirList;
   aktdir: AnsiString;
-  voltadd: boolean;
+  itwasadded: boolean;
   numerrors: integer;
   tname: AnsiString;
   ps: TPazoSite;
@@ -184,7 +184,7 @@ begin
   Result := False;
   s := slot;
   tname := Name;
-  //  voltadd:= False;
+  //  itwasadded := False;
 
   if mainpazo.stopped then
   begin
@@ -197,7 +197,7 @@ begin
 
   mainpazo.lastTouch := Now();
 
-  ujra:
+  TryAgain:
   if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or
     (slshutdown)) then
   begin
@@ -280,7 +280,7 @@ begin
     if not s.Cwd(ps1.maindir, True) then
     begin
       if s.Status <> ssOnline then
-        goto ujra;
+        goto TryAgain;
 
       ps1.MarkSiteAsFailed;
       //mainpazo.errorreason:=ps1.name+' is marked as fail';
@@ -294,7 +294,7 @@ begin
     if not s.Pwd(ps1.maindir) then
     begin
       if s.Status <> ssOnline then
-        goto ujra;
+        goto TryAgain;
 
       ps1.MarkSiteAsFailed;
       //      mainpazo.errorreason:=ps1.name+' is marked as fail';
@@ -308,8 +308,7 @@ begin
     ps1.midnightdone := True;
   end;
 
-  if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(
-    mainpazo.rls.rlsname) + dir) then
+  if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir) then
   begin
     mainpazo.errorreason := 'Src dir on ' + site1 + ' does not exist';
 
@@ -317,32 +316,13 @@ begin
     begin
       if ( (0 <> AnsiPos('FileNotFound', s.lastResponse)) OR (0 <> AnsiPos('File not found', s.lastResponse)) OR (0 <> AnsiPos('No such file or directory', s.lastResponse)) ) then
       begin
-        // do nothing
+        // do nothing, file/dir not found
       end;
     end
     else
     begin
-      goto ujra;
+      goto TryAgain;
     end;
-
-    //if ((s.lastResponseCode = 550) and (0 <> Pos('FileNotFound', s.lastResponse))) then
-    //begin
-    //  // do nothing
-    //end
-    //else if ((s.lastResponseCode = 550) and
-    //  (0 <> Pos('File not found', s.lastResponse))) then
-    //begin
-    //  // do nothing
-    //end
-    //else if ((s.lastResponseCode = 550) and
-    //  (0 <> Pos('No such file or directory', s.lastResponse))) then
-    //begin
-    //  // do nothing
-    //end
-    //else
-    //begin
-    //  goto ujra;
-    //end;
   end
   else
   begin
@@ -350,7 +330,7 @@ begin
 
     debug(dpSpam, c_section, 'ParseDirlist profiling 1');
     try
-      voltadd := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
+      itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
       on e: Exception do
       begin
@@ -369,8 +349,7 @@ begin
       d := ps1.dirlist.FindDirlist(dir);
     except
       on e: Exception do
-        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s',
-          [e.Message]);
+        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
     end;
 
     // Search for sub directories
@@ -401,8 +380,7 @@ begin
               Format('<c7>[DIRLIST]</c> %s %s %s Dirlist added to : %s',
               [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
             try
-              r := TPazoDirlistTask.Create(netname, channel, site1,
-                mainpazo, aktdir, is_pre);
+              r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
               if (de.subdirlist <> nil) then
                 de.subdirlist.dirlistadded := True;
               AddTask(r);
@@ -453,28 +431,21 @@ begin
   if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then
   begin
 
-    if ((d.entries.Count = 0) and
-      (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section,
-      'newdir_max_empty', 300))) then
+    if ((d.entries.Count = 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_empty', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...',
-          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
       Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%s) > newdir_max_empty(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
     end;
 
-    if ((d.entries.Count > 0) and
-      (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section,
-      'newdir_max_unchanged', 300))) then
+    if ((d.entries.Count > 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_unchanged', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format(
-          '<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete, giving up...',
-          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
       Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%s) > newdir_max_unchanged(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
@@ -483,14 +454,11 @@ begin
     if (is_pre) then
     begin
 
-    if ( (d.date_completed <> 0) and
-      (SecondsBetween(Now, d.date_completed) > config.ReadInteger(c_section,
-      'newdir_max_completed', 300)) ) then
+    if ( (d.date_completed <> 0) and (SecondsBetween(Now, d.date_completed) > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up...',
-          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
       Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%s) > newdir_max_completed(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_completed)), config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
@@ -504,8 +472,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up...',
-          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
       Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%s) > newdir_max_created(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_started)), config.ReadInteger(c_section, 'newdir_max_created', 600)]));
@@ -515,8 +482,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up...',
-          [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
       end;
       ps1.dirlistgaveup := True;
       Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%s) > newdir_max_completed(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.date_completed)), config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
@@ -529,20 +495,19 @@ begin
   end;
 
   // check if need more dirlist
-  voltadd := False;
+  itwasadded := False;
   if (not ps1.dirlistgaveup) then
   begin
-    // check if still incomplet
+    // check if still incomplete
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
-      // dirlisst more
+      // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section,
-        'newdir_dirlist_readd', 1000));
+      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
 
       try
         AddTask(r);
-        voltadd := True;
+        itwasadded := True;
       except
         on e: Exception do
         begin
@@ -553,7 +518,7 @@ begin
     end;
 
     // check if one dst need more dirlist
-    if (not voltadd) then
+    if (not itwasadded) then
     begin
       for i := ps1.destinations.Count - 1 downto 0 do
       begin
@@ -563,7 +528,7 @@ begin
         except
           Break;
         end;
-        if voltadd then
+        if itwasadded then
           Break;
 
         try
@@ -577,20 +542,16 @@ begin
           if ((is_pre) and (ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
             (not ps.dirlist.Complete) and (not ps.dirlist.error)) then
           begin
-            // dirlisst more
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name,
-              mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(),
-              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name,
-              mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(),
-              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            // do more dirlist
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
 
             try
               AddTask(r);
               AddTask(r_dst);
-              voltadd := True;
+              itwasadded := True;
               Break;
             except
               on e: Exception do
@@ -605,20 +566,16 @@ begin
             (not ps.dirlist.Complete) and (ps.dirlist.entries.Count > 0) and
             (not ps.dirlist.error)) then
           begin
-            // dirlisst more
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name,
-              mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(),
-              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name,
-              mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(),
-              config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            // do more dirlist
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
 
             try
               AddTask(r);
               AddTask(r_dst);
-              voltadd := True;
+              itwasadded := True;
               Break;
             except
               on e: Exception do
@@ -668,12 +625,12 @@ end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
 label
-  ujra;
+  TryAgain;
 var
   s: TSiteSlot;
   aktdir, fulldir: AnsiString;
-  hiba: boolean;
-  m: boolean;
+  failure: boolean;
+  bIsMidnight: boolean;
   r: TRule;
   e: AnsiString;
   grp: AnsiString;
@@ -696,7 +653,7 @@ begin
 
   mainpazo.lastTouch := Now();
 
-  ujra:
+  TryAgain:
   if ((ps1.error) or (slshutdown)) then
   begin
     readyerror := True;
@@ -717,8 +674,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask error: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask error: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
@@ -733,10 +689,11 @@ begin
       exit;
     end;
 
-  m := IsMidnight(mainpazo.rls.section);
+  bIsMidnight := IsMidnight(mainpazo.rls.section);
 
+  //change working directory
   try
-    if not s.Cwd(ps1.maindir, m) then
+    if not s.Cwd(ps1.maindir, bIsMidnight) then
     begin
       ps1.MarkSiteAsFailed(True);
       irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
@@ -747,16 +704,15 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section,
-        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
   end;
 
+  //print working directory
   try
-    if m then
+    if bIsMidnight then
     begin
       if not s.Pwd(ps1.maindir) then
       begin
@@ -771,8 +727,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section,
-        Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist:%s', [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist:%s', [e.Message]));
       readyerror := True;
       exit;
     end;
@@ -780,34 +735,171 @@ begin
 
   aktdir := MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   if not s.Mkdir(aktdir) then
-    goto ujra;
+    goto TryAgain;
 
-  hiba := False;
-
+  failure := False;
 
   if s.lastResponseCode <> 257 then
   begin
+
+    case s.lastResponseCode of
+      213:
+        begin
+          if (0 <> AnsiPos('status of', s.lastResponse)) then
+          begin
+            failure := False;
+          end;
+        end;
+
+      530:
+        begin
+          if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then // 530 Make Directory Access denied - Due to Regexp configuration
+          begin
+            failure := True;
+          end;
+        end;
+
+      533:
+        begin
+          if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
+          begin
+            failure := True;
+          end;
+          if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
+          begin
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
+            end;
+            failure := True;
+          end;
+        end;  
+      550:
+        begin
+          //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
+          if (0 <> AnsiPos('File exists', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('already exists', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+
+          else if ((0 <> AnsiPos('it was last created at', s.lastResponse)) and (dir <> '')) then
+          begin
+            // to hopefully avoid loops with 550- Sample already exists in the dupelog, it was last created at 030116
+            // also for Proofs, Covers, ...
+            failure := True;
+          end
+
+          else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
+          begin
+            failure := False;
+          end
+          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := False;
+          end
+
+          else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
+          begin
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            failure := True;
+          end
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and (0 <> AnsiPos('Read-only file system', s.lastResponse)) ) then // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
+          begin
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            // TODO: setdown site, no transfer possible but more checking needed if it's only for current directory or for whole site
+            // if only current directory, we should not setdown site - but we can find out with some testing ;)
+            failure := True;
+          end
+
+          else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
+          begin
+            if config.ReadBool(c_section, 'autoruleadd', True) then
+            begin
+              if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) then
+              begin
+                // TODO: maybe we can just use TRelease.groupname instead of catch it from last response
+                // auto adding blacklist rule for group
+                e := s.lastResponse;
+                grp := Fetch(e, ' ');
+                grp := Fetch(e, ' '); // second word
+                e := '';
+                Debug(dpMessage, c_section, 'Adding grp %s to blacklist on %s', [grp, site1]);
+                irc_Addadmin(Format('Adding Group %s to blacklist on %s', [grp, site1]));
+
+                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, grp]), e);
+                if ((r <> nil) and (e = '')) then
+                begin
+                  rules.Insert(0, r);
+                  RulesSave;
+                end;
+              end;
+            end;
+            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            begin
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+            end;
+            failure := True;
+          end
+          else
+          begin
+            Debug(dpError, c_section, 'TPazoMkdirTask unhandled 550 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+            irc_Addadmin(Format('TPazoMkdirTask unhandled 550 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+            failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+          end;
+        end;
+    else
+      begin
+        if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+        begin
+          irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+        end;
+        Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+        irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+        failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+      end;
+    end;
+
+  end;
+
+{
+  if s.lastResponseCode <> 257 then
+  begin
+
     if (s.lastResponseCode = 550) then
     begin
       if (0 <> AnsiPos('File exists', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('already exists', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '') then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
       else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
       begin
@@ -816,7 +908,7 @@ begin
           irc_Adderror(s.todotask, '<c4>[DENIED]</c> %s', [tname]);
         end;
 
-          hiba := True;
+          failure := True;
       end
       else
       begin
@@ -828,14 +920,14 @@ begin
     begin
       if (0 <> AnsiPos('status of', s.lastResponse)) then
       begin
-        hiba := False;
+        failure := False;
       end
     end
     else if (s.lastResponseCode = 533) then
     begin
       if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
       begin
-        hiba := True;
+        failure := True;
       end;
       if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
       begin
@@ -844,7 +936,7 @@ begin
           irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
         end;
 
-          hiba := True;
+          failure := True;
       end;
     end
     else if ((0 <> AnsiPos('Denied', s.lastResponse)) or (0 <> AnsiPos('Denying', s.lastResponse))) then
@@ -874,7 +966,7 @@ begin
       begin
         irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
       end;
-      hiba := True;
+      failure := True;
     end
     else
     begin
@@ -883,17 +975,18 @@ begin
         irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
       end;
 
-      hiba := True;
+      failure := True;
     end;
 
-  end;
 
+
+  end;
+}
 
   try
-    if (hiba) then
+    if (failure) then
     begin
-      fulldir := MyIncludeTrailingSlash(ps1.maindir) +
-        MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+      fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
       if not s.Cwd(fulldir) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
@@ -907,6 +1000,7 @@ begin
         exit;
       end;
     end;
+
     ps1.MkdirReady(dir);
   except
     on e: Exception do
@@ -930,9 +1024,9 @@ begin
 
   Debug(dpMessage, c_section, '<-- ' + tname);
 
-  Result := True;
-  readyerror := hiba;
+  readyerror := failure;
   ready := True;
+  Result := True;
 end;
 
 function TPazoMkdirTask.Name: AnsiString;
@@ -962,16 +1056,14 @@ end;
 
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
-  ujra, brokentransfer, retrujra; //ujra = again
+  TryAgain, brokentransfer, TryAgain_RETR;
 var
   ssrc, sdst: TSiteSlot;
-  //kellssl: boolean; //kell = must
   RequireSSL: boolean;
   host: AnsiString;
   port: integer;
-  byme: boolean;
+  FileSendByMe: boolean;
   numerrors: integer;
-  //elotte, utana: TDateTime; //elotte -> started  utana -> ended
   started, ended: TDateTime;
   fs: double;
   time_race: integer;
@@ -980,8 +1072,8 @@ var
   tname: AnsiString;
   speed_stat: AnsiString;
   rrgx: TRegExpr;
-  lastResponseCode: integer;
-  lastResponse: AnsiString;
+  //lastResponseCode: integer;
+  //lastResponse: AnsiString;
   fsize, racebw: double;
 begin
   Result := False;
@@ -1007,9 +1099,8 @@ begin
   mainpazo.lastTouch := Now();
   Debug(dpMessage, c_section, '--> ' + tname);
 
-  ujra:
-  if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or
-    (ps2.status = rssNuked) or (slshutdown)) then
+  TryAgain:
+  if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
   begin
     readyerror := True;
     mainpazo.errorreason := 'ERROR PS1 or PS2';
@@ -1070,8 +1161,7 @@ begin
     begin
       if not ssrc.Cwd(todir1) then
       begin
-        irc_Adderror(Format('<c4>[ERROR]</c> %s : %s',
-          [tname, 'Src ' + todir1 + ' on ' + site1 + ' does not exist']));
+        irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Src ' + todir1 + ' on ' + site1 + ' does not exist']));
         if (dir = '') then
         begin
           ps1.MarkSiteAsFailed(True);
@@ -1085,8 +1175,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, '[EXCEPTION] Taskrace Src dir  does not exist: %s',
-        [e.Message]);
+      Debug(dpError, c_section, '[EXCEPTION] Taskrace Src dir  does not exist: %s', [e.Message]);
       mainpazo.errorreason := 'cant cwd on src';
       readyerror := True;
       exit;
@@ -1094,8 +1183,7 @@ begin
   end;
 
   if mainpazo.rls <> nil then
-    todir2 := MyIncludeTrailingSlash(ps2.maindir) +
-      MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir
+    todir2 := MyIncludeTrailingSlash(ps2.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir
   else
     todir2 := MyIncludeTrailingSlash(ps2.maindir) + dir;
 
@@ -1104,8 +1192,7 @@ begin
     begin
       if not sdst.Cwd(todir2) then
       begin
-        irc_Adderror(Format('<c4>[ERROR]</c> %s : %s',
-          [tname, 'Dst ' + todir2 + ' on ' + site2 + ' does not exist']));
+        irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dst ' + todir2 + ' on ' + site2 + ' does not exist']));
         if (dir = '') then
         begin
           ps2.MarkSiteAsFailed(True);
@@ -1119,8 +1206,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, '[EXCEPTION] Taskrace Dst dir  does not exist: %s',
-        [e.Message]);
+      Debug(dpError, c_section, '[EXCEPTION] Taskrace Dst dir  does not exist: %s', [e.Message]);
       mainpazo.errorreason := 'cant cwd on dest';
       readyerror := True;
       exit;
@@ -1130,8 +1216,7 @@ begin
   if ((ssrc.site.sslfxp = srNeeded) and (sdst.site.sslfxp = srUnsupported)) then
   begin
     Debug(dpSpam, c_section, 'SSLFXP on site %s is not supported', [sdst.site.Name]);
-    irc_Adderror(Format('<c4>[ERROR]</c> SSLFXP on site %s is not supported',
-      [sdst.site.Name]));
+    irc_Adderror(Format('<c4>[ERROR]</c> SSLFXP on site %s is not supported', [sdst.site.Name]));
     mainpazo.errorreason := 'SSLFXP on site ' + sdst.site.Name + ' is not supported';
     readyerror := True;
     Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1142,77 +1227,87 @@ begin
   begin
     Debug(dpSpam, c_section, 'SSLFXP on site %s is not supported', [ssrc.site.Name]);
     mainpazo.errorreason := 'SSLFXP on site ' + ssrc.site.Name + ' is not supported';
-    irc_Adderror(Format('<c4>[ERROR]</c> SSLFXP on site %s is not supported',
-      [ssrc.site.Name]));
+    irc_Adderror(Format('<c4>[ERROR]</c> SSLFXP on site %s is not supported', [ssrc.site.Name]));
     readyerror := True;
     Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
 
+  // from https://wiki.filezilla-project.org/FTP_over_TLS
+  // Communication encrypted: PROT C
+  // Communication + Data encrypted: PROT P
   if ((ssrc.site.sslfxp = srNeeded) or (sdst.site.sslfxp = srNeeded)) then
   begin
     RequireSSL := True;
     if not ssrc.SendProtP() then
-      goto ujra;
+      goto TryAgain;
     if not sdst.SendProtP() then
-      goto ujra;
+      goto TryAgain;
   end
   else
   begin
     RequireSSL := False;
     if not ssrc.SendProtC() then
-      goto ujra;
+      goto TryAgain;
     if not sdst.SendProtC() then
-      goto ujra;
+      goto TryAgain;
   end;
 
   if (ssrc.site.sw = sswDrftpd) then
   begin
     if not ssrc.Send('PRET RETR %s', [ssrc.TranslateFilename(filename)]) then
-      goto ujra;
+      goto TryAgain;
     if not ssrc.Read('PRET RETR') then
-      goto ujra;
+      goto TryAgain;
   end;
 
   if (RequireSSL) then
   begin
+    // https://www.flashfxp.com/forum/flashfxp/general-discussion/13218-cpsv-vs-sscn.html
+    // maybe use SSCN instead of CPSV + fallback if SSCN isn't supported (e.g. ioftpd)
     if not ssrc.Send('CPSV') then
-      goto ujra;
+      goto TryAgain;
   end
   else
   begin
     if not ssrc.Send('PASV') then
-      goto ujra;
+      goto TryAgain;
   end;
   if not ssrc.Read('PASV') then
-    goto ujra;
+    goto TryAgain;
 
-  lastResponseCode := ssrc.lastResponseCode;
-  lastResponse := ssrc.lastResponse;
+  //lastResponseCode := ssrc.lastResponseCode;
+  //lastResponse := ssrc.lastResponse;
 
-  if lastResponseCode <> 227 then
+  if ssrc.lastResponseCode <> 227 then
   begin
-    if ((lastResponseCode = 500) and
-      (0 <> AnsiPos('You need to use a client supporting PRET', lastResponse))) then
-    begin
-      ssrc.site.sw := sswDrftpd;
-      ssrc.site.legacydirlist := True;
+    case ssrc.lastResponseCode of
+      500:
+        begin
+          if (0 <> AnsiPos('You need to use a client supporting PRET', ssrc.lastResponse)) then
+          begin
+            ssrc.site.sw := sswDrftpd;
+            ssrc.site.legacydirlist := True;
+          end;
+          if ((RequireSSL) and (0 < AnsiPos('understood', ssrc.lastResponse))) then
+          begin
+            ssrc.site.sslfxp := srUnsupported;
+          end;
+        end;
+      else
+        begin
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, ssrc.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, ssrc.lastResponse]));
+        end;
     end;
-
-    if ( (RequireSSL) and (lastResponseCode = 500) and (0 < AnsiPos('understood', lastResponse)) ) then
-    begin
-      ssrc.site.sslfxp := srUnsupported;
-    end;
-
     readyerror := True;
-    //    mainpazo.errorreason := 'No clue anything about drftpd?';
     mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
 
   try
-    ParsePasvString(lastResponse, host, port);
+    ParsePasvString(ssrc.lastResponse, host, port);
   except
     on e: Exception do
     begin
@@ -1225,49 +1320,184 @@ begin
   if (sdst.site.sw = sswDrftpd) then
   begin
     if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(storfilename)]) then
-      goto ujra;
+      goto TryAgain;
     if not sdst.Read('PRET STOR') then
-      goto ujra;
+      goto TryAgain;
   end;
 
-  if not sdst.Send('PORT %s,%d,%d', [Csere(host, '.', ','), port div
-    256, port mod 256]) then
-    goto ujra;
+  if not sdst.Send('PORT %s,%d,%d', [Csere(host, '.', ','), port div 256, port mod 256]) then
+    goto TryAgain;
   if not sdst.Read('PORT') then
-    goto ujra;
+    goto TryAgain;
 
-  lastResponseCode := sdst.lastResponseCode;
-  lastResponse := sdst.lastResponse;
+  //lastResponseCode := sdst.lastResponseCode;
+  //lastResponse := sdst.lastResponse;
 
-  if ((lastResponseCode = 500) and
-    (0 <> AnsiPos('You need to use a client supporting PRET', lastResponse))) then
+  if ((sdst.lastResponseCode = 500) and (0 <> AnsiPos('You need to use a client supporting PRET', sdst.lastResponse))) then
   begin
     sdst.site.sw := sswDrftpd;
   end;
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
-    goto ujra;
+    goto TryAgain;
 
   if not sdst.Read('STOR') then
   begin
     sdst.Quit;
-    goto ujra;
+    goto TryAgain;
   end;
 
-  lastResponseCode := sdst.lastResponseCode;
-  lastResponse := sdst.lastResponse;
+  //lastResponseCode := sdst.lastResponseCode;
+  //lastResponse := sdst.lastResponse;
 
   Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(storfilename)]);
-  Debug(dpSpam, 'taskrace', '<-- REICEIVED: %s', [lastResponse]);
+  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [sdst.lastResponse]);
 
-  if lastResponseCode <> 150 then
+  if sdst.lastResponseCode <> 150 then
   begin
+
+    case sdst.lastResponseCode of
+      400:
+        begin
+          if (0 < AnsiPos('SFVFile still transferring', sdst.lastResponse)) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False);
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+        end;
+
+      425:
+        begin
+          if (0 < AnsiPos('Connection refused', sdst.lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]));
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
+      427, 530:
+        begin
+          if ( (0 < AnsiPos('Use SSL FXP', sdst.lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', sdst.lastResponse)) ) then
+          begin //427 .. Use SSL FXP                                    //530 .. USE SECURE DATA CONNECTION
+            sdst.site.sslfxp := srNeeded;
+            irc_AddINFO('[iNFO] SSLFXP Need for: ' + sdst.Name);
+            goto TryAgain;
+          end;
+
+          if (0 < AnsiPos('not allowed in this file name', sdst.lastResponse)) then
+          begin   //530 .. not allowed in this file name
+            readyerror := True;
+            ps2.SetFileError(netname, channel, dir, filename);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+        end;
+
+      450, 452, 553:
+        begin
+          if ( (0 < AnsiPos('out of disk space', sdst.lastResponse)) or (0 < AnsiPos('No space left on device', sdst.lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', sdst.lastResponse)) ) then
+          begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
+            sdst.site.Setoutofspace;
+            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
+            begin
+              sdst.site.markeddown := True;
+              sdst.DestroySocket(True);
+            end;
+            readyerror := True;
+            mainpazo.errorreason := 'No freespace or slave';
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
+          begin     //sdst.lastResponseCode for both is 553
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+
+          if (0 < AnsiPos('Upload denied by pre_check script', sdst.lastResponse)) then
+          begin     //553 .. Upload denied by pre_check script
+            readyerror := True;
+            ps2.SetFileError(netname, channel, dir, filename);
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+
+          if (sdst.lastResponseCode = 553) then
+          begin //we still have an error with sdst.lastResponseCode = 553
+            ps2.ParseXdupe(netname, channel, dir, sdst.lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<-- DUPE ' + tname);
+            exit;
+          end;
+        end;
+
+      500, 550:
+        begin
+          if (0 < AnsiPos('No such directory', sdst.lastResponse)) then
+          begin   //550 .. No such directory
+            irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, sdst.lastResponse]));
+
+            if (dir = '') then
+            begin
+              ps2.MarkSiteAsFailed(True);
+            end;
+
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+
+          //if above one don't match, we still have an error with sdst.lastResponseCode = 500 or sdst.lastResponseCode = 550
+          ps2.ParseDupe(netname, channel, dir, filename, False);
+          ready := True;
+          Result := True;
+          Debug(dpMessage, c_section, '<-- DUPE ' + tname);
+          exit;
+        end;
+
+      533:
+        begin
+          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False);
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+        end;
+
+      else
+        begin
+          //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 200)]));
+          //irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]));
+
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, sdst.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, sdst.lastResponse]));
+
+          mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+          sdst.DestroySocket(False);
+          readyerror := True;
+          Debug(dpMessage, c_section, '<- ' + tname);
+          exit;
+        end;
+
+    end;
+
+
+{
     if ( ( (lastResponseCode = 427) AND (0 < AnsiPos('Use SSL FXP', lastResponse)) ) or
        ( (lastResponseCode = 530) AND (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)) ) ) then
     begin
       sdst.site.sslfxp := srNeeded;
       irc_AddINFO('[iNFO] SSLFXP Need for: ' + sdst.Name);
-      goto ujra;
+      goto TryAgain;
     end;
 
     if ( ( (lastResponseCode = 553) AND (0 < AnsiPos('out of disk space', lastResponse)) ) or
@@ -1332,7 +1562,7 @@ begin
       irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
       ssrc.Quit;
       sdst.Quit;
-      goto ujra;
+      goto TryAgain;
     end;
 
     if ( (lastResponseCode = 550) AND (0 < AnsiPos('No such directory', lastResponse)) ) then
@@ -1366,39 +1596,153 @@ begin
     else
     begin
       Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [lastResponseCode, AnsiLeftStr(lastResponse, 200)]));
-      irc_Adderror(Format('<c4>[ERROR]</c> unknown error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
+      irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]));
       sdst.DestroySocket(False);
-      mainpazo.errorreason := Format('unknown error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
+      mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
       readyerror := True;
     end;
+    
     Debug(dpMessage, c_section, '<- ' + tname);
     exit;
+}
   end;
 
-  retrujra:
+  TryAgain_RETR:
 
   if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
-    goto ujra;
+    goto TryAgain;
 
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
     sdst.Quit;
-    goto ujra;
+    goto TryAgain;
   end;
 
-  lastResponseCode := ssrc.lastResponseCode;
-  lastResponse := ssrc.lastResponse;
+  //lastResponseCode := ssrc.lastResponseCode;
+  //lastResponse := ssrc.lastResponse;
 
   Debug(dpSpam, 'taskrace', '--> SENT: RETR %s', [ssrc.TranslateFilename(filename)]);
-  Debug(dpSpam, 'taskrace', '<-- REICEIVED: %s', [lastResponse]);
+  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [ssrc.lastResponse]);
 
   started := Now;
 
-  if lastResponseCode <> 150 then
+  if ssrc.lastResponseCode <> 150 then
   begin
+
+    case ssrc.lastResponseCode of
+      425, 426:
+        begin
+          //COMPLETE MSG: 425 Can't open data connection.
+          //COMPLETE MSG: 426 Read timed out
+          if ( (0 < AnsiPos('t open data connection', ssrc.lastResponse)) or (0 < AnsiPos('Read timed out', ssrc.lastResponse)) ) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+          end;
+        end;
+
+      427, 530:
+        begin
+          if ((0 < AnsiPos('Use SSL FXP', ssrc.lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', ssrc.lastResponse))) then
+          begin   //427 .. Use SSL FXP                               //530 .. USE SECURE DATA CONNECTION
+            ssrc.site.sslfxp := srNeeded;
+            // must do one read on destination
+            if not sdst.Read() then
+              goto TryAgain;
+
+            // must do two read on source
+            if not ssrc.Read() then
+              goto TryAgain;
+            if not ssrc.Read() then
+              goto TryAgain;
+
+            irc_AddINFO('[iNFO] SSLFXP needed on Source: ' + ssrc.Name);
+            goto TryAgain;
+          end;
+        end;
+
+
+      503:
+        begin
+
+          //COMPLETE MSG: 503 Bad sequence of commands.
+          if (0 < AnsiPos('Bad sequence of commands', ssrc.lastResponse)) then
+          begin
+            // something went wrong while sending commands, try again should solve it
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
+      550, 553:
+        begin
+          if (0 < AnsiPos('credit', LowerCase(ssrc.lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
+          begin
+            // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
+            // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
+            ssrc.site.SetKredits;
+          end;
+
+          if (0 < AnsiPos('Taglines Enforced', ssrc.lastResponse)) then
+          begin
+            if not ssrc.Send('SITE TAGLINE %s', ['SLFTP.4tw']) then
+              goto TryAgain;
+            if not ssrc.Read('SITE TAGLINE') then
+              goto TryAgain;
+
+            goto TryAgain_RETR;
+          end;
+
+          if (0 < AnsiPos('Permission denied', ssrc.lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'permission_denied', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
+          end;
+
+          //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
+          //              553 You have reached your maximum simultaneous downloads allowed (maybe not complete response) [GLFTPD]
+          if ( (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', ssrc.lastResponse)) or (0 < AnsiPos('Your have reached your maximum of', ssrc.lastResponse)) ) then
+          begin
+            if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
+              // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
+          end;
+
+        end;
+    end;
+
+
+    if (
+      ( (ssrc.lastResponseCode = 550) AND (
+        (0 < AnsiPos('No such file or directory', ssrc.lastResponse)) or (0 < AnsiPos('Unable to load your own user file', ssrc.lastResponse)) or 
+        (0 < AnsiPos('File not found', ssrc.lastResponse)) or (0 < AnsiPos('File unavailable', ssrc.lastResponse)) ) ) 
+      OR 
+      ( (ssrc.lastResponseCode = 426) AND ( 
+        (0 < AnsiPos('File has been deleted on the master', ssrc.lastResponse)) or (0 < AnsiPos('is being deleted', ssrc.lastResponse)) or
+        (0 < AnsiPos('found in any root', ssrc.lastResponse)) or (0 < AnsiPos('Transfer was aborted', ssrc.lastResponse)) or
+        (0 < AnsiPos('Slave is offline', ssrc.lastResponse)) ) ) 
+    ) then
+    begin
+      if spamcfg.readbool(c_section, 'No_such_file_or_directory', True) then
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+    end
+    else
+    begin
+      //irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, ssrc.lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, ssrc.lastResponse]));
+    end;
+
+
+
+{
     if ( (lastResponseCode = 550) and (0 < AnsiPos('credit', LowerCase(lastResponse)))) then
     begin
+      // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots and
+      // if credits > 10gb remove this value and set used max_dl_slots back to old saved value
       ssrc.site.SetKredits
     end
     else if ( ((lastResponseCode = 427) AND (0 < AnsiPos('Use SSL FXP', lastResponse))) or
@@ -1408,24 +1752,24 @@ begin
 
       // must do one read on destination
       if not sdst.Read() then
-        goto ujra;
+        goto TryAgain;
 
       // must do two read on source
       if not ssrc.Read() then
-        goto ujra;
+        goto TryAgain;
       if not ssrc.Read() then
-        goto ujra;
+        goto TryAgain;
 
       irc_AddINFO('[iNFO] SSLFXP needed on Source: ' + ssrc.Name);
-      goto ujra;
+      goto TryAgain;
     end
     else if ((lastResponseCode = 550) and (0 < AnsiPos('Taglines Enforced', lastResponse))) then
     begin
       if not ssrc.Send('SITE TAGLINE %s', ['slftp.4tw']) then
-        goto ujra;
+        goto TryAgain;
       if not ssrc.Read('SITE TAGLINE') then
-        goto ujra;
-      goto retrujra;
+        goto TryAgain;
+      goto TryAgain_RETR;
     end
     else if ( 
       ( (lastResponseCode = 550) AND ( 
@@ -1460,6 +1804,8 @@ begin
     end
     else if ( (lastResponseCode = 553) AND (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', lastResponse)) ) then
     begin
+      // TODO: [ERROR] unknown after RETR RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.r14 (27) : 550 550 Your have reached your maximum of 4 simultaneous downloa
+      // Add this error code below and maybe do something to kill ghosts (if exist) or stop trying downloading
       if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
     end
@@ -1474,6 +1820,7 @@ begin
         irc_Adderror(ssrc.todotask, '<c4>[ERROR] unknown after RETR</c> %s : %d %s',
           [tname, lastResponseCode, AnsiLeftStr(lastResponse, 60)]);
     end;
+}
 
     // ilyenkor a dst szalon a legjobb ha lezarjuk a geci a socketet mert az ABOR meg a sok szar amugy sem hasznalhato.
     // es majd ugyis automatan ujrabejelentkezik a cumo
@@ -1518,8 +1865,7 @@ begin
 
     if (SecondsBetween(Now, started) > 600) then
     begin
-      Debug(dpError, c_section, Format('[iNFO] Long race break: %s %s %s',
-        [Name, ssrc.lastResponse, sdst.lastResponse]));
+      Debug(dpError, c_section, Format('[iNFO] Long race break: %s %s %s', [Name, ssrc.lastResponse, sdst.lastResponse]));
       ssrc.DestroySocket(False);
       sdst.DestroySocket(False);
       mainpazo.errorreason := 'Long race break';
@@ -1527,12 +1873,98 @@ begin
       exit;
     end;
   end;
-  debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
 
-  ended := Now;
-  time_race := MilliSecondsBetween(ended, started);
-  response := IntToStr(time_race);
 
+
+  //TODO: [ERROR FXP] TPazoRaceTask DST/0, RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 421 421 Timeout (60 seconds): closing control connection.
+  //      RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 238.42mB @ 1.16mB/s <-- shouldn't be there, wasn't transfered because a timeout occur
+  //  so exit above or goto urja? Or relogin needed?
+
+  //TODO: [ERROR FXP] TPazoRaceTask SRC/2: RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s07 (36) 426 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+  // maybe lower routing if this occur several times on same routes (Issue #46)
+
+
+
+  case ssrc.lastResponseCode of
+  
+    421:
+      begin
+      
+        //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+        if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then
+        begin
+          //try again or just exit, because timeout -> bad routing, offline?
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+        
+      end;
+
+
+  
+    426:
+    begin
+    
+      //COMPLETE MSG: 426 Sendfile error: Broken pipe.
+      if (0 < AnsiPos('Sendfile error', ssrc.lastResponse)) then
+      begin
+        //try again
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        goto TryAgain;
+      end;
+    
+      //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
+      //              426 Transfer was aborted - File has been deleted on the master
+      if (0 < AnsiPos('File has been deleted on the master', ssrc.lastResponse)) then
+      begin
+        //exit here, try again won't help if file don't get traded just again after deleting
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        mainpazo.errorreason := 'File has been deletec on the master';
+        readyerror := True;
+        exit;
+      end;
+
+      //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section 0DAY, at least 1000B/s required.
+      //              426- Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+      //              426 Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+      if (0 < AnsiPos('Slow transfer', ssrc.lastResponse)) then
+      begin
+        //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+        goto TryAgain;
+      end;
+      
+    end;
+  
+
+
+
+  
+    522:
+      begin
+        if (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse)) then
+        begin
+          ssrc.site.sslfxp := srNeeded;
+          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          end;
+          goto TryAgain;
+        end;
+      end;
+
+    else  //to get other errors to put here
+      begin
+        if (ssrc.lastResponseCode <> 226) then
+        begin
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, ssrc.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, ssrc.lastResponse]));
+        end;
+      end;
+  end;
+
+
+{
   //for src
   if ((ssrc.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', ssrc.lastResponse))) then
   begin
@@ -1540,20 +1972,97 @@ begin
 
     if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
     begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s',
-        [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
     end;
 
-    goto ujra;
+    goto TryAgain;
   end
   else if (ssrc.lastResponseCode <> 226) then
   begin
-    //irc_addtext(ssrc.todotask, '%s: %s', [ssrc.name, Trim(ssrc.lastresponse)]);
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+  end;
+}
 
-    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s',
-        [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
+
+
+
+
+
+
+
+
+  case sdst.lastResponseCode of
+
+    421:
+    begin
+      
+      //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+      if (0 < AnsiPos('Timeout', sdst.lastResponse)) then
+      begin
+        //try again or just exit, because timeout -> bad routing, offline?
+        irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+        goto TryAgain;
+      end;
+        
+    end;
+  
+    426:
+      begin
+      {
+        //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+        if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then
+        begin
+          //try again, maybe lower routing from srcsite to dstsite
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      }
+        //COMPLETE MSG: 426- Read timed out
+        //              426 Transfer failed, deleting file
+        if (0 < AnsiPos('Read timed out', sdst.lastResponse)) then
+        begin
+          //try again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      
+        //COMPLETE MSG: 426- Socket closed
+        //              426 Transfer failed, deleting file
+        //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s 
+        if (0 < AnsiPos('Socket closed', sdst.lastResponse)) then
+        begin
+          //try again, maybe lower routing if happens again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      
+      end;
+
+  
+    522:
+      begin
+        if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
+        begin
+          sdst.site.sslfxp := srNeeded;
+          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+          end;
+          goto TryAgain;
+        end
+      end;
+
+    else  //to get other errors to put here
+      begin
+        if (sdst.lastResponseCode <> 226) then
+        begin
+          Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]);
+          irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, sdst.lastResponse]));
+        end;
+      end;
   end;
 
+{
   //for dst
   if ((sdst.lastResponseCode = 522) and (0 < AnsiPos('You have to turn on secure data connection', sdst.lastResponse))) then
   begin
@@ -1561,48 +2070,34 @@ begin
 
     if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
     begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s',
-        [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
     end;
 
-    goto ujra;
+    goto TryAgain;
   end
   else if (sdst.lastResponseCode <> 226) then
   begin
-    //irc_addtext(ssrc.todotask, '%s: %s', [sdst.name, Trim(sdst.lastresponse)]);
-
-    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s, %s %d %s',
-        [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
   end;
+}
 
-  //for src
-  //if (ssrc.lastResponseCode <> 226) then
-  //begin
-  //  if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-  //  begin
-  //    irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s',
-  //      [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 60)]);
-  //  end;
-  //end;
 
-  //for dst
-  //if (sdst.lastResponseCode <> 226) then
-  //begin
-  //  if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-  //  begin
-  //    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s, %s %d %s',
-  //      [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
-  //  end;
-  //end;
+  // *** transfer was successful! ***
+  debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
+  ended := Now;
+  time_race := MilliSecondsBetween(ended, started);
+  response := IntToStr(time_race);
 
-  byme := False;
+
+
+  FileSendByMe := False;
   if (ssrc.lastResponseCode = 226) and (sdst.lastResponseCode = 226) then
   begin
-    byme := True;
+    FileSendByMe := True;
   end;
 
   //this is a very fucked-up case, we'll try again.
-  if ( (mainpazo.rls <> nil) and (byme) and
+  if ( (mainpazo.rls <> nil) and (FileSendByMe) and
     ( (0 < AnsiPos('CRC-Check: SFV first', sdst.lastResponse)) or
     (0 < AnsiPos('CRC-Check: BAD!', sdst.lastResponse)) or
     (0 < AnsiPos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
@@ -1621,8 +2116,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d',
-          [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps1.badcrcevents);
     end;
@@ -1631,8 +2125,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d',
-          [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps1.badcrcevents);
     end;
@@ -1651,23 +2144,21 @@ begin
     exit;
   end;
 
-  ps2.ParseDupe(netname, channel, dir, filename, byme);
+  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
   // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
 
-  if (byme and (time_race > 0)) then
+  if (FileSendByMe and (time_race > 0)) then
   begin
     try
       fs := mainpazo.PFileSize(dir, filename);
       if (fs > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
       begin
-        SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section,
-          mainpazo.rls.rlsname);
+        SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s',
-          [e.Message]);
+        Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s', [e.Message]);
       end;
     end;
   end;
@@ -1685,36 +2176,29 @@ begin
         fs := mainpazo.PFileSize(dir, filename);
         if (fs > 0) and (time_race > 0) then
         begin
-
-          racebw := fs * 1000 / time_race / 1024; // / 1024;
+          racebw := fs * 1000 / time_race / 1024;
           fsize := fs / 1024;
 
           if (filesize > 1024) then
           begin
             if (racebw > 1024) then
-              speed_stat :=
-                Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
+              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
             else
-              speed_stat :=
-                Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
           end
           else
           begin
             if (racebw > 1024) then
-              speed_stat :=
-                Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
+              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
             else
-              speed_stat :=
-                Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
           end;
 
         end;
         irc_SendRACESTATS(tname + ' ' + speed_stat);
-        //irc_addtext('CONSOLE', 'Trades', tname);
 
         // add stats
-        statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname,
-          filename, IntToStr(filesize));
+        statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, IntToStr(filesize));
       end;
     finally
       rrgx.Free;
@@ -1722,8 +2206,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
     end;
   end;
 
