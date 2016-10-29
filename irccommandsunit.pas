@@ -9846,7 +9846,7 @@ begin
 
       if svalue = '' then
       begin
-        if (ss.Software = sswGlftpd) then
+        if (ss.sw = sswGlftpd) then
         begin
           irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
         end
@@ -9857,7 +9857,7 @@ begin
       end
       else if ((svalue = '1') or (svalue = '0')) then
       begin
-        if (ss.Software = sswGlftpd) then
+        if (ss.sw = sswGlftpd) then
         begin
           ss.NoLoginMSG := StrToBoolDef(svalue, False);
           irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
@@ -9881,7 +9881,7 @@ begin
 
     if svalue = '' then
     begin
-      if (ss.Software = sswGlftpd) then
+      if (ss.sw = sswGlftpd) then
       begin
         irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
       end
@@ -9892,7 +9892,7 @@ begin
     end
     else if ((svalue = '1') or (svalue = '0')) then
     begin
-      if (ss.Software = sswGlftpd) then
+      if (ss.sw = sswGlftpd) then
       begin
         ss.NoLoginMSG := StrToBoolDef(svalue, False);
         irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
