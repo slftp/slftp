@@ -1062,7 +1062,7 @@ end;
 function TSiteSlot.Login(kill: boolean = False): boolean;
 var
   host: AnsiString;
-  i:    integer;
+  i: integer;
 begin
   Result := False;
 
@@ -1085,10 +1085,8 @@ begin
         Break;
       end;
 
-      if (((lastResponseCode = 530) and
-        (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and
-        (0 <> Pos('your maximum number of connections', lastResponse)))) then
+      if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
       begin
         if site.sw = sswGlftpd then
         begin
@@ -1099,13 +1097,12 @@ begin
       else
       begin
         irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [Name, bnc, error]);
-        if ((lastResponseCode = 421) and
-          (0 <> Pos('Hammer Protection', lastResponse))) then
+        if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
         begin
           break;
         end;
-
       end;
+
       Inc(i);
     except
       break;
@@ -1115,10 +1112,8 @@ begin
   if ((not slshutdown) and (not shouldquit)) then
     if not Result then
     begin
-      if (((lastResponseCode = 530) and
-        (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and
-        (0 <> Pos('your maximum number of connections', lastResponse)))) then
+      if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
       begin
         DestroySocket(False);
       end
