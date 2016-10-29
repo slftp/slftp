@@ -683,9 +683,9 @@ const
  MaskModX = 32; // -"- /x
 
 {$IFDEF MSWINDOWS}
-LineEnding = #13#10;
+nLineEnding = #13#10;
 {$ELSE}
-LineEnding = #10;
+nLineEnding = #10;
 {$ENDIF}
 
  {$IFDEF UniCode}
@@ -3823,7 +3823,7 @@ begin
         Ch := p^;
         inc (p);
         case Ch of
-          'n' : inc(ResultLen, Length(LineEnding));
+          'n' : inc(ResultLen, Length(nLineEnding));
           'u', 'l', 'U', 'L': {nothing};
           else inc(ResultLen);
         end;
@@ -3863,8 +3863,8 @@ begin
         inc (p);
         case Ch of
           'n' : begin
-              p0 := @LineEnding[1];
-              p1 := p0 + Length(LineEnding);
+              p0 := @nLineEnding[1];
+              p1 := p0 + Length(nLineEnding);
             end;
           'l' : begin
               Mode := smodeOneLower;
