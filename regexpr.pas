@@ -683,9 +683,7 @@ const
  MaskModX = 32; // -"- /x
 
 {$IFDEF MSWINDOWS}
-nLineEnding = #13#10;
-{$ELSE}
-nLineEnding = #10;
+nLineEnd = #13#10;
 {$ENDIF}
 
  {$IFDEF UniCode}
@@ -3751,7 +3749,9 @@ var
   n : PtrInt;
   Ch : REChar;
   Mode: TSubstMode;
-//  LineEnd: String = LineEnding;
+  {$IFDEF FPC}
+  nLineEnd: String = LineEnding;
+{$ENDIF}
 
   function ParseVarName (var APtr : PRegExprChar) : PtrInt;
   // extract name of variable (digits, may be enclosed with
@@ -3823,7 +3823,7 @@ begin
         Ch := p^;
         inc (p);
         case Ch of
-          'n' : inc(ResultLen, Length(nLineEnding));
+          'n' : inc(ResultLen, Length(nLineEnd));
           'u', 'l', 'U', 'L': {nothing};
           else inc(ResultLen);
         end;
@@ -3863,8 +3863,8 @@ begin
         inc (p);
         case Ch of
           'n' : begin
-              p0 := @nLineEnding[1];
-              p1 := p0 + Length(nLineEnding);
+              p0 := @nLineEnd[1];
+              p1 := p0 + Length(nLineEnd);
             end;
           'l' : begin
               Mode := smodeOneLower;
