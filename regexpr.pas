@@ -683,7 +683,9 @@ const
  MaskModX = 32; // -"- /x
 
 {$IFDEF MSWINDOWS}
-LineEnding:string = '#10#13';
+LineEnding = #13#10;
+{$ELSE}
+LineEnding = #10;
 {$ENDIF}
 
  {$IFDEF UniCode}
