@@ -751,6 +751,16 @@ begin
           end;
         end;
 
+
+        400:
+        begin
+          if (0 <> AnsiPos('DUPE', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
+          begin
+            failure := False;
+          end;
+        end;
+
+
       530:
         begin
           if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then // 530 Make Directory Access denied - Due to Regexp configuration
