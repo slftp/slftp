@@ -53,6 +53,7 @@
 		{#} !rulehelp tvcurrent shows correct help
 		{#} !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
+		{#} !nologinmsg supports only GLFTPD + automatically uppercase sitenames + hide admin_site
 		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
 		{^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload
