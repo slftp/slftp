@@ -1,4 +1,4 @@
-unit RegExpr;
+﻿unit RegExpr;
 
 {
      TRegExpr class library
@@ -119,6 +119,10 @@ uses
  SysUtils; // Exception
 
 type
+ {$IFDEF MSWINDOWS}
+ PtrInt = Integer;
+ PtrUInt = Cardinal;
+ {$ENDIF}
  {$IFDEF UniCode}
  PRegExprChar = PWideChar;
  RegExprString = WideString;
@@ -659,7 +663,7 @@ implementation
 {$IFDEF FPC}
 {$ELSE}
 uses
-{$IFDEF SYN_WIN32}
+{$IFDEF MSWINDOWS}
  Windows; // CharUpper/Lower
 {$ELSE}
   Libc; //Qt.pas from Borland does not expose char handling functions
@@ -677,6 +681,10 @@ const
  MaskModG = 8;  // -"- /g
  MaskModM = 16; // -"- /m
  MaskModX = 32; // -"- /x
+
+{$IFDEF MSWINDOWS}
+LineEnding:string = '#10#13';
+{$ENDIF}
 
  {$IFDEF UniCode}
  XIgnoredChars = ' '#9#$d#$a;
@@ -1236,9 +1244,9 @@ class function TRegExpr.InvertCaseFunction (const Ch : REChar) : REChar;
   else
   {$ENDIF}
    begin
-    Result := {$IFDEF FPC}AnsiUpperCase (Ch) [1]{$ELSE} {$IFDEF SYN_WIN32}REChar (CharUpper (PChar (Ch))){$ELSE}REChar (toupper (integer (Ch))){$ENDIF} {$ENDIF};
+    Result := {$IFDEF FPC}AnsiUpperCase (Ch) [1]{$ELSE} {$IFDEF MSWINDOWS}REChar (CharUpper (PChar (Ch))){$ELSE}REChar (toupper (integer (Ch))){$ENDIF} {$ENDIF};
     if Result = Ch
-     then Result := {$IFDEF FPC}AnsiLowerCase (Ch) [1]{$ELSE} {$IFDEF SYN_WIN32}REChar (CharLower (PChar (Ch))){$ELSE}REChar(tolower (integer (Ch))){$ENDIF} {$ENDIF};
+     then Result := {$IFDEF FPC}AnsiLowerCase (Ch) [1]{$ELSE} {$IFDEF MSWINDOWS}REChar (CharLower (PChar (Ch))){$ELSE}REChar(tolower (integer (Ch))){$ENDIF} {$ENDIF};
    end;
  end; { of function TRegExpr.InvertCaseFunction
 --------------------------------------------------------------}
@@ -2395,15 +2403,15 @@ function TRegExpr.ParseAtom (var flagp : integer) : PRegExprChar;
 
              // r.e.ranges extension for russian
              if ((fCompModifiers and MaskModR) <> 0)
-                and (RangeBeg = RusRangeLoLow) and (RangeEnd = RusRangeLoHigh) then begin
+                and (RangeBeg = Char(RusRangeLoLow)) and (RangeEnd = Char(RusRangeLoHigh)) then begin
                EmitRangeStr (RusRangeLo);
               end
              else if ((fCompModifiers and MaskModR) <> 0)
-                 and (RangeBeg = RusRangeHiLow) and (RangeEnd = RusRangeHiHigh) then begin
+                 and (RangeBeg = Char(RusRangeHiLow)) and (RangeEnd = Char(RusRangeHiHigh)) then begin
                EmitRangeStr (RusRangeHi);
               end
              else if ((fCompModifiers and MaskModR) <> 0)
-                  and (RangeBeg = RusRangeLoLow) and (RangeEnd = RusRangeHiHigh) then begin
+                  and (RangeBeg = Char(RusRangeLoLow)) and (RangeEnd = Char(RusRangeHiHigh)) then begin
                EmitRangeStr (RusRangeLo);
                EmitRangeStr (RusRangeHi);
               end
@@ -3741,7 +3749,7 @@ var
   n : PtrInt;
   Ch : REChar;
   Mode: TSubstMode;
-  LineEnd: String = LineEnding;
+//  LineEnd: String = LineEnding;
 
   function ParseVarName (var APtr : PRegExprChar) : PtrInt;
   // extract name of variable (digits, may be enclosed with
@@ -3853,7 +3861,7 @@ begin
         inc (p);
         case Ch of
           'n' : begin
-              p0 := @LineEnd[1];
+              p0 := @LineEnding[1];
               p1 := p0 + Length(LineEnding);
             end;
           'l' : begin
