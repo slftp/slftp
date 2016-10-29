@@ -307,7 +307,7 @@ procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
 
-function getAdminSiteName:AnsiString;
+function getAdminSiteName: AnsiString;
 
 
 //function
@@ -344,11 +344,10 @@ var
   autologin:     boolean = False;
   killafter:     integer = 0;
 
-function getAdminSiteName:AnsiString;
+function getAdminSiteName: AnsiString;
 begin
-result:= config.ReadString(section, 'admin_sitename', 'SLFTP');
+  Result := config.ReadString('sites', 'admin_sitename', 'SLFTP');
 end;
-
 
 function SiteSoftWareToSTring(sitename: AnsiString): AnsiString;
 begin
@@ -377,17 +376,14 @@ begin
   Result := 'Unknown';
   case TSite(site).sslmethod of
     sslNone: Result := ' no encryption used';
-    sslImplicitSSLv23: Result :=
-        ' implicit ssl handshake using SSLv23 after TCP connection was established';
+    sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
     sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
     sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
     sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
     sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
-    sslImplicitTLSv1: Result :=
-        ' implicit ssl handshake using TLSv1 after TCP connection was established';
+    sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
     sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv12';
-    sslImplicitTLSv1_2: Result :=
-        ' implicit ssl handshake using TLSv12 after TCP connection was established';
+    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv12 after TCP connection was established';
   end;
 end;
 
@@ -866,39 +862,31 @@ end;
 function TSiteSlot.LoginBnc(i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
-  un:   AnsiString;
-  upw:  AnsiString;
-  tmp:  AnsiString;
+  un, upw, tmp: AnsiString;
 begin
   Result := False;
 
-  if (self.site.Name = admin_sitename) then
+  if (self.site.Name = getAdminSiteName) then
   begin
     Result := True;
     exit;
   end;
 
-  if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or
-    (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and
-      (config.ReadBool(section, 'socks5', False)))
+  if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
-
-
-
-  // elso lepes a connect
+  //First step to connect
   Host := RCString('bnc_host-' + IntToStr(i), '');
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
-  peerport  := slSocket.PeerPort;
-  peerip    := slSocket.PeerIP;
+  peerport := slSocket.PeerPort;
+  peerip := slSocket.PeerIP;
   localport := slSocket.localPort;
 
   sslm := TSSLMethods(site.sslmethod);
-
   if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
   begin
     if sslm = sslImplicitTLSv1_2 then
@@ -914,14 +902,14 @@ begin
   if not Read('BANNER') then
     exit;
 
+
   if (lastResponseCode <> 220) then
   begin
     error := Trim(lastResponse);
     exit;
   end;
 
-  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23,
-    sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
+  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23, sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
   begin
     if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
       SetSSLContext(slSslv23);
@@ -938,7 +926,7 @@ begin
     else
       tmp := 'AUTH TLS';
 
-    // AUTH TLS-t probalunk
+    // trying AUTH SSL|TLS
     if not Send(tmp) then
       exit;
     if not Read('AUTH') then
@@ -946,24 +934,26 @@ begin
 
     if lastResponseCode <> 234 then
       exit;
+
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
-
   end;
-  (* else
-    Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
-  *)
+  //else
+  //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
 
-  un  := RCString('username', 'anonymous');
+
+  un := RCString('username', 'anonymous');
   upw := RCString('password', 'foo@foobar.hu');
+
+  // to bypass welcome message you have to use '-' as first char on your password
+  // WORKS ONLY @ GLFTPD
   if site.sw = sswGlftpd then
     if self.site.NoLoginMSG then
       upw := '-' + upw;
 
-
+  // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
   begin
-    //irc_addtext(todotask, '<c7>LoginBnc</c> <b>%s</b> with KILL', [Name]);
     un := '!' + un;
   end;
 
@@ -1006,6 +996,7 @@ begin
     ProcessFeat();
   end;
 
+
   if not Send('SITE XDUPE 3') then
     exit;
   if not Read('XDUPE') then
@@ -1016,7 +1007,6 @@ begin
     if (not SendProtP()) then
       exit;
   end;
-
 
 
   if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
@@ -1034,18 +1024,15 @@ begin
         exit;
   end;
 
-  // siker
+  // successful login
   Result := True;
-  // Announce(section, False, 'SLOT %s IS UP: %s', [name, bnc]);
 
-  // modositjuk is a top1 bnc-t erre:
+  // change order of BNC if it's not number 0 and actually number 0 failed to login
   if i <> 0 then
   begin
     bnccsere.Enter;
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i),
-      RCString('bnc_host-0', ''));
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i),
-      RCInteger('bnc_port-0', 0));
+    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
+    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
 
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);
     sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-0', Port);
@@ -1054,8 +1041,8 @@ begin
 
   if spamcfg.readbool(section, 'login_logout', True) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
-  status := ssOnline;
 
+  status := ssOnline;
 end;
 
 
