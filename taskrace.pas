@@ -754,7 +754,7 @@ begin
 
         400:
         begin
-          if (0 <> AnsiPos('DUPE', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
+          if (0 <> AnsiPos('DUPE:', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
           begin
             failure := False;
           end;
