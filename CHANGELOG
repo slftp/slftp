@@ -47,20 +47,26 @@
 
 --=============================( SLFTP v1.5.3.1 )=================================- 
 		{+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
+		{+} Detection for iOFTPD sites added
 		{+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together
 		{+} Set max_pre_dn via !maxupdn - will use this amount to leech a PRE
 		{#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now
 		{#} !rulehelp tvcurrent shows correct help
 		{#} !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
-		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
+		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed 
+		{#} Fix imdb title regex to properly parse currently running tv series
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
+		{#} auto adding blacklist rule for group should work again
+		{^} many code changes on dirlisttask, mkdirtask and racetask - more things regarding this will come + better error handling
 		{^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload
+		{^} Added *.u and *.v fileextionsions for _RAR_ in slftp.skip
+		{^} !country only supports countrycode + shows countryname for each countrycode
 		{^} fake check is enabled by default [check slftp.ini] & fakereason tells you more info why it's fake
 		{^} displaying of movie status (stv/limited/festival/wide/cine) on irc imdb announce
 		{^} network/country change on tvmaze gets saved now
 		{^} !addrule shows inserted ID
-		{^} Small changes for NEW, PRE and STATS output -> [EVENT] SECTION RELEASENAME instead [EVENT SECTION] RELEASENAME
+		{^} Small changes for NEW, PRE, UPDATE and STATS output -> [EVENT] SECTION RELEASENAME instead [EVENT SECTION] RELEASENAME
 		{^} !rulecp, !ruleins shows more info - overall the output msgs are identical for every rulecmd
 		{^} !tweak automatically switch to lowercase values
 		{^} RegExpr updated to latest version
