@@ -752,7 +752,7 @@ begin
         end;
 
 
-        400:
+      400:
         begin
           if (0 <> AnsiPos('DUPE:', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
           begin
@@ -783,7 +783,8 @@ begin
             end;
             failure := True;
           end;
-        end;  
+        end;
+
       550:
         begin
           //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
@@ -871,16 +872,31 @@ begin
             failure := True;  // we don't know if it's a really error or not, so we better say it's failed
           end;
         end;
-    else
-      begin
-        if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+
+      553:
         begin
-          irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+          if (0 <> AnsiPos('out of disk space', s.lastResponse)) then // 553 Error: out of disk space, contact the siteop!
+          begin
+            s.site.SetOutofSpace;
+            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
+            begin
+              s.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
+              //s.DestroySocket(True); // all code from here is a copy of code from tpazoracetask 
+            end;
+            failure := True;
+          end;
         end;
-        Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
-        irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
-        failure := True;  // we don't know if it's a really error or not, so we better say it's failed
-      end;
+        
+      else
+        begin
+          if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+          begin
+            irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+          end;
+          Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+          irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+          failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+        end;
     end;
 
   end;
