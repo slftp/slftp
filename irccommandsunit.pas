@@ -5628,9 +5628,18 @@ begin
 
     if x.Strings[i] = 'country' then
     begin
-      j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))), CountryCodes);
-      irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), CountryNames[j_sec]]);
-      continue;
+      if ( s.RCString(x[i], '')[1] <> '.' ) then
+      begin
+        irc_addtext(Netname, Channel, ' %s: %s', [x[i], s.RCString(x[i], '')]);
+        continue;
+      end
+      else
+      begin
+        //we can use j_sec because it's set to 0 below when used there - so no need to create a new integer variable!
+        j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))), CountryCodes);
+        irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), CountryNames[j_sec]]);
+        continue;
+      end;
     end
     else
     begin
