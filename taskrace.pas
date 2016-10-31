@@ -752,7 +752,7 @@ begin
         end;
 
 
-        400:
+      400:
         begin
           if (0 <> AnsiPos('DUPE:', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
           begin
@@ -783,7 +783,8 @@ begin
             end;
             failure := True;
           end;
-        end;  
+        end;
+
       550:
         begin
           //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
@@ -871,16 +872,31 @@ begin
             failure := True;  // we don't know if it's a really error or not, so we better say it's failed
           end;
         end;
-    else
-      begin
-        if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+
+      553:
         begin
-          irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+          if (0 <> AnsiPos('out of disk space', s.lastResponse)) then // 553 Error: out of disk space, contact the siteop!
+          begin
+            s.site.SetOutofSpace;
+            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
+            begin
+              s.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
+              //s.DestroySocket(True); // all code from here is a copy of code from tpazoracetask 
+            end;
+            failure := True;
+          end;
         end;
-        Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
-        irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
-        failure := True;  // we don't know if it's a really error or not, so we better say it's failed
-      end;
+        
+      else
+        begin
+          if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+          begin
+            irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
+          end;
+          Debug(dpError, c_section, 'TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+          irc_Addadmin(Format('TPazoMkdirTask unhandled response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+          failure := True;  // we don't know if it's a really error or not, so we better say it's failed
+        end;
     end;
 
   end;
@@ -1411,10 +1427,10 @@ begin
         begin
           if ( (0 < AnsiPos('out of disk space', sdst.lastResponse)) or (0 < AnsiPos('No space left on device', sdst.lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', sdst.lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
-            sdst.site.Setoutofspace;
+            sdst.site.SetOutofSpace;
             if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
             begin
-              sdst.site.markeddown := True;
+              sdst.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
               sdst.DestroySocket(True);
             end;
             readyerror := True;
@@ -1689,6 +1705,7 @@ begin
 
       550, 553:
         begin
+          //COMPLETE MSG: 550 Insufficient credits.
           if (0 < AnsiPos('credit', LowerCase(ssrc.lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
           begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
@@ -1713,7 +1730,7 @@ begin
           end;
 
           //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
-          //              553 You have reached your maximum simultaneous downloads allowed (maybe not complete response) [GLFTPD]
+          //              553 You have reached your maximum simultaneous downloads allowed. [GLFTPD]
           if ( (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', ssrc.lastResponse)) or (0 < AnsiPos('Your have reached your maximum of', ssrc.lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
@@ -2046,6 +2063,17 @@ begin
           goto TryAgain;
         end;
       
+      end;
+
+
+    452:
+      begin
+        //COMPLETE MSG: 452 Error writing file: Success.
+        if (0 < AnsiPos('Error writing file', sdst.lastResponse)) then
+        begin
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto TryAgain;
+        end;
       end;
 
   
