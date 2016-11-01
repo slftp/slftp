@@ -1423,7 +1423,7 @@ begin
           end;
         end;
 
-      450, 452, 553:
+      450, 452, 533, 553:
         begin
           if ( (0 < AnsiPos('out of disk space', sdst.lastResponse)) or (0 < AnsiPos('No space left on device', sdst.lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', sdst.lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
@@ -1439,8 +1439,8 @@ begin
             exit;
           end;
 
-          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
-          begin     //sdst.lastResponseCode for both is 553
+          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Requested action not taken. Multiple SFV files not allow', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
+          begin     //sdst.lastResponseCode for both is 553; but for: Requested action not taken. Multiple SFV files not allow it's 533 from DRFTPD
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
@@ -1462,6 +1462,15 @@ begin
             Debug(dpMessage, c_section, '<-- DUPE ' + tname);
             exit;
           end;
+
+          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
+          begin     //sdst.lastResponseCode for all is 533
+            ps2.ParseDupe(netname, channel, dir, filename, False);
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+          
         end;
 
       500, 550:
@@ -1486,17 +1495,6 @@ begin
           Result := True;
           Debug(dpMessage, c_section, '<-- DUPE ' + tname);
           exit;
-        end;
-
-      533:
-        begin
-          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
-          begin
-            ps2.ParseDupe(netname, channel, dir, filename, False);
-            readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
-            exit;
-          end;
         end;
 
       else
