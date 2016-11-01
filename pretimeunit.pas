@@ -41,13 +41,13 @@ var
  q: AnsiString;
  rx: Tregexpr;
 begin
-  irc_addtext('','','TRY TO READ PRETIME');
+//  irc_addtext('','','TRY TO READ PRETIME');
   q := 'SELECT ctime, size AS s '+#13#10;
   q := q+ 'FROM dupes ';
   q := q+ 'WHERE rlsname = '+Chr(39)+rls+Chr(39)+#13#10;
 
   q := dupeDBQuery(q);
-  irc_addtext('','','RESULT: '+q);
+//  irc_addtext('','','RESULT: '+q);
 
   pretime := -1;
   size := -1;
@@ -67,7 +67,7 @@ end;
 
 procedure Addrlstodupedb(rls,section,event:AnsiString;pretime:longint;size:integer);
 begin
-  irc_addtext('','','ADD PRETIME');
+//  irc_addtext('','','ADD PRETIME');
   if dupedb = nil then begin
   DupeDBInit;
     irc_addtext('','','DUPEDB INITED!');
@@ -88,7 +88,7 @@ begin
 end;
 
 procedure DupeDBInit;
-var 
+var
   s: AnsiString;
 begin
   s:= Trim('dupe.db');
