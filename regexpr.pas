@@ -660,15 +660,13 @@ function RegExprSubExpressions (const ARegExpr : string;
 
 implementation
 
-{$IFDEF FPC}
-{$ELSE}
 uses
 {$IFDEF MSWINDOWS}
  Windows; // CharUpper/Lower
 {$ELSE}
   Libc; //Qt.pas from Borland does not expose char handling functions
 {$ENDIF}
-{$ENDIF}
+
 
 const
  // TRegExpr.VersionMajor/Minor return values of these constants:
