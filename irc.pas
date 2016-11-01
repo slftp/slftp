@@ -154,6 +154,8 @@ procedure irc_SendROUTEINFOS(msgirc: AnsiString);
 procedure irc_SendRACESTATS(msgirc: AnsiString);
 procedure irc_SendIRCEvent(msgirc: AnsiString);
 
+procedure irc_SendUPDATE(msgirc: AnsiString);
+
 function FindIrcnetwork(netname: AnsiString): TMyIrcThread;
 
 procedure IrcInit;
@@ -171,7 +173,7 @@ var
   irc_queue_nets: TStringList;
 
 const
-  irc_chanroleindex = 20;
+  irc_chanroleindex = 21;
   (*
   ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
   (Name:'ADMIN',Description:'Give an IRC Chanel Admin privilege'),
@@ -199,11 +201,10 @@ const
   *)
 
   irc_chanroles: array[0..irc_chanroleindex] of AnsiString = (
-    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'ADDPRE',
-    'ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
-    'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-    'KB', 'ADDGN'
-    );
+    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
+    'UPDATE',
+    'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
+    'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
 
 implementation
 
@@ -512,6 +513,14 @@ begin
     exit;
   irc_Addtext_by_key('RACESTATS', msgirc)
 end;
+
+procedure irc_SendUPDATE(msgirc: AnsiString);
+begin
+  if (msgirc = '') then
+    exit;
+  irc_Addtext_by_key('UPDATE', msgirc)
+end;
+
 
 procedure IrcStart;
 var

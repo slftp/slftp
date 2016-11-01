@@ -778,7 +778,7 @@ begin
     begin
       try
         if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
-          irc_Addadmin(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
+          irc_SendUPDATE(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
         kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
       except
         on e: Exception do
