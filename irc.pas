@@ -201,11 +201,10 @@ const
   *)
 
   irc_chanroles: array[0..irc_chanroleindex] of AnsiString = (
-    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'ADDPRE',
-    'ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
-    'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-    'KB', 'ADDGN', 'UPDATE'
-    );
+    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
+    'UPDATE',
+    'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
+    'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
 
 implementation
 
