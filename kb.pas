@@ -845,7 +845,7 @@ begin
           if (DateTimeToUnix(r.pretime) <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
-              irc_Addadmin(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+              irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
