@@ -1439,8 +1439,11 @@ begin
             exit;
           end;
 
-          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Requested action not taken. Multiple SFV files not allow', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
-          begin     //sdst.lastResponseCode for both is 553; but for: Requested action not taken. Multiple SFV files not allow it's 533 from DRFTPD
+          //COMPLETE MSG: 533 Requested action not taken. Multiple SFV files not allow(ed)? [guess DRFTPD]
+          //              553 Multiple SFV files not allowed. [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
+          //              553 Max sim UP per dir/sfv reached [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
+          if ( (0 < AnsiPos('Multiple SFV files not allow', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
+          begin
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
