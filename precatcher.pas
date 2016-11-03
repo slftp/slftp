@@ -125,7 +125,7 @@ begin
 end;
 
 //function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data: TStringList): AnsiString;
-function KibontasRiliz(sitename: AnsiString; ts_data: TStringList): AnsiString;
+function ExtractReleasename(sitename: AnsiString; ts_data: TStringList): AnsiString;
 var
   k, i: integer;
   maxi: integer;
@@ -590,10 +590,14 @@ begin
       //chno := '0'; //not used
       try
         //rls := KibontasRiliz('SLFTP', chno, ts_data); // chno not used
-        rls := KibontasRiliz('SLFTP', ts_data);
+        rls := ExtractReleasename('SLFTP', ts_data);
       except
         exit;
       end;
+
+      // TODO: maybe at a check to stop here when rls is empty? Or does it exit on empty string because of try except block?
+
+
 
       (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
 
