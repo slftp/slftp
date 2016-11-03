@@ -1214,17 +1214,10 @@ begin
   PrecatcherReBuild;
 end;
 
-// isn't used -- only function precatcherauto from below
-//function precatcher_auto: boolean;
-//begin
-//  Result := sitesdat.ReadBool('precatcher', 'auto', False);
-//end;
-
 procedure PrecatcherReload();
 var
   f: TextFile;
   s: AnsiString;
-  //    i: Integer;
 begin
   mappingslist.Clear;
   sectionlist.Clear;
@@ -1255,7 +1248,6 @@ procedure PrecatcherReload(out status: AnsiString);
 var
   f: TextFile;
   ss, s: AnsiString;
-  //    i: Integer;
 begin
   ss := '';
   mappingslist.Clear;
@@ -1273,9 +1265,9 @@ begin
   ss := 'Precatcher Rehash FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-{$I-}
-    Reset(f);
-{$I+}
+    {$I-}
+      Reset(f);
+    {$I+}
     if IOResult = 0 then
     begin
       while (not EOF(f)) do
@@ -1287,12 +1279,9 @@ begin
     end;
     kb_reloadsections;
   finally
-    ss := 'Precatcher Rehash Complete....' + #13#10;
-    ss := ss + 'Minimum_rlsname:' + IntToStr(minimum_rlsname) + #13#10;
-    //ss:=ss+'COUNTS:'+#13#10;
-    ss := ss +
-      Format('Sections(%d) Mapping(%d) Replace|from/to:(%d/%d) Ignorlist(%d)',
-      [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
+    ss := '- Precatcher Rehash Complete -' + sLineBreak;
+    ss := ss + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
+    ss := ss + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
   end;
   status := ss;
 end;
@@ -1305,7 +1294,7 @@ end;
 function FindSection(section: AnsiString): boolean;
 begin
   Result := False;
-  if - 1 = sectionlist.IndexOf(UpperCase(section)) then
+  if sectionlist.IndexOf(UpperCase(section)) = -1 then
     exit;
   Result := True;
 end;
