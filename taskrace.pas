@@ -1423,7 +1423,7 @@ begin
           end;
         end;
 
-      450, 452, 553:
+      450, 452, 533, 553:
         begin
           if ( (0 < AnsiPos('out of disk space', sdst.lastResponse)) or (0 < AnsiPos('No space left on device', sdst.lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', sdst.lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
@@ -1439,8 +1439,11 @@ begin
             exit;
           end;
 
-          if ( (0 < AnsiPos('Multiple SFV files not allowed.', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
-          begin     //sdst.lastResponseCode for both is 553
+          //COMPLETE MSG: 533 Requested action not taken. Multiple SFV files not allow(ed)? [guess DRFTPD]
+          //              553 Multiple SFV files not allowed. [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
+          //              553 Max sim UP per dir/sfv reached [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
+          if ( (0 < AnsiPos('Multiple SFV files not allow', sdst.lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', sdst.lastResponse)) ) then
+          begin
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
             exit;
@@ -1462,6 +1465,15 @@ begin
             Debug(dpMessage, c_section, '<-- DUPE ' + tname);
             exit;
           end;
+
+          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
+          begin     //sdst.lastResponseCode for all is 533
+            ps2.ParseDupe(netname, channel, dir, filename, False);
+            readyerror := True;
+            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
+            exit;
+          end;
+          
         end;
 
       500, 550:
@@ -1486,17 +1498,6 @@ begin
           Result := True;
           Debug(dpMessage, c_section, '<-- DUPE ' + tname);
           exit;
-        end;
-
-      533:
-        begin
-          if ( (0 < AnsiPos('You must upload sfv first', sdst.lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', sdst.lastResponse)) OR (0 < AnsiPos('File not found in sfv', sdst.lastResponse)) ) then
-          begin
-            ps2.ParseDupe(netname, channel, dir, filename, False);
-            readyerror := True;
-            Debug(dpMessage, c_section, '<- ' + sdst.lastResponse + ' ' + tname);
-            exit;
-          end;
         end;
 
       else
@@ -1964,7 +1965,19 @@ begin
     end;
   
 
+    435:
+      begin
 
+        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (5) error:00000000:lib(0):func(0):reason(0)), disconnected
+        if (0 < AnsiPos('Failed TLS negotiation', ssrc.lastResponse)) then
+        begin
+          //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
+          //maybe relogin needed because response says something about disconnect!
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+
+      end;
 
   
     522:
