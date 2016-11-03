@@ -47,8 +47,7 @@ procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
 function precatcher_logfilename: AnsiString;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0):
-  AnsiString;
+function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
 
 function FindSection(section: AnsiString): boolean;
 
@@ -410,15 +409,20 @@ begin
   //  Irc_AddText('','','s= %s ;; rep_s= %s',[s,rep_s]);
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: AnsiString;
-  ts_data: TStringList);
+//procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: AnsiString; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
 var
   oldsection: AnsiString;
-  rls: AnsiString;
+  //rls: AnsiString; // not needed, hand over from caller
   //    i: Integer;
-  cdno: AnsiString;
+  //cdno: AnsiString; // not used
   s: AnsiString;
 begin
+
+{*
+* 
+* already checked in PrecatcherProcessB, so we only need to hand over AnsiString rls from PrecatcherProcessB
+* 
   // we only need to extract the rlsname
   try
     rls := KibontasRiliz(sitename, cdno, ts_data);
@@ -430,12 +434,14 @@ begin
       exit;
     end;
   end;
+*}
 
   if (Trim(rls) = '') then
   begin
-    //    Debug(dpError, rsections,'[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
+    Debug(dpError, rsections,'[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
     exit;
   end;
+
 
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s',
@@ -648,13 +654,16 @@ begin
         if (mind) then
         begin
           try
-            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
+            //ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
           except
             on e: Exception do
             begin
               MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
+              //Debug(dpError, rsections,
+              //  Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
               Debug(dpError, rsections,
-                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
+                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data.Text]));
               //ts_data.Free;
               exit;
             end;
@@ -667,7 +676,8 @@ begin
       if sc.sections.Count = 0 then
       begin
         try
-          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+          //ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', rls, ts_data);
         except
           on e: Exception do
           begin
