@@ -438,7 +438,7 @@ begin
 
   if (Trim(rls) = '') then
   begin
-    Debug(dpError, rsections,'[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
+    Debug(dpError, rsections,'[EXCEPTION] in ProcessReleaseVege: relasename is Empty');
     exit;
   end;
 
