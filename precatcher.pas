@@ -125,16 +125,21 @@ begin
   myDebug(Format(s, args));
 end;
 
-function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data:
-  TStringList): AnsiString;
+//function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data: TStringList): AnsiString;
+function KibontasRiliz(sitename: AnsiString; ts_data: TStringList): AnsiString;
 var
   k, i: integer;
   maxi: integer;
   maxs: AnsiString;
 begin
-  cdno := '';
+  Result := '';
+  //cdno := ''; //not used anywhere so it's useless
 
-  //leghosszabb szo amiben van - a riliz
+  // no need to go further if it's empty
+  if ts_data.Count = 0 then
+    exit;
+
+  // detect longest entry with '-' -> our releasename
   maxi := 0;
   for i := 0 to ts_data.Count - 1 do
   begin
@@ -147,17 +152,19 @@ begin
 
   Result := maxs;
 
+  // remove '.' from the end of detected releasename if there is one
   k := length(Result);
   if (k > 0) and (Result[k] = '.') then
   begin
-    Delete(Result, k, 1);
-    Dec(k);
+    //Delete(Result, k, 1);
+    //Dec(k);
+    // below code has better performance than Delete [http://www.delphibasics.co.uk/RTL.asp?Name=delete]
+    k := k - 1;
+    SetLength(Result, k);
   end;
+
   if (k < minimum_rlsname) then
     Result := '';
-
-  if ts_data.Count = 0 then
-    exit;
 
   Result := trim(Result);
 end;
@@ -536,7 +543,8 @@ var
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  rls, chno, s: AnsiString;
+  //rls, chno, s: AnsiString; // chno isn't used
+  rls, s: AnsiString;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -572,9 +580,11 @@ begin
 
       // We do the [replace] sectional exchanges
       ts_data.DelimitedText := Data;
-      chno := '0';
+
+      //chno := '0'; //not used
       try
-        rls := KibontasRiliz('SLFTP', chno, ts_data);
+        //rls := KibontasRiliz('SLFTP', chno, ts_data); // chno not used
+        rls := KibontasRiliz('SLFTP', ts_data);
       except
         exit;
       end;
