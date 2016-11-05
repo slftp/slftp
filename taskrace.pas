@@ -760,6 +760,16 @@ begin
           end;
         end;
 
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+          if (0 < AnsiPos('Timeout', s.lastResponse)) then
+          begin
+            goto TryAgain; //just try again, should hopefully resolve this issue
+          end;
+
+        end;
 
       530:
         begin
