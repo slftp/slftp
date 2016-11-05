@@ -1666,6 +1666,12 @@ begin
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Timeout or opening data connection problem';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
         end;
 
@@ -1712,6 +1718,12 @@ begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
             // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
             ssrc.site.SetKredits;
+
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Out of credits';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
 
           if (0 < AnsiPos('Taglines Enforced', ssrc.lastResponse)) then
@@ -1728,6 +1740,12 @@ begin
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Permission denied';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
 
           //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
@@ -1737,6 +1755,12 @@ begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
               // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Maximum of simultaneous downloads reached';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
 
         end;
