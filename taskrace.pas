@@ -1318,6 +1318,15 @@ begin
   if ssrc.lastResponseCode <> 227 then
   begin
     case ssrc.lastResponseCode of
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't open passive connection!
+          if (0 <> AnsiPos('t open passive connection', ssrc.lastResponse)) then
+          begin
+            goto TryAgain;
+          end;
+        end;
+
       500:
         begin
           if (0 <> AnsiPos('You need to use a client supporting PRET', ssrc.lastResponse)) then
