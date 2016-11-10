@@ -1532,6 +1532,21 @@ begin
           exit;
         end;
 
+
+      503:
+        begin
+
+          //COMPLETE MSG: 503 Bad sequence of commands.
+          if (0 < AnsiPos('Bad sequence of commands', sdst.lastResponse)) then
+          begin
+            // something went wrong while sending commands, try again should solve it
+            irc_Adderror(sdst.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
       else
         begin
           //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 200)]));
@@ -2140,6 +2155,7 @@ begin
 
         //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:1408A0C1:SSL routines:SSL3_GET_CLIENT_HELLO:no shared cipher), disconnected
         //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines:SSL23_GET_CLIENT_HELLO:unknown protocol), disconnected
+        //COMPLETE MSG: 435 Failed TLS negotiation on data channel, disconnected: No such file or directory.
         if (0 < AnsiPos('Failed TLS negotiation', sdst.lastResponse)) then
         begin
           //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
