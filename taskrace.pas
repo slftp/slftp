@@ -1318,6 +1318,19 @@ begin
   if ssrc.lastResponseCode <> 227 then
   begin
     case ssrc.lastResponseCode of
+
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
+          if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then
+          begin
+            goto TryAgain; //just try again, should hopefully resolve this issue
+          end;
+
+        end;
+
+    
       425:
         begin
           //COMPLETE MSG: 425 Can't open passive connection!
