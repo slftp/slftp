@@ -483,8 +483,8 @@ begin
 
     if ((not hadPrev) AND (hadNext)) then begin
     //#Issue#101
-        if js.Field['status'].SelfType <> jsNull then
-        if (AnsiString(js.Field['status'].Value) = 'In Development') then begin
+        if json.Field['status'].SelfType <> jsNull then
+        if (AnsiString(json.Field['status'].Value) = 'In Development') then begin
            //somehow the group catch the episode early, maybe a "pre-air-pilot"..
           episdoe := ep_nextnum;
           season := se_nextnum;
