@@ -136,7 +136,7 @@ begin
       else
       begin
         irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
-        Debug(dpMessage, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
+        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
       end;
       exit;
     end;

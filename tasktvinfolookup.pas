@@ -130,7 +130,7 @@ begin
 
       showA := replaceTVShowChars(Csere(showName, '.', ' '));
       showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
-
+//      irc_addtext('','','%s %s',[onlyEnglishAlpha(showA),onlyEnglishAlpha(showB)]);
       if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
       begin
 
@@ -481,6 +481,19 @@ begin
     Exit;
   end;
 
+    if ((not hadPrev) AND (hadNext)) then begin
+    //#Issue#101
+        if js.Field['status'].SelfType <> jsNull then
+        if (AnsiString(js.Field['status'].Value) = 'In Development') then begin
+           //somehow the group catch the episode early, maybe a "pre-air-pilot"..
+          episdoe := ep_nextnum;
+          season := se_nextnum;
+          date := nextdt;
+          Exit;
+        end;
+    Exit;//needed?
+  end;
+
   if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
   begin
     // nothing before matched and next_date is grater then now, so we took this.
@@ -488,14 +501,18 @@ begin
     episdoe := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
+
   end;
+
+
+
 end;
 
 function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''): TTVInfoDB;
 const
   genreList: AnsiString = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
     'Fantasy, Food, Game Show, History, Horror, Home and Garden, News, Medical, Mini-Series, Music, Mystery, Reality, Romance, Science-Fiction, ' +
-    'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';
+    'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';  //can be moved to an inc file, mabye we should create a "global one"
 var
   tvr: TTVInfoDB;
   i: integer;
