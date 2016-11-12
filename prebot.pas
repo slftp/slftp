@@ -441,16 +441,17 @@ begin
 
   try
     section := UpperCase(SubString(params, ' ', 1));
-    if (1 <> Pos('PRE', section)) then
+    // instead of using Pos() equal comparison is needed to avoid detecting releasenames (e.g. PreMe.S01E01.HDTV.x264-TEST) as section
+    if (section = 'PRE') then
     begin
-      dir     := SubString(params, ' ', 1);
-      ripper  := SubString(params, ' ', 2);
-      section := 'PRE';
+      dir := SubString(params, ' ', 2);
+      ripper := SubString(params, ' ', 3);
     end
     else
     begin
-      dir    := SubString(params, ' ', 2);
-      ripper := SubString(params, ' ', 3);
+      section := 'PRE';
+      dir := SubString(params, ' ', 1);
+      ripper := SubString(params, ' ', 2);
     end;
   except
     on E: Exception do
@@ -1071,7 +1072,7 @@ begin
     irc_Addtext(netname, channel, '%spre %s %s %s',
       [irccmdprefix, section, dir, ripper]);
     //    irc_Addtext(channel, 'skipping right now, believe is debugging');
-    IrcPre(netname, channel, dir + ' ' + ripper);
+    IrcPre(netname, channel, section + ' ' + dir + ' ' + ripper);
 
     ujkor:
       queue_lock.Enter;
