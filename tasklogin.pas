@@ -78,11 +78,16 @@ begin
 autobnctest:
   if readd then
   begin
-// we check this above and if s.RCInteger('autobnctest', 0) = 0 we exit!
-    // if autobnctest for site is disabled we don't need to go further
-    //i:= s.RCInteger('autobnctest', 0);
-    //if i > 0 then
-    //begin
+{
+ we check this above and if s.RCInteger('autobnctest', 0) = 0 we exit!
+ if autobnctest for site is disabled we don't need to go further
+       -------------------------------------------------
+  generates an high CPU load when a sites has autobnctest value = 0 
+}
+
+    i:= s.RCInteger('autobnctest', 0);
+    if i > 0 then
+    begin
       try
         l := TLoginTask.Create(netname, channel, site1, kill, readd);
         l.startat := IncSecond(Now, i);
@@ -94,7 +99,7 @@ autobnctest:
           Debug(dpError, section, Format('[EXCEPTION] TLoginTask.Execute.AddTask: %s', [e.Message]));
         end;
       end;
-    //end;
+    end;
   end;
 
   debugunit.Debug(dpSpam, section, '<--'+Name);
