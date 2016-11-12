@@ -760,6 +760,16 @@ begin
           end;
         end;
 
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+          if (0 < AnsiPos('Timeout', s.lastResponse)) then
+          begin
+            goto TryAgain; //just try again, should hopefully resolve this issue
+          end;
+
+        end;
 
       530:
         begin
@@ -1308,6 +1318,28 @@ begin
   if ssrc.lastResponseCode <> 227 then
   begin
     case ssrc.lastResponseCode of
+
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
+          if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then
+          begin
+            goto TryAgain; //just try again, should hopefully resolve this issue
+          end;
+
+        end;
+
+    
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't open passive connection!
+          if (0 <> AnsiPos('t open passive connection', ssrc.lastResponse)) then
+          begin
+            goto TryAgain;
+          end;
+        end;
+
       500:
         begin
           if (0 <> AnsiPos('You need to use a client supporting PRET', ssrc.lastResponse)) then
@@ -1500,6 +1532,21 @@ begin
           exit;
         end;
 
+
+      503:
+        begin
+
+          //COMPLETE MSG: 503 Bad sequence of commands.
+          if (0 < AnsiPos('Bad sequence of commands', sdst.lastResponse)) then
+          begin
+            // something went wrong while sending commands, try again should solve it
+            irc_Adderror(sdst.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
       else
         begin
           //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 200)]));
@@ -1666,6 +1713,12 @@ begin
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Timeout or opening data connection problem';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
         end;
 
@@ -1712,6 +1765,12 @@ begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
             // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
             ssrc.site.SetKredits;
+
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Out of credits';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
 
           if (0 < AnsiPos('Taglines Enforced', ssrc.lastResponse)) then
@@ -1728,6 +1787,12 @@ begin
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Permission denied';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
 
           //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
@@ -1737,6 +1802,12 @@ begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
               // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Maximum of simultaneous downloads reached';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
           end;
 
         end;
@@ -2053,7 +2124,7 @@ begin
         if (0 < AnsiPos('Slow transfer', sdst.lastResponse)) then
         begin
           //try again, maybe lower routing from srcsite to dstsite
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
           goto TryAgain;
         end;
       }
@@ -2062,7 +2133,7 @@ begin
         if (0 < AnsiPos('Read timed out', sdst.lastResponse)) then
         begin
           //try again
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
           goto TryAgain;
         end;
       
@@ -2072,10 +2143,27 @@ begin
         if (0 < AnsiPos('Socket closed', sdst.lastResponse)) then
         begin
           //try again, maybe lower routing if happens again
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
           goto TryAgain;
         end;
       
+      end;
+
+
+    435:
+      begin
+
+        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:1408A0C1:SSL routines:SSL3_GET_CLIENT_HELLO:no shared cipher), disconnected
+        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines:SSL23_GET_CLIENT_HELLO:unknown protocol), disconnected
+        //COMPLETE MSG: 435 Failed TLS negotiation on data channel, disconnected: No such file or directory.
+        if (0 < AnsiPos('Failed TLS negotiation', sdst.lastResponse)) then
+        begin
+          //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
+          //maybe relogin needed because response says something about disconnect!
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+
       end;
 
 
@@ -2084,7 +2172,7 @@ begin
         //COMPLETE MSG: 452 Error writing file: Success.
         if (0 < AnsiPos('Error writing file', sdst.lastResponse)) then
         begin
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 90)]);
           goto TryAgain;
         end;
       end;
@@ -2097,7 +2185,7 @@ begin
           sdst.site.sslfxp := srNeeded;
           if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
           begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, sdst.lastResponseCode, AnsiLeftStr(sdst.lastResponse, 60)]);
           end;
           goto TryAgain;
         end
