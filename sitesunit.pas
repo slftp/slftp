@@ -1606,7 +1606,7 @@ begin
         exit;
       end;
 
-      if not idTCP.TurnToSSL(slssl_ctx_tlsv1_2_client,site.io_timeout * 1000) then
+      if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
       begin
         irc_AddText(todotask, site.name+': couldnt negotiate the SSL connection ('+idTCP.error+') / '+filename);
         DestroySocket(False);
