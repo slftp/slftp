@@ -827,6 +827,13 @@ begin
             failure := False;
           end
 
+          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
+          begin
+            //sectiondir removed/not accessible? Need to get more info
+            Debug(dpError, c_section, 'TPazoMkdirTask 550 response: %s: %s --- dir: %s (%s) %s', [s.Name, s.lastResponse, dir, aktdir, ps1.maindir]);
+            failure := False;
+          end
+
           else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
