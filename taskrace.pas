@@ -1341,6 +1341,7 @@ begin
       425:
         begin
           //COMPLETE MSG: 425 Can't open passive connection!
+          //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
           if (0 <> AnsiPos('t open passive connection', ssrc.lastResponse)) then
           begin
             goto TryAgain;
@@ -1420,6 +1421,18 @@ begin
 
   if sdst.lastResponseCode <> 150 then
   begin
+
+    case sdst.lastResponseCode of
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', sdst.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
 
     case sdst.lastResponseCode of
       400:
