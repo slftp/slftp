@@ -1434,7 +1434,6 @@ begin
           end;
         end;
 
-    case sdst.lastResponseCode of
       400:
         begin
           if (0 < AnsiPos('SFVFile still transferring', sdst.lastResponse)) then
