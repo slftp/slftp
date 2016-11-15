@@ -1326,6 +1326,17 @@ begin
   begin
     case ssrc.lastResponseCode of
 
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
       421:
         begin
 
@@ -1427,7 +1438,7 @@ begin
         begin
           if (0 < AnsiPos('Protection set to', sdst.lastResponse)) then
           begin  // 200 Protection set to Private         
-            // try again, maybe some ftpd issue with SSL or something
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
             ssrc.Quit;
             sdst.Quit;
             goto TryAgain;
@@ -1724,6 +1735,18 @@ begin
   begin
 
     case ssrc.lastResponseCode of
+
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+    
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.
