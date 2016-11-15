@@ -2092,6 +2092,20 @@ begin
 
       end;
 
+
+    500:
+      begin
+
+        //COMPLETE MSG: 500 No text
+        if (0 < AnsiPos('No text', ssrc.lastResponse)) then
+        begin
+          //try again and hopefully it'll work then.
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, ssrc.lastResponseCode, AnsiLeftStr(ssrc.lastResponse, 90)]);
+          goto TryAgain;
+        end;
+
+      end;
+
   
     522:
       begin
