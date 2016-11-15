@@ -827,6 +827,13 @@ begin
             failure := False;
           end
 
+          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
+          begin
+            //sectiondir removed/not accessible? Need to get more info
+            Debug(dpError, c_section, 'TPazoMkdirTask 550 response: %s: %s --- dir: %s (%s) %s', [s.Name, s.lastResponse, dir, aktdir, ps1.maindir]);
+            failure := False;
+          end
+
           else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
@@ -1319,6 +1326,17 @@ begin
   begin
     case ssrc.lastResponseCode of
 
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
       421:
         begin
 
@@ -1334,6 +1352,7 @@ begin
       425:
         begin
           //COMPLETE MSG: 425 Can't open passive connection!
+          //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
           if (0 <> AnsiPos('t open passive connection', ssrc.lastResponse)) then
           begin
             goto TryAgain;
@@ -1415,6 +1434,17 @@ begin
   begin
 
     case sdst.lastResponseCode of
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', sdst.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
       400:
         begin
           if (0 < AnsiPos('SFVFile still transferring', sdst.lastResponse)) then
@@ -1705,6 +1735,18 @@ begin
   begin
 
     case ssrc.lastResponseCode of
+
+      200:
+        begin
+          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
+          begin  // 200 Protection set to Private         
+            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+    
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.
