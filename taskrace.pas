@@ -1328,13 +1328,29 @@ begin
 
       200:
         begin
+
+          //COMPLETE MSG: 200 Protection set to Private
           if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
-          begin  // 200 Protection set to Private         
+          begin
             // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
             ssrc.Quit;
             sdst.Quit;
             goto TryAgain;
           end;
+
+          //COMPLETE MSG: 200 OK, planning for upcoming download
+          if (0 < AnsiPos('OK, planning for', ssrc.lastResponse)) then
+          begin     
+            // seems everything is fine, just a response which isn't used on every ftpd? Because it should already occurred
+            // should be added to above part if ssrc.lastResponseCode <> 227 then with a check if ftpd = drftpd (guess its from drftpd site) and just
+            // go on with sending commands
+            //now we need to try again because else we just exit and there will be no transfer!
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+
+          
         end;
 
       421:
@@ -1356,6 +1372,21 @@ begin
           if (0 <> AnsiPos('t open passive connection', ssrc.lastResponse)) then
           begin
             goto TryAgain;
+          end;
+        end;
+
+
+      450:
+        begin
+          //COMPLETE MSG: 450 No transfer-slave(s) available
+          if (0 <> AnsiPos('No transfer-slave(s) available', ssrc.lastResponse)) then
+          begin
+            ssrc.site.SetOutofSpace;
+            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
+            begin
+              ssrc.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
+              ssrc.DestroySocket(True);
+            end;
           end;
         end;
 
