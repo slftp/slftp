@@ -29,30 +29,31 @@ const
 
 constructor TPazoGenreNfoTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
 begin
-  ss:= TStringStream.Create('');
-  self.attempt:= attempt;
-  self.wanted_dn:= True;  
+  ss := TStringStream.Create('');
+  self.attempt := attempt;
+  self.wanted_dn := True;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
 function TPazoGenreNfoTask.FetchGenre(text: AnsiString): AnsiString;
-var i: Integer;
-    s: AnsiString;
+var
+  i: Integer;
+  s: AnsiString;
 begin
-  Result:= '';
-  i:= Pos('genre', LowerCase(text));
+  Result := '';
+  i := Pos('genre', LowerCase(text));
   if i = 0 then exit;
 
-  Result:= Copy(text, i + 5, 100);
-  for i:= 1 to length(Result) do
+  Result := Copy(text, i + 5, 100);
+  for i := 1 to length(Result) do
   begin
     if Result[i] in [#13,#10] then
     begin
-      Result:= Copy(Result, 1, i-1);
+      Result := Copy(Result, 1, i-1);
       Break;
     end;
     if (not (Result[i] in ['a'..'z','A'..'Z'])) then
-      Result[i]:= ' ';
+      Result[i] := ' ';
   end;
 
   while(true) do
@@ -77,9 +78,9 @@ var
   tname, nfofile, genre: AnsiString;
   numerrors: Integer;
 begin
-  Result:= False;
+  Result := False;
   numerrors := 0;
-  s:= slot;
+  s := slot;
   tname := Name;
 
   Debug(dpMessage, section, '--> ' + tname);
@@ -87,24 +88,24 @@ begin
   // exit if pazo is stopped
   if mainpazo.stopped then
   begin
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
 
   // exit if nfo is already in dbaddnfo
   try
-    i:= last_addnfo.IndexOf(mainpazo.rls.rlsname);
+    i := last_addnfo.IndexOf(mainpazo.rls.rlsname);
     if i <> -1 then
     begin
-      Result:= True;
-      ready:= True;
+      Result := True;
+      ready := True;
       exit;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoGenreNfoTask last_addnfo.IndexOf: %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
@@ -136,8 +137,8 @@ begin
     if (TNFORelease(mainpazo.rls).nfogenre <> '') then
     begin
       queue_lock.Leave;
-      Result:= True;
-      ready:= True;
+      Result := True;
+      ready := True;
       exit;
     end;
   end; 
@@ -192,8 +193,8 @@ begin
     begin
       Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
 
-      r:= TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-      r.startat:= IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
+      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
       try
         AddTask(r);
       except
@@ -201,7 +202,7 @@ begin
         begin
           queue_lock.Leave;
           Debug(dpError, section, Format('[Exception] in TPazoGenreNfoTask AddTask %s', [e.Message]));
-          readyerror:= True;
+          readyerror := True;
           exit;
         end;
       end;
@@ -211,8 +212,8 @@ begin
     end;
 
     queue_lock.Leave;
-    ready:= True;
-    Result:= True;
+    ready := True;
+    Result := True;
     exit;
   end;
   queue_lock.Leave;
@@ -254,7 +255,7 @@ begin
   queue_lock.Leave;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
-  genre:= FetchGenre(ss.DataString);
+  genre := FetchGenre(ss.DataString);
 
   queue_lock.Enter;
   try
@@ -266,21 +267,21 @@ begin
     begin
       queue_lock.Leave;
       Debug(dpError, section, Format('[Exception] in TPazoGenreNfoTask kb_add %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
 
   queue_lock.Leave;
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
   Debug(dpMessage, section, '<-- ' + tname);
 end;
 
 function TPazoGenreNfoTask.Name: AnsiString;
 begin
   try
-    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, IntToStr(pazo_id), site1, attempt]);
+    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);
   except
     Result:= 'GENRENFO';
   end;
