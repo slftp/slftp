@@ -1,5 +1,5 @@
 const
-  SL_VERSION: string = '1.5.4';
+  SL_VERSION: string = '1.5.5';
   {SL_RC:string='Release Candidate 1';}
   SL_REV: string = '';
   HELP_VERSION: string = '0.5.5.0';
