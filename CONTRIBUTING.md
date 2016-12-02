@@ -8,6 +8,7 @@ Here are the guidelines we'd like you to follow:
 * [Commit Message Guidelines](#commitGuidelines)
 * [Feature Requests](#featurereq)
 
+* [Semantic Versioning] (http://semver.org/spec/v2.0.0.html)
 
 <a name="aHelpGit"></a> Git Commands 
 -----
