@@ -3168,12 +3168,12 @@ end;
 
 function TSite.GetSiteInfos: AnsiString;
 begin
-  Result := RCString('SiteInfos', '');
+  Result := RCString('siteinfos', '');
 end;
 
 procedure TSite.SetSiteInfos(Value: AnsiString);
 begin
-  WCString('SiteInfos', Value);
+  WCString('siteinfos', Value);
 end;
 
 function TSite.GetLastKnownCredits: int64;
@@ -3198,22 +3198,22 @@ end;
 
 procedure TSite.SetProxyName(Value: AnsiString);
 begin
-  WCString('ProxyName', Value);
+  WCString('proxyname', Value);
 end;
 
 function TSite.GetProxyName;
 begin
-  Result := RCString('ProxyName', '!!NOIN!!');
+  Result := RCString('proxyname', '!!NOIN!!');
 end;
 
 function TSite.GetNoLoginMSG: boolean;
 begin
-  Result := RCBool('NoLoginMSG', False);
+  Result := RCBool('nologinmsg', False);
 end;
 
 procedure TSite.SetNoLoginMSG(Value: boolean);
 begin
-  WCBool('NoLoginMSG', Value);
+  WCBool('nologinmsg', Value);
 end;
 
 
