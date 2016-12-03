@@ -626,28 +626,6 @@ begin
     end;
 
 
-
-
-
-  try
-    inc(numerrors);
-    if numerrors > 3 then
-    begin
-      irc_Adderror(Format('<c4>[ERROR]</c> %s', [name]));
-      mainpazo.errorreason := 'Protocol errors on ' + site1;
-      readyerror := True;
-      exit;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask.Execute error: %s', [e.Message]));
-      readyerror := True;
-      exit;
-    end;
-  end;
-
-
     // if an error occur while calling xml.LoadFromStream(ts); in function getGenreFromTheTVDb
     // [ error: In 'stream:' (line 1 pos 55): Expected whitespace ]
     // [ error: In 'stream:' (line 1 pos 1): Root element is missing ]
