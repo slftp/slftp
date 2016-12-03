@@ -49,7 +49,8 @@
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.4 )===================================- 
-    ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat/site files manually or with decrypt tool (-lc) **
+    ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
+ !!! Manual changes for split_site_data=1 (cryptconf don't support it): ProxyName, NoLoginMSG, IRCNick, SiteInfos !!!
 		{+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
 		{+} Detection for iOFTPD sites added
 		{+} New ircchanrole "UPDATE" for all update announces
