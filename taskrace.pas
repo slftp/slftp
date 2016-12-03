@@ -154,8 +154,8 @@ begin
   inherited;
 end;
 
-{ TPazoDirlistTask }
 
+{ TPazoDirlistTask }
 constructor TPazoDirlistTask.Create(const netname, channel: AnsiString;
   site: AnsiString; pazo: TPazo; dir: AnsiString; is_pre: boolean; incompleteFill: boolean = False);
 begin
@@ -614,8 +614,8 @@ begin
   end;
 end;
 
-{ TPazoMkdirTask }
 
+{ TPazoMkdirTask }
 constructor TPazoMkdirTask.Create(const netname, channel: AnsiString;
   site: AnsiString; pazo: TPazo; dir: AnsiString);
 begin
@@ -743,6 +743,16 @@ begin
   begin
 
     case s.lastResponseCode of
+
+      100..399:
+        begin
+          Debug(dpError, c_section, 'TPazoMkdirTask positive reply, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+
+          // https://en.wikipedia.org/wiki/List_of_FTP_server_return_codes
+          // do nothing, all fine - just some positive response from ftpd
+        end;
+
+(*
       213:
         begin
           if (0 <> AnsiPos('status of', s.lastResponse)) then
@@ -750,7 +760,7 @@ begin
             failure := False;
           end;
         end;
-
+*)
 
       400:
         begin
@@ -1081,8 +1091,8 @@ begin
   end;
 end;
 
-{ TPazoRaceTask }
 
+{ TPazoRaceTask }
 constructor TPazoRaceTask.Create(const netname, channel: AnsiString;
   site1, site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize, rank: integer);
 begin
@@ -2489,8 +2499,8 @@ begin
   end;
 end;
 
-{ TWaitTask }
 
+{ TWaitTask }
 constructor TWaitTask.Create(const netname, channel: AnsiString; site1: AnsiString);
 begin
   inherited Create(netname, channel, site1);
