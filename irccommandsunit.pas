@@ -302,6 +302,8 @@ function IrcAnnounceIMDBInfo(const netname, channel: AnsiString; params: AnsiStr
 
 function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
 
+function IrcSetAutoInvite(const netname, channel: AnsiString; params: AnsiString): boolean;
+
 //function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
 
 function IrcDWherePred(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -331,7 +333,7 @@ function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString):
 
 const
 
-  irccommands: array[1..247] of TIrcCommand = (
+  irccommands: array[1..248] of TIrcCommand = (
     (cmd: '- GENERAL -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'main'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
@@ -459,6 +461,8 @@ const
     (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: 'invite'; hnd: IrcInvite; minparams: 1; maxparams: - 1; hlpgrp: ''),
     (cmd: 'sitechan'; hnd: IrcSiteChan; minparams: 1; maxparams: 2; hlpgrp: ''),
+    (cmd: 'autoinvite'; hnd: IrcSetAutoInvite; minparams: 1; maxparams: 2; hlpgrp: ''),
+
     (cmd: 'tweak'; hnd: IrcTweak; minparams: 2; maxparams: - 1; hlpgrp: ''),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'ident'; hnd: IrcIdent; minparams: 1; maxparams: 2; hlpgrp: ''),
@@ -11488,6 +11492,41 @@ begin
   Result := True;
 end;
 
+
+function IrcSetAutoInvite(const netname, channel: AnsiString; params: AnsiString): boolean;
+var
+  sitename, value:AnsiString;
+  site: TSite;
+begin
+  sitename := UpperCase(SubString(params, ' ', 1));
+  value:=UpperCase(SubString(params, ' ', 2));
+  site := FindSiteByName(Netname, sitename);
+  if site = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    Result:=True;
+    Exit;
+  end;
+  if value = '' then begin
+    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite)]);
+    Result:=True;
+    Exit;
+  end;
+
+  if ((value = '1') or (value = '0')) then begin
+
+  if value = '1' then site.UseAutoInvite:= True;
+  if value = '0' then site.UseAutoInvite:= False;
+    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite)]);
+    Result:=True;
+    Exit;
+  end else begin
+    irc_addtext(Netname, Channel, 'Syntax error.');
+    Result:=True;
+    Exit;
+  end;
+end;
+
 // Testing functions
 function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
@@ -11496,7 +11535,7 @@ var
 begin
   colorscount := 15;
   colors := '';
-  
+
   for i := 0 to colorscount do
   begin
     colors := colors + Format('<c%d>c%d</c> ', [i, i, i]);
