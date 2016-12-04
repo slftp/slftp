@@ -852,13 +852,16 @@ begin
             end;
             failure := True;
           end
-          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and (0 <> AnsiPos('Read-only file system', s.lastResponse)) ) then // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
+
+          // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
+          // 550 System Error- /incoming/games/pc/Lara.Croft.GO-R: Permission denied.
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) )  ) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
             end;
-            // TODO: setdown site, no transfer possible but more checking needed if it's only for current directory or for whole site
+            // TODO for Read-only file system: setdown site, no transfer possible but more checking needed if it's only for current directory or for whole site
             // if only current directory, we should not setdown site - but we can find out with some testing ;)
             failure := True;
           end
