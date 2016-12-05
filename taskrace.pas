@@ -1339,7 +1339,7 @@ begin
   // 227 Entering Passive Mode.
   // 1xx Positive Preliminary reply
   // 2xx Positive Completion reply
-  if ((lastResponseCode <> 227) AND not(lastResponseCode in [100..299])) then
+  if ( (lastResponseCode <> 227) AND (lastResponseCode < 100 OR lastResponseCode > 299) ) then
   begin
     case lastResponseCode of
 (*
