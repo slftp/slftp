@@ -1336,7 +1336,10 @@ begin
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
 
-  if lastResponseCode <> 227 then
+  // 227 Entering Passive Mode.
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ((lastResponseCode <> 227) AND not(lastResponseCode in [100..299])) then
   begin
     case lastResponseCode of
 (*
@@ -1407,9 +1410,10 @@ begin
         end;
 
 
-      450:
+      450, 530:
         begin
           //COMPLETE MSG: 450 No transfer-slave(s) available
+          //COMPLETE MSG: 530 No transfer-slave(s) available
           if (0 <> AnsiPos('No transfer-slave(s) available', lastResponse)) then
           begin
             ssrc.site.SetOutofSpace;
