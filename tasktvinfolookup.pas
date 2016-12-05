@@ -523,6 +523,7 @@ var
   season, episdoe: Integer;
   date: TDateTime;
   numerrors: Integer;
+  TheTVDBGenreFailure: Boolean;
 begin
   result := nil;
   numerrors := 0;
@@ -633,6 +634,7 @@ begin
     // it occurs when connection timeout, bad response, response takes too long or is empty
     // WE STILL GET GENRE FROM TVMAZE, SO NO EMPTY GENRE IF TVMAZE HAS GENRES!
     TryToGetTheTVDBGenre:
+    TheTVDBGenreFailure := False;
     try
       inc(numerrors);
 
@@ -644,16 +646,25 @@ begin
           if slGen.IndexOf(gTVDB.Strings[i]) > -1 then
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
-
     except
       on E: Exception do
       begin
-        if numerrors < 3 then
-        begin
-          goto TryToGetTheTVDBGenre;
-        end;
-        Debug(dpMessage, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
-        irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]);
+        TheTVDBGenreFailure := True;
+      end;
+    end;
+
+    if TheTVDBGenreFailure then
+    begin
+      case numerrors of
+        0..2:
+          begin
+            goto TryToGetTheTVDBGenre;
+          end;
+        3:
+          begin
+            Debug(dpMessage, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
+            irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]);
+          end;
       end;
     end;
 
