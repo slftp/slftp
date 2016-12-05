@@ -524,6 +524,7 @@ var
   date: TDateTime;
   numerrors: Integer;
   TheTVDBGenreFailure: Boolean;
+  ExceptionMessage: AnsiString;
 begin
   result := nil;
   numerrors := 0;
@@ -647,9 +648,10 @@ begin
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
     except
-      on E: Exception do
+      on e: Exception do
       begin
         TheTVDBGenreFailure := True;
+        ExceptionMessage := e.Message;
       end;
     end;
 
@@ -662,8 +664,8 @@ begin
           end;
         3:
           begin
-            Debug(dpMessage, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
-            irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]);
+            Debug(dpMessage, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]));
+            irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
           end;
       end;
     end;
