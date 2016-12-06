@@ -1837,6 +1837,21 @@ begin
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
               exit;
           end;
+
+
+          //COMPLETE MSG: 425 Transfers to 3rd party addresses are not supported.
+          if ( 0 < AnsiPos('addresses are not supported', lastResponse) ) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Opening data connection problem';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
+          end;
+
         end;
 
       427, 530:
