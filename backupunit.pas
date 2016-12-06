@@ -4,106 +4,56 @@ interface
 
 procedure BackupBackup;
 
-function CustomBackup(var error: AnsiString): boolean;
-
-type
-  TSLBackup = class
-  private
-    fCustom: boolean;
-  public
-    constructor Create(custombackup: boolean = False);
-    function Filename: AnsiString;
-    function FilePath: AnsiString;
-    function Backup: boolean;
-  end;
+function ircBackup(out backupError:string):boolean;
 
 var
   backup_last_backup: TDateTime;
 
+  {$I common.inc}
+
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, slvision{$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  statsunit, indexer, dbtvinfo, slvision, StrUtils
+  {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 //PathDelim
 const
   section = 'backup';
 
-function MakeBackup: boolean;
-(*
-  [backup]
-  # all listed files will NOT added to the backup.
-  skipfiles=sqlite3.dll,ssleay32.dll,libmysql.dll,libeay32.dll
-*)
-var
-  path, fname: AnsiString;
-  tar: TTarWriter;
-  Res: TSearchRec;
-  EOFound: boolean;
-  skipfiles: TStringList;
-  I: integer;
+  var _backuperror:string;
+
+
+function createBackup(custom:boolean = False):boolean;
+var bName:string; i:integer;
 begin
-  skipfiles := TStringList.Create;
+  _backuperror:='';
+  result:=False;
+  bName := config.ReadString(section, 'backup_dir', 'backup');
+  if not DirectoryExists(bName) then
+    Mkdir(bName);
+  debug(dpMessage, section, 'Backup process started.');
+  bName := MyIncludeTrailingSlash(bName);
+  ForceDirectories(bName);
   try
-    skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
-    fname := Format('slftp-backup-%s.tar', [FormatDateTime('yyyymmddhhnnss', Now)]);
-    path := config.ReadString(section, 'backup_dir', '');
-    if not DirectoryExists(path) then
-      Mkdir(path);
-    path := MyIncludeTrailingSlash(path);
-    ForceDirectories(path);
-    tar := TTarWriter.Create(path + fname);
-    EOFound := False;
-    try
-      if FindFirst(Path + '*.*', faanyfile - fadirectory, Res) < 0 then
-      begin
-        Result := False;
-        exit
-      end;
-
-      while not EOFound do
-      begin
-        if skipfiles.Text <> '' then
-        begin
-          for I := 0 to skipfiles.Count - 1 do
-          begin
-            if lowercase(Res.Name) <> lowercase(skipfiles.Strings[i]) then
-            begin
-              tar.AddFile(Res.Name, Res.Name);
-            end;
-          end;
-        end
-        else
-          begin
-            tar.AddFile(Res.Name, Res.Name);
-        end;
-        EOFound := FindNext(Res) <> 0;
-      end;
-
-    finally
-      tar.Free;
-      {$IFDEF MSWINDOWS}
-        SysUtils.FindClose(Res);
-      {$ELSE}
-        FindClose(Res);
-      {$ENDIF}
-      Result := True;
-    end;
-
-   finally
-    skipfiles.Free;
-  end;
-end;
-
-procedure CreateBackup(s: AnsiString);
-var
-  vbname: AnsiString;
-begin
-
-  vbname := s + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
-  try
-    with TTarWriter.Create(vbname) do
+  if custom then bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar'
+  else bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
+    with TTarWriter.Create(bName) do
     begin
+
+    //adding common files
+     for I := 0 to cFilecount do
+       if fileexists(commonFiles[i]) then AddFile(commonFiles[i]);
+    //adding ini files
+     for I := 0 to iFilecount do
+       if fileexists(iniFiles[i]) then AddFile(iniFiles[i]);
+
+
+    //adding generated files
+     for I := 0 to gFilecount do
+       if fileexists(generatedFiles[i]) then AddFile(generatedFiles[i]);
+
+    //adding databases
       if not IndexerAlive then
       begin
         if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
@@ -118,66 +68,29 @@ begin
 
       if not TVInfoDbAlive then
       begin
-        if fileexists('tvinfos.db') then
-          AddFile('tvinfos.db');
+      if fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) then
+          AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
       end;
+(*
+      if not IMDbInfoDbAlive then
+      begin
+      if fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) then
+          AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
+      end;
+*)
 
-      if fileexists('mirktrade.conf') then
-        AddFile('mirktrade.conf');
-      if fileexists('sites.dat') then
-        AddFile('sites.dat');
-      if fileexists('slftp.chans') then
-        AddFile('slftp.chans');
-      if fileexists('slftp.history') then
-        AddFile('slftp.history');
-      if fileexists('slftp.ini') then
-        AddFile('slftp.ini');
-      if fileexists('slftp.cini') then
-        AddFile('slftp.cini');
-      if fileexists('slftp.kb') then
-        AddFile('slftp.kb');
-      if fileexists('slftp.news') then
-        AddFile('slftp.news');
-      if fileexists('slftp.nukequeue') then
-        AddFile('slftp.nukequeue');
-      if fileexists('slftp.pem') then
-        AddFile('slftp.pem');
-      if fileexists('slftp.precatcher') then
-        AddFile('slftp.precatcher');
-      if fileexists('slftp.ranks') then
-        AddFile('slftp.ranks');
-      if fileexists('slftp.renames') then
-        AddFile('slftp.renames');
-      if fileexists('slftp.rules') then
-        AddFile('slftp.rules');
-      if fileexists('slftp.skip') then
-        AddFile('slftp.skip');
-      if fileexists('slftp.speedstats') then
-        AddFile('slftp.speedstats');
-      if fileexists('slftp.languages') then
-        AddFile('slftp.languages');
-      if fileexists('slftp.knowngroups') then
-        AddFile('slftp.knowngroups');
-      if fileexists('slftp.socks5') then
-        AddFile('slftp.socks5');
-      if fileexists('slftp.languagebase') then
-        AddFile('slftp.languagebase');
-      if fileexists('slftp.imdbcountries') then
-        AddFile('slftp.imdbcountries');
-      if fileexists('slftp.spamconf') then
-        AddFile('slftp.spamconf');
-      if fileexists('slftp.skipgroups') then
-        AddFile('slftp.skipgroups');
-      if fileexists('slftp.preurls') then
-        AddFile('slftp.preurls');
-      Free;
+       Free;
     end;
-  
-  except
-    on e: Exception do
-      debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
+  debug(dpMessage, section, 'Backup process finished.');
+  result:=True;
+  except on E: Exception do begin
+  debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
+  _backuperror:=e.Message;
   end;
+  end;
+
 end;
+
 
 procedure DeleteOldBackups(s: AnsiString);
 var
@@ -189,15 +102,19 @@ var
 begin
   files := TStringList.Create;
   ages := TIntList.Create;
+  s := MyIncludeTrailingSlash(s);
+  ForceDirectories(s);
   try
     if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
     begin
       repeat
-        if Pos('.tar', sr.Name) = length(sr.Name) - 3 then
+        if (AnsiEndsStr(sr.Name,'.tar') or (not AnsiContainsStr(sr.Name,'-custom-'))) then
+//        if ((Pos('.tar', sr.Name) = length(sr.Name) - 3) and (Pos('custom',sr.Name) <> 7)) then
         begin
+        Debug(dpMessage,'<- BACKUP ->','adding: '+sr.Name);
           files.Add(sr.Name);
           ages.Add(sr.Time);
-        end;
+        end else         Debug(dpMessage,'<- BACKUP ->','skip: '+sr.Name);
       until FindNext(sr) <> 0;
       {$IFDEF MSWINDOWS}
         SysUtils.FindClose(sr);
@@ -228,10 +145,15 @@ begin
           DeleteFile(s + files[oldesti]);
         {$ENDIF}
 
-        files.Delete(oldesti);
         ages.Delete(oldesti);
+        files.BeginUpdate;
+        try
+          files.Delete(oldesti);
+        finally
+          files.EndUpdate;
+        end;
       end;
-    end;
+    end else Debug(dpMessage,'<- BACKUP ->',' !!! no files added !!! ');
 
   finally
     ages.Free;
@@ -244,159 +166,31 @@ procedure BackupBackup;
 var
   s: AnsiString;
 begin
-  s := config.ReadString(section, 'backup_dir', '');
-  if s <> '' then
-  begin
-    if not DirectoryExists(s) then
-      Mkdir(s);
-    debug(dpMessage, section, 'Backup process started.');
-    s := MyIncludeTrailingSlash(s);
-    ForceDirectories(s);
-
-    CreateBackup(s);
-    //if not  MakeBackup then debug(dpMessage, section, 'Backup process Failed!');
-    DeleteOldBackups(s);
-
-    debug(dpMessage, section, 'Backup process finished.');
-  end;
-
-  backup_last_backup := Now;
-end;
-
-function CustomBackup(var error: AnsiString): boolean;
-var
-  cb: TTarWriter;
-  s: AnsiString;
-begin
-  //indexerUninit;
-  //statsUninit;
-  Result := False;
-  s := 'custom_' + config.ReadString(section, 'backup_dir', '') + 's';
+try
+  s := config.ReadString(section, 'backup_dir', 'backup');
   if not DirectoryExists(s) then
     Mkdir(s);
-  s := MyIncludeTrailingSlash(s);
-  ForceDirectories(s);
-  cb := TTarWriter.Create(s + 'slbackup-' + FormatDateTime('yyyy-mm-dd_hhnnss', Now) + '.tar');
-  try
-    try
-      (*
-      if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
-        cb.AddFile(config.ReadString('indexer', 'database', 'nonexist'));
-      if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
-        cb.AddFile(config.ReadString('stats', 'database', 'nonexist'));
-      *)
-      if fileexists('mirktrade.conf') then
-        cb.AddFile('mirktrade.conf');
-      if fileexists('sites.dat') then
-        cb.AddFile('sites.dat');
-      if fileexists('slftp.chans') then
-        cb.AddFile('slftp.chans');
-      if fileexists('slftp.history') then
-        cb.AddFile('slftp.history');
-      if fileexists('slftp.ini') then
-        cb.AddFile('slftp.ini');
-      if fileexists('slftp.cini') then
-        cb.AddFile('slftp.cini');
-      if fileexists('slftp.kb') then
-        cb.AddFile('slftp.kb');
-      if fileexists('slftp.news') then
-        cb.AddFile('slftp.news');
-      if fileexists('slftp.nukequeue') then
-        cb.AddFile('slftp.nukequeue');
-      if fileexists('slftp.pem') then
-        cb.AddFile('slftp.pem');
-      if fileexists('slftp.precatcher') then
-        cb.AddFile('slftp.precatcher');
-      if fileexists('slftp.ranks') then
-        cb.AddFile('slftp.ranks');
-      if fileexists('slftp.renames') then
-        cb.AddFile('slftp.renames');
-      if fileexists('slftp.rules') then
-        cb.AddFile('slftp.rules');
-      if fileexists('slftp.skip') then
-        cb.AddFile('slftp.skip');
-      if fileexists('slftp.speedstats') then
-        cb.AddFile('slftp.speedstats');
-      if fileexists('slftp.languages') then
-        cb.AddFile('slftp.languages');
-      if fileexists('slftp.knowngroups') then
-        cb.AddFile('slftp.knowngroups');
-      if fileexists('slftp.socks5') then
-        cb.AddFile('slftp.socks5');
-      if fileexists('slftp.imdbcountries') then
-        cb.AddFile('slftp.imdbcountries');
-      if fileexists('slftp.languagebase') then
-        cb.AddFile('slftp.languagebase');
-      if fileexists('slftp.preurls') then
-        cb.AddFile('slftp.preurls');
-
-      Result := True;
-      //statsStart;
-      //indexerStart;
-    finally
-      cb.Free;
-    end;
-
-  except
-    on e: Exception do
-      error := e.Message;
-  end;
-  
-  if error = '' then
-    Result := True;
+    debug(dpMessage, section, 'Backup process started.');
+    DeleteOldBackups(s);
+    if createBackup(False) then
+    backup_last_backup := Now
+    else debug(dpMessage, section, 'Backup process Failed!');
+except on E: Exception do
+  Debug(dpError, section,Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s',[e.Message]));
+end;
 end;
 
-{TSLBackup}
-
-constructor TSLBackup.Create(custombackup: boolean = False);
+function ircBackup(out backupError:string):boolean;
+var s:ansistring;
 begin
-  fCustom := custombackup;
+Result := True;
+s := config.ReadString(section, 'backup_dir', 'backup');
+if createBackup(true) then
+  backup_last_backup:= Now
+else begin
+  backupError:=_backuperror;
+  result:=False;
 end;
-
-function TSLBackup.Filename: AnsiString;
-begin
-  Result := Format('slftp-backup-%s', [FormatDateTime('yyyymmddhhnnss', Now)]);
-end;
-
-function TSLBackup.FilePath: AnsiString;
-var
-  s: AnsiString;
-begin
-  s := config.ReadString(section, 'backup_dir', '');
-  s := MyIncludeTrailingSlash(s);
-  ForceDirectories(s);
-  Result := s;
-end;
-
-function TSLBackup.Backup: boolean;
-var
-  slb: TTarWriter;
-  cf: AnsiString;
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  slb := TTarWriter.Create(FilePath + Filename + '.tar');
-  cf := config.ReadString(section, 'files', '');
-  if uppercase(cf) <> '!ALL!' then
-    x.CommaText := cf;
-  try
-    try
-      Result := True;
-
-    except
-      on e: Exception do
-      begin
-        debug(dpError, section, 'backup failed: ' + e.Message);
-        Result := False;
-      end;
-    end;
-
-  finally
-    x.Free;
-    slb.Free;
-
-  end;
-  backup_last_backup := Now;
 end;
 
 initialization

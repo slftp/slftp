@@ -79,8 +79,11 @@ var
 begin
   result := '';
   s := ExtractFilePath(ParamStr(0));
-//cFilecount = 8;
-//gFilecount = 13;
+
+    if not ((FileExists(s+iniFiles[0])) or (FileExists(s+iniFiles[1])))  then
+    result:=Format('slFtp can not run without slftp.ini %s',[#10#13]);
+      Exit;
+
   for I := 0 to cFilecount do
     if not FileExists(s+commonFiles[i]) then
       result := result + commonFiles[i]+#10#13;

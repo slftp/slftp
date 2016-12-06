@@ -799,7 +799,7 @@ var
 begin
   if slsqlite_inited then
   begin
-    db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
+    db_name := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
     db_params := config.ReadString(section, 'pragma', ' locking_mode=NORMAL;');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
 
