@@ -9769,8 +9769,7 @@ function IrcCreateBackup(const Netname, Channel: AnsiString; params: AnsiString)
 var
   error: AnsiString;
 begin
-  error := '';
-  Result := CustomBackup(error);
+  Result := ircBackup(error);
   if error <> '' then
     irc_addtext(Netname, Channel, '<b><c4>%s</b></c>', [error]);
 end;
