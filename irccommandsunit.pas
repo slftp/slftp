@@ -645,7 +645,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON;
 
-  {$I countrycodes.inc}
+  {$I common.inc}
 
 const
   section = 'irccommands';

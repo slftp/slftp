@@ -194,18 +194,40 @@ end;
 
 {SLLanguages Common Utils}
 
+
+procedure renameFile;
+var y:TStringlist;
+begin
+   y := TStringList.Create;
+    try
+      y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+      y.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase');
+{$IFDEF MSWINDOWS}
+      DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase'));
+{$ELSE}
+      DeleteFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+{$ENDIF}
+    finally
+      y.Free;
+    end;
+end;
+
+
+
 procedure SLLanguages_Init;
 var
   i: integer;
   y: TStringList;
 begin
-  Debug(dpSpam, rsections, 'Loading Language Base....');
+  Debug(dpSpam, rsections, 'Loading Language Base ->');
   sllanguages := TObjectList.Create;
-  //should we rename this file to slftp.languagebase ?
+  if FileExists(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp') then renameFile;
 
+
+  if FileExists(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase') then begin
   y := TStringList.Create;
   try
-    y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+    y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase');
     for I := 0 to y.Count - 1 do
     begin
       if ((y.Strings[i][1] = '[') and (y.Strings[i][length(y.Strings[i])] = ']')) then
@@ -213,7 +235,6 @@ begin
 
       sllanguages.Add(TSLLanguages.Create('languages', SubString(y.Strings[i], '=', 1), SubString(y.Strings[i], '=', 2), i));
     end;
-
     slmp3languages := TStringList.Create;
     slmp3languages.Delimiter := ' ';
     slmp3languages.QuoteChar := '"';
@@ -222,8 +243,9 @@ begin
   finally
     y.Free;
   end;
+  Debug(dpSpam, rsections, '<- Ready: Langues loaded: ' + IntToStr(sllanguages.Count));
+  end;
 
-  Debug(dpSpam, rsections, 'Done! ' + IntToStr(sllanguages.Count));
 end;
 
 procedure SLLanguages_Uninit;

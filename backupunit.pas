@@ -160,8 +160,8 @@ begin
         AddFile('slftp.knowngroups');
       if fileexists('slftp.socks5') then
         AddFile('slftp.socks5');
-      if fileexists('languagebase.slftp') then
-        AddFile('languagebase.slftp');
+      if fileexists('slftp.languagebase') then
+        AddFile('slftp.languagebase');
       if fileexists('slftp.imdbcountries') then
         AddFile('slftp.imdbcountries');
       if fileexists('slftp.spamconf') then
@@ -325,8 +325,8 @@ begin
         cb.AddFile('slftp.socks5');
       if fileexists('slftp.imdbcountries') then
         cb.AddFile('slftp.imdbcountries');
-      if fileexists('languagebase.slftp') then
-        cb.AddFile('languagebase.slftp');
+      if fileexists('slftp.languagebase') then
+        cb.AddFile('slftp.languagebase');
       if fileexists('slftp.preurls') then
         cb.AddFile('slftp.preurls');
 

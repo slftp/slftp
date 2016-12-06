@@ -2,7 +2,7 @@ unit tasktvinfolookup;
 
 interface
 
-uses Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo;
+uses Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo,StrUtils;
 
 //const apkikey:string = 'FFFFFFFFFFFFFFFF'; //   just a 64bit (16*4) hex string and you are vailed, no RESTful api :P
 
@@ -512,14 +512,14 @@ function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''): TTVIn
 label
   TryToGetTheTVDBGenre;
 
-  {$I tvgenre.inc}
+  {$I common.inc}
 
 var
   tvr: TTVInfoDB;
   i: integer;
   s: AnsiString;
   js: TlkJSONobject;
-  slGen, gTVDB: TStringlist;
+  gTVDB: TStringlist;
   season, episdoe: Integer;
   date: TDateTime;
   numerrors: Integer;
@@ -536,9 +536,9 @@ begin
   tvr := TTVInfoDB.Create(s);
   tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
-  slGen := TStringlist.Create;
+//  slGen := TStringlist.Create;
   gTVDB := TStringlist.Create;
-  slGen.CommaText := genreList;
+//  slGen.CommaText := tvinfo_genreList;
   try
     try
       js := TlkJSON.ParseText(jsonStr) as TlkJSONobject;
@@ -644,7 +644,7 @@ begin
         gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
 
         for I := 0 to gTVDB.Count - 1 do
-          if slGen.IndexOf(gTVDB.Strings[i]) > -1 then
+          if AnsiIndexText(gTVDB.Strings[i], tvinfo_genreList) > -1 then
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
     except
@@ -674,7 +674,7 @@ begin
     if js.Field['genres'].SelfType <> jsNull then
     begin
       for I := 0 to js.Field['genres'].Count - 1 do
-        if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
+        if AnsiIndexText(string(js.Field['genres'].Child[i].Value), tvinfo_genreList) > -1 then
           tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
     end;
 
@@ -706,7 +706,6 @@ begin
     result := tvr;
   finally
     js.free;
-    slGen.free;
     gTVDB.free;
   end;
 
