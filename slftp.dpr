@@ -42,6 +42,5 @@ uses
 
 {$APPTYPE CONSOLE}
 begin
-//Here we shall add a filechecker. 
   ConsoleStart;
 end.
