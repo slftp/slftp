@@ -4073,70 +4073,6 @@ begin
   Result := True;
 end;
 
-function IrcSetdown(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  s: TSite;
-  i: integer;
-  x: TStringList;
-begin
-  Result := False;
-  x := TStringList.Create;
-  try
-  x.DelimitedText := UpperCase(params);
-
-  if (x.Strings[0] = '!ALL!') or (x.Strings[0] = '*') then
-  begin
-    for i := 0 to sites.Count - 1 do
-    begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-      if (TSite(sites.Items[i]).PermDown) then
-        Continue;
-
-      s := TSite(sites[i]);
-      s.markeddown := True;
-      s.working := sstDown;
-      s.markeddown := True;
-      s.RemoveAutoIndex;
-      s.RemoveAutoBnctest;
-      s.RemoveAutoRules;
-      QueueEmpty(s.Name);
-    end;
-  end
-  else
-  begin
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-
-      if s = nil then
-      begin
-        irc_addtext(Netname, Channel,'<c4><b>ERROR</c></b>: Site <b>%s</b> not found.', [x.Strings[i]]);
-        Continue;
-      end;
-
-      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-      if (s.PermDown) then
-        Continue;
-
-      s.markeddown := True;
-      s.working := sstDown;
-      s.markeddown := True;
-      s.RemoveAutoIndex;
-      s.RemoveAutoBnctest;
-      s.RemoveAutoRules;
-      QueueEmpty(s.Name);
-    end;
-  end;
-
-  finally
-    x.Free;
-  end;
-
-  QueueFire; //to remove entries from queue
-  Result := True;
-end;
 
 function IrcShownet(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
@@ -4962,7 +4898,7 @@ begin
   RulesSave;
   
   Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, src_section]);
-      
+
   //  except
   //    on E: Exception do
   //      irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in IrcRuleCopy: %s', [E.Message]));
@@ -10337,8 +10273,7 @@ begin
 
   if ((ivalue > 1) or (ivalue < 0)) then
   begin
-    irc_AddText(Netname, Channel, format(
-      '<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0', [ivalue]));
+    irc_AddText(Netname, Channel,'<c4><b>Syntax Error!</b></c> %d is not valid, 1 or 0', [ivalue]);
     exit;
   end;
 
@@ -10346,9 +10281,7 @@ begin
 
   if s = nil then
   begin
-    irc_AddText(Netname, Channel,
-      format('<c4><b>Site not fouind</b></c> with name: %s',
-      [sname]));
+    irc_AddText(Netname, Channel, '<c4><b>Site not found</b></c> with name: %s', [sname]);
     exit;
   end;
 
@@ -10363,10 +10296,22 @@ begin
       s.RemoveAutoCrawler;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]));
+        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]);
     end;
 
+  try
+      s.markeddown := True;
+      s.working := sstDown;
+  except on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
+  end;
+
+
+  try
+      QueueEmpty(s.Name);
+  except on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in QueueEmpty: %s', [E.Message]);
+  end;
     try
       // rewrite config value
       s.WCInteger('disabled_autonuke', s.RCInteger('autonuke', 0));
@@ -10391,8 +10336,7 @@ begin
       // sitesdat.UpdateFile;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in delete old value: %s', [E.Message]));
+        irc_AddText(Netname, Channel,'<c4>[Exception]</c> in delete old value: %s', [E.Message]);
     end;
   end
   else
@@ -10408,8 +10352,7 @@ begin
       // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]));
+        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]);
     end;
 
     try
@@ -10422,8 +10365,7 @@ begin
       // sitesdat.UpdateFile;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]));
+        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]);
     end;
 
     try
@@ -10443,6 +10385,73 @@ begin
   s.PermDown := boolean(ivalue);
   Result := True;
 end;
+
+
+function IrcSetdown(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  s: TSite;
+  i: integer;
+  x: TStringList;
+begin
+  Result := False;
+  x := TStringList.Create;
+  try
+  x.DelimitedText := UpperCase(params);
+
+  if (x.Strings[0] = '!ALL!') or (x.Strings[0] = '*') then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
+      if (TSite(sites.Items[i]).PermDown) then
+        Continue;
+
+      s := TSite(sites[i]);
+      s.markeddown := True;
+      s.working := sstDown;
+      s.markeddown := True;
+      s.RemoveAutoIndex;
+      s.RemoveAutoBnctest;
+      s.RemoveAutoRules;
+      QueueEmpty(s.Name);
+    end;
+  end
+  else
+  begin
+    for i := 0 to x.Count - 1 do
+    begin
+      s := FindSiteByName(Netname, x.Strings[i]);
+
+      if s = nil then
+      begin
+        irc_addtext(Netname, Channel,'<c4><b>ERROR</c></b>: Site <b>%s</b> not found.', [x.Strings[i]]);
+        Continue;
+      end;
+
+      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
+      if (s.PermDown) then
+        Continue;
+
+      s.markeddown := True;
+      s.working := sstDown;
+      s.markeddown := True;
+      s.RemoveAutoIndex;
+      s.RemoveAutoBnctest;
+      s.RemoveAutoRules;
+      QueueEmpty(s.Name);
+    end;
+  end;
+
+  finally
+    x.Free;
+  end;
+
+  QueueFire; //to remove entries from queue
+  Result := True;
+end;
+
 
 function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString):
   boolean;
