@@ -692,10 +692,10 @@ begin
   slSSL_library_init();
 
   slSsl_Setup_Locking_Callbacks;
-(*
+
   if @slENGINE_load_builtin_engines <> nil then
     slENGINE_load_builtin_engines();
-*)
+
   slOpenSSL_add_all_digests();
   slOpenSSL_add_all_ciphers();
   slSSL_load_error_strings();
