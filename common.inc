@@ -1,12 +1,15 @@
 const
 
-commonFiles: array[0..8] of AnsiString = (
+cFilecount = 8;
+gFilecount = 13;
+
+commonFiles: array[0..cFilecount] of AnsiString = (
 'slftp.ini','slftp.knowngroups','slftp.precatcher','slftp.spamconf',
 'slftp.languagebase','slftp.skip','slftp.imdbcountries','slftp.skipgroups',
 'slftp.languages'
 );
 
-generatedFiles: array[0..13] of AnsiString =(
+generatedFiles: array[0..gFilecount] of AnsiString =(
 'slftp.pem','slftp.ranks','slftp.chans','sites.dat','slftp.kb',
 'slftp.speedstats','stats.db','slftp.history','tvinfos.db','slftp.renames',
 'slftp.nukequeue','indexes.db','precatcher.log','slftp.rules'

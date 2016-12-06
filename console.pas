@@ -40,7 +40,8 @@ implementation
 
 uses slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
      Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-     backupunit, kb, StrUtils, encinifile, dateutils {$IFDEF MSWINDOWS},Windows {$ENDIF};
+     backupunit, kb, StrUtils, encinifile, dateutils, mrdohutils
+     {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const section = 'console';
 
@@ -598,9 +599,18 @@ end;
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
 label ujra;
-var p, p2: AnsiString;
+var fs, p, p2: AnsiString;
     x: TEncStringList;
 begin
+
+  fs:=CommonFileCheck;
+  if fs <> '' then
+  begin
+    ShowMessagE(fs);
+    shouldquit:= True;
+    exit;
+  end;
+
 ujra:
   if not fileexists(dir+'sites.dat') then
   begin
@@ -650,6 +660,9 @@ ujra:
 
   DebugInit;
 
+    slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
+    vl.Caption:=cmod_VersionString;
+
   if config.ReadBool('backup', 'run_backup_on_startup', True) then
     BackupBackup;
 
@@ -660,7 +673,6 @@ ujra:
     exit;
   end;
 
-
   p:= Main_Init;
   if p <> '' then
   begin
@@ -668,10 +680,6 @@ ujra:
     shouldquit:= True;
     exit;
   end;
-
-
-  slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-  vl.Caption:=cmod_VersionString;
 
   if not no_console_slot then
   begin
@@ -697,6 +705,7 @@ ujra:
     end;
   except on e: Exception do
     begin
+      ShowMessage('slftp.history is corrupt! Please remove it!');
       Debug(dpError, 'console', 'slftp.history is corrupt! Please remove it');
     end;
   end;
