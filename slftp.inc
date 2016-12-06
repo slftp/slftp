@@ -4,7 +4,7 @@ const
   SL_REV: string = '';
   HELP_VERSION: string = '0.5.5.0';
   (*   CryptConf Stuff *)
-  CC_VERSION: string = '3.1.0.0';
+  CC_VERSION: string = '3.2.1';
   CC_MasterK: string = 'masterpass.txt';
 
   (* libaries *)
