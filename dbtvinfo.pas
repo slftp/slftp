@@ -792,17 +792,11 @@ begin
 end;
 
 procedure dbTVInfoStart;
-begin
-  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
-end;
-
-procedure dbTVInfoInit;
 var
   db_name, db_params: AnsiString;
   user_version: Psqlite3_stmt;
   uV: integer;
 begin
-  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
   if slsqlite_inited then
   begin
     db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
@@ -843,6 +837,14 @@ begin
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
   end;
+
+  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
+end;
+
+procedure dbTVInfoInit;
+begin
+
+  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
 end;
 
 procedure dbTVInfoUninit;
