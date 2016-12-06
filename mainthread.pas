@@ -77,8 +77,6 @@ begin
 end;
 
 function Main_Init: AnsiString;
-var
-  ss, s: AnsiString;
 begin
   Result := '';
 
@@ -89,17 +87,17 @@ begin
   end;
   if not slssl_inited then
   begin
-    ss := 'Could not load OpenSSL! Try to copy the libssl/libcrypto libs into slftp dir!' + #10#13;
+    Result := 'Could not load OpenSSL!' + #10#13;
 {$IFDEF MSWINDOWS}
-    ss := ss + 'Or install it from:' + #13#10 +
+    Result := Result + 'Install it from:' + #13#10 +
       'http://www.slproweb.com/products/Win32OpenSSL.html';
+      {$ELSE}
+      Result := Result + 'Try to copy the libssl.so and libcrypto.so libs into slftp dir!';
 {$ENDIF}
-    Result := ss;
     exit;
   end;
 
-  s := OpenSSLShortVersion();
-  if (s < lib_OpenSSL) then
+  if (OpenSSLShortVersion() < lib_OpenSSL) then
   begin
     result := Format('OpenSSL version %s is deprecated! %s or newer needed.', [OpenSSLVersion, lib_OpenSSL]);
     exit;
@@ -107,7 +105,6 @@ begin
 
   if config.ReadString('mysql', 'host', '0') <> '0' then
   begin
-
     if InitialiseMysql then
     begin
       Debug(dpSpam, section, 'MYSQL libs initialised..');
@@ -130,8 +127,7 @@ begin
   end;
 
 {$IFNDEF MSWINDOWS}
-  s := Ncurses_Version;
-  if s < lib_Ncurses then
+  if Ncurses_Version < lib_Ncurses then
   begin
     Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
     exit;
@@ -140,8 +136,7 @@ begin
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
-    s := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
-    ForceDirectories(s);
+    ForceDirectories(ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim);
   end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
