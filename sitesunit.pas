@@ -100,7 +100,6 @@ type
     fkreditz: TDateTime;
     fNumDn:   integer;
     fNumUp:   integer;
-    //    fskippre:boolean;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -178,6 +177,8 @@ type
     function GetLastKnownCredits: int64;
     procedure SetLastKnownCredits(Value: int64);
 
+    function GetUseAutoInvite: Boolean;
+    procedure SetUseAutoInvite(Value: Boolean);
 
   public
     emptyQueue:  boolean;
@@ -291,7 +292,7 @@ type
 
     property SiteInfos: AnsiString Read GetSiteInfos Write SetSiteInfos;
     property LastCrdits: int64 Read GetLastKnownCredits Write SetLastKnownCredits;
-
+    property UseAutoInvite:Boolean read getUseAutoInvite write setUseAutoInvite;
 
   end;
 
@@ -3183,7 +3184,16 @@ end;
 
 procedure TSite.SetLastKnownCredits(Value: int64);
 begin
+//
+end;
 
+function TSite.GetUseAutoInvite:boolean;
+begin
+   Result := RCBool('useautoinvite', True);
+end;
+procedure TSite.SetUseAutoInvite(value:Boolean);
+begin
+  WCBool('useautoinvite', Value);
 end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);
