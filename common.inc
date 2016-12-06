@@ -1,18 +1,23 @@
 const
 
 cFilecount = 8;
-gFilecount = 13;
+gFilecount = 12;
+iFileCount = 1;
+
+iniFiles: array[0..iFileCount] of AnsiString = (
+'slftp.ini','slftp.cini'
+);
 
 commonFiles: array[0..cFilecount] of AnsiString = (
-'slftp.ini','slftp.knowngroups','slftp.precatcher','slftp.spamconf',
+'slftp.knowngroups','slftp.precatcher','slftp.spamconf','slftp.languages',
 'slftp.languagebase','slftp.skip','slftp.imdbcountries','slftp.skipgroups',
-'slftp.languages'
+'mirktrade.conf'
 );
 
 generatedFiles: array[0..gFilecount] of AnsiString =(
-'slftp.pem','slftp.ranks','slftp.chans','sites.dat','slftp.kb',
-'slftp.speedstats','stats.db','slftp.history','tvinfos.db','slftp.renames',
-'slftp.nukequeue','indexes.db','precatcher.log','slftp.rules'
+'slftp.pem','slftp.ranks','slftp.chans','slftp.kb','slftp.speedstats',
+'slftp.history','slftp.renames','slftp.nukequeue','slftp.rules',
+'slftp.preurls','slftp.socks5','slftp.news','sites.dat'
 );
 
 tvinfo_genreList: array[0..37] of AnsiString =(
