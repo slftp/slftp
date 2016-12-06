@@ -222,8 +222,6 @@ const
   {$IFDEF MSWINDOWS}
   slSsl_libssl_name         = 'ssleay32.dll';  {Do not localize}
   slSsl_libcrypto_name      = 'libeay32.dll';  {Do not localize}
-//  slSsl_libssl_name         = 'libssl-1_1.dll'; {Do not localize}
-//  slSsl_libcrypto_name      = 'libcrypto-1_1.dll'; {Do not localize}
   {$ELSE}
   slSsl_libssl_name         = 'libssl.so'; {Do not localize}
   slSsl_libcrypto_name      = 'libcrypto.so'; {Do not localize}
@@ -788,10 +786,10 @@ begin
     slSSL_CTX_free(slSSL_CTX_sslv23_client);
     slSSL_CTX_sslv23_client:= nil;
   end;
-(*
+
   if @slEVP_cleanup <> nil then
     slEVP_cleanup();
-*)
+
   slSsl_Cleanup_Locking_Callbacks();
 
   if h_libssl > 0 then FreeLibrary(h_libssl);
