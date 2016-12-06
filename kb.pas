@@ -907,10 +907,9 @@ begin
             [section, rls, sitename]));
           exit;
         end;
-
         end;
 
-        if (sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) or (not TSite(FindSiteByName('',sitename)).PermDown)) then
         begin
         irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));
