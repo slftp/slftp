@@ -227,7 +227,7 @@ begin
   if FileExists(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase') then begin
   y := TStringList.Create;
   try
-    y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+    y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase');
     for I := 0 to y.Count - 1 do
     begin
       if ((y.Strings[i][1] = '[') and (y.Strings[i][length(y.Strings[i])] = ']')) then
