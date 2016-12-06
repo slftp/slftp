@@ -243,12 +243,9 @@ begin
   finally
     y.Free;
   end;
+  Debug(dpSpam, rsections, '<- Ready: Langues loaded: ' + IntToStr(sllanguages.Count));
   end;
 
-
-
-
-  Debug(dpSpam, rsections, '<- Ready: Langues loaded: ' + IntToStr(sllanguages.Count));
 end;
 
 procedure SLLanguages_Uninit;
