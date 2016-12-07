@@ -123,7 +123,10 @@ begin
   try
     rx.ModifierI := True;
     rx.ModifierG := True;
-    //dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv //      Y/M/D
+
+
+    (* dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv *)
+    (* YYYY/MM/DD *)
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
     if rx.Exec(rip) then
     begin
@@ -141,8 +144,8 @@ begin
       exit;
     end;
 
-    (*  regular series tagging like S01E02 and 1x02 *)
 
+    (* regular series tagging like S01E02 and 1x02 *)
     rx.Expression := '(.*?)[._-](S(\d{1,3})(E(\d{1,3}))?|(\d+)x(\d+))';
     if rx.Exec(rip) then
     begin
@@ -193,6 +196,8 @@ begin
       Exit;
     end;
 
+
+    (* remove scene/tv tags from releasename *)
     ttags := TStringlist.Create;
     try
       ttags.Assign(tvtags);
@@ -201,7 +206,6 @@ begin
       season := 0;
       episode := 0;
       showName := rx.Replace(rip, '', False);
-
     finally
       ttags.free;
     end;
