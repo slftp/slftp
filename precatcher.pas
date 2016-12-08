@@ -47,8 +47,7 @@ procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
 function precatcher_logfilename: AnsiString;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0):
-  AnsiString;
+function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
 
 function FindSection(section: AnsiString): boolean;
 
@@ -125,16 +124,21 @@ begin
   myDebug(Format(s, args));
 end;
 
-function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data:
-  TStringList): AnsiString;
+//function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data: TStringList): AnsiString;
+function ExtractReleasename(sitename: AnsiString; ts_data: TStringList): AnsiString;
 var
   k, i: integer;
   maxi: integer;
   maxs: AnsiString;
 begin
-  cdno := '';
+  Result := '';
+  //cdno := ''; //not used anywhere so it's useless
 
-  //leghosszabb szo amiben van - a riliz
+  // no need to go further if it's empty
+  if ts_data.Count = 0 then
+    exit;
+
+  // detect longest entry with '-' -> our releasename
   maxi := 0;
   for i := 0 to ts_data.Count - 1 do
   begin
@@ -147,17 +151,19 @@ begin
 
   Result := maxs;
 
+  // remove '.' from the end of detected releasename if there is one
   k := length(Result);
   if (k > 0) and (Result[k] = '.') then
   begin
-    Delete(Result, k, 1);
-    Dec(k);
+    //Delete(Result, k, 1);
+    //Dec(k);
+    // below code has better performance than Delete [http://www.delphibasics.co.uk/RTL.asp?Name=delete]
+    k := k - 1;
+    SetLength(Result, k);
   end;
+
   if (k < minimum_rlsname) then
     Result := '';
-
-  if ts_data.Count = 0 then
-    exit;
 
   Result := trim(Result);
 end;
@@ -403,15 +409,20 @@ begin
   //  Irc_AddText('','','s= %s ;; rep_s= %s',[s,rep_s]);
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: AnsiString;
-  ts_data: TStringList);
+//procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: AnsiString; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
 var
   oldsection: AnsiString;
-  rls: AnsiString;
+  //rls: AnsiString; // not needed, hand over from caller
   //    i: Integer;
-  cdno: AnsiString;
+  //cdno: AnsiString; // not used
   s: AnsiString;
 begin
+
+{*
+* 
+* already checked in PrecatcherProcessB, so we only need to hand over AnsiString rls from PrecatcherProcessB
+* 
   // we only need to extract the rlsname
   try
     rls := KibontasRiliz(sitename, cdno, ts_data);
@@ -423,12 +434,14 @@ begin
       exit;
     end;
   end;
+*}
 
   if (Trim(rls) = '') then
   begin
-    //    Debug(dpError, rsections,'[EXCEPTION] in PrecatcherSectionMapping: relase is Empty');
+    Debug(dpError, rsections,'[EXCEPTION] in ProcessReleaseVege: relasename is Empty');
     exit;
   end;
+
 
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s',
@@ -536,7 +549,8 @@ var
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  rls, chno, s: AnsiString;
+  //rls, chno, s: AnsiString; // chno isn't used
+  rls, s: AnsiString;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -572,12 +586,18 @@ begin
 
       // We do the [replace] sectional exchanges
       ts_data.DelimitedText := Data;
-      chno := '0';
+
+      //chno := '0'; //not used
       try
-        rls := KibontasRiliz('SLFTP', chno, ts_data);
+        //rls := KibontasRiliz('SLFTP', chno, ts_data); // chno not used
+        rls := ExtractReleasename('SLFTP', ts_data);
       except
         exit;
       end;
+
+      // TODO: maybe at a check to stop here when rls is empty? Or does it exit on empty string because of try except block?
+
+
 
       (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
 
@@ -638,13 +658,16 @@ begin
         if (mind) then
         begin
           try
-            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
+            //ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
           except
             on e: Exception do
             begin
               MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
+              //Debug(dpError, rsections,
+              //  Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
               Debug(dpError, rsections,
-                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
+                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data.Text]));
               //ts_data.Free;
               exit;
             end;
@@ -657,7 +680,8 @@ begin
       if sc.sections.Count = 0 then
       begin
         try
-          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+          //ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', ts_data);
+          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', rls, ts_data);
         except
           on e: Exception do
           begin
@@ -1190,17 +1214,10 @@ begin
   PrecatcherReBuild;
 end;
 
-// isn't used -- only function precatcherauto from below
-//function precatcher_auto: boolean;
-//begin
-//  Result := sitesdat.ReadBool('precatcher', 'auto', False);
-//end;
-
 procedure PrecatcherReload();
 var
   f: TextFile;
   s: AnsiString;
-  //    i: Integer;
 begin
   mappingslist.Clear;
   sectionlist.Clear;
@@ -1231,7 +1248,6 @@ procedure PrecatcherReload(out status: AnsiString);
 var
   f: TextFile;
   ss, s: AnsiString;
-  //    i: Integer;
 begin
   ss := '';
   mappingslist.Clear;
@@ -1249,9 +1265,9 @@ begin
   ss := 'Precatcher Rehash FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-{$I-}
-    Reset(f);
-{$I+}
+    {$I-}
+      Reset(f);
+    {$I+}
     if IOResult = 0 then
     begin
       while (not EOF(f)) do
@@ -1263,12 +1279,9 @@ begin
     end;
     kb_reloadsections;
   finally
-    ss := 'Precatcher Rehash Complete....' + #13#10;
-    ss := ss + 'Minimum_rlsname:' + IntToStr(minimum_rlsname) + #13#10;
-    //ss:=ss+'COUNTS:'+#13#10;
-    ss := ss +
-      Format('Sections(%d) Mapping(%d) Replace|from/to:(%d/%d) Ignorlist(%d)',
-      [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
+    ss := '- Precatcher Rehash Complete -' + sLineBreak;
+    ss := ss + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
+    ss := ss + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
   end;
   status := ss;
 end;
@@ -1281,7 +1294,7 @@ end;
 function FindSection(section: AnsiString): boolean;
 begin
   Result := False;
-  if - 1 = sectionlist.IndexOf(UpperCase(section)) then
+  if sectionlist.IndexOf(UpperCase(section)) = -1 then
     exit;
   Result := True;
 end;

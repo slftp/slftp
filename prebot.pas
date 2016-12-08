@@ -182,33 +182,34 @@ end;
 
 function IrcLame(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  s:     TSite;
-  i:     integer;
+  s: TSite;
+  i: integer;
   sitename, section, predir, dir: AnsiString;
-  d:     TDirlist;
-  de:    TDirListEntry;
+  d: TDirlist;
+  de: TDirListEntry;
   added: boolean;
-  l:     TLameTask;
-  tn:    TTaskNotify;
+  l: TLameTask;
+  tn: TTaskNotify;
   addednumber: integer;
-  sr:    TSiteResponse;
+  sr: TSiteResponse;
   genre: AnsiString;
   genremode: boolean;
   pazo_id: integer;
-  p:     TPazo;
+  p: TPazo;
 begin
   Result := False;
 
   sitename := UpperCase(SubString(params, ' ', 1));
-  section  := UpperCase(SubString(params, ' ', 2));
-  genre    := '';
+  section := UpperCase(SubString(params, ' ', 2));
+  genre := '';
 
+  //really needed?
   queue_lock.Enter;
+  try
   s := FindSiteByName(netname, sitename);
   if s = nil then
   begin
     irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
-    queue_lock.Leave;
     exit;
   end;
 
@@ -218,8 +219,8 @@ begin
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
-    predir  := s.sectiondir[section];
-    dir     := RightStrv2(params, length(sitename) + 1);
+    predir := s.sectiondir[section];
+    dir := RightStrv2(params, length(sitename) + 1);
   end;
 
   genremode := 'genre' = SubString(dir, ' ', 2);
@@ -228,14 +229,12 @@ begin
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
   begin
     irc_addText(netname, channel, 'Syntax error.');
-    queue_lock.Leave;
     exit;
   end;
 
   if (predir = '') then
   begin
     irc_addtext(netname, channel, 'Site <b>%s</b> has no predir set.', [sitename]);
-    queue_lock.Leave;
     exit;
   end;
 
@@ -244,97 +243,103 @@ begin
   if pazo_id <> -1 then
     p := FindPazoById(pazo_id);
 
-  queue_lock.Leave;
+  //really needed?
+  finally
+    queue_lock.Leave;
+  end;
 
   d := DirlistB(netname, channel, sitename, MyIncludeTrailingSlash(predir) + dir);
+  try
   if d <> nil then
   begin
     added := False;
     addednumber := 0;
     queue_lock.Enter;
-    tn := AddNotify;
+    try
+      tn := AddNotify;
 
-    for i := 0 to d.entries.Count - 1 do
-    begin
-      de := TDirListEntry(d.entries[i]);
-      if ((not de.directory) and (de.Extension = '.mp3')) then
+      for i := 0 to d.entries.Count - 1 do
       begin
-        if p <> nil then
-          p.PRegisterFile('', de.filename, de.filesize);
-
-        added := True;
-        Inc(addednumber);
-        if ((not genremode) or (addednumber = 1)) then
+        de := TDirListEntry(d.entries[i]);
+        if ((not de.directory) and (de.Extension = '.mp3')) then
         begin
-          l := TLameTask.Create(netname, channel, sitename,
-            MyIncludeTrailingSlash(predir) + dir, de.filename, de.filesize, genremode);
-          l.announce := de.filename + ' lame ready';
-          tn.tasks.Add(l);
-          AddTask(l);
-        end;
+          if p <> nil then
+            p.PRegisterFile('', de.filename, de.filesize);
 
+          added := True;
+          Inc(addednumber);
+          if ((not genremode) or (addednumber = 1)) then
+          begin
+            l := TLameTask.Create(netname, channel, sitename, MyIncludeTrailingSlash(predir) + dir, de.filename, de.filesize, genremode);
+            l.announce := de.filename + ' lame ready';
+            tn.tasks.Add(l);
+            AddTask(l);
+          end;
+
+        end;
       end;
+      //d.Free;
+      QueueFire;
+    finally
+      queue_lock.Leave;
     end;
-    d.Free;
-    QueueFire;
-    queue_lock.Leave;
 
     if added then
     begin
       tn.event.WaitFor($FFFFFFFF);
 
       queue_lock.Enter;
-
-      if ((tn.responses.Count = addednumber) or (genremode)) then
-      begin
-
-        for i := 0 to tn.responses.Count - 1 do
+      try
+        if ((tn.responses.Count = addednumber) or (genremode)) then
         begin
-          sr := TSiteResponse(tn.responses[i]);
-          if not genremode then
+          for i := 0 to tn.responses.Count - 1 do
           begin
-            if ((1 <>
-              Pos('LAME3.97.0 vbr mtrh V2 Joint 32 18.6 4 1 0 0 / ID3v1.1',
-              sr.response)) or (0 =
-              Pos('/ ID3v2', sr.response))) then
+            sr := TSiteResponse(tn.responses[i]);
+            if not genremode then
             begin
-              irc_addtext(netname, channel, 'ERROR: <c4>%s</c>', [sr.response]);
-              added := False;
+              if ((1 <> Pos('LAME3.97.0 vbr mtrh V2 Joint 32 18.6 4 1 0 0 / ID3v1.1', sr.response)) or (0 = Pos('/ ID3v2', sr.response))) then
+              begin
+                irc_addtext(netname, channel, 'ERROR: <c4>%s</c>', [sr.response]);
+                added := False;
+              end;
             end;
+            genre := Copy(SubString(sr.response, ' / ', 2), 9, 1000);
           end;
-          genre := Copy(SubString(sr.response, ' / ', 2), 9, 1000);
 
-        end;
+          if added then
+          begin
+            {
+            genres.Values[dir] := genre;
+            fajldb.Values[dir] := IntToStr(osszesfajl);
+            fajlmeret.Values[dir] := IntToStr(osszesmeret);
+            }
 
-        if added then
+            p.rls.Aktualizald(genre);
+
+            if not genremode then
+              irc_addtext(netname, channel, 'LAME and ID3v1.1 are perfect in %d files, genre is %s.', [addednumber, genre]);
+            Result := True;
+          end;
+        end
+        else
         begin
-          (*
-          genres.Values[dir]:= genre;
-          fajldb.Values[dir]:= IntToStr(osszesfajl);
-          fajlmeret.Values[dir]:= IntToStr(osszesmeret);
-          *)
-
-          p.rls.Aktualizald(genre);
-
-          if not genremode then
-            irc_addtext(netname, channel,
-              'LAME and ID3v1.1 are perfect in %d files, genre is %s.', [addednumber, genre]);
-          Result := True;
+          irc_addtext(netname, channel, 'ERROR: %s', ['<c4>different number of responses...</c>']);
         end;
 
-      end
-      else
-        irc_addtext(netname, channel, 'ERROR: %s',
-          ['<c4>different number of responses...</c>']);
-
-      RemoveTN(tn);
-      queue_lock.Leave;
+        RemoveTN(tn);
+      finally
+        queue_lock.Leave;
+      end;
     end
     else
       irc_addtext(netname, channel, 'ERROR: %s', ['<c4>No mp3 files found.</c>']);
   end
   else
     irc_addtext(netname, channel, 'ERROR: %s', ['<c4>couldnt dirlist...</c>']);
+
+  finally
+    d.Free;
+  end;
 
 end;
 
@@ -436,16 +441,17 @@ begin
 
   try
     section := UpperCase(SubString(params, ' ', 1));
-    if (1 <> Pos('PRE', section)) then
+    // instead of using Pos() equal comparison is needed to avoid detecting releasenames (e.g. PreMe.S01E01.HDTV.x264-TEST) as section
+    if (section = 'PRE') then
     begin
-      dir     := SubString(params, ' ', 1);
-      ripper  := SubString(params, ' ', 2);
-      section := 'PRE';
+      dir := SubString(params, ' ', 2);
+      ripper := SubString(params, ' ', 3);
     end
     else
     begin
-      dir    := SubString(params, ' ', 2);
-      ripper := SubString(params, ' ', 3);
+      section := 'PRE';
+      dir := SubString(params, ' ', 1);
+      ripper := SubString(params, ' ', 2);
     end;
   except
     on E: Exception do
@@ -1066,7 +1072,7 @@ begin
     irc_Addtext(netname, channel, '%spre %s %s %s',
       [irccmdprefix, section, dir, ripper]);
     //    irc_Addtext(channel, 'skipping right now, believe is debugging');
-    IrcPre(netname, channel, dir + ' ' + ripper);
+    IrcPre(netname, channel, section + ' ' + dir + ' ' + ripper);
 
     ujkor:
       queue_lock.Enter;
