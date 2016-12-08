@@ -154,6 +154,8 @@ procedure irc_SendROUTEINFOS(msgirc: AnsiString);
 procedure irc_SendRACESTATS(msgirc: AnsiString);
 procedure irc_SendIRCEvent(msgirc: AnsiString);
 
+procedure irc_SendUPDATE(msgirc: AnsiString);
+
 function FindIrcnetwork(netname: AnsiString): TMyIrcThread;
 
 procedure IrcInit;
@@ -171,7 +173,7 @@ var
   irc_queue_nets: TStringList;
 
 const
-  irc_chanroleindex = 20;
+  irc_chanroleindex = 21;
   (*
   ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
   (Name:'ADMIN',Description:'Give an IRC Chanel Admin privilege'),
@@ -199,11 +201,10 @@ const
   *)
 
   irc_chanroles: array[0..irc_chanroleindex] of AnsiString = (
-    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'ADDPRE',
-    'ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'SPEEDSTATS', 'RACESTATS',
-    'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-    'KB', 'ADDGN'
-    );
+    'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
+    'UPDATE',
+    'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
+    'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
 
 implementation
 
@@ -513,6 +514,14 @@ begin
   irc_Addtext_by_key('RACESTATS', msgirc)
 end;
 
+procedure irc_SendUPDATE(msgirc: AnsiString);
+begin
+  if (msgirc = '') then
+    exit;
+  irc_Addtext_by_key('UPDATE', msgirc)
+end;
+
+
 procedure IrcStart;
 var
   x: TStringList;
@@ -520,34 +529,35 @@ var
   channel, nn: AnsiString;
   b: TIrcBlowKey;
 begin
-
   // register other sitechan keys
   x := TStringList.Create;
-  sitesdat.ReadSections(x);
-  for i := 0 to x.Count - 1 do
-  begin
-    if (1 = Pos('channel-', x[i])) then
-    begin
-      nn := SubString(x[i], '-', 2);
-      channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
-      b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
-      b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
-    end;
-  end;
-
-  // create other network threads
-  sitesdat.ReadSections(x);
-  if (config.ReadBool(section, 'enabled', True)) then
-  begin
+  try
+    sitesdat.ReadSections(x);
     for i := 0 to x.Count - 1 do
-      if (1 = Pos('ircnet-', x[i])) then
+    begin
+      if (1 = Pos('channel-', x[i])) then
       begin
-        myIrcThreads.Add(TMyIrcThread.Create(Copy(x[i], 8, 1000)));
-        sleep(500);
+        nn := SubString(x[i], '-', 2);
+        channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
+        b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
+        b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
       end;
-  end;
-  x.Free;
+    end;
 
+    // create other network threads
+    sitesdat.ReadSections(x);
+    if (config.ReadBool(section, 'enabled', True)) then
+    begin
+      for i := 0 to x.Count - 1 do
+        if (1 = Pos('ircnet-', x[i])) then
+        begin
+          myIrcThreads.Add(TMyIrcThread.Create(Copy(x[i], 8, 1000)));
+          sleep(500);
+        end;
+    end;
+  finally
+    x.Free;
+  end;
 end;
 
 { TMyIrcThread }
@@ -603,12 +613,12 @@ end;
 
 procedure TMyIrcThread.SetProxyName(value: AnsiString);
 begin
-  sitesdat.WriteString('ircnet-' + netname, 'ProxyName', Value);
+  sitesdat.WriteString('ircnet-' + netname, 'proxyname', Value);
 end;
 
 function TMyIrcThread.GetProxyName: AnsiString;
 begin
-  result := sitesdat.ReadString('ircnet-' + netname, 'ProxyName', '!!NOIN!!');
+  result := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
 end;
 
 procedure TMyIrcThread.IrcSetupSocket;
@@ -1094,8 +1104,8 @@ begin
 
     irc_Addadmin('Try to part ' + channels.Names[i]);
 
+    channels.BeginUpdate;
     try
-      channels.BeginUpdate;
       channels.Delete(i);
     finally
       channels.EndUpdate;
@@ -1107,15 +1117,17 @@ begin
   end;
 
   x := TStringList.Create;
-  x.DelimitedText := channels.Values[chan];
-  i := x.IndexOf(nick);
-  if i <> -1 then
-    x.Delete(i);
-  channels.Values[chan] := x.DelimitedText;
+  try
+    x.DelimitedText := channels.Values[chan];
+    i := x.IndexOf(nick);
+    if i <> -1 then
+      x.Delete(i);
+    channels.Values[chan] := x.DelimitedText;
 
-  status := 'online (' + channelsList + ')';
-
-  x.Free;
+    status := 'online (' + channelsList + ')';
+  finally
+    x.Free;
+  end;
 end;
 
 procedure TMyIrcThread.chanjoin(chan, nick: AnsiString);
@@ -1124,15 +1136,17 @@ var
   i: Integer;
 begin
   x := TStringList.Create;
-  x.DelimitedText := channels.Values[chan];
-  i := x.IndexOf(nick);
-  if i = -1 then
-    x.Add(nick);
-  channels.Values[chan] := x.DelimitedText;
+  try
+    x.DelimitedText := channels.Values[chan];
+    i := x.IndexOf(nick);
+    if i = -1 then
+      x.Add(nick);
+    channels.Values[chan] := x.DelimitedText;
 
-  status := 'online (' + channelsList + ')';
-
-  x.Free;
+    status := 'online (' + channelsList + ')';
+  finally
+    x.Free;
+  end;
 end;
 
 function TMyIrcThread.IrcProcessLine(s: AnsiString): Boolean;
@@ -1403,7 +1417,7 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := sites[i] as TSite;
-    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown)) then
+    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
     begin
       debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, irc_nick]);
       s.siteinvited := True;

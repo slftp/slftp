@@ -13,6 +13,8 @@ __history
 *.bak
 *.stackdump
 bin/*
+Win32/*
+Win64/*
 slftp.history
 
 # entrys taken from http://wiki.freepascal.org/File_extensions

@@ -44,27 +44,44 @@
 --===========================( KNOWN BUG in v1.5.* )================================-	      
 
 		sometimes for some people catching stops, need restart
+		OpenSSL v1.1.* isn't supported yet
+		maybe not every response message is already handled, just post them on #slftp
+		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
---=============================( SLFTP v1.5.3.1 )=================================- 
+--=============================( SLFTP v1.5.4 )===================================- 
+    ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
+ !!! Manual changes for split_site_data=1 (cryptconf don't support it): ProxyName, NoLoginMSG, IRCNick, SiteInfos !!!
 		{+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
-		{+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together
-		{+} Set max_pre_dn via !maxupdn - will use this amount to leech a PRE
-		{#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now
+		{+} Detection for iOFTPD sites added
+		{+} New ircchanrole "UPDATE" for all update announces
+		{+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together (#45)
+		{+} Set max_pre_dn via !maxupdn - will use this amount to leech a PRE (#52)
+		{#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now (#98)
 		{#} !rulehelp tvcurrent shows correct help
 		{#} !lookup works with sections which are only mapped - like everywhere else
 		{#} imdb language/country parsing fix
-		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed
-		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized
-		{^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload
+		{#} !nologinmsg supports only GLFTPD + automatically uppercase sitenames + hide admin_site
+		{#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed (#93)
+		{#} Fix imdb title regex to properly parse currently running tv series
+		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized (#12)
+		{#} auto adding blacklist rule for group should work again
+		{#} !batch supports PRE in releasename (#105)
+		{#} TSiteSlot.Leechfile negotiates to the highest version mutually supported by the client and the server, no more TLS v1.2 only!
+		{^} many code changes on dirlisttask, mkdirtask and racetask - more things regarding this will come + better error handling
+		{^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload (#83)
+		{^} Added *.u and *.v fileextionsions for _RAR_ in slftp.skip
+		{^} !country only supports countrycode + shows countryname for each countrycode
 		{^} fake check is enabled by default [check slftp.ini] & fakereason tells you more info why it's fake
 		{^} displaying of movie status (stv/limited/festival/wide/cine) on irc imdb announce
-		{^} network/country change on tvmaze gets saved now
+		{^} network/country change on tvmaze gets saved now (#95)
 		{^} !addrule shows inserted ID
+		{^} Small changes for NEW, PRE, UPDATE and STATS output -> [EVENT] SECTION RELEASENAME instead [EVENT SECTION] RELEASENAME
 		{^} !rulecp, !ruleins shows more info - overall the output msgs are identical for every rulecmd
-		{^} !tweak automatically switch to lowercase values
+		{^} !tweak automatically switch to lowercase values (#78)
 		{^} RegExpr updated to latest version
-		{^} Archive sections can be added with !setdir using 'ARCH-' -> ARCH-SECTIONNAME
+		{^} Archive sections can be added with !setdir using 'ARCH-' -> ARCH-SECTIONNAME (#75)
 		{^} !status shows SSL Version now + URL, IMDB and NFO count are back
+		{^} tvcurrentep supports current ep or newer now (#101)
 
 --=============================( SLFTP v1.5.3.0 )=================================- 
 		{+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to full path / slftp section *BETA*
