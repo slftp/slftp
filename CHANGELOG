@@ -65,6 +65,7 @@
 		{#} Fix imdb title regex to properly parse currently running tv series
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized (#12)
 		{#} auto adding blacklist rule for group should work again
+		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC)
 		{#} !batch supports PRE in releasename (#105)
 		{#} TSiteSlot.Leechfile negotiates to the highest version mutually supported by the client and the server, no more TLS v1.2 only!
 		{^} many code changes on dirlisttask, mkdirtask and racetask - more things regarding this will come + better error handling
