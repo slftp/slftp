@@ -2,7 +2,7 @@ unit tasktvinfolookup;
 
 interface
 
-uses Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo;
+uses Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo,StrUtils;
 
 //const apkikey:string = 'FFFFFFFFFFFFFFFF'; //   just a 64bit (16*4) hex string and you are vailed, no RESTful api :P
 
@@ -130,7 +130,7 @@ begin
 
       showA := replaceTVShowChars(Csere(showName, '.', ' '));
       showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
-
+//      irc_addtext('','','%s %s',[onlyEnglishAlpha(showA),onlyEnglishAlpha(showB)]);
       if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
       begin
 
@@ -146,7 +146,7 @@ begin
           //  tv_country := 'USA';
           if tv_country = 'GB' then
             tv_country := 'UK';
-            
+
           if UpperCase(tv_country) = uppercase(country) then
           begin
             if not fromIRC then
@@ -284,7 +284,7 @@ begin
   s := Csere(s, '', Chr(39));
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
-  
+
   url := 'http://api.tvmaze.com/singlesearch/shows?q=' + s;
   try
     response := slUrlGet(url);
@@ -481,6 +481,19 @@ begin
     Exit;
   end;
 
+    if ((not hadPrev) AND (hadNext)) then begin
+    //#Issue#101
+        if json.Field['status'].SelfType <> jsNull then
+        if (AnsiString(json.Field['status'].Value) = 'In Development') then begin
+           //somehow the group catch the episode early, maybe a "pre-air-pilot"..
+          episdoe := ep_nextnum;
+          season := se_nextnum;
+          date := nextdt;
+          Exit;
+        end;
+    Exit;//needed?
+  end;
+
   if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
   begin
     // nothing before matched and next_date is grater then now, so we took this.
@@ -488,24 +501,33 @@ begin
     episdoe := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
+
   end;
+
+
+
 end;
 
 function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''): TTVInfoDB;
-const
-  genreList: AnsiString = 'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' +
-    'Fantasy, Food, Game Show, History, Horror, Home and Garden, News, Medical, Mini-Series, Music, Mystery, Reality, Romance, Science-Fiction, ' +
-    'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';
+label
+  TryToGetTheTVDBGenre;
+
+  {$I common.inc}
+
 var
   tvr: TTVInfoDB;
   i: integer;
   s: AnsiString;
   js: TlkJSONobject;
-  slGen, gTVDB: TStringlist;
+  gTVDB: TStringlist;
   season, episdoe: Integer;
   date: TDateTime;
+  numerrors: Integer;
+  TheTVDBGenreFailure: Boolean;
+  ExceptionMessage: AnsiString;
 begin
   result := nil;
+  numerrors := 0;
   js := nil;
   if Showname <> '' then
     s := Csere(Showname, '.', ' ')
@@ -514,9 +536,9 @@ begin
   tvr := TTVInfoDB.Create(s);
   tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
-  slGen := TStringlist.Create;
+//  slGen := TStringlist.Create;
   gTVDB := TStringlist.Create;
-  slGen.CommaText := genreList;
+//  slGen.CommaText := tvinfo_genreList;
   try
     try
       js := TlkJSON.ParseText(jsonStr) as TlkJSONobject;
@@ -608,43 +630,53 @@ begin
 
     // if an error occur while calling xml.LoadFromStream(ts); in function getGenreFromTheTVDb
     // [ error: In 'stream:' (line 1 pos 55): Expected whitespace ]
-    // we create a debug message with showname and ID for further debug
+    // [ error: In 'stream:' (line 1 pos 1): Root element is missing ]
+    // we try again, so we'll try 3 times and maybe then TheTVDB gives a response to us - if not we skip it
+    // it occurs when connection timeout, bad response, response takes too long or is empty
     // WE STILL GET GENRE FROM TVMAZE, SO NO EMPTY GENRE IF TVMAZE HAS GENRES!
+    TryToGetTheTVDBGenre:
+    TheTVDBGenreFailure := False;
     try
+      inc(numerrors);
 
       if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
       begin
         gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
 
         for I := 0 to gTVDB.Count - 1 do
-          if slGen.IndexOf(gTVDB.Strings[i]) > -1 then
+          if AnsiIndexText(gTVDB.Strings[i], tvinfo_genreList) > -1 then
             tvr.tv_genres.Add(gTVDB.Strings[i]);
       end;
-      
-    except on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]));
-      irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB genre Exception : %s - Show: %s (ID: %s)', [e.Message, tvr.tv_showname, tvr.tvmaze_id]);
-    end;
-    end;
-
-      if js.Field['genres'].SelfType <> jsNull then
+    except
+      on e: Exception do
       begin
-        for I := 0 to js.Field['genres'].Count - 1 do
-          if slGen.IndexOf(string(js.Field['genres'].Child[i].Value)) > -1 then
-            tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+        TheTVDBGenreFailure := True;
+        ExceptionMessage := e.Message;
       end;
+    end;
 
-      //end
-      //else
-      //irc_addAdmin('genre is null');
+    if TheTVDBGenreFailure then
+    begin
+      case numerrors of
+        0..2:
+          begin
+            goto TryToGetTheTVDBGenre;
+          end;
+        3:
+          begin
+            Debug(dpMessage, section, Format('[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]));
+            irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
+          end;
+      end;
+    end;
 
-    //except on E: Exception do
-    //  begin
-    //    irc_addadmin(e.Message);
-    //  end;
 
-    //end;
+    if js.Field['genres'].SelfType <> jsNull then
+    begin
+      for I := 0 to js.Field['genres'].Count - 1 do
+        if AnsiIndexText(string(js.Field['genres'].Child[i].Value), tvinfo_genreList) > -1 then
+          tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+    end;
 
     if js.Field['premiered'].SelfType <> jsNull then
       tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4), -1)
@@ -674,7 +706,6 @@ begin
     result := tvr;
   finally
     js.free;
-    slGen.free;
     gTVDB.free;
   end;
 

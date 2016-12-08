@@ -777,9 +777,7 @@ begin
       else if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format(
-            '<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
-            [section, rls, sitename]));
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else
       begin
@@ -788,24 +786,18 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7><b>[NEW %s]</b></c> <b>%s</b> @ <b>%s</b>',
-                [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format(
-                '<c7>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<c7>Not found in PreDB</c>)',
-                [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
           end;
         end
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format(
-              '<c3>[<b>NEW %s</b>]</c> <b>%s</b> @ <b>%s</b> (<b>%s</b>) (<c3> %s ago</c>) (%s)',
-              [section, rls, sitename, p.sl.sectionname,
-              dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
         end;
       end;
     end
@@ -814,8 +806,7 @@ begin
       if (event = 'PRE') then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format('<c9>[<b>PRE</b> <b>%s</b>]</c> <b>%s</b> @ <b>%s</b>',
-            [section, rls, sitename]));
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end;
 
       // meg kell tudni mi valtozott //you need to know what's changed
@@ -854,10 +845,7 @@ begin
           if (DateTimeToUnix(r.pretime) <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
-              irc_Addadmin(Format(
-                '<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3> %s ago</c>) (%s)',
-                [section, rls, sitename, dbaddpre_GetPreduration(
-                  r.pretime), r.pretimefrom]));
+              irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
             added := p.AddSites;
             if added then
             begin
@@ -919,10 +907,9 @@ begin
             [section, rls, sitename]));
           exit;
         end;
-
         end;
 
-        if (sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) or (not TSite(FindSiteByName('',sitename)).PermDown)) then
         begin
         irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
           [p.rls.section, p.rls.rlsname, sitename, event]));

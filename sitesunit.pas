@@ -100,7 +100,6 @@ type
     fkreditz: TDateTime;
     fNumDn:   integer;
     fNumUp:   integer;
-    //    fskippre:boolean;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -178,6 +177,8 @@ type
     function GetLastKnownCredits: int64;
     procedure SetLastKnownCredits(Value: int64);
 
+    function GetUseAutoInvite: Boolean;
+    procedure SetUseAutoInvite(Value: Boolean);
 
   public
     emptyQueue:  boolean;
@@ -291,7 +292,7 @@ type
 
     property SiteInfos: AnsiString Read GetSiteInfos Write SetSiteInfos;
     property LastCrdits: int64 Read GetLastKnownCredits Write SetLastKnownCredits;
-
+    property UseAutoInvite:Boolean read getUseAutoInvite write setUseAutoInvite;
 
   end;
 
@@ -307,7 +308,7 @@ procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
 
-function getAdminSiteName:AnsiString;
+function getAdminSiteName: AnsiString;
 
 
 //function
@@ -344,11 +345,10 @@ var
   autologin:     boolean = False;
   killafter:     integer = 0;
 
-function getAdminSiteName:AnsiString;
+function getAdminSiteName: AnsiString;
 begin
-result:= config.ReadString(section, 'admin_sitename', 'SLFTP');
+  Result := config.ReadString('sites', 'admin_sitename', 'SLFTP');
 end;
-
 
 function SiteSoftWareToSTring(sitename: AnsiString): AnsiString;
 begin
@@ -377,17 +377,14 @@ begin
   Result := 'Unknown';
   case TSite(site).sslmethod of
     sslNone: Result := ' no encryption used';
-    sslImplicitSSLv23: Result :=
-        ' implicit ssl handshake using SSLv23 after TCP connection was established';
+    sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
     sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
     sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
     sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
     sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
-    sslImplicitTLSv1: Result :=
-        ' implicit ssl handshake using TLSv1 after TCP connection was established';
+    sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
     sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv12';
-    sslImplicitTLSv1_2: Result :=
-        ' implicit ssl handshake using TLSv12 after TCP connection was established';
+    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv12 after TCP connection was established';
   end;
 end;
 
@@ -753,18 +750,42 @@ end;
 
 procedure TSiteSlot.ProcessFeat;
 begin
-(*
-211-Extensions supported:
- PRET
- AUTH SSL
- PBSZ
- CPSV
- SSCN
- CLNT
- NOOP
- MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
-211 End
-*)
+{
+* GLFTPD *
+  211- Extensions supported:
+   AUTH TLS
+   AUTH SSL
+   PBSZ
+   PROT
+   CPSV
+   SSCN
+   MDTM
+   SIZE
+   REST STREAM
+   SYST
+  211 End
+}
+
+{
+* DRFTPD *
+  211-Extensions supported:
+   PRET
+   AUTH SSL
+   PBSZ
+   CPSV
+   SSCN
+   CLNT
+   NOOP
+   MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
+  211 End
+}
+
+{
+* IOFTPD *
+  FEAT
+  500 'FEAT': Command not understood
+  * found on https://bugs.kde.org/show_bug.cgi?id=114100
+}
   if (0 < Pos('PRET', lastResponse)) then
   begin
     if site.sw <> sswDrftpd then
@@ -775,13 +796,20 @@ begin
   begin
     if site.sw <> sswGlftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
+  end
+  else
+  if (0 < Pos('Command not understood', lastResponse)) then
+  begin
+    if site.sw <> sswIoftpd then
+      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
   end;
 end;
 
 function TSiteSlot.Cwd(dir: AnsiString; force: boolean = False): boolean;
 begin
   Result := False;
-  dir    := MyIncludeTrailingSlash(dir);
+  dir := MyIncludeTrailingSlash(dir);
+  
   if ((dir <> aktdir) or (force)) then
   begin
     if ((site.legacydirlist) or (force)) then
@@ -790,15 +818,18 @@ begin
         exit;
       if not Read('CWD') then
         exit;
+
       if (lastResponseCode = 250) then
       begin
         if (0 <> Pos('250- Matched ', lastresponse)) then
         begin
           Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+
           if dir[1] <> '/' then
             aktdir := aktdir + dir
           else
             aktdir := dir;
+
           Result := True;
           exit;
         end;
@@ -832,39 +863,31 @@ end;
 function TSiteSlot.LoginBnc(i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
-  un:   AnsiString;
-  upw:  AnsiString;
-  tmp:  AnsiString;
+  un, upw, tmp: AnsiString;
 begin
   Result := False;
 
-  if (self.site.Name = admin_sitename) then
+  if (self.site.Name = getAdminSiteName) then
   begin
     Result := True;
     exit;
   end;
 
-  if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or
-    (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and
-      (config.ReadBool(section, 'socks5', False)))
+  if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
-
-
-
-  // elso lepes a connect
+  //First step to connect
   Host := RCString('bnc_host-' + IntToStr(i), '');
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
-  peerport  := slSocket.PeerPort;
-  peerip    := slSocket.PeerIP;
+  peerport := slSocket.PeerPort;
+  peerip := slSocket.PeerIP;
   localport := slSocket.localPort;
 
   sslm := TSSLMethods(site.sslmethod);
-
   if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
   begin
     if sslm = sslImplicitTLSv1_2 then
@@ -880,14 +903,14 @@ begin
   if not Read('BANNER') then
     exit;
 
+
   if (lastResponseCode <> 220) then
   begin
     error := Trim(lastResponse);
     exit;
   end;
 
-  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23,
-    sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
+  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23, sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
   begin
     if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
       SetSSLContext(slSslv23);
@@ -904,7 +927,7 @@ begin
     else
       tmp := 'AUTH TLS';
 
-    // AUTH TLS-t probalunk
+    // trying AUTH SSL|TLS
     if not Send(tmp) then
       exit;
     if not Read('AUTH') then
@@ -912,24 +935,26 @@ begin
 
     if lastResponseCode <> 234 then
       exit;
+
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
-
   end;
-  (* else
-    Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
-  *)
+  //else
+  //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
 
-  un  := RCString('username', 'anonymous');
+
+  un := RCString('username', 'anonymous');
   upw := RCString('password', 'foo@foobar.hu');
+
+  // to bypass welcome message you have to use '-' as first char on your password
+  // WORKS ONLY @ GLFTPD
   if site.sw = sswGlftpd then
     if self.site.NoLoginMSG then
       upw := '-' + upw;
 
-
+  // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
   begin
-    //irc_addtext(todotask, '<c7>LoginBnc</c> <b>%s</b> with KILL', [Name]);
     un := '!' + un;
   end;
 
@@ -972,6 +997,7 @@ begin
     ProcessFeat();
   end;
 
+
   if not Send('SITE XDUPE 3') then
     exit;
   if not Read('XDUPE') then
@@ -982,7 +1008,6 @@ begin
     if (not SendProtP()) then
       exit;
   end;
-
 
 
   if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
@@ -1000,18 +1025,15 @@ begin
         exit;
   end;
 
-  // siker
+  // successful login
   Result := True;
-  // Announce(section, False, 'SLOT %s IS UP: %s', [name, bnc]);
 
-  // modositjuk is a top1 bnc-t erre:
+  // change order of BNC if it's not number 0 and actually number 0 failed to login
   if i <> 0 then
   begin
     bnccsere.Enter;
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i),
-      RCString('bnc_host-0', ''));
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i),
-      RCInteger('bnc_port-0', 0));
+    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
+    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
 
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);
     sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-0', Port);
@@ -1020,15 +1042,15 @@ begin
 
   if spamcfg.readbool(section, 'login_logout', True) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
-  status := ssOnline;
 
+  status := ssOnline;
 end;
 
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
 var
   host: AnsiString;
-  i:    integer;
+  i: integer;
 begin
   Result := False;
 
@@ -1051,10 +1073,8 @@ begin
         Break;
       end;
 
-      if (((lastResponseCode = 530) and
-        (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and
-        (0 <> Pos('your maximum number of connections', lastResponse)))) then
+      if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
       begin
         if site.sw = sswGlftpd then
         begin
@@ -1065,13 +1085,12 @@ begin
       else
       begin
         irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [Name, bnc, error]);
-        if ((lastResponseCode = 421) and
-          (0 <> Pos('Hammer Protection', lastResponse))) then
+        if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
         begin
           break;
         end;
-
       end;
+
       Inc(i);
     except
       break;
@@ -1081,10 +1100,8 @@ begin
   if ((not slshutdown) and (not shouldquit)) then
     if not Result then
     begin
-      if (((lastResponseCode = 530) and
-        (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and
-        (0 <> Pos('your maximum number of connections', lastResponse)))) then
+      if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
       begin
         DestroySocket(False);
       end
@@ -1590,7 +1607,7 @@ begin
         exit;
       end;
 
-      if not idTCP.TurnToSSL(slssl_ctx_tlsv1_2_client,site.io_timeout * 1000) then
+      if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
       begin
         irc_AddText(todotask, site.name+': couldnt negotiate the SSL connection ('+idTCP.error+') / '+filename);
         DestroySocket(False);
@@ -1835,11 +1852,14 @@ begin
   sites.Add(TSite.Create(admin_sitename));
 
   x := TStringList.Create;
-  sitesdat.ReadSections(x);
-  for i := 0 to x.Count - 1 do
-    if 1 = Pos('site-', x[i]) then
-      sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
-  x.Free;
+  try
+    sitesdat.ReadSections(x);
+    for i := 0 to x.Count - 1 do
+      if 1 = Pos('site-', x[i]) then
+        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+  finally
+    x.Free;
+  end;
   debug(dpSpam, section, 'SitesStart end');
 end;
 
@@ -3149,12 +3169,12 @@ end;
 
 function TSite.GetSiteInfos: AnsiString;
 begin
-  Result := RCString('SiteInfos', '');
+  Result := RCString('siteinfos', '');
 end;
 
 procedure TSite.SetSiteInfos(Value: AnsiString);
 begin
-  WCString('SiteInfos', Value);
+  WCString('siteinfos', Value);
 end;
 
 function TSite.GetLastKnownCredits: int64;
@@ -3164,7 +3184,16 @@ end;
 
 procedure TSite.SetLastKnownCredits(Value: int64);
 begin
+//
+end;
 
+function TSite.GetUseAutoInvite:boolean;
+begin
+   Result := RCBool('useautoinvite', True);
+end;
+procedure TSite.SetUseAutoInvite(value:Boolean);
+begin
+  WCBool('useautoinvite', Value);
 end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);
@@ -3179,22 +3208,22 @@ end;
 
 procedure TSite.SetProxyName(Value: AnsiString);
 begin
-  WCString('ProxyName', Value);
+  WCString('proxyname', Value);
 end;
 
 function TSite.GetProxyName;
 begin
-  Result := RCString('ProxyName', '!!NOIN!!');
+  Result := RCString('proxyname', '!!NOIN!!');
 end;
 
 function TSite.GetNoLoginMSG: boolean;
 begin
-  Result := RCBool('NoLoginMSG', False);
+  Result := RCBool('nologinmsg', False);
 end;
 
 procedure TSite.SetNoLoginMSG(Value: boolean);
 begin
-  WCBool('NoLoginMSG', Value);
+  WCBool('nologinmsg', Value);
 end;
 
 

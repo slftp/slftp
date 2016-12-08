@@ -11,29 +11,32 @@ implementation
 
 uses DateUtils, mystrings, SysUtils, Classes, configunit;
 
-var ms: TStringList;
-    m_starts: TDateTime;
-    m_ends: TDateTime;
+var
+  ms: TStringList;
+  m_starts: TDateTime;
+  m_ends: TDateTime;
 
-const rsections='midnight';
+const rsections = 'midnight';
 
 function IsMidnight(section: AnsiString): Boolean;
-var m: TDateTime;
+var
+  m: TDateTime;
 begin
-  Result:= False;
+  Result := False;
+
   if ms.IndexOf(section) = -1 then exit;
 
-  m:= Timeof(Now);
+  m := Timeof(Now);
 
   if ((m >= m_ends) and (m <= m_starts)) then exit;
 
-  Result:= True;
+  Result := True;
 end;
 
 procedure MidnightInit;
 begin
-  ms:= TStringList.Create;
-  ms.Delimiter:=',';
+  ms := TStringList.Create;
+  ms.Delimiter := ',';
 end;
 
 procedure MidnightUninit;
@@ -43,9 +46,9 @@ end;
 
 procedure MidnightStart;
 begin
-  ms.DelimitedText:= config.ReadString(rsections, 'sections', '');
-  m_starts:= MyStrToTime(config.ReadString(rsections, 'starts', '23:30'));
-  m_ends:= MyStrToTime(config.ReadString(rsections, 'ends', '00:30'));
+  ms.DelimitedText := config.ReadString(rsections, 'sections', '');
+  m_starts := MyStrToTime(config.ReadString(rsections, 'starts', '23:30'));
+  m_ends := MyStrToTime(config.ReadString(rsections, 'ends', '00:30'));
 end;
 
 end.

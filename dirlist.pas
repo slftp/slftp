@@ -951,21 +951,27 @@ begin
 end;
 
 function TDirList.Find(filename: AnsiString): TDirListEntry;
-var i: Integer;
-    de: TDirListEntry;
+var
+  i: Integer;
+  de: TDirListEntry;
 begin
-  Result:= nil;
+  Result := nil;
   if entries.Count = 0 then
     exit;
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
-    try if i < 0 then Break; except Break; end;
     try
-      de:= TDirListEntry(entries[i]);
+      if i < 0 then
+        Break;
+    except
+      Break;
+    end;
+    try
+      de := TDirListEntry(entries[i]);
       if (AnsiUpperCase(de.filename) = AnsiUpperCase(filename)) then
       begin
-        Result:= de;
+        Result := de;
         Break;
       end;
     except
@@ -983,39 +989,41 @@ begin
 end;
 
 function TDirList.FindDirlist(dirname: AnsiString; createit: Boolean = False): TDirList;
-var p: Integer;
-    firstdir, lastdir: AnsiString;
-    d: TDirlistEntry;
+var
+  p: Integer;
+  firstdir, lastdir: AnsiString;
+  d: TDirlistEntry;
 begin
-  Result:= nil;
+  Result := nil;
 
   if dirname = '' then
   begin
-    Result:= self;
+    Result := self;
     exit;
   end;
 
   try
-    p:= Pos('/', dirname);
+    p := Pos('/', dirname);
     if 0 < p then
     begin
-      firstdir:= Copy(dirname, 1, p-1);
-      lastdir:= Copy(dirname, p+1, 1000);
-    end else
+      firstdir := Copy(dirname, 1, p-1);
+      lastdir := Copy(dirname, p+1, 1000);
+    end
+    else
     begin
-      firstdir:= dirname;
-      lastdir:= '';
+      firstdir := dirname;
+      lastdir := '';
     end;
 
-    d:= Find(firstdir);
+    d := Find(firstdir);
     if d = nil then
     begin
       if not createit then
       begin
         exit;
       end;
-      d:= TDirListEntry.Create(firstdir, self);
-      d.Directory:= True;
+      d := TDirListEntry.Create(firstdir, self);
+      d.Directory := True;
       entries.Add(d);
     end;
 
@@ -1025,32 +1033,31 @@ begin
     end;
 
     if d.subdirlist = nil then
-      d.subdirlist:= TDirlist.Create(site_name, d, skiplist);
+      d.subdirlist := TDirlist.Create(site_name, d, skiplist);
   except
     on E: Exception do
     begin
       debugunit.Debug(dpError, section, 'TDirList.FindDirlist: %s', [e.Message]);
-      Result:= nil;
+      Result := nil;
       exit;
     end;
   end;
-  Result:= d.subdirlist.FindDirlist(lastdir, createit);
+  Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
 function TDirList.Done: Integer;
-var de: TDirlistEntry;
-    i: Integer;
+var
+  de: TDirlistEntry;
+  i: Integer;
 begin
-  Result:= 0;
+  Result := 0;
 
-
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-     de:= TDirlistEntry(entries[i]);
+     de := TDirlistEntry(entries[i]);
       if de.skiplisted then Continue;
-
       if de.done then inc(Result);
       if ((de.directory) and (de.subdirlist <> nil)) then
         inc(Result, de.subdirlist.Done);
@@ -1062,21 +1069,23 @@ begin
 end;
 
 function TDirList.RacedByMe(only_useful: boolean = False): Integer;
-var de: TDirlistEntry;
-    i: Integer;
+var
+  de: TDirlistEntry;
+  i: Integer;
 begin
-  Result:= 0;
+  Result := 0;
 
-
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-      de:= TDirlistEntry(entries[i]);
+      de := TDirlistEntry(entries[i]);
       if only_useful then
       begin
         if (de.racedbyme and de.Useful) then inc(Result);
-      end else begin
+      end
+      else
+      begin
         if de.racedbyme then inc(Result);
       end;
       if ((de.directory) and (de.subdirlist <> nil)) then
@@ -1090,25 +1099,26 @@ begin
 
 end;
 
-function TDirList.SizeRacedByMe(only_useful: boolean = False):Int64;
-var de: TDirlistEntry;
-   i: Integer;
+function TDirList.SizeRacedByMe(only_useful: boolean = False): Int64;
+var
+  de: TDirlistEntry;
+  i: Integer;
 begin
   Result:= 0;
 
-
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-      de:= TDirlistEntry(entries[i]);
+      de := TDirlistEntry(entries[i]);
       if only_useful then
       begin
         if (de.racedbyme and de.Useful) then inc(result,de.filesize);
-      end else begin
+      end
+      else
+      begin
         if de.racedbyme then inc(result,de.filesize);
       end;
-
       if ((de.directory) and (de.subdirlist <> nil)) then inc(result,de.subdirlist.SizeRacedByMe(only_useful));
     except
       Continue;
@@ -1119,25 +1129,25 @@ end;
 
 
 function TDirList.hassfv: boolean;
-var i: Integer;
-    de: TDirlistEntry;
+var
+  i: Integer;
+  de: TDirlistEntry;
 begin
-  Result:= False;
+  Result := False;
   if (self.cache_hassfv) then
   begin
-    Result:= True;
+    Result := True;
     exit;
   end;
 
-
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
-    try de:= TDirlistEntry(entries[i]);
+    try de := TDirlistEntry(entries[i]);
       if ((AnsiLowerCase(de.Extension) = '.sfv') and (de.megvanmeg) and (de.filesize > 0)) then
       begin
-        Result:= True;
-        Self.cache_hassfv:= True;
+        Result := True;
+        Self.cache_hassfv := True;
         exit;
       end;
     except
@@ -1148,26 +1158,26 @@ begin
 end;
 
 function TDirList.hasnfo: boolean;
-var i: Integer;
-    de: TDirlistEntry;
+var
+  i: Integer;
+  de: TDirlistEntry;
 begin
-  Result:= False;
+  Result := False;
   if (self.cache_hasnfo) then
   begin
-    Result:= True;
+    Result := True;
     exit;
   end;
 
-
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-      de:= TDirlistEntry(entries[i]);
-      if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.megvanmeg)) then
+      de := TDirlistEntry(entries[i]);
+      if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.megvanmeg) and (de.filesize > 0)) then
       begin
-        Result:= True;
-        Self.cache_hasnfo:= True;
+        Result := True;
+        Self.cache_hasnfo := True;
         exit;
       end;
     except
@@ -1179,18 +1189,19 @@ end;
 
 
 procedure TDirList.Clear;
-var i: Integer;
+var
+  i: Integer;
 begin
-  allcdshere:= False;
-  fLastChanged:= 0;
-  biggestcd:= 0;
+  allcdshere := False;
+  fLastChanged := 0;
+  biggestcd := 0;
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
-      TDirlistEntry(entries[i]).megvanmeg:= False;
-      TDirlistEntry(entries[i]).error:= False;
+      TDirlistEntry(entries[i]).megvanmeg := False;
+      TDirlistEntry(entries[i]).error := False;
     except
       Continue;
     end;

@@ -40,7 +40,8 @@ implementation
 
 uses slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
      Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-     backupunit, kb, StrUtils, encinifile, dateutils {$IFDEF MSWINDOWS},Windows {$ENDIF};
+     backupunit, kb, StrUtils, encinifile, dateutils, mrdohutils
+     {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const section = 'console';
 
@@ -598,9 +599,18 @@ end;
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
 label ujra;
-var p, p2: AnsiString;
+var fs, p, p2: AnsiString;
     x: TEncStringList;
 begin
+
+  fs:=CommonFileCheck;
+  if fs <> '' then
+  begin
+    ShowMessagE(fs);
+    shouldquit:= True;
+    exit;
+  end;
+
 ujra:
   if not fileexists(dir+'sites.dat') then
   begin
@@ -650,6 +660,9 @@ ujra:
 
   DebugInit;
 
+    slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
+    vl.Caption:=cmod_VersionString;
+
   if config.ReadBool('backup', 'run_backup_on_startup', True) then
     BackupBackup;
 
@@ -660,7 +673,6 @@ ujra:
     exit;
   end;
 
-
   p:= Main_Init;
   if p <> '' then
   begin
@@ -668,10 +680,6 @@ ujra:
     shouldquit:= True;
     exit;
   end;
-
-
-  slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-  vl.Caption:=cmod_VersionString;
 
   if not no_console_slot then
   begin
@@ -697,6 +705,7 @@ ujra:
     end;
   except on e: Exception do
     begin
+      ShowMessage('slftp.history is corrupt! Please remove it!');
       Debug(dpError, 'console', 'slftp.history is corrupt! Please remove it');
     end;
   end;
@@ -779,80 +788,81 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar;
-  extended: Boolean): Boolean;
-var x, y: TStringList;
-    i, j: Integer;
-    l, ki: Integer;
-    word: AnsiString;
+function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar; extended: Boolean): Boolean;
+var
+  x, y: TStringList;
+  i, j: Integer;
+  l, ki: Integer;
+  word: AnsiString;
 begin
-  Result:= False;
+  Result := False;
 
   if ((c = #9) and (not extended) and (sender.Text <> '')) then
   begin
-    Result:= True;
-    x:= TStringList.Create;
-    x.Delimiter:= ' ';
-    y:= TStringList.Create;
-    x.DelimitedText:= sender.Text;
-    l:= 1;
-    ki:= -1;
-    word:= '';
-    for i:= 0 to x.Count -1 do
-    begin
-      if l + length(x[i]) >= sender.Cursor then
+    Result := True;
+    x := TStringList.Create;
+    y := TStringList.Create;
+    try
+      x.Delimiter := ' ';
+      x.DelimitedText := sender.Text;
+      l := 1;
+      ki := -1;
+      word := '';
+      for i := 0 to x.Count - 1 do
       begin
-        ki:= i;
-        word:= x[i];
-        Break;
-      end;
-      inc(l, length(x[i])+1);
-    end;
-
-
-    if word <> '' then
-    begin
-      word:= Copy(word, 1, sender.Cursor - l);
-
-      (*
-      for i:= 0 to sectionhelper.Count -1 do
-        if AnsiStartsText(word, sectionhelper.Names[i]) then
+        if l + length(x[i]) >= sender.Cursor then
         begin
-          y.Add(sectionhelper.Names[i]);
+          ki := i;
+          word := x[i];
+          Break;
         end;
-      *)
+        inc(l, length(x[i])+1);
+      end;
 
-      if y.Count > 0 then
+
+      if word <> '' then
       begin
-        word:= y[0];
-        i:= 1;
-        while (i <= length(word)) do
-        begin
+        word := Copy(word, 1, sender.Cursor - l);
 
-          for j:= 1 to y.Count -1 do
+        (*
+        for i := 0 to sectionhelper.Count - 1 do
+          if AnsiStartsText(word, sectionhelper.Names[i]) then
           begin
-            if not AnsiSameText(Copy(word, 1, i), Copy(y[j], 1, i)) then
+            y.Add(sectionhelper.Names[i]);
+          end;
+        *)
+
+        if y.Count > 0 then
+        begin
+          word := y[0];
+          i := 1;
+          while (i <= length(word)) do
+          begin
+
+            for j := 1 to y.Count - 1 do
             begin
-              word:= Copy(word, 1, i-1);
-              Break;
+              if not AnsiSameText(Copy(word, 1, i), Copy(y[j], 1, i)) then
+              begin
+                word := Copy(word, 1, i-1);
+                Break;
+              end;
             end;
+
+            inc(i);
           end;
 
-          inc(i);
-        end;
-
-        if word <> '' then
-        begin
-          x[ki]:= word;
-          sender.Text:= x.DelimitedText;
-          sender.Cursor:= l + length(word);
+          if word <> '' then
+          begin
+            x[ki] := word;
+            sender.Text := x.DelimitedText;
+            sender.Cursor := l + length(word);
+          end;
         end;
       end;
+    finally
+      y.Free;
+      x.Free;
     end;
-
-    y.Free;
-    x.Free;
-    //
   end;
 end;
 

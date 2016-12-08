@@ -39,6 +39,8 @@ var
   spamcfg: TEncIniFile;
   last_max_uptime_check: TDateTime;
 
+  {$I common.inc}
+
 implementation
 
 uses mainthread, DateUtils, sitesunit, mystrings;
@@ -73,27 +75,19 @@ end;
 function CommonFileCheck: AnsiString;
 var
   s: AnsiString;
+  I: Integer;
 begin
   result := '';
   s := ExtractFilePath(ParamStr(0));
-  if not fileexists(s + 'slftp.ini') then
-    result := result + 'slftp.ini not found!' + #10#13;
-  if not fileexists(s + 'imdbcountrys.nwo') then
-    result := result + 'imdbcountrys.nwo not found!' + #10#13;
-  if not fileexists(s + 'languagebase.slftp') then
-    result := result + 'languagebase.slftp not found!' + #10#13;
-  if not fileexists(s + 'slftp.knowngroups') then
-    result := result + 'slftp.knowngroups not found!' + #10#13;
-  if not fileexists(s + 'slftp.languages') then
-    result := result + 'slftp.languages not found!' + #10#13;
-  if not fileexists(s + 'slftp.precatcher') then
-    result := result + 'slftp.precatcher not found!' + #10#13;
-  if not fileexists(s + 'slftp.skip') then
-    result := result + 'slftp.skip not found!' + #10#13;
-  if not fileexists(s + 'slftp.skipgroups') then
-    result := result + 'slftp.skipgroups not found!' + #10#13;
-  if not fileexists(s + 'slftp.spamconf') then
-    result := result + 'slftp.spamconf not found!' + #10#13;
+
+    if not ((FileExists(s+iniFiles[0])) or (FileExists(s+iniFiles[1])))  then
+    result:=Format('slFtp can not run without slftp.ini %s',[#10#13]);
+      Exit;
+
+  for I := 0 to cFilecount do
+    if not FileExists(s+commonFiles[i]) then
+      result := result + commonFiles[i]+#10#13;
+  if result <> '' then result:=Format('slFtp can not start with following files:%s%s',[#10#13,Result]);
 end;
 
 (*

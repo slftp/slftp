@@ -136,7 +136,7 @@ begin
       else
       begin
         irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
-        Debug(dpMessage, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
+        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
       end;
       exit;
     end;
@@ -778,7 +778,7 @@ begin
     begin
       try
         if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
-          irc_Addadmin(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
+          irc_SendUPDATE(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
         kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
       except
         on e: Exception do
@@ -792,20 +792,14 @@ begin
 end;
 
 procedure dbTVInfoStart;
-begin
-  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
-end;
-
-procedure dbTVInfoInit;
 var
   db_name, db_params: AnsiString;
   user_version: Psqlite3_stmt;
   uV: integer;
 begin
-  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
   if slsqlite_inited then
   begin
-    db_name := Trim(config.ReadString(section, 'db_file', 'tvinfos.db'));
+    db_name := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
     db_params := config.ReadString(section, 'pragma', ' locking_mode=NORMAL;');
     tvinfodb := TslSqliteDB.Create(db_name, db_params);
 
@@ -843,6 +837,14 @@ begin
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
 
   end;
+
+  Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
+end;
+
+procedure dbTVInfoInit;
+begin
+
+  addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
 end;
 
 procedure dbTVInfoUninit;
