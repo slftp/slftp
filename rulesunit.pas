@@ -676,6 +676,12 @@ type
     class function Description: AnsiString; override;
   end;
 
+  TConditionTVLanguage = class(TStringCondition)
+    function SupplyValue(r: TPazo): AnsiString; override;
+    class function Name: AnsiString; override;
+    class function Description: AnsiString; override;
+  end;
+
   TConditionTVClassification = class(TStringCondition)
     function SupplyValue(r: TPazo): AnsiString; override;
     class function Name: AnsiString; override;
@@ -2522,6 +2528,7 @@ begin
   conditions.Add(TConditionTVTag);
   conditions.Add(TConditionTVPremierYear);
   conditions.Add(TConditionTVCountry);
+  conditions.Add(TConditionTVLanguage);
   conditions.Add(TConditionTVClassification);
   conditions.Add(TConditionTVScripted);
   conditions.Add(TConditionTVGenres);
@@ -4285,6 +4292,33 @@ begin
     Result := '';
   end;
 end;
+
+{ TConditionTVLanguage }
+
+class function TConditionTVLanguage.Description: AnsiString;
+begin
+  Result := TVLanguageDescription;
+end;
+
+class function TConditionTVLanguage.Name: AnsiString;
+begin
+  Result := 'tvlanguage';
+end;
+
+function TConditionTVLanguage.SupplyValue(r: TPazo): AnsiString;
+begin
+  Result := '';
+  try
+    if r.rls is TTVRelease then
+    begin
+      if TTVRelease(r.rls).showid <> '' then
+        Result := TTVRelease(r.rls).tvlanguage;
+    end;
+  except
+    Result := '';
+  end;
+end;
+
 
 { TConditionTVClassication }
 

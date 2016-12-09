@@ -279,7 +279,7 @@ begin
   tr.currentseason := false;
   tr.currentepisode := false;
   tr.currentair := false;
-//  tv.tv_language := tv_language;
+  tr.tvlanguage := tv_language;
 
   if YearOf(now) = tv_next_season then
   begin
