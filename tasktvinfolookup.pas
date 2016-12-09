@@ -564,6 +564,10 @@ begin
     tvr.tvmaze_id := AnsiString(js.Field['id'].Value);
     tvr.tv_url := AnsiString(js.Field['url'].Value);
 
+    if js.Field['language'].SelfType <> jsNull then
+    tvr.tv_language:=AnsiString(js.Field['language'].Value);
+
+
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
     else

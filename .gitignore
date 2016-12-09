@@ -12,6 +12,7 @@ __history
 *.BAK
 *.bak
 *.stackdump
+*.stats
 bin/*
 Win32/*
 Win64/*

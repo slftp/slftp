@@ -83,6 +83,8 @@ const
   TVStatusDescription: string = 'Returns with the Status field parsed from TVMaze.';
   TVRunningDescription: string = 'Returns with the Status field parsed from TVMaze. Returns false if lookup is not ready yet.';
   TVtagDescription: string = 'Returns the "tv tag" of the release name. Check slftp.ini, [kb] tvtags.';
+  TVLanguageDescription: string = 'Returns with the Language field parsed from TVMaze.';
+
 
   {    MP3 => TMP3Release           }
   {    NFO => TNFORelease           }
