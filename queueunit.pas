@@ -342,7 +342,7 @@ begin
     end;
     if ss1 = nil then
       exit;
-      
+
     // or use 'if t.ps1.AllPre then' from pazo.pas but will also pre true when status = rssShouldPre
     if t.ps1.status = rssRealPre then
     begin
@@ -350,7 +350,7 @@ begin
         exit;
     end
     else
-    begin 
+    begin
       if s1.num_dn >= ss1.site.max_dn then
         exit;
     end;
@@ -381,22 +381,23 @@ begin
       else
       begin
         sst2 := TSiteSlot(s2.slots[i]);
-        tt   := sst2.todotask;
-        if tt.ClassType = TPazoRaceTask then
+        tt := sst2.todotask;
+        if tt <> nil then
         begin
-          tpr := TPazoRaceTask(tt);
-          if ((tpr.site2 = t.site2) and (tpr.dir = t.dir) and
-            (tpr.filename = t.filename)) then
+          if tt.ClassType = TPazoRaceTask then
           begin
-            // already trading the file to that site
-            exit;
-          end;
+            tpr := TPazoRaceTask(tt);
+            if ((tpr.site2 = t.site2) and (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
+            begin
+              // already trading the file to that site
+              exit;
+            end;
 
-          if ((tpr.site2 = t.site1) and (tpr.site1 = t.site2) and
-            (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
-          begin
-            // already trading the opposite route
-            exit;
+            if ((tpr.site2 = t.site1) and (tpr.site1 = t.site2) and (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
+            begin
+              // already trading the opposite route
+              exit;
+            end;
           end;
         end;
       end;
