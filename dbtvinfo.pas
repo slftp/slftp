@@ -21,6 +21,7 @@ type
     tv_genres: TStringList;
     tv_days: TStringList;
     tv_network: AnsiString;
+    tv_language: AnsiString;
     tv_premiered_year: integer;
     tv_endedyear: integer;
     tv_running: boolean;
@@ -237,9 +238,10 @@ procedure TTVInfoDB.Save;
 begin
   try
     if
-      tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id,tvmaze_id,airdays,next_date,next_season,next_episode) VALUES (%d,%d,"%s","%s","%s","%s",''%s'',%d,%d,%d,%d,''%s'',%d,%d,%d)',
+      tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id,tvmaze_id,airdays,next_date,next_season,next_episode,tv_language) VALUES '+
+      '(%d,%d,"%s","%s","%s","%s","%s",%d,%d,%d,%d,"%s",%d,%d,%d,"%s")',
       [StrToIntDef(thetvdb_id, -1), tv_premiered_year, tv_country, tv_status, tv_classification, tv_network, tv_genres.CommaText, tv_endedyear, DateTimeToUnix(now()),
-      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id), tv_days.CommaText, tv_next_date, tv_next_season, tv_next_ep])) then
+      StrToIntDef(tvrage_id, -1), StrToInt(tvmaze_id), tv_days.CommaText, tv_next_date, tv_next_season, tv_next_ep,tv_language])) then
       last_updated := DateTimeToUnix(now())
     else
       last_updated := 3817;
@@ -277,6 +279,7 @@ begin
   tr.currentseason := false;
   tr.currentepisode := false;
   tr.currentair := false;
+//  tv.tv_language := tv_language;
 
   if YearOf(now) = tv_next_season then
   begin
@@ -391,7 +394,7 @@ begin
             UnixToDateTime(tv_next_date))]));
 
       toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
-      toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s', [tv_country, tv_network]));
+      toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s', [tv_country, tv_network,tv_language]));
       toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end
     else
@@ -457,10 +460,9 @@ begin
   end;
 
   result :=
-    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", country = "%s", network = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
+    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", country = "%s", network = "%s", genre = "%s", airdays="%s" ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d, tv_language = "%s" WHERE tvmaze_id = %d; ',
     [StrToIntDef(thetvdb_id, -1), tv_status, tv_country, tv_network, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
-    tv_next_ep,
-      StrToInt(tvmaze_id)]));
+    tv_next_ep,tv_language,StrToInt(tvmaze_id)]));
 
   try
 
@@ -479,11 +481,13 @@ function TTVInfoDB.UpdateIRC: boolean;
 begin
   try
     result :=
-      tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", country = "%s", network = "%s", genre = ''%s'', airdays=''%s'' ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d WHERE tvmaze_id = %d; ',
-      [StrToIntDef(thetvdb_id, -1), tv_status, tv_country, tv_network, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date,
-      tv_next_season,
-        tv_next_ep,
-        StrToInt(tvmaze_id)]));
+      tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %d, status = "%s", country = "%s", network = "%s", genre = "%s", airdays="%s" ,ended_year = %d, tvrage_id = %d, last_updated = %d, next_date = %d, next_season = %d, next_episode = %d, tv_language = "%s" WHERE tvmaze_id = %d; ',
+      [StrToIntDef(thetvdb_id, -1), tv_status, tv_country, tv_network, tv_genres.CommaText,
+      tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1),
+      DateTimeToUnix(now()), tv_next_date,tv_next_season,tv_next_ep,tv_language,
+      StrToInt(tvmaze_id)]));
+
+
   except on E: Exception do
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.UpdateIRC: %s', [e.Message]));
   end;
@@ -627,6 +631,7 @@ begin
       tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
       tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), -1);
       tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), -1);
+      tvi.tv_language:= tvinfodb.column_text(gettvrage, 20);
 
       result := tvi;
     except
@@ -691,6 +696,7 @@ begin
         tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), 0);
         tvi.tv_next_season := StrToIntDef(tvinfodb.column_text(gettvrage, 17), 0);
         tvi.tv_next_ep := StrToIntDef(tvinfodb.column_text(gettvrage, 18), 0);
+        tvi.tv_language:= tvinfodb.column_text(gettvrage, 20);
         result := tvi;
       end;
     except
@@ -734,8 +740,7 @@ begin
     save_tvrage := TTVInfoDB(tvrage);
     try
       if (rls <> '') then
-
-        irc_Addtext_by_key('ADDTVMAZE', addtinfodbcmd + ' ' + rls + ' ' + tvmaze_id);
+        irc_Addtext_by_key('ADDTVMAZE',Format('%s %s %s',[addtinfodbcmd,rls,tvmaze_id]));
     except
       on e: Exception do
       begin
@@ -791,7 +796,16 @@ begin
   end;
 end;
 
+
+
+procedure _updateToV3;
+begin
+tvinfodb.ExecSQL('ALTER TABLE infos ADD COLUMN tv_language TEXT;');
+tvinfodb.ExecSQL('PRAGMA user_version = 3;');
+end;
+
 procedure dbTVInfoStart;
+const currentDbVersion:integer = 3;
 var
   db_name, db_params: AnsiString;
   user_version: Psqlite3_stmt;
@@ -809,29 +823,18 @@ begin
     if not tvinfodb.Close(user_version) then
       Irc_AddAdmin('konnte user_version nicht closen...');
 
-    if uV = 0 then
-    begin
+case uV of
+  0:tvinfodb.ExecSQL(Format('PRAGMA user_version = %d;',[currentDbVersion]));
+  2:_updateToV3;
+end;
 
-      if not tvinfodb.ExecSQL('DROP TABLE IF EXISTS _infos_old_v1;') then
-      begin
-        irc_AddAdmin('[ERROR] in fixMyCrap: DROP TABLE Failed ' + sqlite3_errmsg(tvinfodb));
-        Debug(dpError, section, '[ERROR] in fixMyCrap: DROP TABLE Failed: ' + sqlite3_errmsg(tvinfodb));
-        Exit;
-      end
-      else
-      begin
-
-        tvinfodb.ExecSQL('PRAGMA user_version = 2;');
-      end;
-
-    end;
 
     tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
 
     tvinfodb.ExecSQL(
       'CREATE TABLE IF NOT EXISTS "infos" ("tvdb_id"  INTEGER,"tvrage_id"  INTEGER,"tvmaze_id"  INTEGER NOT NULL,"premiered_year"  INTEGER NOT NULL,"country"  TEXT NOT NULL DEFAULT unknown,"status"  TEXT NOT NULL DEFAULT unknown,' +
       '"classification"  TEXT NOT NULL DEFAULT unknown,"network"  TEXT NOT NULL DEFAULT unknown,"genre"  TEXT NOT NULL DEFAULT unknown,"ended_year"  INTEGER,"last_updated"  INTEGER NOT NULL DEFAULT -1,"next_date"  INTEGER,"next_season"  INTEGER,' +
-      '"next_episode"  INTEGER,"airdays"  TEXT,PRIMARY KEY ("tvmaze_id" ASC));');
+      '"next_episode"  INTEGER,"airdays"  TEXT,"tv_language" TEXT, PRIMARY KEY ("tvmaze_id" ASC));');
 
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
