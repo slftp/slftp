@@ -206,6 +206,7 @@ type
     thetvdbid: AnsiString;
     tvrageid: AnsiString;
     tvtag: AnsiString;
+    tvlanguage:AnsiString;
     //    currentAir:boolean;
     function ExtraInfo: AnsiString; override;
     constructor Create(rlsname, section: AnsiString; FakeChecking: boolean = True;
@@ -2002,6 +2003,7 @@ begin
     Result := Result + 'Genres: ' + genres.CommaText + #13#10;
   if network <> '' then
     Result := Result + 'Network: ' + network + #13#10;
+ if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
   //  if runtime <> 0 then
   //    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
