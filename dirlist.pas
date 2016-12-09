@@ -155,7 +155,7 @@ const section = 'dirlist';
 //var
 //  global_skip: String;
 //  useful_skip: String;
-  
+
 { TDirList }
 function TDirList.Complete: Boolean;
 var i: Integer;
@@ -206,7 +206,7 @@ begin
           try if i < 0 then Break; except Break; end;
           try
             d:= TDirlistEntry(entries[i]);
-            if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then            
+            if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
             begin
               Result:= False;
               break;
@@ -773,7 +773,7 @@ begin
       Result:= 1;
       exit;
     end;
-    
+
 
       if config.ReadBool('queue', 'sample_first', True) then
       begin
@@ -815,7 +815,7 @@ begin
 
 
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
-    
+
 
     if ((i1.directory) and (i2.directory)) then
     begin
@@ -1342,27 +1342,24 @@ end;
 
 constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList;SpeedTest:boolean=False);
 begin
-  addedfrom:= TStringList.Create;
+  addedfrom := TStringList.Create;
 
-  self.tradeCount:= 0;
+  self.tradeCount := 0;
 
-  self.sfvfirsteventvoltmar:= False;
-  self.filename:= de.filename;
-  self.filesize:= de.filesize;
-  self.directory:= de.directory;
-  self.sample:= de.sample;
-  self.done:= False;
-  self.skiplisted:= de.skiplisted;
-  self.dirlist:= dirlist;
-  self.subdirlist:= nil;
-  self.timestamp:= de.timestamp;
-  self.megvanmeg:= False;
-  self.error:= False;
-  self.justadded:= True;
-  filenamelc:= LowerCase(filename);
-
-
-
+  self.sfvfirsteventvoltmar := False;
+  self.filename := de.filename;
+  self.filesize := de.filesize;
+  self.directory := de.directory;
+  self.sample := de.sample;
+  self.done := False;
+  self.skiplisted := de.skiplisted;
+  self.dirlist := dirlist;
+  self.subdirlist := nil;
+  self.timestamp := de.timestamp;
+  self.megvanmeg := False;
+  self.error := False;
+  self.justadded := True;
+  filenamelc := LowerCase(filename);
 
   if self.directory then CalcCDNumber;
 end;
@@ -1376,19 +1373,20 @@ end;
 
 procedure TDirListEntry.CalcCDNumber;
 const multicddirprefix : array[1..4] of AnsiString = ('cd', 'dvd', 'disc','disk');
-var s: AnsiString;
-    i: Integer;
+var
+  s: AnsiString;
+  i: Integer;
 begin
 
-  s:= Csere(filenamelc, ' ', '');
-  s:= Csere(s, '_', '');
-  s:= Csere(s, '-', '');
+  s := Csere(filenamelc, ' ', '');
+  s := Csere(s, '_', '');
+  s := Csere(s, '-', '');
 
-  for i:= 1 to 4 do
+  for i := 1 to 4 do
   begin
     if (1 = AnsiPos(AnsiUpperCase(multicddirprefix[i]), AnsiUpperCase(s))) then
     begin
-      cdno:= StrToIntDef(Copy(s, Length(multicddirprefix[i])+1, 1000), 0);
+      cdno := StrToIntDef(Copy(s, Length(multicddirprefix[i]) + 1, 1000), 0);
       exit;
     end;
   end;
@@ -1396,7 +1394,7 @@ end;
 
 function TDirListEntry.Extension: AnsiString;
 begin
-  Result:= ExtractFileExt(filenamelc);
+  Result := ExtractFileExt(filenamelc);
 end;
 
 function TDirListEntry.Useful: Boolean;
@@ -1422,85 +1420,87 @@ begin
     rrgx.Free;
   end;
 
-  Result:= True;
+  Result := True;
 end;
 
 procedure TDirListEntry.SetDirectory(value: Boolean);
 begin
-  fDirectory:= value;
+  fDirectory := value;
   if directory then CalcCDNumber;
 end;
 
 procedure TDirListEntry.SetSample(value: Boolean);
 begin
-  fSample:= value;
+  fSample := value;
 end;
 
 function TDirListEntry.RegenerateSkiplist: Boolean;
-var l,ldepth: Integer;
-    s: AnsiString;
-    sf: TSkipListFilter;
+var
+  l, ldepth: Integer;
+  s: AnsiString;
+  sf: TSkipListFilter;
 begin
-  Result:= False;
+  Result := False;
 
   if dirlist.skiplist = nil then exit;
 
-  ldepth:= dirlist.Depth();
-  
+  ldepth := dirlist.Depth();
+
     if ( not skiplisted ) then
     begin
       if not directory then
       begin
-        s:= dirlist.Dirname;
-        sf:= dirlist.skiplist.AllowedFile(s, filename);
+        s := dirlist.Dirname;
+        sf := dirlist.skiplist.AllowedFile(s, filename);
 
-        //we first look for ftprush screwed up files like (1).nfo
-        l:= length(filename);
-        if l > length(Extension)+6 then
+        // first we look for ftprush screwed up files like (1).nfo
+        l := length(filename);
+        if l > length(Extension) + 6 then
         begin
-          if (
-              (filename[l-6] = '(')
-              and
-              (filename[l-4] = ')')
-              and
-              (filename[l-5] in ['0'..'9'])
-              ) then
+          // first one is for 3 chars in extension like .nfo, .rar, .mp3, .r02 and second one is for 4 chars like .flac
+          if ( (filename[l-6] = '(') and (filename[l-4] = ')') and (filename[l-5] in ['0'..'9']) ) or ( (filename[l-7] = '(') and (filename[l-5] = ')') and (filename[l-6] in ['0'..'9']) )then
           begin
-            skiplisted:= True;
+            skiplisted := True;
             dirlist.skiped.Add(filename);
-            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> (?) file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));              
+            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
             exit;
           end;
         end;
 
         if sf = nil then
         begin
-          skiplisted:= True;
+          skiplisted := True;
           dirlist.skiped.Add(filename);
           irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
-        end else begin
-          Result:= True;
+        end
+        else
+        begin
+          Result := True;
         end;
-      end else
+      end
+      else
       begin
         if ldepth < dirlist.skiplist.dirdepth then
         begin
           // vegig kell menni az alloweddirs-en es megnezni hogy
           //I need to go in and see that the en-alloweddirs
-          s:= dirlist.Dirname;
-          sf:= dirlist.skiplist.AllowedDir(s, filename);
+          s := dirlist.Dirname;
+          sf := dirlist.skiplist.AllowedDir(s, filename);
           if sf = nil then
           begin
-            skiplisted:= True;
+            skiplisted := True;
             dirlist.skiped.Add(filename);
             irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
-          end else begin
-            Result:= True;
+          end
+          else
+          begin
+            Result := True;
           end;
-        end else
+        end
+        else
         begin
           irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
-          skiplisted:= True;
+          skiplisted := True;
         end;
       end;
     end;

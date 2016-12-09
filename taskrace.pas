@@ -826,22 +826,28 @@ begin
 
           else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
           begin
-            failure := False;
+            failure := True;
           end
           else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
           begin
-            failure := False;
+            failure := True;
           end
           else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
           begin
-            failure := False;
+            failure := True;
           end
 
           else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
           begin
             //sectiondir removed/not accessible? Need to get more info
             Debug(dpError, c_section, 'TPazoMkdirTask 550 response: %s: %s --- dir: %s (%s) %s', [s.Name, s.lastResponse, dir, aktdir, ps1.maindir]);
-            failure := False;
+            failure := True;
+          end
+
+          else if (0 <> AnsiPos('No such file or directory', s.lastResponse)) then
+          begin
+            // 550 No such file or directory.
+            failure := True;
           end
 
           else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
