@@ -40,7 +40,7 @@ ujra:
   inc(numerrors);
   if numerrors > 3 then
   begin
-Debug(dpError, 'dirlist','numerrors > 3 for %s @ %s',[dir,s.Name]);
+    Debug(dpError, 'dirlist','ERROR: numerrors > 3 for %s @ %s',[dir,s.Name]);
     readyerror:= True;
     exit;
   end;
@@ -59,6 +59,7 @@ Debug(dpError, 'dirlist','numerrors > 3 for %s @ %s',[dir,s.Name]);
       goto ujra;
     // ha nem megszakadtunk hanem nem letezik a dir...
    // but if it is not broke do not exist in the dir ...
+     Debug(dpError, 'dirlist','ERROR: can not dirlist s - %s',[dir,forcecwd]);
     readyerror:= True;
     exit;
   end;
