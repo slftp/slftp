@@ -1,26 +1,27 @@
 unit taskautodirlist;
- 
+
 interface
- 
+
 uses tasksunit;
- 
-type TAutoDirlistTask = class(TTask)
-     private
+
+type
+  TAutoDirlistTask = class(TTask)
+  private
     procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
-     public
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
-     end;
- 
+  public
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: AnsiString; override;
+  end;
+
 implementation
- 
+
 uses configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
- precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
- debugunit,RegExpr;
- 
-const rsections = 'autodirlist';
- 
- 
+  precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
+  debugunit, RegExpr;
+
+const
+  rsections = 'autodirlist';
+
 type
   TReqFillerThread = class(TThread)
   private
@@ -31,13 +32,12 @@ type
     constructor Create(p: Tpazo; secdir, rlsname: AnsiString);
     procedure Execute; override;
   end;
- 
-{ TAutoSectionTask }
- 
+
+  { TAutoSectionTask }
+
 var
-reqrgx:TRegExpr;
- 
- 
+  reqrgx: TRegExpr;
+
 procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
 var
   x: TStringList;
@@ -70,7 +70,7 @@ begin
   if i <> -1 then
   begin
     irc_Addadmin('already sending');
-    exit;// already sending
+    exit; // already sending
   end;
 
   s := slot;
@@ -80,20 +80,23 @@ begin
     db := 0;
     i := 0;
     maindir := secdir + reqdir;
-   
+
     while (i < x.Count) do
     begin
       ss := x.Names[i];
-      sitename := Fetch(ss,'-');
+      sitename := Fetch(ss, '-');
       if sitename = site1 then
       begin
         // lolka fel van toltve helyben.  -- Lolka is charged on site.
         ss := x.Values[x.Names[i]];
         ss := Csere(ss, '/', '_');
 
-        if not s.Cwd(maindir, True) then Break;
-        if not s.Send('MKD Already_on_site_in_' + ss) then Break;
-        if not s.Read('MKD Already_on_site_in_' + ss) then break;
+        if not s.Cwd(maindir, True) then
+          Break;
+        if not s.Send('MKD Already_on_site_in_' + ss) then
+          Break;
+        if not s.Read('MKD Already_on_site_in_' + ss) then
+          break;
 
         {
         // that's crap, why sending reqfilled before we fill it? This is done by TReqFillerThread
@@ -104,10 +107,10 @@ begin
         db := 0;
         Break;
       end;
-   
+
       site := FindSiteByName(netname, sitename);
       notdown := ((site <> nil) and (site.working <> sstDown));
-   
+
       // most megnezzuk vezet a route    -- Now look at the route leads
       if ((notdown) and (0 < sitesdat.ReadInteger('speed-from-' + sitename, site1, 0))) then
       begin
@@ -123,21 +126,21 @@ begin
       // jo, addolunk racetaskot dirlistekkel meg minden   ~~ jo, addolunk racetaskot dirlistekkel all
       ss := x.Names[0];
       Fetch(ss, '-');
-   
+
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasename, ss);
       p := PazoAdd(rls);
       kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
-   
+
       p.AddSite(site1, maindir);
       for i := 0 to x.Count - 1 do
       begin
         ss := x.Names[i];
-        sitename := Fetch(ss,'-');
+        sitename := Fetch(ss, '-');
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
-   
+
       for i := 1 to p.sites.Count - 1 do
       begin
         try
@@ -150,32 +153,33 @@ begin
           end;
         end;
       end;
-   
+
       TReqFillerThread.Create(p, secdir, releasename);
     end;
   finally
     x.Free;
   end;
 end;
- 
+
 function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
-var s: TSiteSlot;
-    i, j: Integer;
-    l: TAutoDirlistTask;
-    asection, ss, section, sectiondir: AnsiString;
-    dl: TDirList;
-    de: TDirListEntry;
- 
+var
+  s: TSiteSlot;
+  i, j: Integer;
+  l: TAutoDirlistTask;
+  asection, ss, section, sectiondir: AnsiString;
+  dl: TDirList;
+  de: TDirListEntry;
+
   procedure UjraAddolas;
   begin
     // megnezzuk, kell e meg a taszk -- We look at whether it should be the task
-    i:= s.RCInteger('autodirlist', 0);
+    i := s.RCInteger('autodirlist', 0);
     if i > 0 then
     begin
       try
-        l:= TAutoDirlistTask.Create(netname, channel, site1);
-        l.startat:= IncSecond(Now, i);
-        l.dontremove:= True;
+        l := TAutoDirlistTask.Create(netname, channel, site1);
+        l.startat := IncSecond(Now, i);
+        l.dontremove := True;
         AddTask(l);
         s.site.WCDateTime('nextautodirlist', l.startat);
       except
@@ -186,25 +190,24 @@ var s: TSiteSlot;
       end;
     end;
   end;
- 
+
 begin
-  Result:= False;
-  s:= slot;
+  Result := False;
+  s := slot;
   debugunit.Debug(dpMessage, rsections, Name);
- 
+
   // megnezzuk, kell e meg a taszk -- We look at whether it should be the task
   if s.RCInteger('autodirlist', 0) = 0 then
   begin
-    ready:= True;
-    Result:= True;
+    ready := True;
+    Result := True;
     exit;
   end;
-
 
   if s.site.working = sstDown then
   begin
     ujraaddolas();
-    readyerror:= True;
+    readyerror := True;
     irc_Addadmin('s.site.working = sstDown');
     exit;
   end;
@@ -214,54 +217,56 @@ begin
     if (not s.ReLogin(1)) then
     begin
       ujraaddolas();
-      readyerror:= True;
+      readyerror := True;
       irc_Addadmin('s.status <> ssOnline');
       exit;
     end;
   end;
 
   // implement the task itself
-  ss:= s.RCString('autodirlistsections', '');
-  for i:= 1 to 1000 do
+  ss := s.RCString('autodirlistsections', '');
+  for i := 1 to 1000 do
   begin
-    section:= SubString(ss, ' ', i);
-    if section = '' then break;
-    sectiondir:= s.site.sectiondir[section];
+    section := SubString(ss, ' ', i);
+    if section = '' then
+      break;
+    sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-      sectiondir:= todaycsere(sectiondir);
+      sectiondir := todaycsere(sectiondir);
 
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin
-        readyerror:= True;
-            irc_Addadmin('daydir might have change');
+        readyerror := True;
+        irc_Addadmin('daydir might have change');
         exit;
       end;
 
       // dirlist successful, you must work with the elements
-      dl:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+      dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
       try
-        for j:= 0 to dl.entries.Count-1 do
+        for j := 0 to dl.entries.Count - 1 do
         begin
-          de:= TDirlistEntry(dl.entries[j]);
+          de := TDirlistEntry(dl.entries[j]);
           if ((de.Directory) and (0 = pos('nuked', de.filenamelc))) then
           begin
             if section = 'REQUEST' then
             begin
-              reqrgx:=TRegExpr.Create;
-              reqrgx.ModifierI:=True;
-              reqrgx.Expression:='^R[3E]Q(UEST)?-(by.[^\-]+\-)?(.*)$';
+              reqrgx := TRegExpr.Create;
+              reqrgx.ModifierI := True;
+              reqrgx.Expression := '^R[3E]Q(UEST)?-(by.[^\-]+\-)?(.*)$';
               if reqrgx.Exec(de.filename) then
               begin
                 ProcessRequest(slot, MyIncludeTrailingSlash(sectiondir), de.filename, reqrgx.match[3]);
               end;
               reqrgx.free;
-            end else
+            end
+            else
             begin
               if (SecondsBetween(Now(), de.timestamp) < config.readInteger(rsections, 'dropolder', 86400)) then
               begin
                 try
-                  asection:= PrecatcherSectionMapping(de.filename, section);
+                  asection := PrecatcherSectionMapping(de.filename, section);
                   kb_add(netname, channel, site1, asection, '', 'NEWDIR', de.filename, '', False, False, de.timestamp);
                 except
                   on e: Exception do
@@ -278,22 +283,26 @@ begin
       end;
     end;
   end;
- 
+
   ujraaddolas();
 
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
 end;
- 
+
 function TAutoDirlistTask.Name: AnsiString;
-var cstr:AnsiString;
+var
+  cstr: AnsiString;
 begin
-  if ScheduleText <> '' then cstr:=format('(%s)',[ScheduleText]) else cstr:='';
-  Result:=format('::AUTODIRLIST:: %s %s',[site1,cstr]);
+  if ScheduleText <> '' then
+    cstr := format('(%s)', [ScheduleText])
+  else
+    cstr := '';
+  Result := format('::AUTODIRLIST:: %s %s', [site1, cstr]);
 end;
- 
+
 { TReqFillerThread }
- 
+
 constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: AnsiString);
 begin
   self.p := p;
@@ -302,25 +311,26 @@ begin
   inherited Create(False);
   FreeOnTerminate := True;
 end;
- 
+
 procedure TReqFillerThread.Execute;
-var rt: TRawTask;
+var
+  rt: TRawTask;
 begin
-//irc_addtext('','','<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]);
-//irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,p.srcsite,p.dstsite,irccmdprefix,p.pazo_id]));
-irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]));
-//msg that the traanfs. has be starrted...
-  while(true)do
+  //irc_addtext('','','<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]);
+  //irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,p.srcsite,p.dstsite,irccmdprefix,p.pazo_id]));
+  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.sites[0]).name, TPazoSite(p.sites[1]).name, irccmdprefix, p.pazo_id]));
+  //msg that the traanfs. has be starrted...
+  while (true) do
   begin
     if p.readyerror then
     begin
       //irc_addtext('','','readyWithError %s',[p.errorreason]);
-      irc_Addadmin('readyWithError %s',[p.errorreason]);
+      irc_Addadmin('readyWithError %s', [p.errorreason]);
       Break;
     end;
 
     //check if filecount on dst (p.sites[0]) is the same as on src (p.sites[1])
-    if ((p.ready) AND (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
+    if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
     begin
       irc_Addadmin('Request is ready?');
       //Done! go to reqfill.
@@ -336,9 +346,10 @@ irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, ty
       end;
       exit;
     end;
- 
+
     sleep(1000);
   end;
 end;
- 
+
 end.
+

@@ -12,23 +12,23 @@ type
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
 
-  TSiteSw     = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
+  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
   TProtection = (prNone, prProtP, prProtC);
   TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds,
     sstOutOfSpace);
-  TSSLReq     = (srNone, srNeeded, srUnsupported);
+  TSSLReq = (srNone, srNeeded, srUnsupported);
 
   TSite = class; // forward
 
   TSiteSlot = class(TslTCPThread)
   private
-    mdtmre:  TRegExpr;
-    aktdir:  AnsiString;
-    prot:    TProtection;
+    mdtmre: TRegExpr;
+    aktdir: AnsiString;
+    prot: TProtection;
     kilepve: boolean;
-    no:      integer;
+    no: integer;
     fstatus: TSlotStatus;
-    event:   TEvent;
+    event: TEvent;
     function LoginBnc(i: integer; kill: boolean = False): boolean;
     procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
@@ -39,17 +39,17 @@ type
   public
     //    pre: Boolean;
     localport: integer;
-    peerport:  integer;
-    peerip:    AnsiString;
+    peerport: integer;
+    peerip: AnsiString;
     fuploadingto: boolean;
     fdownloadingfrom: boolean;
-    lastio:    TDateTime;
+    lastio: TDateTime;
     lastactivity: TDateTime;
     lastResponse: AnsiString;
     lastResponseCode: integer;
 
     ftodotask: TTask;
-    site:      TSite;
+    site: TSite;
     procedure DestroySocket(down: boolean);
     procedure Quit;
     function Name: AnsiString;
@@ -86,11 +86,11 @@ type
     function Mkdir(dirtocreate: AnsiString): boolean;
     function TranslateFilename(filename: AnsiString): AnsiString;
     function Pwd(var dir: AnsiString): boolean;
-    property uploadingto: boolean Read fUploadingTo Write SetUploadingTo;
-    property downloadingfrom: boolean Read fDownloadingFrom Write SetDownloadingFrom;
-    property todotask: TTask Read fTodotask Write SetTodotask;
+    property uploadingto: boolean read fUploadingTo write SetUploadingTo;
+    property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
+    property todotask: TTask read fTodotask write SetTodotask;
   published
-    property Status: TSlotStatus Read fstatus Write SetOnline;
+    property Status: TSlotStatus read fstatus write SetOnline;
   end;
 
   TSite = class
@@ -98,11 +98,10 @@ type
     fworking: TSiteStatus;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
-    fNumDn:   integer;
-    fNumUp:   integer;
+    fNumDn: integer;
+    fNumUp: integer;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
-
 
     function GetPermDownStatus: boolean;
     procedure SetPermDownStatus(Value: boolean);
@@ -170,7 +169,6 @@ type
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
 
-
     function GetSiteInfos: AnsiString;
     procedure SetSiteInfos(Value: AnsiString);
 
@@ -181,12 +179,12 @@ type
     procedure SetUseAutoInvite(Value: Boolean);
 
   public
-    emptyQueue:  boolean;
-    markeddown:  boolean;
+    emptyQueue: boolean;
+    markeddown: boolean;
     siteinvited: boolean;
 
     ffreeslots: integer;
-    Name:  AnsiString;
+      Name: AnsiString;
     slots: TObjectList;
 
     //    siteinvited: Boolean;
@@ -247,52 +245,51 @@ type
     function IsPretimeOk(section: AnsiString; rlz_pretime: TDateTime): boolean;
     function GetPretime(section: AnsiString): AnsiString;
 
-
     function isRouteableTo(sitename: AnsiString): boolean;
     function isRouteableFrom(sitename: AnsiString): boolean;
 
-    property sections: AnsiString Read GetSections Write SettSections;
-    property leechers: AnsiString Read GetLeechers Write SettLeechers;
-    property traders: AnsiString Read GetTraders Write SettTraders;
-    property users: AnsiString Read GetUsers;
-    property sectiondir[Name: AnsiString]: AnsiString Read GetSectionDir Write SetSectionDir;
+    property sections: AnsiString read GetSections write SettSections;
+    property leechers: AnsiString read GetLeechers write SettLeechers;
+    property traders: AnsiString read GetTraders write SettTraders;
+    property users: AnsiString read GetUsers;
+    property sectiondir[Name: AnsiString]: AnsiString read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: AnsiString]: AnsiString
-      Read GetSectionPreCmd Write SetSectionPrecmd;
-    property siteaffils: AnsiString Read GetAffils Write SettAffils;
+    read GetSectionPreCmd write SetSectionPrecmd;
+    property siteaffils: AnsiString read GetAffils write SettAffils;
 
     property sectionpretime[Name: AnsiString]: integer
-      Read GetSectionPreTime Write SetSectionPreTime;
+    read GetSectionPreTime write SetSectionPreTime;
 
-    property num_dn: integer Read fNumDn Write SetNumDn;
-    property num_up: integer Read fNumUp Write SetNumUp;
-    property freeslots: integer Read fFreeslots Write SetFreeSlots;
-    property IRCNick: AnsiString Read getircnick Write setircnick;
-    property ProxyName: AnsiString Read GetProxyName Write SetProxyName;
+    property num_dn: integer read fNumDn write SetNumDn;
+    property num_up: integer read fNumUp write SetNumUp;
+    property freeslots: integer read fFreeslots write SetFreeSlots;
+    property IRCNick: AnsiString read getircnick write setircnick;
+    property ProxyName: AnsiString read GetProxyName write SetProxyName;
   published
-    property sw: TSiteSw Read GetSw Write SetSw;
-    property noannounce: boolean Read GetNoannounce Write SetNoAnnounce;
-    property working: TSiteStatus Read fWorking Write SetWorking;
-    property max_dn: integer Read GetMaxDn Write SetMaxDn;
-    property max_pre_dn: integer Read GetMaxPreDn Write SetMaxPreDn;
-    property max_up: integer Read GetMaxUp Write SetMaxUp;
-    property maxidle: integer Read Getmaxidle Write Setmaxidle;
-    property idleinterval: integer Read Getidleinterval Write Setidleinterval;
+    property sw: TSiteSw read GetSw write SetSw;
+    property noannounce: boolean read GetNoannounce write SetNoAnnounce;
+    property working: TSiteStatus read fWorking write SetWorking;
+    property max_dn: integer read GetMaxDn write SetMaxDn;
+    property max_pre_dn: integer read GetMaxPreDn write SetMaxPreDn;
+    property max_up: integer read GetMaxUp write SetMaxUp;
+    property maxidle: integer read Getmaxidle write Setmaxidle;
+    property idleinterval: integer read Getidleinterval write Setidleinterval;
 
-    property io_timeout: integer Read Getio_timeout Write Setio_timeout;
-    property connect_timeout: integer Read Getconnect_timeout Write Setconnect_timeout;
-    property sslmethod: TSSLMethods Read Getsslmethod Write Setsslmethod;
-    property sslfxp: TSSLReq Read Getsslfxp Write Setsslfxp;
-    property legacydirlist: boolean Read Getlegacydirlist Write Setlegacydirlist;
-    property predir: AnsiString Read GetPredir Write SetPredir;
+    property io_timeout: integer read Getio_timeout write Setio_timeout;
+    property connect_timeout: integer read Getconnect_timeout write Setconnect_timeout;
+    property sslmethod: TSSLMethods read Getsslmethod write Setsslmethod;
+    property sslfxp: TSSLReq read Getsslfxp write Setsslfxp;
+    property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
+    property predir: AnsiString read GetPredir write SetPredir;
 
-    property NoLoginMSG: boolean Read GetNoLoginMSG Write SetNoLoginMSG;
+    property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
 
-    property PermDown: boolean Read GetPermDownStatus Write SetPermDownStatus;
-    property SkipPre: boolean Read GetSkipPreStatus Write SetSkipPreStatus;
+    property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
+    property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
-    property SiteInfos: AnsiString Read GetSiteInfos Write SetSiteInfos;
-    property LastCrdits: int64 Read GetLastKnownCredits Write SetLastKnownCredits;
-    property UseAutoInvite:Boolean read getUseAutoInvite write setUseAutoInvite;
+    property SiteInfos: AnsiString read GetSiteInfos write SetSiteInfos;
+    property LastCrdits: int64 read GetLastKnownCredits write SetLastKnownCredits;
+    property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
 
   end;
 
@@ -307,9 +304,7 @@ procedure SitesInit;
 procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
-
 function getAdminSiteName: AnsiString;
-
 
 //function
 
@@ -319,10 +314,9 @@ function SiteSoftWareToSTring(site: TSite): AnsiString; overload;
 function sslMethodToSTring(sitename: AnsiString): AnsiString; overload;
 function sslMethodToSTring(site: TSite): AnsiString; overload;
 
-
 var
   sitesdat: TEncIniFile = nil;
-  sites:    TObjectList = nil;
+  sites: TObjectList = nil;
   sitesautosend: TDateTime;
 
 implementation
@@ -335,15 +329,15 @@ const
   section = 'sites';
 
 var
-  bnccsere:      TCriticalSection = nil;
+  bnccsere: TCriticalSection = nil;
   sitelaststart: TDateTime;
   // Config vars
-  maxrelogins:   integer = 3;
+  maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
   admin_sitename: AnsiString = 'SLFTP';
   admin_siteslots: integer = 10;
-  autologin:     boolean = False;
-  killafter:     integer = 0;
+  autologin: boolean = False;
+  killafter: integer = 0;
 
 function getAdminSiteName: AnsiString;
 begin
@@ -361,9 +355,9 @@ begin
   // sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd
   case TSite(site).Software of
     sswUnknown: Result := 'Unknown';
-    sswGlftpd: Result  := 'GlFTPD';
-    sswDrftpd: Result  := 'DrFTPD';
-    sswIoftpd: Result  := 'ioFTPD';
+    sswGlftpd: Result := 'GlFTPD';
+    sswDrftpd: Result := 'DrFTPD';
+    sswIoftpd: Result := 'ioFTPD';
   end;
 end;
 
@@ -389,6 +383,7 @@ begin
 end;
 
 // NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
+
 function FindSiteByName(netname, sitename: AnsiString): TSite;
 var
   i: integer;
@@ -436,7 +431,6 @@ begin
   end;
 end;
 
-
 function ReadSites(): boolean;
 var
   sitesdatfile: AnsiString;
@@ -467,8 +461,6 @@ begin
   end;
 end;
 
-
-
 procedure SitesInit;
 begin
   sitelaststart := Now();
@@ -480,20 +472,17 @@ procedure SitesUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
 
-
   if sites <> nil then
   begin
     sites.Free;
     sites := nil;
   end;
 
-
   if sitesdat <> nil then
   begin
     sitesdat.Free;
     sitesdat := nil;
   end;
-
 
   bnccsere.Free;
   Debug(dpSpam, section, 'Uninit2');
@@ -533,15 +522,15 @@ end;
 constructor TSiteSlot.Create(site: TSite; no: integer);
 begin
   self.site := site;
-  self.no   := no;
+  self.no := no;
   debug(dpSpam, section, 'Slot %s is creating', [Name]);
 
   todotask := nil;
-  event    := TEvent.Create(nil, False, False, Name);
-  kilepve  := False;
+  event := TEvent.Create(nil, False, False, Name);
+  kilepve := False;
 
   aktdir := '';
-  prot   := prNone;
+  prot := prNone;
   status := ssNone;
   lastResponse := '';
   lastResponseCode := 0;
@@ -551,17 +540,21 @@ begin
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
-  if (self.site.Name <> admin_sitename) then begin
-    if not site.PermDown then begin
+  if (self.site.Name <> admin_sitename) then
+  begin
+    if not site.PermDown then
+    begin
       // ha autologin be van kapcsolva akkor -- If auto login is enabled then
-      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then AddLoginTask;
-    end else status := ssMarkedDown;
+      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
+        AddLoginTask;
+    end
+    else
+      status := ssMarkedDown;
   end;
 
   debug(dpSpam, section, 'Slot %s has created', [Name]);
   inherited Create(False);
 end;
-
 
 function TSiteSlot.Name: AnsiString;
 begin
@@ -574,7 +567,7 @@ begin
     Disconnect;
     socks5.Enabled := False;
     Console_Slot_Close(Name);
-    prot   := prNone;
+    prot := prNone;
     aktdir := '';
   except
     on e: Exception do
@@ -595,7 +588,7 @@ begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
   console_add_sitewindow(Name);
-  while ((not slshutdown) and (not shouldquit)) do// and (not False)
+  while ((not slshutdown) and (not shouldquit)) do // and (not False)
   begin
     try
       if status = ssOnline then
@@ -615,7 +608,6 @@ begin
 
           Debug(dpSpam, section, Format('--> %s', [Name]));
 
-
           try
             if todotask.Execute(self) then
               lastactivity := Now();
@@ -634,8 +626,7 @@ begin
           end;
         end;
 
-
-        uploadingto     := False;
+        uploadingto := False;
         downloadingfrom := False;
 
         if (todotask <> nil) then
@@ -669,10 +660,10 @@ begin
         //event.WaitFor($FFFFFFFF);
         case event.WaitFor(15 * 60 * 1000) of
           wrSignaled: { Event fired. Normal exit. }
-          begin
+            begin
 
-          end;
-          else { Timeout reach }
+            end;
+        else { Timeout reach }
           begin
             if spamcfg.readbool(section, 'siteslot_recycle', True) then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
@@ -717,7 +708,6 @@ begin
   Debug(dpSpam, section, 'Slot %s destroy end', [Name]);
 end;
 
-
 function TSiteSlot.SendProtC: boolean;
 begin
   Result := False;
@@ -750,55 +740,53 @@ end;
 
 procedure TSiteSlot.ProcessFeat;
 begin
-{
-* GLFTPD *
-  211- Extensions supported:
-   AUTH TLS
-   AUTH SSL
-   PBSZ
-   PROT
-   CPSV
-   SSCN
-   MDTM
-   SIZE
-   REST STREAM
-   SYST
-  211 End
-}
+  {
+  * GLFTPD *
+    211- Extensions supported:
+     AUTH TLS
+     AUTH SSL
+     PBSZ
+     PROT
+     CPSV
+     SSCN
+     MDTM
+     SIZE
+     REST STREAM
+     SYST
+    211 End
+  }
 
-{
-* DRFTPD *
-  211-Extensions supported:
-   PRET
-   AUTH SSL
-   PBSZ
-   CPSV
-   SSCN
-   CLNT
-   NOOP
-   MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
-  211 End
-}
+  {
+  * DRFTPD *
+    211-Extensions supported:
+     PRET
+     AUTH SSL
+     PBSZ
+     CPSV
+     SSCN
+     CLNT
+     NOOP
+     MLST type*,x.crc32*,size*,modify*,unix.owner*,unix.group*,x.slaves*,x.xfertime*
+    211 End
+  }
 
-{
-* IOFTPD *
-  FEAT
-  500 'FEAT': Command not understood
-  * found on https://bugs.kde.org/show_bug.cgi?id=114100
-}
+  {
+  * IOFTPD *
+    FEAT
+    500 'FEAT': Command not understood
+    * found on https://bugs.kde.org/show_bug.cgi?id=114100
+  }
   if (0 < Pos('PRET', lastResponse)) then
   begin
     if site.sw <> sswDrftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswDrftpd));
   end
-  else
-  if (0 < Pos('CPSV', lastResponse)) then
+  else if (0 < Pos('CPSV', lastResponse)) then
   begin
     if site.sw <> sswGlftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
   end
-  else
-  if (0 < Pos('Command not understood', lastResponse)) then
+  else if (0 < Pos('Command not understood', lastResponse)) then
   begin
     if site.sw <> sswIoftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
@@ -809,7 +797,7 @@ function TSiteSlot.Cwd(dir: AnsiString; force: boolean = False): boolean;
 begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
-  
+
   if ((dir <> aktdir) or (force)) then
   begin
     if ((site.legacydirlist) or (force)) then
@@ -833,10 +821,10 @@ begin
           Result := True;
           exit;
         end;
-(*
-        if (0 <> Pos('Looks like this is a pre', lastresponse)) then
-          pre:= True;
-*)
+        (*
+                if (0 <> Pos('Looks like this is a pre', lastresponse)) then
+                  pre:= True;
+        *)
         if dir[1] <> '/' then
           aktdir := aktdir + dir
         else
@@ -898,11 +886,9 @@ begin
       exit;
   end;
 
-
   // banner
   if not Read('BANNER') then
     exit;
-
 
   if (lastResponseCode <> 220) then
   begin
@@ -920,7 +906,6 @@ begin
 
     if sslm in [sslAuthTlsTLSv1_2] then
       SetSSLContext(slTLSv1_2);
-
 
     if sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1] then
       tmp := 'AUTH SSL'
@@ -941,7 +926,6 @@ begin
   end;
   //else
   //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
-
 
   un := RCString('username', 'anonymous');
   upw := RCString('password', 'foo@foobar.hu');
@@ -980,12 +964,10 @@ begin
     exit;
   end;
 
-
   if not Send('TYPE I') then
     exit;
   if not Read('TYPE I') then
     exit;
-
 
   if (TSiteSw(RCInteger('sw', 0)) = sswUnknown) then
   begin
@@ -997,7 +979,6 @@ begin
     ProcessFeat();
   end;
 
-
   if not Send('SITE XDUPE 3') then
     exit;
   if not Read('XDUPE') then
@@ -1008,7 +989,6 @@ begin
     if (not SendProtP()) then
       exit;
   end;
-
 
   if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
   begin
@@ -1045,7 +1025,6 @@ begin
 
   status := ssOnline;
 end;
-
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
 var
@@ -1118,7 +1097,7 @@ function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False
 var
   l_maxrelogins: integer;
   relogins: integer;
-  i:  integer;
+  i: integer;
   ss: TSiteSlot;
 begin
   Result := False;
@@ -1223,8 +1202,8 @@ function TSiteSlot.Read(read_cmd: AnsiString; raiseontimeout: boolean;
 label
   ujra;
 var
-  aktread:    AnsiString;
-  numreads:   integer;
+  aktread: AnsiString;
+  numreads: integer;
   read_start: TDateTime;
 begin
   numreads := 0;
@@ -1237,17 +1216,16 @@ begin
     timeout := site.io_timeout * 1000;
 
   ujra:
-    Inc(numreads);
+  Inc(numreads);
   if numreads > 500 then
   begin
     Debug(dpError, section, Format('[ERROR] TSiteSlot.Read numreads', []));
     lastResponse := '';
     lastResponseCode := 0;
-    error  := 'TSiteSlot.Read numreads';
+    error := 'TSiteSlot.Read numreads';
     Result := False;
     exit;
   end;
-
 
   try
     read_start := Now;
@@ -1274,14 +1252,14 @@ begin
       Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read: %s', [e.Message]));
       lastResponse := '';
       lastResponseCode := 0;
-      error  := 'TSiteSlot.Read';
+      error := 'TSiteSlot.Read';
       Result := False;
       exit;
     end;
   end;
 
   try
-    lastResponse     := lastResponse + aktread;
+    lastResponse := lastResponse + aktread;
     //Debug(dpSpam, 'protocol', name+' <<'+#13#10+aktread);
     lastResponseCode := ParseResponseCode(lastResponse);
   except
@@ -1291,7 +1269,7 @@ begin
         [e.Message]));
       lastResponse := '';
       lastResponseCode := 0;
-      error  := 'TSiteSlot.Read ParseResponseCode';
+      error := 'TSiteSlot.Read ParseResponseCode';
       Result := False;
       exit;
     end;
@@ -1420,7 +1398,7 @@ end;
 
 function TSiteSlot.RemoveDir(dir: AnsiString): boolean;
 var
-  cmd:     AnsiString;
+  cmd: AnsiString;
   feljebb: AnsiString;
 begin
   Result := False;
@@ -1446,7 +1424,6 @@ begin
 
   Result := True;
 end;
-
 
 function TSiteSlot.Mkdir(dirtocreate: AnsiString): boolean;
 var
@@ -1514,14 +1491,16 @@ begin
 
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
+      begin
         exit;
+        Debug(dpError, 'dirlist', 'ERROR: can not cwd %s - %s', [dir, forcecwd]);
+      end;
 
     if config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
         cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al')
-      else
-      if dir[1] = '/' then
+      else if dir[1] = '/' then
         cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') +
           ' ' + MyIncludeTrailingSlash(dir)
       else
@@ -1533,17 +1512,22 @@ begin
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
         cmd := 'STAT -l' + kapcsolo
-      else
-      if dir[1] = '/' then
+      else if dir[1] = '/' then
         cmd := 'STAT -l' + kapcsolo + ' ' + MyIncludeTrailingSlash(dir)
       else
         cmd := 'STAT -l' + kapcsolo + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end;
 
     if not Send(cmd) then
+    begin
+      Debug(dpError, 'dirlist', 'ERROR: can not send %s - %s', [dir, forcecwd]);
       exit;
+    end;
     if not Read('Dirlist') then
+    begin
+      Debug(dpError, 'dirlist', 'ERROR: can not read %s - %s', [dir, forcecwd]);
       exit;
+    end;
 
     Result := True;
   except
@@ -1557,51 +1541,59 @@ end;
 
 function TSiteSlot.Leechfile(dest: TStream; const filename: AnsiString; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
 var
-    idTCP: TslTCPSocket;
-    host: AnsiString;
-    port: Integer;
+  idTCP: TslTCPSocket;
+  host: AnsiString;
+  port: Integer;
 begin
   Result := 0;
   try
     idTCP := TslTCPSocket.Create;
 
     try
-      if not SendProtP then exit;
+      if not SendProtP then
+        exit;
 
       if site.sw = sswDrftpd then
       begin
-        if not Send('PRET RETR %s', [TranslateFilename(filename)]) then exit;
-        if not Read('PRET RETR %s') then exit;
+        if not Send('PRET RETR %s', [TranslateFilename(filename)]) then
+          exit;
+        if not Read('PRET RETR %s') then
+          exit;
       end;
 
-      if not Send('PASV') then exit;
-      if not Read('PASV') then exit;
+      if not Send('PASV') then
+        exit;
+      if not Read('PASV') then
+        exit;
 
       if (lastResponseCode <> 227) then
       begin
         irc_addtext(todotask, Trim(lastResponse));
-        Result:= -1;
+        Result := -1;
         exit;
       end;
       ParsePasvString(lastResponse, host, port);
       if port = 0 then
       begin
-          irc_AddText(todotask, site.name+': couldnt parse passive string / '+filename);
-          Result:= -1;
-          exit;
+        irc_AddText(todotask, site.name + ': couldnt parse passive string / ' + filename);
+        Result := -1;
+        exit;
       end;
 
       idTCP.Host := host;
       idTCP.Port := port;
 
-      if not Send('REST %d', [restFrom]) then exit;
-      if not Read('REST') then exit;
+      if not Send('REST %d', [restFrom]) then
+        exit;
+      if not Read('REST') then
+        exit;
 
-      if not Send('RETR %s', [TranslateFilename(filename)]) then exit;
+      if not Send('RETR %s', [TranslateFilename(filename)]) then
+        exit;
 
       if not idTCP.Connect(site.connect_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name+': couldnt connect to site ('+idTCP.error+') / '+filename);
+        irc_AddText(todotask, site.name + ': couldnt connect to site (' + idTCP.error + ') / ' + filename);
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1609,7 +1601,7 @@ begin
 
       if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name+': couldnt negotiate the SSL connection ('+idTCP.error+') / '+filename);
+        irc_AddText(todotask, site.name + ': couldnt negotiate the SSL connection (' + idTCP.error + ') / ' + filename);
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1617,14 +1609,14 @@ begin
 
       if not Read('RETR') then
       begin
-        irc_AddText(todotask, site.name+': couldnt read response of site / '+filename);
+        irc_AddText(todotask, site.name + ': couldnt read response of site / ' + filename);
         Result := -1;
         exit;
       end;
 
       if not idTCP.Read(dest, site.io_timeout * 1000, maxRead, True) then
       begin
-        irc_AddText(todotask, site.name+': couldnt fetch content ('+idTCP.error+') / '+filename);
+        irc_AddText(todotask, site.name + ': couldnt fetch content (' + idTCP.error + ') / ' + filename);
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1632,7 +1624,8 @@ begin
 
       idTCP.Disconnect;
 
-      if not Read() then exit;
+      if not Read() then
+        exit;
 
       Result := 1;
     finally
@@ -1647,7 +1640,6 @@ begin
     end;
   end;
 end;
-
 
 function TSiteSlot.TranslateFilename(filename: AnsiString): AnsiString;
 begin
@@ -1702,7 +1694,7 @@ begin
   if (Name = admin_sitename) then
   begin
     self.Name := Name;
-    working   := sstUp;
+    working := sstUp;
 
     slots := TObjectList.Create();
     for i := 1 to admin_siteslots do
@@ -1722,8 +1714,6 @@ begin
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   working := sstUnknown;
 
-
-
   // rakjuk rendbe a direket
   if ((RCString('predir', '') <> '') and (sectiondir['PRE'] = '')) then
   begin
@@ -1737,7 +1727,6 @@ begin
     sectionprecmd['PRE'] := RCString('precmd', '');
     sitesdat.DeleteKey('site-' + self.Name, 'precmd');
   end;
-
 
   slots := TObjectList.Create();
   for i := 1 to RCInteger('slots', 2) do
@@ -1765,8 +1754,6 @@ begin
 
   debug(dpSpam, section, 'Site %s has created', [Name]);
 end;
-
-
 
 function TSite.isRouteableTo(sitename: AnsiString): boolean;
 var
@@ -1801,7 +1788,6 @@ begin
     y.Free;
   end;
 end;
-
 
 procedure TSiteSlot.Stop;
 begin
@@ -1863,7 +1849,6 @@ begin
   debug(dpSpam, section, 'SitesStart end');
 end;
 
-
 procedure SlotsFire;
 var
   i, j: integer;
@@ -1903,10 +1888,10 @@ var
   i: integer;
   allsites, upsites, downsites, unknown: integer;
 begin
-  allsites  := 0;
-  upsites   := 0;
+  allsites := 0;
+  upsites := 0;
   downsites := 0;
-  unknown   := 0;
+  unknown := 0;
   for i := 0 to sites.Count - 1 do
   begin
     if TSite(sites[i]).Name = admin_sitename then
@@ -1932,7 +1917,6 @@ procedure TSite.SetSkipPreStatus(Value: boolean);
 begin
   WCBool('skip_pre', Value);
 end;
-
 
 procedure TSite.SetWorking(Value: TSiteStatus);
 begin
@@ -1964,8 +1948,7 @@ begin
       if RCInteger('autodirlist', 0) <> 0 then
         AutoDirlist;
     end
-    else
-    if Value = sstDown then
+    else if Value = sstDown then
     begin
       irc_addadmin(Format('<c4>SITE <b>%s</b> IS DOWN</c>', [Name]));
       //removeing all tasks for the site...
@@ -1986,12 +1969,10 @@ begin
   end;
 end;
 
-
 function TSite.Getconnect_timeout: integer;
 begin
   Result := RCInteger('connect_timeout', 15);
 end;
-
 
 function TSite.GetIdleInterval: integer;
 begin
@@ -2007,7 +1988,6 @@ function TSite.GetMaxIdle: integer;
 begin
   Result := RCInteger('max_idle', 120);
 end;
-
 
 function TSite.GetMaxDn: integer;
 begin
@@ -2040,7 +2020,6 @@ procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
 end;
-
 
 procedure TSite.Setconnect_timeout(const Value: integer);
 begin
@@ -2097,12 +2076,10 @@ begin
   WCInteger('sslfxp', integer(Value));
 end;
 
-
 function TSite.GetPredir: AnsiString;
 begin
   Result := sectiondir['PRE'];
 end;
-
 
 procedure TSite.SetPredir(const Value: AnsiString);
 begin
@@ -2111,13 +2088,13 @@ end;
 
 function TSite.Getlegacydirlist: boolean;
 begin
-{ OLD CODE!
-  if Software = sswGlftpd then
-    Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
-    Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
-  else
-    Result:= True
-}
+  { OLD CODE!
+    if Software = sswGlftpd then
+      Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
+      Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
+    else
+      Result:= True
+  }
   Result := RCBool('legacycwd', False);
 end;
 
@@ -2137,7 +2114,7 @@ begin
     if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
     begin
       markeddown := True;
-      working    := sstDown;
+      working := sstDown;
       RemoveAutoIndex;
       RemoveAutoBnctest;
       RemoveAutoRules;
@@ -2155,7 +2132,7 @@ begin
     if config.ReadBool('sites', 'set_down_on_out_of_credits', False) then
     begin
       markeddown := True;
-      working    := sstDown;
+      working := sstDown;
       RemoveAutoIndex;
       RemoveAutoBnctest;
       RemoveAutoRules;
@@ -2271,17 +2248,14 @@ begin
     Result := Format('%2.2d Weeks %1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
       [sec_pretime div 604800, (sec_pretime div 86400) mod 7,
       (sec_pretime div 3600) mod 24, (sec_pretime div 60) mod 60, sec_pretime mod 60])
-  else
-  if sec_pretime >= 86400 then
+  else if sec_pretime >= 86400 then
     Result := Format('%1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
       [sec_pretime div 86400, (sec_pretime div 3600) mod 24,
       (sec_pretime div 60) mod 60, sec_pretime mod 60])
-  else
-  if sec_pretime >= 3600 then
+  else if sec_pretime >= 3600 then
     Result := Format('%2.2d Hour %2.2d Min %2.2d Sec',
       [sec_pretime div 3600, (sec_pretime div 60) mod 60, sec_pretime mod 60])
-  else
-  if sec_pretime >= 60 then
+  else if sec_pretime >= 60 then
     Result := Format('%2.2d Min %2.2d Sec', [(sec_pretime div 60) mod
       60, sec_pretime mod 60])
   else
@@ -2338,12 +2312,11 @@ begin
   end;
 end;
 
-
 function TSite.SetSections(sections: AnsiString; remove: boolean): AnsiString;
 var
-  x:  TStringList;
+  x: TStringList;
   ss: AnsiString;
-  i:  integer;
+  i: integer;
 begin
   x := TStringList.Create;
   try
@@ -2374,7 +2347,7 @@ end;
 
 function TSite.SetLeechers(users: AnsiString; remove: boolean): AnsiString;
 var
-  x:  TStringList;
+  x: TStringList;
   ss: AnsiString;
   voltmar: boolean;
   i, maxleechers: integer;
@@ -2422,7 +2395,7 @@ end;
 
 function TSite.SetTraders(users: AnsiString; remove: boolean): AnsiString;
 var
-  x:  TStringList;
+  x: TStringList;
   ss: AnsiString;
   i, maxtraders: integer;
   voltmar: boolean;
@@ -2469,12 +2442,12 @@ end;
 
 function TSite.SetAffils(affils: AnsiString): AnsiString;
 var
-  x:     TStringList;
-  List:  TStrings;
+  x: TStringList;
+  List: TStrings;
   affil: AnsiString;
-  i:     integer;
+  i: integer;
 begin
-  x    := TStringList.Create;
+  x := TStringList.Create;
   List := TStringList.Create;
   try
     x.Delimiter := ' ';
@@ -2491,7 +2464,7 @@ begin
     end;
     x.Sort;
     siteaffils := x.DelimitedText;
-    Result     := x.DelimitedText;
+    Result := x.DelimitedText;
   finally
     x.Free;
     List.Free;
@@ -2512,7 +2485,7 @@ begin
       x.Add(affil);
       x.Sort;
       siteaffils := x.DelimitedText;
-      Result     := True;
+      Result := True;
     end
     else
       Result := False;
@@ -2577,12 +2550,12 @@ begin
 
   x := TStringList.Create;
   try
-  x.Delimiter := ' ';
-  x.DelimitedText := traders;
-  if x.Count <= Result then
-    Dec(Result, x.Count)
-  else
-    Result := 0;
+    x.Delimiter := ' ';
+    x.DelimitedText := traders;
+    if x.Count <= Result then
+      Dec(Result, x.Count)
+    else
+      Result := 0;
   finally
     x.Free;
   end;
@@ -2667,25 +2640,24 @@ begin
 
   Exit;
 
-(*
-  t:= FetchAutoCrawler;
-  if t <> nil then exit;
-  if PermDown then Exit;
-  // nincs, addolni kell.
-  t:= TAutoCrawlerTask.Create('', '', name);
-  t.startat:= RcDateTime('nextautocrawler', 0);
-  t.dontremove:= True;
-  try
-    AddTask(t);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoCrawler AddTask: %s', [e.Message]));
+  (*
+    t:= FetchAutoCrawler;
+    if t <> nil then exit;
+    if PermDown then Exit;
+    // nincs, addolni kell.
+    t:= TAutoCrawlerTask.Create('', '', name);
+    t.startat:= RcDateTime('nextautocrawler', 0);
+    t.dontremove:= True;
+    try
+      AddTask(t);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TSite.AutoCrawler AddTask: %s', [e.Message]));
+      end;
     end;
-  end;
-*)
+  *)
 end;
-
 
 procedure TSite.AutoNuke;
 var
@@ -2789,7 +2761,6 @@ begin
     end;
   end;
 end;
-
 
 function TSite.FetchAutoNuke: TAutoNukeTask;
 var
@@ -2917,7 +2888,6 @@ begin
     t.ready := True;
 end;
 
-
 procedure TSite.Auto;
 begin
   if PermDown then
@@ -2935,14 +2905,12 @@ begin
   if RCInteger('autonuke', 0) > 0 then
     AutoNuke;
 
-
   if RCInteger('autoindex', 0) > 0 then
     AutoIndex;
 
   if RCInteger('autocrawler', 0) > 0 then
     AutoCrawler;
 end;
-
 
 procedure SiteAutoStart;
 var
@@ -3108,37 +3076,37 @@ end;
 
 procedure TSite.RecalcFreeslots;
 var
-  i:  integer;
+  i: integer;
   ss: TSiteSlot;
   fs: integer;
 begin
   fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
-(*
-    try
-      ss:= TSiteSlot(slots[i]);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-        irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-        slots[i] := nil;
-        slots[i] := TSiteSlot.Create(self, i);
-        ss:= TSiteSlot(slots[i]);
-        irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-      end;
-    end;
-    if ((slots[i] = nil) or (ss = nil)) then
-    begin
-      Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-      irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-      slots[i] := nil;
-      slots[i] := TSiteSlot.Create(self, i);
-      ss:= TSiteSlot(slots[i]);
-      irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-    end;
-*)
+    (*
+        try
+          ss:= TSiteSlot(slots[i]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
+            irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
+            slots[i] := nil;
+            slots[i] := TSiteSlot.Create(self, i);
+            ss:= TSiteSlot(slots[i]);
+            irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
+          end;
+        end;
+        if ((slots[i] = nil) or (ss = nil)) then
+        begin
+          Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
+          irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
+          slots[i] := nil;
+          slots[i] := TSiteSlot.Create(self, i);
+          ss:= TSiteSlot(slots[i]);
+          irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
+        end;
+    *)
     ss := TSiteSlot(slots[i]);
     if ss.todotask = nil then
       Inc(fs);
@@ -3149,7 +3117,7 @@ end;
 
 procedure TSite.FullLogin;
 var
-  i:  integer;
+  i: integer;
   ss: TSiteSlot;
   fs: integer;
 begin
@@ -3165,7 +3133,6 @@ begin
 
   ffreeslots := fs;
 end;
-
 
 function TSite.GetSiteInfos: AnsiString;
 begin
@@ -3184,14 +3151,15 @@ end;
 
 procedure TSite.SetLastKnownCredits(Value: int64);
 begin
-//
+  //
 end;
 
-function TSite.GetUseAutoInvite:boolean;
+function TSite.GetUseAutoInvite: boolean;
 begin
-   Result := RCBool('useautoinvite', True);
+  Result := RCBool('useautoinvite', True);
 end;
-procedure TSite.SetUseAutoInvite(value:Boolean);
+
+procedure TSite.SetUseAutoInvite(value: Boolean);
 begin
   WCBool('useautoinvite', Value);
 end;
@@ -3225,7 +3193,6 @@ procedure TSite.SetNoLoginMSG(Value: boolean);
 begin
   WCBool('nologinmsg', Value);
 end;
-
 
 function TSite.GetPermDownStatus: boolean;
 begin
