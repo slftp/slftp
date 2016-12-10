@@ -1492,8 +1492,8 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        exit;
         Debug(dpError, 'dirlist', 'ERROR: can not cwd %s - %s', [dir, forcecwd]);
+        exit;
       end;
 
     if config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
