@@ -1115,7 +1115,7 @@ var
 begin
   Result := nil;
 
-  r := TDirlistTask.Create(Netname, Channel, sitename, dir);
+  r := TDirlistTask.Create(Netname, Channel, sitename, dir,true);
   tn := AddNotify;
   tn.tasks.Add(r);
   AddTask(r);
