@@ -105,10 +105,11 @@ begin
   s:= slot;
 
   Result:= 0;
-  if not s.Dirlist(path, true) then // daydir might have change
+  if not s.Dirlist(path, true,true) then // daydir might have change
   begin
     if (not s.ReLogin) then
     begin
+      Debug(dpError, rsections, Format('ERROR: can not ReLogin %s', [s.Name]));
       Result:= -1;
       exit;
     end;
@@ -120,11 +121,17 @@ begin
     exit;
   end;
 
+
+  irc_Addtext('','',s.lastResponse);
+
   // sikeres dirlist, fel kell dolgozni az elemeit
+  //dirlist successful, you need to work with the elements
   dl:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+
   try
     if nil = IndexFindNfo(dl) then
     begin
+      //Debug(dpError, rsections,'ERROR: No NFO Found');
       if (aktszint < config.ReadInteger(rsections,'max_deep',5)) then // wont go any deeper
       begin
         for j:= 0 to dl.entries.Count-1 do
@@ -159,6 +166,7 @@ begin
         end;
       end;
     end else
+      //Debug(dpError, rsections,'ERROR: No NFO Found max_deep.');
       Result:= -2;
   finally
     dl.Free;
@@ -235,29 +243,41 @@ begin
     sectiondir:= s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-      try
-        irc_SendINDEXER(Format('Indexing of %s on site %s start.', [section, site1]));
 
+        irc_SendINDEXER(Format('Indexing of %s on site %s start.', [section, site1]));
+          try
         if config.ReadBool(rsections, 'transaction', True) then
           indexerBeginTransaction();
-        indexerRemoveSiteSection(site1, section);
+
+            try
+              indexerRemoveSiteSection(site1, section);
+              db:= doIndexing(slot, section, sectiondir, 1);
 
 
-        db:= doIndexing(slot, section, sectiondir, 1);
-        if db >= 0 then
-        begin
-          irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips added.', [section, site1, db]);
-          irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips added.', [section, site1, db]));
-        end;
+              if db < 0 then
+              begin
+                irc_addtext(netname, channel, 'Indexing of %s on site %s finished, no rips added.', [section, site1]);
+                irc_SendINDEXER(Format('Indexing of %s on site %s finished, no rips added.', [section, site1]));
+              end;
 
+              if db >= 0 then
+              begin
+                irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips in index.', [section, site1, db+1]);
+                irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips in index.', [section, site1, db+1]));
+            end;
+
+          finally
         if config.ReadBool(rsections, 'transaction', True) then
           indexerEndTransaction();
-      except
+          end;
+
+           except
         on e: Exception do
         begin
           Debug(dpError, section, Format('[EXCEPTION] TAutoIndexTask.Execute: %s', [e.Message]));
         end;
       end;
+
     end;
   end;
 

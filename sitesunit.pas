@@ -1513,8 +1513,10 @@ begin
       kapcsolo := 'a';
 
     if dir <> '' then
-      if not Cwd(dir, forcecwd) then
+      if not Cwd(dir, forcecwd) then begin
         exit;
+        Debug(dpError, 'dirlist','ERROR: can not cwd %s - %s',[dir,forcecwd]);
+      end;
 
     if config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
     begin
@@ -1540,10 +1542,14 @@ begin
         cmd := 'STAT -l' + kapcsolo + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end;
 
-    if not Send(cmd) then
+    if not Send(cmd) then begin
+      Debug(dpError, 'dirlist','ERROR: can not send %s - %s',[dir,forcecwd]);
       exit;
-    if not Read('Dirlist') then
+    end;
+    if not Read('Dirlist') then begin
+      Debug(dpError, 'dirlist','ERROR: can not read %s - %s',[dir,forcecwd]);
       exit;
+    end;
 
     Result := True;
   except

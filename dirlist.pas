@@ -481,8 +481,10 @@ var tmp: AnsiString;
 begin
   added := False;
 
-  if cache_completed then
+  if cache_completed then begin
+    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
     exit;
+  end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
