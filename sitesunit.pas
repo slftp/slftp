@@ -1492,7 +1492,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpError, 'dirlist', 'ERROR: can not cwd %s - %s', [dir, forcecwd]);
+        Debug(dpError, 'dirlist', 'ERROR: can not cwd %s', [dir]);
         exit;
       end;
 
@@ -1520,12 +1520,12 @@ begin
 
     if not Send(cmd) then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not send %s - %s', [dir, forcecwd]);
+      Debug(dpError, 'dirlist', 'ERROR: can not send %s', [dir]);
       exit;
     end;
     if not Read('Dirlist') then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not read %s - %s', [dir, forcecwd]);
+      Debug(dpError, 'dirlist', 'ERROR: can not read %s', [dir]);
       exit;
     end;
 
