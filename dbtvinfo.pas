@@ -103,6 +103,8 @@ begin
     name := Csere(name, '.', '+');
     name := Csere(name, '_', '+');
   end;
+  if name[Length(name)] = '+' then
+    Delete(name,Length(name),1);
   result := name;
 end;
 
