@@ -482,7 +482,7 @@ begin
   added := False;
 
   if cache_completed then begin
-    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
+//    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
     exit;
   end;
 
