@@ -192,26 +192,25 @@ begin
 
 end;
 
+
 {SLLanguages Common Utils}
-
-
 procedure renameFile;
-var y:TStringlist;
+var
+  y: TStringlist;
 begin
    y := TStringList.Create;
     try
       y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
       y.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase');
-{$IFDEF MSWINDOWS}
-      DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'slftp.languagebase'));
-{$ELSE}
-      DeleteFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
-{$ENDIF}
+      {$IFDEF MSWINDOWS}
+        DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp'));
+      {$ELSE}
+        DeleteFile(ExtractFilePath(ParamStr(0)) + 'languagebase.slftp');
+      {$ENDIF}
     finally
       y.Free;
     end;
 end;
-
 
 
 procedure SLLanguages_Init;
