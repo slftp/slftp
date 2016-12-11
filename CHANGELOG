@@ -36,17 +36,20 @@
 	      
 --==========================( NEW SLFTP.ini ITEMS )===============================-	    
 
-		// THIS CAN BE REMOVED, DON'T NEED IT ANYMORE
-		[sites]
-		minimum_year_value=2030 
+		none
                 
-
 --===========================( KNOWN BUG in v1.5.* )================================-	      
 
 		sometimes for some people catching stops, need restart
 		OpenSSL v1.1.* isn't supported yet
 		maybe not every response message is already handled, just post them on #slftp
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
+
+--=============================( SLFTP v1.5.5 )===================================- 
+		{+} New rule for tvlanguage from TVMaze (#79)
+		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
+		{#} Bug with !dirlist not showing entries (#112)
+		{^} TVMaze Us US mismatch gets detected better now (#1)
 
 --=============================( SLFTP v1.5.4 )===================================- 
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
@@ -65,7 +68,6 @@
 		{#} Fix imdb title regex to properly parse currently running tv series
 		{#} Bug with delayupload and delayleech was fixed -> Values weren't initialized (#12)
 		{#} auto adding blacklist rule for group should work again
-		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC)
 		{#} !batch supports PRE in releasename (#105)
 		{#} TSiteSlot.Leechfile negotiates to the highest version mutually supported by the client and the server, no more TLS v1.2 only!
 		{^} many code changes on dirlisttask, mkdirtask and racetask - more things regarding this will come + better error handling
