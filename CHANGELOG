@@ -47,9 +47,15 @@
 
 --=============================( SLFTP v1.5.5 )===================================- 
 		{+} New rule for tvlanguage from TVMaze (#79)
+		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
+		{#} No more stalling of slftp if languagebase file is missing (#111)
 		{^} TVMaze Us US mismatch gets detected better now (#1)
+		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
+		{^} No [NOT SET] message on pre if site is set to permdown (#108)
+		{^} No need to !setdown before !setpermdown (#108)
+		{^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
 
 --=============================( SLFTP v1.5.4 )===================================- 
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
