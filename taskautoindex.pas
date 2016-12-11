@@ -123,7 +123,6 @@ begin
     exit;
   end;
 
-  irc_Addtext('', '', s.lastResponse);
 
   // sikeres dirlist, fel kell dolgozni az elemeit
   //dirlist successful, you need to work with the elements

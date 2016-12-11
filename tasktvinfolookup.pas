@@ -74,7 +74,7 @@ begin
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
   x := TRegExpr.Create;
   try
-    x.ModifierI := True;
+    x.ModifierI := False;
     x.ModifierM := True;
     getShowValues(name, showName);
 
