@@ -1533,6 +1533,18 @@ begin
           end;
         end;
 
+      421:
+        begin
+          //COMPLETE MSG: 421 Connection closing
+          if (0 < AnsiPos('Connection closing', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]));
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
       425:
         begin
           if (0 < AnsiPos('Connection refused', lastResponse)) then
