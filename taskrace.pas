@@ -1851,6 +1851,8 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
+
+              // maybe remove the source from race because fxp isn't allowed?
               sdst.DestroySocket(False);
               mainpazo.errorreason := 'Opening data connection problem';
               readyerror := True;
@@ -1878,6 +1880,15 @@ begin
             irc_AddINFO('[iNFO] SSLFXP needed on Source: ' + ssrc.Name);
             goto TryAgain;
           end;
+
+          //COMPLETE MSG: 530 Access denied
+          if (0 < AnsiPos('Access denied', lastResponse)) then
+          begin
+            // not sure what happend, maybe try again or disable site because downloading (fxping) is not allowed?
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR] Access denied</c> %s', [tname]);
+            goto TryAgain;
+          end;
+
         end;
 
 
