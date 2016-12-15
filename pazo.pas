@@ -435,10 +435,20 @@ var
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
   dde: TDirListEntry;
+  s: TSite;
 begin
   Result := False;
-  if error = True then
+  if error then
     exit;
+
+
+  // ignore this site if you don't have setup download slots for it
+  s := FindSiteByName('', Name);
+  if ( (status = rssRealPre) AND (s.max_pre_dn = 0) ) then
+    exit;
+  else if (s.max_dn = 0) then
+    exit;
+
 
   pazo.lastTouch := Now();
 
@@ -460,6 +470,14 @@ begin
         exit;
       if dst.error then
         Continue;
+
+
+      // ignore this destination if you don't want to upload there
+      (* TODO: Maybe we still need to add TPazoDirlistTask for it because maybe we want to download from there *)
+      s := FindSiteByName('', dst.Name);
+      if (s.max_up = 0) then
+        exit;
+
 
       if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then
         Continue;
