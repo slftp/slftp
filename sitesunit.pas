@@ -1549,7 +1549,7 @@ begin
 
   // stop using sites where you don't add some download slots
   (* TODO: Write a function which can be used before from every caller to this function + depend check if PRE or not *)
-  if ( (s.max_pre_dn = 0) or (s.max_dn = 0) ) then
+  if ( (site.max_pre_dn = 0) or (site.max_dn = 0) ) then
     exit;
 
   try
