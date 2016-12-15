@@ -743,7 +743,7 @@ begin
   // 257 "PATHNAME" created.
   // 1xx Positive Preliminary reply
   // 2xx Positive Completion reply
-  if ( (lastResponseCode <> 257) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
+  if ( (s.lastResponseCode <> 257) AND ( (s.lastResponseCode < 100) OR (s.lastResponseCode > 299) ) ) then
   begin
 
     case s.lastResponseCode of
