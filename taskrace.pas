@@ -739,28 +739,14 @@ begin
 
   failure := False;
 
-  if s.lastResponseCode <> 257 then
+
+  // 257 "PATHNAME" created.
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode <> 257) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
   begin
 
     case s.lastResponseCode of
-
-      100..399:
-        begin
-          Debug(dpError, c_section, 'TPazoMkdirTask positive reply, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
-
-          // https://en.wikipedia.org/wiki/List_of_FTP_server_return_codes
-          // do nothing, all fine - just some positive response from ftpd
-        end;
-
-(*
-      213:
-        begin
-          if (0 <> AnsiPos('status of', s.lastResponse)) then
-          begin
-            failure := False;
-          end;
-        end;
-*)
 
       400:
         begin
@@ -1342,57 +1328,14 @@ begin
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
 
+
   // 227 Entering Passive Mode.
   // 1xx Positive Preliminary reply
   // 2xx Positive Completion reply
   if ( (lastResponseCode <> 227) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
   begin
+
     case lastResponseCode of
-(*
-* https://en.wikipedia.org/wiki/List_of_FTP_server_return_codes
-* 1xx   Positive Preliminary reply
-      150:
-        begin
-
-          //COMPLETE MSG: 150 Opening BINARY mode data connection for dinner.at.tiffanis.s02e04.720p.hdtv.x264-w4f.sfv (767 bytes) using SSL/TLS.
-          if (0 < AnsiPos('Timeout', ssrc.lastResponse)) then
-          begin
-            // normally its fine, but need to change some code for ignoring ftpd status responses
-            ssrc.Quit;
-            sdst.Quit;
-            goto TryAgain; //just try again, should hopefully resolve this issue
-          end;
-
-        end;
-
-* 2xx   Positive Completion reply
-      200:
-        begin
-
-          //COMPLETE MSG: 200 Protection set to Private
-          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
-          begin
-            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
-            ssrc.Quit;
-            sdst.Quit;
-            goto TryAgain;
-          end;
-
-          //COMPLETE MSG: 200 OK, planning for upcoming download
-          if (0 < AnsiPos('OK, planning for', ssrc.lastResponse)) then
-          begin
-            // seems everything is fine, just a response which isn't used on every ftpd? Because it should already occurred
-            // should be added to above part if ssrc.lastResponseCode <> 227 then with a check if ftpd = drftpd (guess its from drftpd site) and just
-            // go on with sending commands
-            //now we need to try again because else we just exit and there will be no transfer!
-            ssrc.Quit;
-            sdst.Quit;
-            goto TryAgain;
-          end;
-
-
-        end;
-*)
       421:
         begin
 
@@ -1498,30 +1441,21 @@ begin
     goto TryAgain;
   end;
 
+
   lastResponseCode := sdst.lastResponseCode;
   lastResponse := sdst.lastResponse;
 
   Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(storfilename)]);
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
-  if lastResponseCode <> 150 then
+
+  // 150 File status okay; about to open data connection.
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode <> 150) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
   begin
 
     case lastResponseCode of
-(*
-* https://en.wikipedia.org/wiki/List_of_FTP_server_return_codes
-* 2xx   Positive Completion reply
-      200:
-        begin
-          if (0 < AnsiPos('Protection set to', sdst.lastResponse)) then
-          begin  // 200 Protection set to Private
-            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
-            ssrc.Quit;
-            sdst.Quit;
-            goto TryAgain;
-          end;
-        end;
-*)
       400:
         begin
           if (0 < AnsiPos('SFVFile still transferring', lastResponse)) then
@@ -1814,6 +1748,7 @@ begin
     goto TryAgain;
   end;
 
+
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
 
@@ -1822,24 +1757,13 @@ begin
 
   started := Now;
 
-  if lastResponseCode <> 150 then
+  // 150 File status okay; about to open data connection.
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode <> 150) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
   begin
 
     case lastResponseCode of
-(*
-* https://en.wikipedia.org/wiki/List_of_FTP_server_return_codes
-* 2xx   Positive Completion reply
-      200:
-        begin
-          if (0 < AnsiPos('Protection set to', ssrc.lastResponse)) then
-          begin  // 200 Protection set to Private
-            // try again, maybe some ftpd issue with SSL or something (maybe SSL FXP needed?)
-            ssrc.Quit;
-            sdst.Quit;
-            goto TryAgain;
-          end;
-        end;
-*)
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.
@@ -2160,7 +2084,6 @@ begin
         end;
 
       end;
-
 
 
     426:
