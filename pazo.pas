@@ -30,13 +30,12 @@ type
   end;
 
   TPazo = class;
-  TRlsSiteStatus = (rssNotAllowed, rssNotAllowedButItsThere, rssAllowed,
-    rssShouldPre, rssRealPre, rssComplete, rssNuked);
+  TRlsSiteStatus = (rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked);
 
   TPazoSite = class
   public
     midnightdone: boolean;
-      Name: AnsiString;
+    Name: AnsiString;
     maindir: AnsiString;
     pazo: TPazo;
     //sources: TObjectList;
@@ -87,23 +86,17 @@ type
     procedure RemoveMkdir;
     procedure MarkSiteAsFailed(echomsg: boolean = False);
 
-    function ParseDirlist(const netname, channel: AnsiString; dir, liststring:
-      AnsiString;
-      pre: boolean = False): boolean;
+    function ParseDirlist(const netname, channel: AnsiString; dir, liststring: AnsiString; pre: boolean = False): boolean;
     function MkdirReady(dir: AnsiString): boolean;
     function MkdirError(dir: AnsiString): boolean;
     function AddDestination(sitename: AnsiString; rank: integer): boolean; overload;
     function AddDestination(ps: TPazoSite; rank: integer): boolean; overload;
     constructor Create(pazo: TPazo; Name, maindir: AnsiString);
     destructor Destroy; override;
-    procedure ParseXdupe(const netname, channel: AnsiString; dir, resp: AnsiString;
-      added: boolean = False);
-    function ParseDupe(const netname, channel: AnsiString; dir, filename: AnsiString;
-      byme: boolean): boolean; overload;
-    function ParseDupe(const netname, channel: AnsiString; dl: TDirlist;
-      dir, filename: AnsiString; byme: boolean): boolean; overload;
-    function SetFileError(const netname, channel: AnsiString; dir, filename:
-      AnsiString): boolean;
+    procedure ParseXdupe(const netname, channel: AnsiString; dir, resp: AnsiString; added: boolean = False);
+    function ParseDupe(const netname, channel: AnsiString; dir, filename: AnsiString; byme: boolean): boolean; overload;
+    function ParseDupe(const netname, channel: AnsiString; dl: TDirlist; dir, filename: AnsiString; byme: boolean): boolean; overload;
+    function SetFileError(const netname, channel: AnsiString; dir, filename: AnsiString): boolean;
     function Stats: AnsiString;
     function Allfiles: AnsiString;
     procedure SetComplete(cdno: AnsiString);
@@ -176,8 +169,7 @@ type
     constructor Create(rls: TRelease; pazo_id: integer);
     destructor Destroy; override;
     function FindSite(sitename: AnsiString): TPazoSite;
-    function AddSite(sitename, maindir: AnsiString; delay: boolean = True):
-      TPazoSite;
+    function AddSite(sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
     function AddSites(): boolean;
     function AddSitesForSpread(): boolean;
     function PFileSize(dir, filename: AnsiString): integer;
@@ -206,8 +198,8 @@ var
   //    pazos: TObjectList;
   local_pazo_id: integer;
 
-  { TCacheFile }
 
+{ TCacheFile }
 constructor TCacheFile.Create(dir, filename: AnsiString; filesize: integer);
 begin
   self.dir := dir;
@@ -489,15 +481,19 @@ begin
 
       if dst.dirlist = nil then
         Continue;
+
+
       try
         dstdl := dst.dirlist.FindDirlist(dir, True);
       except
         Continue;
       end;
+
       if dstdl = nil then
         Continue;
       if dstdl.error then
         Continue;
+
 
       // we are in a subdir and the maindir don't have been mkdir'ed
       if (dir <> '') then
@@ -522,7 +518,7 @@ begin
       begin
         if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
         begin
-          // addolnunk kell TPazoMkdir taszkot dst-re dir-rel  -- Add link must Tazo Mkdir tasks dst-redir-rel
+          // addolnunk kell TPazoMkdir taszkot dst-re dir-rel  -- We must kill TPazoMkdir add tasks running away dst dir-rel ???
           Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Adding MKDIR task on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
 
           pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
@@ -637,7 +633,7 @@ end;
 { TPazo }
 
 // TODO: Remove it add replace all calls to AddSite with TPazoSite.Create(self, s.Name, sectiondir);
-// TPazo.AddSites is used from kb_AddB, which calls TPazoSite.Create() 
+// TPazo.AddSites is used from kb_AddB, which calls TPazoSite.Create()
 // Sometime before TPazoSite.AddSites called AddSite but was changed to create TPazoSite instantly!
 function TPazo.AddSite(sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
 begin
@@ -1359,9 +1355,7 @@ begin
   Result := True;
 end;
 
-function TPazoSite.ParseDirlist(const netname, channel: AnsiString; dir, liststring:
-  AnsiString;
-  pre: boolean = False): boolean;
+function TPazoSite.ParseDirlist(const netname, channel: AnsiString; dir, liststring: AnsiString; pre: boolean = False): boolean;
 var
   d: TDirList;
   i: integer;
@@ -1388,9 +1382,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section,
-        'TPazoSite.ParseDirlist exception in d.ParseDirlist : %s',
-        [e.Message]);
+      Debug(dpError, section, 'TPazoSite.ParseDirlist exception in d.ParseDirlist : %s', [e.Message]);
       exit;
     end;
   end;
@@ -1410,8 +1402,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, 'TPazoSite.ParseDirlist exception in d.Sort : %s',
-        [e.Message]);
+      Debug(dpError, section, 'TPazoSite.ParseDirlist exception in d.Sort : %s', [e.Message]);
       exit;
     end;
   end;
@@ -1487,7 +1478,7 @@ begin
       de.error := True;
       dl.entries.Add(de);
     end;
-    
+
     Result := True;
   except
     on E: Exception do
