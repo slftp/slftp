@@ -437,7 +437,7 @@ begin
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
   if ( (status = rssRealPre) AND (s.max_pre_dn = 0) ) then
-    exit;
+    exit
   else if (s.max_dn = 0) then
     exit;
 
