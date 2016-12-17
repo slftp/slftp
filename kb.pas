@@ -666,7 +666,7 @@ begin
       begin
         while i > 250 do
         begin
-          kb_skip.Delete(i);           
+          kb_skip.Delete(i);
           i := kb_skip.Count - 1;
         end;
       end;
@@ -910,10 +910,9 @@ begin
         end;
         end;
 
-        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) or (not TSite(FindSiteByName('',sitename)).PermDown)) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not TSite(FindSiteByName('', sitename)).PermDown)) then
         begin
-        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
-          [p.rls.section, p.rls.rlsname, sitename, event]));
+        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
@@ -999,7 +998,7 @@ begin
       kb_lock.Leave;
     end;
 
-    // announce SKIP and DONT MATCH only if the site is not a PRE site 
+    // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource.status <> rssRealPre) then
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
@@ -1290,7 +1289,7 @@ begin
 
     rrgx := TRegExpr.Create;
     try
-    
+
     rrgx.ModifierI := True;
     rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
     if rrgx.Exec(rlsname) then
@@ -1381,7 +1380,7 @@ begin
       else
         languages.Add('English');
     end;
-    
+
     finally
       rrgx.free;
     end;
