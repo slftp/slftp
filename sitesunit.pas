@@ -493,11 +493,14 @@ end;
 function GiveSiteLastStart: TDateTime;
 begin
   bnccsere.Enter;
-  if siteLastStart < Now then
-    siteLastStart := Now;
-  siteLastStart := IncMilliSecond(sitelaststart, delay_between_connects);
-  Result := siteLastStart;
-  bnccsere.Leave;
+  try
+    if siteLastStart < Now then
+      siteLastStart := Now;
+    siteLastStart := IncMilliSecond(sitelaststart, delay_between_connects);
+    Result := siteLastStart;
+  finally
+    bnccsere.Leave;
+  end;
 end;
 
 procedure TSiteSlot.AddLoginTask;
@@ -1007,19 +1010,21 @@ begin
 
   // successful login
   Result := True;
-
+(*
   // change order of BNC if it's not number 0 and actually number 0 failed to login
   if i <> 0 then
   begin
     bnccsere.Enter;
+    try  
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
     sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
-
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);
     sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-0', Port);
+    finally
     bnccsere.Leave;
+    end;
   end;
-
+*)
   if spamcfg.readbool(section, 'login_logout', True) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
