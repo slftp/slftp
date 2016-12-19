@@ -303,7 +303,7 @@ begin
 
   //irc_addtext('CONSOLE','ADMIN','LANGUAGE = %s -- rlang = %s',[ir.languages.text,rlang]);
 
-(*  Get Cleanup STV Infos  mod done by a kraut so u see we can do beauty things too ;) *)
+  (* Get Cleanup STV Infos - mod done by a kraut so u see we can do beauty things too ;) - *)
   ir.imdb_stvs := '/!\ UNTOUCHED /!\';
   ir.imdb_stvm := True;
   imdb_stv := False;
@@ -320,21 +320,18 @@ begin
   *)
 
   if (uppercase(trim(ir.languages.text)) <> 'ENGLISH') then
-  rlang := ir.languages.Strings[0] else rlang := 'USA';
+    rlang := ir.languages.Strings[0]
+  else
+    rlang := 'USA';
 
   imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
   imdb_region := SubString(imdb_counline, ',', 1);
   imdb_country := SubString(imdb_counline, ',', 2);
 
-  (*  Get STV Info through releaseinfo page from iMDB *)
+  (* Get STV Info through releaseinfo page from iMDB *)
+  rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/releaseinfo', '');
 
-  rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id +
-    '/releaseinfo', '');
-
-  (*  Movie is actually a MiniSeries designed for Television *)
-  //rr.Expression:='<h1><small>Release dates for<br><\/small><a class[^>]+>\&\#x22\;[^<]+<\/a> <span>\(.+\)';
-  //rr.Expression:='<h1><small>Release dates for<br>[\r\n\s]+<\/small>[\r\n\s]+<a class[^>]+>\&\#x22\;[^<]+<\/a> <span>\(.+\)';
-  //if rr.Exec(text) then begin
+  (* Movie is actually a MiniSeries designed for Television *)
   if imdb_extra = 'TV mini-series' then
   begin
     imdbdata.imdb_stvm := True;
@@ -342,14 +339,11 @@ begin
     imdbdata.imdb_stvs := 'Mini_series';
   end;
 
-  (*  Movie is actually a Videogame, STV or TV Production *)
-  //if not imdb.imdb_stvm then begin
+  (* Movie is actually a Videogame, STV or TV Production *)
   if not imdb_stv then
   begin
-    //  rr.Expression:='<h1><small>Release dates for<br>[\r\n\s]+<\/small>[\r\n\s]+<a class[^>]+>[^<]+<\/a> <span>\(.+\) \((TV|V|VG)\)';
-    //	rr.Expression:='<h1><small>Release dates for<br><\/small><a class[^>]+>[^<]+<\/a> <span>\(.+\) \((TV|V|VG)\)';
-    //  if rr.Exec(text) then begin
-    if ((imdb_extra = 'TV') or (imdb_extra = 'TV Movie') or (imdb_extra = 'Video Game') or (imdb_extra = 'Video')) then
+    //if ((imdb_extra = 'TV') or (imdb_extra = 'TV Movie') or (imdb_extra = 'Video Game') or (imdb_extra = 'Video')) then // <- need to at every single match which could be parsed
+    if ( AnsiContainsText(imdb_extra, 'TV') or AnsiContainsText(imdb_extra, 'Video') ) then
     begin
       imdbdata.imdb_stvm := True;
       imdb_stv := True;
@@ -357,7 +351,8 @@ begin
     end;
   end;
 
-  //if not imdb.imdb_stvm then begin
+
+
   if not imdb_stv then
   begin
     rr.ModifierI := True;
@@ -367,25 +362,19 @@ begin
       '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region
       + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country +
       '<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\w\s\d]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
-    (* //New regex since rev.314 09.06.2013
-    rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
-    *)
 
-    //        rr.Expression:='<tr><td><b><a href\=\"\/calendar\/\?region\='+imdb_region+'\">'+imdb_country+'<\/a><\/b><\/td>[\s\n]*?<td align\=\"right\"><a href\=\"\/date\/([\d\-]*?)\/\">\d{1,2} [\w]*?<\/a> <a href\=\"\/year\/\d{4}\/\">(\d{4})<\/a><\/td>[\n\s]*?<td><\/td><\/tr>';
     if rr.Exec(rlsdatesite) then
     begin
       imdb_date := Format('%s %s', [rr.Match[2], rr.Match[3]]);
       imdbdata.imdb_stvs := 'Cinedate: ' + imdb_date;
       imdbdata.imdb_stvm := False;
       imdb_stv := False;
-      (*  Fetching Cinedate for imdb_country  *)
-
+      (* Fetching Cinedate for imdb_country *)
       imdbdata.imdb_cineyear := Strtointdef(rr.Match[3], -1);
     end
     else
     begin
-      imdbdata.imdb_stvs := 'No infos around for ' + imdb_country +
-        ' so it is STV?!';
+      imdbdata.imdb_stvs := 'No infos around for ' + imdb_country + ' so it is STV?!';
       imdbdata.imdb_stvm := True;
       imdb_stv := True;
     end;
@@ -395,11 +384,6 @@ begin
     '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region
     + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country +
     '<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\d\s\w]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td>(.*?)<\/td>[\s\n]*?<\/tr>';
-  (*
-  //New regex since rev.314 09.06.2013
-  rr.Expression:='<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\='+imdb_region+'\&ref\_\=ttrel\_rel\_\d+" >'+imdb_country+'<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+" >\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
-  ///    rr.Expression:='<tr><td><b><a href\=\"\/calendar\/\?region\='+imdb_region+'\">'+imdb_country+'<\/a><\/b><\/td>[\s\n]*?<td align\=\"right\"><a href\=\"\/date\/([\d\-]*?)\/\">\d{1,2} [\w]*?<\/a> <a href\=\"\/year\/\d{4}\/\">(\d{4})<\/a><\/td>[\n\s]*?<td>(.*?)<\/td><\/tr>';
-  *)
   if rr.Exec(rlsdatesite) then
   begin
     s := rr.Match[4];
