@@ -2281,6 +2281,17 @@ begin
       end;
 
 
+    500:
+      begin
+        //COMPLETE MSG: 500 Unsupported command during transfer.
+        if (0 < AnsiPos('Unsupported command during transfer', lastResponse)) then
+        begin
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      end;
+
+
     522:
       begin
         if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
