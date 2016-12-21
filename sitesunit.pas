@@ -1497,7 +1497,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpError, 'dirlist', 'ERROR: can not cwd %s', [dir]);
+        Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name,dir]);
         exit;
       end;
 
