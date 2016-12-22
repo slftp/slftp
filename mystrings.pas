@@ -37,6 +37,7 @@ interface
 uses Classes;
 
 function onlyEnglishAlpha(s: AnsiString): AnsiString;
+function ArrayTextContainesIndexText(const AText, AValues: array of ansistring): Boolean;
 
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): AnsiString;
 
@@ -1473,6 +1474,20 @@ begin
     end;
 end;
 
+function ArrayTextContainesIndexText(const AText, AValues: array of ansistring): Boolean;
+var
+ati,avi: Integer;
+begin
+  Result := false;
+  for ati := Low(AText) to High(AText) do begin
+    for avi := Low(AValues) to High(AValues) do
+    if AnsiSameText(AText[ati], AValues[avi]) then
+    begin
+      Result := true;
+      Break;
+    end;
+  end;
+end;
 
 end.
 
