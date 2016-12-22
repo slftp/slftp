@@ -637,7 +637,7 @@ const
   );
 
 procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
-  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 9);
+  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
 
 implementation
 
@@ -653,7 +653,7 @@ const
   section = 'irccommands';
 
 procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
-  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 9);
+  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
 var
   xs: TStringList;
   i, ii: integer;
@@ -5564,6 +5564,25 @@ begin
       Continue;
     end;
 
+    if (AnsiStartsStr('pretime',x.Strings[i]) or (x.Strings[i] = 'pretime-*')) then begin
+      if s.RCInteger(x.Strings[i],120) > 60 then begin
+        case round(s.RCInteger(x.Strings[i],120)/60) of
+        1:
+          irc_addtext(Netname, Channel, ' %s: %s seconds (%d minute)', [x[i], s.RCString(x[i], ''),round(s.RCInteger(x.Strings[i],120)/60)]);
+        else
+          irc_addtext(Netname, Channel, ' %s: %s seconds (%d minutes)', [x[i], s.RCString(x[i], ''),round(s.RCInteger(x.Strings[i],120)/60)]);
+        end;
+      end else
+      irc_addtext(Netname, Channel, ' %s: %s seconds', [x[i], s.RCString(x[i], '')]);
+      Continue;
+    end;
+
+    if x.Strings[i] = 'affils' then
+    begin
+      IrcLineBreak(Netname, Channel,s.RCString(x.Strings[i],''),' ',' affils: ');
+      Continue;
+    end;
+
     if x.Strings[i] = 'country' then
     begin
       if ( s.RCString(x[i], '')[1] <> '.' ) then
@@ -5603,14 +5622,15 @@ begin
 
           if (j_sec >= 10) then
           begin
-            irc_addtext(Netname, Channel, ' %s: %s', [x[i], s_sections]);
+            //irc_addtext(Netname, Channel, ' %s: %s', [x[i], s_sections]);
+            IrcLineBreak(Netname, Channel,s_sections,',',' '+x.Strings[i]+': ',9);
             j_sec := 0;
             s_sections := '';
           end;
         end;
         if s_sections <> '' then
         begin
-          irc_addtext(Netname, Channel, ' %s: %s', [x[i], s_sections]);
+        IrcLineBreak(Netname, Channel,s_sections,',',' '+x.Strings[i]+': ',9);
         end;
       end
       else
