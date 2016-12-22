@@ -29,6 +29,10 @@ type
 procedure IrcCommandInit;
 procedure IrcCommandUninit;
 
+function IrcNope(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpHeader(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpSeperator(const netname, channel: AnsiString; params: AnsiString): boolean;
+
 function IrcHelpv2(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 function FindIrcCommand(cmd: AnsiString): integer; // overload;
@@ -46,7 +50,7 @@ function IrcSite(const netname, channel: AnsiString; params: AnsiString): boolea
 function IrcBnc(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcSetdown(const netname, channel: AnsiString; params: AnsiString): boolean;
 //function IrcNope(const netname, channel: string;params: string; nickname:string = ''): Boolean;
-function IrcNope(const netname, channel: AnsiString; params: AnsiString): boolean;
+
 function IrcQueue(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcMaxUpDn(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -137,7 +141,7 @@ function IrcRulesLoad(const netname, channel: AnsiString; params: AnsiString): b
 function IrcRulesReload(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
+//function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -333,19 +337,19 @@ function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString):
 
 const
 
-  irccommands: array[1..248] of TIrcCommand = (
+  irccommands: array[1..247] of TIrcCommand = (
     (cmd: '- GENERAL -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'main'),
-    (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'main'),
-    (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'main'),
-    (cmd: 'status'; hnd: IrcShowAppStatus; minparams: 0; maxparams: 0; hlpgrp: 'main'),
-    //(cmd: 'help'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'main'),
-    (cmd: 'bnctest'; hnd: IrcBnctest; minparams: 0; maxparams: - 1; hlpgrp: 'main'),
-    (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp: 'main'),
-    (cmd: 'ghost'; hnd: IrcKill; minparams: 1; maxparams: 1; hlpgrp: 'main'),
-    (cmd: 'queue'; hnd: IrcQueue; minparams: 0; maxparams: 2; hlpgrp: 'main'),
-    (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0; maxparams: 1; hlpgrp: 'main'),
-    (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp: 'main'),
+    (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
+    (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
+    (cmd: 'uptime'; hnd: IrcUptime; minparams: 0; maxparams: 0; hlpgrp: 'general'),
+    (cmd: 'status'; hnd: IrcShowAppStatus; minparams: 0; maxparams: 0; hlpgrp: 'general'),
+//    (cmd: 'nhelp'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'general'),
+    (cmd: 'bnctest'; hnd: IrcBnctest; minparams: 0; maxparams: - 1; hlpgrp: 'general'),
+    (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp: 'general'),
+    (cmd: 'ghost'; hnd: IrcKill; minparams: 1; maxparams: 1; hlpgrp: 'general'),
+    (cmd: 'queue'; hnd: IrcQueue; minparams: 0; maxparams: 2; hlpgrp: 'general'),
+    (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0; maxparams: 1; hlpgrp: 'general'),
+    (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp: 'general'),
 
     (cmd: '- SITES -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'sites'; hnd: IrcSites; minparams: 0; maxparams: 1; hlpgrp: 'site'),
@@ -403,16 +407,16 @@ const
     (cmd: 'speedrecalc'; hnd: IrcSpeedRecalc; minparams: 0; maxparams: 0; hlpgrp: 'route'),
 
     (cmd: '- RANKS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'ranks'; hnd: IrcRanks; minparams: 0; maxparams: 1; hlpgrp: 'rankm'),
-    (cmd: 'rank'; hnd: IrcRank; minparams: 2; maxparams: 3; hlpgrp: 'rankm'),
-    (cmd: 'ranklock'; hnd: IrcRankLock; minparams: 2; maxparams: 3; hlpgrp: 'rankm'),
-    (cmd: 'rankrecalc'; hnd: IrcRankRecalc; minparams: 0; maxparams: 0; hlpgrp: 'rankm'),
+    (cmd: 'ranks'; hnd: IrcRanks; minparams: 0; maxparams: 1; hlpgrp: 'rank'),
+    (cmd: 'rank'; hnd: IrcRank; minparams: 2; maxparams: 3; hlpgrp: 'rank'),
+    (cmd: 'ranklock'; hnd: IrcRankLock; minparams: 2; maxparams: 3; hlpgrp: 'rank'),
+    (cmd: 'rankrecalc'; hnd: IrcRankRecalc; minparams: 0; maxparams: 0; hlpgrp: 'rank'),
 
     (cmd: '- SPEEDTEST -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'speedtestlocal'; hnd: IrcSpeedTestLocal; minparams: 1; maxparams: 1; hlpgrp: 'speedt'),
-    (cmd: 'speedtestout'; hnd: IrcSpeedTestOut; minparams: 2; maxparams: - 1; hlpgrp: 'speedt'),
-    (cmd: 'speedtestin'; hnd: IrcSpeedTestIn; minparams: 2; maxparams: - 1; hlpgrp: 'speedt'),
-    (cmd: 'speedtestcleanup'; hnd: IrcSpeedTestCleanup; minparams: 0; maxparams: - 1; hlpgrp: 'speedt'),
+    (cmd: 'speedtestlocal'; hnd: IrcSpeedTestLocal; minparams: 1; maxparams: 1; hlpgrp: 'speed'),
+    (cmd: 'speedtestout'; hnd: IrcSpeedTestOut; minparams: 2; maxparams: - 1; hlpgrp: 'speed'),
+    (cmd: 'speedtestin'; hnd: IrcSpeedTestIn; minparams: 2; maxparams: - 1; hlpgrp: 'speed'),
+    (cmd: 'speedtestcleanup'; hnd: IrcSpeedTestCleanup; minparams: 0; maxparams: - 1; hlpgrp: 'speed'),
 
     (cmd: '- WORK -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 1; maxparams: 3; hlpgrp: 'work'),
@@ -427,43 +431,42 @@ const
     (cmd: 'checkforrip'; hnd: IrcCheckForExistsRip; minparams: 1; maxparams: 1; hlpgrp: 'work'),
 
     (cmd: '- RIPS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'check'; hnd: IrcCheck; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'pre'; hnd: IrcPre; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: 'pretest'; hnd: IrcPretest; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'batch'; hnd: IrcBatchAdd; minparams: 2; maxparams: 4; hlpgrp: ''),
-    (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'prechecktime'; hnd: IrcSetReexamineTime; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'skippre'; hnd: IrcSetSkipPre; minparams: 1; maxparams: 2; hlpgrp: ''),
+    (cmd: 'check'; hnd: IrcCheck; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'pre'; hnd: IrcPre; minparams: 1; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'pretest'; hnd: IrcPretest; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'batch'; hnd: IrcBatchAdd; minparams: 2; maxparams: 4; hlpgrp: 'rip'),
+    (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
+    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 0; maxparams: 1; hlpgrp: 'rip'),
+    (cmd: 'prechecktime'; hnd: IrcSetReexamineTime; minparams: 0; maxparams: 1; hlpgrp: 'rip'),
+    (cmd: 'skippre'; hnd: IrcSetSkipPre; minparams: 1; maxparams: 2; hlpgrp: 'rip'),
 
     (cmd: '- RACE STATS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'statsites'; hnd: IrcStatSites; minparams: 0; maxparams: 2; hlpgrp: ''),
-    (cmd: 'statsitesbygroup'; hnd: IrcStatSitesByGroup; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: 'statsitesbyuser'; hnd: IrcStatSitesByUser; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: 'statgroups'; hnd: IrcStatGroups; minparams: 0; maxparams: 2; hlpgrp: ''),
-    (cmd: 'statgroupsbysite'; hnd: IrcStatGroupsBySite; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'statusers'; hnd: IrcStatUsers; minparams: 0; maxparams: 2; hlpgrp: ''),
-    (cmd: 'statusersbysite'; hnd: IrcStatUsersBySite; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: 'statusersbygroup'; hnd: IrcStatUsersByGroup; minparams: 1; maxparams: 3; hlpgrp: ''),
-    (cmd: 'statusersbygroupbysite'; hnd: IrcStatUsersByGroupBySite; minparams: 2; maxparams: 4; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 3; hlpgrp: ''),
+    (cmd: 'statsites'; hnd: IrcStatSites; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
+    (cmd: 'statsitesbygroup'; hnd: IrcStatSitesByGroup; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
+    (cmd: 'statsitesbyuser'; hnd: IrcStatSitesByUser; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
+    (cmd: 'statgroups'; hnd: IrcStatGroups; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
+    (cmd: 'statgroupsbysite'; hnd: IrcStatGroupsBySite; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'stats'),
+    (cmd: 'statusers'; hnd: IrcStatUsers; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
+    (cmd: 'statusersbysite'; hnd: IrcStatUsersBySite; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
+    (cmd: 'statusersbygroup'; hnd: IrcStatUsersByGroup; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
+    (cmd: 'statusersbygroupbysite'; hnd: IrcStatUsersByGroupBySite; minparams: 2; maxparams: 4; hlpgrp: 'stats'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'stats'),
+    (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
 
     (cmd: '- LEECH SLOTS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'delayleech'; hnd: IrcDelayLeech; minparams: 1; maxparams: 4; hlpgrp: ''),
-    (cmd: 'delayupload'; hnd: IrcDelayUpload; minparams: 1; maxparams: 4; hlpgrp: ''),
+    (cmd: 'delayleech'; hnd: IrcDelayLeech; minparams: 1; maxparams: 4; hlpgrp: 'slots'),
+    (cmd: 'delayupload'; hnd: IrcDelayUpload; minparams: 1; maxparams: 4; hlpgrp: 'slots'),
 
     (cmd: '- MISC -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'raw'; hnd: IrcRaw; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'invite'; hnd: IrcInvite; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'sitechan'; hnd: IrcSiteChan; minparams: 1; maxparams: 2; hlpgrp: ''),
-    (cmd: 'autoinvite'; hnd: IrcSetAutoInvite; minparams: 1; maxparams: 2; hlpgrp: ''),
-
-    (cmd: 'tweak'; hnd: IrcTweak; minparams: 2; maxparams: - 1; hlpgrp: ''),
+    (cmd: 'raw'; hnd: IrcRaw; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
+    (cmd: 'manageuser'; hnd: IrcManageUser; minparams: 2; maxparams: - 1; hlpgrp: 'misc'),
+    (cmd: 'invite'; hnd: IrcInvite; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
+    (cmd: 'sitechan'; hnd: IrcSiteChan; minparams: 1; maxparams: 2; hlpgrp: 'misc'),
+    (cmd: 'autoinvite'; hnd: IrcSetAutoInvite; minparams: 1; maxparams: 2; hlpgrp: 'misc'),
+    (cmd: 'tweak'; hnd: IrcTweak; minparams: 2; maxparams: - 1; hlpgrp: '$$$'),
     (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'ident'; hnd: IrcIdent; minparams: 1; maxparams: 2; hlpgrp: ''),
     (cmd: 'nosocks5'; hnd: IrcNoSocks5; minparams: 1; maxparams: 2; hlpgrp: ''),
@@ -475,141 +478,140 @@ const
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp: '@doh_irc'),
 
     (cmd: '- NEWS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 0; hlpgrp: 'news'),
+    (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 1; maxparams: - 1; hlpgrp: 'news'),
+    (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: 'news'),
 
     (cmd: '- WINDOWS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 's'; hnd: IrcShowWindow; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'windows'; hnd: IrcShowWindows; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'delwindow'; hnd: IrcDelWindow; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'names'; hnd: IrcIrcNames; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'repaint'; hnd: IrcRepaint; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 's'; hnd: IrcShowWindow; minparams: 1; maxparams: - 1; hlpgrp: 'windows'),
+    (cmd: 'windows'; hnd: IrcShowWindows; minparams: 0; maxparams: 0; hlpgrp: 'windows'),
+    (cmd: 'delwindow'; hnd: IrcDelWindow; minparams: 1; maxparams: - 1; hlpgrp: 'windows'),
+    (cmd: 'names'; hnd: IrcIrcNames; minparams: 2; maxparams: 2; hlpgrp: 'windows'),
+    (cmd: 'repaint'; hnd: IrcRepaint; minparams: 0; maxparams: 0; hlpgrp: 'windows'),
 
     (cmd: '- IRC -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'ircstatus'; hnd: IrcStatus; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'ircsay'; hnd: IrcSay; minparams: 3; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'ircjump'; hnd: IrcJump; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'ircoper'; hnd: IrcOper; minparams: 1; maxparams: 3; hlpgrp: ''),
+    (cmd: 'ircstatus'; hnd: IrcStatus; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
+    (cmd: 'ircsay'; hnd: IrcSay; minparams: 3; maxparams: - 1; hlpgrp: 'irc'),
+    (cmd: 'ircjump'; hnd: IrcJump; minparams: 1; maxparams: 1; hlpgrp: 'irc'),
+    (cmd: 'ircoper'; hnd: IrcOper; minparams: 1; maxparams: 3; hlpgrp: 'irc'),
     (cmd: 'ircnetnosocks5'; hnd: IrcNetNoSocks5; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'ircnet'; hnd: IrcShownet; minparams: 1; maxparams: 2; hlpgrp: ''),
-    (cmd: 'ircnetadd'; hnd: IrcAddnet; minparams: 3; maxparams: 7; hlpgrp: ''),
-    (cmd: 'ircnetmod'; hnd: IrcModnet; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'ircnetmodes'; hnd: IrcModesNet; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'ircnetdel'; hnd: IrcDelnet; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'ircnetaddserver'; hnd: Ircnetaddserver; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'ircnetdelserver'; hnd: Ircnetdelserver; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'ircnetaddperform'; hnd: Ircnetaddperform; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'ircnetdelperform'; hnd: Ircnetdelperform; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'ircnetlistperform'; hnd: Ircnetlistperform; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'ircnetdoperform'; hnd: Ircnetdoperform; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'ircchannels'; hnd: IrcChannels; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'ircchanadd'; hnd: IrcChanAdd; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'ircchandel'; hnd: IrcDelchan; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'ircchanblow'; hnd: IrcSetBlowkey; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'ircchankey'; hnd: IrcSetChankey; minparams: 2; maxparams: 3; hlpgrp: ''),
-    (cmd: 'ircchanrole'; hnd: IrcSetChanName; minparams: 2; maxparams: - 1; hlpgrp: ''),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
+    (cmd: 'ircnet'; hnd: IrcShownet; minparams: 1; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: 'ircnetadd'; hnd: IrcAddnet; minparams: 3; maxparams: 7; hlpgrp: 'irc'),
+    (cmd: 'ircnetmod'; hnd: IrcModnet; minparams: 2; maxparams: 3; hlpgrp: 'irc'),
+    (cmd: 'ircnetmodes'; hnd: IrcModesNet; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
+    (cmd: 'ircnetdel'; hnd: IrcDelnet; minparams: 1; maxparams: 1; hlpgrp: 'irc'),
+    (cmd: 'ircnetaddserver'; hnd: Ircnetaddserver; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: 'ircnetdelserver'; hnd: Ircnetdelserver; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
+    (cmd: 'ircnetaddperform'; hnd: Ircnetaddperform; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
+    (cmd: 'ircnetdelperform'; hnd: Ircnetdelperform; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: 'ircnetlistperform'; hnd: Ircnetlistperform; minparams: 1; maxparams: 1; hlpgrp: 'irc'),
+    (cmd: 'ircnetdoperform'; hnd: Ircnetdoperform; minparams: 1; maxparams: 1; hlpgrp: 'irc'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
+    (cmd: 'ircchannels'; hnd: IrcChannels; minparams: 0; maxparams: 1; hlpgrp: 'irc'),
+    (cmd: 'ircchanadd'; hnd: IrcChanAdd; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: 'ircchandel'; hnd: IrcDelchan; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
+    (cmd: 'ircchanblow'; hnd: IrcSetBlowkey; minparams: 2; maxparams: 3; hlpgrp: 'irc'),
+    (cmd: 'ircchankey'; hnd: IrcSetChankey; minparams: 2; maxparams: 3; hlpgrp: 'irc'),
+    (cmd: 'ircchanrole'; hnd: IrcSetChanName; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
     (cmd: 'ircchanpart'; hnd: IrcDelPart; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
-    (cmd: 'ircnick'; hnd: IrcSetMYIrcNick; minparams: 2; maxparams: 2; hlpgrp: 'doh'),
+    (cmd: 'ircnick'; hnd: IrcSetMYIrcNick; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     //(cmd: 'ircnetbotnick'; hnd: IrcNetBotNick; minparams: 2; maxparams:2; hlpgrp:'')
-    (cmd: 'inviteme'; hnd: IrcInviteMyIRCNICK; minparams: 1; maxparams: - 1; hlpgrp: 'doh'),
+    (cmd: 'inviteme'; hnd: IrcInviteMyIRCNICK; minparams: 1; maxparams: - 1; hlpgrp: 'irc'),
 
     (cmd: '- PRECATCHER -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'catchlist'; hnd: IrcPrelist; minparams: 0; maxparams: 2; hlpgrp: ''),
-    (cmd: 'catchadd'; hnd: IrcPreadd; minparams: 6; maxparams: 7; hlpgrp: ''),
-    (cmd: 'catchdel'; hnd: IrcPredel; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'catchtest'; hnd: IrcPreCatchtest; minparams: 5; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7; maxparams: 8; hlpgrp: ''),
-    (cmd: 'catchdebug'; hnd: IrcPreCatchDebug; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'mappings'; hnd: IrcDisplayMappings; minparams: 0; maxparams: 1; hlpgrp: ''),
+    (cmd: 'catchlist'; hnd: IrcPrelist; minparams: 0; maxparams: 2; hlpgrp: 'precatcher'),
+    (cmd: 'catchadd'; hnd: IrcPreadd; minparams: 6; maxparams: 7; hlpgrp: 'precatcher'),
+    (cmd: 'catchdel'; hnd: IrcPredel; minparams: 1; maxparams: 1; hlpgrp: 'precatcher'),
+    (cmd: 'catchtest'; hnd: IrcPreCatchtest; minparams: 5; maxparams: - 1; hlpgrp: 'precatcher'),
+    (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7; maxparams: 8; hlpgrp: 'precatcher'),
+    (cmd: 'catchdebug'; hnd: IrcPreCatchDebug; minparams: 0; maxparams: 1; hlpgrp: 'precatcher'),
+    (cmd: 'mappings'; hnd: IrcDisplayMappings; minparams: 0; maxparams: 1; hlpgrp: 'precatcher'),
 
     (cmd: '- RULES -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'delallrules'; hnd: IrcAllRuleDel; minparams: 1; maxparams: 2; hlpgrp: 'doh'),
-    (cmd: 'allrules'; hnd: IrcShowAllRules; minparams: 0; maxparams: - 1; hlpgrp: 'doh'),
-    (cmd: 'ruleadd'; hnd: IrcRuleAdd; minparams: 6; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'ruleins'; hnd: IrcRuleIns; minparams: 7; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'rulemod'; hnd: IrcRuleMod; minparams: 7; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'ruledel'; hnd: IrcRuleDel; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'rulehelp'; hnd: IrcRuleHelp; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'rulelist'; hnd: IrcRuleList; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'rulesload'; hnd: IrcRulesLoad; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'rules'; hnd: IrcRules; minparams: 2; maxparams: 2; hlpgrp: '$$$'),
-    (cmd: 'rulecp'; hnd: IrcRuleCopy; minparams: 3; maxparams: 3; hlpgrp: ''),
+    (cmd: 'delallrules'; hnd: IrcAllRuleDel; minparams: 1; maxparams: 2; hlpgrp: 'rules'),
+    (cmd: 'allrules'; hnd: IrcShowAllRules; minparams: 0; maxparams: - 1; hlpgrp: 'rules'),
+    (cmd: 'ruleadd'; hnd: IrcRuleAdd; minparams: 6; maxparams: - 1; hlpgrp: 'rules'),
+    (cmd: 'ruleins'; hnd: IrcRuleIns; minparams: 7; maxparams: - 1; hlpgrp: 'rules'),
+    (cmd: 'rulemod'; hnd: IrcRuleMod; minparams: 7; maxparams: - 1; hlpgrp: 'rules'),
+    (cmd: 'ruledel'; hnd: IrcRuleDel; minparams: 1; maxparams: 1; hlpgrp: 'rules'),
+    (cmd: 'rulehelp'; hnd: IrcRuleHelp; minparams: 1; maxparams: 1; hlpgrp: 'rules'),
+    (cmd: 'rulelist'; hnd: IrcRuleList; minparams: 0; maxparams: 1; hlpgrp: 'rules'),
+    (cmd: 'rulesload'; hnd: IrcRulesLoad; minparams: 2; maxparams: 2; hlpgrp: 'rules'),
+    (cmd: 'rules'; hnd: IrcRules; minparams: 2; maxparams: 2; hlpgrp: 'rules'),
+    (cmd: 'rulecp'; hnd: IrcRuleCopy; minparams: 3; maxparams: 3; hlpgrp: 'rules'),
 
     (cmd: '- KB -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'kbshow'; hnd: IrcKbShow; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'kblist'; hnd: IrcKbList; minparams: 0; maxparams: 2; hlpgrp: ''),
-    (cmd: 'kbextra'; hnd: IrcKbExtra; minparams: 3; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'kbadd'; hnd: IrcKbAdd; minparams: 4; maxparams: - 1; hlpgrp: ''),
+    (cmd: 'kbshow'; hnd: IrcKbShow; minparams: 2; maxparams: 2; hlpgrp: 'kb'),
+    (cmd: 'kblist'; hnd: IrcKbList; minparams: 0; maxparams: 2; hlpgrp: 'kb'),
+    (cmd: 'kbextra'; hnd: IrcKbExtra; minparams: 3; maxparams: - 1; hlpgrp: 'kb'),
+    (cmd: 'kbadd'; hnd: IrcKbAdd; minparams: 4; maxparams: - 1; hlpgrp: 'kb'),
 
     (cmd: '- INDEXER -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'indexstat'; hnd: IrcIndexStat; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'indexquery'; hnd: IrcIndexQuery; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'indexdropsection'; hnd: IrcIndexDropSection; minparams: 2; maxparams: 2; hlpgrp: ''),
+    (cmd: 'indexstat'; hnd: IrcIndexStat; minparams: 0; maxparams: 0; hlpgrp: 'indexer'),
+    (cmd: 'indexquery'; hnd: IrcIndexQuery; minparams: 1; maxparams: - 1; hlpgrp: 'indexer'),
+    (cmd: 'indexdropsection'; hnd: IrcIndexDropSection; minparams: 2; maxparams: 2; hlpgrp: 'indexer'),
 
     (cmd: '- AFFILS/USERS/SHIT -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: ''),
-    (cmd: 'notes'; hnd: IrcNotes; minparams: 2; maxparams: - 1; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'users'; hnd: IrcUsers; minparams: 0; maxparams: 1; hlpgrp: ''),
-    (cmd: 'leechers'; hnd: IrcLeechers; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'traders'; hnd: IrcTraders; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'userslots'; hnd: IrcUserslots; minparams: 3; maxparams: 3; hlpgrp: ''),
-    (cmd: 'freeslots'; hnd: IrcFreeslots; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'findcountry'; hnd: IrcFindCountry; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1; hlpgrp: ''),
-    (cmd: 'finduser'; hnd: IrcFindUser; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
+    (cmd: 'notes'; hnd: IrcNotes; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'info'),
+    (cmd: 'users'; hnd: IrcUsers; minparams: 0; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'leechers'; hnd: IrcLeechers; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'traders'; hnd: IrcTraders; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'userslots'; hnd: IrcUserslots; minparams: 3; maxparams: 3; hlpgrp: 'info'),
+    (cmd: 'freeslots'; hnd: IrcFreeslots; minparams: 0; maxparams: 0; hlpgrp: 'info'),
+    (cmd: '-'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: 'info'),
+    (cmd: 'findaffil'; hnd: IrcFindAffil; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'findcountry'; hnd: IrcFindCountry; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'findsection'; hnd: IrcFindSection; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'finduser'; hnd: IrcFindUser; minparams: 1; maxparams: 1; hlpgrp: 'info'),
 
     (cmd: '- RELOAD -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'catchreload'; hnd: IrcPrereload; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'skipreload'; hnd: IrcSkipReload; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'languagereload'; hnd: IrcLanguageBaseReload; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'socks5reload'; hnd: IrcRehashSocks5; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'fakereload'; hnd: IrcFakeReload; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'reloadglobalskip'; hnd: IrcReloadGlobalSkipGrouplist; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'knowngroupreload'; hnd: IrcKnowngroups; minparams: 0; maxparams: 0; hlpgrp: ''),
+    (cmd: 'catchreload'; hnd: IrcPrereload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'skipreload'; hnd: IrcSkipReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'languagereload'; hnd: IrcLanguageBaseReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'socks5reload'; hnd: IrcRehashSocks5; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'fakereload'; hnd: IrcFakeReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'reloadglobalskip'; hnd: IrcReloadGlobalSkipGrouplist; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'knowngroupreload'; hnd: IrcKnowngroups; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     //(cmd: 'restart'; hnd: IrcMain_Restart; minparams: 0; maxparams: 0; hlpgrp:''),
 
     (cmd: '- SOCKS5 -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'addsocks5'; hnd: IrcAddSocks5; minparams: 3; maxparams: 5; hlpgrp: 'doh_socks5'),
-    (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'doh_socks5'),
-    (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'doh_socks5'),
-    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
-    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'doh_socks5'),
+    (cmd: 'addsocks5'; hnd: IrcAddSocks5; minparams: 3; maxparams: 5; hlpgrp: 'socks5'),
+    (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'socks5'),
+    (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'socks5'),
+    (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
+    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
 
     (cmd: '- PRETIME -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams: 1; hlpgrp: 'doh_preurls'),
-    (cmd: 'pretimemode2'; hnd: IrcSetupPretimeMode2; minparams: 0; maxparams: 1; hlpgrp: 'doh_preurls'),
-    (cmd: 'addpremode'; hnd: IrcSetupADDPreMode; minparams: 0; maxparams: 1; hlpgrp: 'doh_preurls'),
-    (cmd: 'pretime'; hnd: IrcFindPretime; minparams: 1; maxparams: 1; hlpgrp: 'doh_preurls'),
-    (cmd: 'setpretime'; hnd: IrcSetPretime; minparams: 2; maxparams: 3; hlpgrp: 'doh_preurls'),
-    (cmd: 'setoffset'; hnd: IrcSetupOffset; minparams: 0; maxparams: 1; hlpgrp: 'doh'),
+    (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
+    (cmd: 'pretimemode2'; hnd: IrcSetupPretimeMode2; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
+    (cmd: 'addpremode'; hnd: IrcSetupADDPreMode; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
+    (cmd: 'pretime'; hnd: IrcFindPretime; minparams: 1; maxparams: 1; hlpgrp: 'pretime'),
+    (cmd: 'setpretime'; hnd: IrcSetPretime; minparams: 2; maxparams: 3; hlpgrp: 'pretime'),
+    (cmd: 'setoffset'; hnd: IrcSetupOffset; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
 
     (cmd: '- IMDB -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'imdbinfo'; hnd: IrcAnnounceIMDBInfo; minparams: 1; maxparams: 1; hlpgrp: ''),
+    (cmd: 'imdbinfo'; hnd: IrcAnnounceIMDBInfo; minparams: 1; maxparams: 1; hlpgrp: 'imdb'),
 
     (cmd: '- TVINFO -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
-    (cmd: 'tvinfo'; hnd: IrcAnnounceTVInfo; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'addtvinfo'; hnd: IrcAddTVMazeToDb; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'settvdbid'; hnd: IrcSetTheTVDBID; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'settvrageid'; hnd: IrcSetTVRageID; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1; maxparams: - 1; hlpgrp: ''),
-    (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1; maxparams: - 1; hlpgrp: ''),
+    (cmd: 'tvinfo'; hnd: IrcAnnounceTVInfo; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
+    (cmd: 'addtvinfo'; hnd: IrcAddTVMazeToDb; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
+    (cmd: 'settvdbid'; hnd: IrcSetTheTVDBID; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
+    (cmd: 'settvrageid'; hnd: IrcSetTVRageID; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
+    (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
+    (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
 
     (cmd: '- SECTIONS -'; hnd: IrcNope; minparams: 0; maxparams: 0; hlpgrp: ''),
-    (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: ''),
+    (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: 'section'),
     //(cmd: 'inssection'; hnd: IrcInsSections; minparams: 1; maxparams: - 1; hlpgrp: ''),
 
     (*
@@ -706,10 +708,6 @@ begin
     end;
 end;
 
-function IrcNope(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-begin
-  Result := False;
-end;
 
 function IrcSections(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
@@ -5686,33 +5684,8 @@ end;
 
 function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  ss, sitename: AnsiString;
+  affils, ss, sitename: AnsiString;
   s: TSite;
-
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, '<b>ERROR</b> -> Site %s not found.',
-      [sitename]);
-    exit;
-  end;
-
-  ss := s.siteaffils;
-  if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-      ['', sitename]), 12);
-  Result := True;
-end;
-
-function IrcSetAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  ss, sitename, affils: AnsiString;
-  s: TSite;
-
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -5721,12 +5694,21 @@ begin
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, '<b>ERROR</b> -> Site %s not found.',
+    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.',
       [sitename]);
     exit;
   end;
 
-  ss := s.SetAffils(affils);
+  if affils =  '' then begin
+    ss := s.SetAffils(affils);
+    if ss <> '' then
+    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',['', sitename]), 12) else
+    irc_addText(Netname, Channel, 'No affils available.');
+    Result := True;
+    Exit;
+  end;
+
+  ss:= s.siteaffils;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
       ['', sitename]), 12);
@@ -11602,6 +11584,23 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   // genres.Free;
   Debug(dpSpam, section, 'Uninit2');
+end;
+
+
+{   Help section Handler    }
+function IrcHelpHeader(const netname, channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+end;
+
+function IrcHelpSeperator(const netname, channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+end;
+
+function IrcNope(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
 end;
 
 end.
