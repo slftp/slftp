@@ -125,6 +125,7 @@ begin
 end;
 
 //function KibontasRiliz(sitename: AnsiString; var cdno: AnsiString; ts_data: TStringList): AnsiString;
+
 function ExtractReleasename(sitename: AnsiString; ts_data: TStringList): AnsiString;
 var
   k, i: integer;
@@ -409,43 +410,39 @@ begin
   //  Irc_AddText('','','s= %s ;; rep_s= %s',[s,rep_s]);
 end;
 
-//procedure ProcessReleaseVege(net, chan, nick, sitename, event, section: AnsiString; ts_data: TStringList);
 procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
 var
   oldsection: AnsiString;
-  //rls: AnsiString; // not needed, hand over from caller
-  //    i: Integer;
-  //cdno: AnsiString; // not used
   s: AnsiString;
 begin
 
-{*
-* 
-* already checked in PrecatcherProcessB, so we only need to hand over AnsiString rls from PrecatcherProcessB
-* 
-  // we only need to extract the rlsname
-  try
-    rls := KibontasRiliz(sitename, cdno, ts_data);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, rsections,
-        Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
-      exit;
+  {*
+  *
+  * already checked in PrecatcherProcessB, so we only need to hand over AnsiString rls from PrecatcherProcessB
+  *
+    // we only need to extract the rlsname
+    try
+      rls := KibontasRiliz(sitename, cdno, ts_data);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, rsections,
+          Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
+        exit;
+      end;
     end;
-  end;
-*}
+  *}
 
   if (Trim(rls) = '') then
   begin
-    Debug(dpError, rsections,'[EXCEPTION] in ProcessReleaseVege: relasename is Empty');
+    Debug(dpError, rsections, '[EXCEPTION] in ProcessReleaseVege: relasename is Empty');
     exit;
   end;
-
 
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s',
     [rls, sitename, event, section]));
+
   if rls <> '' then
   begin
     if (skiprlses.IndexOf(rls) <> -1) then
@@ -477,12 +474,17 @@ begin
     Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
     s := ' ' + s + ' ';
 
-    if section = '' then
-    begin
-      section := KibontasSection(s, section);
+    try
+      if section = '' then
+      begin
+        section := KibontasSection(s, section);
+      end;
+      MyDebug('Section: %s', [section]);
+    except on E: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] KibontasSection: %s', [e.Message]));
+      end;
     end;
-
-    MyDebug('Section: %s', [section]);
 
     if section <> 'REQUEST' then
     begin
@@ -498,7 +500,6 @@ begin
             Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
         end;
       end;
-
     end;
 
     if oldsection <> section then
@@ -587,17 +588,13 @@ begin
       // We do the [replace] sectional exchanges
       ts_data.DelimitedText := Data;
 
-      //chno := '0'; //not used
       try
-        //rls := KibontasRiliz('SLFTP', chno, ts_data); // chno not used
         rls := ExtractReleasename('SLFTP', ts_data);
       except
         exit;
       end;
 
       // TODO: maybe at a check to stop here when rls is empty? Or does it exit on empty string because of try except block?
-
-
 
       (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
 
@@ -627,9 +624,7 @@ begin
       end;
 
       s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
-
       s := ProcessDoReplace(s);
-
       s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
       ts_data.DelimitedText := s;
 
@@ -667,7 +662,8 @@ begin
               //Debug(dpError, rsections,
               //  Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data.Text]));
               Debug(dpError, rsections,
-                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data.Text]));
+                Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls,
+                ts_data.Text]));
               //ts_data.Free;
               exit;
             end;
@@ -715,12 +711,17 @@ begin
   if not precatcherauto then
     Exit;
   try
-    PrecatcherProcessB(net, chan, nick, Data);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s', [e.Message]));
+    queue_lock.Enter();
+      try
+      PrecatcherProcessB(net, chan, nick, Data);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s', [e.Message]));
+      end;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -1265,9 +1266,9 @@ begin
   ss := 'Precatcher Rehash FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-    {$I-}
-      Reset(f);
-    {$I+}
+{$I-}
+    Reset(f);
+{$I+}
     if IOResult = 0 then
     begin
       while (not EOF(f)) do
