@@ -2253,6 +2253,28 @@ begin
       end;
 
 
+    427:
+      begin
+        //COMPLETE MSG: 427 Use SSL FXP!
+        if (0 < AnsiPos('Use SSL FXP', lastResponse)) then
+        begin
+          sdst.site.sslfxp := srNeeded;
+          // must do one read on source
+          if not ssrc.Read() then
+            goto TryAgain;
+
+          // must do two read on destination
+          if not sdst.Read() then
+            goto TryAgain;
+          if not sdst.Read() then
+            goto TryAgain;
+
+          irc_AddINFO('[iNFO] SSLFXP needed on Destination: ' + sdst.Name);
+          goto TryAgain;
+        end;
+      end;
+
+
     435:
       begin
 
