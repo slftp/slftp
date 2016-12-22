@@ -142,7 +142,6 @@ function IrcRulesReload(const netname, channel: AnsiString; params: AnsiString):
 
 function IrcAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
 //function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcInfo(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -159,15 +158,15 @@ function IrcFindCountry(const netname, channel: AnsiString; params: AnsiString):
 function IrcFindSection(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcFindUser(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAuto(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcConfirmerAnnounce(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcCrawl(const netname, channel: AnsiString; params: AnsiString): boolean;
+//function IrcCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
+//function IrcConfirmerAnnounce(const netname, channel: AnsiString; params: AnsiString): boolean;
+//function IrcCrawl(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoLogin(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoBncTest(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoRules(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoNuke(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoDirlist(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
+//function IrcAutoCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcAutoIndex(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcKbShow(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcKbList(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -328,8 +327,8 @@ function IrcRecalcFreeslots(const netname, channel: AnsiString; params: AnsiStri
 function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 {        Sections                   }
-//function IrcInsSections(const Netname, Channel: string; params: string): boolean;
-
+function IrcInsSection(const Netname, Channel: string; params: string): boolean;
+function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
 {        Test functions             }
 function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
@@ -347,7 +346,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..243] of TIrcCommand = (
+  irccommands: array[1..244] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -356,7 +355,7 @@ const
     (cmd: 'nhelp'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'queue'; hnd: IrcQueue; minparams: 0; maxparams: 2; hlpgrp: 'general'),
     (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0; maxparams: 1; hlpgrp:
-      'general'),
+    'general'),
     (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp: 'general'),
     (cmd: 'auto'; hnd: IrcAuto; minparams: 0; maxparams: 1; hlpgrp: 'general'),
 
@@ -377,7 +376,7 @@ const
     (cmd: 'slotsshow'; hnd: IrcSlotsShow; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'rebuildslot'; hnd: IrcRebuildSlot; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'recalcfreeslots'; hnd: IrcRecalcFreeslots; minparams: 1; maxparams: 1; hlpgrp:
-      'site'),
+    'site'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: ''),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 2; maxparams: 2; hlpgrp: 'site'),
@@ -413,11 +412,11 @@ const
 
     (cmd: 'SPEEDTEST'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
     (cmd: 'speedtestlocal'; hnd: IrcSpeedTestLocal; minparams: 1; maxparams: 1; hlpgrp:
-      'speed'),
+    'speed'),
     (cmd: 'speedtestout'; hnd: IrcSpeedTestOut; minparams: 2; maxparams: - 1; hlpgrp: 'speed'),
     (cmd: 'speedtestin'; hnd: IrcSpeedTestIn; minparams: 2; maxparams: - 1; hlpgrp: 'speed'),
     (cmd: 'speedtestcleanup'; hnd: IrcSpeedTestCleanup; minparams: 0; maxparams: - 1; hlpgrp:
-      'speed'),
+    'speed'),
 
     (cmd: 'WORK'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$work'),
     (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 1; maxparams: 3; hlpgrp: 'work'),
@@ -432,7 +431,7 @@ const
     (cmd: 'unnuke'; hnd: IrcUnNuke; minparams: 3; maxparams: - 1; hlpgrp: 'work'),
     (cmd: 'autonuke'; hnd: IrcAutoNuke; minparams: 1; maxparams: 2; hlpgrp: 'work'),
     (cmd: 'checkforrip'; hnd: IrcCheckForExistsRip; minparams: 1; maxparams: 1; hlpgrp:
-      'work'),
+    'work'),
 
     (cmd: 'RIPS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$rip'),
     (cmd: 'setprecmd'; hnd: IrcPrecmd; minparams: 3; maxparams: - 1; hlpgrp: 'rip'),
@@ -451,20 +450,20 @@ const
     (cmd: 'RACE STATS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$stats'),
     (cmd: 'statsites'; hnd: IrcStatSites; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
     (cmd: 'statsitesbygroup'; hnd: IrcStatSitesByGroup; minparams: 1; maxparams: 3; hlpgrp:
-      'stats'),
+    'stats'),
     (cmd: 'statsitesbyuser'; hnd: IrcStatSitesByUser; minparams: 1; maxparams: 3; hlpgrp:
-      'stats'),
+    'stats'),
     (cmd: 'statgroups'; hnd: IrcStatGroups; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
     (cmd: 'statgroupsbysite'; hnd: IrcStatGroupsBySite; minparams: 1; maxparams: 3; hlpgrp:
-      'stats'),
+    'stats'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'stats'),
     (cmd: 'statusers'; hnd: IrcStatUsers; minparams: 0; maxparams: 2; hlpgrp: 'stats'),
     (cmd: 'statusersbysite'; hnd: IrcStatUsersBySite; minparams: 1; maxparams: 3; hlpgrp:
-      'stats'),
+    'stats'),
     (cmd: 'statusersbygroup'; hnd: IrcStatUsersByGroup; minparams: 1; maxparams: 3; hlpgrp:
-      'stats'),
+    'stats'),
     (cmd: 'statusersbygroupbysite'; hnd: IrcStatUsersByGroupBySite; minparams: 2; maxparams: 4;
-      hlpgrp: 'stats'),
+    hlpgrp: 'stats'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'stats'),
     (cmd: 'statrace'; hnd: IrcStatRaces; minparams: 1; maxparams: 3; hlpgrp: 'stats'),
 
@@ -483,14 +482,14 @@ const
     (cmd: 'ident'; hnd: IrcIdent; minparams: 1; maxparams: 2; hlpgrp: 'misc'),
     (cmd: 'nosocks5'; hnd: IrcNoSocks5; minparams: 1; maxparams: 2; hlpgrp: 'misc'),
     (cmd: 'noannouncesite'; hnd: IrcNoAnnounceSite; minparams: 1; maxparams: 2; hlpgrp:
-      'misc'),
+    'misc'),
     (cmd: 'nohelp'; hnd: IrcNohelp; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
     (cmd: 'testlanguagebase'; hnd: IrcTestLanguageBase; minparams: 1; maxparams: 1; hlpgrp:
-      'misc'),
+    'misc'),
     (cmd: 'killall'; hnd: IrcKillAll; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
     (cmd: 'spamconf'; hnd: IrcSpamConfig; minparams: 0; maxparams: 3; hlpgrp: 'misc'),
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp:
-      'misc'),
+    'misc'),
 
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
     (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 0; hlpgrp: 'news'),
@@ -520,11 +519,11 @@ const
     (cmd: 'ircnetdelserver'; hnd: Ircnetdelserver; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
     (cmd: 'ircnetaddperform'; hnd: Ircnetaddperform; minparams: 2; maxparams: - 1; hlpgrp:
-      'irc'),
+    'irc'),
     (cmd: 'ircnetdelperform'; hnd: Ircnetdelperform; minparams: 2; maxparams: 2; hlpgrp:
-      'irc'),
+    'irc'),
     (cmd: 'ircnetlistperform'; hnd: Ircnetlistperform; minparams: 1; maxparams: 1; hlpgrp:
-      'irc'),
+    'irc'),
     (cmd: 'ircnetdoperform'; hnd: Ircnetdoperform; minparams: 1; maxparams: 1; hlpgrp: 'irc'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'irc'),
     (cmd: 'ircchannels'; hnd: IrcChannels; minparams: 0; maxparams: 1; hlpgrp: 'irc'),
@@ -543,12 +542,12 @@ const
     (cmd: 'catchadd'; hnd: IrcPreadd; minparams: 6; maxparams: 7; hlpgrp: 'precatcher'),
     (cmd: 'catchdel'; hnd: IrcPredel; minparams: 1; maxparams: 1; hlpgrp: 'precatcher'),
     (cmd: 'catchtest'; hnd: IrcPreCatchtest; minparams: 5; maxparams: - 1; hlpgrp:
-      'precatcher'),
+    'precatcher'),
     (cmd: 'catchmod'; hnd: IrcCatchMod; minparams: 7; maxparams: 8; hlpgrp: 'precatcher'),
     (cmd: 'catchdebug'; hnd: IrcPreCatchDebug; minparams: 0; maxparams: 1; hlpgrp:
-      'precatcher'),
+    'precatcher'),
     (cmd: 'mappings'; hnd: IrcDisplayMappings; minparams: 0; maxparams: 1; hlpgrp:
-      'precatcher'),
+    'precatcher'),
 
     (cmd: 'RULES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$rules'),
     (cmd: 'ruleadd'; hnd: IrcRuleAdd; minparams: 6; maxparams: - 1; hlpgrp: 'rules'),
@@ -574,12 +573,12 @@ const
     (cmd: 'indexstat'; hnd: IrcIndexStat; minparams: 0; maxparams: 0; hlpgrp: 'indexer'),
     (cmd: 'indexquery'; hnd: IrcIndexQuery; minparams: 1; maxparams: - 1; hlpgrp: 'indexer'),
     (cmd: 'indexdropsection'; hnd: IrcIndexDropSection; minparams: 2; maxparams: 2; hlpgrp:
-      'indexer'),
+    'indexer'),
     (cmd: 'autoindex'; hnd: IrcAutoIndex; minparams: 1; maxparams: - 1; hlpgrp: 'indexer'),
 
     //rename to INFO?
     (cmd: 'AFFILS/USERS/SHIT'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp:
-      '$info'),
+    '$info'),
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: 'info'),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
@@ -603,14 +602,14 @@ const
     (cmd: 'catchreload'; hnd: IrcPrereload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'skipreload'; hnd: IrcSkipReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'languagereload'; hnd: IrcLanguageBaseReload; minparams: 0; maxparams: 0; hlpgrp:
-      'reload'),
+    'reload'),
     (cmd: 'socks5reload'; hnd: IrcRehashSocks5; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'fakereload'; hnd: IrcFakeReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'reloadglobalskip'; hnd: IrcReloadGlobalSkipGrouplist; minparams: 0; maxparams: 0;
-      hlpgrp: 'reload'),
+    hlpgrp: 'reload'),
     (cmd: 'knowngroupreload'; hnd: IrcKnowngroups; minparams: 0; maxparams: 0; hlpgrp:
-      'reload'),
+    'reload'),
     //(cmd: 'restart'; hnd: IrcMain_Restart; minparams: 0; maxparams: 0; hlpgrp:''),
 
     (cmd: 'SOCKS5'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$socks5'),
@@ -622,11 +621,11 @@ const
 
     (cmd: 'PRETIME'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$pretime'),
     (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams: 1; hlpgrp:
-      'pretime'),
+    'pretime'),
     (cmd: 'pretimemode2'; hnd: IrcSetupPretimeMode2; minparams: 0; maxparams: 1; hlpgrp:
-      'pretime'),
+    'pretime'),
     (cmd: 'addpremode'; hnd: IrcSetupADDPreMode; minparams: 0; maxparams: 1; hlpgrp:
-      'pretime'),
+    'pretime'),
     (cmd: 'pretime'; hnd: IrcFindPretime; minparams: 1; maxparams: 1; hlpgrp: 'pretime'),
     (cmd: 'setpretime'; hnd: IrcSetPretime; minparams: 2; maxparams: 3; hlpgrp: 'pretime'),
     (cmd: 'setoffset'; hnd: IrcSetupOffset; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
@@ -640,12 +639,12 @@ const
     (cmd: 'settvdbid'; hnd: IrcSetTheTVDBID; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
     (cmd: 'settvrageid'; hnd: IrcSetTVRageID; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
     (cmd: 'updatetvinfo'; hnd: IrcUpdateTVMazeInfo; minparams: 1; maxparams: - 1; hlpgrp:
-      'tv'),
+    'tv'),
     (cmd: 'deltvinfo'; hnd: IrcDelTheTVDbInfo; minparams: 1; maxparams: - 1; hlpgrp: 'tv'),
 
     (cmd: 'SECTIONS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$section'),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: 'section'),
-    //(cmd: 'inssection'; hnd: IrcInsSections; minparams: 1; maxparams: - 1; hlpgrp: ''),
+    (cmd: 'sectionins'; hnd: IrcInsSection; minparams: 1; maxparams: - 1; hlpgrp: 'section'),
 
     (*
       // Disabled - probably need some refactoring
@@ -677,13 +676,13 @@ procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: Ansi
 implementation
 
 uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
-debugunit, queueunit, tasksunit, mystrings, sitesunit, notify, taskraw, tasklogin,
+  debugunit, queueunit, tasksunit, mystrings, sitesunit, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
-    slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
+  slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-    RegExpr, mslproxys, slhttp, strUtils, inifiles,
+  RegExpr, mslproxys, slhttp, strUtils, inifiles,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
-    dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
+  dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON;
 
 {$I common.inc}
@@ -795,6 +794,59 @@ begin
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), '<b>' + sitename + ' Sections</b>: ');
   Result := True;
+end;
+
+function IrcInsSection(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  section, toadd: AnsiString;
+  nsecs, osecs: TStringList;
+  ini: TInifile;
+  i:integer;
+begin
+  section := UpperCase(SubString(params, ' ', 1));
+  toadd := RightStrV2(params, length(section) + 1);
+  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  osecs := TStringList.Create;
+  nsecs := TStringList.Create;
+  try
+    osecs.Delimiter := ',';
+    osecs.Sorted:=True;
+    osecs.Duplicates := dupIgnore;
+    osecs.DelimitedText := ini.ReadString('sections', section, '');
+
+    if toadd = '' then
+    begin
+      IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
+      Result := True;
+      Exit;
+    end;
+
+    if AnsiContainsText(toadd,',') then begin
+      Irc_addText(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+      Result := True;
+      Exit;
+    end;
+
+    nsecs.Delimiter := ' ';
+    nsecs.DelimitedText := toadd;
+
+    //avoid dupes...
+    for i := 0 to nsecs.Count - 1 do
+    osecs.Add(nsecs.Strings[i]);
+
+    ini.WriteString('sections', section, osecs.DelimitedText);
+    ini.UpdateFile;
+    osecs.Clear;
+    osecs.DelimitedText := ini.ReadString('sections', section, '');
+    irc_addText(Netname,Channel,PrecatcherReload);
+    IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
+
+  finally
+    ini.free;
+    osecs.free;
+    nsecs.free;
+  end;
+result:= True;
 end;
 
 function IrcSetdir(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -2218,7 +2270,8 @@ begin
       end;
 
       irc_addtext(Netname, Channel,
-        '%s: %s (%s)/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j, k,
+        '%s: %s (%s)/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j,
+          k,
         i, irccmdprefix, p.pazo_id]);
       lastAnn := Now();
     end;
@@ -3922,7 +3975,7 @@ begin
     end;
     case s.working of
       sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' +
-        IntToStr(s.slots.Count) + ')');
+          IntToStr(s.slots.Count) + ')');
       sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
@@ -4170,7 +4223,7 @@ begin
         if ((x[i] = 'password') and (trigger <> '--plain')) then
           Continue;
         irc_addtext(Netname, Channel, ' %s: %s', [x[i], sitesdat.ReadString('ircnet-' + nn,
-          x[i], '')]);
+            x[i], '')]);
       end;
     end;
   finally
@@ -4183,7 +4236,7 @@ begin
     if host = '' then
       break;
     irc_addtext(Netname, Channel, ' bnc: %s:%d', [host, sitesdat.ReadInteger('ircnet-' + nn,
-      'bnc_port-' + IntToStr(i), 0)]);
+        'bnc_port-' + IntToStr(i), 0)]);
     Inc(i);
   end;
   Result := True;
@@ -5184,8 +5237,7 @@ function IrcPrereload(const Netname, Channel: AnsiString; params: AnsiString): b
 var
   vs: AnsiString;
 begin
-  vs := '';
-  PrecatcherReload(vs);
+  vs:= PrecatcherReload;
   if vs <> '' then
     irc_addtext(Netname, Channel, vs);
   Result := True;
@@ -6392,6 +6444,81 @@ begin
     Result := True;
   end;
 end;
+(*
+
+function IrcAutoCrawler(const Netname, Channel: AnsiString; params: AnsiString):
+  boolean;
+var
+  sitename: AnsiString;
+  status: integer;
+  s: TSite;
+  kell: boolean;
+  sections: AnsiString;
+  ss: AnsiString;
+  i: integer;
+begin
+  Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  status := StrToIntDef(SubString(params, ' ', 2), -1);
+  sections := UpperCase(RightStrV2(params, length(sitename) + 1 +
+    length(IntToStr(status)) + 1));
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
+    exit;
+  end;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
+    Exit;
+  end;
+  if ((status > -1) and (status <> 0)) then
+  begin
+    // hitelesitjuk a szekciokat
+    for i := 1 to 1000 do
+    begin
+      ss := SubString(sections, ' ', i);
+      if ss = '' then
+        break;
+
+      if s.sectiondir[ss] = '' then
+      begin
+        irc_addtext(Netname, Channel, 'Site %s has no %s section',
+          [sitename, ss]);
+        exit;
+      end;
+    end;
+  end;
+
+  kell := False;
+  if status > -1 then
+  begin
+    if status <> 0 then
+    begin
+      if s.RCInteger('autocrawler', 0) <= 0 then
+        kell := True;
+      s.WCInteger('autocrawler', status);
+      s.WCString('autocrawlersections', sections);
+    end
+    else
+    begin
+      s.DeleteKey('autocrawler');
+      s.DeleteKey('autocrawlersections');
+      s.DeleteKey('nextautocrawler');
+      s.RemoveAutoCrawler;
+    end;
+  end;
+  irc_addtext(Netname, Channel, 'Autocrawler of %s is: %d (%s)',
+    [sitename, s.RCInteger('autocrawler', 0), s.RCString('autocrawlersections',
+      '')]);
+
+  if kell then
+    s.AutoCrawler;
+
+  Result := True;
+end;
 
 function IrcCrawler(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
@@ -6468,6 +6595,7 @@ begin
 
   Result := True;
 end;
+*)
 
 function IrcAutoLogin(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
@@ -6799,80 +6927,6 @@ begin
 
   if kell then
     s.AutoDirlist;
-
-  Result := True;
-end;
-
-function IrcAutoCrawler(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
-var
-  sitename: AnsiString;
-  status: integer;
-  s: TSite;
-  kell: boolean;
-  sections: AnsiString;
-  ss: AnsiString;
-  i: integer;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStrV2(params, length(sitename) + 1 +
-    length(IntToStr(status)) + 1));
-
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
-    exit;
-  end;
-  if (s.PermDown) then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-    Exit;
-  end;
-  if ((status > -1) and (status <> 0)) then
-  begin
-    // hitelesitjuk a szekciokat
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(sections, ' ', i);
-      if ss = '' then
-        break;
-
-      if s.sectiondir[ss] = '' then
-      begin
-        irc_addtext(Netname, Channel, 'Site %s has no %s section',
-          [sitename, ss]);
-        exit;
-      end;
-    end;
-  end;
-
-  kell := False;
-  if status > -1 then
-  begin
-    if status <> 0 then
-    begin
-      if s.RCInteger('autocrawler', 0) <= 0 then
-        kell := True;
-      s.WCInteger('autocrawler', status);
-      s.WCString('autocrawlersections', sections);
-    end
-    else
-    begin
-      s.DeleteKey('autocrawler');
-      s.DeleteKey('autocrawlersections');
-      s.DeleteKey('nextautocrawler');
-      s.RemoveAutoCrawler;
-    end;
-  end;
-  irc_addtext(Netname, Channel, 'Autocrawler of %s is: %d (%s)',
-    [sitename, s.RCInteger('autocrawler', 0), s.RCString('autocrawlersections',
-      '')]);
-
-  if kell then
-    s.AutoCrawler;
 
   Result := True;
 end;
@@ -10413,7 +10467,8 @@ begin
       if (TSite(sites.Items[i]).sectionpretime[section] <> -1) then
       begin
         irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>',
-          [TSite(sites.Items[i]).Name, section, TSite(sites.Items[i]).sectionpretime[section]]);
+          [TSite(sites.Items[i]).Name, section,
+            TSite(sites.Items[i]).sectionpretime[section]]);
       end
       else
       begin
@@ -10838,7 +10893,8 @@ var
   spd, sup, sdn, suk: TStringList;
 begin
   irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started), DateTimeAsString(started)]);
+    [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started),
+      DateTimeAsString(started)]);
   // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind', [kb_list.Count,
