@@ -2070,15 +2070,55 @@ begin
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
 
-  case lastResponseCode of
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) then
+  begin
 
-    421:
+    case lastResponseCode of
+
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+          if (0 < AnsiPos('Timeout', lastResponse)) then
+          begin
+            //try again or just exit, because timeout -> bad routing, offline?
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
+      426:
       begin
 
-        //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
-        if (0 < AnsiPos('Timeout', lastResponse)) then
+        //COMPLETE MSG: 426 Sendfile error: Broken pipe.
+        if (0 < AnsiPos('Sendfile error', lastResponse)) then
         begin
-          //try again or just exit, because timeout -> bad routing, offline?
+          //try again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
+
+        //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
+        //              426 Transfer was aborted - File has been deleted on the master
+        if (0 < AnsiPos('File has been deleted on the master', lastResponse)) then
+        begin
+          //exit here, try again won't help if file don't get traded just again after deleting
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+          mainpazo.errorreason := 'File has been deletec on the master';
+          readyerror := True;
+          exit;
+        end;
+
+        //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section 0DAY, at least 1000B/s required.
+        //              426- Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+        //              426 Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
+        if (0 < AnsiPos('Slow transfer', lastResponse)) then
+        begin
+          //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
           goto TryAgain;
         end;
@@ -2086,91 +2126,58 @@ begin
       end;
 
 
-    426:
-    begin
+      435:
+        begin
 
-      //COMPLETE MSG: 426 Sendfile error: Broken pipe.
-      if (0 < AnsiPos('Sendfile error', lastResponse)) then
-      begin
-        //try again
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-        goto TryAgain;
-      end;
+          //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (5) error:00000000:lib(0):func(0):reason(0)), disconnected
+          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          begin
+            //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
+            //maybe relogin needed because response says something about disconnect!
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
 
-      //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
-      //              426 Transfer was aborted - File has been deleted on the master
-      if (0 < AnsiPos('File has been deleted on the master', lastResponse)) then
-      begin
-        //exit here, try again won't help if file don't get traded just again after deleting
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-        mainpazo.errorreason := 'File has been deletec on the master';
-        readyerror := True;
-        exit;
-      end;
+        end;
 
-      //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section 0DAY, at least 1000B/s required.
-      //              426- Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
-      //              426 Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
-      if (0 < AnsiPos('Slow transfer', lastResponse)) then
-      begin
-        //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-        goto TryAgain;
-      end;
 
+      500:
+        begin
+
+          //COMPLETE MSG: 500 No text
+          if (0 < AnsiPos('No text', lastResponse)) then
+          begin
+            //try again and hopefully it'll work then.
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
+      522:
+        begin
+          if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
+          begin
+            ssrc.site.sslfxp := srNeeded;
+            if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+            begin
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            end;
+            goto TryAgain;
+          end;
+        end;
+
+      else  //to get other errors to put here
+        begin
+          if (lastResponseCode <> 226) then
+          begin
+            Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]);
+            irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]));
+          end;
+        end;
     end;
 
-
-    435:
-      begin
-
-        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (5) error:00000000:lib(0):func(0):reason(0)), disconnected
-        if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
-        begin
-          //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
-          //maybe relogin needed because response says something about disconnect!
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-      end;
-
-
-    500:
-      begin
-
-        //COMPLETE MSG: 500 No text
-        if (0 < AnsiPos('No text', lastResponse)) then
-        begin
-          //try again and hopefully it'll work then.
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-      end;
-
-
-    522:
-      begin
-        if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
-        begin
-          ssrc.site.sslfxp := srNeeded;
-          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-          begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          end;
-          goto TryAgain;
-        end;
-      end;
-
-    else  //to get other errors to put here
-      begin
-        if (lastResponseCode <> 226) then
-        begin
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]));
-        end;
-      end;
   end;
 
 
@@ -2202,140 +2209,147 @@ begin
   lastResponseCode := sdst.lastResponseCode;
   lastResponse := sdst.lastResponse;
 
-  case lastResponseCode of
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) then
+  begin
 
-    421:
-    begin
+    case lastResponseCode of
 
-      //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
-      if (0 < AnsiPos('Timeout', lastResponse)) then
+      421:
       begin
-        //try again or just exit, because timeout -> bad routing, offline?
-        irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-        goto TryAgain;
+
+        //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
+        if (0 < AnsiPos('Timeout', lastResponse)) then
+        begin
+          //try again or just exit, because timeout -> bad routing, offline?
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
+
       end;
 
+      426:
+        begin
+
+          //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
+          if (0 < AnsiPos('Slow transfer', lastResponse)) then
+          begin
+            //try again, maybe lower routing from srcsite to dstsite
+
+            //added to get cmplete msg
+            Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 426- Read timed out
+          //              426 Transfer failed, deleting file
+          if (0 < AnsiPos('Read timed out', lastResponse)) then
+          begin
+            //try again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 426- Socket closed
+          //              426 Transfer failed, deleting file
+          //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s
+          if (0 < AnsiPos('Socket closed', lastResponse)) then
+          begin
+            //try again, maybe lower routing if happens again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
+      427:
+        begin
+          //COMPLETE MSG: 427 Use SSL FXP!
+          if (0 < AnsiPos('Use SSL FXP', lastResponse)) then
+          begin
+            sdst.site.sslfxp := srNeeded;
+            // must do one read on source
+            if not ssrc.Read() then
+              goto TryAgain;
+
+            // must do two read on destination
+            if not sdst.Read() then
+              goto TryAgain;
+            if not sdst.Read() then
+              goto TryAgain;
+
+            irc_AddINFO('[iNFO] SSLFXP needed on Destination: ' + sdst.Name);
+            goto TryAgain;
+          end;
+        end;
+
+
+      435:
+        begin
+
+          //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:1408A0C1:SSL routines:SSL3_GET_CLIENT_HELLO:no shared cipher), disconnected
+          //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines:SSL23_GET_CLIENT_HELLO:unknown protocol), disconnected
+          //COMPLETE MSG: 435 Failed TLS negotiation on data channel, disconnected: No such file or directory.
+          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          begin
+            //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
+            //maybe relogin needed because response says something about disconnect!
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
+      452:
+        begin
+          //COMPLETE MSG: 452 Error writing file: Success.
+          if (0 < AnsiPos('Error writing file', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+
+      500:
+        begin
+          //COMPLETE MSG: 500 Unsupported command during transfer.
+          if (0 < AnsiPos('Unsupported command during transfer', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+
+      522:
+        begin
+          if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
+          begin
+            sdst.site.sslfxp := srNeeded;
+            if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+            begin
+              irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            end;
+            goto TryAgain;
+          end
+
+        end;
+
+      else  //to get other errors to put here
+        begin
+          if (lastResponseCode <> 226) then
+          begin
+            Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
+            irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]));
+          end;
+        end;
     end;
 
-    426:
-      begin
-
-        //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
-        if (0 < AnsiPos('Slow transfer', lastResponse)) then
-        begin
-          //try again, maybe lower routing from srcsite to dstsite
-
-          //added to get cmplete msg
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-        //COMPLETE MSG: 426- Read timed out
-        //              426 Transfer failed, deleting file
-        if (0 < AnsiPos('Read timed out', lastResponse)) then
-        begin
-          //try again
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-        //COMPLETE MSG: 426- Socket closed
-        //              426 Transfer failed, deleting file
-        //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s
-        if (0 < AnsiPos('Socket closed', lastResponse)) then
-        begin
-          //try again, maybe lower routing if happens again
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-      end;
-
-
-    427:
-      begin
-        //COMPLETE MSG: 427 Use SSL FXP!
-        if (0 < AnsiPos('Use SSL FXP', lastResponse)) then
-        begin
-          sdst.site.sslfxp := srNeeded;
-          // must do one read on source
-          if not ssrc.Read() then
-            goto TryAgain;
-
-          // must do two read on destination
-          if not sdst.Read() then
-            goto TryAgain;
-          if not sdst.Read() then
-            goto TryAgain;
-
-          irc_AddINFO('[iNFO] SSLFXP needed on Destination: ' + sdst.Name);
-          goto TryAgain;
-        end;
-      end;
-
-
-    435:
-      begin
-
-        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:1408A0C1:SSL routines:SSL3_GET_CLIENT_HELLO:no shared cipher), disconnected
-        //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines:SSL23_GET_CLIENT_HELLO:unknown protocol), disconnected
-        //COMPLETE MSG: 435 Failed TLS negotiation on data channel, disconnected: No such file or directory.
-        if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
-        begin
-          //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
-          //maybe relogin needed because response says something about disconnect!
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-
-      end;
-
-
-    452:
-      begin
-        //COMPLETE MSG: 452 Error writing file: Success.
-        if (0 < AnsiPos('Error writing file', lastResponse)) then
-        begin
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-      end;
-
-
-    500:
-      begin
-        //COMPLETE MSG: 500 Unsupported command during transfer.
-        if (0 < AnsiPos('Unsupported command during transfer', lastResponse)) then
-        begin
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          goto TryAgain;
-        end;
-      end;
-
-
-    522:
-      begin
-        if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
-        begin
-          sdst.site.sslfxp := srNeeded;
-          if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
-          begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-          end;
-          goto TryAgain;
-        end
-
-      end;
-
-    else  //to get other errors to put here
-      begin
-        if (lastResponseCode <> 226) then
-        begin
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]));
-        end;
-      end;
   end;
 
 {
