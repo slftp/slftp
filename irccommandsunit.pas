@@ -5403,7 +5403,7 @@ var
 begin
   if (params = '') then
   begin
-    _readHelpTXTFile(Netname, Channel, 'help');
+    _readHelpTXTFile(Netname, Channel, 'nhelp');
   end;
 
   //Show all commands Start
