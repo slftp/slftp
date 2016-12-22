@@ -38,8 +38,9 @@ function precatcherauto: boolean;
 
 function Precatcher_Sitehasachan(sitename: AnsiString): boolean;
 procedure Precatcher_DelSiteChans(sitename: AnsiString);
-procedure PrecatcherReload(); overload;
-procedure PrecatcherReload(out status: AnsiString); overload;
+//procedure PrecatcherReload(); overload;
+//procedure PrecatcherReload(out status: AnsiString); overload;
+function PrecatcherReload:AnsiString;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: AnsiString);
@@ -1215,42 +1216,11 @@ begin
   PrecatcherReBuild;
 end;
 
-procedure PrecatcherReload();
+function PrecatcherReload:AnsiString;
 var
   f: TextFile;
   s: AnsiString;
 begin
-  mappingslist.Clear;
-  sectionlist.Clear;
-  ignorelista.Clear;
-  replacefrom.Clear;
-  replaceto.Clear;
-  catcherFile.Clear;
-
-  //catcherFile.LoadFromFile(catcherFileName);
-  AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-{$I-}
-  Reset(f);
-{$I+}
-  if IOResult = 0 then
-  begin
-    while (not EOF(f)) do
-    begin
-      ReadLn(f, s);
-      ProcessConfigLine(s);
-    end;
-    CloseFile(f);
-  end;
-
-  kb_reloadsections;
-end;
-
-procedure PrecatcherReload(out status: AnsiString);
-var
-  f: TextFile;
-  ss, s: AnsiString;
-begin
-  ss := '';
   mappingslist.Clear;
   sectionlist.Clear;
   ignorelista.Clear;
@@ -1263,7 +1233,7 @@ begin
   if (config.ReadBool('sites', 'split_site_data', False)) then
     LoadSplitChanFiles;
 
-  ss := 'Precatcher Rehash FAILED!';
+  result := 'Precatcher Rehash FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
 {$I-}
@@ -1276,15 +1246,14 @@ begin
         ReadLn(f, s);
         ProcessConfigLine(s);
       end;
-      CloseFile(f);
     end;
     kb_reloadsections;
   finally
-    ss := '- Precatcher Rehash Complete -' + sLineBreak;
-    ss := ss + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
-    ss := ss + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
+    CloseFile(f);
   end;
-  status := ss;
+    result := '- Precatcher Rehash Complete -' + sLineBreak;
+    result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
+    result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
 end;
 
 function precatcherauto: boolean;
