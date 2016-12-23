@@ -2229,6 +2229,24 @@ begin
 
       end;
 
+
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't build data connection
+          if (0 < AnsiPos('t build data connection', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
+
+              sdst.DestroySocket(False);
+              mainpazo.errorreason := 'Timeout or building data connection problem';
+              readyerror := True;
+              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
+          end;
+        end;
+
+
       426:
         begin
 
@@ -2337,7 +2355,20 @@ begin
             end;
             goto TryAgain;
           end
+        end;
 
+
+      553:
+        begin
+          //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
+          if (0 < AnsiPos('X-DUPE', lastResponse)) then
+          begin
+            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
+            exit;
+          end
         end;
 
       else  //to get other errors to put here
