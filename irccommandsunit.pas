@@ -10744,35 +10744,31 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := config.ReadString('sites', 'ratio_regex',
-      '\[?(Ratio|R)\:?\s?\(?([\d\:\.]+|Unlimited|[\d\:\d]+)\]?');
+    x.Expression := '\[R(atio)?\:\s?(.*?)\]'; // hardcoded for better result handling..
     if x.Exec(line) then
-    begin
-      if ((x.Match[2] = 'Unlimited') or (x.Match[2] = '1:0.0')) then
+    begin   
+      if (AnsiContainsText(x.Match[2],'Unlimited') or (x.Match[2] = '1:0.0')) then
         ratio := 'Unlimited'
       else
         ratio := x.Match[2];
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex',
-      '\[?(Credits|Creds|C)\:?\s?\(?([\-\d\.\,]+)(MB|GB|TB|EP|ZP)\]?');
+    x.Expression := '\[C(redits|reds)?\:\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)\]'; // hardcoded for better result handling..
     if x.Exec(line) then
     begin
       minus := False;
-      ss := x.Match[2];
-      if Pos('-', ss) > 0 then
+      ss := x.Match[2];     
+      if AnsiContainsText(ss,'-') then
       begin
         minus := True;
         ss := StringReplace(ss, '-', '', [rfReplaceAll, rfIgnoreCase]);
       end;
-
 {$IFDEF FPC}
       ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll,
         rfIgnoreCase]);
 {$ELSE}
       ss := StringReplace(ss, '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
 {$ENDIF}
-
       c := strtofloat(ss);
       ss := x.Match[3];
       if AnsiUpperCase(ss) = 'MB' then
@@ -10828,6 +10824,7 @@ begin
 
       tn := AddNotify;
       try
+      try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
         tn.tasks.Add(r);
         AddTask(r);
@@ -10840,10 +10837,11 @@ begin
           continue;
         end;
       end;
-
-      irc_addtext(Netname, Channel, parseSTATLine(s.Name,
-        TSiteResponse(tn.responses[0]).response));
+      irc_addtext(Netname, Channel, parseSTATLine(s.Name,TSiteResponse(tn.responses[0]).response));
+      finally
       RemoveTN(tn);
+      end;
+
     end;
   end
   else
@@ -10865,6 +10863,7 @@ begin
     end;
 
     tn := AddNotify;
+try
     try
       r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
       tn.tasks.Add(r);
@@ -10881,10 +10880,11 @@ begin
 
     irc_addtext(Netname, Channel, parseSTATLine(s.Name,
       TSiteResponse(tn.responses[0]).response));
+finally
     RemoveTN(tn);
-  end;
-
-  Result := True;
+end;
+end;
+ Result := True;
 end;
 
 function IrcShowAppStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
