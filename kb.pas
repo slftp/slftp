@@ -2040,7 +2040,6 @@ end;
 destructor TTVRelease.Destroy;
 begin
   genres.Free;
-  tv_tags.Free;
   inherited;
 end;
 
