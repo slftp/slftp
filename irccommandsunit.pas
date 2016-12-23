@@ -801,7 +801,7 @@ var
   section, toadd: AnsiString;
   nsecs, osecs: TStringList;
   ini: TInifile;
-  i:integer;
+  i: integer;
 begin
   section := UpperCase(SubString(params, ' ', 1));
   toadd := RightStrV2(params, length(section) + 1);
@@ -810,7 +810,7 @@ begin
   nsecs := TStringList.Create;
   try
     osecs.Delimiter := ',';
-    osecs.Sorted:=True;
+    osecs.Sorted := True;
     osecs.Duplicates := dupIgnore;
     osecs.DelimitedText := ini.ReadString('sections', section, '');
 
@@ -821,7 +821,8 @@ begin
       Exit;
     end;
 
-    if AnsiContainsText(toadd,',') then begin
+    if AnsiContainsText(toadd, ',') then
+    begin
       Irc_addText(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
       Result := True;
       Exit;
@@ -832,13 +833,13 @@ begin
 
     //avoid dupes...
     for i := 0 to nsecs.Count - 1 do
-    osecs.Add(nsecs.Strings[i]);
+      osecs.Add(nsecs.Strings[i]);
 
     ini.WriteString('sections', section, osecs.DelimitedText);
     ini.UpdateFile;
     osecs.Clear;
     osecs.DelimitedText := ini.ReadString('sections', section, '');
-    irc_addText(Netname,Channel,PrecatcherReload);
+    irc_addText(Netname, Channel, PrecatcherReload);
     IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
 
   finally
@@ -846,7 +847,7 @@ begin
     osecs.free;
     nsecs.free;
   end;
-result:= True;
+  result := True;
 end;
 
 function IrcSetdir(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -2271,8 +2272,8 @@ begin
 
       irc_addtext(Netname, Channel,
         '%s: %s (%s)/%s files done. Type <c4>%sstop <b>%d</b></c> if you want.', [rlsname, j,
-          k,
-        i, irccmdprefix, p.pazo_id]);
+        k,
+          i, irccmdprefix, p.pazo_id]);
       lastAnn := Now();
     end;
 
@@ -5237,7 +5238,7 @@ function IrcPrereload(const Netname, Channel: AnsiString; params: AnsiString): b
 var
   vs: AnsiString;
 begin
-  vs:= PrecatcherReload;
+  vs := PrecatcherReload;
   if vs <> '' then
     irc_addtext(Netname, Channel, vs);
   Result := True;
@@ -10468,7 +10469,7 @@ begin
       begin
         irc_addtext(Netname, Channel, 'Pretime for <b>%s</b> in %s is<c7> %d</c>',
           [TSite(sites.Items[i]).Name, section,
-            TSite(sites.Items[i]).sectionpretime[section]]);
+          TSite(sites.Items[i]).sectionpretime[section]]);
       end
       else
       begin
@@ -10746,19 +10747,20 @@ begin
 
     x.Expression := '\[R(atio)?\:\s?(.*?)\]'; // hardcoded for better result handling..
     if x.Exec(line) then
-    begin   
-      if (AnsiContainsText(x.Match[2],'Unlimited') or (x.Match[2] = '1:0.0')) then
+    begin
+      if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0.0')) then
         ratio := 'Unlimited'
       else
         ratio := x.Match[2];
     end;
 
-    x.Expression := '\[C(redits|reds)?\:\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)\]'; // hardcoded for better result handling..
+    x.Expression := '\[C(redits|reds)?\:\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)\]';
+      // hardcoded for better result handling..
     if x.Exec(line) then
     begin
       minus := False;
-      ss := x.Match[2];     
-      if AnsiContainsText(ss,'-') then
+      ss := x.Match[2];
+      if AnsiContainsText(ss, '-') then
       begin
         minus := True;
         ss := StringReplace(ss, '-', '', [rfReplaceAll, rfIgnoreCase]);
@@ -10824,22 +10826,23 @@ begin
 
       tn := AddNotify;
       try
-      try
-        r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-        tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
-        tn.event.WaitFor($FFFFFFFF);
-      except on E: Exception do
-        begin
-          RemoveTN(tn);
-          irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-          continue;
+        try
+          r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
+          tn.tasks.Add(r);
+          AddTask(r);
+          QueueFire;
+          tn.event.WaitFor($FFFFFFFF);
+        except on E: Exception do
+          begin
+            RemoveTN(tn);
+            irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+            continue;
+          end;
         end;
-      end;
-      irc_addtext(Netname, Channel, parseSTATLine(s.Name,TSiteResponse(tn.responses[0]).response));
+        irc_addtext(Netname, Channel, parseSTATLine(s.Name,
+          TSiteResponse(tn.responses[0]).response));
       finally
-      RemoveTN(tn);
+        RemoveTN(tn);
       end;
 
     end;
@@ -10863,28 +10866,28 @@ begin
     end;
 
     tn := AddNotify;
-try
     try
-      r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-      tn.tasks.Add(r);
-      AddTask(r);
-      QueueFire;
-      tn.event.WaitFor($FFFFFFFF);
-    except on E: Exception do
-      begin
-        RemoveTN(tn);
-        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-        Exit;
+      try
+        r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
+        tn.tasks.Add(r);
+        AddTask(r);
+        QueueFire;
+        tn.event.WaitFor($FFFFFFFF);
+      except on E: Exception do
+        begin
+          RemoveTN(tn);
+          irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+          Exit;
+        end;
       end;
-    end;
 
-    irc_addtext(Netname, Channel, parseSTATLine(s.Name,
-      TSiteResponse(tn.responses[0]).response));
-finally
-    RemoveTN(tn);
-end;
-end;
- Result := True;
+      irc_addtext(Netname, Channel, parseSTATLine(s.Name,
+        TSiteResponse(tn.responses[0]).response));
+    finally
+      RemoveTN(tn);
+    end;
+  end;
+  Result := True;
 end;
 
 function IrcShowAppStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -10894,7 +10897,7 @@ var
 begin
   irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>',
     [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started),
-      DateTimeAsString(started)]);
+    DateTimeAsString(started)]);
   // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind', [kb_list.Count,
