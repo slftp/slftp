@@ -253,6 +253,8 @@ end;
 procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
 var
   direct_echo: TMyIrcThread;
+  msgs:TStringList;
+  i: Integer;
 begin
   if slshutdown then
     exit;
@@ -269,30 +271,36 @@ begin
     end;
     exit;
   end;
-
-   (*
-   Issue #36 - Split the lines on irc announce  | max 287 chars (2296 bit) per message
-   *)
-
+  irc_message_lock.Enter;
+  msgs:=TStringList.Create;
+  try
+    msgs.Text:=wraptext(msg,280);
   try
     if (config.ReadBool(section, 'direct_echo', False)) then
     begin
       direct_echo := FindIrcnetwork(netname);
       if (direct_echo <> nil) then
       begin
-        direct_echo.IrcSendPrivMessage(channel + ' ' + msg);
+        for I := 0 to msgs.Count - 1 do
+          direct_echo.IrcSendPrivMessage(channel + ' ' + msgs.Strings[i]);
       end;
     end
     else
     begin
-      irc_queue.Add(channel + ' ' + msg);
-      irc_queue_nets.Add(netname);
+        for I := 0 to msgs.Count - 1 do begin
+          irc_queue.Add(channel + ' ' + msgs.Strings[i]);
+          irc_queue_nets.Add(netname);
+        end;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
     end;
+  end;
+  finally
+    irc_message_lock.Leave;
+    msgs.Free;
   end;
 end;
 
