@@ -169,6 +169,7 @@ function irccmdprefix: AnsiString;
 
 var
   myIrcThreads: TObjectList = nil;
+  irc_message_lock: TCriticalSection;
   irc_queue: TStringList;
   irc_queue_nets: TStringList;
 
@@ -269,8 +270,11 @@ begin
     exit;
   end;
 
-  try
+   (*
+   Issue #36 - Split the lines on irc announce  | max 287 chars (2296 bit) per message
+   *)
 
+  try
     if (config.ReadBool(section, 'direct_echo', False)) then
     begin
       direct_echo := FindIrcnetwork(netname);
@@ -1331,11 +1335,16 @@ end;
 
 procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsg: AnsiString);
 begin
-  irc_last_read := Now();
-  //if not Hide_plain_text then Debug(dpSpam, section, 'PLAIN: '+plainmsg);
-  IrcWrite('PRIVMSG ' + channel + ' :' + irc_encrypt(netname, channel, plainmsg, True));
-  console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
-  irc_last_written := Now;
+  irc_message_lock.Enter;
+  try
+    irc_last_read := Now();
+    IrcWrite('PRIVMSG ' + channel + ' :' + irc_encrypt(netname, channel, plainmsg, True));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
+    irc_last_written := Now;
+  finally
+    irc_message_lock.Leave;
+  end;
+
 end;
 
 function TMyIrcThread.IrcSendPrivMessage(oneliner: AnsiString): Boolean;
@@ -1710,6 +1719,7 @@ begin
   myIrcThreads := TObjectList.Create(True);
   irc_queue := TStringList.Create;
   irc_queue_nets := TStringList.Create;
+  irc_message_lock:= TCriticalSection.Create;
 end;
 
 procedure IrcUnInit;
@@ -1722,6 +1732,7 @@ begin
   end;
   irc_queue.Free;
   irc_queue_nets.Free;
+  irc_message_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
