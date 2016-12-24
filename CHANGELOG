@@ -37,6 +37,7 @@
 --==========================( NEW SLFTP.ini ITEMS )===============================-	    
 
 		none
+		##maybe the credit shit could be removed
                 
 --===========================( KNOWN BUG in v1.5.* )================================-	      
 
@@ -47,15 +48,24 @@
 
 --=============================( SLFTP v1.5.5 )===================================- 
 		{+} New rule for tvlanguage from TVMaze (#79)
+		{+} Add new sections over IRC -> !help sectionins
 		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
+		{#} Fix for tvtag rules -> tvtag weren't initialized (#102)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
+		{#} Skip sites if your DL/UL Slots are 0 (#106) ---- need to be tested ----
+		{#} !credits adjustmens for glFTPd v2.07-BETA2 ---- new code matches less than old one ----
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
 		{^} No [NOT SET] message on pre if site is set to permdown (#108)
 		{^} No need to !setdown before !setpermdown (#108)
+		{^} Some TV Shows weren't detected as STV from IMDb fetch
+		{^} mp3 genre will also be parsed on bot announce (#114) ---- guess still no drop on mp3genre rule if not found ----
 		{^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
+		{^} some improvements to !site output (Linebreaks, more text for pretime)
+		{^} !affils act like chgrp on glftpd --- dunno exactly what it changes (Commit 62216109) ----
+		{-} slftp resorts bnc entries when one is done (#104) ---- not really a fix for it ----
 
 --=============================( SLFTP v1.5.4 )===================================- 
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
