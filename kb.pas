@@ -1925,27 +1925,9 @@ begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
-
-      (*
-            try
-            Irc_AddAdmin('Updating...');
-
-            showid:= db_tvrage.tvmaze_id;
-            AddTask(TPazoHTTPUpdateTVInfoTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
-            db_tvrage.free;
-            //result:=True;
-            Exit;
-            except on e: Exception do
-              begin
-                Debug(dpError, rsections, Format('Exception in PazoUpdateTVInfo: %s',
-                  [e.Message]));
-              end;
-            end;
-      *)
     end
     else
     begin
-      //  Irc_AddAdmin('no Update!');
       try
         db_tvinfo.SetTVDbRelease(self);
       except
@@ -1960,8 +1942,6 @@ begin
       exit;
     end;
   end;
-
-  //irc_addadmin('<b>iNFO</b> No info found for %s', [self.showname]);
   try
     AddTask(TPazoTVInfoLookupTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
   except
@@ -1984,11 +1964,8 @@ function TTVRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
   Result := Result + 'Show name: ' + showname + #13#10;
-  //  Result := Result + 'URL: http://thetvdb.com/?tab=series&id=' + thetvdbid + #13#10;
   Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
-  //  if season <> 0 then
   Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-  //  if episode <> 0 then
   Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
   if premier_year <> -1 then
     Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
@@ -2004,8 +1981,6 @@ begin
   if network <> '' then
     Result := Result + 'Network: ' + network + #13#10;
  if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
-  //  if runtime <> 0 then
-  //    Result := Result + 'Runtime: ' + IntToStr(runtime) + #13#10;
   Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
   if status <> '' then
     Result := Result + 'Status: ' + status + #13#10;
@@ -2013,22 +1988,20 @@ begin
   Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
   Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
   Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
-
 end;
 
 constructor TTVRelease.Create(rlsname: AnsiString; section: AnsiString;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   c_episode: int64;
+ j,i:integer;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
   episode := -1;
   season := -1;
   c_episode := -1;
-
   genres := TStringList.Create;
-  //  genres.Delimiter:= '|';
   genres.QuoteChar := '"';
 
   getShowValues(rlsname, showname, season, c_episode);
@@ -2036,6 +2009,16 @@ begin
 
   showname := Csere(showname, '.', ' ');
   showname := Csere(showname, '_', ' ');
+
+  for i:= 1 to tags.Count -1 do
+  begin
+    j:= tvtags.IndexOf( tags[i] );
+    if j <> -1 then
+    begin
+      tvtag:= tvtags[j];
+      Break;
+    end;
+  end;
 
 end;
 
