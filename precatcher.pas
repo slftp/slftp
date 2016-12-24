@@ -385,7 +385,20 @@ begin
       end;
     end;
   end;
+end;
 
+function _findMP3GenreOnAnnounce(text:ansistring): string;
+var i: Integer;
+begin
+  for i:= 0 to mp3genres.Count-1 do
+  begin
+    if (AnsiContainsText(text,mp3genres[i]) or
+        AnsiContainsText(Csere (mp3genres[i], ' ', ''), text)) then
+    begin
+      Result:= mp3genres[i];
+      break;
+    end;
+  end;
 end;
 
 function ProcessDoReplace(s: AnsiString): AnsiString;
@@ -411,8 +424,7 @@ end;
 
 procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
 var
-  oldsection: AnsiString;
-  s: AnsiString;
+genre, s, oldsection: AnsiString;
 begin
 
   {*
@@ -514,6 +526,14 @@ begin
       exit;
     end;
 
+    genre:= '';
+    if (1 = Pos('MP3', section)) then
+    begin
+      genre:= _findMP3GenreOnAnnounce(s);
+      if genre <> '' then
+        MyDebug('Genre: %s', [genre]);
+    end;
+
     if (event = '') then
     begin
       event := 'NEWDIR';
@@ -529,7 +549,7 @@ begin
         begin
           irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
         end;
-        kb_Add('', '', sitename, section, '', event, rls, '');
+        kb_Add('', '', sitename, section, genre, event, rls, '');
       except
         on e: Exception do
         begin
