@@ -674,7 +674,6 @@ begin
       end;
     end;
 
-
     if js.Field['genres'].SelfType <> jsNull then
     begin
       for I := 0 to js.Field['genres'].Count - 1 do
