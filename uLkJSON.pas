@@ -40,6 +40,9 @@ uses
 {$ENDIF}
   variants;
 
+
+  function isValidJSONFile(text:AnsiString):boolean;
+
 type
   TlkJSONtypes = (jsBase, jsNumber, jsString, jsBoolean, jsNull,
     jsList, jsObject);
@@ -2596,6 +2599,13 @@ begin
   end;
 end;
 {$ENDIF USE_HASH}
+
+
+function isValidJSONFile(text:AnsiString):boolean;
+begin
+ result:=((AnsiStartsText('{',text) and  AnsiEndsText('}',text)) or (AnsiStartsText('[',text) and  AnsiEndsText(']',text)));
+end;
+
 
 initialization
 {$IFNDEF THREADSAFE}
