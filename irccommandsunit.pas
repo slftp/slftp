@@ -11294,6 +11294,7 @@ begin
     end;
   end;
 
+
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id +
     '?embed[]=nextepisode&embed[]=previousepisode');
 
@@ -11311,10 +11312,16 @@ begin
 
   try
     newtvi := parseTVMazeInfos(respo);
-    newtvi.last_updated := DateTimeToUnix(now());
-    Result := newtvi.UpdateIRC;
-    newtvi.PostResultsv2(newtvi.tv_showname, Netname, Channel);
-    newtvi.free;
+    if newtvi = nil then Exit;
+
+    try
+      newtvi.last_updated := DateTimeToUnix(now());
+      Result := newtvi.UpdateIRC;
+      newtvi.PostResultsv2(newtvi.tv_showname, Netname, Channel);
+    finally
+      newtvi.free;
+    end;
+
   except on e: Exception do
     begin
       irc_AddText(Netname, Channel, Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s',
@@ -11322,7 +11329,7 @@ begin
       Exit;
     end;
   end;
-  // Result := True;
+   Result := True;
 end;
 
 function IrcSetTVRageID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
