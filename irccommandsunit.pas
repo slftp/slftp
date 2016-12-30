@@ -582,7 +582,7 @@ const
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: 'info'),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: 'info'),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: -1; hlpgrp: 'info'),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
     (cmd: 'notes'; hnd: IrcNotes; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
