@@ -337,6 +337,20 @@ begin
     x.QuoteChar := '"';
     rx.ModifierI := True;
     s := slUrlGet('http://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/');
+
+    (*
+    There can be 3 posible respons:
+
+      1: an XML, first line MUST be <?xml version="1.0" encoding="UTF-8" ?>
+      2: 404 page,
+                    <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+                    <html><head>
+                    <title>404 Not Found</title>
+      3: TVDb Lags.. could be done with an timeout.  maybe we retrun something like 0xBAADF00D
+    *)
+
+
+//    if AnsiStartsText('<?xml>',s) then begin
     ts := TStringStream.Create(s);
     try
       ts.Position := 0;
@@ -354,8 +368,8 @@ begin
       repeat
         x.Add(rx.Match[1]);
       until not rx.ExecNext();
-
     result := x.CommaText;
+//    end else result:='0xFBADBEEF';
   finally
     x.free;
     rx.free;
