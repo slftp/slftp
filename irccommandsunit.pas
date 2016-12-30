@@ -5505,9 +5505,11 @@ begin
             irc_addtext(Netname, Channel, ':: <u><c7><b>%s</c></u> :</b>', [irccommands[i].cmd])
           else
           begin
-            if ((s <> '') and (irccommands[i].cmd <> '-')) then
+          if (irccommands[i].cmd <> '-') then begin
+            if s <> '' then
               s := s + ', ';
             s := s + irccmdprefix + irccommands[i].cmd;
+          end;
           end;
         end;
       end;
