@@ -2326,6 +2326,8 @@ begin
       s := TSite(sites.Items[i]);
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
+        if s.PermDown then Continue;
+
       v := StrToIntDef(SubString(params, ' ', 2), integer(s.sslmethod));
       if ((v >= 0) and (v <= 8)) then
         s.sslmethod := TSSLMethods(v);
@@ -2433,6 +2435,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+        if TSite(sites.Items[i]).PermDown then Continue;
       if cwd = 1 then
         TSite(sites.Items[i]).legacydirlist := True;
       if cwd = 0 then
@@ -3154,6 +3157,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
         then
         Continue;
+        if TSite(sites.Items[i]).PermDown then Continue;
+
       TSite(sites.Items[i]).max_dn := dn;
       TSite(sites.Items[i]).max_pre_dn := pre_dn;
       TSite(sites.Items[i]).max_up := up;
@@ -3209,6 +3214,9 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
         then
         Continue;
+        if TSite(sites.Items[i]).PermDown then Continue;
+        
+
       TSite(sites.Items[i]).WCInteger('maxupperrip', upperrip);
     end;
   end
@@ -3260,6 +3268,8 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
         then
         Continue;
+         if TSite(sites.Items[i]).PermDown then Continue;
+         
       TSite(sites.Items[i]).maxidle := maxidle;
       if idleinterval <> 0 then
         TSite(sites.Items[i]).idleinterval := idleinterval;
@@ -3315,6 +3325,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
         then
         Continue;
+         if TSite(sites.Items[i]).PermDown then Continue;
       TSite(sites.Items[i]).io_timeout := iotimeout;
       TSite(sites.Items[i]).connect_timeout := connnecttimeout;
     end;
@@ -3571,6 +3582,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+           if TSite(sites.Items[i]).PermDown then Continue;
         s := TSite(sites.Items[i]);
 
         oldslots := s.slots.Count;
@@ -3836,6 +3848,7 @@ begin
       if (TSite(sites.Items[i]).Name = config.ReadString('sites',
         'admin_sitename', 'SLFTP')) then
         Continue;
+         if TSite(sites.Items[i]).PermDown then Continue;
       s := TSite(sites.Items[i]);
       if (s.PermDown) then
         Continue;
@@ -9144,6 +9157,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+           if TSite(sites.Items[i]).PermDown then Continue;
         DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
           'global');
       end;
@@ -9160,6 +9174,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+           if TSite(sites.Items[i]).PermDown then Continue;
         DisplayAllDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus);
       end;
     end
@@ -9181,6 +9196,7 @@ begin
           if (TSite(sites.Items[i]).Name = config.ReadString('sites',
             'admin_sitename', 'SLFTP')) then
             Continue;
+             if TSite(sites.Items[i]).PermDown then Continue;
           SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
             section, minv, maxv);
         end;
@@ -9201,6 +9217,7 @@ begin
             if (TSite(sites.Items[i]).Name = config.ReadString('sites',
               'admin_sitename', 'SLFTP')) then
               Continue;
+               if TSite(sites.Items[i]).PermDown then Continue;
             DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name,
               tipus, section);
           end;
@@ -9217,6 +9234,7 @@ begin
             if (TSite(sites.Items[i]).Name = config.ReadString('sites',
               'admin_sitename', 'SLFTP')) then
               Continue;
+               if TSite(sites.Items[i]).PermDown then Continue;
             DisplayDelay(Netname, Channel, TSite(sites.Items[i]).Name,
               tipus, section);
           end;
@@ -9236,6 +9254,7 @@ begin
             if (TSite(sites.Items[i]).Name = config.ReadString('sites',
               'admin_sitename', 'SLFTP')) then
               Continue;
+               if TSite(sites.Items[i]).PermDown then Continue;
             SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
               section, minv, maxv);
           end;
@@ -9276,6 +9295,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+           if TSite(sites.Items[i]).PermDown then Continue;
         DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
           'global');
       end;
@@ -9293,6 +9313,7 @@ begin
         if (TSite(sites.Items[i]).Name = config.ReadString('sites',
           'admin_sitename', 'SLFTP')) then
           Continue;
+           if TSite(sites.Items[i]).PermDown then Continue;
         DisplayAllDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus);
       end;
     end
@@ -9314,6 +9335,7 @@ begin
           if (TSite(sites.Items[i]).Name = config.ReadString('sites',
             'admin_sitename', 'SLFTP')) then
             Continue;
+             if TSite(sites.Items[i]).PermDown then Continue;
           SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
             section, minv, maxv);
         end;
@@ -9334,6 +9356,7 @@ begin
             if (TSite(sites.Items[i]).Name = config.ReadString('sites',
               'admin_sitename', 'SLFTP')) then
               Continue;
+               if TSite(sites.Items[i]).PermDown then Continue;
             DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name,
               tipus, section);
           end;
@@ -9350,6 +9373,7 @@ begin
             if (TSite(sites.Items[i]).Name = config.ReadString('sites',
               'admin_sitename', 'SLFTP')) then
               Continue;
+               if TSite(sites.Items[i]).PermDown then Continue;
             DisplayDelay(Netname, Channel, TSite(sites.Items[i]).Name,
               tipus, section);
           end;
@@ -9566,14 +9590,16 @@ begin
   begin
     for I := 0 to sites.Count - 1 do
     begin
-      if Uppercase(TSite(sites.Items[i]).Name) = getAdminSiteName then
+    s:=(TSite(sites.Items[i]));
+      if Uppercase(s.Name) = getAdminSiteName then
         Continue;
-      if TSite(sites.Items[i]).IRCNick = '' then
+      if s.IRCNick = '' then
+        Continue;
+      if s.PermDown then
         Continue;
       Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s',
-        [TSite(sites.Items[i]).Name]);
-      RawB(Netname, Channel, TSite(sites.Items[i]).Name, '/', 'SITE INVITE ' +
-        TSite(sites.Items[i]).IRCNick);
+        [s.Name]);
+      RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s',[s.IRCNick]));
     end;
     result := True;
   end
@@ -9940,6 +9966,7 @@ begin
           if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename',
             'SLFTP')) then
             Continue;
+             if TSite(sites.Items[i]).PermDown then Continue;
 
           RulesRemove(TSite(sites.Items[i]).Name, '');
         end;
@@ -10052,6 +10079,7 @@ begin
       ss := TSite(sites.Items[i]);
       if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
+         if TSite(sites.Items[i]).PermDown then Continue;
 
       if svalue = '' then
       begin
