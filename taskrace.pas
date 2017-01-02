@@ -823,6 +823,13 @@ begin
             failure := True;
           end
 
+
+          else if ((0 <> AnsiPos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := True;
+          end
+
+
           else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
           begin
             //sectiondir removed/not accessible? Need to get more info
@@ -1574,6 +1581,12 @@ begin
               ps2.MarkSiteAsFailed(True);
             end;
 
+            if isSample then
+            begin
+              ps2.SetFileError(netname, channel, dir, filename);
+              Debug(dpMessage, c_section, Format('Sample SetFileError for: %s (%s <-> %s)', [tname, dir, filename]));
+            end;
+
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
@@ -1764,6 +1777,17 @@ begin
   begin
 
     case lastResponseCode of
+      421:
+        begin
+          //COMPLETE MSG: 421 Timeout (10 second .... ?
+          if (0 < AnsiPos('Timeout', lastResponse)) then
+          begin
+            //try again or just exit, because timeout -> bad routing, offline?
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.
