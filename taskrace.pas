@@ -758,14 +758,26 @@ begin
 
       421:
         begin
-
           //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
           if (0 < AnsiPos('Timeout', s.lastResponse)) then
           begin
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
-
         end;
+
+
+
+      450:
+        begin
+          //COMPLETE MSG: 450 No transfer-slave(s) available
+          if (0 < AnsiPos('No transfer-slave', s.lastResponse)) then
+          begin
+            // maybe disable site...but for now we just try again
+            goto TryAgain;
+          end;
+        end;
+
+
 
       530:
         begin
