@@ -138,7 +138,7 @@ type
     function GetSectionPrecmd(Name: AnsiString): AnsiString;
     procedure SetSectionPrecmd(Name: AnsiString; const Value: AnsiString);
     function GetAffils: AnsiString;
-    procedure SettAffils(Value: AnsiString);
+    procedure SetAffils(Value: AnsiString);
     function GetSectionPreTime(Name: AnsiString): integer;
     procedure SetSectionPreTime(Name: AnsiString; const Value: integer);
     function GetSections: AnsiString;
@@ -237,7 +237,8 @@ type
     function IsAffil(affil: AnsiString): boolean;
     function AddAffil(affil: AnsiString): boolean;
     // TODO function DelAffil(affil: string): Boolean;
-    function SetAffils(affils: AnsiString): AnsiString;
+//    function SetAffils(affils: AnsiString): AnsiString;
+    function SetAffilsALL(affils: AnsiString): AnsiString;
     function IsUser(user: AnsiString): boolean;
     function IsLeecher(user: AnsiString): boolean;
     function IsTrader(user: AnsiString): boolean;
@@ -255,7 +256,7 @@ type
     property sectiondir[Name: AnsiString]: AnsiString read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: AnsiString]: AnsiString
     read GetSectionPreCmd write SetSectionPrecmd;
-    property siteaffils: AnsiString read GetAffils write SettAffils;
+    property siteaffils: AnsiString read GetAffils write SetAffils;
 
     property sectionpretime[Name: AnsiString]: integer
     read GetSectionPreTime write SetSectionPreTime;
@@ -2187,7 +2188,7 @@ begin
   Result := RCString('affils', '');
 end;
 
-procedure TSite.SettAffils(Value: AnsiString);
+procedure TSite.SetAffils(Value: AnsiString);
 begin
   WCString('affils', Value);
 end;
@@ -2451,7 +2452,7 @@ begin
   end;
 end;
 
-function TSite.SetAffils(affils: AnsiString): AnsiString;
+function TSite.SetAffilsALL(affils: AnsiString): AnsiString;
 var
   x: TStringList;
   List: TStrings;
@@ -2463,6 +2464,8 @@ begin
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
+    x.Sorted:=True;
+    x.Duplicates:=dupIgnore;
     ExtractStrings([' ', ',', '|'], [], PAnsiChar(affils), List);
 
     for i := 0 to List.Count - 1 do
@@ -2489,6 +2492,8 @@ begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
+    x.Sorted:=True;
+    x.Duplicates:=dupIgnore;
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
     if x.IndexOf(affil) = -1 then
