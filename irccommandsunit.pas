@@ -5970,21 +5970,21 @@ begin
     exit;
   end;
 
-  if affils = '' then
+  if affils <> '' then
   begin
-    ss := s.SetAffils(affils);
+    s.siteAffils:=affils;
+  end;
+    ss :=s.SiteAffils;
     if ss <> '' then
       IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
     else
       irc_addText(Netname, Channel, 'No affils available.');
-    Result := True;
-    Exit;
-  end;
-
+(*
   ss := s.siteaffils;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
       ['', sitename]), 12);
+      *)
   Result := True;
 end;
 
