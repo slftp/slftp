@@ -758,14 +758,26 @@ begin
 
       421:
         begin
-
           //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
           if (0 < AnsiPos('Timeout', s.lastResponse)) then
           begin
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
-
         end;
+
+
+
+      450:
+        begin
+          //COMPLETE MSG: 450 No transfer-slave(s) available
+          if (0 < AnsiPos('No transfer-slave', s.lastResponse)) then
+          begin
+            // maybe disable site...but for now we just try again
+            goto TryAgain;
+          end;
+        end;
+
+
 
       530:
         begin
@@ -822,6 +834,13 @@ begin
           begin
             failure := True;
           end
+
+
+          else if ((0 <> AnsiPos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := True;
+          end
+
 
           else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
           begin
@@ -1574,6 +1593,12 @@ begin
               ps2.MarkSiteAsFailed(True);
             end;
 
+            if isSample then
+            begin
+              ps2.SetFileError(netname, channel, dir, filename);
+              Debug(dpMessage, c_section, Format('Sample SetFileError for: %s (%s <-> %s)', [tname, dir, filename]));
+            end;
+
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
@@ -1764,6 +1789,17 @@ begin
   begin
 
     case lastResponseCode of
+      421:
+        begin
+          //COMPLETE MSG: 421 Timeout (10 second .... ?
+          if (0 < AnsiPos('Timeout', lastResponse)) then
+          begin
+            //try again or just exit, because timeout -> bad routing, offline?
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
       425, 426:
         begin
           //COMPLETE MSG: 425 Can't open data connection.

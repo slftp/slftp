@@ -264,7 +264,7 @@ end;
 function TPazoSiteNfoTask.Name: AnsiString;
 begin
   try
-    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, IntToStr(pazo_id), site1, attempt]);
+    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);
   except
     Result := 'SITENFO';
   end;
