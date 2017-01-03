@@ -383,7 +383,7 @@ const
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),
     (cmd: 'timeout'; hnd: IrcTimeout; minparams: 3; maxparams: 3; hlpgrp: 'site'),
     (cmd: 'sslfxp'; hnd: IrcSslfxp; minparams: 1; maxparams: 2; hlpgrp: 'site'),
-    (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 2; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'site'),
     //(cmd: 'setspeedtesttopredir'; hnd: IrcSetSpeedtesttoPredir; minparams: 0; maxparams: 1; hlpgrp:'site'),
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
@@ -2310,14 +2310,23 @@ end;
 
 function IrcSslmethod(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename: AnsiString;
+  method, sitename: AnsiString;
   s: TSite;
-  v: integer;
-  i: integer;
+  i, v: integer;
   x: TStringList;
 begin
   //  Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
+  method := SubString(params, ' ', 2);
+  i:=StrToIntDef(method,-1);
+
+
+  if ((method <> '') and ((i < 0) or (i > 8))) then begin
+    irc_addtext(Netname,Channel,'<c4><b>Syntax error</c></b>: %s is not valid SSL method.',[method]);
+    Result   := True;
+    Exit;
+  end;
+
 
   if sitename = '*' then
   begin
@@ -2329,9 +2338,10 @@ begin
       if s.PermDown then
         Continue;
 
-      v := StrToIntDef(SubString(params, ' ', 2), integer(s.sslmethod));
-      if ((v >= 0) and (v <= 8)) then
-        s.sslmethod := TSSLMethods(v);
+        v := StrToIntDef(method, integer(s.sslmethod));
+        if ((v >= 0) and (v <= 8)) then
+          s.sslmethod := TSSLMethods(v);
+       irc_addText(Netname,Channel,'SSL method for <b>%s</b>: %s',[sitename,sslMethodToSTring(s)]);
     end;
   end
   else
@@ -2347,9 +2357,10 @@ begin
           [x.Strings[i]]);
         Continue;
       end;
-      v := StrToIntDef(SubString(params, ' ', 2), integer(s.sslmethod));
-      if ((v >= 0) and (v <= 8)) then
-        s.sslmethod := TSSLMethods(v);
+        v := StrToIntDef(method, integer(s.sslmethod));
+        if ((v >= 0) and (v <= 8)) then
+          s.sslmethod := TSSLMethods(v);
+        irc_addText(Netname,Channel,'SSL method for <b>%s</b>: %s',[sitename,sslMethodToSTring(s)]);
     end;
   end;
   Result := True;
