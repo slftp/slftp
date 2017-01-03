@@ -2315,12 +2315,11 @@ var
   i, v: integer;
   x: TStringList;
 begin
-  //  Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);
 
-  if ((method <> '') and ((i < 0) or (i > 8))) then
+  if ((method <> '') and ((i < 0) or (i > Integer(High(TSSLMethods))))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.',
       [method]);
@@ -2337,10 +2336,7 @@ begin
         Continue;
       if s.PermDown then
         Continue;
-
-      v := StrToIntDef(method, integer(s.sslmethod));
-      if ((v >= 0) and (v <= 8)) then
-        s.sslmethod := TSSLMethods(v);
+      if method <> '' then s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
       irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
         sslMethodToSTring(s)]);
     end;
@@ -2358,9 +2354,7 @@ begin
           [x.Strings[i]]);
         Continue;
       end;
-      v := StrToIntDef(method, integer(s.sslmethod));
-      if ((v >= 0) and (v <= 8)) then
-        s.sslmethod := TSSLMethods(v);
+     if method <> '' then s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
       irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
         sslMethodToSTring(s)]);
     end;
