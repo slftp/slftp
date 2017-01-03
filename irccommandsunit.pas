@@ -2318,15 +2318,15 @@ begin
   //  Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
-  i:=StrToIntDef(method,-1);
+  i := StrToIntDef(method, -1);
 
-
-  if ((method <> '') and ((i < 0) or (i > 8))) then begin
-    irc_addtext(Netname,Channel,'<c4><b>Syntax error</c></b>: %s is not valid SSL method.',[method]);
-    Result   := True;
+  if ((method <> '') and ((i < 0) or (i > 8))) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.',
+      [method]);
+    Result := True;
     Exit;
   end;
-
 
   if sitename = '*' then
   begin
@@ -2338,10 +2338,11 @@ begin
       if s.PermDown then
         Continue;
 
-        v := StrToIntDef(method, integer(s.sslmethod));
-        if ((v >= 0) and (v <= 8)) then
-          s.sslmethod := TSSLMethods(v);
-       irc_addText(Netname,Channel,'SSL method for <b>%s</b>: %s',[sitename,sslMethodToSTring(s)]);
+      v := StrToIntDef(method, integer(s.sslmethod));
+      if ((v >= 0) and (v <= 8)) then
+        s.sslmethod := TSSLMethods(v);
+      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
+        sslMethodToSTring(s)]);
     end;
   end
   else
@@ -2357,10 +2358,11 @@ begin
           [x.Strings[i]]);
         Continue;
       end;
-        v := StrToIntDef(method, integer(s.sslmethod));
-        if ((v >= 0) and (v <= 8)) then
-          s.sslmethod := TSSLMethods(v);
-        irc_addText(Netname,Channel,'SSL method for <b>%s</b>: %s',[sitename,sslMethodToSTring(s)]);
+      v := StrToIntDef(method, integer(s.sslmethod));
+      if ((v >= 0) and (v <= 8)) then
+        s.sslmethod := TSSLMethods(v);
+      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
+        sslMethodToSTring(s)]);
     end;
   end;
   Result := True;
@@ -5983,19 +5985,19 @@ begin
 
   if affils <> '' then
   begin
-    s.siteAffils:=affils;
+    s.siteAffils := affils;
   end;
-    ss :=s.SiteAffils;
-    if ss <> '' then
-      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
-    else
-      irc_addText(Netname, Channel, 'No affils available.');
-(*
-  ss := s.siteaffils;
+  ss := s.SiteAffils;
   if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-      ['', sitename]), 12);
-      *)
+    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
+  else
+    irc_addText(Netname, Channel, 'No affils available.');
+  (*
+    ss := s.siteaffils;
+    if ss <> '' then
+      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
+        ['', sitename]), 12);
+        *)
   Result := True;
 end;
 
