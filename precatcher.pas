@@ -729,9 +729,10 @@ procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
 begin
   if not precatcherauto then
     Exit;
+
+  queue_lock.Enter;
   try
-    queue_lock.Enter();
-      try
+    try
       PrecatcherProcessB(net, chan, nick, Data);
     except
       on e: Exception do
@@ -742,6 +743,7 @@ begin
   finally
     queue_lock.Leave;
   end;
+
 end;
 
 function ProcessChannels(s: AnsiString): boolean;
