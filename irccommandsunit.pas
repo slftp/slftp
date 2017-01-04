@@ -4576,15 +4576,13 @@ begin
     end;
 end;
 
-function IrcSetChanName(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetChanName(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   nn, blowchannel, Names: AnsiString;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
   y: TStringList;
   i: integer;
-
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
@@ -4594,8 +4592,7 @@ begin
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
   begin
-    irc_addtext(Netname, Channel,
-      '<c4><b>ERROR</c>:</b> Cant find network -> %s', [nn]);
+    irc_addtext(Netname, Channel, '<c4><b>ERROR</c>:</b> Cant find network -> %s', [nn]);
     exit;
   end;
 
@@ -4603,15 +4600,13 @@ begin
 
   if b = nil then
   begin
-    // queue_lock.Leave;
     irc_addtext(Netname, Channel, 'Cant find Channel -> %s', [blowchannel]);
     exit;
   end;
 
   if Names = '' then
   begin
-    irc_addtext_b(Netname, Channel, format('Channel name(s): %s',
-      [trim(b.Names)]));
+    irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [trim(b.Names)]));
     Result := True;
     exit;
   end;
@@ -4625,9 +4620,9 @@ begin
   end;
 
   y := TStringList.Create;
-  y.Delimiter := ' ';
-  y.DelimitedText := Names;
   try
+    y.Delimiter := ' ';
+    y.DelimitedText := Names;
 
     for i := 0 to y.Count - 1 do
 
@@ -5028,9 +5023,9 @@ begin
     exit;
   end;
 
+  // maybe needed to block inserting new rule while copying
   //queue_lock.Enter;
   //try
-  //  try
 
   for i := 0 to rules.Count - 1 do
   begin
@@ -5051,13 +5046,8 @@ begin
 
   RulesSave;
 
-  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s,
-    src_section]);
+  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, src_section]);
 
-  //  except
-  //    on E: Exception do
-  //      irc_AddText(Netname, Channel, format('<c4>[Exception]</c> in IrcRuleCopy: %s', [E.Message]));
-  //  end;
   //finally
   //  queue_lock.Leave;
   //end;
