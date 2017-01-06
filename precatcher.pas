@@ -827,24 +827,20 @@ var
   f: TextFile;
 begin
   cdClear;
-  Debug(dpError,'count',IntToStr(catcherFile.Count));
-  Debug(dpError,'TEXT',catcherFile.Text);
   i := 0;
   while (i < catcherFile.Count) do
   begin
-  Debug(dpError,'while',IntToStr(i));
     if not ProcessChannels(catcherFile[i]) then
     begin
-      Debug(dpError,'remove',catcherFile[i]);
       catcherFile.Delete(i);
       Dec(i);
     end;
-    Debug(dpError,'add',catcherFile[i]);
     Inc(i);
   end;
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
+
     for i := 0 to catcherFile.Count - 1 do // delete all old files first
     begin
       S := catcherFile[i];
@@ -1232,10 +1228,12 @@ end;
 procedure PrecatcherStart;
 begin
   PrecatcherReload;
-  if (config.ReadBool('sites', 'split_site_data', False)) then
-    LoadSplitChanFiles;
-
   catcherFile.LoadFromFile(catcherFileName);
+  
+//  if (config.ReadBool('sites', 'split_site_data', False)) then
+//    LoadSplitChanFiles;
+
+
   PrecatcherReBuild;
 end;
 
@@ -1249,9 +1247,9 @@ begin
   ignorelista.Clear;
   replacefrom.Clear;
   replaceto.Clear;
-//  PrecatcherRebuild;
-//  catcherFile.Clear;
-//  catcherFile.LoadFromFile(catcherFileName);
+  PrecatcherRebuild;
+  catcherFile.Clear;
+  //catcherFile.LoadFromFile(catcherFileName);
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
     LoadSplitChanFiles;
