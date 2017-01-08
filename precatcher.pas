@@ -1197,6 +1197,7 @@ var
   SearchRec: TSearchRec;
   rules_path: AnsiString;
 begin
+  catcherFile.Clear;
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
 
   intFound := FindFirst(rules_path + '*.chans', faAnyFile, SearchRec);
@@ -1245,9 +1246,10 @@ begin
   ignorelista.Clear;
   replacefrom.Clear;
   replaceto.Clear;
-  PrecatcherRebuild;
   catcherFile.Clear;
-  //catcherFile.LoadFromFile(catcherFileName);
+  catcherFile.LoadFromFile(catcherFileName);
+  PrecatcherRebuild;
+
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
     LoadSplitChanFiles;
