@@ -27,8 +27,8 @@ function console_windows: AnsiString;
 procedure ConsoleInit;
 procedure ConsoleUninit;
 
-function ReadAppQueueCaption:AnsiString;
-function ReadAppSitesCaption:AnsiString;
+function ReadAppQueueCaption: AnsiString;
+function ReadAppSitesCaption: AnsiString;
 
 var
   no_console_msg: Boolean;
@@ -162,10 +162,10 @@ var app: TMySlApp;
 
 procedure ConsoleInit;
 begin
-  add_time_stamp:= config.ReadBool('console','add_time_stamp',False);
-  no_console_msg:= config.ReadBool('console','no_console_msg',False);
-  no_console_queue:= config.ReadBool('console','no_console_queue',False);
-  no_console_slot:= config.ReadBool('console','no_console_slot',False);
+  add_time_stamp := config.ReadBool('console','add_time_stamp', False);
+  no_console_msg := config.ReadBool('console','no_console_msg', False);
+  no_console_queue := config.ReadBool('console','no_console_queue', False);
+  no_console_slot := config.ReadBool('console','no_console_slot', False);
 end;
 
 procedure ConsoleUninit;
@@ -173,21 +173,21 @@ begin
 
 end;
 
-function ReadAppQueueCaption:AnsiString;
+function ReadAppQueueCaption: AnsiString;
 begin
-  result:=app.queuestat.caption;
+  result := app.queuestat.caption;
 end;
-function ReadAppSitesCaption:AnsiString;
+function ReadAppSitesCaption: AnsiString;
 begin
-result:= app.sitesstat.caption;
+result := app.sitesstat.caption;
 end;
 
 function consolestrip(const s: AnsiString): AnsiString;
-var i: Integer;
-    skip: Integer;
+var
+  i, skip: Integer;
 begin
-  Result:= '';
-  skip:= 0;
+  Result := '';
+  skip := 0;
   for i:= 1 to length(s) do
     if (skip = 0) then
     begin
@@ -220,14 +220,14 @@ function MyFindWindow(const windowtitle: AnsiString): TslCommandWindow;
 var i: Integer;
     t: TslCommandWindow;
 begin
-  Result:= nil;
-  for i:= 0 to app.m.children.Count -1 do
+  Result := nil;
+  for i := 0 to app.m.children.Count - 1 do
   begin
     try if i > app.m.children.Count then Break; except Break; end;
-    t:= TslCommandWindow( app.m.children[i] );
+    t := TslCommandWindow( app.m.children[i] );
     if AnsiSameText(t.Title, windowtitle) then
     begin
-      Result:= t;
+      Result := t;
       exit;
     end;
   end;
@@ -251,20 +251,26 @@ end;
 procedure console_addline(const windowtitle, msg: AnsiString);
 var w: AnsiString;
 begin
-  if app = nil then exit;
+  if app = nil then
+    exit;
 
-  w:= windowtitle;
-  if w = '' then w:= 'Admin';
+  w := windowtitle;
+  if w = '' then
+    w := 'Admin';
+
 (*
   if (no_console_msg and (UpperCase(w) <> 'ADMIN') and (UpperCase(w) <> 'QUEUE') and (UpperCase(w) <> 'SLOTS')) then exit;
   if (no_console_queue and (UpperCase(w) = 'QUEUE')) then exit;
   if (no_console_slot and (UpperCase(w) = 'SLOTS')) then exit;
 *)
+
   try
     if add_time_stamp then
-      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now),msg])))
+      //app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now),msg])))
+      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), wraptext(msg, (slScreen.GetWidth() - 2))])))
     else
-      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, msg));
+      //app.AddConsoleTask(TTextBoxAddLineTask.Create(w, msg));
+      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, wraptext(msg, (slScreen.GetWidth() - 2))));
   except
     on e: Exception do
     begin
@@ -275,9 +281,12 @@ end;
 
 procedure console_add_ircwindow(const windowtitle: AnsiString);
 begin
-  if (no_console_msg) then exit;
+  if (no_console_msg) then
+    exit;
 
-  if app = nil then exit;
+  if app = nil then
+    exit;
+
   slvision_lock.Enter();
   try
     if nil = MyFindWindow(windowtitle) then
@@ -289,10 +298,13 @@ end;
 
 procedure console_add_dummywindow(const windowtitle: AnsiString);
 begin
-  if app = nil then exit;
+  if app = nil then
+    exit;
 
-  if (no_console_queue and (UpperCase(windowtitle) = 'QUEUE')) then exit;
-  if (no_console_slot and (UpperCase(windowtitle) = 'SLOTS')) then exit;
+  if (no_console_queue and (UpperCase(windowtitle) = 'QUEUE')) then
+    exit;
+  if (no_console_slot and (UpperCase(windowtitle) = 'SLOTS')) then
+    exit;
 
   slvision_lock.Enter();
   try
@@ -318,17 +330,20 @@ begin
 end;
 
 function console_windows: AnsiString;
-var i: Integer;
+var
+  i: Integer;
 begin
-  Result:= '';
-  if app = nil then exit;
+  Result := '';
+  if app = nil then
+    exit;
+
   try
     slvision_lock.Enter();
     try
       for i:= 0 to app.m.children.Count-1 do
       begin
         try if i > app.m.children.Count then Break; except Break; end;
-        Result:= Result + TslWindow(app.m.children[i]).Title + #13#10;
+        Result := Result + TslWindow(app.m.children[i]).Title + #13#10;
       end;
     finally
       slvision_lock.Leave;
@@ -336,21 +351,22 @@ begin
   except
     on e: Exception do
     begin
-      Result:= '';
+      Result := '';
       Debug(dpError, section, Format('[EXCEPTION] console_windows: %s', [e.Message]));
     end;
   end;
 end;
 
 procedure console_delwindow(const windowtitle: AnsiString);
-var t: TslCommandWindow;
+var
+  t: TslCommandWindow;
 begin
   if app = nil then exit;
 
   try
     slvision_lock.Enter();
     try
-      t:= MyFindWindow(windowtitle);
+      t := MyFindWindow(windowtitle);
       if t <> nil then t.Free;
     finally
       slvision_lock.Leave;
@@ -366,7 +382,7 @@ end;
 function console_showwindow(const windowtitle: AnsiString): Boolean;
 begin
   if app <> nil then
-  begin  
+  begin
     try
       app.AddConsoleTask(TShowWindowTask.Create(windowtitle));
     except
@@ -376,12 +392,12 @@ begin
       end;
     end;
   end;
-  Result:= True;
+  Result := True;
 end;
 
 procedure ConsoleStart;
 begin
-  app:= TMySlApp.Create;
+  app := TMySlApp.Create;
   with app do
   begin
     try
@@ -510,7 +526,7 @@ end;
 procedure Console_QueueDel(name: AnsiString);
 begin
   if (no_console_queue) then exit;
-  
+
   try
     slvision_lock.Enter();
     try
@@ -529,15 +545,12 @@ end;
 
 
 { TMySlApp }
-
-
-
 procedure TMySlApp.OnAdminCommand(sender: TslEdit; const command: AnsiString);
 begin
   if 1 = Pos(irccmdprefix, command) then
   begin
     debug(dpMessage, section, command);
-    IrcProcessCommand('CONSOLE', TslWindow(sender.parent.parent.parent.parent).Title, Copy(command, length(irccmdprefix)+1, 10000));
+    IrcProcessCommand('CONSOLE', TslWindow(sender.parent.parent.parent.parent).Title, Copy(command, length(irccmdprefix) + 1, 10000));
   end;
 end;
 
@@ -545,26 +558,25 @@ constructor TMySlApp.Create;
 begin
   inherited Create(80, 25);//config.ReadInteger(section, 'height', 50)
 
-  dir:= ExtractFilePath(ParamStr(0));
+  dir := ExtractFilePath(ParamStr(0));
 
-  OnExit:= MyOnexit;
-  OnShow:= MyOnShow;
-  vl:= TslLabel.Create(Get_VersionString(ParamStr(0)), menubartop);
+  OnExit := MyOnexit;
+  OnShow := MyOnShow;
+  vl := TslLabel.Create(Get_VersionString(ParamStr(0)), menubartop);
 
-  m:= TslMutualVisibilityControl.Create(self);
+  m := TslMutualVisibilityControl.Create(self);
 
-  cw:= TslCommandWindow.Create(0, 0, 'Admin', 'Command:', m);
+  cw := TslCommandWindow.Create(0, 0, 'Admin', 'Command:', m);
 
-  cw.commandedit.OnCommand:= OnAdminCommand;
+  cw.commandedit.OnCommand := OnAdminCommand;
+  cw.commandedit.OnKeyDown := OnKeyDown;
 
-  cw.commandedit.OnKeyDown:= OnKeyDown;
+  queuestat := TslLabel.Create('', menubarbottom);
+  sitesstat := TslLabel.Create('', menubarbottom);
+  sitesstat.Left := 2;
 
-  queuestat:= TslLabel.Create('', menubarbottom);
-  sitesstat:= TslLabel.Create('', menubarbottom);
-  sitesstat.Left:= 2;
-
-  inited:= False;
-  main_timer:= TMainTimer.Create;
+  inited := False;
+  main_timer := TMainTimer.Create;
   timers.Add(main_timer);
 end;
 
@@ -582,15 +594,16 @@ begin
 end;
 
 procedure TMySlApp.MyOnExit;
-var x: TEncStringlist;
+var
+  x: TEncStringlist;
 begin
-  vl.Caption:= 'slFtp exiting';
-  slshutdown:= True;
+  vl.Caption := 'slFtp exiting';
+  slshutdown := True;
 
-  x:= TEncStringList.Create(passphrase);
+  x := TEncStringList.Create(passphrase);
   try
     x.assign( cw.commandedit.fCommands );
-    x.SaveToFile(ExtractFilePath(ParamStr(0))+'slftp.history');
+    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.history');
   finally
     x.Free;
   end;
@@ -599,15 +612,16 @@ end;
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
 label ujra;
-var fs, p, p2: AnsiString;
-    x: TEncStringList;
+var
+  fs, p, p2: AnsiString;
+  x: TEncStringList;
 begin
 
-  fs:=CommonFileCheck;
+  fs := CommonFileCheck;
   if fs <> '' then
   begin
     ShowMessagE(fs);
-    shouldquit:= True;
+    shouldquit := True;
     exit;
   end;
 
@@ -616,12 +630,12 @@ ujra:
   begin
     if not InputQuery('1st time password','Enter your password:', p, True, dir+'masterpass.txt') then//
     begin
-      shouldquit:= True;
+      shouldquit := True;
       exit;
     end;
     if not InputQuery('Password','Repeat:', p2, True, dir+'masterpass.txt') then//
     begin
-      shouldquit:= True;
+      shouldquit := True;
       exit;
     end;
 
@@ -631,13 +645,13 @@ ujra:
       goto ujra;
     end;
 
-    p2:= 'r89v234ur8weurw8ehjrusdhfiusehfr3489rhweiufhsdufhsdehr9384h5v239842v384h';
+    p2 := 'r89v234ur8weurw8ehjrusdhfiusehfr3489rhweiufhsdufhsdehr9384h5v239842v384h';
 
   end else
   begin
     if not InputQuery('Password','Enter your password:', p, True, dir+'masterpass.txt') then//
     begin
-      shouldquit:= True;
+      shouldquit := True;
       exit;
     end;
   end;
@@ -654,14 +668,14 @@ ujra:
   if not ConfigInit(p) then
   begin
     ShowMessage('Cant load config file, wrong password?');
-    shouldquit:= True;
+    shouldquit := True;
     exit;
   end;
 
   DebugInit;
 
     slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-    vl.Caption:=cmod_VersionString;
+    vl.Caption := cmod_VersionString;
 
   if config.ReadBool('backup', 'run_backup_on_startup', True) then
     BackupBackup;
@@ -669,36 +683,36 @@ ujra:
   if not ReadSites then
   begin
     ShowMessage('Negative on that Houston!');
-    shouldquit:= True;
+    shouldquit := True;
     exit;
   end;
 
-  p:= Main_Init;
+  p := Main_Init;
   if p <> '' then
   begin
     ShowMessage(p);
-    shouldquit:= True;
+    shouldquit := True;
     exit;
   end;
 
   if not no_console_slot then
   begin
-    slots:= AddDummyWindow('Slots');
+    slots := AddDummyWindow('Slots');
   end;
   if not no_console_queue then
   begin
-    queue:= AddDummyWindow('Queue');
+    queue := AddDummyWindow('Queue');
   end;
-  cw.textbox.maxlines:= config.ReadInteger(section, 'maxlines', 1000);
-  cw.commandedit.maxcommands:= config.ReadInteger(section, 'history_maxlines', 100);
+  cw.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  cw.commandedit.maxcommands := config.ReadInteger(section, 'history_maxlines', 100);
   irc_Addtext('', '', '%s started', [Get_VersionString(ParamStr(0))]);
   Main_Run;
-  main_timer.Interval:= 100;
-  inited:= True;
+  main_timer.Interval := 100;
+  inited := True;
   try
-    x:= TEncStringList.Create(passphrase);
+    x := TEncStringList.Create(passphrase);
     try
-      x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.history');
+      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.history');
       cw.commandedit.fCommands.Assign(x);
     finally
       x.Free;
@@ -718,10 +732,10 @@ end;
 
 function TMySlApp.AddIrcWindow(const netname: AnsiString): TslCommandWindow;
 begin
-  Result:= TslCommandWindow.Create(0,0,netname, 'Text:', nil);
-  Result.textbox.maxlines:= config.ReadInteger(section, 'maxlines', 1000);
-  Result.Visible:= slvHidden;
-  Result.commandedit.OnCommand:= OnIrcCommand;
+  Result := TslCommandWindow.Create(0,0,netname, 'Text:', nil);
+  Result.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  Result.Visible := slvHidden;
+  Result.commandedit.OnCommand := OnIrcCommand;
   Result.SetParent(m);
 end;
 
@@ -729,12 +743,12 @@ function TMySlApp.KeyEvent(c: AnsiChar; extended: Boolean): Boolean;
 begin
   if ((c = #27) and (inited)) then
   begin
-    cw.Visible:= slvVisible;
-    Result:= True;
+    cw.Visible := slvVisible;
+    Result := True;
     exit;
   end;
 
-  Result:= inherited KeyEvent(c, extended);
+  Result := inherited KeyEvent(c, extended);
 end;
 
 procedure TMySlApp.OnIrcCommand(Sender: TslEdit; const command: AnsiString);
@@ -761,11 +775,11 @@ procedure TMySlApp.OnSiteCommand(Sender: TslEdit; const command: AnsiString);
 var s,t: AnsiString;
     rt: TRawTask;
 begin
-  t:= TslWindow(sender.parent.parent.parent.parent).Title;
-  s:= SubString(t, '/', 1);
+  t := TslWindow(sender.parent.parent.parent.parent).Title;
+  s := SubString(t, '/', 1);
 
-  rt:= TRawTask.Create('','', s, '', command);
-  rt.wantedslot:= t;
+  rt := TRawTask.Create('','', s, '', command);
+  rt.wantedslot := t;
   try
     AddTask(rt);
   except
@@ -883,13 +897,12 @@ end;
 
 { TSiteStatTask }
 
-constructor TSiteStatTask.Create(allsites, upsites, downsites,
-  unknown: Cardinal);
+constructor TSiteStatTask.Create(allsites, upsites, downsites, unknown: Cardinal);
 begin
-  self.allsites:= allsites;
-  self.upsites:= upsites;
-  self.downsites:= downsites;
-  self.unknown:= unknown;
+  self.allsites := allsites;
+  self.upsites := upsites;
+  self.downsites := downsites;
+  self.unknown := unknown;
 end;
 
 procedure TSiteStatTask.Execute;
@@ -949,7 +962,7 @@ begin
   if w <> nil then
     inherited Create(windowtitle, w.textbox)
   else
-    inherited Create(windowtitle, nil) 
+    inherited Create(windowtitle, nil)
 end;
 
 function TslCommandWindowTask.FindWindow: TslCommandWindow;

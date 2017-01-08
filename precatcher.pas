@@ -729,9 +729,10 @@ procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
 begin
   if not precatcherauto then
     Exit;
+
+  queue_lock.Enter;
   try
-    queue_lock.Enter();
-      try
+    try
       PrecatcherProcessB(net, chan, nick, Data);
     except
       on e: Exception do
@@ -742,6 +743,7 @@ begin
   finally
     queue_lock.Leave;
   end;
+
 end;
 
 function ProcessChannels(s: AnsiString): boolean;
@@ -825,24 +827,20 @@ var
   f: TextFile;
 begin
   cdClear;
-  Debug(dpError,'count',IntToStr(catcherFile.Count));
-  Debug(dpError,'TEXT',catcherFile.Text);
   i := 0;
   while (i < catcherFile.Count) do
   begin
-  Debug(dpError,'while',IntToStr(i));
     if not ProcessChannels(catcherFile[i]) then
     begin
-      Debug(dpError,'remove',catcherFile[i]);
       catcherFile.Delete(i);
       Dec(i);
     end;
-    Debug(dpError,'add',catcherFile[i]);
     Inc(i);
   end;
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
+
     for i := 0 to catcherFile.Count - 1 do // delete all old files first
     begin
       S := catcherFile[i];
@@ -1201,6 +1199,7 @@ var
   SearchRec: TSearchRec;
   rules_path: AnsiString;
 begin
+  catcherFile.Clear;
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
 
   intFound := FindFirst(rules_path + '*.chans', faAnyFile, SearchRec);
@@ -1230,10 +1229,12 @@ end;
 procedure PrecatcherStart;
 begin
   PrecatcherReload;
-  if (config.ReadBool('sites', 'split_site_data', False)) then
-    LoadSplitChanFiles;
-
   catcherFile.LoadFromFile(catcherFileName);
+  
+//  if (config.ReadBool('sites', 'split_site_data', False)) then
+//    LoadSplitChanFiles;
+
+
   PrecatcherReBuild;
 end;
 
@@ -1247,9 +1248,10 @@ begin
   ignorelista.Clear;
   replacefrom.Clear;
   replaceto.Clear;
-//  PrecatcherRebuild;
-//  catcherFile.Clear;
-//  catcherFile.LoadFromFile(catcherFileName);
+  catcherFile.Clear;
+  catcherFile.LoadFromFile(catcherFileName);
+  PrecatcherRebuild;
+
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
     LoadSplitChanFiles;
