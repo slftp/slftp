@@ -46,7 +46,6 @@ begin
 end;
 
 { TPazoSiteNfoTask }
-
 constructor TPazoSiteNfoTask.Create(const netname, channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: Integer);
 begin
   ss := TStringStream.Create('');
@@ -162,40 +161,40 @@ begin
 
   // no nfo file found. Reschedule the task and exit.
   queue_lock.Enter;
-  if (nfofile = '') then
-  begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+  try
+    if (nfofile = '') then
     begin
-      Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
-      try
-        r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
-        AddTask(r);
-      except
-        on e: Exception do
-        begin
-          queue_lock.Leave;
-          Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
-          readyerror := True;
-          exit;
+      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      begin
+        Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
+        try
+          r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          AddTask(r);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
+            readyerror := True;
+            exit;
+          end;
         end;
+      end
+      else
+      begin
+        Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
       end;
-    end
-    else
-    begin
-      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
+      ready := True;
+      Result := True;
+      exit;
     end;
+  finally
     queue_lock.Leave;
-    ready := True;
-    Result := True;
-    exit;
   end;
-  queue_lock.Leave;
 
   // try to get the nfo file
   try
     i := s.LeechFile(ss, nfofile);
-
   except
     on e: Exception do
     begin
@@ -204,57 +203,59 @@ begin
       exit;
     end;
   end;
-  
+
   // nfo file could not be downloaded. Reschedule the task and exit.
   queue_lock.Enter;
-  if i <> 1 then
-  begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+  try
+    if i <> 1 then
     begin
-      Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
+      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      begin
+        Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
 
-      try
-        r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
-        AddTask(r);
-      except
-        on e: Exception do
-        begin
-          queue_lock.Leave;
-          Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
-          readyerror := True;
-          exit;
+        try
+          r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          AddTask(r);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[Exception] in TPazoSiteNfoTask AddTask %s', [e.Message]));
+            readyerror := True;
+            exit;
+          end;
         end;
+      end
+      else
+      begin
+        Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
       end;
-    end
-    else
-    begin
-      Debug(dpSpam, section, 'FAIL: Maximum readd attempts reached.');
-
+      ready := True;
+      Result := True;
+      exit;
     end;
+  finally
     queue_lock.Leave;
-    ready := True;
-    Result := True;
-    exit;
   end;
-  queue_lock.Leave;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
   queue_lock.Enter;
   try
-    parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
-    dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
-    Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
-  except
-    on e: Exception do
-    begin
-      queue_lock.Leave;
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask: %s', [e.Message]));
-      readyerror := True;
-      exit;
+    try
+      parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
+      dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
+      Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask: %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
     end;
+  finally
+    queue_lock.Leave;
   end;
-  queue_lock.Leave;
 
   ready := True;
   Result := True;
