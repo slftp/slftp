@@ -766,6 +766,17 @@ begin
         end;
 
 
+      426:
+        begin
+          //COMPLETE MSG: 426 ban.slow.upload
+          if (0 < AnsiPos('ban.slow.upload', s.lastResponse)) then
+          begin
+            // should setdown this crapsite because they should kick you from site when you get banned
+            goto TryAgain;
+          end;
+        end;
+
+
 
       450:
         begin
