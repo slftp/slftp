@@ -1,0 +1,36 @@
+From 0fb502f2ded56f4559735d67a19784de531a3dae Mon Sep 17 00:00:00 2001
+From: eN0Rm <eN0Rm@irc.pr0>
+Date: Mon, 9 Jan 2017 17:36:22 +0100
+Subject: [PATCH] refactor(racetask): Add 450 Requested Transfer Unavailable
+
+---
+ taskrace.pas | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/taskrace.pas b/taskrace.pas
+index 259ef2f..eab70ff 100644
+--- a/taskrace.pas
++++ b/taskrace.pas
+@@ -2384,6 +2384,19 @@ begin
+         end;
+ 
+ 
++
++      450:
++        begin
++          //COMPLETE MSG: 450 net.sf.drftpd.NoAvailableSlaveException: Requested Transfer Unavailable
++          if (0 < AnsiPos('Requested Transfer Unavailable', lastResponse)) then
++          begin
++            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
++            goto TryAgain;
++          end;
++        end;
++
++
++
+       452:
+         begin
+           //COMPLETE MSG: 452 Error writing file: Success.
+-- 
+2.9.3
+

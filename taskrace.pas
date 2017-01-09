@@ -2373,6 +2373,19 @@ begin
         end;
 
 
+
+      450:
+        begin
+          //COMPLETE MSG: 450 net.sf.drftpd.NoAvailableSlaveException: Requested Transfer Unavailable
+          if (0 < AnsiPos('Requested Transfer Unavailable', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+
+
       452:
         begin
           //COMPLETE MSG: 452 Error writing file: Success.
