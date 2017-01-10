@@ -766,6 +766,17 @@ begin
         end;
 
 
+      426:
+        begin
+          //COMPLETE MSG: 426 ban.slow.upload
+          if (0 < AnsiPos('ban.slow.upload', s.lastResponse)) then
+          begin
+            // should setdown this crapsite because they should kick you from site when you get banned
+            goto TryAgain;
+          end;
+        end;
+
+
 
       450:
         begin
@@ -2371,6 +2382,19 @@ begin
           end;
 
         end;
+
+
+
+      450:
+        begin
+          //COMPLETE MSG: 450 net.sf.drftpd.NoAvailableSlaveException: Requested Transfer Unavailable
+          if (0 < AnsiPos('Requested Transfer Unavailable', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
 
 
       452:
