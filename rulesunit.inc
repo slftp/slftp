@@ -1,7 +1,7 @@
 (*Rule Description's*)
 const
 
-  {    Common => TRelease           }
+  {  Common => TRelease  }
   TagDescription: string = 'You can use tag condition to check if a specified tag exists in the releasename.' + #13#10 +
     'Basicly, tag is a shorthand to *.tag.*, *.tag-*, *-tag.*, *-tag-*' + #13#10 + '!ruleadd HQ PS2 if tag = NTSC then DROP' + #13#10 +
     '!ruleadd HQ TV if not tag in HDTV, PDTV then DROP';
@@ -59,10 +59,10 @@ const
 
   DisksDescription: string = 'Returns with the number of disks (for eg 3 for Foobar.2008.NTSC.3DiSC.MDVDR-GRP' + #13#10 + 'NOTE: this is NOT for MP3 rips.' + #13#10;
 
-  {    0DAY => T0DAYRelease           }
+  {  0DAY => T0DAYRelease  }
   zerodaySourceDescription: string = 'Returns with the 0day rip''s source/OS.' + #13#10 + 'Example: if not ( 0daysource in WIN, LINUX ) then DROP' + #13#10;
 
-  {   TV    => TTVRelease       }
+  {  TV => TTVRelease  }
   TVCurrentEpisiodeDescription: string = 'Returns true when the rip has the same episode number as the database. Returns false when we have no value.';
   TVCurrentSeasonDescription: string = 'Returns true when the rip has the same season number as the database. Returns false when we have no value.';
   TVDailyShowDescription: string = 'Returns true when the rip airs daily. Returns false when we have no value.';
@@ -85,12 +85,21 @@ const
   TVtagDescription: string = 'Returns the "tv tag" of the release name. Check slftp.ini, [kb] tvtags.';
   TVLanguageDescription: string = 'Returns with the Language field parsed from TVMaze.';
 
+  {  IMDB => TIMDBRelease  }
+  IMDBWideDescription: string = 'Returns with the a boolean for Wide (CINE). Returns false if IMDB lookup is not yet ready.';
+  IMDBLimitedDescription: string = 'Returns with the a boolean for Limited. Returns false if IMDB lookup is not yet ready.';
+  IMDBFestivalDescription: string = 'Returns with the a boolean for Festival. Returns false if IMDB lookup is not yet ready.';
+  IMDBSTVDescription: string = 'Returns true, if the movie is STV (Reads Countries from slftp.imdbcountries). Returns false if IMDB lookup is not yet ready.';
+  IMDBCineYearDescription: string = 'Returns the Screeing year of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBVotesDescription: string = 'Returns with the number of votes of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBRatingDescription: string = 'Returns with the current IMDB rating of the movie MULTIPLIED by ten. (so max score is 100, min is 0) Returns zero if IMDB lookup is not yet ready.';
+  IMDBScreensDescription: string = 'Returns with the number of opening screens of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBYearDescription: string = 'Returns with the year of the movie''s release date. Returns zero if IMDB lookup is not yet ready.';
 
-  {    MP3 => TMP3Release           }
-  {    NFO => TNFORelease           }
-  {    IMDB => TMP3Release           }
-  {    MVID => TMP3Release           }
-  {    n => TnRelease           }
-  {    n => TnRelease           }
-  {    n => TnRelease           }
+
+  {  MP3 => TMP3Release  }
+  {  FO => TNFORelease  }
+  {  MVID => TMP3Release  }
+  {  n => TnRelease  }
+  {  n => TnRelease  }
   

@@ -2286,7 +2286,7 @@ begin
           a_siterules.Free;
         end;
       end;
-  
+
     finally
       a_sites_done.Free;
     end;
@@ -4641,7 +4641,6 @@ begin
 end;
 
 { TConditionTag }
-
 class function TConditionTag.Description: AnsiString;
 begin
   result := TagDescription;
@@ -4668,7 +4667,6 @@ begin
 end;
 
 { TConditionTVtag }
-
 class function TConditionTVtag.Description: AnsiString;
 begin
   Result := TVtagDescription;
@@ -4691,12 +4689,9 @@ begin
 end;
 
 { TConditionIMDBYear }
-
 class function TConditionIMDBYear.Description: AnsiString;
 begin
-  Result :=
-    'Returns with the year of the movie''s release date. Returns zero if IMDB lookup is not yet ready.';
-  //+#13#10;
+  Result := IMDBYearDescription;
 end;
 
 class function TConditionIMDBYear.Name: AnsiString;
@@ -4815,7 +4810,7 @@ end;
 
 class function TConditionIMDBScreens.Description: AnsiString;
 begin
-  Result := 'Returns with the number of opening screens of the movie.';
+  Result := IMDBScreensDescription;
 end;
 
 class function TConditionIMDBScreens.Name: AnsiString;
@@ -4838,11 +4833,9 @@ begin
 end;
 
 { TConditionIMDBRating }
-
 class function TConditionIMDBRating.Description: AnsiString;
 begin
-  Result :=
-    'Returns with the current IMDB rating of the movie MULTIPLIED by ten. (so max score is 100, min is 0)';
+  Result := IMDBRatingDescription;
 end;
 
 class function TConditionIMDBRating.Name: AnsiString;
@@ -4865,10 +4858,9 @@ begin
 end;
 
 { TConditionIMDBVotes }
-
 class function TConditionIMDBVotes.Description: AnsiString;
 begin
-  Result := 'Returns with the number of votes of the movie.';
+  Result := IMDBVotesDescription;
 end;
 
 class function TConditionIMDBVotes.Name: AnsiString;
@@ -4892,8 +4884,7 @@ end;
 
 class function TConditionIMDBWide.Description: AnsiString;
 begin
-  Result := 'Returns with the a boolean for Wide. Returns zero if IMDB lookup is not yet ready.';
-  //+#13#10;
+  Result := IMDBWideDescription;
 end;
 
 class function TConditionIMDBWide.Name: AnsiString;
@@ -4917,8 +4908,7 @@ end;
 
 class function TConditionIMDBldt.Description: AnsiString;
 begin
-  Result := 'Returns with the a boolean for Limited. Returns zero if IMDB lookup is not yet ready.';
-  //+#13#10;
+  Result := IMDBLimitedDescription;
 end;
 
 class function TConditionIMDBldt.Name: AnsiString;
@@ -4942,9 +4932,7 @@ end;
 
 class function TConditionIMDBFestival.Description: AnsiString;
 begin
-  Result :=
-    'Returns with the a boolean for Festival. Returns zero if IMDB lookup is not yet ready.';
-  //+#13#10;
+  Result := IMDBFestivalDescription;
 end;
 
 class function TConditionIMDBFestival.Name: AnsiString;
@@ -4967,11 +4955,9 @@ begin
 end;
 
 { TConditionIMDBStv }
-
 class function TConditionIMDBStv.Description: AnsiString;
 begin
-  Result := 'Returns true, if the movie is STV (Read Countries from slftp.ini [kb])';
-  //+#13#10;
+  Result := IMDBSTVDescription;
 end;
 
 class function TConditionIMDBStv.Name: AnsiString;
@@ -4986,7 +4972,7 @@ begin
     if r.rls is TIMDBRelease then
     begin
       if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_stvm;
+        Result := TImdbRelease(r.rls).imdb_stvm;  //maybe rename this some more clear; stvm and stvs aren't clear yet
     end;
   except
     Result := False;
@@ -4994,10 +4980,9 @@ begin
 end;
 
 { TConditionIMDBCineyear }
-
 class function TConditionIMDBCineyear.Description: AnsiString;
 begin
-  Result := 'Returns the Screeing year of the movie.';
+  Result := IMDBCineYearDescription;
 end;
 
 class function TConditionIMDBCineyear.Name: AnsiString;
