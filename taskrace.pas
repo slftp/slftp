@@ -2215,6 +2215,14 @@ begin
             goto TryAgain;
           end;
 
+          //COMPLETE MSG: 550 ASSERT: (0) in file sigfix.c line 81 inside function delay_signaling
+          if (0 < AnsiPos('ASSERT', lastResponse)) then
+          begin
+            //try again (maybe will help) or setdown site - some ftpd problem..
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
         end;
 
 
