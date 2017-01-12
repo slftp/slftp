@@ -877,7 +877,8 @@ begin
 
           // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
           // 550 System Error- /incoming/games/pc/Lara.Croft.GO-R: Permission denied.
-          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) )  ) then
+          // 550 System Error- /TV-BLURAY/Magnum.P.I.S01E11.720p.: Input/output error.
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) OR (0 <> AnsiPos('Input/output error', s.lastResponse)) )  ) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
