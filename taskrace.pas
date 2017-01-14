@@ -877,7 +877,8 @@ begin
 
           // 550 System Error- /MP3/0413/Mirror-Mirror-CD-FLAC-20: Read-only file system.
           // 550 System Error- /incoming/games/pc/Lara.Croft.GO-R: Permission denied.
-          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) )  ) then
+          // 550 System Error- /TV-BLURAY/Magnum.P.I.S01E11.720p.: Input/output error.
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) OR (0 <> AnsiPos('Input/output error', s.lastResponse)) )  ) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
@@ -2210,6 +2211,14 @@ begin
           if (0 < AnsiPos('No text', lastResponse)) then
           begin
             //try again and hopefully it'll work then.
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 550 ASSERT: (0) in file sigfix.c line 81 inside function delay_signaling
+          if (0 < AnsiPos('ASSERT', lastResponse)) then
+          begin
+            //try again (maybe will help) or setdown site - some ftpd problem..
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
