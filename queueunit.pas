@@ -627,6 +627,11 @@ begin
 
         // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
         //if t.ps1.status = rssRealPre then
+        (*
+        *
+        * not working right now because we only have access to TSite & TSiteSlot but no chance to get rls by
+        * them to call pazosite to get infos about affil or not :(
+        *
         if t.ps1.StatusRealPreOrShouldPre then
         begin
           if s.num_dn >= ss.site.max_pre_dn then
@@ -637,11 +642,12 @@ begin
           if s.num_dn >= ss.site.max_dn then
             exit;
         end;
+        *)
 
-      (* OLD CODE before max_pre_dn was added
+      //OLD CODE before max_pre_dn was added
         if s.num_dn >= ss.site.max_dn then
           exit;
-      *)
+
 
         ss.downloadingfrom := True;
 
