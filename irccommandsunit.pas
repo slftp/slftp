@@ -10793,21 +10793,21 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := '\[R(atio)?\:\s?(.*?)\]'; // hardcoded for better result handling..
+    // maybe use this one: //\[?(R(atio)?|Shield|Health\s?)\:?\s?([\d\:\.]+|Unlimited)\]?
+    x.Expression := '\[?(R(atio)?|Shield|Health\s?)\:?\s?(.*?)\]?'; // hardcoded for better result handling..
     if x.Exec(line) then
     begin
-      if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0.0')) then
+      if (AnsiContainsText(x.Match[3], 'Unlimited') or (x.Match[3] = '1:0.0')) then
         ratio := 'Unlimited'
       else
-        ratio := x.Match[2];
+        ratio := x.Match[3];
     end;
 
-    x.Expression := '\[C(redits|reds)?\:\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)\]';
-    // hardcoded for better result handling..
+    x.Expression := '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)\:?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)\]\]?'; // hardcoded for better result handling..
     if x.Exec(line) then
     begin
       minus := False;
-      ss := x.Match[2];
+      ss := x.Match[3];
       if AnsiContainsText(ss, '-') then
       begin
         minus := True;
@@ -10820,7 +10820,7 @@ begin
       ss := StringReplace(ss, '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
 {$ENDIF}
       c := strtofloat(ss);
-      ss := x.Match[3];
+      ss := x.Match[4];
       if AnsiUpperCase(ss) = 'MB' then
       begin
         ss := 'MB';
