@@ -956,7 +956,7 @@ begin
       end;
       psource.Status := rssRealPre;
     end
-    else if ((event = 'COMPLETE') and (not psource.AllPre)) then
+    else if ((event = 'COMPLETE') and (not psource.StatusRealPreOrShouldPre)) then
     begin
       psource.setcomplete(cdno);
     end;
