@@ -344,7 +344,8 @@ begin
       exit;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
-    if t.ps1.status = rssRealPre then
+    //if t.ps1.status = rssRealPre then
+    if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= ss1.site.max_pre_dn then
         exit;
@@ -625,7 +626,8 @@ begin
       begin
 
         // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
-        if t.ps1.status = rssRealPre then
+        //if t.ps1.status = rssRealPre then
+        if t.ps1.StatusRealPreOrShouldPre then
         begin
           if s.num_dn >= ss.site.max_pre_dn then
             exit;
