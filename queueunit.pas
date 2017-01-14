@@ -623,9 +623,26 @@ begin
     begin
       if t.wanted_dn then
       begin
+
+        // or use 'if t.ps1.AllPre then' from pazo.pas but will also pre true when status = rssShouldPre
+        if t.ps1.status = rssRealPre then
+        begin
+          if s.num_dn >= ss.site.max_pre_dn then
+            exit;
+        end
+        else
+        begin
+          if s.num_dn >= ss.site.max_dn then
+            exit;
+        end;
+
+      (* OLD CODE before max_pre_dn was added
         if s.num_dn >= ss.site.max_dn then
           exit;
+      *)
+
         ss.downloadingfrom := True;
+
       end
       else
       if t.wanted_up then
