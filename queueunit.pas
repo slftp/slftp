@@ -343,7 +343,7 @@ begin
     if ss1 = nil then
       exit;
 
-    // or use 'if t.ps1.AllPre then' from pazo.pas but will also pre true when status = rssShouldPre
+    // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     if t.ps1.status = rssRealPre then
     begin
       if s1.num_dn >= ss1.site.max_pre_dn then
@@ -624,7 +624,7 @@ begin
       if t.wanted_dn then
       begin
 
-        // or use 'if t.ps1.AllPre then' from pazo.pas but will also pre true when status = rssShouldPre
+        // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
         if t.ps1.status = rssRealPre then
         begin
           if s.num_dn >= ss.site.max_pre_dn then
