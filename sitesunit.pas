@@ -289,7 +289,7 @@ type
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
     property SiteInfos: AnsiString read GetSiteInfos write SetSiteInfos;
-    property LastCrdits: int64 read GetLastKnownCredits write SetLastKnownCredits;
+    property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
     property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
 
   end;
@@ -1016,7 +1016,7 @@ begin
   if i <> 0 then
   begin
     bnccsere.Enter;
-    try  
+    try
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
     sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
     sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);

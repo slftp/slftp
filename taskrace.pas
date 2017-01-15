@@ -901,8 +901,8 @@ begin
                 grp := Fetch(e, ' ');
                 grp := Fetch(e, ' '); // second word
                 e := '';
-                Debug(dpMessage, c_section, 'Adding grp %s to blacklist on %s', [grp, site1]);
-                irc_Addadmin(Format('Adding Group %s to blacklist on %s', [grp, site1]));
+                Debug(dpError, c_section, 'Adding grp %s to blacklist on %s -> TELL DEVELOPER: %s', [grp, site1, mainpazo.rls.groupname]);
+                irc_Addadmin(Format('Adding Group %s to blacklist on %s -> TELL DEVELOPER: %s', [grp, site1, mainpazo.rls.groupname]));
 
                 r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, grp]), e);
                 if ((r <> nil) and (e = '')) then
@@ -1897,6 +1897,7 @@ begin
           begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
             // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
+            // need to have first coded TSite.LastCredits to get it work somehow
             ssrc.site.SetKredits;
 
             sdst.DestroySocket(False);

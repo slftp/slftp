@@ -72,8 +72,8 @@ type
 
     activeTransfers: TStringList;
 
-    function AllPre: boolean;
-    // returns true if its a pre or at least it should be
+    // returns true if its a pre or at least it should be one
+    function StatusRealPreOrShouldPre: boolean;
     function Source: boolean;
     function Complete: boolean;
 
@@ -1685,7 +1685,7 @@ begin
 
   Result := fsname;
 
-  if ((not AllPre) and (dirlist <> nil)) then
+  if ((not StatusRealPreOrShouldPre) and (dirlist <> nil)) then
   begin
     if dirlist.RacedByMe(True) >= 1 then
     begin
@@ -1853,7 +1853,7 @@ begin
   end;
 end;
 
-function TPazoSite.AllPre: boolean;
+function TPazoSite.StatusRealPreOrShouldPre: boolean;
 begin
   Result := status in [rssShouldPre, rssRealPre];
 end;
