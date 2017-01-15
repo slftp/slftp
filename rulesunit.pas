@@ -2127,7 +2127,7 @@ begin
 
       if (dstps.Name <> ps.Name) then
       begin
-        if (dstps.AllPre) then
+        if (dstps.StatusRealPreOrShouldPre) then
         begin
           if (dstps.reason = '') then
             dstps.reason := 'Affil';
