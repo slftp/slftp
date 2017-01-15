@@ -43,7 +43,7 @@
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
-		sometimes for some people catching stops, need restart
+		sometimes for some people catching stops, need restart -- maybe fixed --
 		OpenSSL v1.1.* isn't supported yet
 		maybe not every response message is already handled, just post them on #slftp
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
@@ -51,27 +51,31 @@
 --=============================( SLFTP v1.5.5 )===================================-
 		{+} New rule for tvlanguage from TVMaze (#79)
 		{+} New IRC Help Command -> !help nhelp
+		{+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
 		{+} Add new sections over IRC -> !help sectionins
 		{+} Wrap IRC Messages into 280 char long chunks (#36)
+		{+} Wrap lines on console window based on width (#36)
 		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
+		{#} Bug with looping of Sample folder fixed (#4) ---- need some more code changes - uses SetFileError ---
 		{#} Fix for tvtag rules -> tvtag weren't initialized (#102)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
 		{#} Skip sites if your DL/UL Slots are 0 (#106) ---- need to be tested ----
 		{#} !credits adjustmens for glFTPd v2.07-BETA2 ---- new code matches less than old one ----
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
-		{^} No [NOT SET] message on pre if site is set to permdown (#108)
+		{^} No [NOT SET] message if site is set to permdown (#108)
 		{^} No need to !setdown before !setpermdown (#108)
+		{^} !sslmethod checks if valid SSL method + shows which one is used
 		{^} Removed warning when "section not found" for complete & nuke announce (#117)
 		{^} Some TV Shows weren't detected as STV from IMDb fetch
 		{^} PermDown check on all irc command with sitename = '*', means no changed settings for PermDown sites when using '*'
 		{^} mp3 genre will also be parsed on bot announce (#114) ---- guess still no drop on mp3genre rule if not found ----
 		{^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
 		{^} some improvements to !site output (Linebreaks, more text for pretime)
-		{^} !affils act like chgrp on glftpd --- dunno exactly what it changes (Commit 62216109) ----
 		{-} slftp resorts bnc entries when one is done (#104) ---- not really a fix for it ----
+		{-} !setaffils removed -> use !affils
 
 --=============================( SLFTP v1.5.4 )===================================-
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
