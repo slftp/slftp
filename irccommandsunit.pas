@@ -801,18 +801,22 @@ var
   section, toadd: AnsiString;
   nsecs, osecs: TStringList;
   ini: TInifile;
+  x:TStringList;
   i: integer;
 begin
   section := UpperCase(SubString(params, ' ', 1));
   toadd := RightStrV2(params, length(section) + 1);
-  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  x:=TStringList.Create;
+  x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+//  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
   osecs := TStringList.Create;
   nsecs := TStringList.Create;
   try
     osecs.Delimiter := ',';
     osecs.Sorted := True;
     osecs.Duplicates := dupIgnore;
-    osecs.DelimitedText := ini.ReadString('sections', section, '');
+    osecs.DelimitedText := x.Values[section];
+//    osecs.DelimitedText := ini.ReadString('sections', section, '');
 
     if toadd = '' then
     begin
@@ -835,15 +839,18 @@ begin
     for i := 0 to nsecs.Count - 1 do
       osecs.Add(nsecs.Strings[i]);
 
-    ini.WriteString('sections', section, osecs.DelimitedText);
-    ini.UpdateFile;
+    x.Values[section]:=osecs.DelimitedText;
+    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  //  ini.WriteString('sections', section, osecs.DelimitedText);
+  //  ini.UpdateFile;
     osecs.Clear;
-    osecs.DelimitedText := ini.ReadString('sections', section, '');
+    osecs.DelimitedText := x.Values[section];
     irc_addText(Netname, Channel, PrecatcherReload);
     IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
 
   finally
-    ini.free;
+  //  ini.free;
+    x.free;
     osecs.free;
     nsecs.free;
   end;
