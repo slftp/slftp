@@ -1417,6 +1417,16 @@ begin
             ssrc.site.sslfxp := srUnsupported;
           end;
         end;
+
+      550:
+        begin
+          //COMPLETE MSG: 550 Requested action not taken. File unavailable.
+          if (0 <> AnsiPos('Requested action not taken', lastResponse)) then
+          begin
+            goto TryAgain;
+          end;
+        end;
+
       else
         begin
           Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
