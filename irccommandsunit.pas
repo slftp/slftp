@@ -341,7 +341,7 @@ function IrcSetTheTVDbID(const Netname, Channel: AnsiString; params: AnsiString)
 function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 const
-  helpCommands: array[0..22] of AnsiString = ('general', 'site', 'auto', 'rout',
+  helpCommands: array[0..22] of AnsiString = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'rip', 'stats', 'slots', 'misc', 'news', 'irc',
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
@@ -395,7 +395,7 @@ const
     (cmd: 'autologin'; hnd: IrcAutoLogin; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autobnctest'; hnd: IrcAutoBnctest; minparams: 1; maxparams: 2; hlpgrp: 'site'),
 
-    (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
+    (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routeset'; hnd: IrcSetspeed; minparams: 3; maxparams: 3; hlpgrp: 'route'),
     (cmd: 'routelock'; hnd: IrcLockspeed; minparams: 3; maxparams: 3; hlpgrp: 'route'),
@@ -410,7 +410,7 @@ const
     (cmd: 'ranklock'; hnd: IrcRankLock; minparams: 2; maxparams: 3; hlpgrp: 'rank'),
     (cmd: 'rankrecalc'; hnd: IrcRankRecalc; minparams: 0; maxparams: 0; hlpgrp: 'rank'),
 
-    (cmd: 'SPEEDTEST'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$$$'),
+    (cmd: 'SPEEDTEST'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$speedtest'),
     (cmd: 'speedtestlocal'; hnd: IrcSpeedTestLocal; minparams: 1; maxparams: 1; hlpgrp:
     'speed'),
     (cmd: 'speedtestout'; hnd: IrcSpeedTestOut; minparams: 2; maxparams: - 1; hlpgrp: 'speed'),
@@ -5490,11 +5490,12 @@ begin
     s := '';
     for i := Low(irccommands) to High(irccommands) do
     begin
-      if ((irccommands[i].cmd[1] = '-') or (irccommands[i].hlpgrp = '$$$')) then
+
+      if ((irccommands[i].cmd[1] = '-') or (AnsiStartsText('$',irccommands[i].hlpgrp))) then
       begin
         if s <> '' then
           irc_addtext(Netname, Channel, s);
-        if (irccommands[i].hlpgrp = '$$$') then
+        if (AnsiStartsText('$',irccommands[i].hlpgrp)) then
           irc_addtext(Netname, Channel, ':: <u><c7><b>%s</c></u> :</b>', [irccommands[i].cmd]);
         s := '';
       end
@@ -5624,12 +5625,12 @@ begin
     s := '';
     for i := Low(irccommands) to High(irccommands) do
     begin
-      if (irccommands[i].cmd[1] = '-') then
+      if AnsiContainsText(irccommands[i].hlpgrp, '$') then
       begin
         if s <> '' then
           irc_addtext(Netname, Channel, s);
-        if (irccommands[i].cmd <> '-') then
-          irc_addtext(Netname, Channel, '<u><c7><b>%s</c></b></u>',
+        //if (irccommands[i].cmd <> '-') then
+          irc_addtext(Netname, Channel, ':: <u><c7><b>%s</c></u> :</b>',
             [irccommands[i].cmd]);
         s := '';
       end
