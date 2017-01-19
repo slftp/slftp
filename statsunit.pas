@@ -19,8 +19,7 @@ procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: Ansi
 
 procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
 
-
-procedure RecalcSizeValue(var size: double; out sizevalue: AnsiString; StartWithByte: Boolean = True);
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
 
 
 implementation
@@ -40,10 +39,11 @@ begin
 end;
 
 function statsQuery(const q: AnsiString): AnsiString;
-var s: Psqlite3_stmt;
-    i: Integer;
-    size: Double;
-    s_unit: AnsiString;
+var
+  s: Psqlite3_stmt;
+  i: Integer;
+  size: Double;
+  s_unit: AnsiString;
 begin
   s := stats.Open(q);
   i := 1;
@@ -65,43 +65,36 @@ begin
       size := size / 1024;
       s_unit := 'TB';
     end;
+
+    //RecalcSizeValueAndUnit(size, s_unit, 2);
+
     Result := Result + Format('%d. %s (%.2f %s)', [i, stats.column_text(s, 0), size,s_unit])+#13#10;
     inc(i);
   end;
 end;
 
-procedure RecalcSizeValue(var size: double; out sizevalue: AnsiString; StartWithByte: Boolean = True);
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
+{$I common.inc}
 begin
-  if StartWithByte then
+  if (StartFromSizeUnit > FileSizeUnitCount or StartFromSizeUnit < 0) then
   begin
-    sizevalue := 'byte';
-    if size >= 1024 then
-    begin
-      sizevalue := 'KB';
-      size := size / 1024;
-    end;
-  end
-  else
-  begin
-    sizevalue := 'KB';
+    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be smaller or bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
+    exit;
   end;
 
-  if size >= 1024 then
+  while (size >= 1024) do
   begin
-    sizevalue := 'MB';
     size := size / 1024;
-  end;
-  if size >= 1024 then
-  begin
-    sizevalue := 'GB';
-    size := size / 1024;
-  end;
-  if size >= 1024 then
-  begin
-    sizevalue := 'TB';
-    size := size / 1024;
+    Inc(StartFromSizeUnit);
   end;
 
+  if (StartFromSizeUnit > FileSizeUnitCount) then
+  begin
+    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
+    exit;
+  end;
+
+  sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
 
 procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
@@ -174,7 +167,7 @@ begin
         end;
 }
 
-        RecalcSizeValue(size, s_unit, False);
+        RecalcSizeValueAndUnit(size, s_unit, 1);
 
         irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
       end;
@@ -212,7 +205,7 @@ begin
         end;
 }
 
-        RecalcSizeValue(size, s_unit, False);
+        RecalcSizeValueAndUnit(size, s_unit, 1);
 
         irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
       end;
@@ -240,7 +233,7 @@ begin
     end;
 }
 
-    RecalcSizeValue(size_all_out, s_unit, False);
+    RecalcSizeValue(size_all_out, s_unit, 1);
 
     irc_addtext(netname, channel, Format('<b>Total In + Out:</b> <c07>%.2f</c> %s (%d files)', [size_all_out, s_unit, files_all_out]));
   end
@@ -278,7 +271,7 @@ begin
       end;
 }
 
-      RecalcSizeValue(size, s_unit, False);
+      RecalcSizeValue(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
     end;
@@ -312,7 +305,7 @@ begin
         s_unit := 'TB';
       end;
 }
-      RecalcSizeValue(size, s_unit, False);
+      RecalcSizeValue(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
     end;
@@ -349,7 +342,7 @@ begin
       end;
 }
 
-      RecalcSizeValue(size, s_unit, False);
+      RecalcSizeValue(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('  <b>to</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
     end;
@@ -384,7 +377,7 @@ begin
       end;
 }
 
-      RecalcSizeValue(size, s_unit, False);
+      RecalcSizeValue(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('  <b>from</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
     end;
@@ -465,12 +458,12 @@ begin
   if statsRace = nil then exit;
 
   if (StrToIntDef(filesize, 0) < config.ReadInteger(section, 'min_filesize', 1000000)) then exit;
-  
+
 
   s_src:= FindSiteByName('', sitesrc);
   s_dst:= FindSiteByName('', sitedst);
   if ((s_src = nil) or (s_dst = nil)) then exit;
-  
+
 
   try
     stats.ExecSQL( statsRace, [uppercase(s_src.name), uppercase(s_dst.name), uppercase(rls_section), rls, filename, StrToIntDef(filesize, 0), FormatDateTime('yyyy-mm-dd hh:nn:ss', Now)]);
