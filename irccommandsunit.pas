@@ -5629,7 +5629,7 @@ begin
       begin
         if s <> '' then
           irc_addtext(Netname, Channel, s);
-        //if (irccommands[i].cmd <> '-') then
+        //
           irc_addtext(Netname, Channel, ':: <u><c7><b>%s</c></u> :</b>',
             [irccommands[i].cmd]);
         s := '';
@@ -5638,6 +5638,7 @@ begin
       begin
         if s <> '' then
           s := s + ', ';
+          if (irccommands[i].cmd <> '-') then
         s := s + irccmdprefix + irccommands[i].cmd;
       end;
     end;
