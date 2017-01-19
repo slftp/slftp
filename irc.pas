@@ -886,12 +886,18 @@ begin
         adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
       end;
       exit;
-    except on E: Exception do
+    except
+      on E: Exception do
+      begin
         Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite msg: %s', [s]));
+      end;
     end;
   end;
+
   msg := RightStrv2(s, Pos(' ', s));
   msg := RightStrv2(msg, Pos(':', msg));
+
   l := length(msg);
   if l = 0 then
     exit;
@@ -1060,10 +1066,9 @@ begin
   begin
     if (1 = Pos(irccmdprefix, msg)) then
     begin
-      // commandhandlerrel kezdodik
+      // commandhandler begins
       try
         msg := Copy(msg, length(irccmdprefix) + 1, 1000);
-        //
         IrcProcessCommand(netname, channel, msg);
       except
         on e: Exception do
