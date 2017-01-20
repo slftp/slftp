@@ -4741,11 +4741,18 @@ var
   nn, blowchannel, key: AnsiString;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
+  cbc:boolean;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
   key := RightStrV2(params, length(nn) + length(blowchannel) + 2);
+  cbc:= False;
+
+ if AnsiStartsStr('cbc',key) then begin
+   Delete(key,1,4);
+   cbc:=True;
+ end;
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4759,6 +4766,7 @@ begin
   begin
     b.UpdateKey(key);
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'blowkey', key);
+    sitesdat.WriteBool('channel-' + nn + '-' + blowchannel, 'cbc', cbc);
   end
   else
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',

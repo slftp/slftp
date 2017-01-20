@@ -13,16 +13,17 @@ type
     blowkey: AnsiString;
     chankey: AnsiString;
     names: AnsiString; // funkcionalitasa a csatornanak
+    cbc:boolean;
     inviteonly: Boolean;
     procedure UpdateKey(blowkey: AnsiString);
-    constructor Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True);
+    constructor Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True; cbc:boolean = False);
 
     function HasKey(key: AnsiString): Boolean;
   end;
 
 function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;
 function irc_decrypt(netname, channel, eText: AnsiString): AnsiString;
-function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False): TIrcBlowkey;
+function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
 function FindIrcBlowfish(netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
 procedure IrcblowfishInit;
 procedure IrcblowfishUnInit;
@@ -208,11 +209,16 @@ begin
     for i:= 1 to length(dText) div 8 do
     begin
       temp:= Copy(dText, 1+(i-1)*8,8);
+      if bf.cbc then
+      BlowfishEncryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
+      else
       BlowfishEncryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
       eText := eText + bytetoB64(temp);
     end;
 
   end;
+
+  if bf.cbc then eText:= '*'+eText+'==';
 
   if include_ok then
     Result:= '+OK '+eText
@@ -238,6 +244,9 @@ begin
   begin
      temp := B64tobyte(Copy(eText,1+(i-1)*12,12));
      SetLength(temp, 8);
+     if bf.cbc then
+     BlowfishDecryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
+     else
      BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
      dText := dtext + temp;
   end;
@@ -248,12 +257,13 @@ end;
 
 { TIrcBlowkey }
 
-constructor TIrcBlowkey.Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True);
+constructor TIrcBlowkey.Create(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean = True;cbc:boolean = False);
 begin
   self.channel:= channel;
   self.chankey:= chankey;
   self.netname:= netname;
   self.inviteonly:= inviteonly;
+  self.cbc:=cbc;
   UpdateKey(blowkey);
 end;
 
@@ -296,13 +306,13 @@ begin
 end;
 
 // ezt a fuggvenyt csak irc_lock mellett szabad hivni!
-function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False): TIrcBlowkey;
+function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
 begin
   Result:= FindIrcBlowfish(netname, channel, False);
   if nil = Result then
   begin
     console_add_ircwindow(netname+' '+channel);
-    Result:= TIrcBlowkey.Create(netname, channel, blowkey, chankey, inviteonly);
+    Result:= TIrcBlowkey.Create(netname, channel, blowkey, chankey, inviteonly,cbc);
     chankeys.Add(Result);
   end;
 end;
