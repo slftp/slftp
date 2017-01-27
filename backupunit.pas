@@ -26,8 +26,9 @@ var
 
 function createBackup(custom: boolean = False): boolean;
 var
-  bName: string;
+  s, bName: string;
   i: integer;
+  sr: TSearchRec;
 begin
   _backuperror := '';
   result := False;
@@ -78,6 +79,26 @@ begin
         if fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) then
           AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
       end;
+
+
+        //split_site_data folder
+      if config.ReadBool('sites', 'split_site_data', False) then
+      begin
+        s := MyIncludeTrailingSlash('rtpl');
+        ForceDirectories(s);
+        if FindFirst(s+'*.*', faAnyFile -faDirectory, sr) = 0 then
+        begin
+          repeat
+          AddFile(s+sr.Name,'rtpl/'+sr.name);
+          until FindNext(sr) <> 0;
+{$IFDEF MSWINDOWS}
+          SysUtils.FindClose(sr);
+{$ELSE}
+          FindClose(sr);
+{$ENDIF}
+        end;
+      end;
+
       (*
             if not IMDbInfoDbAlive then
             begin
