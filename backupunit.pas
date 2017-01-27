@@ -4,31 +4,33 @@ interface
 
 procedure BackupBackup;
 
-function ircBackup(out backupError:string):boolean;
+function ircBackup(out backupError: string): boolean;
 
 var
   backup_last_backup: TDateTime;
 
-  {$I common.inc}
+{$I common.inc}
 
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
   statsunit, indexer, dbtvinfo, slvision, StrUtils
-  {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+{$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 //PathDelim
 const
   section = 'backup';
 
-  var _backuperror:string;
+var
+  _backuperror: string;
 
-
-function createBackup(custom:boolean = False):boolean;
-var bName:string; i:integer;
+function createBackup(custom: boolean = False): boolean;
+var
+  bName: string;
+  i: integer;
 begin
-  _backuperror:='';
-  result:=False;
+  _backuperror := '';
+  result := False;
   bName := config.ReadString(section, 'backup_dir', 'backup');
   if not DirectoryExists(bName) then
     Mkdir(bName);
@@ -36,24 +38,29 @@ begin
   bName := MyIncludeTrailingSlash(bName);
   ForceDirectories(bName);
   try
-  if custom then bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar'
-  else bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
+    if custom then
+      bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) +
+        '.tar'
+    else
+      bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
     with TTarWriter.Create(bName) do
     begin
 
-    //adding common files
-     for I := 0 to cFilecount do
-       if fileexists(commonFiles[i]) then AddFile(commonFiles[i]);
-    //adding ini files
-     for I := 0 to iFilecount do
-       if fileexists(iniFiles[i]) then AddFile(iniFiles[i]);
+      //adding common files
+      for I := 0 to cFilecount do
+        if fileexists(commonFiles[i]) then
+          AddFile(commonFiles[i]);
+      //adding ini files
+      for I := 0 to iFilecount do
+        if fileexists(iniFiles[i]) then
+          AddFile(iniFiles[i]);
 
+      //adding generated files
+      for I := 0 to gFilecount do
+        if fileexists(generatedFiles[i]) then
+          AddFile(generatedFiles[i]);
 
-    //adding generated files
-     for I := 0 to gFilecount do
-       if fileexists(generatedFiles[i]) then AddFile(generatedFiles[i]);
-
-    //adding databases
+      //adding databases
       if not IndexerAlive then
       begin
         if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
@@ -68,29 +75,29 @@ begin
 
       if not TVInfoDbAlive then
       begin
-      if fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) then
+        if fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) then
           AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
       end;
-(*
-      if not IMDbInfoDbAlive then
-      begin
-      if fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) then
-          AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
-      end;
-*)
+      (*
+            if not IMDbInfoDbAlive then
+            begin
+            if fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) then
+                AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
+            end;
+      *)
 
-       Free;
+      Free;
     end;
-  debug(dpMessage, section, 'Backup process finished.');
-  result:=True;
-  except on E: Exception do begin
-  debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
-  _backuperror:=e.Message;
-  end;
+    debug(dpMessage, section, 'Backup process finished.');
+    result := True;
+  except on E: Exception do
+    begin
+      debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
+      _backuperror := e.Message;
+    end;
   end;
 
 end;
-
 
 procedure DeleteOldBackups(s: AnsiString);
 var
@@ -108,19 +115,21 @@ begin
     if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
     begin
       repeat
-        if (AnsiEndsStr(sr.Name,'.tar') or (not AnsiContainsStr(sr.Name,'-custom-'))) then
-//        if ((Pos('.tar', sr.Name) = length(sr.Name) - 3) and (Pos('custom',sr.Name) <> 7)) then
+        if (AnsiEndsStr(sr.Name, '.tar') or (not AnsiContainsStr(sr.Name, '-custom-'))) then
+          //        if ((Pos('.tar', sr.Name) = length(sr.Name) - 3) and (Pos('custom',sr.Name) <> 7)) then
         begin
-        Debug(dpMessage,'<- BACKUP ->','adding: '+sr.Name);
+          Debug(dpMessage, '<- BACKUP ->', 'adding: ' + sr.Name);
           files.Add(sr.Name);
           ages.Add(sr.Time);
-        end else         Debug(dpMessage,'<- BACKUP ->','skip: '+sr.Name);
+        end
+        else
+          Debug(dpMessage, '<- BACKUP ->', 'skip: ' + sr.Name);
       until FindNext(sr) <> 0;
-      {$IFDEF MSWINDOWS}
-        SysUtils.FindClose(sr);
-      {$ELSE}
-        FindClose(sr);
-      {$ENDIF}
+{$IFDEF MSWINDOWS}
+      SysUtils.FindClose(sr);
+{$ELSE}
+      FindClose(sr);
+{$ENDIF}
 
       while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
       begin
@@ -139,11 +148,11 @@ begin
         if oldesti < 0 then
           Break; // wtf?
 
-        {$IFDEF MSWINDOWS}
-          DeleteFile(PAnsiChar(s + files[oldesti]));
-        {$ELSE}
-          DeleteFile(s + files[oldesti]);
-        {$ENDIF}
+{$IFDEF MSWINDOWS}
+        DeleteFile(PAnsiChar(s + files[oldesti]));
+{$ELSE}
+        DeleteFile(s + files[oldesti]);
+{$ENDIF}
 
         ages.Delete(oldesti);
         files.BeginUpdate;
@@ -153,7 +162,9 @@ begin
           files.EndUpdate;
         end;
       end;
-    end else Debug(dpMessage,'<- BACKUP ->',' !!! no files added !!! ');
+    end
+    else
+      Debug(dpMessage, '<- BACKUP ->', ' !!! no files added !!! ');
 
   finally
     ages.Free;
@@ -166,31 +177,35 @@ procedure BackupBackup;
 var
   s: AnsiString;
 begin
-try
-  s := config.ReadString(section, 'backup_dir', 'backup');
-  if not DirectoryExists(s) then
-    Mkdir(s);
+  try
+    s := config.ReadString(section, 'backup_dir', 'backup');
+    if not DirectoryExists(s) then
+      Mkdir(s);
     debug(dpMessage, section, 'Backup process started.');
     DeleteOldBackups(s);
     if createBackup(False) then
-    backup_last_backup := Now
-    else debug(dpMessage, section, 'Backup process Failed!');
-except on E: Exception do
-  Debug(dpError, section,Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s',[e.Message]));
-end;
+      backup_last_backup := Now
+    else
+      debug(dpMessage, section, 'Backup process Failed!');
+  except on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s',
+        [e.Message]));
+  end;
 end;
 
-function ircBackup(out backupError:string):boolean;
-var s:ansistring;
+function ircBackup(out backupError: string): boolean;
+var
+  s: ansistring;
 begin
-Result := True;
-s := config.ReadString(section, 'backup_dir', 'backup');
-if createBackup(true) then
-  backup_last_backup:= Now
-else begin
-  backupError:=_backuperror;
-  result:=False;
-end;
+  Result := True;
+  s := config.ReadString(section, 'backup_dir', 'backup');
+  if createBackup(true) then
+    backup_last_backup := Now
+  else
+  begin
+    backupError := _backuperror;
+    result := False;
+  end;
 end;
 
 initialization
