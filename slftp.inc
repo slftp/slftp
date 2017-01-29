@@ -8,5 +8,5 @@ const
   CC_MasterK: string = 'masterpass.txt';
 
   (* libaries *)
-  lib_OpenSSL:string = '1.0.1';
+  lib_OpenSSL:string = '1.0.2';
   lib_Ncurses:string = 'ncurses 5.5.';
