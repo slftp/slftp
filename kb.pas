@@ -1728,7 +1728,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, 'TMP3Release.Astext : %s', [e.Message]);
+      Debug(dpError, rsections, 'TMP3Release.AsText : %s', [e.Message]);
     end;
   end;
 end;
@@ -1856,7 +1856,14 @@ end;
 function TNFORelease.AsText(pazo_id: integer = -1): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'nfo genre: ' + nfogenre + #13#10;
+  try
+    Result := Result + 'nfo genre: ' + nfogenre + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TNFORelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TNFORelease.Create(rlsname, section: AnsiString;
@@ -1962,31 +1969,38 @@ end;
 function TTVRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
-  Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-  Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
-  if premier_year <> -1 then
-    Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
-  if ended_year > 0 then
-    Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
-  if country <> '' then
-    Result := Result + 'Country: ' + country + #13#10;
-  if classification <> '' then
-    Result := Result + 'Classification: ' + classification + #13#10;
-  Result := Result + 'Scripted: ' + IntToStr(integer(scripted)) + #13#10;
-  if genres.Count > 0 then
-    Result := Result + 'Genres: ' + genres.CommaText + #13#10;
-  if network <> '' then
-    Result := Result + 'Network: ' + network + #13#10;
- if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
-  Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
-  if status <> '' then
-    Result := Result + 'Status: ' + status + #13#10;
-  Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
-  Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
-  Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
-  Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+  try
+    Result := Result + 'Show name: ' + showname + #13#10;
+    Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
+    Result := Result + 'Season: ' + IntToStr(season) + #13#10;
+    Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
+    if premier_year <> -1 then
+      Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
+    if ended_year > 0 then
+      Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
+    if country <> '' then
+      Result := Result + 'Country: ' + country + #13#10;
+    if classification <> '' then
+      Result := Result + 'Classification: ' + classification + #13#10;
+    Result := Result + 'Scripted: ' + IntToStr(integer(scripted)) + #13#10;
+    if genres.Count > 0 then
+      Result := Result + 'Genres: ' + genres.CommaText + #13#10;
+    if network <> '' then
+      Result := Result + 'Network: ' + network + #13#10;
+   if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
+    Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
+    if status <> '' then
+      Result := Result + 'Status: ' + status + #13#10;
+    Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+    Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
+    Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
+    Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TTVRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TTVRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2043,11 +2057,17 @@ begin
 end;
 
 { T0DayRelease }
-
 function T0DayRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + '0daysource: ' + nulldaysource + #13#10;
+  try
+    Result := Result + '0daysource: ' + nulldaysource + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'T0DayRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor T0DayRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2193,22 +2213,28 @@ end;
 function TIMDBRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'IMDB id: ' + imdb_id + #13#10;
-  //  Result:= Result + 'IMDB URL: <l>http://imdb.com/title/'+imdb_id+'</l>'+#13#10;
-  Result := Result + 'IMDB year: ' + IntToStr(imdb_year) + #13#10;
-  Result := Result + 'IMDB Cineyear: ' + IntToStr(cineyear) + #13#10;
-  Result := Result + 'IMDB languages: ' + imdb_languages.DelimitedText + #13#10;
-  Result := Result + 'IMDB countries: ' + imdb_countries.DelimitedText + #13#10;
-  Result := Result + 'IMDB genres: ' + imdb_genres.DelimitedText + #13#10;
-  Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
-  Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
-  Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
-  Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) +
-    #13#10;
-  Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
-  Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
-  Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
-  Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
+  try
+    Result := Result + 'IMDB id: ' + imdb_id + #13#10;
+    Result:= Result + 'IMDB URL: <l>http://imdb.com/title/' + imdb_id + '</l>' + #13#10;
+    Result := Result + 'IMDB year: ' + IntToStr(imdb_year) + #13#10;
+    Result := Result + 'IMDB Cineyear: ' + IntToStr(cineyear) + #13#10;
+    Result := Result + 'IMDB languages: ' + imdb_languages.DelimitedText + #13#10;
+    Result := Result + 'IMDB countries: ' + imdb_countries.DelimitedText + #13#10;
+    Result := Result + 'IMDB genres: ' + imdb_genres.DelimitedText + #13#10;
+    Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
+    Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
+    Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
+    Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) + #13#10;
+    Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
+    Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
+    Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
+    Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TIMDBRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TIMDBRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2271,16 +2297,22 @@ end;
 function TMVIDRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  //  Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
-  Result := Result + 'MVID Genre: ' + mvid_Genre.CommaText + #13#10;
-  Result := Result + 'MVID Year: ' + IntToStr(mvid_year) + #13#10;
-  Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
-  Result := Result + 'MVID Source: ' + mvid_source + #13#10;
-  Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
-  Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) +
-    #13#10;
-  Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
-  Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
+  try
+    // Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
+    Result := Result + 'MVID Genre: ' + mvid_Genre.CommaText + #13#10;
+    Result := Result + 'MVID Year: ' + IntToStr(mvid_year) + #13#10;
+    Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
+    Result := Result + 'MVID Source: ' + mvid_source + #13#10;
+    Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
+    Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) + #13#10;
+    Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
+    Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TMVIDRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 function TMVIDRelease.Aktualizald(extrainfo: AnsiString): boolean;
