@@ -519,7 +519,7 @@ begin
       Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
     end;
 
-    if ((section = '') AND ((event <> 'COMPLETE') or (event <> 'NUKE'))) then
+    if ((section = '') AND (event <> 'COMPLETE') AND (event <> 'NUKE')) then
     begin
       irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
       MyDebug('No section?! ' + sitename + '@' + rls);
@@ -1230,7 +1230,7 @@ procedure PrecatcherStart;
 begin
   PrecatcherReload;
   catcherFile.LoadFromFile(catcherFileName);
-  
+
 //  if (config.ReadBool('sites', 'split_site_data', False)) then
 //    LoadSplitChanFiles;
 
