@@ -82,7 +82,7 @@ interface
 {$IFDEF FPC}
  {$MODE Delphi}
 {$ELSE}
-  {$IFDEF LINUX}
+  {$IFDEF UNIX}
      {$DEFINE Kylix}
      {$DEFINE LIBCUNIT}
   {$ENDIF}
@@ -92,7 +92,7 @@ uses
 {$IFDEF LIBCUNIT}
    Libc,
 {$ENDIF}
-{$IFDEF LINUX}
+{$IFDEF UNIX}
   UnixType, BaseUnix, Unix,
 {$ENDIF}
 {$IFDEF WIN32}
@@ -257,7 +257,7 @@ END;
 FUNCTION ConvertFilename  (Filename : STRING) : STRING;
          // Converts the filename to Unix conventions
 BEGIN
-  (*$IFDEF LINUX *)
+  (*$IFDEF UNIX *)
   Result := Filename;
   (*$ELSE *)
   Result := StringReplace (Filename, '\', '/', [rfReplaceAll]);
@@ -284,7 +284,7 @@ FUNCTION FileTimeGMT (SearchRec : TSearchRec) : TDateTime;
 VAR
   SystemFileTime: TSystemTime;
 (*$ENDIF *)
-(*$IFDEF LINUX *)
+(*$IFDEF UNIX *)
 VAR
   TimeVal  : TTimeVal;
   TimeZone : TTimeZone;
@@ -297,7 +297,7 @@ BEGIN
         Result := EncodeDate (SystemFileTime.wYear, SystemFileTime.wMonth, SystemFileTime.wDay)
                 + EncodeTime (SystemFileTime.wHour, SystemFileTime.wMinute, SystemFileTime.wSecond, SystemFileTime.wMilliseconds);
   (*$ENDIF *) (*$WARNINGS ON *)
-  (*$IFDEF LINUX *)
+  (*$IFDEF UNIX *)
      IF SearchRec.Attr AND faDirectory = 0 THEN BEGIN
        Result := FileDateToDateTime (SearchRec.Time);
        {$IFDEF Kylix}
