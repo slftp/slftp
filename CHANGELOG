@@ -62,10 +62,11 @@
 		{#} Fix for tvtag rules -> tvtag weren't initialized (#102)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
 		{#} Skip sites if your DL/UL Slots are 0 (#106) ---- need to be tested ----
-		{#} !credits adjustmens for glFTPd v2.07-BETA2 ---- new code matches less than old one ----
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
 		{^} No [NOT SET] message if site is set to permdown (#108)
+		{^} Re-written backup unit code
+		{^} languagebase.slftp gets automatically renamed to slftp.languagebase
 		{^} No need to !setdown before !setpermdown (#108)
 		{^} !sslmethod checks if valid SSL method + shows which one is used
 		{^} Removed warning when "section not found" for complete & nuke announce (#117)
@@ -76,6 +77,8 @@
 		{^} some improvements to !site output (Linebreaks, more text for pretime)
 		{-} slftp resorts bnc entries when one is done (#104) ---- not really a fix for it ----
 		{-} !setaffils removed -> use !affils
+		{-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
+		{-} Support for deprecated OpenSSL 1.0.1 series dropped
 
 --=============================( SLFTP v1.5.4 )===================================-
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
