@@ -2,7 +2,7 @@ unit socks5;
 
 interface
 
-uses sltcp, mslproxys,irc;
+uses sltcp, mslproxys;
 
 procedure Socks5Init;
 procedure SetupSocks5(c: TslTCPSocket; usesocks5: Boolean);
@@ -34,10 +34,6 @@ end;
 
 procedure SetupSocks5(c: TslTCPSocket; usesocks5: Boolean);
 begin
-
-  if c.socks5 = nil then c.socks5:=TslSocks5.Create;
-
-
   if not usesocks5 then
   begin
     c.socks5.enabled := False;
