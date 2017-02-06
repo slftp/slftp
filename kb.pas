@@ -2436,24 +2436,27 @@ begin
 
   // itt kell betoltenunk az slftp.kb -t
   kb_lock.Enter;
-  x := TEncStringlist.Create(passphrase);
   try
-    //    Console_Addline('', 'Loading KB entries...');
-    x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-    last := Now;
-    for i := 0 to x.Count - 1 do
-    begin
-      //Console_QueueStat(x.Count - i - 1);
-      AddKbPazo(x[i]);
-      if MilliSecondsBetween(Now, last) > 500 then
+    x := TEncStringlist.Create(passphrase);
+    try
+      //    Console_Addline('', 'Loading KB entries...');
+      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
+      last := Now;
+      for i := 0 to x.Count - 1 do
       begin
-        last := Now;
-        slapp.ProcessMessages;
+        //Console_QueueStat(x.Count - i - 1);
+        AddKbPazo(x[i]);
+        if MilliSecondsBetween(Now, last) > 500 then
+        begin
+          last := Now;
+          slapp.ProcessMessages;
+        end;
       end;
+      Console_Addline('', 'Ok.');
+    finally
+      x.Free;
     end;
-    Console_Addline('', 'Ok.');
   finally
-    x.Free;
     kb_lock.Leave;
   end;
 
@@ -2592,8 +2595,7 @@ begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
   noannouncesections := TStringList.Create;
-  noannouncesections.DelimitedText :=
-    config.ReadString(rsections, 'noannouncesection', '');
+  noannouncesections.DelimitedText := config.ReadString(rsections, 'noannouncesection', '');
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -2648,10 +2650,8 @@ begin
   mp3languages.Delimiter := ' ';
   mp3languages.QuoteChar := '"';
   mp3languages.CaseSensitive := False;
-  mp3languages.DelimitedText :=
-    UpperCase(config.ReadString(rsections, 'mp3languages', ''));
+  mp3languages.DelimitedText := UpperCase(config.ReadString(rsections, 'mp3languages', ''));
 
-  x := TStringList.Create;
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
@@ -2660,22 +2660,23 @@ begin
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
 
-  config.ReadSection(rsections, x);
-  for i := 0 to x.Count - 1 do
-  begin
-    if (1 = Pos('mp3source_', x[i])) then
+  x := TStringList.Create;
+  try
+    config.ReadSection(rsections, x);
+    for i := 0 to x.Count - 1 do
     begin
-      mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] :=
-        ' ' + config.ReadString(rsections, x[i], '') + ' ';
-    end
-    else if (1 = Pos('0daysource_', x[i])) then
-    begin
-      nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] :=
-        ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      if (1 = Pos('mp3source_', x[i])) then
+      begin
+        mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      end
+      else if (1 = Pos('0daysource_', x[i])) then
+      begin
+        nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      end;
     end;
+  finally
+    x.Free;
   end;
-
-  x.Free;
 
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
@@ -2714,12 +2715,9 @@ begin
   kb_latest := THashedStringList.Create;
   kb_skip := THashedStringList.Create;
 
-  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker',
-    True);
-  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker',
-    False);
-  renamed_release_checker := config.ReadBool(rsections,
-    'renamed_release_checker', False);
+  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
+  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', False);
+  renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
   //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
   use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
