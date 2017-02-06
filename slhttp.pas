@@ -19,7 +19,8 @@ type
     ContentLength: Integer;
 
     Timeout: Integer;
-    constructor Create;
+    constructor Create;overload;
+    constructor Create(timeout:integer);overload;
     destructor Destroy; override;
     function Get(const url: AnsiString): Boolean; overload;
     function Get(const url: AnsiString; params: TStringList; output: TStream = nil):
@@ -82,25 +83,37 @@ begin
 
 end;
 
-constructor TslHTTP.Create;
+
+constructor TslHTTP.Create(Timeout:integer);
 begin
-  //Timeout:= slDefaultTimeout;
-  Timeout := 30000;
+  Timeout := timeout;
   Response := TStringStream.Create('');
   CustomHeaders := TStringList.Create;
   ResponseHeaders := TStringList.Create;
 
-  (*
+  try
+  SetupSocks5(self, config.ReadBool(section, 'socks5', False));
+  except on E: Exception do
+  Debug(dpError, section, Format('[EXCEPTION] TslHTTP.Create : %s', [e.Message]));
+  end;
+
+
+(*
+
  if ((ProxyName = '!!NOIN!!') or (ProxyName = '0') or (ProxyName = '')) then
  SetupSocks5(self, config.ReadBool(section, 'socks5', False)) else
  mSLSetupSocks5(proxyname,self, True);
+
 *)
-//  SetupSocks5(self, config.ReadBool(section, 'socks5', False));
-
   inherited Create();
-
-  // SetupSocks5(self, True);
 end;
+
+constructor TslHTTP.Create;
+begin
+  Create(30000);
+end;
+
+
 
 destructor TslHTTP.Destroy;
 begin
