@@ -81,6 +81,26 @@ begin
     exit;
   end;
 
+
+  // exit if imdb info is already known in last_imdbdata
+  try
+    i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
+    if i <> -1 then
+    begin
+      Result := True;
+      ready := True;
+      exit;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
+      readyerror := True;
+      exit;
+    end;
+  end;
+
+
   // exit if nfo is already in dbaddnfo
   try
     i := last_addnfo.IndexOf(mainpazo.rls.rlsname);
