@@ -166,6 +166,9 @@ type
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
+    function GetUseForNFOdownload: boolean;
+    procedure SetUseForNFOdownload(Value: boolean);
+
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
 
@@ -284,7 +287,7 @@ type
     property predir: AnsiString read GetPredir write SetPredir;
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
-
+    property UseForNFOdownload: boolean read GetUseForNFOdownload write SetUseForNFOdownload;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -3208,6 +3211,16 @@ end;
 procedure TSite.SetNoLoginMSG(Value: boolean);
 begin
   WCBool('nologinmsg', Value);
+end;
+
+function TSite.GetUseForNFOdownload: boolean;
+begin
+  Result := RCBool('usefornfodownload', True);
+end;
+
+procedure TSite.SetUseForNFOdownload(Value: boolean);
+begin
+  WCBool('usefornfodownload', Value);
 end;
 
 function TSite.GetPermDownStatus: boolean;
