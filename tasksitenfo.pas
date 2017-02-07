@@ -56,7 +56,7 @@ end;
 
 function TPazoSiteNfoTask.Execute(slot: Pointer): Boolean;
 label
-  ujra;
+  TryAgain;
 var
   s: TSiteSlot;
   i: Integer;
@@ -65,6 +65,7 @@ var
   d: TDirList;
   numerrors: Integer;
   tname, nfofile: AnsiString;
+  s: TSite;
 begin
   Result := False;
   s := slot;
@@ -82,24 +83,35 @@ begin
 
   // exit if nfo is already in dbaddnfo
   try
-    i:= last_addnfo.IndexOf(mainpazo.rls.rlsname);
+    i := last_addnfo.IndexOf(mainpazo.rls.rlsname);
     if i <> -1 then
     begin
-      Result:= True;
-      ready:= True;
+      Result := True;
+      ready := True;
       exit;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_addnfo.IndexOf: %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
 
+
+  // we don't want to use this site for NFO download (e.g. they banned our IP for download because it's a rented one)
+  s := FindSiteByName('', site);
+  if not s.UseForNFOdownload then
+  begin
+    Result := True;
+    ready := True;
+    exit;
+  end;
+
+
   // Number of errors too high. Exiting.
-  ujra:
+  TryAgain:
   try
     inc(numerrors);
     if numerrors > 3 then
@@ -134,7 +146,7 @@ begin
   begin
     Debug(dpSpam, section, 'Dirlist Failed.');
     if s.status = ssDown then
-      goto ujra;
+      goto TryAgain;
     readyerror := True;
     exit;
   end;
@@ -169,7 +181,7 @@ begin
         Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
         try
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
           AddTask(r);
         except
           on e: Exception do
@@ -215,7 +227,7 @@ begin
 
         try
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
           AddTask(r);
         except
           on e: Exception do
@@ -244,7 +256,7 @@ begin
     try
       parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
-      Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
+      Console_Addline('', 'NFO for ' + mainpazo.rls.rlsname + ' added from ' + s.Name);
     except
       on e: Exception do
       begin
