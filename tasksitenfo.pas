@@ -65,7 +65,7 @@ var
   d: TDirList;
   numerrors: Integer;
   tname, nfofile: AnsiString;
-  s: TSite;
+  sitevalues: TSite;
 begin
   Result := False;
   s := slot;
@@ -121,8 +121,8 @@ begin
 
 
   // we don't want to use this site for NFO download (e.g. they banned our IP for download because it's a rented one)
-  s := FindSiteByName('', site);
-  if not s.UseForNFOdownload then
+  sitevalues := FindSiteByName('', ps1.Name);
+  if not sitevalues.UseForNFOdownload then
   begin
     Result := True;
     ready := True;
