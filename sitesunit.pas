@@ -167,7 +167,7 @@ type
     procedure SetNoLoginMSG(Value: boolean);
 
     function GetUseForNFOdownload: boolean;
-    procedure SetUseForNFOdownload(Value: boolean);
+    procedure SetUseForNFOdownload(Value: integer);
 
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
@@ -287,7 +287,7 @@ type
     property predir: AnsiString read GetPredir write SetPredir;
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
-    property UseForNFOdownload: boolean read GetUseForNFOdownload write SetUseForNFOdownload;
+    property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -1617,6 +1617,7 @@ begin
       if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
       begin
         irc_AddText(todotask, site.name + ': couldnt negotiate the SSL connection (' + idTCP.error + ') / ' + filename);
+        site.UseForNFOdownload := 2; // for crap sites with old SSL or so
         DestroySocket(False);
         Result := -1;
         exit;
@@ -3213,14 +3214,17 @@ begin
   WCBool('nologinmsg', Value);
 end;
 
-function TSite.GetUseForNFOdownload: boolean;
+function TSite.GetUseForNFOdownload: integer;
 begin
-  Result := RCBool('usefornfodownload', True);
+  // 0 means disabled
+  // 1 means enabled
+  // 2 means automatically disabled by slftp due to problems (some SSL or out of credits)
+  Result := RCInteger('usefornfodownload', 1);
 end;
 
-procedure TSite.SetUseForNFOdownload(Value: boolean);
+procedure TSite.SetUseForNFOdownload(Value: integer);
 begin
-  WCBool('usefornfodownload', Value);
+  WCInteger('usefornfodownload', Value);
 end;
 
 function TSite.GetPermDownStatus: boolean;
