@@ -10181,62 +10181,6 @@ end;
 
 function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  svalue, sname: AnsiString;
-  ss: TSite;
-  i: integer;
-begin
-  Result := False;
-  sname := UpperCase(SubString(params, ' ', 1));
-  svalue := SubString(params, ' ', 2);
-
-  if sname = '*' then
-  begin
-    for i := 0 to sites.Count - 1 do
-    begin
-      ss := TSite(sites.Items[i]);
-      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-      if TSite(sites.Items[i]).PermDown then
-        Continue;
-
-      if svalue = '' then
-      begin
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, Ord(ss.UseForNFOdownload)]);
-      end
-      else if ((svalue = '1') or (svalue = '0')) then
-      begin
-        ss.UseForNFOdownload := StrToBoolDef(svalue, False);
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, Ord(ss.UseForNFOdownload)]);
-      end;
-    end;
-  end
-  else
-  begin
-    ss := FindSiteByName('', sname);
-    if ss = nil then
-    begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
-      Result := True;
-      exit;
-    end;
-
-    if svalue = '' then
-    begin
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, Ord(ss.UseForNFOdownload)]);
-    end
-    else if ((svalue = '1') or (svalue = '0')) then
-    begin
-        ss.UseForNFOdownload := StrToBoolDef(svalue, False);
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, Ord(ss.UseForNFOdownload)]);
-    end;
-  end;
-
-  Result := True;
-end;
-
-
-function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
   sname: AnsiString;
   svalue: integer;
   ss: TSite;

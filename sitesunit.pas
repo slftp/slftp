@@ -166,7 +166,7 @@ type
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
-    function GetUseForNFOdownload: boolean;
+    function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
 
     function GetIRCNick: AnsiString;
