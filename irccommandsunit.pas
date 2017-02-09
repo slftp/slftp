@@ -10135,7 +10135,9 @@ begin
           irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
             SiteSoftWareToSTring(ss)]);
         end;
-      end;
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
     end;
   end
   else
@@ -10172,7 +10174,9 @@ begin
         irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
           SiteSoftWareToSTring(ss)]);
       end;
-    end;
+    end
+    else
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
   end;
 
   Result := True;
@@ -10208,7 +10212,9 @@ begin
       begin
         ss.UseForNFOdownload := svalue;
         irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
-      end;
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
     end;
   end
   else
@@ -10229,7 +10235,9 @@ begin
     begin
       ss.UseForNFOdownload := svalue;
       irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
-    end;
+    end
+    else
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
   end;
 
   Result := True;
