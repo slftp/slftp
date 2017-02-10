@@ -501,10 +501,8 @@ begin
         i := kb_trimmed_rls.IndexOf(section + '-' + rls);
         if i <> -1 then
         begin
-          irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>',
-            [rls, sitename]));
+          irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
           kb_skip.Insert(0, rls);
-          //kb_lock.Leave;
           exit;
         end;
 
@@ -513,9 +511,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB trimmed_shit_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB trimmed_shit_checker : %s', [e.Message]);
         end;
       end;
     end;
@@ -533,28 +529,22 @@ begin
           if uppercase(grp) <> uppercase(ss) then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit!',
-                [rls, sitename]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, uppercase(grp), uppercase(ss)]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
             exit;
           end;
           if grp <> ss then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit!',
-                [rls, sitename]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit! %s vs. %s', [rls, sitename, grp, ss]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
             exit;
           end;
         end;
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB renamed_group_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_group_checker : %s', [e.Message]);
         end;
       end;
     end;
@@ -579,14 +569,11 @@ begin
               if renameCheck(j, i, len, rls) then
               begin
                 if spamcfg.readbool(rsections, 'renamed_release', True) then
-                  irc_addadmin(
-                    format('<b><c4>%s</c> @ %s </b>is a rename of %s!',
-                    [rls, sitename, kb_latest[i]]));
+                  irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest[i]]));
 
                 kb_latest.Insert(0, rls);
                 // gonna insert this anyway, because there are sometimes renames of renames
                 kb_skip.Insert(0, rls);
-                //kb_lock.Leave;
                 exit;
               end;
             end;
@@ -595,9 +582,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB renamed_release_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
         end;
       end;
       kb_latest.Insert(0, rls);
