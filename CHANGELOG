@@ -49,8 +49,9 @@
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.5 )===================================-
-		{+} New rule for tvlanguage from TVMaze (#79)
+		{+} tvlanguage rule for TVMaze infos (#79)
 		{+} New IRC Help Command -> !help nhelp
+		{+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
 		{+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
 		{+} Add new sections over IRC -> !help sectionins
 		{+} Wrap IRC Messages into 280 char long chunks (#36)
@@ -58,24 +59,27 @@
 		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
-		{#} Bug with looping of Sample folder fixed (#4) ---- need some more code changes - uses SetFileError ---
+		{#} Bug with looping of Sample folder fixed (#4)                                      ---- need some more code changes - uses SetFileError ---
 		{#} Fix for tvtag rules -> tvtag weren't initialized (#102)
+		{#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
-		{#} Skip sites if your DL/UL Slots are 0 (#106) ---- need to be tested ----
+		{#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
 		{^} No [NOT SET] message if site is set to permdown (#108)
-		{^} Re-written backup unit code
+		{^} Re-written backup unit code                                                       --- some features are gone iirc lke exclude files ---
+		{^} Announce old + renamed groupname when check with renamed_group_checker was positive
 		{^} languagebase.slftp gets automatically renamed to slftp.languagebase
 		{^} No need to !setdown before !setpermdown (#108)
 		{^} !sslmethod checks if valid SSL method + shows which one is used
 		{^} Removed warning when "section not found" for complete & nuke announce (#117)
 		{^} Some TV Shows weren't detected as STV from IMDb fetch
-		{^} PermDown check on all irc command with sitename = '*', means no changed settings for PermDown sites when using '*'
-		{^} mp3 genre will also be parsed on bot announce (#114) ---- guess still no drop on mp3genre rule if not found ----
+		{^} PermDown check on all irc commands with sitename = '*', means no setting changing for PermDown sites when using '*'
+		{^} mp3 genre will also be parsed on bot announce (#114)                              ---- guess still no drop on mp3genre rule if not found ----
+		{^} Update to latest LibTar 2.1.2
 		{^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
 		{^} some improvements to !site output (Linebreaks, more text for pretime)
-		{-} slftp resorts bnc entries when one is done (#104) ---- not really a fix for it ----
+		{-} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)             ---- not really a fix for it ----
 		{-} !setaffils removed -> use !affils
 		{-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
 		{-} Support for deprecated OpenSSL 1.0.1 series dropped
