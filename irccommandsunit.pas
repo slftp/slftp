@@ -2738,9 +2738,6 @@ begin
     exit;
   end;
 
-  sitesdat.WriteString('site-' + sitename, 'username', username);
-  sitesdat.WriteString('site-' + sitename, 'password', password);
-
   i := 4;
   while (True) do
   begin
@@ -2750,15 +2747,23 @@ begin
     if ((bnchost = '') or (bncport = 0)) then
       break;
 
-    sitesdat.WriteString('site-' + sitename,
-      'bnc_host-' + IntToStr(i - 4), bnchost);
-    sitesdat.WriteInteger('site-' + sitename,
-      'bnc_port-' + IntToStr(i - 4), bncport);
+    sitesdat.WriteString('site-' + sitename, 'bnc_host-' + IntToStr(i - 4), bnchost);
+    sitesdat.WriteInteger('site-' + sitename, 'bnc_port-' + IntToStr(i - 4), bncport);
 
     Inc(i);
   end;
 
   sites.Add(TSite.Create(sitename));
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Adding Site <b>%s</b> failed.', [sitename]);
+    exit;
+  end;
+
+  s.UserName := username;
+  s.PassWord := password;
 
   Result := True;
 end;
@@ -8627,8 +8632,7 @@ begin
   Result := True;
 end;
 
-function IrcStatSitesByUser(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcStatSitesByUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   q, ss: AnsiString;
   username, userfilter, sectionname, sectionfilter: AnsiString;
@@ -11606,62 +11610,39 @@ begin
 
 end;
 
-function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  username, ss, sitename: AnsiString;
+  sitename, ss: AnsiString;
   Count: integer;
   r: TRegexpr;
   site: TSite;
-  //  si:   TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  (*
-    si:=TStringlist.Create;
-    si.CommaText:=sitename;
-  *)
-
   Count := StrToIntDef(SubString(params, ' ', 2), 150);
-  site := FindSiteByName(Netname, sitename);
 
+  site := FindSiteByName(Netname, sitename);
   if site = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-    Result := False;
     exit;
   end;
 
   if site.PermDown then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
-      [sitename]);
-    Result := False;
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [site.Name]);
     exit;
   end;
 
   if ((site.working = sstUnknown) or (site.working = sstDown)) then
   begin
     TSiteSlot(site.slots.Items[site.slots.Count - 1]).ReLogin();
-    irc_addtext(Netname, Channel,
-      'Site <b>%s</b> is offline do a bnctest.... hand a sec!',
-      [sitename]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!', [site.Name]);
   end;
 
   if site.GetSw <> sswGlftpd then
   begin
-    irc_addtext(Netname, Channel,
-      'This command is currently only for GrayLine FTPD%ss.',
-      [Chr(39)]);
-    Result := False;
-    exit;
-  end;
-
-  username := site.RCString('username', 'slFtp');
-  if username = 'slFtp' then
-  begin
-    irc_addtext(Netname, Channel, 'No valid username found for %s',
-      [site.Name]);
-    Result := False;
+    irc_addtext(Netname, Channel, 'This command is currently only for GrayLine FTPD%ss.', [Chr(39)]);
     exit;
   end;
 
@@ -11670,10 +11651,7 @@ begin
   except
     on E: Exception do
     begin
-      irc_addtext(Netname, Channel,
-        '<c4>[Exception]</c> in IrcShowSiteNukes; %s',
-        [E.Message]);
-      Result := False;
+      irc_addtext(Netname, Channel, '<c4>[Exception]</c> in IrcShowSiteNukes; %s', [E.Message]);
       Exit;
     end;
   end;
@@ -11681,10 +11659,10 @@ begin
   r := TRegexpr.Create;
   //  r.ModifierS := False;
   //  r.ModifierG := False;
-
   try
     r.Expression := 'foo nukes';
     r.ModifierI := True;
+
     if r.Exec(ss) then
     begin
       irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
@@ -11697,15 +11675,14 @@ begin
 
       r.Expression := Format(
         '\|\s*%s\s*\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
-        [username]);
+        [site.UserName]);
 
       if not r.Exec(ss) then
         irc_addtext(Netname, Channel, 'No Nukes found, good boy!')
       else
         repeat
           irc_addtext(Netname, Channel, '%s x%s for: %s (%sM) %s ago.',
-            [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]),
-            Trim(r.Match[2]), Trim(r.Match[4])]);
+            [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]), Trim(r.Match[2]), Trim(r.Match[4])]);
         until not r.ExecNext;
 
       Result := True;
