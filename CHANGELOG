@@ -49,8 +49,8 @@
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.5 )===================================-
-        {+} Add Affilsgroups with _INT automatically to affillist or handle them as they are the same ---- need to be tested ----
 		{+} tvlanguage rule for TVMaze infos (#79)
+		{+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (#129)                 ---- need to be tested ----
 		{+} New IRC Help Command -> !help nhelp
 		{+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
 		{+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
@@ -58,8 +58,6 @@
 		{+} Wrap IRC Messages into 280 char long chunks (#36)
 		{+} Wrap lines on console window based on width (#36)
 		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
-		{#} ERROR: site,can not cwd / message is gone.
-		{#} Site has no suitable file for speedtesting, check slftp.ini (#130)                ---- need to be tested ----
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
 		{#} Bug with looping of Sample folder fixed (#4)                                      ---- need some more code changes - uses SetFileError ---
@@ -67,6 +65,8 @@
 		{#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
 		{#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
+		{#} sitename for !speedtestin and !speedtestout, no empty "Site <> has no suitable file for speedtesting" (#130)     ---- need to be tested ----
+		{^} !inviteme uses site username for SITE INVITE if no IRCNick is specified
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
 		{^} No [NOT SET] message if site is set to permdown (#108)
@@ -85,7 +85,7 @@
 		{-} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)             ---- not really a fix for it ----
 		{-} !setaffils removed -> use !affils
 		{-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
-		{-} Support for deprecated OpenSSL 1.0.1 series dropped
+		{-} Support for deprecated OpenSSL 1.0.1 series
 
 --=============================( SLFTP v1.5.4 )===================================-
     ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
