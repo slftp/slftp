@@ -330,7 +330,7 @@ var
 implementation
 
 uses SysUtils, irc, DateUtils, configunit, queueunit, debugunit,
-  socks5, console,
+  socks5, console, knowngroups,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo;
 
 const
@@ -1505,7 +1505,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name,dir]);
+       // Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name,dir]);
         exit;
       end;
 
@@ -2291,7 +2291,7 @@ begin
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-    Result := x.IndexOf(affil) <> -1;
+    Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
   end;

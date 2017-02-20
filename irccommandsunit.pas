@@ -8086,7 +8086,7 @@ begin
         //speedtestfilesizes.Free;
 
         irc_addtext(Netname, Channel,
-          'Site %s has no suitable file for speedtesting, check slftp.ini', [sr.sitename]);
+          'Site %s has no suitable file for speedtesting, check slftp.ini', [ss]);
         exit;
       end;
 
@@ -8284,7 +8284,7 @@ begin
   begin
     irc_addtext(Netname, Channel,
       'No suitable file found on site %s for speedtesting, check slftp.ini',
-      [fssitename]);
+      [ss]);
     exit;
   end;
 
