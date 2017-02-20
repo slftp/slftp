@@ -330,7 +330,7 @@ var
 implementation
 
 uses SysUtils, irc, DateUtils, configunit, queueunit, debugunit,
-  socks5, console,
+  socks5, console, knowngroups,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo;
 
 const
@@ -2291,7 +2291,7 @@ begin
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-    Result := x.IndexOf(affil) <> -1;
+    Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
   end;
