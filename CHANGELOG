@@ -50,6 +50,7 @@
 
 --=============================( SLFTP v1.5.5 )===================================-
 		{+} tvlanguage rule for TVMaze infos (#79)
+		{+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both                  ---- need to be tested ----
 		{+} New IRC Help Command -> !help nhelp
 		{+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
 		{+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
@@ -64,6 +65,7 @@
 		{#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
 		{#} No more stalling of slftp if languagebase file is missing (#111)
 		{#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
+		{#} sitename for !speedtestin and !speedtestout, no empty "Site <> has no suitable file for speedtesting" (#130)     ---- need to be tested ----
 		{^} TVMaze Us US mismatch gets detected better now (#1)
 		{^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
 		{^} No [NOT SET] message if site is set to permdown (#108)
