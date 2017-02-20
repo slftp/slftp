@@ -8,7 +8,10 @@ type
 procedure KnowngroupsInit;
 procedure KnowngroupsUnInit;
 procedure KnowngroupsStart;
+
 function IsKnownGroup(section, groupname: AnsiString): TKnownGroup;
+
+function RemoveINT(grp: AnsiString): AnsiString;
 
 implementation
 
