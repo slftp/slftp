@@ -163,6 +163,12 @@ type
     function GetProxyName: AnsiString;
     procedure SetProxyName(Value: AnsiString);
 
+    function GetSiteUsername: AnsiString;
+    procedure SetSiteUsername(Value: AnsiString);
+    
+    function GetSitePassword: AnsiString;
+    procedure SetSitePassword(Value: AnsiString);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
@@ -257,18 +263,16 @@ type
     property traders: AnsiString read GetTraders write SettTraders;
     property users: AnsiString read GetUsers;
     property sectiondir[Name: AnsiString]: AnsiString read GetSectionDir write SetSectionDir;
-    property sectionprecmd[Name: AnsiString]: AnsiString
-    read GetSectionPreCmd write SetSectionPrecmd;
+    property sectionprecmd[Name: AnsiString]: AnsiString read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: AnsiString read GetAffils write SetAffils;
-
-    property sectionpretime[Name: AnsiString]: integer
-    read GetSectionPreTime write SetSectionPreTime;
-
+    property sectionpretime[Name: AnsiString]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
     property freeslots: integer read fFreeslots write SetFreeSlots;
     property IRCNick: AnsiString read getircnick write setircnick;
     property ProxyName: AnsiString read GetProxyName write SetProxyName;
+    property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
+    property PassWord: AnsiString read GetSitePassword write SetSitePassword;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -934,8 +938,8 @@ begin
   //else
   //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
 
-  un := RCString('username', 'anonymous');
-  upw := RCString('password', 'foo@foobar.hu');
+  un := self.site.UserName;
+  upw := self.site.PassWord;
 
   // to bypass welcome message you have to use '-' as first char on your password
   // WORKS ONLY @ GLFTPD
@@ -3202,6 +3206,26 @@ end;
 function TSite.GetProxyName;
 begin
   Result := RCString('proxyname', '!!NOIN!!');
+end;
+
+procedure TSite.SetSiteUsername(Value: AnsiString);
+begin
+  WCString('username', Value);
+end;
+
+function TSite.GetSiteUsername;
+begin
+  Result := RCString('username', 'anonymous_slFtp');
+end;
+
+procedure TSite.SetSitePassword(Value: AnsiString);
+begin
+  WCString('password', Value);
+end;
+
+function TSite.GetSitePassword;
+begin
+  Result := RCString('password', 'CR4P_P4$$W0RD');
 end;
 
 function TSite.GetNoLoginMSG: boolean;
