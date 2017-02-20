@@ -49,6 +49,7 @@
 		Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.5 )===================================-
+        {+} Add Affilsgroups with _INT automatically to affillist or handle them as they are the same ---- need to be tested ----
 		{+} tvlanguage rule for TVMaze infos (#79)
 		{+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both                  ---- need to be tested ----
 		{+} New IRC Help Command -> !help nhelp
@@ -58,6 +59,8 @@
 		{+} Wrap IRC Messages into 280 char long chunks (#36)
 		{+} Wrap lines on console window based on width (#36)
 		{+} Option to enable/disable autoinvite -> !help autoinvite (#84)
+		{#} ERROR: site,can not cwd / message is gone.
+		{#} Site has no suitable file for speedtesting, check slftp.ini (#130)                ---- need to be tested ----
 		{#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
 		{#} Bug with !dirlist not showing entries (#112)
 		{#} Bug with looping of Sample folder fixed (#4)                                      ---- need some more code changes - uses SetFileError ---
