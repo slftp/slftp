@@ -3204,7 +3204,7 @@ end;
 procedure TKBThread.Execute;
 var
   i, j: integer;
-  username: AnsiString;
+  s: TSite;
   p: TPazo;
   ps: TPazoSite;
 begin
@@ -3279,11 +3279,11 @@ begin
                 if (ps.dirlist = nil) then
                   Continue;
 
-                username := sitesdat.ReadString('site-' + ps.Name, 'username',
-                  '');
-                //irc_Addconsole('--> statsProcess : '+p.rls.rlsname+' @ '+ps.name);
-                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section,
-                  username);
+                s := FindSiteByName('', ps.Name);
+                if s = nil then
+                  Continue;
+
+                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section, s.UserName);
               except
                 on E: Exception do
                 begin
