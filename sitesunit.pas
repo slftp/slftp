@@ -165,7 +165,7 @@ type
 
     function GetSiteUsername: AnsiString;
     procedure SetSiteUsername(Value: AnsiString);
-    
+
     function GetSitePassword: AnsiString;
     procedure SetSitePassword(Value: AnsiString);
 
@@ -1491,21 +1491,47 @@ begin
   end;
 end;
 
-function TSiteSlot.Dirlist(dir: AnsiString; forcecwd: boolean = False;
-  fulldirlist: boolean = False): boolean;
+
+function TSiteSlot.Dirlist(dir: AnsiString; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
 var
-  cmd, kapcsolo: AnsiString;
+  cmd, list_everything: AnsiString;
 begin
   Result := False;
+  list_everything := '';
+
+  {
+  * GLFTPD
+  [L] 213- status of -l ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5535
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  [L] 213- status of -la ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5553
+  [L] drwxrwxrwx   3 uname     NoGroup      2763 Feb 20 11:01 .
+  [L] drwxrwxrwx  38 glftpd   glftpd          0 Feb 20 22:01 ..
+  [L] -rw-rw-rw-   1 uname     NoGroup       923 Feb 20 11:01 .message
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  * DRFTPD
+  * same result for both commands on my side (only 1 site to test)
+  }
+
   try
-    kapcsolo := '';
     if fulldirlist then
-      kapcsolo := 'a';
+      list_everything := 'a';
 
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-       // Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name,dir]);
+       // Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name, dir]);
         exit;
       end;
 
@@ -1514,31 +1540,28 @@ begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
         cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al')
       else if dir[1] = '/' then
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') +
-          ' ' + MyIncludeTrailingSlash(dir)
+        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + MyIncludeTrailingSlash(dir)
       else
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') +
-          ' ' + aktdir + MyIncludeTrailingSlash(dir);
-
+        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end
     else
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
-        cmd := 'STAT -l' + kapcsolo
+        cmd := 'STAT -l' + list_everything
       else if dir[1] = '/' then
-        cmd := 'STAT -l' + kapcsolo + ' ' + MyIncludeTrailingSlash(dir)
+        cmd := 'STAT -l' + list_everything + ' ' + MyIncludeTrailingSlash(dir)
       else
-        cmd := 'STAT -l' + kapcsolo + ' ' + aktdir + MyIncludeTrailingSlash(dir);
+        cmd := 'STAT -l' + list_everything + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end;
 
     if not Send(cmd) then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not send %s', [dir]);
+      Debug(dpError, 'dirlist', 'ERROR: can not send %s', [site.Name, dir]);
       exit;
     end;
     if not Read('Dirlist') then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not read %s', [dir]);
+      Debug(dpError, 'dirlist', 'ERROR: %s can not read %s', [site.Name, dir]);
       exit;
     end;
 
@@ -1547,7 +1570,6 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TSiteSlot.Dirlist: %s', [e.Message]);
-      Result := False;
     end;
   end;
 end;
