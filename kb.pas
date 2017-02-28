@@ -857,7 +857,7 @@ begin
     begin
       s := FindSiteByName(netname, sitename);
 
-      // si not found in pazo but we got an event ...
+      // site not found in pazo but we got an event ...
       if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
       begin
         if event = 'NUKE' then
@@ -865,44 +865,39 @@ begin
 
         if (s = nil) then
         begin
-          irc_Addstats(Format('<c4>[SITE NOT FOUND]</c> : %s %s', [netname,
-            sitename]));
+          irc_Addstats(Format('<c4>[SITE NOT FOUND]</c> : %s %s', [netname, sitename]));
           exit;
         end;
 
         if (s.markeddown) then
         begin
-          irc_Addstats(Format('<c4>[SITE DOWN]</c> : %s %s @ <b>%s</b>',
-            [section, rls, sitename]));
+          irc_Addstats(Format('<c4>[SITE DOWN]</c> : %s %s @ <b>%s</b>', [section, rls, sitename]));
           exit;
         end;
 
         if (TPretimeLookupMode(taskpretime_mode) <> plmNone) then
         begin
+          if (DateTimeToUnix(r.pretime) = 0) then
+          begin
+            irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>', [section, rls, sitename]));
+            exit;
+          end;
 
-        if (DateTimeToUnix(r.pretime) = 0) then
-        begin
-          irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>',
-            [section, rls, sitename]));
-          exit;
+          if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
+          begin
+            irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>', [section, rls, sitename]));
+            exit;
+          end;
         end;
 
-        if (not s.IsPretimeOk(p.rls.section, p.rls.pretime)) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not s.PermDown) and (not s.markeddown)) then
         begin
-          irc_Addstats(Format('<c5>[BACKFILL]</c> : %s %s @ <b>%s</b>',
-            [section, rls, sitename]));
-          exit;
-        end;
-        end;
-
-        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not TSite(FindSiteByName('', sitename)).PermDown)) then
-        begin
-        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
+          // tbh in which cases should this really occur? I don't get it.
+          irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
-      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and
-        (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
+      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -910,10 +905,10 @@ begin
           AddTask(l);
         except
           on E: Exception do
-            Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE loginTask : %s',
-              [e.Message]);
+            Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE loginTask : %s', [e.Message]);
         end;
       end;
+
       exit;
     end;
 
