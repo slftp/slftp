@@ -121,7 +121,7 @@ type
   //function Bold(s: string): string; overload;
   //function Bold(s: Integer): string; overload;
 
-procedure IrcStart;
+
 procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
 procedure irc_Addtext(const netname, channel: AnsiString; msg: AnsiString); overload;
 procedure irc_Addtext(const netname, channel: AnsiString; msgFormat: AnsiString; Args: array of const); overload;
@@ -159,6 +159,7 @@ procedure irc_SendUPDATE(msgirc: AnsiString);
 function FindIrcnetwork(netname: AnsiString): TMyIrcThread;
 
 procedure IrcInit;
+procedure IrcStart;
 procedure IrcUninit;
 procedure ircStop;
 
@@ -551,6 +552,7 @@ begin
       begin
         nn := SubString(x[i], '-', 2);
         channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
+        //b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False),sitesdat.ReadBool(x[i], 'cbc', False));
         b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
         b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
       end;
