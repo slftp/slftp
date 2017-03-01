@@ -208,7 +208,7 @@ begin
     try
       ttags.Assign(tvtags);
       ttags.Delimiter := '|';
-      rx.Expression := '(\d{4}|720p|1080p|' + ttags.DelimitedText + ').*$';
+      rx.Expression := '((19|20)\d{2}|720p|1080p|' + ttags.DelimitedText + ').*$';
       season := 0;
       episode := 0;
       showName := rx.Replace(rip, '', False);
