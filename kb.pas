@@ -501,10 +501,8 @@ begin
         i := kb_trimmed_rls.IndexOf(section + '-' + rls);
         if i <> -1 then
         begin
-          irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>',
-            [rls, sitename]));
+          irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
           kb_skip.Insert(0, rls);
-          //kb_lock.Leave;
           exit;
         end;
 
@@ -513,9 +511,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB trimmed_shit_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB trimmed_shit_checker : %s', [e.Message]);
         end;
       end;
     end;
@@ -533,28 +529,22 @@ begin
           if uppercase(grp) <> uppercase(ss) then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit!',
-                [rls, sitename]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, uppercase(grp), uppercase(ss)]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
             exit;
           end;
           if grp <> ss then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit!',
-                [rls, sitename]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit! %s vs. %s', [rls, sitename, grp, ss]));
             kb_skip.Insert(0, rls);
-            // kb_lock.Leave;
             exit;
           end;
         end;
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB renamed_group_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_group_checker : %s', [e.Message]);
         end;
       end;
     end;
@@ -579,14 +569,11 @@ begin
               if renameCheck(j, i, len, rls) then
               begin
                 if spamcfg.readbool(rsections, 'renamed_release', True) then
-                  irc_addadmin(
-                    format('<b><c4>%s</c> @ %s </b>is a rename of %s!',
-                    [rls, sitename, kb_latest[i]]));
+                  irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest[i]]));
 
                 kb_latest.Insert(0, rls);
                 // gonna insert this anyway, because there are sometimes renames of renames
                 kb_skip.Insert(0, rls);
-                //kb_lock.Leave;
                 exit;
               end;
             end;
@@ -595,9 +582,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            '[EXCEPTION] kb_AddB renamed_release_checker : %s',
-            [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
         end;
       end;
       kb_latest.Insert(0, rls);
@@ -666,7 +651,7 @@ begin
       begin
         while i > 250 do
         begin
-          kb_skip.Delete(i);
+          kb_skip.Delete(i);           
           i := kb_skip.Count - 1;
         end;
       end;
@@ -910,9 +895,10 @@ begin
         end;
         end;
 
-        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not TSite(FindSiteByName('', sitename)).PermDown)) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) or (not TSite(FindSiteByName('',sitename)).PermDown)) then
         begin
-        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
+        irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)',
+          [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
@@ -998,7 +984,7 @@ begin
       kb_lock.Leave;
     end;
 
-    // announce SKIP and DONT MATCH only if the site is not a PRE site
+    // announce SKIP and DONT MATCH only if the site is not a PRE site 
     if (psource.status <> rssRealPre) then
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
@@ -1289,7 +1275,7 @@ begin
 
     rrgx := TRegExpr.Create;
     try
-
+    
     rrgx.ModifierI := True;
     rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
     if rrgx.Exec(rlsname) then
@@ -1380,7 +1366,7 @@ begin
       else
         languages.Add('English');
     end;
-
+    
     finally
       rrgx.free;
     end;
@@ -1728,7 +1714,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, 'TMP3Release.Astext : %s', [e.Message]);
+      Debug(dpError, rsections, 'TMP3Release.AsText : %s', [e.Message]);
     end;
   end;
 end;
@@ -1856,7 +1842,14 @@ end;
 function TNFORelease.AsText(pazo_id: integer = -1): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'nfo genre: ' + nfogenre + #13#10;
+  try
+    Result := Result + 'nfo genre: ' + nfogenre + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TNFORelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TNFORelease.Create(rlsname, section: AnsiString;
@@ -1962,31 +1955,38 @@ end;
 function TTVRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'Show name: ' + showname + #13#10;
-  Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
-  Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-  Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
-  if premier_year <> -1 then
-    Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
-  if ended_year > 0 then
-    Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
-  if country <> '' then
-    Result := Result + 'Country: ' + country + #13#10;
-  if classification <> '' then
-    Result := Result + 'Classification: ' + classification + #13#10;
-  Result := Result + 'Scripted: ' + IntToStr(integer(scripted)) + #13#10;
-  if genres.Count > 0 then
-    Result := Result + 'Genres: ' + genres.CommaText + #13#10;
-  if network <> '' then
-    Result := Result + 'Network: ' + network + #13#10;
- if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
-  Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
-  if status <> '' then
-    Result := Result + 'Status: ' + status + #13#10;
-  Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
-  Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
-  Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
-  Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+  try
+    Result := Result + 'Show name: ' + showname + #13#10;
+    Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
+    Result := Result + 'Season: ' + IntToStr(season) + #13#10;
+    Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
+    if premier_year <> -1 then
+      Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
+    if ended_year > 0 then
+      Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
+    if country <> '' then
+      Result := Result + 'Country: ' + country + #13#10;
+    if classification <> '' then
+      Result := Result + 'Classification: ' + classification + #13#10;
+    Result := Result + 'Scripted: ' + IntToStr(integer(scripted)) + #13#10;
+    if genres.Count > 0 then
+      Result := Result + 'Genres: ' + genres.CommaText + #13#10;
+    if network <> '' then
+      Result := Result + 'Network: ' + network + #13#10;
+   if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
+    Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
+    if status <> '' then
+      Result := Result + 'Status: ' + status + #13#10;
+    Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
+    Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
+    Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
+    Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TTVRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TTVRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2043,11 +2043,17 @@ begin
 end;
 
 { T0DayRelease }
-
 function T0DayRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + '0daysource: ' + nulldaysource + #13#10;
+  try
+    Result := Result + '0daysource: ' + nulldaysource + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'T0DayRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor T0DayRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2193,22 +2199,28 @@ end;
 function TIMDBRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  Result := Result + 'IMDB id: ' + imdb_id + #13#10;
-  //  Result:= Result + 'IMDB URL: <l>http://imdb.com/title/'+imdb_id+'</l>'+#13#10;
-  Result := Result + 'IMDB year: ' + IntToStr(imdb_year) + #13#10;
-  Result := Result + 'IMDB Cineyear: ' + IntToStr(cineyear) + #13#10;
-  Result := Result + 'IMDB languages: ' + imdb_languages.DelimitedText + #13#10;
-  Result := Result + 'IMDB countries: ' + imdb_countries.DelimitedText + #13#10;
-  Result := Result + 'IMDB genres: ' + imdb_genres.DelimitedText + #13#10;
-  Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
-  Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
-  Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
-  Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) +
-    #13#10;
-  Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
-  Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
-  Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
-  Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
+  try
+    Result := Result + 'IMDB id: ' + imdb_id + #13#10;
+    Result:= Result + 'IMDB URL: <l>http://imdb.com/title/' + imdb_id + '</l>' + #13#10;
+    Result := Result + 'IMDB year: ' + IntToStr(imdb_year) + #13#10;
+    Result := Result + 'IMDB Cineyear: ' + IntToStr(cineyear) + #13#10;
+    Result := Result + 'IMDB languages: ' + imdb_languages.DelimitedText + #13#10;
+    Result := Result + 'IMDB countries: ' + imdb_countries.DelimitedText + #13#10;
+    Result := Result + 'IMDB genres: ' + imdb_genres.DelimitedText + #13#10;
+    Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
+    Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
+    Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
+    Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) + #13#10;
+    Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
+    Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
+    Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
+    Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TIMDBRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 constructor TIMDBRelease.Create(rlsname: AnsiString; section: AnsiString;
@@ -2271,16 +2283,22 @@ end;
 function TMVIDRelease.AsText(pazo_id: integer): AnsiString;
 begin
   Result := inherited AsText(pazo_id);
-  //  Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
-  Result := Result + 'MVID Genre: ' + mvid_Genre.CommaText + #13#10;
-  Result := Result + 'MVID Year: ' + IntToStr(mvid_year) + #13#10;
-  Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
-  Result := Result + 'MVID Source: ' + mvid_source + #13#10;
-  Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
-  Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) +
-    #13#10;
-  Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
-  Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
+  try
+    // Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
+    Result := Result + 'MVID Genre: ' + mvid_Genre.CommaText + #13#10;
+    Result := Result + 'MVID Year: ' + IntToStr(mvid_year) + #13#10;
+    Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
+    Result := Result + 'MVID Source: ' + mvid_source + #13#10;
+    Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
+    Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) + #13#10;
+    Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
+    Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TMVIDRelease.AsText : %s', [e.Message]);
+    end;
+  end;
 end;
 
 function TMVIDRelease.Aktualizald(extrainfo: AnsiString): boolean;
@@ -2404,24 +2422,27 @@ begin
 
   // itt kell betoltenunk az slftp.kb -t
   kb_lock.Enter;
-  x := TEncStringlist.Create(passphrase);
   try
-    //    Console_Addline('', 'Loading KB entries...');
-    x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-    last := Now;
-    for i := 0 to x.Count - 1 do
-    begin
-      //Console_QueueStat(x.Count - i - 1);
-      AddKbPazo(x[i]);
-      if MilliSecondsBetween(Now, last) > 500 then
+    x := TEncStringlist.Create(passphrase);
+    try
+      //    Console_Addline('', 'Loading KB entries...');
+      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
+      last := Now;
+      for i := 0 to x.Count - 1 do
       begin
-        last := Now;
-        slapp.ProcessMessages;
+        //Console_QueueStat(x.Count - i - 1);
+        AddKbPazo(x[i]);
+        if MilliSecondsBetween(Now, last) > 500 then
+        begin
+          last := Now;
+          slapp.ProcessMessages;
+        end;
       end;
+      Console_Addline('', 'Ok.');
+    finally
+      x.Free;
     end;
-    Console_Addline('', 'Ok.');
   finally
-    x.Free;
     kb_lock.Leave;
   end;
 
@@ -2560,8 +2581,7 @@ begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
   noannouncesections := TStringList.Create;
-  noannouncesections.DelimitedText :=
-    config.ReadString(rsections, 'noannouncesection', '');
+  noannouncesections.DelimitedText := config.ReadString(rsections, 'noannouncesection', '');
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -2616,10 +2636,8 @@ begin
   mp3languages.Delimiter := ' ';
   mp3languages.QuoteChar := '"';
   mp3languages.CaseSensitive := False;
-  mp3languages.DelimitedText :=
-    UpperCase(config.ReadString(rsections, 'mp3languages', ''));
+  mp3languages.DelimitedText := UpperCase(config.ReadString(rsections, 'mp3languages', ''));
 
-  x := TStringList.Create;
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
@@ -2628,22 +2646,23 @@ begin
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
 
-  config.ReadSection(rsections, x);
-  for i := 0 to x.Count - 1 do
-  begin
-    if (1 = Pos('mp3source_', x[i])) then
+  x := TStringList.Create;
+  try
+    config.ReadSection(rsections, x);
+    for i := 0 to x.Count - 1 do
     begin
-      mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] :=
-        ' ' + config.ReadString(rsections, x[i], '') + ' ';
-    end
-    else if (1 = Pos('0daysource_', x[i])) then
-    begin
-      nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] :=
-        ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      if (1 = Pos('mp3source_', x[i])) then
+      begin
+        mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      end
+      else if (1 = Pos('0daysource_', x[i])) then
+      begin
+        nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] := ' ' + config.ReadString(rsections, x[i], '') + ' ';
+      end;
     end;
+  finally
+    x.Free;
   end;
-
-  x.Free;
 
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
@@ -2682,12 +2701,9 @@ begin
   kb_latest := THashedStringList.Create;
   kb_skip := THashedStringList.Create;
 
-  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker',
-    True);
-  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker',
-    False);
-  renamed_release_checker := config.ReadBool(rsections,
-    'renamed_release_checker', False);
+  trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
+  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', False);
+  renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
   //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
   use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
@@ -3189,7 +3205,7 @@ end;
 procedure TKBThread.Execute;
 var
   i, j: integer;
-  username: AnsiString;
+  s: TSite;
   p: TPazo;
   ps: TPazoSite;
 begin
@@ -3264,11 +3280,11 @@ begin
                 if (ps.dirlist = nil) then
                   Continue;
 
-                username := sitesdat.ReadString('site-' + ps.Name, 'username',
-                  '');
-                //irc_Addconsole('--> statsProcess : '+p.rls.rlsname+' @ '+ps.name);
-                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section,
-                  username);
+                s := FindSiteByName('', ps.Name);
+                if s = nil then
+                  Continue;
+
+                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section, s.UserName);
               except
                 on E: Exception do
                 begin

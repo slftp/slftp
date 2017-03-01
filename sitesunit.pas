@@ -163,8 +163,17 @@ type
     function GetProxyName: AnsiString;
     procedure SetProxyName(Value: AnsiString);
 
+    function GetSiteUsername: AnsiString;
+    procedure SetSiteUsername(Value: AnsiString);
+
+    function GetSitePassword: AnsiString;
+    procedure SetSitePassword(Value: AnsiString);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
+
+    function GetUseForNFOdownload: integer;
+    procedure SetUseForNFOdownload(Value: integer);
 
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
@@ -254,18 +263,16 @@ type
     property traders: AnsiString read GetTraders write SettTraders;
     property users: AnsiString read GetUsers;
     property sectiondir[Name: AnsiString]: AnsiString read GetSectionDir write SetSectionDir;
-    property sectionprecmd[Name: AnsiString]: AnsiString
-    read GetSectionPreCmd write SetSectionPrecmd;
+    property sectionprecmd[Name: AnsiString]: AnsiString read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: AnsiString read GetAffils write SetAffils;
-
-    property sectionpretime[Name: AnsiString]: integer
-    read GetSectionPreTime write SetSectionPreTime;
-
+    property sectionpretime[Name: AnsiString]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
     property freeslots: integer read fFreeslots write SetFreeSlots;
     property IRCNick: AnsiString read getircnick write setircnick;
     property ProxyName: AnsiString read GetProxyName write SetProxyName;
+    property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
+    property PassWord: AnsiString read GetSitePassword write SetSitePassword;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -284,7 +291,7 @@ type
     property predir: AnsiString read GetPredir write SetPredir;
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
-
+    property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -323,7 +330,7 @@ var
 implementation
 
 uses SysUtils, irc, DateUtils, configunit, queueunit, debugunit,
-  socks5, console,
+  socks5, console, knowngroups,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo;
 
 const
@@ -931,8 +938,8 @@ begin
   //else
   //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
 
-  un := RCString('username', 'anonymous');
-  upw := RCString('password', 'foo@foobar.hu');
+  un := self.site.UserName;
+  upw := self.site.PassWord;
 
   // to bypass welcome message you have to use '-' as first char on your password
   // WORKS ONLY @ GLFTPD
@@ -1484,21 +1491,47 @@ begin
   end;
 end;
 
-function TSiteSlot.Dirlist(dir: AnsiString; forcecwd: boolean = False;
-  fulldirlist: boolean = False): boolean;
+
+function TSiteSlot.Dirlist(dir: AnsiString; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
 var
-  cmd, kapcsolo: AnsiString;
+  cmd, list_everything: AnsiString;
 begin
   Result := False;
+  list_everything := '';
+
+  {
+  * GLFTPD
+  [L] 213- status of -l ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5535
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  [L] 213- status of -la ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5553
+  [L] drwxrwxrwx   3 uname     NoGroup      2763 Feb 20 11:01 .
+  [L] drwxrwxrwx  38 glftpd   glftpd          0 Feb 20 22:01 ..
+  [L] -rw-rw-rw-   1 uname     NoGroup       923 Feb 20 11:01 .message
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  * DRFTPD
+  * same result for both commands on my side (only 1 site to test)
+  }
+
   try
-    kapcsolo := '';
     if fulldirlist then
-      kapcsolo := 'a';
+      list_everything := 'a';
 
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpError, 'dirlist', 'ERROR: %s,can not cwd %s', [site.Name,dir]);
+       // Debug(dpError, 'dirlist', 'ERROR: %s, can not cwd %s', [site.Name, dir]);
         exit;
       end;
 
@@ -1507,31 +1540,28 @@ begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
         cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al')
       else if dir[1] = '/' then
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') +
-          ' ' + MyIncludeTrailingSlash(dir)
+        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + MyIncludeTrailingSlash(dir)
       else
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') +
-          ' ' + aktdir + MyIncludeTrailingSlash(dir);
-
+        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end
     else
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
-        cmd := 'STAT -l' + kapcsolo
+        cmd := 'STAT -l' + list_everything
       else if dir[1] = '/' then
-        cmd := 'STAT -l' + kapcsolo + ' ' + MyIncludeTrailingSlash(dir)
+        cmd := 'STAT -l' + list_everything + ' ' + MyIncludeTrailingSlash(dir)
       else
-        cmd := 'STAT -l' + kapcsolo + ' ' + aktdir + MyIncludeTrailingSlash(dir);
+        cmd := 'STAT -l' + list_everything + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end;
 
     if not Send(cmd) then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not send %s', [dir]);
+      Debug(dpError, 'dirlist', 'ERROR: %s, can not send %s', [site.Name, dir]);
       exit;
     end;
     if not Read('Dirlist') then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: can not read %s', [dir]);
+      Debug(dpError, 'dirlist', 'ERROR: %s, can not read %s', [site.Name, dir]);
       exit;
     end;
 
@@ -1540,7 +1570,6 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TSiteSlot.Dirlist: %s', [e.Message]);
-      Result := False;
     end;
   end;
 end;
@@ -1614,6 +1643,7 @@ begin
       if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
       begin
         irc_AddText(todotask, site.name + ': couldnt negotiate the SSL connection (' + idTCP.error + ') / ' + filename);
+        site.UseForNFOdownload := 2; // for crap sites with old SSL or so
         DestroySocket(False);
         Result := -1;
         exit;
@@ -2283,7 +2313,7 @@ begin
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-    Result := x.IndexOf(affil) <> -1;
+    Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
   end;
@@ -3200,6 +3230,26 @@ begin
   Result := RCString('proxyname', '!!NOIN!!');
 end;
 
+procedure TSite.SetSiteUsername(Value: AnsiString);
+begin
+  WCString('username', Value);
+end;
+
+function TSite.GetSiteUsername;
+begin
+  Result := RCString('username', 'anonymous_slFtp');
+end;
+
+procedure TSite.SetSitePassword(Value: AnsiString);
+begin
+  WCString('password', Value);
+end;
+
+function TSite.GetSitePassword;
+begin
+  Result := RCString('password', 'CR4P_P4$$W0RD');
+end;
+
 function TSite.GetNoLoginMSG: boolean;
 begin
   Result := RCBool('nologinmsg', False);
@@ -3208,6 +3258,19 @@ end;
 procedure TSite.SetNoLoginMSG(Value: boolean);
 begin
   WCBool('nologinmsg', Value);
+end;
+
+function TSite.GetUseForNFOdownload: integer;
+begin
+  // 0 means disabled
+  // 1 means enabled
+  // 2 means automatically disabled by slftp due to problems (some SSL or out of credits)
+  Result := RCInteger('usefornfodownload', 1);
+end;
+
+procedure TSite.SetUseForNFOdownload(Value: integer);
+begin
+  WCInteger('usefornfodownload', Value);
 end;
 
 function TSite.GetPermDownStatus: boolean;

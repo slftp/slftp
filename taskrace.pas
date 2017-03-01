@@ -1390,6 +1390,17 @@ begin
         end;
 
 
+      426:
+        begin
+          //COMPLETE MSG: 426 Data connection: Broken pipe
+          //COMPLETE MSG: 426 Data connection: Connection reset by peer.
+          if (0 <> AnsiPos('Data connection', lastResponse)) then
+          begin
+            goto TryAgain;
+          end;
+        end;
+
+
       450, 530:
         begin
           //COMPLETE MSG: 450 No transfer-slave(s) available
