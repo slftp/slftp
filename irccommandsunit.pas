@@ -249,6 +249,7 @@ function IrcInviteMyIRCNICK(const netname, channel: AnsiString; params: AnsiStri
 
 //Site_stuff
 function IrcNoLoginMSG(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 //function IrcCustomDelrelease(const netname, channel: string;params: string): Boolean;
 
@@ -346,7 +347,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..244] of TIrcCommand = (
+  irccommands: array[1..245] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -389,6 +390,8 @@ const
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
     (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'usefornfodownload'; hnd: IrcUseForNFOdownload; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+
     (cmd: 'nukes'; hnd: IrcShowSiteNukes; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'credits'; hnd: IrcShowCredits; minparams: 1; maxparams: - 1; hlpgrp: 'site'),
     (cmd: '-'; hnd: IrcHelpSeperator; minparams: 0; maxparams: 0; hlpgrp: 'site'),
@@ -2735,9 +2738,6 @@ begin
     exit;
   end;
 
-  sitesdat.WriteString('site-' + sitename, 'username', username);
-  sitesdat.WriteString('site-' + sitename, 'password', password);
-
   i := 4;
   while (True) do
   begin
@@ -2747,15 +2747,23 @@ begin
     if ((bnchost = '') or (bncport = 0)) then
       break;
 
-    sitesdat.WriteString('site-' + sitename,
-      'bnc_host-' + IntToStr(i - 4), bnchost);
-    sitesdat.WriteInteger('site-' + sitename,
-      'bnc_port-' + IntToStr(i - 4), bncport);
+    sitesdat.WriteString('site-' + sitename, 'bnc_host-' + IntToStr(i - 4), bnchost);
+    sitesdat.WriteInteger('site-' + sitename, 'bnc_port-' + IntToStr(i - 4), bncport);
 
     Inc(i);
   end;
 
   sites.Add(TSite.Create(sitename));
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Adding Site <b>%s</b> failed.', [sitename]);
+    exit;
+  end;
+
+  s.UserName := username;
+  s.PassWord := password;
 
   Result := True;
 end;
@@ -8086,7 +8094,7 @@ begin
         //speedtestfilesizes.Free;
 
         irc_addtext(Netname, Channel,
-          'Site %s has no suitable file for speedtesting, check slftp.ini', [sr.sitename]);
+          'Site %s has no suitable file for speedtesting, check slftp.ini', [ss]);
         exit;
       end;
 
@@ -8284,7 +8292,7 @@ begin
   begin
     irc_addtext(Netname, Channel,
       'No suitable file found on site %s for speedtesting, check slftp.ini',
-      [fssitename]);
+      [ss]);
     exit;
   end;
 
@@ -8632,8 +8640,7 @@ begin
   Result := True;
 end;
 
-function IrcStatSitesByUser(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcStatSitesByUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   q, ss: AnsiString;
   username, userfilter, sectionname, sectionfilter: AnsiString;
@@ -9588,53 +9595,58 @@ begin
   Result := True;
 end;
 
-function IrcSetMYIrcNick(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetMYIrcNick(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  ircnick, snam: AnsiString;
-  sit: TSite;
+  ircnick, sname: AnsiString;
+  s: TSite;
 begin
-  snam := UpperCase(SubString(params, ' ', 1));
+  Result := False;
+  sname := UpperCase(SubString(params, ' ', 1));
   ircnick := SubString(params, ' ', 2);
 
-  sit := FindSiteByName('', snam);
-  if sit = nil then
+  s := FindSiteByName('', sname);
+  if s = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [snam]);
-    Result := True;
+    irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Site %s not found', [sname]);
     exit;
   end;
-  sit.ircnick := ircnick;
+  s.ircnick := ircnick;
+
   Result := True;
 end;
 
-function IrcInviteMyIRCNICK(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcInviteMyIRCNICK(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   s: TSite;
   x: TStringList;
-  i: integer;
-  //  db:    integer;
-  mnick: AnsiString;
+  i: Integer;
 begin
-  //  Result := False;
+  Result := False;
 
   if params = '*' then
   begin
-    for I := 0 to sites.Count - 1 do
+    for i := 0 to sites.Count - 1 do
     begin
-      s := (TSite(sites.Items[i]));
-      if Uppercase(s.Name) = getAdminSiteName then
+      s := TSite(sites.Items[i]);
+      if s = nil then
         Continue;
-      if s.IRCNick = '' then
+      if Uppercase(s.Name) = getAdminSiteName then
         Continue;
       if s.PermDown then
         Continue;
-      Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s',
-        [s.Name]);
-      RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+
+      if s.IRCNick = '' then
+      begin
+        Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with site username %s', [s.Name, s.UserName]);
+        RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.UserName]));
+      end
+      else
+      begin
+        Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with irc nick %s', [s.Name, s.IRCNick]);
+        RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+      end
     end;
-    result := True;
+    Result := True;
   end
   else
   begin
@@ -9647,7 +9659,6 @@ begin
 
         for i := 0 to x.Count - 1 do
         begin
-          mnick := '';
           s := FindSiteByName(Netname, x[i]);
           if s = nil then
           begin
@@ -9658,24 +9669,26 @@ begin
           begin
             if (s.PermDown) then
               Continue;
-            mnick := s.ircnick;
-            if mnick = '' then
+
+            if s.IRCNick = '' then
             begin
-              irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: No IRC-Nick found for %s',
-                [x[i]]);
-              Continue;
+              Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with site username %s', [s.Name, s.UserName]);
+              RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.UserName]));
             end
             else
-              RawB(Netname, Channel, s.Name, '/', 'SITE INVITE ' + mnick);
-          end; { else begin from if s = nil }
-        end; { for i:= 0 to x.Count -1 do }
-        irc_addtext(Netname, Channel, 'All Done...');
+            begin
+              Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with irc nick %s', [s.Name, s.IRCNick]);
+              RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+            end;
+          end;
 
-      end; { if x.Count > 0 then }
-      Result := True;
+        end;
+        irc_addtext(Netname, Channel, 'All Done...');
+      end;
     finally
       x.Free;
     end;
+    Result := True;
   end;
 end;
 
@@ -10140,7 +10153,9 @@ begin
           irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
             SiteSoftWareToSTring(ss)]);
         end;
-      end;
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
     end;
   end
   else
@@ -10177,14 +10192,77 @@ begin
         irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
           SiteSoftWareToSTring(ss)]);
       end;
-    end;
+    end
+    else
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
   end;
 
   Result := True;
 end;
 
-(* PreURLs *)
 
+function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  sname: AnsiString;
+  svalue: integer;
+  ss: TSite;
+  i: integer;
+begin
+  Result := False;
+  sname := UpperCase(SubString(params, ' ', 1));
+  svalue := StrToIntDef(SubString(params, ' ', 2), -1);
+
+  if sname = '*' then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      ss := TSite(sites.Items[i]);
+      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
+      if TSite(sites.Items[i]).PermDown then
+        Continue;
+
+      if svalue = -1 then
+      begin
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      end
+      else if ((svalue = 1) or (svalue = 0)) then
+      begin
+        ss.UseForNFOdownload := svalue;
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+    end;
+  end
+  else
+  begin
+    ss := FindSiteByName('', sname);
+    if ss = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
+      Result := True;
+      exit;
+    end;
+
+    if svalue = -1 then
+    begin
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+    end
+    else if ((svalue = 1) or (svalue = 0)) then
+    begin
+      ss.UseForNFOdownload := svalue;
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+    end
+    else
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+  end;
+
+  Result := True;
+end;
+
+
+(* PreURLs *)
 function IrcPreURLAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   url, offset: AnsiString;
@@ -11546,62 +11624,39 @@ begin
 
 end;
 
-function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
-  username, ss, sitename: AnsiString;
+  sitename, ss: AnsiString;
   Count: integer;
   r: TRegexpr;
   site: TSite;
-  //  si:   TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  (*
-    si:=TStringlist.Create;
-    si.CommaText:=sitename;
-  *)
-
   Count := StrToIntDef(SubString(params, ' ', 2), 150);
-  site := FindSiteByName(Netname, sitename);
 
+  site := FindSiteByName(Netname, sitename);
   if site = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-    Result := False;
     exit;
   end;
 
   if site.PermDown then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
-      [sitename]);
-    Result := False;
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [site.Name]);
     exit;
   end;
 
   if ((site.working = sstUnknown) or (site.working = sstDown)) then
   begin
     TSiteSlot(site.slots.Items[site.slots.Count - 1]).ReLogin();
-    irc_addtext(Netname, Channel,
-      'Site <b>%s</b> is offline do a bnctest.... hand a sec!',
-      [sitename]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!', [site.Name]);
   end;
 
   if site.GetSw <> sswGlftpd then
   begin
-    irc_addtext(Netname, Channel,
-      'This command is currently only for GrayLine FTPD%ss.',
-      [Chr(39)]);
-    Result := False;
-    exit;
-  end;
-
-  username := site.RCString('username', 'slFtp');
-  if username = 'slFtp' then
-  begin
-    irc_addtext(Netname, Channel, 'No valid username found for %s',
-      [site.Name]);
-    Result := False;
+    irc_addtext(Netname, Channel, 'This command is currently only for GrayLine FTPD%ss.', [Chr(39)]);
     exit;
   end;
 
@@ -11610,10 +11665,7 @@ begin
   except
     on E: Exception do
     begin
-      irc_addtext(Netname, Channel,
-        '<c4>[Exception]</c> in IrcShowSiteNukes; %s',
-        [E.Message]);
-      Result := False;
+      irc_addtext(Netname, Channel, '<c4>[Exception]</c> in IrcShowSiteNukes; %s', [E.Message]);
       Exit;
     end;
   end;
@@ -11621,10 +11673,10 @@ begin
   r := TRegexpr.Create;
   //  r.ModifierS := False;
   //  r.ModifierG := False;
-
   try
     r.Expression := 'foo nukes';
     r.ModifierI := True;
+
     if r.Exec(ss) then
     begin
       irc_addtext(Netname, Channel, 'Sorry not compatible with tur-nukes');
@@ -11637,15 +11689,14 @@ begin
 
       r.Expression := Format(
         '\|\s*%s\s*\|\s*(\d+)[xX]\s*([\d,.]+[Mm]?)\s*\|(.*?)\|[\r\n\s]+.*?\|\s*Age\:(.*?)\|\s*Dir\:(.*?)\s*\|',
-        [username]);
+        [site.UserName]);
 
       if not r.Exec(ss) then
         irc_addtext(Netname, Channel, 'No Nukes found, good boy!')
       else
         repeat
           irc_addtext(Netname, Channel, '%s x%s for: %s (%sM) %s ago.',
-            [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]),
-            Trim(r.Match[2]), Trim(r.Match[4])]);
+            [Trim(r.Match[5]), Trim(r.Match[1]), Trim(r.Match[3]), Trim(r.Match[2]), Trim(r.Match[4])]);
         until not r.ExecNext;
 
       Result := True;
