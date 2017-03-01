@@ -77,10 +77,8 @@ begin
     x.ModifierI := False;
     x.ModifierM := True;
     getShowValues(name, showName);
-
     // Cut off Year tag
-    // x.Expression := '[._-\s](\d{4})[\s._-]?$'; <-- will cut every number with 4 digits at the end
-    x.Expression := '[._-\s]((19|20)\d\d)[\s._-]?$';
+    x.Expression := '[._-\s]((19|20)\d{2})[\s._-]?$';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
@@ -130,7 +128,6 @@ begin
 
       showA := replaceTVShowChars(Csere(showName, '.', ' '));
       showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
-//      irc_addtext('','','%s %s',[onlyEnglishAlpha(showA),onlyEnglishAlpha(showB)]);
       if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
       begin
 
@@ -141,9 +138,6 @@ begin
           if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
             tv_country := AnsiString(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
 
-          // USA not needed, it just added for old rules made when tvrage was alive - shows are tagged with US
-          //if tv_country = 'US' then
-          //  tv_country := 'USA';
           if tv_country = 'GB' then
             tv_country := 'UK';
 
@@ -189,9 +183,6 @@ begin
               Csere(showName, '.', ' '), year]));
         end;
       end;
-
-
-
 
       if ((not hadYear) and (not hadCountry)) then
       begin
