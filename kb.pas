@@ -890,10 +890,9 @@ begin
           end;
         end;
 
-        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not s.PermDown) and (not s.markeddown)) then
+        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not s.PermDown) and (not s.markeddown) and (s.working <> sstDown)) then
         begin
-          // tbh in which cases should this really occur? I don't get it.
-          irc_Addstats(Format('<c5>[NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
+          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
