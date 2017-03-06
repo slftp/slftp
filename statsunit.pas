@@ -82,7 +82,7 @@ begin
     exit;
   end;
 
-  while (size >= 1024) do
+  while ( (size >= 1024) and (StartFromSizeUnit < FileSizeUnitCount) ) do
   begin
     size := size / 1024;
     Inc(StartFromSizeUnit);
