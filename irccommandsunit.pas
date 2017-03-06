@@ -9595,53 +9595,57 @@ begin
   Result := True;
 end;
 
-function IrcSetMYIrcNick(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetMYIrcNick(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  ircnick, snam: AnsiString;
-  sit: TSite;
+  ircnick, sname: AnsiString;
+  s: TSite;
 begin
-  snam := UpperCase(SubString(params, ' ', 1));
+  Result := False;
+  sname := UpperCase(SubString(params, ' ', 1));
   ircnick := SubString(params, ' ', 2);
 
-  sit := FindSiteByName('', snam);
-  if sit = nil then
+  s := FindSiteByName('', sname);
+  if s = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [snam]);
-    Result := True;
+    irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Site %s not found!', [sname]);
     exit;
   end;
-  sit.ircnick := ircnick;
+  s.ircnick := ircnick;
+
   Result := True;
 end;
 
-function IrcInviteMyIRCNICK(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcInviteMyIRCNICK(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   s: TSite;
   x: TStringList;
-  i: integer;
-  //  db:    integer;
-  mnick: AnsiString;
+  i: Integer;
 begin
-  //  Result := False;
+  Result := False;
 
   if params = '*' then
   begin
-    for I := 0 to sites.Count - 1 do
+    for i := 0 to sites.Count - 1 do
     begin
-      s := (TSite(sites.Items[i]));
-      if Uppercase(s.Name) = getAdminSiteName then
+      s := TSite(sites.Items[i]);
+      if s = nil then
         Continue;
-      if s.IRCNick = '' then
+      if Uppercase(s.Name) = getAdminSiteName then
         Continue;
       if s.PermDown then
         Continue;
-      Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s',
-        [s.Name]);
-      RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+
+      if s.IRCNick = '' then
+      begin
+        Irc_AddText(Netname, Channel, 'Please set your irc nick first! Maybe %sircnick %s %s', [irccmdprefix, s.Name, s.UserName]);
+      end
+      else
+      begin
+        Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with irc nick %s', [s.Name, s.IRCNick]);
+        RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+      end
     end;
-    result := True;
+    Result := True;
   end
   else
   begin
@@ -9654,40 +9658,41 @@ begin
 
         for i := 0 to x.Count - 1 do
         begin
-          mnick := '';
           s := FindSiteByName(Netname, x[i]);
           if s = nil then
           begin
-            irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Site %s not found', [x[i]]);
+            irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Site %s not found!', [x[i]]);
             Continue;
           end
           else
           begin
-            if (s.PermDown) then
+            if Uppercase(s.Name) = getAdminSiteName then
               Continue;
-            mnick := s.ircnick;
-            if mnick = '' then
+            if s.PermDown then
+              Continue;
+
+            if s.IRCNick = '' then
             begin
-              irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: No IRC-Nick found for %s',
-                [x[i]]);
-              Continue;
+              Irc_AddText(Netname, Channel, 'Please set your irc nick first! Maybe %sircnick %s %s', [irccmdprefix, s.Name, s.UserName]);
             end
             else
-              RawB(Netname, Channel, s.Name, '/', 'SITE INVITE ' + mnick);
-          end; { else begin from if s = nil }
-        end; { for i:= 0 to x.Count -1 do }
-        irc_addtext(Netname, Channel, 'All Done...');
+            begin
+              Irc_AddText(Netname, Channel, 'Invitation sent inquiry to %s with irc nick %s', [s.Name, s.IRCNick]);
+              RawB(Netname, Channel, s.Name, '/', Format('SITE INVITE %s', [s.IRCNick]));
+            end;
+          end;
 
-      end; { if x.Count > 0 then }
-      Result := True;
+        end;
+        irc_addtext(Netname, Channel, 'All Done...');
+      end;
     finally
       x.Free;
     end;
+    Result := True;
   end;
 end;
 
-function IrcNetNoSocks5(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcNetNoSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   nname, Value: AnsiString;
   status: boolean;
@@ -9729,8 +9734,7 @@ begin
   except
     on e: Exception do
     begin
-      Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcTweakSocks5 saving value %s',
-        [e.Message]);
+      Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcTweakSocks5 saving value %s', [e.Message]);
       exit;
     end;
   end;
