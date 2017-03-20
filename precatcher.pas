@@ -170,7 +170,7 @@ begin
   Result := trim(Result);
 end;
 
-function csupaszit(s: AnsiString): AnsiString;
+function RemoveSpecialCharsAndBareIt(const s: AnsiString): AnsiString;
 var
   i: integer;
   skip: integer;
@@ -227,17 +227,21 @@ function MainStripping(const idata: AnsiString): AnsiString;
 begin
   Result := idata;
   try
-    Result := csupaszit(Result);
+    Result := RemoveSpecialCharsAndBareIt(Result);
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> csupaszit : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] RemoveSpecialCharsAndBareIt : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> RemoveSpecialCharsAndBareIt : %s', [e.Message]));
       Result := '';
       exit;
     end;
   end;
 
+  // this part below is useless, or?
+  // above we only allow a-z, A-Z, Numbers and StrippingChars - else we replace the char with ' '
+  // then we check the response in StripNoValidChars against ValidChars which includes a lot more chars but our
+  // response won't have them in it because it's already replaced with ' '
   try
     Result := StripNoValidChars(Result);
   except
@@ -251,8 +255,7 @@ begin
   end;
 end;
 
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0):
-  AnsiString;
+function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
 var
   i: integer;
   x: TMap;
