@@ -698,7 +698,7 @@ begin
       rc := FindSectionHandler(section);
       if event = 'PRE' then
       begin
-        r := rc.Create(rls, section, True, DateTimeToUnix(Now()));
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now())); // no fakecheck needed, it's a pre from one of our sites
         irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
