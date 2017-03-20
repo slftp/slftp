@@ -182,7 +182,7 @@ begin
       begin
         if (Ord(s[i]) <> 255) then
         begin
-          if (((s[i] >= 'a') and (s[i] <= 'z')) or ((s[i] >= 'A') and (s[i] <= 'Z')) or Szam(s[i]) or (s[i] in StrippingChars)) then
+          if (((s[i] >= 'a') and (s[i] <= 'z')) or ((s[i] >= 'A') and (s[i] <= 'Z')) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
             Result := Result + s[i]
           else
             Result := Result + ' ';
@@ -195,9 +195,9 @@ begin
       begin
         if ((s[i] = #3) and (i < length(s) - 2)) then
         begin
-          if Szam(s[i + 1]) then
+          if IsANumber(s[i + 1]) then
           begin
-            if Szam(s[i + 2]) then
+            if IsANumber(s[i + 2]) then
               skip := 2
             else
               skip := 1;
