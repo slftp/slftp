@@ -203,9 +203,9 @@ begin
       begin
         if ((s[i] = #3) and (i < length(s) -2)) then
         begin
-          if Szam(s[i+1]) then
+          if IsANumber(s[i+1]) then
           begin
-            if Szam(s[i+2]) then
+            if IsANumber(s[i+2]) then
               skip:= 2
             else
               skip:= 1;
@@ -217,8 +217,9 @@ begin
 end;
 
 function MyFindWindow(const windowtitle: AnsiString): TslCommandWindow;
-var i: Integer;
-    t: TslCommandWindow;
+var
+  i: Integer;
+  t: TslCommandWindow;
 begin
   Result := nil;
   for i := 0 to app.m.children.Count - 1 do

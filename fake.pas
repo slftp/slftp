@@ -169,7 +169,7 @@ begin
 
     try
       ReadFakeSettings;
-    except 
+    except
       on E: Exception do
         result := False;
     end;
@@ -197,7 +197,7 @@ begin
     fakes.Objects[i] := nil;
   end;
   fakes.Free;
-  Debug(dpSpam, sFakeSection, 'Uninit2 at FakesUninit');  
+  Debug(dpSpam, sFakeSection, 'Uninit2 at FakesUninit');
 end;
 
 { TFakeSettings }
@@ -273,7 +273,7 @@ begin
     r.fakereason := Format('Many different chars %d >= fake_many_different_chars %d', [r.number_of_chars, f.fake_many_different_chars]);
     exit;
   end;
-  
+
   if (r.dots >= f.fake_many_dots) then
   begin
     r.fakereason := Format('Many dots %d >= fake_many_dots %d', [r.dots, f.fake_many_dots]);
@@ -339,7 +339,7 @@ begin
   begin
     for j := 1 to length(r.words[i]) do
     begin
-      if ((0 = Pos(r.words[i][j], s)) and (not Szam(r.words[i][j]))) then
+      if ((0 = Pos(r.words[i][j], s)) and (not IsANumber(r.words[i][j]))) then
       begin
         s := s + r.words[i][j];
 
@@ -390,7 +390,7 @@ begin
 
       for k := 1 to length(r.words[i]) do
       begin
-        if (Szam(r.words[i][k])) then
+        if (IsANumber(r.words[i][k])) then
         begin
           if johetszam then
             johetbetu := False
