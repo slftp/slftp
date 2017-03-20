@@ -50,6 +50,8 @@ function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0
 
 function FindSection(section: AnsiString): boolean;
 
+function StripNoValidChars(aInput: AnsiString): AnsiString; // { removes all chars from string which are not in array ValidChars }
+
 function KibontasSection(s, section: AnsiString): AnsiString;
 function ProcessDoReplace(s: AnsiString): AnsiString;
 
@@ -208,7 +210,7 @@ begin
       Dec(skip);
 end;
 
-function StripNonAlpha(aInput: AnsiString): AnsiString;
+function StripNoValidChars(aInput: AnsiString): AnsiString;
 var
   I: integer;
 begin
@@ -221,7 +223,7 @@ begin
   Result := aInput;
 end;
 
-function Focsupaszitas(idata: AnsiString): AnsiString;
+function MainStripping(const idata: AnsiString): AnsiString;
 begin
   Result := idata;
   try
@@ -235,13 +237,14 @@ begin
       exit;
     end;
   end;
+
   try
-    Result := StripNonAlpha(Result);
+    Result := StripNoValidChars(Result);
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] StripNoValidChars : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNoValidChars : %s', [e.Message]));
       Result := '';
       exit;
     end;
@@ -593,11 +596,11 @@ begin
       ts_data.QuoteChar := '"';
 
       try
-        Data := FoCsupaszitas(Data); //main Stripping
+        Data := MainStripping(Data); //main Stripping
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] MainStripping : %s', [e.Message]));
           //ts_data.Free;
           exit;
         end;
