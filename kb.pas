@@ -65,7 +65,7 @@ type
 
     pretime: TDateTime;
     cpretime: int64;
-    pred: boolean;
+    PredOnAnySite: boolean; // { indicates if it's pred on any of your sites }
 
     pretimefound: boolean;
     pretimefrom: AnsiString;
@@ -929,11 +929,11 @@ begin
       begin
         if (s <> nil) then
         begin
-          if ((not s.IsAffil(r.groupname)) and
-            (config.ReadBool(rsections, 'auto_add_affils', False))) then
+          if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', False))) then
             s.AddAffil(r.groupname);
         end;
       end;
+      r.PredOnAnySite := True;
       psource.Status := rssRealPre;
     end
     else if ((event = 'COMPLETE') and (not psource.StatusRealPreOrShouldPre)) then
@@ -1077,6 +1077,7 @@ begin
           // Source site is PRE site for this group
           if ps.status in [rssShouldPre, rssRealPre] then
           begin
+            r.PredOnAnySite := True;
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
             if (ps.dirlist <> nil) then
@@ -1221,7 +1222,7 @@ var
 begin
   try
     aktualizalva := False;
-    //incompleteFiller := False;
+    PredOnAnySite := False;
     languages := TStringList.Create;
 
     tags := TStringList.Create;
