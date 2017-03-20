@@ -182,11 +182,10 @@ begin
       begin
         if (Ord(s[i]) <> 255) then
         begin
-          if (((s[i] >= 'a') and (s[i] <= 'z')) or ((s[i] >= 'A') and (s[i] <= 'Z')) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
+          if (IsALetter(s[i]) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
             Result := Result + s[i]
           else
             Result := Result + ' ';
-
         end
         else
           Result := Result + ' ';
