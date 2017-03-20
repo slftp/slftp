@@ -41,6 +41,7 @@ begin
   ForceDirectories(bName);
 
   skipfiles := TStringList.Create;
+  skipfiles.CaseSensitive := False;
   try
     skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
 
