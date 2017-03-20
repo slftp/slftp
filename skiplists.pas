@@ -355,7 +355,7 @@ if s.mask.Matches(section) then
 
   if Result = nil then
   begin
-    irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIPLIST]</c> section not found: <b>%s</b> in slftp.skip', [section]));
+    irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIPLIST]</c> section <b>%s</b> not found in slftp.skip', [section]));
     Result := skiplist[0] as TSkipList;
   end;
 end;
