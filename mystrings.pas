@@ -101,7 +101,8 @@ function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
 function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
 function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
 
-function IsANumber(const c: AnsiChar): boolean;
+function IsALetter(const c: AnsiChar): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
+function IsANumber(const c: AnsiChar): boolean; // { returns with true if it's a number: [0-9] }
 function Szamokszama(s: AnsiString): integer;
 function CsakSzamok(s: AnsiString): AnsiString;
 
@@ -1075,6 +1076,11 @@ begin
   if port = 0 then
     exit;
   Result := True;
+end;
+
+function IsALetter(const c: AnsiChar): boolean;
+begin
+  Result := (((c >= 'a') and (c <= 'z')) or ((c >= 'A') and (c <= 'Z')));
 end;
 
 function IsANumber(const c: AnsiChar): boolean;
