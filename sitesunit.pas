@@ -1105,8 +1105,7 @@ begin
     end;
 end;
 
-function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False;
-  s_message: AnsiString = ''): boolean;
+function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: AnsiString = ''): boolean;
 var
   l_maxrelogins: integer;
   relogins: integer;
@@ -1115,6 +1114,7 @@ var
 begin
   Result := False;
   Debug(dpSpam, section, 'Relogin ' + Name + ' ' + IntToStr(limit_maxrelogins));
+
   if limit_maxrelogins = 0 then
     l_maxrelogins := maxrelogins
   else
@@ -1156,31 +1156,26 @@ begin
   begin
     if not Result then
     begin
-      if ((lastResponseCode = 421) and
-        (0 <> Pos('Hammer Protection', lastResponse))) then
+      if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
       begin
         site.working := sstDown;
         exit;
       end;
 
-      if ((lastResponseCode = 234) and
-        (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
+      if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
-        //      site.Setsslmethod(TSSLmethods(sslAuthTlsTLSv1_2);
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLSv1.2? ',
-          [site.Name]);
+        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
         site.working := sstDown;
         exit;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s %d %s',
-        [site.Name, s_message, lastResponseCode, lastResponse]);
+      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       for i := 0 to site.slots.Count - 1 do
       begin
         ss := TSiteSlot(site.slots[i]);
         if ss.Status = ssOnline then
         begin
-          // we have at least one slot up and running so no need to setdown all the site
+          // we have at least one slot up and running, so no need to setdown the site
           exit;
         end;
       end;
