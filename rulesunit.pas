@@ -4131,7 +4131,6 @@ begin
 end;
 
 { TConditionNuked }
-
 class function TConditionNuked.Description: AnsiString;
 begin
   Result := NukeDescription;
@@ -4160,10 +4159,9 @@ begin
 end;
 
 { TConditionPred }
-
 class function TConditionPred.Description: AnsiString;
 begin
-  Result :=  PredDescription;
+  Result := PredDescription;
 end;
 
 class function TConditionPred.Name: AnsiString;
@@ -4174,17 +4172,16 @@ end;
 function TConditionPred.SupplyValue(r: TPazo): boolean;
 begin
   try
-    Result := r.rls.pred;
+    Result := r.rls.PredOnAnySite;
   except
     Result := False;
   end;
 end;
 
 { TConditionDisks }
-
 class function TConditionDisks.Description: AnsiString;
 begin
-  Result :=DisksDescription;
+  Result := DisksDescription;
 end;
 
 class function TConditionDisks.Name: AnsiString;
