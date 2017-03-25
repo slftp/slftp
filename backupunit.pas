@@ -17,7 +17,6 @@ uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
   statsunit, indexer, dbtvinfo, slvision, StrUtils
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
-//PathDelim
 const
   section = 'backup';
 
@@ -29,93 +28,107 @@ var
   s, bName: string;
   i: integer;
   sr: TSearchRec;
+  skipfiles: TStringList;
 begin
   _backuperror := '';
   result := False;
   bName := config.ReadString(section, 'backup_dir', 'backup');
   if not DirectoryExists(bName) then
     Mkdir(bName);
+
   debug(dpMessage, section, 'Backup process started.');
   bName := MyIncludeTrailingSlash(bName);
   ForceDirectories(bName);
+
+  skipfiles := TStringList.Create;
+  skipfiles.CaseSensitive := False;
   try
-    if custom then
-      bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) +
-        '.tar'
-    else
-      bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
-    with TTarWriter.Create(bName) do
-    begin
+    skipfiles.CommaText := config.ReadString('backup', 'skipfiles', '');
 
-      //adding common files
-      for I := 0 to cFilecount do
-        if fileexists(commonFiles[i]) then
-          AddFile(commonFiles[i]);
-      //adding ini files
-      for I := 0 to iFilecount do
-        if fileexists(iniFiles[i]) then
-          AddFile(iniFiles[i]);
+    try
+      if custom then
+        bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar'
+      else
+        bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
 
-      //adding generated files
-      for I := 0 to gFilecount do
-        if fileexists(generatedFiles[i]) then
-          AddFile(generatedFiles[i]);
-
-      //adding databases
-      if not IndexerAlive then
+      with TTarWriter.Create(bName) do
       begin
-        if fileexists(config.ReadString('indexer', 'database', 'nonexist')) then
-          AddFile(config.ReadString('indexer', 'database', 'nonexist'));
-      end;
 
-      if not StatsAlive then
-      begin
-        if fileexists(config.ReadString('stats', 'database', 'nonexist')) then
-          AddFile(config.ReadString('stats', 'database', 'nonexist'));
-      end;
+        //adding common files
+        for I := 0 to cFilecount do
+          if ( fileexists(commonFiles[i]) and (skipfiles.IndexOf(commonFiles[i]) = -1) ) then
+            AddFile(commonFiles[i]);
 
-      if not TVInfoDbAlive then
-      begin
-        if fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) then
-          AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
-      end;
+        //adding ini files
+        for I := 0 to iFilecount do
+          if ( fileexists(iniFiles[i]) and (skipfiles.IndexOf(iniFiles[i]) = -1) ) then
+            AddFile(iniFiles[i]);
+
+        //adding generated files
+        for I := 0 to gFilecount do
+          if ( fileexists(generatedFiles[i]) and (skipfiles.IndexOf(generatedFiles[i]) = -1) ) then
+            AddFile(generatedFiles[i]);
+
+        //adding databases
+        if not IndexerAlive then
+        begin
+          if ( fileexists(config.ReadString('indexer', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('indexer', 'database', 'nonexist')) = -1) ) then
+            AddFile(config.ReadString('indexer', 'database', 'nonexist'));
+        end;
+
+        if not StatsAlive then
+        begin
+          if ( fileexists(config.ReadString('stats', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('stats', 'database', 'nonexist')) = -1) ) then
+            AddFile(config.ReadString('stats', 'database', 'nonexist'));
+        end;
+
+        if not TVInfoDbAlive then
+        begin
+          if ( fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('tasktvinfo', 'database', 'nonexist')) = -1) ) then
+            AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
+        end;
+
+        (*
+        if not IMDbInfoDbAlive then
+        begin
+          if ( fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('taskimdb', 'database', 'nonexist')) = -1) ) then
+            AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
+        end;
+        *)
 
 
         //split_site_data folder
-      if config.ReadBool('sites', 'split_site_data', False) then
-      begin
-        s := MyIncludeTrailingSlash('rtpl');
-        ForceDirectories(s);
-        if FindFirst(s+'*.*', faAnyFile -faDirectory, sr) = 0 then
+        if config.ReadBool('sites', 'split_site_data', False) then
         begin
-          repeat
-          AddFile(s+sr.Name,'rtpl/'+sr.name);
-          until FindNext(sr) <> 0;
-{$IFDEF MSWINDOWS}
-          SysUtils.FindClose(sr);
-{$ELSE}
-          FindClose(sr);
-{$ENDIF}
+          s := MyIncludeTrailingSlash('rtpl');
+          ForceDirectories(s);
+          if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
+          begin
+            repeat
+            AddFile(s + sr.Name, 'rtpl/' + sr.name);
+            until FindNext(sr) <> 0;
+  {$IFDEF MSWINDOWS}
+            SysUtils.FindClose(sr);
+  {$ELSE}
+            FindClose(sr);
+  {$ENDIF}
+          end;
         end;
+
+        Free;
       end;
 
-      (*
-            if not IMDbInfoDbAlive then
-            begin
-            if fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) then
-                AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
-            end;
-      *)
+      debug(dpMessage, section, 'Backup process finished.');
+      Result := True;
+    except on E: Exception do
+      begin
+        debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
+        _backuperror := e.Message;
+      end;
+    end;
 
-      Free;
-    end;
-    debug(dpMessage, section, 'Backup process finished.');
-    result := True;
-  except on E: Exception do
-    begin
-      debug(dpError, section, '[EXCEPTION] backup failed: ' + e.Message);
-      _backuperror := e.Message;
-    end;
+  finally
+    skipfiles.Free;
   end;
 
 end;
@@ -130,14 +143,14 @@ var
 begin
   files := TStringList.Create;
   ages := TIntList.Create;
-  s := MyIncludeTrailingSlash(s);
-  ForceDirectories(s);
   try
+    s := MyIncludeTrailingSlash(s);
+    ForceDirectories(s);
+
     if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
     begin
       repeat
         if (AnsiEndsStr(sr.Name, '.tar') or (not AnsiContainsStr(sr.Name, '-custom-'))) then
-          //        if ((Pos('.tar', sr.Name) = length(sr.Name) - 3) and (Pos('custom',sr.Name) <> 7)) then
         begin
           Debug(dpMessage, '<- BACKUP ->', 'adding: ' + sr.Name);
           files.Add(sr.Name);
@@ -191,7 +204,6 @@ begin
     ages.Free;
     files.Free;
   end;
-
 end;
 
 procedure BackupBackup;
@@ -199,33 +211,32 @@ var
   s: AnsiString;
 begin
   try
+    debug(dpMessage, section, 'Backup process started.');
+
     s := config.ReadString(section, 'backup_dir', 'backup');
     if not DirectoryExists(s) then
       Mkdir(s);
-    debug(dpMessage, section, 'Backup process started.');
     DeleteOldBackups(s);
+
     if createBackup(False) then
       backup_last_backup := Now
     else
       debug(dpMessage, section, 'Backup process Failed!');
+
   except on E: Exception do
-      Debug(dpError, section, Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s',
-        [e.Message]));
+    Debug(dpError, section, Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s', [e.Message]));
   end;
 end;
 
 function ircBackup(out backupError: string): boolean;
-var
-  s: ansistring;
 begin
   Result := True;
-  s := config.ReadString(section, 'backup_dir', 'backup');
-  if createBackup(true) then
+  if createBackup(True) then
     backup_last_backup := Now
   else
   begin
     backupError := _backuperror;
-    result := False;
+    Result := False;
   end;
 end;
 
