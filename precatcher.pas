@@ -50,6 +50,8 @@ function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0
 
 function FindSection(section: AnsiString): boolean;
 
+function StripNoValidChars(aInput: AnsiString): AnsiString; // { removes all chars from string which are not in array ValidChars }
+
 function KibontasSection(s, section: AnsiString): AnsiString;
 function ProcessDoReplace(s: AnsiString): AnsiString;
 
@@ -168,7 +170,7 @@ begin
   Result := trim(Result);
 end;
 
-function csupaszit(s: AnsiString): AnsiString;
+function RemoveSpecialCharsAndBareIt(const s: AnsiString): AnsiString;
 var
   i: integer;
   skip: integer;
@@ -182,11 +184,10 @@ begin
       begin
         if (Ord(s[i]) <> 255) then
         begin
-          if (((s[i] >= 'a') and (s[i] <= 'z')) or ((s[i] >= 'A') and (s[i] <= 'Z')) or Szam(s[i]) or (s[i] in StrippingChars)) then
+          if (IsALetter(s[i]) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
             Result := Result + s[i]
           else
             Result := Result + ' ';
-
         end
         else
           Result := Result + ' ';
@@ -195,9 +196,9 @@ begin
       begin
         if ((s[i] = #3) and (i < length(s) - 2)) then
         begin
-          if Szam(s[i + 1]) then
+          if IsANumber(s[i + 1]) then
           begin
-            if Szam(s[i + 2]) then
+            if IsANumber(s[i + 2]) then
               skip := 2
             else
               skip := 1;
@@ -209,7 +210,7 @@ begin
       Dec(skip);
 end;
 
-function StripNonAlpha(aInput: AnsiString): AnsiString;
+function StripNoValidChars(aInput: AnsiString): AnsiString;
 var
   I: integer;
 begin
@@ -222,35 +223,39 @@ begin
   Result := aInput;
 end;
 
-function Focsupaszitas(idata: AnsiString): AnsiString;
+function MainStripping(const idata: AnsiString): AnsiString;
 begin
   Result := idata;
   try
-    Result := csupaszit(Result);
+    Result := RemoveSpecialCharsAndBareIt(Result);
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] csupaszit : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> csupaszit : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] RemoveSpecialCharsAndBareIt : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> RemoveSpecialCharsAndBareIt : %s', [e.Message]));
       Result := '';
       exit;
     end;
   end;
+
+  // this part below is useless, or?
+  // above we only allow a-z, A-Z, Numbers and StrippingChars - else we replace the char with ' '
+  // then we check the response in StripNoValidChars against ValidChars which includes a lot more chars but our
+  // response won't have them in it because it's already replaced with ' '
   try
-    Result := StripNonAlpha(Result);
+    Result := StripNoValidChars(Result);
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] StripNonAlpha : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNonAlpha : %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] StripNoValidChars : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNoValidChars : %s', [e.Message]));
       Result := '';
       exit;
     end;
   end;
 end;
 
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0):
-  AnsiString;
+function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
 var
   i: integer;
   x: TMap;
@@ -594,11 +599,11 @@ begin
       ts_data.QuoteChar := '"';
 
       try
-        Data := FoCsupaszitas(Data); //main Stripping
+        Data := MainStripping(Data); //main Stripping
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] FoCsupaszitas : %s', [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] MainStripping : %s', [e.Message]));
           //ts_data.Free;
           exit;
         end;

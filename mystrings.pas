@@ -2,11 +2,11 @@
 
  - Soulless robotic engine aka SLFTP
  - Version 1.3
- 
+
  - Remarks:          Freeware, Copyright must be included
- 
- - Original Author:  believe                   
-                    
+
+ - Original Author:  believe
+
  - Modifications:    aKRAUT aka dOH
 
  - Last change:      27/06/2010 - Added DateAsString(secs) give a pretime known result
@@ -101,7 +101,8 @@ function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
 function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
 function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
 
-function Szam(c: AnsiChar): boolean;
+function IsALetter(const c: AnsiChar): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
+function IsANumber(const c: AnsiChar): boolean; // { returns with true if it's a number: [0-9] }
 function Szamokszama(s: AnsiString): integer;
 function CsakSzamok(s: AnsiString): AnsiString;
 
@@ -1077,7 +1078,12 @@ begin
   Result := True;
 end;
 
-function Szam(c: AnsiChar): boolean;
+function IsALetter(const c: AnsiChar): boolean;
+begin
+  Result := (((c >= 'a') and (c <= 'z')) or ((c >= 'A') and (c <= 'Z')));
+end;
+
+function IsANumber(const c: AnsiChar): boolean;
 begin
   Result := ((c >= '0') and (c <= '9'));
 end;
@@ -1088,7 +1094,7 @@ var
 begin
   Result := 0;
   for i := 1 to length(s) do
-    if (Szam(s[i])) then
+    if (IsANumber(s[i])) then
       Inc(Result);
 end;
 
@@ -1100,8 +1106,7 @@ begin
   for i := 1 to length(s) do
     if not (s[i] in ['/', '-', '0'..'9']) then
       exit
-    else
-    if (Szam(s[i])) then
+    else if (IsANumber(s[i])) then
       Result := Result + s[i];
 end;
 
