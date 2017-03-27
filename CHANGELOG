@@ -23,16 +23,16 @@
           . `10100'.:         :         :      :
    --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
           1:   .`10f.         :         `......:
-    01  .1  `00r.       :.............'
-    00  0:  .100'       :...Legend...:'
+          01  .1  `00r.       :.............'
+          00  0:  .100'       :...Legend...:'
           01  01.101'
-    10  0101' .  {+} - new feature
-    01  01'  .1  {#} - Bug-fix
-    0:  10   00  {^} - improvement
-    :.  1    10  {-} - removed
-    .   1    0:
-        0.    :.
-        .     .ß
+          10  0101' .  {+} - new feature
+          01  01'  .1  {#} - Bug-fix
+          0:  10   00  {^} - improvement
+          :.  1    10  {-} - removed
+          .   1    0:
+              0.    :.
+              .     .ß
 
 --==========================( NEW SLFTP.ini ITEMS )===============================-
 
@@ -43,14 +43,12 @@
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
-    sometimes for some people catching stops, need restart -- maybe fixed --
     OpenSSL v1.1.* isn't supported yet
-    maybe not every response message is already handled, just post them on #slftp
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.5 )===================================-
     {+} tvlanguage rule for TVMaze infos (#79)
-    {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (#129)                               ---- need to be tested ----
+    {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (e.g. ZzZz & ZzZz_INT) (#129)        ---- need to be tested ----
     {+} New IRC Help Command -> !help nhelp
     {+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
     {+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
