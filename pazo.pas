@@ -579,6 +579,15 @@ begin
 
           //   bis rev 335       if ((dstdl.parent <> nil) and (dstdl.parent.Sample) and (dstdl.entries.Count > 0)) then Continue;
 
+          {
+          *
+          if ((dstdl.parent <> nil) and (dstdl.parent.IsSample) and (dstdl.done)) then Continue;  // property IsSample will be only true if it's a sample file extension
+          *
+          if ((dstdl.parent <> nil) and (dstdl.parent.IsProof) and (dstdl.entries.Count > 0)) then Continue;
+          if ((dstdl.parent <> nil) and (dstdl.parent.IsSubtitles) and (dstdl.entries.Count > 0)) then Continue;
+          if ((dstdl.parent <> nil) and (dstdl.parent.IsCovers) and (dstdl.entries.Count > 0)) then Continue;
+          * }
+
           if ((dstdl.parent <> nil) and (dstdl.entries.Count > 0)) then
             Continue;
 
@@ -593,9 +602,13 @@ begin
           if (AnsiLowerCase(de.Extension) = '.nfo') then
             pr.IsNfo := True;
 
+
+          // this is not needed if we use code from above
           if ((AnsiLowerCase(de.Extension) = '.avi') or (AnsiLowerCase(de.Extension) = '.mkv') or
            (AnsiLowerCase(de.Extension) = '.mp4') or (AnsiLowerCase(de.Extension) = '.vob')) then
             pr.IsSample := True;
+
+
 
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
           begin
