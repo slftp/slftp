@@ -23,12 +23,12 @@ type
     fSample: Boolean;
     subdirlist: TDirList;
 
-    filename: AnsiString;
-    filenamelc: AnsiString;
+    filename: AnsiString; //< filename
+    filenamelc: AnsiString; //< lowercase filename
     filesize: Integer;
 
     skiplisted: Boolean; // it is a clear (are these comments even right?)
-    racedbyme: Boolean;  // if the client is served up along (are these comments even right?)
+    racedbyme: Boolean; //< true if we send this file
     done: Boolean;       // site is already (are these comments even right?)
 
     tradeCount: Integer;
@@ -41,13 +41,11 @@ type
 
     addedfrom: TStringList;
 
-
-
     procedure CalcCDNumber;
     function Extension: AnsiString;
 
-    constructor Create(filename: AnsiString; dirlist: TDirList;SpeedTest:boolean=False); overload;
-    constructor Create(de: TDirlistEntry; dirlist: TDirList;SpeedTest:boolean=False); overload;
+    constructor Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False); overload;
+    constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
 
     procedure SetDirectory(value: Boolean);
@@ -56,9 +54,11 @@ type
     function RegenerateSkiplist: Boolean;
 
     function Useful: Boolean;
+
     property Directory: Boolean read fDirectory write SetDirectory;
     property Sample: Boolean read fSample write SetSample;
   end;
+
   TDirList = class
   private
     fLastChanged: TDateTime;
@@ -98,18 +98,18 @@ type
 
     dependency_mkdir: AnsiString;
 
-    isSpeedTest:boolean;
+    isSpeedTest: Boolean;
 
     procedure Clear;
-    function hasnfo: boolean;
-    function hassfv: boolean;
+    function hasnfo: Boolean;
+    function hassfv: Boolean;
     function No_Raceable: Integer;
     function No_Skiplisted: Integer;
     function No_NotSkiplisted: Integer;
     function firstfile: TDateTime;
     function lastfile: TDateTime;
-    constructor Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList;SpeedTest:boolean = False); overload;
-    constructor Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString;SpeedTest:boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -158,13 +158,14 @@ const section = 'dirlist';
 
 { TDirList }
 function TDirList.Complete: Boolean;
-var i: Integer;
-    d: TDirlistEntry;
-    files, size: Integer;
+var
+  i: Integer;
+  d: TDirlistEntry;
+  files, size: Integer;
 begin
   if cache_completed then
   begin
-    Result:= True;
+    Result := True;
     exit;
   end;
 
@@ -177,38 +178,37 @@ begin
     end;
   *)
 
-  if parent <> nil then
+
+  if parent <> nil then // we are in a subdirectory, there are two options:
   begin
-    // we are in a subdirectory,
-    // there are two options:
-    // dir cant contain an sfv
-    Result:= CompleteByTag;
+    // dir can not contain a sfv
+    Result := CompleteByTag;
+
     if ((not Result) and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
     begin
       Usefulfiles(files, size);
-
-      Result:= ((files <> 0) and (size <> 0));
+      Result := ((files <> 0) and (size <> 0));
     end;
     if ((parent.Sample) and (entries.Count > 0)) then
       Result := true;
   end else
   begin
-    // main dir vagyunk = We are main dir
-    Result:= CompleteByTag;
+    // main dir
+    Result := CompleteByTag;
     if (not Result) and (MultiCD) then
     begin
       if allcdshere then
       begin
-        Result:= True;
+        Result := True;
 
-        for i:= entries.Count -1 downto 0 do
+        for i := entries.Count - 1 downto 0 do
         begin
           try if i < 0 then Break; except Break; end;
           try
-            d:= TDirlistEntry(entries[i]);
+            d := TDirlistEntry(entries[i]);
             if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
             begin
-              Result:= False;
+              Result := False;
               break;
             end;
           except
@@ -222,10 +222,10 @@ begin
 
   if ((Result) and (self.date_completed = 0)) then
   begin
-    self.date_completed:= Now();
+    self.date_completed := Now();
   end;
 
-  cache_completed:= Result;
+  cache_completed := Result;
 end;
 
 constructor TDirList.Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest:boolean = False);
@@ -1323,26 +1323,26 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList;SpeedTest:boolean=False);
+constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
-  addedfrom:= TStringList.Create;
+  addedfrom := TStringList.Create;
 
-  self.tradeCount:= 0;
+  self.tradeCount := 0;
 
-  self.sfvfirsteventvoltmar:= False;
-  self.dirlist:= dirlist;
-  self.filename:= filename;
-  self.done:= False;
-  self.skiplisted:= False;
-  self.megvanmeg:= False;
-  self.error:= False;
-  subdirlist:= nil;
+  self.sfvfirsteventvoltmar := False;
+  self.dirlist := dirlist;
+  self.filename := filename;
+  self.done := False;
+  self.skiplisted := False;
+  self.megvanmeg := False;
+  self.error := False;
+  subdirlist := nil;
 
-  filenamelc:= LowerCase(filename);
-  cdno:= 0;
+  filenamelc := LowerCase(filename);
+  cdno := 0;
 end;
 
-constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList;SpeedTest:boolean=False);
+constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1424,6 +1424,7 @@ begin
 
   Result := True;
 end;
+
 
 procedure TDirListEntry.SetDirectory(value: Boolean);
 begin
