@@ -19,8 +19,10 @@ type
     username: AnsiString;
     groupname: AnsiString;
 
-    fDirectory: Boolean;
-    fSample: Boolean;
+    fDirectory: Boolean;  //< current dir is a directory
+    { possible subdirs which need extra handling because they don't need to have a sfv file (e.g. only jpeg file) }
+    fSample, fProof, fSubs, fCovers: Boolean;
+
     subdirlist: TDirList;
 
     filename: AnsiString; //< filename
@@ -50,13 +52,19 @@ type
 
     procedure SetDirectory(value: Boolean);
     procedure SetSample(value: Boolean);
+    procedure SetProof(value: Boolean);
+    procedure SetSubtitles(value: Boolean);
+    procedure SetCovers(value: Boolean);
 
     function RegenerateSkiplist: Boolean;
 
     function Useful: Boolean;
 
     property Directory: Boolean read fDirectory write SetDirectory;
-    property Sample: Boolean read fSample write SetSample;
+    property IsSample: Boolean read fSample write SetSample;
+    property IsProof: Boolean read fProof write SetProof;
+    property IsSubtitles: Boolean read fSubs write SetSubtitles;
+    property IsCovers: Boolean read fCovers write SetCovers;
   end;
 
   TDirList = class
@@ -189,9 +197,14 @@ begin
       Usefulfiles(files, size);
       Result := ((files <> 0) and (size <> 0));
     end;
-    if ((parent.Sample) and (entries.Count > 0)) then
-      Result := true;
-  end else
+
+    if ((parent.IsSample) and (entries.Count > 0)) then // TODO: maybe add a file extension check?
+      Result := True;
+
+    if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
+      Result := True;
+  end
+  else
   begin
     // main dir
     Result := CompleteByTag;
@@ -509,11 +522,6 @@ begin
   try
     rrgx.ModifierI := True;
     rrgx.Expression := global_skip;
-    splx := TRegExpr.Create;
-    try
-      splx.ModifierI := True;
-      //splx.Expression:='^sample|cover?|sub?|proof$';
-      splx.Expression := '^sample$';
 
       while(true) do
       begin
@@ -599,12 +607,41 @@ begin
             de.directory := (dirmaszk[1] = 'd');
 
             if not de.directory then
-              de.filesize:= filesize;
+              de.filesize := filesize;
 
-            if ((de.directory) and (splx.Exec(filename))) then
-            begin
-              de.Sample := True;
+            // check if we have a special kind of subdirectory
+            splx := TRegExpr.Create;
+            try
+              splx.ModifierI := True;
+
+              splx.Expression := '^sample';
+              if ((de.directory) and (splx.Exec(filename))) then
+              begin
+                de.IsSample := True;
+              end;
+
+              splx.Expression := '^proof';
+              if ((de.directory) and (splx.Exec(filename))) then
+              begin
+                de.IsProof := True;
+              end;
+
+              splx.Expression := '^sub';
+              if ((de.directory) and (splx.Exec(filename))) then
+              begin
+                de.IsSubtitles := True;
+              end;
+
+              splx.Expression := '^cover';
+              if ((de.directory) and (splx.Exec(filename))) then
+              begin
+                de.IsCovers := True;
+              end;
+
+            finally
+              splx.Free;
             end;
+
 
             if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
@@ -665,10 +702,6 @@ begin
         end;
       end;
 
-    finally
-      splx.Free;
-    end;
-
   finally
     rrgx.Free;
   end;
@@ -693,9 +726,14 @@ begin
   end
   else
   begin
-    if ((entries.Count > 0) and (parent.Sample)) then
+    if ((parent.IsSample) and (entries.Count > 0)) then // TODO: maybe add an extension check
     begin
-      cache_completed:= true;
+      cache_completed := True;
+    end;
+
+    if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
+    begin
+      cache_completed := True;
     end;
   end;
 
@@ -1351,8 +1389,13 @@ begin
   self.sfvfirsteventvoltmar := False;
   self.filename := de.filename;
   self.filesize := de.filesize;
+
   self.directory := de.directory;
-  self.sample := de.sample;
+  self.IsSample := de.IsSample;
+  self.IsProof := de.IsProof;
+  self.IsSubtitles := de.IsSubtitles;
+  self.IsCovers := de.IsCovers;
+
   self.done := False;
   self.skiplisted := de.skiplisted;
   self.dirlist := dirlist;
@@ -1436,6 +1479,22 @@ procedure TDirListEntry.SetSample(value: Boolean);
 begin
   fSample := value;
 end;
+
+procedure TDirListEntry.SetProof(value: Boolean);
+begin
+  fProof := value;
+end;
+
+procedure TDirListEntry.SetSubtitles(value: Boolean);
+begin
+  fSubs := value;
+end;
+
+procedure TDirListEntry.SetCovers(value: Boolean);
+begin
+  fCovers := value;
+end;
+
 
 function TDirListEntry.RegenerateSkiplist: Boolean;
 var
