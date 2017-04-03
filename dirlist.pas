@@ -483,25 +483,27 @@ end;
 
 
 procedure TDirList.ParseDirlist(s: AnsiString);
-var tmp: AnsiString;
-    akttimestamp: TDateTime;
-    de: TDirListEntry;
-    added: Boolean;
-    dirmaszk, username, groupname, datum, filename: AnsiString;
-    filesize: Integer;
-    i, j: Integer;
-    rrgx, splx: TRegExpr;
+var
+  tmp: AnsiString;
+  akttimestamp: TDateTime;
+  de: TDirListEntry;
+  added: Boolean;
+  dirmaszk, username, groupname, datum, filename: AnsiString;
+  filesize: Integer;
+  i, j: Integer;
+  rrgx, splx: TRegExpr;
 begin
   added := False;
 
-  if cache_completed then begin
+  if cache_completed then
+  begin
 //    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
     exit;
   end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try
       if i < 0 then
