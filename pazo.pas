@@ -591,14 +591,13 @@ begin
           if ((dstdl.parent <> nil) and (dstdl.entries.Count > 0)) then
             Continue;
 
-          //          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
+          //if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
 
           Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Adding RACE task on %s %s', [dir, Name, dst.Name, dst.Name, de.filename]);
           pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
 
           if (AnsiLowerCase(de.Extension) = '.sfv') then
             pr.IsSfv := True;
-
           if (AnsiLowerCase(de.Extension) = '.nfo') then
             pr.IsNfo := True;
 
