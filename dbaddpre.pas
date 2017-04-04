@@ -50,6 +50,8 @@ procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
 
 procedure setAddPretimeMode(mode: TAddPreMode);
 
+function AddPreDbAlive: boolean;
+
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
@@ -782,6 +784,13 @@ begin
     2: Console_Addline('', 'Connected to MYSQL DupeDB...');
     //3: Exit;
   end;
+end;
+
+function AddPreDbAlive: boolean;
+begin
+  if addpreDB = nil then
+    Result:=false
+  else Result:=true;
 end;
 
 procedure dbaddpreUninit;
