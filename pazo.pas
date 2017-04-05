@@ -96,7 +96,7 @@ type
     procedure ParseXdupe(const netname, channel: AnsiString; dir, resp: AnsiString; added: boolean = False);
     function ParseDupe(const netname, channel: AnsiString; dir, filename: AnsiString; byme: boolean): boolean; overload;
     function ParseDupe(const netname, channel: AnsiString; dl: TDirlist; dir, filename: AnsiString; byme: boolean): boolean; overload;
-    function SetFileError(const netname, channel: AnsiString; dir, filename: AnsiString): boolean;
+    function SetFileError(const netname, channel, dir, filename: AnsiString): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: AnsiString;
     function Allfiles: AnsiString;
     procedure SetComplete(cdno: AnsiString);
@@ -1459,8 +1459,7 @@ begin
     QueueSort;
 end;
 
-function TPazoSite.SetFileError(const netname, channel: AnsiString;
-  dir, filename: AnsiString): boolean;
+function TPazoSite.SetFileError(const netname, channel, dir, filename: AnsiString): boolean;
 var
   dl: TDirList;
   de: TDirlistEntry;
