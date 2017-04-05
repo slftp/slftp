@@ -36,8 +36,6 @@ function precatcherauto: boolean;
 
 function Precatcher_Sitehasachan(sitename: AnsiString): boolean;
 procedure Precatcher_DelSiteChans(sitename: AnsiString);
-//procedure PrecatcherReload(); overload;
-//procedure PrecatcherReload(out status: AnsiString); overload;
 function PrecatcherReload:AnsiString;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
@@ -617,31 +615,28 @@ begin
       except
         exit;
       end;
+      if rls = '' then exit;
 
-      // TODO: maybe at a check to stop here when rls is empty? Or does it exit on empty string because of try except block?
-
-      (*     #chan bot user@NUKERS created Ginger... .  end in NUKEWORD found.
-
-          for i := 0 to ignorelista.Count - 1 do
-          begin
-            if AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
-            begin
-              MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-              Debug(dpSpam, rsections, 'Nukeword ' + ignorelista[i] + ' found in ' + rls);
-              skiprlses.Add(rls);
-              //console_addline(net+' '+chan, Format('[%s] --> PRECATCHER Nukeword '+ignorelista[i]+' found in '+rls, [FormatDateTime('hh:nn:ss', Now)]));
-              exit;
-            end;
-          end;
-       *)
-
+      // word by word check for single words
       for i := 0 to ts_data.Count - 1 do
       begin
         igindex := ignorelista.IndexOf(ts_data.Strings[i]);
         if igindex > -1 then
         begin
-          MyDebug('Nukeword ' + ignorelista[i] + ' found in ' + rls);
-          Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + rls);
+          MyDebug('Nukeword ' + ignorelista[igindex] + ' found in ' + Data);
+          Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + Data);
+          skiprlses.Add(rls);
+          exit;
+        end;
+      end;
+
+      // fulltext check for quoted phrases (that contains at least one space)
+      for i := 0 to ignorelista.Count - 1 do
+      begin
+        if AnsiContainsText(ignorelista[i],' ') and AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
+        begin
+          MyDebug('Nukeword (phrase) "' + ignorelista[i] + '" found in ' + rls);
+          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + ignorelista[i] + '" found in ' + rls);
           skiprlses.Add(rls);
           exit;
         end;
@@ -1233,35 +1228,32 @@ end;
 
 procedure PrecatcherStart;
 begin
+  // Actually starting precatcher is an initial reload
   PrecatcherReload;
-  catcherFile.LoadFromFile(catcherFileName);
-
-//  if (config.ReadBool('sites', 'split_site_data', False)) then
-//    LoadSplitChanFiles;
-
-
-  PrecatcherReBuild;
 end;
 
 function PrecatcherReload:AnsiString;
 var
   f: TextFile;
   s: AnsiString;
+
 begin
+  // clear in-memory data
   mappingslist.Clear;
   sectionlist.Clear;
   ignorelista.Clear;
   replacefrom.Clear;
   replaceto.Clear;
   catcherFile.Clear;
+
+  // load slftp.chans
   catcherFile.LoadFromFile(catcherFileName);
-  PrecatcherRebuild;
 
-
+  // load rtpl/<site>.chans if split_site_data is enabled
   if (config.ReadBool('sites', 'split_site_data', False)) then
     LoadSplitChanFiles;
 
-  result := 'Precatcher Rehash FAILED!';
+  result := 'Precatcher reload FAILED!';
   try
     AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
 {$I-}
@@ -1276,12 +1268,17 @@ begin
       end;
     end;
     kb_reloadsections;
+
   finally
     CloseFile(f);
   end;
-    result := '- Precatcher Rehash Complete -' + sLineBreak;
-    result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
-    result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
+  
+  // Rewrite files to disk
+  PrecatcherRebuild;
+
+  result := 'Precatcher reloaded successfully.' + sLineBreak;
+  result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
+  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
 end;
 
 function precatcherauto: boolean;
