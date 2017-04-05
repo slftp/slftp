@@ -187,7 +187,7 @@ function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
 implementation
 
-uses SysUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
+uses SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper,
   Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr;
 
@@ -573,23 +573,21 @@ begin
             Continue;
           if ((dstdl.sfv_status = dlSFVNotFound) and (AnsiLowerCase(de.Extension) <> '.sfv')) then
           begin
-            Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Not creating racetask, missing sfv on on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
+            Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
             Continue;
           end;
 
-          //   bis rev 335       if ((dstdl.parent <> nil) and (dstdl.parent.Sample) and (dstdl.entries.Count > 0)) then Continue;
-
-          {
-          *
-          if ((dstdl.parent <> nil) and (dstdl.parent.IsSample) and (dstdl.done)) then Continue;  // property IsSample will be only true if it's a sample file extension
-          *
-          if ((dstdl.parent <> nil) and (dstdl.parent.IsProof) and (dstdl.entries.Count > 0)) then Continue;
-          if ((dstdl.parent <> nil) and (dstdl.parent.IsSubtitles) and (dstdl.entries.Count > 0)) then Continue;
-          if ((dstdl.parent <> nil) and (dstdl.parent.IsCovers) and (dstdl.entries.Count > 0)) then Continue;
-          * }
-
-          if ((dstdl.parent <> nil) and (dstdl.entries.Count > 0)) then
-            Continue;
+          if (dstdl.parent <> nil) then
+          begin
+            if ( (dstdl.parent.IsSample) and ( (dstdl.entries.Count > 0) or (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) = -1) ) ) then
+              Continue;
+            if ((dstdl.parent.IsProof) and (dstdl.entries.Count > 0)) then
+              Continue;
+            if ((dstdl.parent.IsSubtitles) and (dstdl.entries.Count > 0)) then
+              Continue;
+            if ((dstdl.parent.IsCovers) and (dstdl.entries.Count > 0)) then
+              Continue;
+          end;
 
           //if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
 
@@ -600,13 +598,10 @@ begin
             pr.IsSfv := True;
           if (AnsiLowerCase(de.Extension) = '.nfo') then
             pr.IsNfo := True;
-
-
-          // this is not needed if we use code from above
-          if ((AnsiLowerCase(de.Extension) = '.avi') or (AnsiLowerCase(de.Extension) = '.mkv') or
-           (AnsiLowerCase(de.Extension) = '.mp4') or (AnsiLowerCase(de.Extension) = '.vob')) then
+          if (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1) then
             pr.IsSample := True;
-
+          if ( (dstdl.parent.IsProof) or (dstdl.parent.IsSubtitles) or (dstdl.parent.IsCovers) ) then
+            pr.IsExtraSubdir := True;
 
 
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
