@@ -1627,10 +1627,10 @@ begin
               ps2.MarkSiteAsFailed(True);
             end;
 
-            if isSample then
+            if isSample or IsExtraSubdir then
             begin
               ps2.SetFileError(netname, channel, dir, filename);
-              Debug(dpMessage, c_section, Format('Sample SetFileError for: %s (%s <-> %s)', [tname, dir, filename]));
+              Debug(dpMessage, c_section, Format('Sample or ExtraSubdir SetFileError: %s (%s <-> %s)', [tname, dir, filename]));
             end;
 
             readyerror := True;

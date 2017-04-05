@@ -14,7 +14,7 @@ type
 
     megvanmeg: Boolean;
     justadded: Boolean;
-    error: Boolean;
+    error: Boolean; //< { @true if file cannot be send, will be skiped then, @false otherwise. }
 
     username: AnsiString;
     groupname: AnsiString;
