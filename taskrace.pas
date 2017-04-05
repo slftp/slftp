@@ -54,9 +54,10 @@ type
     storfilename: AnsiString;
     rank: integer;
     filesize: integer;
-    isSfv: boolean;
-    isSample: boolean;
-    isNFO: boolean;
+    isSfv: boolean; //< { @true if sfv file, @false otherwise. }
+    isNFO: boolean; //< { @true if nfo file, @false otherwise. }
+    isSample: boolean; //< { @true if Sample dir, @false otherwise. }
+    IsExtraSubdir: boolean; //< { @true if dir is Proof, Subs or Cover, @false otherwise. }
     dontRemoveOtherSources: boolean;
     dst: TWaitTask;
     constructor Create(const netname, channel: AnsiString; site1: AnsiString;

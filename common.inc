@@ -29,6 +29,10 @@ tvinfo_genreList: array[0..37] of AnsiString =(
 'War','Western'
 );
 
+SampleFileExtension: array[0..5] of AnsiString = (
+'.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
+);
+
 { arrays taken from https://github.com/silvioprog/mgeoip - THX silvioprog! }
 CountryCodes: array [0..249] of string = (
 'AD','AE','AF','AG','AI','AL','AM','AN','AO','AQ','AR','AS','AT','AU','AW','AZ',
