@@ -698,15 +698,14 @@ begin
         else
         begin
   			  for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
-          List.Add('');
   		  end;
 
       end
       else
       begin
         for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
-        List.Add('');
       end;
+      List.Add('');
     end;
 
   finally
