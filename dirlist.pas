@@ -156,9 +156,11 @@ var
 
 implementation
 
-uses SysUtils, DateUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
+uses SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
 
 const section = 'dirlist';
+
+{$I common.inc}
 
 //var
 //  global_skip: String;
@@ -198,10 +200,9 @@ begin
       Result := ((files <> 0) and (size <> 0));
     end;
 
-    if ((parent.IsSample) and (entries.Count > 0)) then // TODO: maybe add a file extension check?
-      Result := True;
-
-    if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
+    // a file extension check for sample should be possible with sf_f.MatchFile and iterating through filexentension array for samples
+    // but if there are wrong files because someone uploaded sfv+rar to Sample dir we cannot delete it and send our needed video sample, so it's useless to check
+    if ( ( (parent.IsSample) or (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
       Result := True;
   end
   else
@@ -611,37 +612,33 @@ begin
             if not de.directory then
               de.filesize := filesize;
 
-            // check if we have a special kind of subdirectory
-            splx := TRegExpr.Create;
-            try
-              splx.ModifierI := True;
 
-              splx.Expression := '^sample';
-              if ((de.directory) and (splx.Exec(filename))) then
-              begin
-                de.IsSample := True;
+            if (de.directory) then
+            begin
+              // check if we have a special kind of subdirectory
+              splx := TRegExpr.Create;
+              try
+                splx.ModifierI := True;
+
+                splx.Expression := '^sample';
+                if (splx.Exec(filename)) then
+                  de.IsSample := True;
+
+                splx.Expression := '^proof';
+                if (splx.Exec(filename)) then
+                  de.IsProof := True;
+
+                splx.Expression := '^sub';
+                if (splx.Exec(filename)) then
+                  de.IsSubtitles := True;
+
+                splx.Expression := '^cover';
+                if (splx.Exec(filename)) then
+                  de.IsCovers := True;
+
+              finally
+                splx.Free;
               end;
-
-              splx.Expression := '^proof';
-              if ((de.directory) and (splx.Exec(filename))) then
-              begin
-                de.IsProof := True;
-              end;
-
-              splx.Expression := '^sub';
-              if ((de.directory) and (splx.Exec(filename))) then
-              begin
-                de.IsSubtitles := True;
-              end;
-
-              splx.Expression := '^cover';
-              if ((de.directory) and (splx.Exec(filename))) then
-              begin
-                de.IsCovers := True;
-              end;
-
-            finally
-              splx.Free;
             end;
 
 
@@ -728,15 +725,11 @@ begin
   end
   else
   begin
-    if ((parent.IsSample) and (entries.Count > 0)) then // TODO: maybe add an extension check
-    begin
+    if ((parent.IsSample) and (entries.Count > 0) and (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1)) then
       cache_completed := True;
-    end;
 
     if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
-    begin
       cache_completed := True;
-    end;
   end;
 
   if added then
