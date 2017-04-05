@@ -658,7 +658,6 @@ begin
   try
     for I := 0 to FSections.Count - 1 do
     begin
-      List.Add('');
       List.Add('[' + FSections[I] + ']');
       Strings := TStrings(FSections.Objects[I]);
 
@@ -699,6 +698,7 @@ begin
         else
         begin
   			  for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
+          List.Add('');
   		  end;
 
       end
