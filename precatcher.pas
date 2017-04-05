@@ -461,8 +461,8 @@ begin
   begin
     if (skiprlses.IndexOf(rls) <> -1) then
     begin
-      MyDebug('Rls found in SkipRlses ...');
-      Debug(dpSpam, rsections, Format('Rls %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]])); // not sure if it works
+      MyDebug('Release found in SkipRlses ...');
+      Debug(dpSpam, rsections, Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]])); // not sure if it works
       exit;
     end;
 
@@ -607,9 +607,10 @@ begin
         end;
       end;
 
-      // We do the [replace] sectional exchanges
       ts_data.DelimitedText := Data;
+      MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
 
+      // Exctract the release name
       try
         rls := ExtractReleasename('SLFTP', ts_data);
       except
@@ -617,6 +618,7 @@ begin
       end;
       if rls = '' then exit;
 
+      // nukewords check
       // word by word check for single words
       for i := 0 to ts_data.Count - 1 do
       begin
@@ -625,7 +627,6 @@ begin
         begin
           MyDebug('Nukeword ' + ignorelista[igindex] + ' found in ' + Data);
           Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + Data);
-          skiprlses.Add(rls);
           exit;
         end;
       end;
@@ -635,20 +636,21 @@ begin
       begin
         if AnsiContainsText(ignorelista[i],' ') and AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
         begin
-          MyDebug('Nukeword (phrase) "' + ignorelista[i] + '" found in ' + rls);
-          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + ignorelista[i] + '" found in ' + rls);
-          skiprlses.Add(rls);
+          MyDebug('Nukeword (phrase) "' + ignorelista[i] + '" found in ' + Data);
+          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + ignorelista[i] + '" found in ' + Data);
           exit;
         end;
       end;
 
+      // We do the [replace] processing
       s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
       s := ProcessDoReplace(s);
       s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
       ts_data.DelimitedText := s;
 
-      MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
+      MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
 
+      // Find section name
       for i := 0 to sc.sections.Count - 1 do
       begin
         ss := TSection(sc.sections[i]);
@@ -674,7 +676,7 @@ begin
           try
             //ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, ts_data);
             ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
-          except
+          except  
             on e: Exception do
             begin
               MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
@@ -711,7 +713,7 @@ begin
       end
       else
       begin
-        MyDebug('SiteChan dont look like an Event ...');
+        MyDebug('No catcher event found.');
       end;
 
     finally
@@ -721,7 +723,7 @@ begin
   end
   else
   begin
-    MyDebug('No SiteChan found for %s %s %s', [net, chan, nick]);
+    MyDebug('No catchline found for %s %s %s', [net, chan, nick]);
   end;
 end;
 
@@ -1089,6 +1091,8 @@ begin
   ignorelista := TStringList.Create;
   ignorelista.Delimiter := ' ';
   ignorelista.QuoteChar := '"';
+  ignorelista.Sorted := True;
+  ignorelista.Duplicates := dupIgnore;
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
   tagline.QuoteChar := '"';
