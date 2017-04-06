@@ -14,7 +14,7 @@ var
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, slvision, StrUtils
+  statsunit, indexer, dbtvinfo, dbaddpre, slvision, StrUtils
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -25,7 +25,7 @@ var
 
 function createBackup(custom: boolean = False): boolean;
 var
-  s, bName: string;
+  s, bName, filename: string;
   i: integer;
   sr: TSearchRec;
   skipfiles: TStringList;
@@ -53,7 +53,6 @@ begin
 
       with TTarWriter.Create(bName) do
       begin
-
         //adding common files
         for I := 0 to cFilecount do
           if ( fileexists(commonFiles[i]) and (skipfiles.IndexOf(commonFiles[i]) = -1) ) then
@@ -72,30 +71,40 @@ begin
         //adding databases
         if not IndexerAlive then
         begin
-          if ( fileexists(config.ReadString('indexer', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('indexer', 'database', 'nonexist')) = -1) ) then
-            AddFile(config.ReadString('indexer', 'database', 'nonexist'));
+          fileName := Trim(config.ReadString('indexer', 'database', 'disabled'));
+          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(fileName);
         end;
 
         if not StatsAlive then
         begin
-          if ( fileexists(config.ReadString('stats', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('stats', 'database', 'nonexist')) = -1) ) then
-            AddFile(config.ReadString('stats', 'database', 'nonexist'));
+          fileName := Trim(config.ReadString('stats', 'database', 'disabled'));
+          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(fileName);
+        end;
+
+        if not AddPreDbAlive then
+        begin
+          fileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
+          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(fileName);
         end;
 
         if not TVInfoDbAlive then
         begin
-          if ( fileexists(config.ReadString('tasktvinfo', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('tasktvinfo', 'database', 'nonexist')) = -1) ) then
-            AddFile(config.ReadString('tasktvinfo', 'database', 'nonexist'));
+          fileName := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
+          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(fileName);
         end;
 
         (*
         if not IMDbInfoDbAlive then
         begin
-          if ( fileexists(config.ReadString('taskimdb', 'database', 'nonexist')) and (skipfiles.IndexOf(config.ReadString('taskimdb', 'database', 'nonexist')) = -1) ) then
-            AddFile(config.ReadString('taskimdb', 'database', 'nonexist'));
+          fileName := Trim(config.ReadString('taskimdb', 'database', 'imdb.db'));
+          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(fileName);
         end;
         *)
-
 
         //split_site_data folder
         if config.ReadBool('sites', 'split_site_data', False) then
