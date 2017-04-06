@@ -33,8 +33,11 @@ SampleFileExtension: array[0..5] of AnsiString = (
 '.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
 );
 
+FileSizeUnitCount = 8;
+FileSizeUnits: array [0..FileSizeUnitCount] of AnsiString = ('Byte', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
+
 { arrays taken from https://github.com/silvioprog/mgeoip - THX silvioprog! }
-CountryCodes: array [0..249] of string = (
+CountryCodes: array [0..249] of AnsiString = (
 'AD','AE','AF','AG','AI','AL','AM','AN','AO','AQ','AR','AS','AT','AU','AW','AZ',
 'BA','BB','BD','BE','BF','BG','BH','BI','BJ','BM','BN','BO','BR','BS','BT','BV',
 'BW','BY','BZ','CA','CC','CD','CF','CG','CH','CI','CK','CL','CM','CN','CO','CR',
@@ -53,7 +56,7 @@ CountryCodes: array [0..249] of string = (
 'ZW','A1','A2','O1','AX','GG','IM','JE','BL','MF'
 );
 
-CountryNames: array [0..249] of string = (
+CountryNames: array [0..249] of AnsiString = (
 'Andorra','United Arab Emirates','Afghanistan','Antigua and Barbuda','Anguilla',
 'Albania','Armenia','Netherlands Antilles','Angola','Antarctica','Argentina',
 'American Samoa','Austria','Australia','Aruba','Azerbaijan',
