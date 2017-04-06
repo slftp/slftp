@@ -600,9 +600,8 @@ begin
             pr.IsNfo := True;
           if (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1) then
             pr.IsSample := True;
-          if ( (dstdl.parent.IsProof) or (dstdl.parent.IsSubtitles) or (dstdl.parent.IsCovers) ) then
+          if ( (dstdl.parent <> nil) and ( (dstdl.parent.IsProof) or (dstdl.parent.IsSubtitles) or (dstdl.parent.IsCovers) ) ) then
             pr.IsExtraSubdir := True;
-
 
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
           begin

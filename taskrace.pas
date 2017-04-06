@@ -1630,7 +1630,7 @@ begin
             if isSample or IsExtraSubdir then
             begin
               ps2.SetFileError(netname, channel, dir, filename);
-              Debug(dpMessage, c_section, Format('Sample or ExtraSubdir SetFileError: %s (%s <-> %s)', [tname, dir, filename]));
+              Debug(dpError, c_section, Format('Sample or ExtraSubdir SetFileError: %s (%s <-> %s)', [tname, dir, filename]));
             end;
 
             readyerror := True;
