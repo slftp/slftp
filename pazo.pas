@@ -581,12 +581,19 @@ begin
           begin
             if ( (dstdl.parent.IsSample) and ( (dstdl.entries.Count > 0) or (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) = -1) ) ) then
               Continue;
+
+            // TODO: Run slftp in IDE and check what info is stored in TDirlist + TDirListEntry for each rls and do a better check based on if sfv needed or not!
+            if ( ((dstdl.parent.IsProof) or (dstdl.parent.IsSubtitles) or (dstdl.parent.IsCovers)) and (dstdl.entries.Count > 5)) then
+              Continue;
+
+{
             if ((dstdl.parent.IsProof) and (dstdl.entries.Count > 0)) then
               Continue;
             if ((dstdl.parent.IsSubtitles) and (dstdl.entries.Count > 0)) then
               Continue;
             if ((dstdl.parent.IsCovers) and (dstdl.entries.Count > 0)) then
               Continue;
+}
           end;
 
           //if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
