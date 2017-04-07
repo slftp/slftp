@@ -54,9 +54,10 @@ type
     storfilename: AnsiString;
     rank: integer;
     filesize: integer;
-    isSfv: boolean;
-    isSample: boolean;
-    isNFO: boolean;
+    isSfv: boolean; //< { @true if sfv file, @false otherwise. }
+    isNFO: boolean; //< { @true if nfo file, @false otherwise. }
+    isSample: boolean; //< { @true if Sample dir, @false otherwise. }
+    IsExtraSubdir: boolean; //< { @true if dir is Proof, Subs or Cover, @false otherwise. }
     dontRemoveOtherSources: boolean;
     dst: TWaitTask;
     constructor Create(const netname, channel: AnsiString; site1: AnsiString;
@@ -1626,10 +1627,10 @@ begin
               ps2.MarkSiteAsFailed(True);
             end;
 
-            if isSample then
+            if isSample or IsExtraSubdir then
             begin
               ps2.SetFileError(netname, channel, dir, filename);
-              Debug(dpMessage, c_section, Format('Sample SetFileError for: %s (%s <-> %s)', [tname, dir, filename]));
+              Debug(dpError, c_section, Format('Sample or ExtraSubdir SetFileError: %s (%s <-> %s)', [tname, dir, filename]));
             end;
 
             readyerror := True;

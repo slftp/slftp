@@ -29,6 +29,10 @@ tvinfo_genreList: array[0..37] of AnsiString =(
 'War','Western'
 );
 
+SampleFileExtension: array[0..5] of AnsiString = (
+'.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
+);
+
 FileSizeUnitCount = 8;
 FileSizeUnits: array [0..FileSizeUnitCount] of AnsiString = ('Byte', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
 
