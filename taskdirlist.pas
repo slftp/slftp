@@ -58,8 +58,8 @@ ujra:
     if s.status <> ssOnline then
       goto ujra;
 
-    // but if it is not broke do not exist in the dir ...
-    Debug(dpError, section, Format('ERROR: can not dirlist %s - %s', [dir, BoolToStr(forcecwd)]));
+    // could not list directory
+    Debug(dpError, section, Format('ERROR: can not dirlist dir %s with forcecwd value %s', [dir, BoolToStr(forcecwd)]));
     readyerror:= True;
     exit;
   end;
