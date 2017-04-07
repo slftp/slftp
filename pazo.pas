@@ -96,7 +96,7 @@ type
     procedure ParseXdupe(const netname, channel: AnsiString; dir, resp: AnsiString; added: boolean = False);
     function ParseDupe(const netname, channel: AnsiString; dir, filename: AnsiString; byme: boolean): boolean; overload;
     function ParseDupe(const netname, channel: AnsiString; dl: TDirlist; dir, filename: AnsiString; byme: boolean): boolean; overload;
-    function SetFileError(const netname, channel: AnsiString; dir, filename: AnsiString): boolean;
+    function SetFileError(const netname, channel, dir, filename: AnsiString): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: AnsiString;
     function Allfiles: AnsiString;
     procedure SetComplete(cdno: AnsiString);
@@ -187,7 +187,7 @@ function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
 implementation
 
-uses SysUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
+uses SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper,
   Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr;
 
@@ -573,29 +573,35 @@ begin
             Continue;
           if ((dstdl.sfv_status = dlSFVNotFound) and (AnsiLowerCase(de.Extension) <> '.sfv')) then
           begin
-            Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Not creating racetask, missing sfv on on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
+            Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
             Continue;
           end;
 
-          //   bis rev 335       if ((dstdl.parent <> nil) and (dstdl.parent.Sample) and (dstdl.entries.Count > 0)) then Continue;
+          if (dstdl.parent <> nil) then
+          begin
+            if ( (dstdl.parent.IsSample) and ( (dstdl.entries.Count > 0) or (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) = -1) ) ) then
+              Continue;
+            if ((dstdl.parent.IsProof) and (dstdl.entries.Count > 0)) then
+              Continue;
+            if ((dstdl.parent.IsSubtitles) and (dstdl.entries.Count > 0)) then
+              Continue;
+            if ((dstdl.parent.IsCovers) and (dstdl.entries.Count > 0)) then
+              Continue;
+          end;
 
-          if ((dstdl.parent <> nil) and (dstdl.entries.Count > 0)) then
-            Continue;
-
-          //          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
+          //if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'maxsame_trade', 100))) then Continue;
 
           Debug(dpSpam, section, '%s :: Tuzelj, checking routes from %s to %s :: Adding RACE task on %s %s', [dir, Name, dst.Name, dst.Name, de.filename]);
           pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
 
           if (AnsiLowerCase(de.Extension) = '.sfv') then
             pr.IsSfv := True;
-
           if (AnsiLowerCase(de.Extension) = '.nfo') then
             pr.IsNfo := True;
-
-          if ((AnsiLowerCase(de.Extension) = '.avi') or (AnsiLowerCase(de.Extension) = '.mkv') or
-           (AnsiLowerCase(de.Extension) = '.mp4') or (AnsiLowerCase(de.Extension) = '.vob')) then
+          if (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1) then
             pr.IsSample := True;
+          if ( (dstdl.parent <> nil) and ( (dstdl.parent.IsProof) or (dstdl.parent.IsSubtitles) or (dstdl.parent.IsCovers) ) ) then
+            pr.IsExtraSubdir := True;
 
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
           begin
@@ -1452,8 +1458,7 @@ begin
     QueueSort;
 end;
 
-function TPazoSite.SetFileError(const netname, channel: AnsiString;
-  dir, filename: AnsiString): boolean;
+function TPazoSite.SetFileError(const netname, channel, dir, filename: AnsiString): boolean;
 var
   dl: TDirList;
   de: TDirlistEntry;

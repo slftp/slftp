@@ -14,21 +14,23 @@ type
 
     megvanmeg: Boolean;
     justadded: Boolean;
-    error: Boolean;
+    error: Boolean; //< { @true if file cannot be send, will be skiped then, @false otherwise. }
 
     username: AnsiString;
     groupname: AnsiString;
 
-    fDirectory: Boolean;
-    fSample: Boolean;
+    fDirectory: Boolean;  //< current dir is a directory
+    { possible subdirs which need extra handling because they don't need to have a sfv file (e.g. only jpeg file) }
+    fSample, fProof, fSubs, fCovers: Boolean;
+
     subdirlist: TDirList;
 
-    filename: AnsiString;
-    filenamelc: AnsiString;
+    filename: AnsiString; //< filename
+    filenamelc: AnsiString; //< lowercase filename
     filesize: Integer;
 
     skiplisted: Boolean; // it is a clear (are these comments even right?)
-    racedbyme: Boolean;  // if the client is served up along (are these comments even right?)
+    racedbyme: Boolean; //< true if we send this file
     done: Boolean;       // site is already (are these comments even right?)
 
     tradeCount: Integer;
@@ -41,24 +43,30 @@ type
 
     addedfrom: TStringList;
 
-
-
     procedure CalcCDNumber;
     function Extension: AnsiString;
 
-    constructor Create(filename: AnsiString; dirlist: TDirList;SpeedTest:boolean=False); overload;
-    constructor Create(de: TDirlistEntry; dirlist: TDirList;SpeedTest:boolean=False); overload;
+    constructor Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False); overload;
+    constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
 
     procedure SetDirectory(value: Boolean);
     procedure SetSample(value: Boolean);
+    procedure SetProof(value: Boolean);
+    procedure SetSubtitles(value: Boolean);
+    procedure SetCovers(value: Boolean);
 
     function RegenerateSkiplist: Boolean;
 
     function Useful: Boolean;
+
     property Directory: Boolean read fDirectory write SetDirectory;
-    property Sample: Boolean read fSample write SetSample;
+    property IsSample: Boolean read fSample write SetSample;
+    property IsProof: Boolean read fProof write SetProof;
+    property IsSubtitles: Boolean read fSubs write SetSubtitles;
+    property IsCovers: Boolean read fCovers write SetCovers;
   end;
+
   TDirList = class
   private
     fLastChanged: TDateTime;
@@ -98,18 +106,18 @@ type
 
     dependency_mkdir: AnsiString;
 
-    isSpeedTest:boolean;
+    isSpeedTest: Boolean;
 
     procedure Clear;
-    function hasnfo: boolean;
-    function hassfv: boolean;
+    function hasnfo: Boolean;
+    function hassfv: Boolean;
     function No_Raceable: Integer;
     function No_Skiplisted: Integer;
     function No_NotSkiplisted: Integer;
     function firstfile: TDateTime;
     function lastfile: TDateTime;
-    constructor Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList;SpeedTest:boolean = False); overload;
-    constructor Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString;SpeedTest:boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -148,9 +156,11 @@ var
 
 implementation
 
-uses SysUtils, DateUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
+uses SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
 
 const section = 'dirlist';
+
+{$I common.inc}
 
 //var
 //  global_skip: String;
@@ -158,13 +168,14 @@ const section = 'dirlist';
 
 { TDirList }
 function TDirList.Complete: Boolean;
-var i: Integer;
-    d: TDirlistEntry;
-    files, size: Integer;
+var
+  i: Integer;
+  d: TDirlistEntry;
+  files, size: Integer;
 begin
   if cache_completed then
   begin
-    Result:= True;
+    Result := True;
     exit;
   end;
 
@@ -177,38 +188,41 @@ begin
     end;
   *)
 
-  if parent <> nil then
+
+  if parent <> nil then // we are in a subdirectory, there are two options:
   begin
-    // we are in a subdirectory,
-    // there are two options:
-    // dir cant contain an sfv
-    Result:= CompleteByTag;
+    // dir can not contain a sfv
+    Result := CompleteByTag;
+
     if ((not Result) and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
     begin
       Usefulfiles(files, size);
-
-      Result:= ((files <> 0) and (size <> 0));
+      Result := ((files <> 0) and (size <> 0));
     end;
-    if ((parent.Sample) and (entries.Count > 0)) then
-      Result := true;
-  end else
+
+    // a file extension check for sample should be possible with sf_f.MatchFile and iterating through filexentension array for samples
+    // but if there are wrong files because someone uploaded sfv+rar to Sample dir we cannot delete it and send our needed video sample, so it's useless to check
+    if ( ( (parent.IsSample) or (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
+      Result := True;
+  end
+  else
   begin
-    // main dir vagyunk = We are main dir
-    Result:= CompleteByTag;
+    // main dir
+    Result := CompleteByTag;
     if (not Result) and (MultiCD) then
     begin
       if allcdshere then
       begin
-        Result:= True;
+        Result := True;
 
-        for i:= entries.Count -1 downto 0 do
+        for i := entries.Count - 1 downto 0 do
         begin
           try if i < 0 then Break; except Break; end;
           try
-            d:= TDirlistEntry(entries[i]);
+            d := TDirlistEntry(entries[i]);
             if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
             begin
-              Result:= False;
+              Result := False;
               break;
             end;
           except
@@ -222,10 +236,10 @@ begin
 
   if ((Result) and (self.date_completed = 0)) then
   begin
-    self.date_completed:= Now();
+    self.date_completed := Now();
   end;
 
-  cache_completed:= Result;
+  cache_completed := Result;
 end;
 
 constructor TDirList.Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest:boolean = False);
@@ -470,25 +484,27 @@ end;
 
 
 procedure TDirList.ParseDirlist(s: AnsiString);
-var tmp: AnsiString;
-    akttimestamp: TDateTime;
-    de: TDirListEntry;
-    added: Boolean;
-    dirmaszk, username, groupname, datum, filename: AnsiString;
-    filesize: Integer;
-    i, j: Integer;
-    rrgx, splx: TRegExpr;
+var
+  tmp: AnsiString;
+  akttimestamp: TDateTime;
+  de: TDirListEntry;
+  added: Boolean;
+  dirmaszk, username, groupname, datum, filename: AnsiString;
+  filesize: Integer;
+  i, j: Integer;
+  rrgx, splx: TRegExpr;
 begin
   added := False;
 
-  if cache_completed then begin
+  if cache_completed then
+  begin
 //    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
     exit;
   end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count - 1 downto 0 do
   begin
     try
       if i < 0 then
@@ -509,11 +525,6 @@ begin
   try
     rrgx.ModifierI := True;
     rrgx.Expression := global_skip;
-    splx := TRegExpr.Create;
-    try
-      splx.ModifierI := True;
-      //splx.Expression:='^sample|cover?|sub?|proof$';
-      splx.Expression := '^sample$';
 
       while(true) do
       begin
@@ -599,12 +610,37 @@ begin
             de.directory := (dirmaszk[1] = 'd');
 
             if not de.directory then
-              de.filesize:= filesize;
+              de.filesize := filesize;
 
-            if ((de.directory) and (splx.Exec(filename))) then
+
+            if (de.directory) then
             begin
-              de.Sample := True;
+              // check if we have a special kind of subdirectory
+              splx := TRegExpr.Create;
+              try
+                splx.ModifierI := True;
+
+                splx.Expression := '^sample';
+                if (splx.Exec(filename)) then
+                  de.IsSample := True;
+
+                splx.Expression := '^proof';
+                if (splx.Exec(filename)) then
+                  de.IsProof := True;
+
+                splx.Expression := '^sub';
+                if (splx.Exec(filename)) then
+                  de.IsSubtitles := True;
+
+                splx.Expression := '^cover';
+                if (splx.Exec(filename)) then
+                  de.IsCovers := True;
+
+              finally
+                splx.Free;
+              end;
             end;
+
 
             if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
@@ -665,10 +701,6 @@ begin
         end;
       end;
 
-    finally
-      splx.Free;
-    end;
-
   finally
     rrgx.Free;
   end;
@@ -693,10 +725,11 @@ begin
   end
   else
   begin
-    if ((entries.Count > 0) and (parent.Sample)) then
-    begin
-      cache_completed:= true;
-    end;
+    if ((parent.IsSample) and (entries.Count > 0) and (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1)) then
+      cache_completed := True;
+
+    if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
+      cache_completed := True;
   end;
 
   if added then
@@ -1323,26 +1356,26 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList;SpeedTest:boolean=False);
+constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
-  addedfrom:= TStringList.Create;
+  addedfrom := TStringList.Create;
 
-  self.tradeCount:= 0;
+  self.tradeCount := 0;
 
-  self.sfvfirsteventvoltmar:= False;
-  self.dirlist:= dirlist;
-  self.filename:= filename;
-  self.done:= False;
-  self.skiplisted:= False;
-  self.megvanmeg:= False;
-  self.error:= False;
-  subdirlist:= nil;
+  self.sfvfirsteventvoltmar := False;
+  self.dirlist := dirlist;
+  self.filename := filename;
+  self.done := False;
+  self.skiplisted := False;
+  self.megvanmeg := False;
+  self.error := False;
+  subdirlist := nil;
 
-  filenamelc:= LowerCase(filename);
-  cdno:= 0;
+  filenamelc := LowerCase(filename);
+  cdno := 0;
 end;
 
-constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList;SpeedTest:boolean=False);
+constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1351,8 +1384,13 @@ begin
   self.sfvfirsteventvoltmar := False;
   self.filename := de.filename;
   self.filesize := de.filesize;
+
   self.directory := de.directory;
-  self.sample := de.sample;
+  self.IsSample := de.IsSample;
+  self.IsProof := de.IsProof;
+  self.IsSubtitles := de.IsSubtitles;
+  self.IsCovers := de.IsCovers;
+
   self.done := False;
   self.skiplisted := de.skiplisted;
   self.dirlist := dirlist;
@@ -1425,6 +1463,7 @@ begin
   Result := True;
 end;
 
+
 procedure TDirListEntry.SetDirectory(value: Boolean);
 begin
   fDirectory := value;
@@ -1435,6 +1474,22 @@ procedure TDirListEntry.SetSample(value: Boolean);
 begin
   fSample := value;
 end;
+
+procedure TDirListEntry.SetProof(value: Boolean);
+begin
+  fProof := value;
+end;
+
+procedure TDirListEntry.SetSubtitles(value: Boolean);
+begin
+  fSubs := value;
+end;
+
+procedure TDirListEntry.SetCovers(value: Boolean);
+begin
+  fCovers := value;
+end;
+
 
 function TDirListEntry.RegenerateSkiplist: Boolean;
 var
