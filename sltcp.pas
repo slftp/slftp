@@ -164,7 +164,7 @@ type
     function LoadCertificate(certfile: AnsiString): Boolean; overload;
     function LoadCertificate(certfile, keyfile: AnsiString): Boolean; overload;
   published
-    property OnAcceptError: TslOnAcceptError read fOnAcceptError write fOnAcceptError; 
+    property OnAcceptError: TslOnAcceptError read fOnAcceptError write fOnAcceptError;
   end;
   TslTCPServerThread = class(TThread)
   private
@@ -191,11 +191,11 @@ type
   public
     ServerThread: TslTCPServerThread;
     Client: TslTCPSocket;
-    procedure Init; virtual; 
-    procedure Cleanup; virtual; 
+    procedure Init; virtual;
+    procedure Cleanup; virtual;
     procedure RealExecute; virtual; abstract;
     procedure Execute; override;
-    constructor Create(s: TslTCPServerThread; c: TslSocket); 
+    constructor Create(s: TslTCPServerThread; c: TslSocket);
     destructor Destroy; override;
   end;
 
@@ -224,33 +224,37 @@ uses SysUtils, slhelper, Math, DateUtils;
 
 var sltcp_lock: TCriticalSection;
 
+
 procedure sltcp_Init;
 begin
   if not slStackInit(sltcp_error) then
     exit;
-  sltcp_LocalAddresses:= TStringList.Create;
-  if not PopulateLocalAddresses(sltcp_LocalAddresses, sltcp_error) then exit;
 
-  sltcp_lock:= TCriticalSection.Create;
-  sltcp_inited:= True;
+  sltcp_LocalAddresses := TStringList.Create;
+  if not PopulateLocalAddresses(sltcp_LocalAddresses, sltcp_error) then
+    exit;
 
-  slDefaultSocks5:= TslSocks5.Create;
-  slDefaultSocks5.enabled:= False;
-  slDefaultSocks5.username:= '';
-  slDefaultSocks5.password:= '';
-  slDefaultSocks5.host:= '';
-  slDefaultSocks5.port:= 0;
+  sltcp_lock := TCriticalSection.Create;
+  sltcp_inited := True;
 
+  slDefaultSocks5 := TslSocks5.Create;
+  slDefaultSocks5.enabled := False;
+  slDefaultSocks5.username := '';
+  slDefaultSocks5.password := '';
+  slDefaultSocks5.host := '';
+  slDefaultSocks5.port := 0;
 end;
 
 procedure sltcp_UnInit;
 begin
   if sltcp_inited then
     slStackUninit;
-  sltcp_localAddresses.Free;
+
+  sltcp_LocalAddresses.Free;
   sltcp_lock.Free;
   slDefaultSocks5.Free;
-  sltcp_inited:= False;
+
+  sltcp_inited := False;
 end;
 
 
@@ -318,7 +322,7 @@ end;
 destructor TslTCPSocket.Destroy;
 begin
   Disconnect;
-  socks5.Free;  
+  socks5.Free;
   fss.Free;
 
   inherited;
@@ -443,7 +447,7 @@ begin
     Result:= True;
   finally
     sltcp_lock.Leave;
- 
+
   end;
 end;
 
@@ -679,7 +683,7 @@ var er: AnsiString;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
 begin
-  shouldquit:= False; 
+  shouldquit:= False;
   Result:= False;
   try
     setlength(er, 512);
@@ -927,7 +931,7 @@ end;
 function TslTCPSocket.WriteBuffer(var Buf; BufSize: Integer; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   Result:= False;
-  
+
   try
     if slSocket.socket = slSocketError then
     begin
@@ -961,7 +965,7 @@ var buf: array[0..65535] of byte;
     ennyit, r: Integer;
 begin
   Result:= False;
-  
+
   try
     if maxsend = 0 then
       maxsend:= s.Size - s.Position;
@@ -1136,7 +1140,7 @@ begin
       aktolvasas:= slBufferSize;
       if ((maxolvasas > 0) and (osszesolvasva + aktolvasas > maxolvasas)) then
         aktolvasas:= maxolvasas - osszesolvasva;
-      
+
   //debug(dpSpam, 'slrecv elott');
 
       if fSSL <> nil then
@@ -1447,7 +1451,7 @@ begin
 
   StackSize:= 128*1024; // 128 KB
   ssltimeout:= slDefaultTimeout;
-  backlog:= slDefaultBacklog;    
+  backlog:= slDefaultBacklog;
   fBindings:= TStringList.Create;
   maxclients:= -1; // unlimited
   threads:= TObjectList.Create(False);
@@ -1495,20 +1499,20 @@ begin
 
   fsslctx:= slSSL_CTX_new(slTLSv1_2_server_method());
   if nil = fsslctx then
-	begin
-    error:= slSSL_LastError();
-    FreeCTX;
-    exit;
-	end;
-
-	if (slSSL_CTX_use_certificate_chain_file(fsslctx, PAnsiChar(certfile)) <= 0) then
   begin
     error:= slSSL_LastError();
     FreeCTX;
     exit;
   end;
 
-	if (slSSL_CTX_use_PrivateKey_file(fsslctx, PAnsiChar(keyfile), OPENSSL_SSL_FILETYPE_PEM) <=0 ) then
+  if (slSSL_CTX_use_certificate_chain_file(fsslctx, PAnsiChar(certfile)) <= 0) then
+  begin
+    error:= slSSL_LastError();
+    FreeCTX;
+    exit;
+  end;
+
+  if (slSSL_CTX_use_PrivateKey_file(fsslctx, PAnsiChar(keyfile), OPENSSL_SSL_FILETYPE_PEM) <=0 ) then
   begin
     error:= slSSL_LastError();
     FreeCTX;
@@ -1516,7 +1520,7 @@ begin
   end;
 
   if (1 <> slSSL_CTX_check_private_key(fsslctx)) then
-	begin
+  begin
     error:= slSSL_LastError();
     FreeCTX;
     exit;
@@ -1525,7 +1529,7 @@ begin
   if @slSSL_CTX_set_session_cache_mode <> nil then
     slSSL_CTX_set_session_cache_mode(fsslctx, OPENSSL_SSL_SESS_CACHE_OFF);
 
-	slSSL_CTX_set_cipher_list(fsslctx, 'ALL:!EXP');
+  slSSL_CTX_set_cipher_list(fsslctx, 'ALL:!EXP');
 
   Result:= True;
 end;
@@ -1765,7 +1769,7 @@ begin
       if ((listenSocket.error <> 'timeout') and (Assigned(Server.fOnAcceptError)) and (Server.fOnAcceptError(self, listensocket.error))) then
       begin
 //        debug(dpError, 'callback miatt kilepunk');
-        Break; 
+        Break;
       end;
     end;
 
@@ -1837,7 +1841,7 @@ begin
 connectionThread.Resume;
 {$ELSE}
   connectionThread.Start;
-{$ENDIF}  
+{$ENDIF}
 end;
 
 procedure TslTCPThread.Stop;
