@@ -10968,7 +10968,7 @@ begin
       end;
       if (s.working <> sstUp) then
       begin
-        irc_addtext(Netname, Channel, '<c4><b>Site %s is temporary offline! </c></b>', [s.Name]);
+        irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
         Continue;
       end;
 
