@@ -10962,7 +10962,15 @@ begin
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if (s.PermDown) then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
         Continue;
+      end;
+      if (s.working <> sstUp) then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
+        Continue;
+      end;
 
       tn := AddNotify;
       try
