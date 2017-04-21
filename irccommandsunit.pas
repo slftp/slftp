@@ -10459,7 +10459,7 @@ begin
 
   pmode := StrToIntDef(params, -1);
 
-  if pmode >= 0 and pmode <= High(TPretimeLookupMOde) then
+  if pmode >= 0 and pmode <= Ord(High(TPretimeLookupMOde)) then
   begin
     irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0))), pretimeModeToString(TPretimeLookupMOde(pmode))]);
     config.WriteInteger('taskpretime', 'mode', pmode);
@@ -10479,7 +10479,7 @@ begin
 
   pmode := StrToIntDef(params, -1);
 
-  if pmode >= 0 and pmode <= High(TPretimeLookupMOde) then
+  if pmode >= 0 and pmode <= Ord(High(TPretimeLookupMOde)) then
   begin
     irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0))), pretimeModeToString(TPretimeLookupMOde(pmode))]);
     config.WriteInteger('taskpretime', 'mode_2', pmode);
@@ -10499,7 +10499,7 @@ begin
 
   pmode := StrToIntDef(params, -1);
 
-  if pmode >= 0 and pmode <= High(TAddPreMode) then
+  if pmode >= 0 and pmode <= Ord(High(TAddPreMode)) then
   begin
     irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [addPreModeToString(TAddPreMode(config.ReadInteger('dbaddpre', 'mode', 0))), addPreModeToString(TAddPreMode(pmode))]);
     config.WriteInteger('dbaddpre', 'mode', pmode);
