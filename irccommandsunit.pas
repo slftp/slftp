@@ -10414,78 +10414,103 @@ begin
   Result := True;
 end;
 
-function IrcSetupOffset(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+
+function IrcSetupOffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  r: TRegexpr;
 begin
-  //  Result := False;
+  Result := False;
+
   if params <> '' then
   begin
-    config.WriteString('taskpretime', 'offset', params);
-    config.UpdateFile;
+
+    r := TRegexpr.Create;
+    try
+      r.Expression := '^(\+|\-)([\d]+)$';
+
+      if r.Exec(params) then
+      begin
+        irc_addtext(Netname, Channel, 'Will change Offset value from %s to %s', [config.ReadString('taskpretime', 'offset', 'Not Found!'), params]);
+        config.WriteString('taskpretime', 'offset', params);
+        config.UpdateFile;
+      end
+      else
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+        exit;
+      end;
+
+    finally
+      r.Free;
+    end;
+
   end;
-  irc_addtext(Netname, Channel, 'Offset value: %s',
-    [config.ReadString('taskpretime', 'offset', 'Not Found!')]);
+
+  irc_addtext(Netname, Channel, 'Offset value: %s', [config.ReadString('taskpretime', 'offset', 'Not Found!')]);
+
   Result := True;
 end;
 
-function IrcSetupPretimeMode(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetupPretimeMode(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   pmode: integer;
 begin
+  Result := False;
 
-  //  Result := False;
   pmode := StrToIntDef(params, -1);
-  if pmode >= 0 then
+
+  if (pmode >= 0) and (pmode <= Ord(High(TPretimeLookupMOde))) then
   begin
+    irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0))), pretimeModeToString(TPretimeLookupMOde(pmode))]);
     config.WriteInteger('taskpretime', 'mode', pmode);
     setPretimeMode_One(TPretimeLookupMOde(pmode));
     config.UpdateFile;
   end;
-  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
-    [config.ReadInteger('taskpretime', 'mode', 0), pretimeModeToString(
-      TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)', [config.ReadInteger('taskpretime', 'mode', 0), pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)))]);
+
   Result := True;
 end;
 
-function IrcSetupPretimeMode2(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetupPretimeMode2(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   pmode: integer;
 begin
+  Result := False;
 
-  //  Result := False;
   pmode := StrToIntDef(params, -1);
-  if pmode >= 0 then
+
+  if (pmode >= 0) and (pmode <= Ord(High(TPretimeLookupMOde))) then
   begin
+    irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0))), pretimeModeToString(TPretimeLookupMOde(pmode))]);
     config.WriteInteger('taskpretime', 'mode_2', pmode);
     setPretimeMode_Two(TPretimeLookupMOde(pmode));
     config.UpdateFile;
   end;
-  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
-    [config.ReadInteger('taskpretime', 'mode_2', 0), pretimeModeToString(
-      TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0)))]);
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)', [config.ReadInteger('taskpretime', 'mode_2', 0), pretimeModeToString(TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0)))]);
+
   Result := True;
 end;
 
-function IrcSetupADDPreMode(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetupADDPreMode(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   pmode: integer;
 begin
-  //  Result := False;
+  Result := False;
+
   pmode := StrToIntDef(params, -1);
-  if pmode >= 0 then
+
+  if (pmode >= 0) and (pmode <= Ord(High(TAddPreMode))) then
   begin
+    irc_addtext(Netname, Channel, 'Will change Pretimemode from %s to %s', [addPreModeToString(TAddPreMode(config.ReadInteger('dbaddpre', 'mode', 0))), addPreModeToString(TAddPreMode(pmode))]);
     config.WriteInteger('dbaddpre', 'mode', pmode);
     setAddPretimeMode(TAddPreMode(pmode));
     config.UpdateFile;
   end;
-  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)',
-    [config.ReadInteger('dbaddpre', 'mode', 0), addPreModeToString(
-      TAddPreMode(config.ReadInteger('dbaddpre', 'mode', 0)))]);
+  irc_addtext(Netname, Channel, 'Pretimemode: <b>%d</b> (%s)', [config.ReadInteger('dbaddpre', 'mode', 0), addPreModeToString(TAddPreMode(config.ReadInteger('dbaddpre', 'mode', 0)))]);
+
   Result := True;
 end;
+
 
 function IrcFindPretime(const Netname, Channel: AnsiString; params: AnsiString):
   boolean;
