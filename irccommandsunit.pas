@@ -11459,11 +11459,14 @@ begin
   else
   begin
     otvr := getTVInfoByReleaseName(params);
-    try
-      tvmaze_id := otvr.tvmaze_id;
-      tv_showname := otvr.tv_showname;
-    finally
-      otvr.free;
+    if otvr <> nil then
+    begin
+      try
+        tvmaze_id := otvr.tvmaze_id;
+        tv_showname := otvr.tv_showname;
+      finally
+        otvr.free;
+      end;
     end;
   end;
 
