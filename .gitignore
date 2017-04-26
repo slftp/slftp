@@ -1,3 +1,12 @@
+#
+# slftp files
+#
+slftp.history
+slftp.log
+
+#
+# Delphi and windows
+#
 *.dcu
 *.~*~
 *.local
@@ -16,9 +25,12 @@ __history
 bin/*
 Win32/*
 Win64/*
-slftp.history
 
-# entrys taken from http://wiki.freepascal.org/File_extensions
+#
+# Lazarus
+# Entries taken from http://wiki.freepascal.org/File_extensions
+#
+
 # Lazarus compiler-generated binaries (safe to delete)
 *.so
 *.dylib
@@ -41,5 +53,9 @@ slftp.history
 backup/*
 *.bak
 
-#gitlab autobuilder
+#
+# Gitlab
+#
+
+# Gitlab autobuilder
 .gitlab-ci.yml
