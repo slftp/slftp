@@ -11450,11 +11450,12 @@ var
   otvr, newtvi: TTVInfoDB;
 begin
   Result := false;
+  tvmaze_id := '';
+  tv_showname := '';
 
   if strtointdef(params, -1) > -1 then
   begin
     tvmaze_id := params;
-    tv_showname := '';
   end
   else
   begin
@@ -11468,6 +11469,12 @@ begin
         otvr.free;
       end;
     end;
+  end;
+
+  if tvmaze_id = '' then
+  begin
+    Irc_AddText(Netname, Channel, Format('<b><c4>Error</c></b>: Show named <b>%s</b> not found in our local database.', [tv_showname]));
+    exit;
   end;
 
   respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id +
