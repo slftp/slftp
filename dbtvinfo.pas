@@ -449,75 +449,123 @@ end;
 
 
 
-function TTVInfoDB.executeUpdate:Boolean;
+function TTVInfoDB.executeUpdate: Boolean;
+var
+  update_sql: String;
 begin
-result:= tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %1:d, status = %0:s%2:s%0:s, country = %0:s%3:s%0:s, network = %0:s%4:s%0:s, genre = %0:s%5:s%0:s, airdays=%0:s%6:s%0:s ,ended_year = %7:d, tvrage_id = %8:d, last_updated = %9:d, next_date = %10:d,'+
-    ' next_season = %11:d, next_episode = %12:d, tv_language = %0:s%13:s%0:s WHERE tvmaze_id = %14:d; ',
-    [chr(39),StrToIntDef(thetvdb_id, -1), tv_status, tv_country, tv_network, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
-    tv_next_ep,tv_language,StrToInt(tvmaze_id)]));
+  Result := False;
+  update_sql := Format('UPDATE infos SET ' +
+
+     // columns
+    'tvdb_id = %d, ' +
+    'tvrage_id = %d, ' +
+    'status = ''%s'', ' +
+    'country = ''%s'', ' +
+    'network = ''%s'', ' +
+    'classification = ''%s'', ' +
+    'genre = ''%s'', ' +
+    'airdays=''%s'', ' +
+    'tv_premiered_year = %d, ' +
+    'ended_year = %d, ' +
+    'next_date = %d, ' +
+    'next_season = %d, ' +
+    'next_episode = %d, ' +
+    'tv_language = ''%s'', ' +
+    'last_updated = %d ' +
+
+     // condition
+    'WHERE tvmaze_id = %14:d;',
+
+      [
+        // data
+        StrToIntDef(thetvdb_id, -1),
+        StrToIntDef(tvrage_id, -1),
+        tv_status,
+        tv_country,
+        tv_network,
+        tv_classification,
+        tv_genres.CommaText,
+        tv_days.CommaText,
+        tv_premiered_year,
+        tv_endedyear,
+        tv_next_date,
+        tv_next_season,
+        tv_next_ep,
+        tv_language,
+        DateTimeToUnix(now()),
+
+        // condition value
+        StrToInt(tvmaze_id)
+      ]
+  );
+
+  try
+    Result:= tvinfodb.ExecSQL(update_sql);
+  except on E: Exception do
+    irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.executeUpdate: %s', [e.Message]));
+  end;
 end;
 
-function TTVInfoDB.Update(fromIRC:Boolean = False): boolean;
+function TTVInfoDB.Update(fromIRC: boolean = False): boolean;
 var
   rls_name: AnsiString;
   respo: AnsiString;
 begin
 
-if fromIRC then begin
-  result:= executeUpdate;
-end else begin
-
-  //variable will be overwriten by  parseTVMazeInfos.
-  rls_name := self.ripname;
-  result := False;
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-
-  if respo = '' then
+  if fromIRC then
   begin
-    irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
-    Debug(dpError, section, 'TVMaze api response was empty.');
-    Exit;
-  end;
+    Result:= executeUpdate;
+  end
+  else
+  begin
+    //variable will be overwriten by  parseTVMazeInfos.
+    rls_name := self.ripname;
+    Result := False;
+    respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
 
-  try
-    self := parseTVMazeInfos(respo);
-  except on e: Exception do
+    if respo = '' then
     begin
-      irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
-      Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
-      Exit;
+      irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
+      Debug(dpError, section, 'TVMaze api response was empty.');
+      exit;
+    end;
+
+    try
+      self := parseTVMazeInfos(respo);
+    except on e: Exception do
+      begin
+        irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+        Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
+        exit;
+      end;
+    end;
+
+    try
+      Result:= executeUpdate;
+    except on E: Exception do
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+    end;
+
+    try
+      if result then
+        TVInfoFireKbAdd(rls_name, '<c9>[TVInfo]</c> Updated -> %s %s (%s)');
+    except on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Update.fireKB: %s ', [e.Message]));
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update.fireKB: %s', [e.Message]));
+      end;
     end;
   end;
-
-    result:= executeUpdate;
-
-  try
-    if result then
-      TVInfoFireKbAdd(rls_name, '<c9>[TVInfo]</c> Updated -> %s %s (%s)');
-  except on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Update.fireKB: %s ', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update.fireKB: %s', [e.Message]));
-    end;
-  end;
-
-end;
-
 end;
 
 function TTVInfoDB.UpdateIRC: boolean;
 begin
+  Result := False;
   try
-  result :=
-    tvinfodb.ExecSQL(Format('UPDATE infos SET tvdb_id = %1:d, status = %0:s%2:s%0:s, country = %0:s%3:s%0:s, network = %0:s%4:s%0:s, genre = %0:s%5:s%0:s, airdays=%0:s%6:s%0:s ,ended_year = %7:d, tvrage_id = %8:d, last_updated = %9:d, next_date = %10:d,'+
-    ' next_season = %11:d, next_episode = %12:d, tv_language = %0:s%13:s%0:s WHERE tvmaze_id = %14:d; ',
-    [chr(39),StrToIntDef(thetvdb_id, -1), tv_status, tv_country, tv_network, tv_genres.CommaText, tv_days.CommaText, tv_endedyear, StrToIntDef(tvrage_id, -1), DateTimeToUnix(now()), tv_next_date, tv_next_season,
-    tv_next_ep,tv_language,StrToInt(tvmaze_id)]));
-
+    Result:= executeUpdate;
   except on E: Exception do
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.UpdateIRC: %s', [e.Message]));
   end;
-
 end;
 
 {   misc                                       }
