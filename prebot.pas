@@ -1179,7 +1179,8 @@ var
  nfofound, added: boolean;
   sr:  TSiteResponse;
   d:   TDirList;
-  failed, perfect, aktfiles, aktsize, addednumber, i, files, size: integer;
+  failed, perfect, aktfiles, addednumber, i, files: integer;
+  aktsize, size: Int64;
   p:   TPazo;
   ps:  TPazoSite;
   r:   TDirListTask;

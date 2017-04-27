@@ -99,7 +99,7 @@ function GetContentType(fname: AnsiString): AnsiString;
 {$ENDIF}
 function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
 function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
-function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
+function ParsePasvString(s: AnsiString; out host: AnsiString; out port: integer): boolean;
 
 function IsALetter(const c: AnsiChar): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
 function IsANumber(const c: AnsiChar): boolean; // { returns with true if it's a number: [0-9] }
@@ -1058,7 +1058,7 @@ begin
     Result := '/';
 end;
 
-function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
+function ParsePasvString(s: AnsiString; out host: AnsiString; out port: integer): boolean;
 begin
   Result := False;
 
