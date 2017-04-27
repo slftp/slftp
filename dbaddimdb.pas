@@ -94,11 +94,11 @@ procedure TDbImdbData.PostResults(rls : AnsiString = '');
 var status:AnsiString;
 begin
 
-  if imdb_stvm then status:='STV'
-  else if imdb_festival then status:='Festival'
-  else if imdb_ldt then status:='Limited'
-  else if imdb_wide then status:='Wide'
-  else status:='Cine';
+  if imdb_stvm then status := 'STV'
+  else if imdb_festival then status := 'Festival'
+  else if imdb_ldt then status := 'Limited'
+  else if imdb_wide then status := 'Wide'
+  else status :=' Cine';
 
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: http://www.imdb.com/title/%s/   (%d)',[rls, imdb_id, imdb_year]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
@@ -109,12 +109,11 @@ end;
 procedure TDbImdbData.PostResults(const netname, channel: AnsiString; rls : AnsiString = '');
 var status:AnsiString;
 begin
-  
-  if imdb_stvm then status:='STV'
-  else if imdb_festival then status:='Festival'
-  else if imdb_ldt then status:='Limited'
-  else if imdb_wide then status:='Wide'
-  else status:='Cine';
+  if imdb_stvm then status := 'STV'
+  else if imdb_festival then status := 'Festival'
+  else if imdb_ldt then status := 'Limited'
+  else if imdb_wide then status := 'Wide'
+  else status :=' Cine';
 
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: http://www.imdb.com/title/%s/   (%d)',[rls, imdb_id, imdb_year]));
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
@@ -195,15 +194,17 @@ end;
 
 procedure dbaddimdb_SaveImdbData(rls: AnsiString; imdbdata: TDbImdbData);
 var i: Integer;
-//    p : TPazo;
 begin
   i:= last_imdbdata.IndexOf(rls);
   if i = -1 then
   begin
     last_imdbdata.AddObject(rls, imdbdata);
 
-    irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
-    imdbdata.PostResults(rls);
+    if config.ReadBool(section, 'post_lookup_infos', false) then
+    begin
+      irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
+      imdbdata.PostResults(rls);
+    end;
 
     dbaddimdb_FireKbAdd(rls);
 
