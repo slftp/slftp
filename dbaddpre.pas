@@ -247,6 +247,14 @@ function ReadPretimeOverMYSQL(rls: AnsiString): TDateTime;
 var
   q, mysql_result: AnsiString;
 begin
+  Result := UnixToDateTime(0);
+
+  if mysqldb = nil then
+  begin
+    Debug(dpError, section, 'MySQL predb is not available! Check your mysql connections settings in slftp.ini.');
+    exit;
+  end;
+
   try
     mysql_lock.Enter;
     try
@@ -258,20 +266,14 @@ begin
       q := q + ' = ''%s'';';
       mysql_result := gc(mysqldb, q, [rls]);
       if mysql_result <> '' then
-      begin
         Result := UnixToDateTime(StrToIntDef(mysql_result, 0));
-      end
-      else
-      begin
-        Result := UnixToDateTime(0);
-      end;
     finally
       mysql_lock.Leave;
     end;
   except
     on e: Exception do
     begin
-      Result := UnixToDateTime(0);
+      Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverMYSQL: %s', [e.Message]));
       exit;
     end;
   end;
