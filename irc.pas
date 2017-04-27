@@ -279,7 +279,7 @@ begin
   irc_message_lock.Enter;
   msgs := TStringList.Create;
   try
-    msgs.Text := wraptext(msg, 280);
+    msgs.Text := wraptext(msg, 256);
     try
       if (config.ReadBool(section, 'direct_echo', False)) then
       begin
