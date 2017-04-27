@@ -11468,7 +11468,9 @@ begin
       finally
         otvr.free;
       end;
-    end;
+    end
+    else
+      tv_showname := params;
   end;
 
   if tvmaze_id = '' then
