@@ -14,22 +14,22 @@ type
 
     megvanmeg: Boolean;
     justadded: Boolean;
-    error: Boolean;
+    error: Boolean; //< { @true if file cannot be send, will be skiped then, @false otherwise. }
 
     username: AnsiString;
     groupname: AnsiString;
 
-    fDirectory: Boolean;
-    fDirType: TDirType;
+    fDirectory: Boolean; //< current dir is a directory
+    fDirType: TDirType; //< Indicates what kind of Directory the current dir is
 
     subdirlist: TDirList;
 
-    filename: AnsiString;
-    filenamelc: AnsiString;
+    filename: AnsiString; //< filename
+    filenamelc: AnsiString; //< lowercase filename
     filesize: Int64;
 
     skiplisted: Boolean;
-    racedbyme: Boolean;
+    racedbyme: Boolean; //< @true if we send this file to the site
     done: Boolean;
 
     tradeCount: Integer;
