@@ -85,7 +85,7 @@ type
     function SendProtC: boolean;
     function Mkdir(dirtocreate: AnsiString): boolean;
     function TranslateFilename(filename: AnsiString): AnsiString;
-    function Pwd(var dir: AnsiString): boolean;
+    function Pwd(out dir: AnsiString): boolean;
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask;
@@ -620,6 +620,7 @@ begin
           Debug(dpSpam, section, Format('--> %s', [Name]));
 
           try
+            // crash
             if todotask.Execute(self) then
               lastactivity := Now();
 
@@ -1459,7 +1460,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Pwd(var dir: AnsiString): boolean;
+function TSiteSlot.Pwd(out dir: AnsiString): boolean;
 begin
   Result := False;
   try
@@ -1467,8 +1468,6 @@ begin
       exit;
     if not Read('PWD') then
       exit;
-    //[L] PWD
-    //[L] 257 "/MOVIES/DivX-XviD-TVRiP/Xxx-Porno" is current directory.
 
     if lastResponseCode <> 257 then
       exit;
@@ -1494,31 +1493,6 @@ begin
   Result := False;
   list_everything := '';
 
-  {
-  * GLFTPD
-  [L] 213- status of -l ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
-  [L] total 5535
-  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
-  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
-  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
-  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
-  [L] 213 End of Status
-
-  [L] 213- status of -la ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
-  [L] total 5553
-  [L] drwxrwxrwx   3 uname     NoGroup      2763 Feb 20 11:01 .
-  [L] drwxrwxrwx  38 glftpd   glftpd          0 Feb 20 22:01 ..
-  [L] -rw-rw-rw-   1 uname     NoGroup       923 Feb 20 11:01 .message
-  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
-  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
-  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
-  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
-  [L] 213 End of Status
-
-  * DRFTPD
-  * same result for both commands on my side (only 1 site to test)
-  }
-
   try
     if fulldirlist then
       list_everything := 'a';
@@ -1526,7 +1500,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-       // Debug(dpError, 'dirlist', 'ERROR: %s, can not cwd %s', [site.Name, dir]);
+        Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
@@ -1551,12 +1525,13 @@ begin
 
     if not Send(cmd) then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: %s, can not send %s', [site.Name, dir]);
+      Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not send command %s to %s', [cmd, site.Name]);
       exit;
     end;
+
     if not Read('Dirlist') then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: %s, can not read %s', [site.Name, dir]);
+      Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
     end;
 
@@ -1611,7 +1586,7 @@ begin
       ParsePasvString(lastResponse, host, port);
       if port = 0 then
       begin
-        irc_AddText(todotask, site.name + ': couldnt parse passive string / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Could not parse PASV string from site %s while getting %s', [site.name, filename]);
         Result := -1;
         exit;
       end;
@@ -1629,16 +1604,16 @@ begin
 
       if not idTCP.Connect(site.connect_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt connect to site (' + idTCP.error + ') / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Can not connect to site %s while getting %s: %s', [site.name, filename, idTCP.error]);
         DestroySocket(False);
         Result := -1;
         exit;
       end;
 
-      if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
+      if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt negotiate the SSL connection (' + idTCP.error + ') / ' + filename);
-        site.UseForNFOdownload := 2; // for crap sites with old SSL or so
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
+        site.UseForNFOdownload := 2; // TODO: rename me
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1646,14 +1621,14 @@ begin
 
       if not Read('RETR') then
       begin
-        irc_AddText(todotask, site.name + ': couldnt read response of site / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: No response from site %s while getting %s: %s', [site.name, filename]);
         Result := -1;
         exit;
       end;
 
       if not idTCP.Read(dest, site.io_timeout * 1000, maxRead, True) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt fetch content (' + idTCP.error + ') / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Could not get file content on site %s while getting %s: %s', [site.name, filename, idTCP.error]);
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1852,6 +1827,7 @@ destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   QueueEmpty(Name);
+  // crash on !die
   slots.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -2879,6 +2855,7 @@ procedure TSite.RemoveAutoIndex;
 var
   t: TAutoIndexTask;
 begin
+  //crashes with !bnctest <sitename>
   t := FetchAutoIndex;
   if ((t <> nil) and (t.slot1 = nil)) then
     t.ready := True;
@@ -2888,6 +2865,7 @@ procedure TSite.RemoveAutoBnctest;
 var
   t: TLoginTask;
 begin
+  //crashes
   t := FetchAutoBnctest;
   if ((t <> nil) and (t.slot1 = nil)) then
     t.ready := True;

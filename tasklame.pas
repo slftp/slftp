@@ -7,14 +7,14 @@ type TLameTask = class(TTask)
        filename: AnsiString;
        dir: AnsiString;
        genremode: Boolean;
-       filesize: Integer;
-       constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Integer; genremode: Boolean);
+       filesize: Int64;
+       constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Int64; genremode: Boolean);
        destructor Destroy; override;
        function Execute(slot: Pointer): Boolean; override;
        function Name: AnsiString; override;
   end;
 
-function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Integer; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo):  Integer;
+function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo):  Integer;
 
 implementation
 
@@ -26,7 +26,7 @@ const section = 'lame';
 
 
 
-constructor TLameTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Integer; genremode: Boolean);
+constructor TLameTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Int64; genremode: Boolean);
 begin
   self.filename:= filename;
   self.filesize:= filesize;
@@ -41,7 +41,7 @@ begin
   inherited;
 end;
 
-function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Integer; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo): Integer;
+function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo): Integer;
 type TTartas = (ttid3v1, ttid3v2, ttlame, ttmpeg);
 var i, restFrom, mennyitolvass: Integer;
     tartas: TTartas;

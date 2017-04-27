@@ -110,9 +110,9 @@ ujra:
   try
       d:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
     try
-      j:= TagComplete(d.complet_tag);
+      j:= TagComplete(d.complete_tag);
       if j <> 0 then
-        tagfile:= d.complet_tag;
+        tagfile:= d.complete_tag;
     finally
       d.Free;
     end;
