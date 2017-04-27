@@ -41,6 +41,10 @@
       ratio_regex
       credits_regex
 
+    // REPLACE
+      [tasktvinfo]
+      daysbetweenlastUpdate with days_between_last_update
+
 --===========================( KNOWN BUG in v1.5.* )================================-
 
     OpenSSL v1.1.* isn't supported yet
@@ -56,8 +60,8 @@
     {+} Wrap IRC Messages into 280 char long chunks (#36)
     {+} Wrap lines on console window based on width (#36)
     {+} Option to enable/disable autoinvite -> !help autoinvite (#84)
-    {#} Fixed how nukewords (slftp.precatcher) is handled. Now works as it should.
-    {#} Precatcher reload now works correctly sith split_site_data=1
+    {#} Fixed how nukewords (slftp.precatcher) is handled. Now works as it should. (#144)
+    {#} Precatcher reload works correctly when using split_site_data=1 (#132)
     {#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
     {#} Bug with !dirlist not showing entries (#112)
     {#} Bug with looping of Sample folder fixed (#4)                                                                          ---- need some more code changes - uses SetFileError ---
@@ -68,15 +72,17 @@
     {#} Year regex improvement for shows like "1066: A Year to Conquer England"
     {#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
     {#} sitename for !speedtestin and !speedtestout, no empty "Site '' has no suitable file for speedtesting" (#130)
+    {#} !credits * does not show all other sites when a site is offline
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
     {^} TVMaze Us US mismatch gets detected better now (#1)
     {^} No 'Section on SITE for SECTION was not found' on COMPLETE and NUKE announce (#117)
     {^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
     {^} No [NOT SET] message if site is set to permdown & rename to [SECTION NOT SET] (#108)
-    {^} Re-written backup unit code with support for old options (skipfiles, backup_dir) (#134)
+    {^} Re-written backup unit code, supporting old options (skipfiles, backup_dir) and including all .db files in backup (#134)
     {^} Announce old + renamed groupname when check with renamed_group_checker was positive
     {^} languagebase.slftp gets automatically renamed to slftp.languagebase
     {^} Disabled all fake checking for sitepres
+    {^} Better input checks and more info output for !setoffset, !pretimemode, !pretimemode2 and !addpremode
     {^} No need to !setdown before !setpermdown (#108)
     {^} !sslmethod checks if valid SSL method + shows which one is used
     {^} Removed warning when "section not found" for complete & nuke announce (#117)
