@@ -84,7 +84,9 @@ var
   tp1, tp2: TPazoTask;
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
-begin
+  sample_priority, proof_priority, subs_priority, covers_priority: Integer;
+
+  begin
   // compare:  1 Item1 is before Item2
   // compare: -1 Item1 is after Item2
   try
@@ -208,18 +210,20 @@ begin
         exit;
       end;
 
-      if config.ReadBool('queue', 'sample_first', True) then
+      // Sample priority
+      sample_priority := config.ReadInteger('queue', 'sample_priority', 1);
+      if ((sample_priority > 0) and (sample_priority <= 2)) then
       begin
-
-        // Give priority to sample
-        if ((tpr1.isSample) and (not tpr2.IsSample)) then
+        if ((tpr1.IsSample) and (not tpr2.IsSample)) then
         begin
-          Result := -1;
+          if sample_priority = 1 then Result := -1;
+          if sample_priority = 2 then Result := 1;
           exit;
         end;
         if ((not tpr1.IsSample) and (tpr2.IsSample)) then
         begin
-          Result := 1;
+          if sample_priority = 1 then Result := 1;
+          if sample_priority = 2 then Result := -1;
           exit;
         end;
         if ((tpr1.IsSample) and (tpr2.IsSample)) then
@@ -227,7 +231,75 @@ begin
           Result := CompareValue(tpr2.rank, tpr1.rank);
           exit;
         end;
+      end;
 
+      // Proof priority
+      proof_priority := config.ReadInteger('queue', 'proof_priority', 0);
+      if ((proof_priority > 0) and (proof_priority <= 2)) then
+      begin
+        if ((tpr1.IsProof) and (not tpr2.IsProof)) then
+        begin
+          if proof_priority = 1 then Result := -1;
+          if proof_priority = 2 then Result := 1;
+          exit;
+        end;
+        if ((not tpr1.IsProof) and (tpr2.IsProof)) then
+        begin
+          if proof_priority = 1 then Result := 1;
+          if proof_priority = 2 then Result := -1;
+          exit;
+        end;
+        if ((tpr1.IsProof) and (tpr2.IsProof)) then
+        begin
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+          exit;
+        end;
+      end;
+
+      // Subs priority
+      subs_priority := config.ReadInteger('queue', 'subs_priority', 0);
+      if ((subs_priority > 0) and (subs_priority <= 2)) then
+      begin
+        if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
+        begin
+          if subs_priority = 1 then Result := -1;
+          if subs_priority = 2 then Result := 1;
+          exit;
+        end;
+        if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
+        begin
+          if subs_priority = 1 then Result := 1;
+          if subs_priority = 2 then Result := -1;
+          exit;
+        end;
+        if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
+        begin
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+          exit;
+        end;
+      end;
+
+      // Covers priority
+      covers_priority := config.ReadInteger('queue', 'covers_priority', 0);
+      if ((covers_priority > 0) and (covers_priority <= 2)) then
+      begin
+        if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
+        begin
+          if covers_priority = 1 then Result := -1;
+          if covers_priority = 2 then Result := 1;
+          exit;
+        end;
+        if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
+        begin
+          if covers_priority = 1 then Result := 1;
+          if covers_priority = 2 then Result := -1;
+          exit;
+        end;
+        if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
+        begin
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+          exit;
+        end;
       end;
 
       Result := CompareValue(tpr2.rank, tpr1.rank);
@@ -728,73 +800,82 @@ procedure QueueEmpty(sitename: AnsiString);
 var
   i: integer;
   t: TTask;
+
 begin
   Debug(dpSpam, section, 'QueueEmpty ' + sitename);
-  for i := tasks.Count - 1 downto 0 do
-  begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-    try
-      t := TTask(tasks[i]);
-      if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and
-        ((t.site1 = sitename) or (t.site2 = sitename))) then
-        t.readyerror := True;
 
-      if (t is TPazoTask) then
-        TPazoTask(t).mainpazo.SiteDown(sitename);
-    except
-      Continue;
+  queueth.main_lock.Enter;
+
+  try
+    for i := tasks.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then Break;
+      except
+        Break;
+      end;
+      try
+        t := TTask(tasks[i]);
+        if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+          t.readyerror := True;
+
+        if (t is TPazoTask) then TPazoTask(t).mainpazo.SiteDown(sitename);
+      except
+        Continue;
+      end;
     end;
+  finally
+    queueth.main_lock.Leave;
   end;
 end;
 
 function TaskAlreadyInQueue(t: TTask): boolean;
 var
   i:    integer;
-//  i_tt: TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
+
 begin
   Result := False;
+
   if (t is TPazoRaceTask) then
   begin
     try
       tpr := TPazoRaceTask(t);
-      for i := tasks.Count - 1 downto 0 do
-      begin
-        try
-          if i < 0 then
+      queueth.main_lock.Enter;
+      try
+        for i := tasks.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          if (tasks[i] is TPazoRaceTask) then
-          begin
-            i_tpr := TPazoRaceTask(tasks[i]);
-            if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-              (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-              (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-              (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
-            begin
-              Result := True;
-              exit;
-            end;
           end;
-        except
-          Continue;
+          try
+            if (tasks[i] is TPazoRaceTask) then
+            begin
+              i_tpr := TPazoRaceTask(tasks[i]);
+              if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
+                (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
+                (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
+                (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
+              begin
+                Result := True;
+                exit;
+              end;
+            end;
+          except
+            Continue;
+          end;
         end;
+      finally
+        queueth.main_lock.Leave;      
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s',
-          [e.Message]));
+        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -806,35 +887,39 @@ begin
   begin
     try
       tpd := TPazoDirlistTask(t);
-      for i := tasks.Count - 1 downto 0 do
-      begin
-        try
-          if i < 0 then
+      queueth.main_lock.Enter;
+      try
+        for i := tasks.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          if (tasks[i] is TPazoDirlistTask) then
-          begin
-            i_tpd := TPazoDirlistTask(tasks[i]);
-            if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-              (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
-              (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
-            begin
-              Result := True;
-              exit;
-            end;
           end;
-        except
-          Continue;
+          try
+            if (tasks[i] is TPazoDirlistTask) then
+            begin
+              i_tpd := TPazoDirlistTask(tasks[i]);
+              if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
+                (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
+                (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
+              begin
+                Result := True;
+                exit;
+              end;
+            end;
+          except
+            Continue;
+          end;
         end;
+      finally
+        queueth.main_lock.Leave;      
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format(
-          '[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
+        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -846,35 +931,39 @@ begin
   begin
     try
       tpm := TPazoMkdirTask(t);
-      for i := tasks.Count - 1 downto 0 do
-      begin
-        try
-          if i < 0 then
+      queueth.main_lock.Enter;
+      try
+        for i := tasks.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          if (tasks[i] is TPazoMkdirTask) then
-          begin
-            i_tpm := TPazoMkdirTask(tasks[i]);
-            if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-              (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
-              (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
-            begin
-              Result := True;
-              exit;
-            end;
           end;
-        except
-          Continue;
+          try
+            if (tasks[i] is TPazoMkdirTask) then
+            begin
+              i_tpm := TPazoMkdirTask(tasks[i]);
+              if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
+                (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
+                (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
+              begin
+                Result := True;
+                exit;
+              end;
+            end;
+          except
+            Continue;
+          end;
         end;
+      finally
+        queueth.main_lock.Leave;
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s',
-          [e.Message]));
+        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -1264,6 +1353,7 @@ begin
               if ((t.startat = 0) or (t.startat <= queue_last_run)) then
               begin
                 if (t.dependencies.Count = 0) then
+                // crash
                   TryToAssignSlots(t);
               end;
             end;

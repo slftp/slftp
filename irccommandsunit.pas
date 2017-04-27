@@ -350,7 +350,6 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-
   irccommands: array[1..245] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
@@ -4020,8 +4019,7 @@ begin
   Result := True;
 end;
 
-function Bnctest(const Netname, Channel: AnsiString; s: TSite; tn: TTaskNotify;
-  kill: boolean = False): boolean;
+function Bnctest(const Netname, Channel: AnsiString; s: TSite; tn: TTaskNotify; kill: boolean = False): boolean;
 var
   l: TLoginTask;
 begin
@@ -5995,7 +5993,7 @@ begin
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    irc_addtext(Netname, Channel, '<c4><b>Error:</b> </c>Site <b>%s</b> not found.', [sitename]);
     exit;
   end;
 
@@ -8003,7 +8001,7 @@ begin
 end;
 
 procedure PickupSpeedtestFile(d: TDirList; var fsfilename: AnsiString;
-  var fsfilesize: integer);
+  var fsfilesize: Int64);
 var
   de: TDirListEntry;
   i: integer;
@@ -8041,7 +8039,7 @@ var
   added: integer;
   d: TDirList;
   fsfilename: AnsiString;
-  fsfilesize: integer;
+  fsfilesize: Int64;
   fsfilesizemb: double;
   speedtestsites: TStringList;
   speedtestfilenames: TStringList;
@@ -8140,9 +8138,6 @@ begin
       if ((fsfilename = '') or (fsfilesize = 0)) then
       begin
         RemoveTN(tn);
-        //speedtestsites.Free;
-        //speedtestfilenames.Free;
-        //speedtestfilesizes.Free;
 
         irc_addtext(Netname, Channel,
           'Site %s has no suitable file for speedtesting, check slftp.ini', [ss]);
@@ -8270,7 +8265,7 @@ var
   j: integer;
   fs: TFileSizeTask;
   fssitename, fsfilename: AnsiString;
-  fsfilesize: integer;
+  fsfilesize: Int64;
   fsfilesizemb: double;
   todel: AnsiString;
   d1, d2: double;
@@ -11122,18 +11117,14 @@ begin
   irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>',
     [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started),
     DateTimeAsString(started)]);
-  // irc_addtext(netname,channel,'<b>Uptime record</b>: slftp v1.5.5.5 <b>was running for</b> ...',[sitesdat.ReadString('default','MaxUptimeAsString','')]);
 
-  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip%ss in mind', [kb_list.Count,
-    Chr(39)]);
-
+  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
 
   if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE then
     irc_addtext(Netname, Channel, dbaddpre_Status);
 
-  irc_addtext(Netname, Channel, 'Other Stats: %s <b>-</b> %s <b>-</b> %s', [dbaddurl_Status,
-    dbaddimdb_Status, dbaddnfo_Status]);
+  irc_addtext(Netname, Channel, 'Other Stats: %s <b>-</b> %s <b>-</b> %s', [dbaddurl_Status, dbaddimdb_Status, dbaddnfo_Status]);
 
   rx := TRegexpr.Create;
   rx.ModifierI := True;
