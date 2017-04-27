@@ -1,29 +1,39 @@
-SLFTPPATH = ~/testsl/
 SHELL = /bin/bash
+SLFTPPATH = ~/slftp
 CC = fpc
-CFLAGS = -MDelphi
+CFLAGS = -MDelphi -O3 -Xs
+CINCLUDES = -Fu libs/FastMM4
 CDBFLAGS = -MDelphi -gl -gp -gs -gw3
 default: clean slftp
-all: clean slftp_svn_up slftp install
+
+all: slftp install
+
+all_32: slftp_32 install
+
+all_64: slftp_64 insall
 slftp:
-	@rm -f *.ppu *.o slftp *.exe
-	$(CC) $(CFLAGS) slftp.lpr
-	@cp slftp $(SLFTPPATH)slftp
-slftp_svn_up:
-	@svn up
+	make clean
+	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
+
+slftp_32:
+	make clean
+	$(CC) -Pi386 $(CFLAGS) $(CINCLUDES) slftp.lpr
+
+slftp_64:
+	make clean
+	$(CC) -Px86_64 $(CFLAGS) $(CINCLUDES) slftp.lpr
+
 slftp_debug:
-	$(CC) $(CDBFLAGS) slftp.lpr
-cryptconf2:
-	@rm -f *.ppu *.o cryptconf2 *.exe
-	$(CC) $(CFLAGS) cryptconf2.dpr
-	@cp cryptconf2 $(SLFTPPATH)cryptconf2
-dbrepair:
-	@rm -f *.ppu *.o dbrepair *.exe
-	$(CC) $(CFLAGS) dbrepair.dpr
-	@cp dbrepair $(SLFTPPATH)dbrepair
+	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
+
+slftp_32_debug:
+	$(CC) -Pi386 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
+
+slftp_64_debug:
+	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
+
 clean:
-	@rm -f *.ppu *.o slftp cryprconf cryptconf2 dbrepair *.exe
+	@rm -f *.ppu *.o slftp *.exe
+
 install:
-	@cp slftp $(SLFTPPATH)slftp
-#	@cp cryptconf2 $(SLFTPPATH)cryptconf2
-#	@cp dbrepair $(SLFTPPATH)dbrepair
+	@cp slftp $(SLFTPPATH)/slftp
