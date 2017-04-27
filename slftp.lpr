@@ -1,6 +1,8 @@
 program slftp;
 {$MODE Delphi}
-{$APPTYPE CONSOLE}
+{$IFDEF WINDOWS}
+  {$APPTYPE whatever}
+{$ENDIF}
 {*******************************************************************************\
 
  Freeware, Copyright              .
@@ -41,7 +43,16 @@ program slftp;
 
 \*******************************************************************************}
 uses
-{$IFDEF FPC}{$ifdef unix}cthreads, cmem,{$endif}{$ENDIF}console;
+  {$IFDEF FPC}
+    {$IFDEF UNIX}
+      FastMM4
+      ,cthreads
+      ,cmem
+    {$ENDIF}  
+  {$ENDIF}
+ 
+  ,console;
+
 begin
   ConsoleStart;
 end.
