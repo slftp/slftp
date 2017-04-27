@@ -62,7 +62,7 @@ begin
 
   mysql_ping := config.ReadInteger(section, 'ping', 0);
 
-  if mysql_host = '0' then
+  if mysql_host = '0' or mysql_host = '' then
     exit; //we dont use mysql...
 
 
