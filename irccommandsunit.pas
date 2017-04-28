@@ -10322,8 +10322,7 @@ begin
     begin
       ss := TSite(sites.Items[i]);
       if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-      if TSite(sites.Items[i]).PermDown then
+        ss.Free;
         Continue;
 
       if svalue = '' then
@@ -10336,6 +10335,8 @@ begin
       else
         irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
     end;
+
+    ss.Free;
   end
   else
   begin
@@ -10351,11 +10352,13 @@ begin
       irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)])
     else if ((svalue = '1') or (svalue = '0')) then
     begin
-      ss.NoLoginMSG := StrToBoolDef(svalue, False);
+      ss.SkipBeingUploadedFiles := StrToBoolDef(svalue, False);
       irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)]);
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+
+    ss.Free;
   end;
 
   Result := True;
