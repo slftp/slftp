@@ -1,7 +1,7 @@
 program slftp;
 {$MODE Delphi}
 {$IFDEF WINDOWS}
-  {$APPTYPE whatever}
+  {$APPTYPE CONSOLE}
 {$ENDIF}
 {*******************************************************************************\
 
@@ -45,13 +45,14 @@ program slftp;
 uses
   {$IFDEF FPC}
     {$IFDEF UNIX}
-      FastMM4
-      ,cthreads
-      ,cmem
+      {$IFNDEF CPUARM}
+        FastMM4,
+      {$ENDIF}
+        cthreads,
+        cmem,
     {$ENDIF}  
   {$ENDIF}
- 
-  ,console;
+  console;
 
 begin
   ConsoleStart;
