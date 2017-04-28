@@ -629,7 +629,7 @@ begin
           end;
 
           // entry is a file and is not downlodable
-          if config.ReadBool(section, 'skip_being_uploaded_files', True) then
+          if config.ReadBool(section, 'skip_being_uploaded_files', False) then
           begin
             if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
             begin
