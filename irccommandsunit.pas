@@ -253,6 +253,7 @@ function IrcInviteMyIRCNICK(const netname, channel: AnsiString; params: AnsiStri
 //Site_stuff
 function IrcNoLoginMSG(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSkipBeingUploadedFiles(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 //function IrcCustomDelrelease(const netname, channel: string;params: string): Boolean;
 
@@ -350,7 +351,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..245] of TIrcCommand = (
+  irccommands: array[1..246] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -385,6 +386,7 @@ const
     (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'legacycwd'; hnd: IrcLegacycwd; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'skipincfiles'; hnd: IrcSkipBeingUploadedFiles; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'usefornfodownload'; hnd: IrcUseForNFOdownload; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autologin'; hnd: IrcAutoLogin; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autobnctest'; hnd: IrcAutoBnctest; minparams: 1; maxparams: 2; hlpgrp: 'site'),
@@ -10244,7 +10246,6 @@ begin
   Result := True;
 end;
 
-
 function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sname: AnsiString;
@@ -10297,6 +10298,61 @@ begin
     begin
       ss.UseForNFOdownload := svalue;
       irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+    end
+    else
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+  end;
+
+  Result := True;
+end;
+
+function IrcSkipBeingUploadedFiles(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  svalue, sname: AnsiString;
+  ss: TSite;
+  i: integer;
+begin
+  Result := False;
+  sname := UpperCase(SubString(params, ' ', 1));
+  svalue := SubString(params, ' ', 2);
+
+  if sname = '*' then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      ss := TSite(sites.Items[i]);
+      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        Continue;
+      if TSite(sites.Items[i]).PermDown then
+        Continue;
+
+      if svalue = '' then
+        irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)])
+      else if ((svalue = '1') or (svalue = '0')) then
+      begin
+        ss.SkipBeingUploadedFiles := StrToBoolDef(svalue, False);
+        irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)]);
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+    end;
+  end
+  else
+  begin
+    ss := FindSiteByName('', sname);
+    if ss = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
+      Result := True;
+      exit;
+    end;
+
+    if svalue = '' then
+      irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)])
+    else if ((svalue = '1') or (svalue = '0')) then
+    begin
+      ss.NoLoginMSG := StrToBoolDef(svalue, False);
+      irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)]);
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
