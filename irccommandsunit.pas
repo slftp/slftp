@@ -11546,6 +11546,7 @@ var
   otvr, newtvi: TTVInfoDB;
 begin
   Result := false;
+
   tvmaze_id := '';
   tv_showname := '';
 
@@ -11597,8 +11598,11 @@ begin
 
     try
       newtvi.last_updated := DateTimeToUnix(now());
-      Result := newtvi.UpdateIRC;
-      newtvi.PostResultsv2(newtvi.tv_showname, Netname, Channel);
+      if (newtvi.Update(True)) then
+      begin
+        Result := True;
+        newtvi.PostResultsv2(newtvi.tv_showname, Netname, Channel);
+      end;
     finally
       newtvi.free;
     end;
@@ -11610,7 +11614,6 @@ begin
       Exit;
     end;
   end;
-  Result := True;
 end;
 
 function IrcSetTVRageID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
