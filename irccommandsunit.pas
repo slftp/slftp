@@ -386,7 +386,7 @@ const
     (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'legacycwd'; hnd: IrcLegacycwd; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams: 2; hlpgrp: 'site'),
-    (cmd: 'skipincfiles'; hnd: IrcSkipBeingUploadedFiles; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'skipinc'; hnd: IrcSkipBeingUploadedFiles; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'usefornfodownload'; hnd: IrcUseForNFOdownload; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autologin'; hnd: IrcAutoLogin; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autobnctest'; hnd: IrcAutoBnctest; minparams: 1; maxparams: 2; hlpgrp: 'site'),
