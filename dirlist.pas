@@ -558,7 +558,7 @@ begin
   else
   begin
     skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
-    FreeAndNil(site);
+    site.Free;
   end;
 
   for i := entries.Count - 1 downto 0 do
@@ -667,12 +667,12 @@ begin
 
             if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
             begin
-              FreeAndNil(de);
+              de.Free;
               Continue;
             end;
             if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
             begin
-              FreeAndNil(de);
+              de.Free;
               Continue;
             end;
 
@@ -712,19 +712,19 @@ begin
 
               finally
                 Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, de.DirTypeAsString]);
-                FreeAndNil(splx);
+                splx.Free;
               end;
             end;
 
             if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
-              FreeAndNil(de);
+              de.Free;
               Continue;
             end;
 
             if ((not de.Directory) and (not (de.filesize > 0))) then
             begin
-              FreeAndNil(de);
+              de.Free;
               Continue;
             end;
 
@@ -734,7 +734,7 @@ begin
               de.RegenerateSkiplist;
               if (de.skiplisted) then
               begin
-                FreeAndNil(de);
+                de.Free;
                 Continue;
               end;
             end;
@@ -772,12 +772,12 @@ begin
             de.groupname:= groupname;
           end;
           de.megvanmeg:= True;
-          FreeAndNil(de);
+          de.Free;
         end;
       end;
 
   finally
-    FreeAndNil(rrgx);
+    rrgx.Free;
   end;
 
   // entries found means the dir exists
