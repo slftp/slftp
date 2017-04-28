@@ -10322,7 +10322,6 @@ begin
     begin
       ss := TSite(sites.Items[i]);
       if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        ss.Free;
         Continue;
 
       if svalue = '' then
@@ -10335,8 +10334,6 @@ begin
       else
         irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
     end;
-
-    ss.Free;
   end
   else
   begin
@@ -10357,8 +10354,6 @@ begin
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
-
-    ss.Free;
   end;
 
   Result := True;
