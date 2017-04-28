@@ -458,18 +458,18 @@ begin
      // columns
     'tvdb_id = %d, ' +
     'tvrage_id = %d, ' +
-    'status = ''%s'', ' +
-    'country = ''%s'', ' +
-    'network = ''%s'', ' +
-    'classification = ''%s'', ' +
-    'genre = ''%s'', ' +
-    'airdays=''%s'', ' +
+    'status = %s, ' +
+    'country = %s, ' +
+    'tv_language = %s, ' +
+    'network = %s, ' +
+    'classification = %s, ' +
+    'genre = %s, ' +
+    'airdays = %s, ' +
     'premiered_year = %d, ' +
     'ended_year = %d, ' +
     'next_date = %d, ' +
     'next_season = %d, ' +
     'next_episode = %d, ' +
-    'tv_language = ''%s'', ' +
     'last_updated = %d ' +
 
      // condition
@@ -479,18 +479,18 @@ begin
         // data
         StrToIntDef(thetvdb_id, -1),
         StrToIntDef(tvrage_id, -1),
-        tv_status,
-        tv_country,
-        tv_network,
-        tv_classification,
-        tv_genres.CommaText,
-        tv_days.CommaText,
+        QuotedStr(tv_status),
+        QuotedStr(tv_country),
+        QuotedStr(tv_language),
+        QuotedStr(tv_network),
+        QuotedStr(tv_classification),
+        QuotedStr(tv_genres.CommaText),
+        QuotedStr(tv_days.CommaText),
         tv_premiered_year,
         tv_endedyear,
         tv_next_date,
         tv_next_season,
         tv_next_ep,
-        tv_language,
         DateTimeToUnix(now()),
 
         // condition value
