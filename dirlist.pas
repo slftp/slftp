@@ -553,12 +553,11 @@ begin
   begin
     // should never happen
     Debug(dpError, section, 'ERROR: Can''t lookup site  %s. Using defaults.', [site_name]);
-    skip_being_uploaded_files := site.SkipBeingUploadedFiles;
+    skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
   end
   else
   begin
-    skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
-    site.Free;
+    skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
   for i := entries.Count - 1 downto 0 do
@@ -772,7 +771,6 @@ begin
             de.groupname:= groupname;
           end;
           de.megvanmeg:= True;
-          de.Free;
         end;
       end;
 
