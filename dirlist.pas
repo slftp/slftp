@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, typinfo, skiplists, globals;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
 
 type
   TdlSFV = (dlSFVUnknown, dlSFVNoNeed, dlSFVFound, dlSFVNotFound);
@@ -528,6 +528,8 @@ procedure TDirList.ParseDirlist(s: AnsiString);
 var
   tmp: AnsiString;
   akttimestamp: TDateTime;
+  site: TSite;
+  skip_being_uploaded_files: boolean;
   de: TDirListEntry;
   added: Boolean;
   dirmaszk, username, groupname, datum, filename: AnsiString;
@@ -545,6 +547,19 @@ begin
   end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
+
+  site := FindSiteByName('', site_name);
+  if site = nil then
+  begin
+    // should never happen
+    Debug(dpError, section, 'ERROR: Can''t lookup site  %s. Using defaults.', [site_name]);
+    skip_being_uploaded_files := site.SkipBeingUploadedFiles;
+  end
+  else
+  begin
+    skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
+    FreeAndNil(site);
+  end;
 
   for i := entries.Count - 1 downto 0 do
   begin
@@ -635,9 +650,8 @@ begin
           end;
 
           // entry is a file and is being uploaded (glftpd only?)
-          if config.ReadBool(section, 'skip_being_uploaded_files', False) then
+          if skip_being_uploaded_files then
           begin
-            // entry is a file and is being uploaded (glftpd only?)
             if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
             begin
               Continue;
@@ -647,18 +661,18 @@ begin
           akttimestamp:= Timestamp(datum);
 
           de:= Find(filename);
-          if nil = de then
+          if de = nil then
           begin
             de:= TDirListEntry.Create(filename, self);
 
             if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
             begin
-              de.Free;
+              FreeAndNil(de);
               Continue;
             end;
             if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
             begin
-              de.Free;
+              FreeAndNil(de);
               Continue;
             end;
 
@@ -698,19 +712,19 @@ begin
 
               finally
                 Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, de.DirTypeAsString]);
-                splx.Free;
+                FreeAndNil(splx);
               end;
             end;
 
             if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
-              de.Free;
+              FreeAndNil(de);
               Continue;
             end;
 
             if ((not de.Directory) and (not (de.filesize > 0))) then
             begin
-              de.Free;
+              FreeAndNil(de);
               Continue;
             end;
 
@@ -720,7 +734,7 @@ begin
               de.RegenerateSkiplist;
               if (de.skiplisted) then
               begin
-                de.free;
+                FreeAndNil(de);
                 Continue;
               end;
             end;
@@ -758,11 +772,12 @@ begin
             de.groupname:= groupname;
           end;
           de.megvanmeg:= True;
+          FreeAndNil(de);
         end;
       end;
 
   finally
-    rrgx.Free;
+    FreeAndNil(rrgx);
   end;
 
   // entries found means the dir exists

@@ -175,6 +175,9 @@ type
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
 
+    function GetSkipBeingUploadedFiles: boolean;
+    procedure SetSkipBeingUploadedFiles(Value: boolean);
+
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
 
@@ -292,6 +295,7 @@ type
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
+    property SkipBeingUploadedFiles: boolean read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -3270,6 +3274,16 @@ end;
 procedure TSite.SetUseForNFOdownload(Value: integer);
 begin
   WCInteger('usefornfodownload', Value);
+end;
+
+function TSite.GetSkipBeingUploadedFiles: boolean;
+begin
+  Result := RCBool('skip_being_uploaded_files', config.ReadBool(section, 'skip_being_uploaded_files', False));
+end;
+
+procedure TSite.SetSkipBeingUploadedFiles(Value: boolean);
+begin
+  WCBool('skip_being_uploaded_files', Value);
 end;
 
 function TSite.GetPermDownStatus: boolean;
