@@ -629,18 +629,19 @@ begin
           end;
 
           // entry is a file and is not downlodable
-          if config.ReadBool(section, 'skip_being_uploaded_files', False) then
+          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
           begin
-            if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
-            begin
-              Continue;
-            end;
+            Continue;
           end;
 
           // entry is a file and is being uploaded (glftpd only?)
-          if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+          if config.ReadBool(section, 'skip_being_uploaded_files', False) then
           begin
-            Continue;
+            // entry is a file and is being uploaded (glftpd only?)
+            if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+            begin
+              Continue;
+            end;
           end;
 
           akttimestamp:= Timestamp(datum);
