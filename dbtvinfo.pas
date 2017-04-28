@@ -38,7 +38,6 @@ type
 
     procedure PostResultsv2(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
     procedure SetTVDbRelease(tr: TTVRelease);
-    function UpdateIRC: boolean;
     function Update(fromIRC:Boolean = False): boolean;
 
     function executeUpdate: boolean;
@@ -465,7 +464,7 @@ begin
     'classification = ''%s'', ' +
     'genre = ''%s'', ' +
     'airdays=''%s'', ' +
-    'tv_premiered_year = %d, ' +
+    'premiered_year = %d, ' +
     'ended_year = %d, ' +
     'next_date = %d, ' +
     'next_season = %d, ' +
@@ -474,7 +473,7 @@ begin
     'last_updated = %d ' +
 
      // condition
-    'WHERE tvmaze_id = %14:d;',
+    'WHERE tvmaze_id = %d;',
 
       [
         // data
@@ -500,7 +499,10 @@ begin
   );
 
   try
-    Result:= tvinfodb.ExecSQL(update_sql);
+    if tvinfodb.ExecSQL(update_sql) then
+      Result := True
+    else
+      Debug(dpError, section, 'ERROR: TTVInfoDB.executeUpdate. Query failed: Query was: %s', [update_sql]);
   except on E: Exception do
     irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.executeUpdate: %s', [e.Message]));
   end;
@@ -512,59 +514,54 @@ var
   respo: AnsiString;
 begin
 
+  // Update asked from irc. Update and exit.
   if fromIRC then
   begin
-    Result:= executeUpdate;
-  end
-  else
-  begin
-    //variable will be overwriten by  parseTVMazeInfos.
-    rls_name := self.ripname;
-    Result := False;
-    respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
+    try
+      Result := executeUpdate;
+    except on E: Exception do
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update (from IRC): %s', [e.Message]));
+    end;
+    exit;
+  end;
 
-    if respo = '' then
+  // Update from event
+  // Note: variable will be overwriten by parseTVMazeInfos
+  rls_name := self.ripname;
+  Result := False;
+  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
+
+  if respo = '' then
+  begin
+    irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
+    Debug(dpError, section, 'TVMaze api response was empty.');
+    exit;
+  end;
+
+  try
+    self := parseTVMazeInfos(respo);
+  except on e: Exception do
     begin
-      irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
-      Debug(dpError, section, 'TVMaze api response was empty.');
+      irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+      Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
       exit;
     end;
-
-    try
-      self := parseTVMazeInfos(respo);
-    except on e: Exception do
-      begin
-        irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
-        Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
-        exit;
-      end;
-    end;
-
-    try
-      Result:= executeUpdate;
-    except on E: Exception do
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
-    end;
-
-    try
-      if result then
-        TVInfoFireKbAdd(rls_name, '<c9>[TVInfo]</c> Updated -> %s %s (%s)');
-    except on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Update.fireKB: %s ', [e.Message]));
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update.fireKB: %s', [e.Message]));
-      end;
-    end;
   end;
-end;
 
-function TTVInfoDB.UpdateIRC: boolean;
-begin
-  Result := False;
   try
-    Result:= executeUpdate;
+    Result := executeUpdate;
   except on E: Exception do
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.UpdateIRC: %s', [e.Message]));
+    irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+  end;
+
+  try
+    if Result then
+      TVInfoFireKbAdd(rls_name, '<c9>[TVInfo]</c> Updated -> %s %s (%s)');
+  except on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Update.fireKB: %s ', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update.fireKB: %s', [e.Message]));
+    end;
   end;
 end;
 
