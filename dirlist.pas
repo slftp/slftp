@@ -629,9 +629,12 @@ begin
           end;
 
           // entry is a file and is not downlodable
-          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+          if config.ReadBool('sites', 'skip_being_uploaded_files', True) then
           begin
-            Continue;
+            if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+            begin
+              Continue;
+            end;
           end;
 
           // entry is a file and is being uploaded (glftpd only?)
