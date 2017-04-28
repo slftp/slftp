@@ -1493,6 +1493,32 @@ begin
   Result := False;
   list_everything := '';
 
+  {
+  Difference between STAT -l and STAT -la on GLFTPD and DRFTPD, see below:
+  * GLFTPD
+  [L] 213- status of -l ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5535
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  [L] 213- status of -la ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
+  [L] total 5553
+  [L] drwxrwxrwx   3 uname     NoGroup      2763 Feb 20 11:01 .
+  [L] drwxrwxrwx  38 glftpd   glftpd          0 Feb 20 22:01 ..
+  [L] -rw-rw-rw-   1 uname     NoGroup       923 Feb 20 11:01 .message
+  [L] drwxrwxrwx   2 uname     NoGroup         0 Feb 20 11:01 [ABC] - ( 3M 1F - COMPLETE ) - [ABC]
+  [L] -rw-r--r--   1 uname     NoGroup       125 Feb 19 13:02 file_id.diz
+  [L] -rw-r--r--   1 uname     NoGroup   2822461 Feb 20 11:01 zh6khopy.zip
+  [L] -rw-r--r--   1 uname     NoGroup      6359 Feb 19 13:02 zwt.nfo
+  [L] 213 End of Status
+
+  * DRFTPD
+  * same result for both commands on my side (tested with 1 site)
+  }
+
   try
     if fulldirlist then
       list_everything := 'a';
