@@ -24,36 +24,60 @@ goto :error
 del /q *.exe *.dcu
 echo Compiling RELEASE Win32 slftp.exe
 "%CC%" %CFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
 goto :eof
 
 :slftp_debug
 del /q *.exe *.dcu
 echo Compiling DEBUG Win32 slftp.exe
 "%CC%" %CDBFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
 goto :eof
 
 :slftp_nd_32
 del /q *.exe *.dcu
 echo Compiling NEWDELPHI RELEASE Win32 slftp.exe
-"%CC%" %CFLAGS% %CINCLUDES% slftp.dpr
+"%CC_ND_32%" %CFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
 goto :eof
 
 :slftp_nd_64
 del /q *.exe *.dcu
 echo Compiling NEWDELPHI RELEASE Win64 slftp.exe
-"%CC%" %CFLAGS% %CINCLUDES% slftp.dpr
-goto :eof
+"%CC_ND_64%" %CFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)g
+oto :eof
 
 :slftp_nd_32_debug
 del /q *.exe *.dcu
 echo Compiling NEWDELPHI DEBUG Win32 slftp.exe
-"%CC%" %CDBFLAGS% %CINCLUDES% slftp.dpr
+"%CC_ND_32%" %CDBFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
 goto :eof
 
 :slftp_nd_64_debug
 del /q *.exe *.dcu
 echo Compiling NEWDELPHI DEBUG Win64 slftp.exe
-"%CC%" %CDBFLAGS% %CINCLUDES% slftp.dpr
+"%CC_ND_64%" %CDBFLAGS% %CINCLUDES% slftp.dpr
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
 goto :eof
 
 :clean
