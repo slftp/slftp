@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, skiplists;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
 
 type
   TdlSFV = (dlSFVUnknown, dlSFVNoNeed, dlSFVFound, dlSFVNotFound);
@@ -19,19 +19,18 @@ type
     username: AnsiString;
     groupname: AnsiString;
 
-    fDirectory: Boolean;  //< current dir is a directory
-    { possible subdirs which need extra handling because they don't need to have a sfv file (e.g. only jpeg file) }
-    fSample, fProof, fSubs, fCovers: Boolean;
+    fDirectory: Boolean; //< current dir is a directory
+    fDirType: TDirType; //< Indicates what kind of Directory the current dir is
 
     subdirlist: TDirList;
 
     filename: AnsiString; //< filename
     filenamelc: AnsiString; //< lowercase filename
-    filesize: Integer;
+    filesize: Int64;
 
-    skiplisted: Boolean; // it is a clear (are these comments even right?)
-    racedbyme: Boolean; //< true if we send this file
-    done: Boolean;       // site is already (are these comments even right?)
+    skiplisted: Boolean;
+    racedbyme: Boolean; //< @true if we send this file to the site
+    done: Boolean;
 
     tradeCount: Integer;
 
@@ -51,20 +50,17 @@ type
     destructor Destroy; override;
 
     procedure SetDirectory(value: Boolean);
-    procedure SetSample(value: Boolean);
-    procedure SetProof(value: Boolean);
-    procedure SetSubtitles(value: Boolean);
-    procedure SetCovers(value: Boolean);
+    property Directory: Boolean read fDirectory write SetDirectory;
+
+    procedure SetDirType(value: TDirType);
+    property DirType: TDirType read fDirType write SetDirType;
+    function DirTypeAsString: String;
 
     function RegenerateSkiplist: Boolean;
 
     function Useful: Boolean;
 
-    property Directory: Boolean read fDirectory write SetDirectory;
-    property IsSample: Boolean read fSample write SetSample;
-    property IsProof: Boolean read fProof write SetProof;
-    property IsSubtitles: Boolean read fSubs write SetSubtitles;
-    property IsCovers: Boolean read fCovers write SetCovers;
+
   end;
 
   TDirList = class
@@ -73,6 +69,7 @@ type
     allcdshere: Boolean;
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
+    s: AnsiString;
 
     procedure SetSkiplists;
     procedure SetLastChanged(value: TDateTime);
@@ -82,6 +79,7 @@ type
     mindenmehetujra: Boolean;
 
     site_name: AnsiString;
+    full_path: AnsiString;
 
     error: Boolean;
 
@@ -94,7 +92,7 @@ type
     entries: TObjectList;
     skiped: TStringList;
 
-    complet_tag: AnsiString;
+    complete_tag: AnsiString;
 
     cache_completed: Boolean;
     cache_hasnfo: Boolean;
@@ -125,6 +123,9 @@ type
 
     procedure Sort;
     procedure SortByModify;
+
+    procedure SetFullPath(value: AnsiString = 'Unknown');
+
     function RegenerateSkiplist: Boolean;
 
     function Directories: Integer;
@@ -133,7 +134,7 @@ type
     function Complete: Boolean;
     function CompleteByTag: Boolean;
 
-    procedure Usefulfiles(var files, size: Integer);
+    procedure Usefulfiles(out files: Integer; out size: Int64);
 
     function FindNfo: TDirListEntry;
     function Find(filename: AnsiString): TDirListEntry;
@@ -162,59 +163,96 @@ const section = 'dirlist';
 
 {$I common.inc}
 
-//var
-//  global_skip: String;
-//  useful_skip: String;
-
 { TDirList }
 function TDirList.Complete: Boolean;
 var
   i: Integer;
   d: TDirlistEntry;
-  files, size: Integer;
+  files: Integer;
+  size: Int64;
+  ResultType: AnsiString;
 begin
+  Result := False;
+  ResultType := 'Unknown';
+  files := 0;
+  size := 0;
+
+  // dir has already been seen as complete
   if cache_completed then
   begin
     Result := True;
     exit;
   end;
 
-  (*
-    if error then
-    begin
-      Result:= True;
-      cache_completed:= Result;
-      exit;
-    end;
-  *)
-
-
-  if parent <> nil then // we are in a subdirectory, there are two options:
+  if error then
   begin
-    // dir can not contain a sfv
+    // set dir as complete if an error is catched (not sure it's really useful)
+    //Result:= True;
+    //cache_completed:= Result;
+    //exit;
+    Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
+  end;
+
+  if parent <> nil then
+  begin
+    // we are in a subdirectory
+    // Debug(dpMessage, section, 'TDirlist.Complete DEBUG (START): Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
+
+    // check if subdir has a complete tag
     Result := CompleteByTag;
 
-    if ((not Result) and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
+    // no complete tag found
+    // check if subdir is of a known type and has Useful files
+    if not Result then
+    begin
+      if (parent.DirType in [IsSample]) then
+      begin
+        ResultType := 'Sample';
+        Usefulfiles(files, size);
+        Result := ((files <> 0) and (size <> 0));
+      end
+      else if (parent.DirType in [IsProof]) then
+      begin
+        ResultType := 'Proof';
+        Usefulfiles(files, size);
+        Result := ((files <> 0) and (size <> 0));
+      end
+      else if (parent.DirType in [IsCovers]) then
+      begin
+        ResultType := 'Covers';
+        Usefulfiles(files, size);
+        Result := ((files <> 0) and (size <> 0));
+      end;
+    end;
+
+    // check if subdir has Useful files
+    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
     begin
       Usefulfiles(files, size);
       Result := ((files <> 0) and (size <> 0));
     end;
 
-    // a file extension check for sample should be possible with sf_f.MatchFile and iterating through filexentension array for samples
-    // but if there are wrong files because someone uploaded sfv+rar to Sample dir we cannot delete it and send our needed video sample, so it's useless to check
-    if ( ( (parent.IsSample) or (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
-      Result := True;
+    if (Result) then
+      Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size])
+    else
+      Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
+
   end
   else
   begin
-    // main dir
+    // we are in the main dir
+
+    //check if there is a complete tag in the dir
     Result := CompleteByTag;
+
+    // no complete tag found - check if the release is multi cd
     if (not Result) and (MultiCD) then
-    begin
+   begin
       if allcdshere then
       begin
         Result := True;
 
+        // check if all multi-cd subdirs are complete
         for i := entries.Count - 1 downto 0 do
         begin
           try if i < 0 then Break; except Break; end;
@@ -234,57 +272,60 @@ begin
     end;
   end;
 
+  // set complete date if not already set
   if ((Result) and (self.date_completed = 0)) then
   begin
     self.date_completed := Now();
   end;
 
+  // avoid further execution of TDirlist.Complete if Result is true
   cache_completed := Result;
 end;
 
-constructor TDirList.Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest:boolean = False);
+constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False);
 begin
-  Create(site_name, parentdir, skiplist, '',speedtest);
+  Create(site_name, parentdir, skiplist, '', speedtest);
 end;
 
-constructor TDirList.Create( site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString;SpeedTest:boolean = False);
+constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False);
 var sf: TSkipListFilter;
 begin
   biggestcd:= 0;
-  self.error:= False;
+  self.error := False;
 
-  self.need_mkdir:= True;
+  self.need_mkdir := True;
 
-  self.cache_completed:= False;
+  self.cache_completed := False;
 
-  self.date_started:= 0;
-  self.date_completed:= 0;
+  self.date_started := 0;
+  self.date_completed := 0;
 
-  self.site_name:= site_name;
+  self.site_name := site_name;
+  self.full_path := 'Unknown';
 
-  fLastChanged:= Now();
-  allcdshere:= False;
-  entries:= TObjectList.Create;
-  skiped:= TStringList.Create;
-  skiped.CaseSensitive:= False;
-  self.parent:= parentdir;
+  fLastChanged := Now();
+  allcdshere := False;
+  entries := TObjectList.Create;
+  skiped := TStringList.Create;
+  skiped.CaseSensitive := False;
+  self.parent := parentdir;
 
-  self.skiplist:= skiplist;
+  self.s := s;
+  self.skiplist := skiplist;
   SetSkiplists;
 
-  self.isSpeedTest:=SpeedTest;
+  self.isSpeedTest := SpeedTest;
 
-
-  sfv_status:= dlSFVUnknown;
+  sfv_status := dlSFVUnknown;
   if skiplist <> nil then
   begin
     sf:= skiplist.AllowedDir('', 'testsfv.sfv');
     if sf = nil then
     begin
-      sfv_status:= dlSFVNoNeed;
+      sfv_status := dlSFVNoNeed;
     end else
     begin
-      sfv_status:= dlSFVNotFound;
+      sfv_status := dlSFVNotFound;
     end;
   end;
 
@@ -298,21 +339,21 @@ begin
   s:= Dirname;
   if skiplist <> nil then
   begin
-    sf_f:= skiplist.FindFileFilter(s);
-    sf_d:= skiplist.FindDirFilter(s);
+    sf_f := skiplist.FindFileFilter(s);
+    sf_d := skiplist.FindDirFilter(s);
   end else
   begin
-    sf_f:= nil;
-    sf_d:= nil;
+    sf_f := nil;
+    sf_d := nil;
   end;
 end;
 
 function TDirList.Depth: Integer;
 begin
   if parent <> nil then
-    Result:= parent.dirlist.Depth + 1
+    Result := parent.dirlist.Depth + 1
   else
-    Result:= 1;
+    Result := 1;
 end;
 
 destructor TDirList.Destroy;
@@ -326,11 +367,11 @@ begin
   if parent = nil then
   begin
     if MultiCd then
-      Result:= '_MULTICDROOT_'
+      Result := '_MULTICDROOT_'
     else
-      Result:= '_ROOT_';
+      Result := '_ROOT_';
   end else
-    Result:= parent.filename;
+    Result := parent.filename;
 end;
 
 function TDirList.MultiCD: Boolean;
@@ -341,23 +382,23 @@ begin
   if parent = nil then
   begin
     biggestcd:= 0;
-    Result:= False;
-    s:= '';
+    Result := False;
+    s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
 
     for i:= entries.Count -1 downto 0 do
     begin
       try if i < 0 then Break; except Break; end;
       try
-        de:= TDirListEntry(entries[i]);
+        de := TDirListEntry(entries[i]);
 
         if de.cdno <> 0 then
         begin
-          Result:= True;
+          Result := True;
           s:= s + IntToStr(de.cdno);
 
           if de.cdno > biggestcd then
-            biggestcd:= de.cdno;
+            biggestcd := de.cdno;
         end;
       except
         Continue;
@@ -366,23 +407,23 @@ begin
 
     if biggestcd > 1 then
     begin
-      allcdshere:= True;
+      allcdshere := True;
       for i:= 1 to biggestcd do
         if (0 = Pos(IntToStr(i), s)) then
         begin
-          allcdshere:= False;
+          allcdshere := False;
           Break;
         end;
     end;
   end else
   begin
-    Result:= parent.dirlist.MultiCD;
+    Result := parent.dirlist.MultiCD;
   end;
 end;
 
 function TDirList.No_NotSkiplisted: Integer;
 begin
-  Result:= entries.Count - No_Skiplisted;
+  Result := entries.Count - No_Skiplisted;
 end;
 
 function TDirList.No_Raceable: Integer;
@@ -390,7 +431,7 @@ var i: Integer;
 begin
   Result:= 0;
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
@@ -408,9 +449,9 @@ end;
 function TDirList.No_Skiplisted: Integer;
 var i: Integer;
 begin
-  Result:= 0;
+  Result := 0;
 
-  for i:= entries.Count -1 downto 0 do
+  for i := entries.Count -1 downto 0 do
   begin
     try if i < 0 then Break; except Break; end;
     try
@@ -432,11 +473,11 @@ var s1,s2,s3: AnsiString;
    l, ev, ora,perc, honap, nap, i: Integer;
    evnelkul: Boolean;
 begin
-  Result:= 0;
+  Result := 0;
 
-  s1:= Fetch(ts, ' ');
-  s2:= Fetch(ts, ' ');
-  s3:= Fetch(ts, ' ');
+  s1 := Fetch(ts, ' ');
+  s2 := Fetch(ts, ' ');
+  s3 := Fetch(ts, ' ');
 
   if s3 = '' then exit;
 
@@ -449,7 +490,7 @@ begin
        Break;
      end;
   end;
-  if (honap=0) then exit;
+  if (honap = 0) then exit;
 
   nap:= StrToIntDef(s2, 0);
   if ((nap < 1) or (nap > 31)) then exit;
@@ -457,12 +498,12 @@ begin
 
   l:= length(s3);
 
-  ora:= 0;
-  perc:= 0;
-  evnelkul:= False;
+  ora := 0;
+  perc := 0;
+  evnelkul := False;
   if(l = 4) then
   begin
-    ev:= StrToIntDef(s3, 0);
+    ev := StrToIntDef(s3, 0);
     if ev < 1000 then exit;
     if not TryEncodeDateTime(ev, honap, nap, 0,0,0,0,  Result) then
       exit;
@@ -487,22 +528,37 @@ procedure TDirList.ParseDirlist(s: AnsiString);
 var
   tmp: AnsiString;
   akttimestamp: TDateTime;
+  site: TSite;
+  skip_being_uploaded_files: boolean;
   de: TDirListEntry;
   added: Boolean;
   dirmaszk, username, groupname, datum, filename: AnsiString;
-  filesize: Integer;
+  filesize: Int64;
   i, j: Integer;
   rrgx, splx: TRegExpr;
 begin
   added := False;
 
+  // No need to parse the dir again if it's complete
   if cache_completed then
   begin
-//    Debug(dpError, 'dirlist', 'ERROR: cache_complete');
+    //Debug(dpError, section, 'SKIP: Directory %s on %s is considered complete. ParseDirList skipped (cache_complete)', [Dirname, site_name]);
     exit;
   end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
+
+  site := FindSiteByName('', site_name);
+  if site = nil then
+  begin
+    // should never happen
+    Debug(dpError, section, 'ERROR: Can''t lookup site  %s. Using defaults.', [site_name]);
+    skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
+  end
+  else
+  begin
+    skip_being_uploaded_files := site.SkipBeingUploadedFiles;
+  end;
 
   for i := entries.Count - 1 downto 0 do
   begin
@@ -545,9 +601,9 @@ begin
           Fetch(tmp, ' '); // No. of something
           username:= Fetch(tmp, ' '); // dir mask
           groupname:= Fetch(tmp, ' '); // dir mask
-          fileSize:= StrToIntDef(Fetch(tmp, ' '),-1); // dir mask
+          filesize:= StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
 
-          if fileSize < 0 then
+          if filesize < 0 then
             Continue;
 
           datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
@@ -565,29 +621,46 @@ begin
             Continue;
           end;
 
-          // Dont add complet tag to dirlist entries
+          // Dont add complete tags to dirlist entries
           if ((dirmaszk[1] = 'd') or (filesize = 0)) then
           begin
             j:= TagComplete(filename);
             if (j <> 0) then
             begin
-              complet_tag:= filename;
+              complete_tag:= filename;
               Continue;
             end;
           end;
 
+          // file is flagged as skipped
           if (skiped.IndexOf(filename) <> -1) then
             Continue;
 
+          // entry is a file and is 0 byte
           if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
           begin
             Continue;
           end;
 
+          // entry is a file and is not downlodable
+          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+          begin
+            Continue;
+          end;
+
+          // entry is a file and is being uploaded (glftpd only?)
+          if skip_being_uploaded_files then
+          begin
+            if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+            begin
+              Continue;
+            end;
+          end;
+
           akttimestamp:= Timestamp(datum);
 
           de:= Find(filename);
-          if nil = de then
+          if de = nil then
           begin
             de:= TDirListEntry.Create(filename, self);
 
@@ -616,31 +689,31 @@ begin
             if (de.directory) then
             begin
               // check if we have a special kind of subdirectory
+              de.DirType := Unknown;
               splx := TRegExpr.Create;
               try
                 splx.ModifierI := True;
-
-                splx.Expression := '^sample';
+                splx.Expression := '^sample$';
                 if (splx.Exec(filename)) then
-                  de.IsSample := True;
+                  de.DirType := IsSample;
 
-                splx.Expression := '^proof';
+                splx.Expression := '^proof$';
                 if (splx.Exec(filename)) then
-                  de.IsProof := True;
+                  de.DirType := IsProof;
 
-                splx.Expression := '^sub';
-                if (splx.Exec(filename)) then
-                  de.IsSubtitles := True;
+                splx.Expression := '^(sub|subs)$';
+                if(splx.Exec(filename)) then
+                  de.DirType := IsSubs;
 
-                splx.Expression := '^cover';
+                splx.Expression := '^(cover|covers)$';
                 if (splx.Exec(filename)) then
-                  de.IsCovers := True;
+                  de.DirType := IsCovers;
 
               finally
+                Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, de.DirTypeAsString]);
                 splx.Free;
               end;
             end;
-
 
             if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
@@ -660,7 +733,7 @@ begin
               de.RegenerateSkiplist;
               if (de.skiplisted) then
               begin
-                de.free;
+                de.Free;
                 Continue;
               end;
             end;
@@ -705,12 +778,9 @@ begin
     rrgx.Free;
   end;
 
-  (*
-    if ((need_mkdir) and (entries.Count > 0)) then
-    begin
-      need_mkdir:= False;
-    end;
-  *)
+  // entries found means the dir exists
+  if ((need_mkdir) and (entries.Count > 0)) then
+    need_mkdir:= False;
 
   if parent = nil then // changed the status MULTI CD
   begin
@@ -722,19 +792,19 @@ begin
         debugunit.Debug(dpError, section, 'SetSkiplists exception : %s', [e.Message]);
       end;
     end;
-  end
-  else
-  begin
-    if ((parent.IsSample) and (entries.Count > 0) and (AnsiIndexText(AnsiLowerCase(de.Extension), SampleFileExtension) <> -1)) then
-      cache_completed := True;
-
-    if ( ( (parent.IsProof) or (parent.IsSubtitles) or (parent.IsCovers) ) and (entries.Count > 0) ) then
-      cache_completed := True;
   end;
 
+  // exit if the dir is complete
+  if (Complete) then
+    exit;
+
+  // set defaults values if direcotry was just added
   if added then
   begin
+    cache_completed := False;
+    cache_multicd := False;
     allcdshere:= False;
+
     if skiplist <> nil then
     begin
       try
@@ -742,12 +812,20 @@ begin
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, 'RegenerateSkiplist exception : %s', [e.Message]);
+          debugunit.Debug(dpError, section, '[EXCEPTION] RegenerateSkiplist: %s', [e.Message]);
         end;
       end;
+
+      try
+        Sort;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION]Sort: %s', [e.Message]);
+        end;
+      end;
+
     end;
-    // now sort
-    //Sort;
   end;
 
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist (%d entries)', [entries.Count]));
@@ -775,18 +853,26 @@ begin
 
 end;
 
-function DirListSorter(Item1, Item2: Pointer): Integer;
-var i1, i2: TDirlistEntry;
+function DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
+var
+    i1, i2: TDirlistEntry;
     c1, c2: Integer;
+    i1IsImage, i1IsSample: Integer;
+    i2IsImage, i2IsSample: Integer;
+    proofs_priority, covers_priority, samples_priority: Integer;
+
 begin
-  //compare: -1 bekenhagyas, jo a sorrend ~ bekenhagyas, good order
-  //compare:  1 csere  = replacement
+  (*
+     Result := -1 (i1 wins)
+            := 1  (i2 wins)
+            := 0  (no change)
+  *)
   Result:= 0;
   try
     i1:= TDirlistEntry(Item1);
     i2:= TDirlistEntry(Item2);
 
-
+    // sfv priority
     if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
     begin
       Result:= -1;
@@ -798,6 +884,7 @@ begin
       exit;
     end;
 
+    // nfo priority
     if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
     begin
       Result:= -1;
@@ -809,48 +896,70 @@ begin
       exit;
     end;
 
+    // optimize?
+    i1IsImage := AnsiIndexText(AnsiLowerCase(i1.Extension), ImageFileExtensions);
+    i2IsImage := AnsiIndexText(AnsiLowerCase(i2.Extension), ImageFileExtensions);
 
-      if config.ReadBool('queue', 'sample_first', True) then
+    // image files priority (i.e.: proof, covers)
+    if (i1IsImage <> -1) or (i2IsImage <> -1)  then
+    begin
+      proofs_priority := config.ReadInteger('queue', 'proofs_priority', 0);
+      if (dirtype in [IsProof]) and ((proofs_priority > 0) and (proofs_priority <= 2)) then
       begin
-
-    if ((AnsiLowerCase(i1.Extension) = '.mkv') and (AnsiLowerCase(i2.Extension) <> '.mkv')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.mkv') and (AnsiLowerCase(i2.Extension) = '.mkv')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
-
-    if ((AnsiLowerCase(i1.Extension) = '.mp4') and (AnsiLowerCase(i2.Extension) <> '.mp4')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.mp4') and (AnsiLowerCase(i2.Extension) = '.mp4')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
-
-    if ((AnsiLowerCase(i1.Extension) = '.avi') and (AnsiLowerCase(i2.Extension) <> '.avi')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.avi') and (AnsiLowerCase(i2.Extension) = '.avi')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
-
+        if ((i1IsImage <> -1) and (i1IsImage = -1)) then
+        begin
+          if (proofs_priority = 1) then Result := -1;
+          if (proofs_priority = 2) then Result := 1;
+        end;
+        if ((i1IsImage = -1) and (i1IsImage <> -1)) then
+        begin
+          if (proofs_priority = 1) then Result := 1;
+          if (proofs_priority = 2) then Result := -1;
+        end;
+        Debug(dpError, section, 'DirListSorter (proof): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        exit;
       end;
 
+      covers_priority := config.ReadInteger('queue', 'covers_priority', 0);
+      if (dirtype in [IsCovers]) and ((covers_priority > 0) and (covers_priority <= 2)) then
+      begin
+        if ((i1IsImage <> -1) and (i1IsImage = -1)) then
+        begin
+          if (covers_priority = 1) then Result := -1;
+          if (covers_priority = 2) then Result := 1;
+        end;
+        if ((i1IsImage = -1) and (i1IsImage <> -1)) then
+        begin
+          if (covers_priority = 1) then Result := 1;
+          if (covers_priority = 2) then Result := -1;
+        end;
+        Debug(dpError, section, 'DirListSorter (covers): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        exit;
+      end;
+    end;
 
+    i1IsSample := AnsiIndexText(AnsiLowerCase(i1.Extension), SampleFileExtensions);
+    i2IsSample := AnsiIndexText(AnsiLowerCase(i2.Extension), SampleFileExtensions);
+    // Sample priority
+    samples_priority := config.ReadInteger('queue', 'samples_priority', 0);
+    if (dirtype in [IsSample]) and ((samples_priority > 0) and (samples_priority <= 2)) then
+    begin
+      if ((i1IsSample <> -1) and (i2IsSample = -1)) then
+      begin
+        if (samples_priority = 1) then Result := -1;
+        if (samples_priority = 2) then Result := 1;
+      end;
+      if ((i1IsSample = -1) and (i2IsSample <> -1)) then
+      begin
+        if (samples_priority = 1) then Result := 1;
+        if (samples_priority = 2) then Result := -1;
+      end;
+      Debug(dpError, section, 'DirListSorter (sample): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+      exit;
+    end;
+
+    // TODO: Read and understand the following
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
-
 
     if ((i1.directory) and (i2.directory)) then
     begin
@@ -858,8 +967,6 @@ begin
       begin
         c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
         c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
-
-        //if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen  = This should not happen, because you will be skiplisted Kene
 
         if (c1 > c2) then
           Result:= 1
@@ -876,8 +983,6 @@ begin
     begin
       c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
       c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
-
-      //if ((c1 = -1) or (c2 = -1)) then exit; // ez elvileg nem fordulhat elo, mert akkor skiplisted kene legyen
 
       if (c1 > c2) then
         Result:= 1
@@ -941,10 +1046,10 @@ function TDirList.CompleteByTag: Boolean;
 var i: Integer;
 begin
   Result:= False;
-  if (complet_tag = '') then
+  if (complete_tag = '') then
     exit;
 
-  i:= TagComplete(complet_tag);
+  i:= TagComplete(complete_tag);
   if (i = 1) then
   begin
     Result:= True;
@@ -952,13 +1057,16 @@ begin
   end;
 end;
 
-procedure TDirList.Usefulfiles(var files, size: Integer);
+procedure TDirList.Usefulfiles(out files: Integer; out size: Int64);
 var i: Integer;
     de: TDirlistEntry;
-    afile, asize: Integer;
+    afiles: Integer;
+    asize: Int64;
 begin
-  files:= 0;
-  size:= 0;
+  asize := 0;
+  afiles := 0;
+  files := 0;
+  size := 0;
 
   for i:= entries.Count -1 downto 0 do
   begin
@@ -974,8 +1082,8 @@ begin
       end;
       if ((de.directory) and (de.subdirlist <> nil)) then
       begin
-        de.subdirlist.Usefulfiles(afile, asize);
-        inc(files, afile);
+        de.subdirlist.Usefulfiles(afiles, asize);
+        inc(files, afiles);
         inc(size, asize);
       end;
     except
@@ -1354,6 +1462,11 @@ begin
   end;
 end;
 
+procedure TDirList.SetFullPath(value: AnsiString = 'Unknown');
+begin
+  self.full_path := value;
+end;
+
 { TDirListEntry }
 
 constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
@@ -1361,6 +1474,7 @@ begin
   addedfrom := TStringList.Create;
 
   self.tradeCount := 0;
+  self.DirType := IsMain;
 
   self.sfvfirsteventvoltmar := False;
   self.dirlist := dirlist;
@@ -1380,16 +1494,14 @@ begin
   addedfrom := TStringList.Create;
 
   self.tradeCount := 0;
+  self.DirType := de.DirType;
 
   self.sfvfirsteventvoltmar := False;
   self.filename := de.filename;
   self.filesize := de.filesize;
 
   self.directory := de.directory;
-  self.IsSample := de.IsSample;
-  self.IsProof := de.IsProof;
-  self.IsSubtitles := de.IsSubtitles;
-  self.IsCovers := de.IsCovers;
+  self.DirType := de.DirType;
 
   self.done := False;
   self.skiplisted := de.skiplisted;
@@ -1470,26 +1582,25 @@ begin
   if directory then CalcCDNumber;
 end;
 
-procedure TDirListEntry.SetSample(value: Boolean);
+procedure TDirListEntry.SetDirType(value: TDirType);
 begin
-  fSample := value;
+  fDirType := value;
 end;
 
-procedure TDirListEntry.SetProof(value: Boolean);
+function TDirListEntry.DirTypeAsString: String;
 begin
-  fProof := value;
+  Result := 'Undefined';
+  case self.DirType of
+    IsMain: Result := 'Main';
+    IsMultiCD: Result := 'MultiCD';
+    IsSample: Result := 'Sample';
+    IsProof: Result := 'Proof';
+    IsCovers: Result := 'Covers';
+    IsSubs: Result := 'Subs';
+  else
+    Result := 'Unknown';
+  end;
 end;
-
-procedure TDirListEntry.SetSubtitles(value: Boolean);
-begin
-  fSubs := value;
-end;
-
-procedure TDirListEntry.SetCovers(value: Boolean);
-begin
-  fCovers := value;
-end;
-
 
 function TDirListEntry.RegenerateSkiplist: Boolean;
 var
