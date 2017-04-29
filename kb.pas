@@ -250,7 +250,6 @@ type
   private
     kbevent: TEvent;
     function AddCompleteTransfers(pazo: Pointer): boolean;
-    function AddCompleteTransfersv2(pazo: Pointer): boolean;
   public
     constructor Create;
     procedure Execute; override;
@@ -1073,14 +1072,24 @@ begin
         try
           ps := TPazoSite(p.sites[i]);
 
+          // dirlist not available
+          if ps.dirlist = nil then
+          begin
+            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+            Continue;
+          end;
+
+          // dirlist task already added
+          if ps.dirlist.dirlistadded then
+            Continue;
+
           // Source site is PRE site for this group
           if ps.status in [rssShouldPre, rssRealPre] then
           begin
             r.PredOnAnySite := True;
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
-            if (ps.dirlist <> nil) then
-              ps.dirlist.dirlistadded := True;
+            ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
@@ -1089,8 +1098,7 @@ begin
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
-            if (ps.dirlist <> nil) then
-              ps.dirlist.dirlistadded := True;
+            ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
@@ -1102,8 +1110,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, 'kb', Format('[EXCEPTION] kb_Add add dirlist: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
       exit;
     end;
   end;
@@ -1880,22 +1887,16 @@ begin
   aktualizalva := True;
   if showname = '' then
     exit;
-  (*
-    // we already have info
-    if (showid <> '') then
-      exit;
-              *)
+
   pazo := TPazo(p); // ugly shit
 
-  db_tvinfo := nil;
   try
     db_tvinfo := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
       db_tvinfo := nil;
-      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s', [e.Message]));
     end;
   end;
 
@@ -2090,7 +2091,6 @@ begin
 end;
 
 { TIMDBRelease }
-
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
@@ -2099,17 +2099,17 @@ var
   imdbdata: TDbImdbData;
   ir: TIMDBRelease;
 begin
+  Result := False;
   try
-    Result := False;
     aktualizalva := True;
 
     pazo := TPazo(p); // ugly shit
 
     i := last_imdbdata.IndexOf(rlsname);
+
     if i = -1 then
     begin
       // no imdb infos, check if we have a nfo
-  (*
       i := last_addnfo.IndexOf(rlsname);
       if i <> -1 then
       begin
@@ -2117,7 +2117,7 @@ begin
         Result := True;
         exit;
       end;
-  *)
+
       // no nfo start searching nfo
       for j := pazo.sites.Count - 1 downto 0 do
       begin
@@ -2134,9 +2134,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, rsections,
-              Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
-              [e.Message]));
+            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
           end;
         end;
       end;
@@ -2166,9 +2164,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-            [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
         end;
       end;
       Result := True;
@@ -2177,9 +2173,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections,
-        Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
     end;
   end;
 
@@ -2774,7 +2768,7 @@ begin
   kbevent.Free;
 end;
 
-function TKBThread.AddCompleteTransfersv2(pazo: Pointer): boolean;
+function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
   i, j: integer;
   psrc, pdest: TPazoSite;
@@ -2895,9 +2889,9 @@ begin
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
             [e.Message]));
-          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
             [e.Message]));
           Result := False;
         end;
@@ -2909,6 +2903,8 @@ begin
     [p.rls.rlsname]);
 end;
 
+{
+-- PREVIOUS VERSION --
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
   j, i: integer;
@@ -2959,7 +2955,7 @@ begin
     //There is some error we need to check in later revs!
     if ps.error then
     begin
-      irc_Addstats(Format('<c4>Error: AddCompleteTransfersv2 for %s (%s)</c>', [ps.Name, ps.reason]));
+      irc_Addstats(Format('<c4>Error: AddCompleteTransfers for %s (%s)</c>', [ps.Name, ps.reason]));
       Continue;
     end;
 
@@ -3195,6 +3191,7 @@ begin
     irc_Addstats(Format('<-- AddCompleteTransfers %s', [p.rls.rlsname]));
   end;
 end;
+}
 
 procedure TKBThread.Execute;
 var
@@ -3241,7 +3238,7 @@ begin
               p.completezve := True;
               Debug(dpSpam, rsections, 'Looking for incomplete sites of %s',
                 [p.rls.rlsname]);
-              AddCompleteTransfersv2(p);
+              AddCompleteTransfers(p);
             end;
           end;
 

@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo;
+uses SyncObjs, tasksunit, pazo, globals;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -53,15 +53,13 @@ type
     filename: AnsiString;
     storfilename: AnsiString;
     rank: integer;
-    filesize: integer;
-    isSfv: boolean; //< { @true if sfv file, @false otherwise. }
-    isNFO: boolean; //< { @true if nfo file, @false otherwise. }
-    isSample: boolean; //< { @true if Sample dir, @false otherwise. }
-    IsExtraSubdir: boolean; //< { @true if dir is Proof, Subs or Cover, @false otherwise. }
+    filesize: Int64;
+    isSfv, IsNfo: Boolean;
+    isSample, isProof, isCovers, isSubs: Boolean;
     dontRemoveOtherSources: boolean;
     dst: TWaitTask;
     constructor Create(const netname, channel: AnsiString; site1: AnsiString;
-      site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize, rank: integer);
+      site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize: Int64; rank: integer);
     function Execute(slot: Pointer): boolean; override;
     function Name: AnsiString; override;
   end;
@@ -185,7 +183,6 @@ begin
   Result := False;
   s := slot;
   tname := Name;
-  //  itwasadded := False;
 
   if mainpazo.stopped then
   begin
@@ -198,45 +195,46 @@ begin
 
   mainpazo.lastTouch := Now();
 
+  // Check if we should abandon using PS1
   TryAgain:
-  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or
-    (slshutdown)) then
+  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (slshutdown)) then
   begin
     readyerror := True;
 
     if ps1.error then
       mainpazo.errorreason := 'ERROR PS1';
 
-    //    if ps1.dirlistgaveup then
-    //    mainpazo.errorreason:='ERROR PS1: dirlistgaveup';
+    if ps1.dirlistgaveup then
+      mainpazo.errorreason := 'ERROR PS1: Dirlist gave up.';
 
     if ps1.status = rssNuked then
-      mainpazo.errorreason := 'ERROR PS1: status = Nuked';
+      mainpazo.errorreason := 'ERROR PS1: Release is nuked.';
 
     Debug(dpSpam, c_section, '<-- ' + tname);
     exit;
   end;
 
+  // Count errors and exit if too many
   try
     Inc(numerrors);
     if numerrors > 3 then
     begin
       readyerror := True;
-      mainpazo.errorreason := ' TPazoDirlistTask -> numerror > 3';
-      irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
+      mainpazo.errorreason := ' TPazoDirlistTask: Too many consecutive errors happened.';
+      irc_Adderror(Format('<c4>[ERROR]</c> [%s]: %s', [tname, s.lastResponse]));
       Debug(dpMessage, c_section, '<-- ERROR ' + tname + ' ' + s.lastResponse);
       exit;
     end;
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask error: %s',
-        [e.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask error: %s', [e.Message]));
       readyerror := True;
       exit;
     end;
   end;
 
+  // Check if we can relogin if we're offline
   try
     if s.status <> ssOnline then
     begin
@@ -258,24 +256,7 @@ begin
     end;
   end;
 
-  (* Old code!
-    mainpazo.cs.Enter;
-    // ha nem minket osztott ki a sors a globalis dirlist keszitesere akkor kilepunk
-    //if we do not split the fate of the global dirlist preparation also exits
-    if ((pre) and (mainpazo.dirlist <> nil) and (mainpazo.dirlist <> ps1.dirlist)) then
-    begin
-
-      if ps1.CopyMainDirlist(netname, channel, dir) then
-        goto folytatas;
-
-    end;
-
-    if ((pre) and (mainpazo.dirlist = nil)) then
-      mainpazo.dirlist:= ps1.dirlist;
-    mainpazo.cs.Leave;
-
-    *)
-
+  // Check if we can CWD successfully into the dir
   if ((not ps1.midnightdone) and (IsMidnight(mainpazo.rls.section))) then
   begin
     if not s.Cwd(ps1.maindir, True) then
@@ -284,9 +265,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      //mainpazo.errorreason:=ps1.name+' is marked as fail';
-      mainpazo.errorreason := 'Section dir on ' + site1 +
-        ' does not exist, marked as fail';
+      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -298,9 +277,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      //      mainpazo.errorreason:=ps1.name+' is marked as fail';
-      mainpazo.errorreason := 'Section dir on ' + site1 +
-        ' does not exist, marked as fail';
+      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -309,49 +286,45 @@ begin
     ps1.midnightdone := True;
   end;
 
+  // Trying to get the dirlist
   if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir) then
   begin
-    mainpazo.errorreason := 'Src dir on ' + site1 + ' does not exist';
+    mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
-    if (s.lastResponseCode = 550) then
-    begin
-      if ( (0 <> AnsiPos('FileNotFound', s.lastResponse)) OR (0 <> AnsiPos('File not found', s.lastResponse)) OR (0 <> AnsiPos('No such file or directory', s.lastResponse)) ) then
-      begin
-        // do nothing, file/dir not found
-      end;
-    end
-    else
-    begin
-      goto TryAgain;
-    end;
+    // site explicitly said that dir doesn't exists, so we silently end here
+    if (s.lastResponseCode = 550) then exit;
+
+    // otherwise let's try again
+    goto TryAgain;
   end
   else
   begin
     ps1.last_dirlist := Now();
 
-    debug(dpSpam, c_section, 'ParseDirlist profiling 1');
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
       on e: Exception do
       begin
         Debug(dpError, c_section, '[EXCEPTION] ParseDirlist: %s', [e.Message]);
-        mainpazo.errorreason := 'do not have the dir';
+        mainpazo.errorreason := 'Cannot parse the dirlist';
         readyerror := True;
         exit;
       end;
     end;
-    debug(dpspam, c_section, 'ParseDirlist profiling 2');
   end;
 
+  d := nil;
   try
-
     try
       d := ps1.dirlist.FindDirlist(dir);
     except
       on e: Exception do
         Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
     end;
+
+    // set the dirlist full path. Used mainly for debug outputing.
+    d.SetFullPath(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir);
 
     // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
@@ -1121,7 +1094,7 @@ end;
 
 { TPazoRaceTask }
 constructor TPazoRaceTask.Create(const netname, channel: AnsiString;
-  site1, site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize, rank: integer);
+  site1, site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize: Int64; rank: integer);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
   self.dir := dir;
@@ -1231,8 +1204,7 @@ begin
     end;
 
   if mainpazo.rls <> nil then
-    todir1 := MyIncludeTrailingSlash(ps1.maindir) +
-      MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir
+    todir1 := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir
   else
     todir1 := MyIncludeTrailingSlash(ps1.maindir) + dir;
 
@@ -1625,12 +1597,6 @@ begin
             if (dir = '') then
             begin
               ps2.MarkSiteAsFailed(True);
-            end;
-
-            if isSample or IsExtraSubdir then
-            begin
-              ps2.SetFileError(netname, channel, dir, filename);
-              Debug(dpError, c_section, Format('Sample or ExtraSubdir SetFileError: %s (%s <-> %s)', [tname, dir, filename]));
             end;
 
             readyerror := True;
@@ -2596,7 +2562,6 @@ begin
     rrgx := TRegExpr.Create;
     try
       rrgx.ModifierI := True;
-      //rrgx.Expression := config.ReadString('dirlist', 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
       rrgx.Expression := useful_skip;
       if not rrgx.Exec(filename) then
       begin
