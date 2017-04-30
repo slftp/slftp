@@ -333,7 +333,8 @@ begin
     end;
 
     // set the dirlist full path. Used mainly for debug outputing.
-    d.SetFullPath(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir);
+    if d <> nil then
+      d.SetFullPath(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir);
 
     // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
