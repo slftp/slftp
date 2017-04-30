@@ -291,8 +291,17 @@ begin
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
-    // site explicitly said that dir doesn't exists, so we silently end here
-    if (s.lastResponseCode = 550) then exit;
+    if (s.lastResponseCode = 550) then
+    begin
+      if ( (0 <> AnsiPos('FileNotFound', s.lastResponse)) OR (0 <> AnsiPos('File not found', s.lastResponse)) OR (0 <> AnsiPos('No such file or directory', s.lastResponse)) ) then
+      begin
+        // do nothing, file/dir not found
+      end;
+    end
+    else
+    begin
+      goto TryAgain;
+    end;
 
     // otherwise let's try again
     goto TryAgain;
