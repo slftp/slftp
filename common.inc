@@ -29,7 +29,7 @@ tvinfo_genreList: array[0..37] of AnsiString =(
 'War','Western'
 );
 
-SampleFileExtensions: array[0..5] of AnsiString = (
+VideoFileExtensions: array[0..5] of AnsiString = (
   '.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
 );
 
@@ -37,8 +37,9 @@ ImageFileExtensions: array[0..2] of AnsiString = (
   '.jpg', '.jpeg', '.png'
 );
 
-SpecialDirsTags: array[0..3] of AnsiString = (
-  'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX'
+SpecialDirsTags: array[0..7] of AnsiString = (
+  'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX',
+  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX'
 );
 
 FileSizeUnitCount = 8;

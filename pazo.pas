@@ -383,27 +383,26 @@ begin
   try
     for i := kb_list.Count - 1 downto 0 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
+      if i < 0 then
         Break;
-      end;
+
+      p := nil;
       p := TPazo(kb_list.Objects[i]);
-      p.cs.Enter;
-      try
-        // crash - added lock
-        if (p.rls.rlsname = rlsname) then
-        begin
-          Result := p;
-          exit;
-        end;
-      finally
-        p.cs.Leave;
+
+      if p = nil then
+        Continue;
+
+      if (p.rls.rlsname = rlsname) then
+      begin
+        Result := p;
+        exit;
       end;
     end;
   except
-    Result := nil;
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+    end;
   end;
 end;
 
@@ -1276,6 +1275,8 @@ begin
   destinationRanks := TIntList.Create;
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
+  if dirlist <> nil then
+    dirlist.SetFullPath(maindir);
 
   s_dirlisttasks := TSafeInteger.Create;
   s_racetasks := TSafeInteger.Create;

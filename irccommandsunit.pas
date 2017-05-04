@@ -1211,7 +1211,11 @@ begin
   RemoveTN(tn);
 
   if s <> '' then
+  begin
     Result := TDirList.Create(sitename, nil, nil, s, SpeedTest);
+    if Result <> nil then
+      Result.SetFullPath(dir);
+  end;
 end;
 
 function IrcDirlist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -8131,6 +8135,8 @@ begin
     begin
       sr := TSiteResponse(tn.responses[i]);
       d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
+      if d <> nil then
+        d.SetFullPath(s.sectiondir['SPEEDTEST']);
       try
         PickupSpeedtestFile(d, fsfilename, fsfilesize);
       finally
