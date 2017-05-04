@@ -84,7 +84,7 @@ var
   tp1, tp2: TPazoTask;
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
-  sample_priority, proof_priority, subs_priority, covers_priority: Integer;
+  sample_dirs_priority, proof_dirs_priority, subs_dirs_priority, cover_dirs_priority: Integer;
 
   begin
   // compare:  1 Item1 is before Item2
@@ -110,12 +110,11 @@ var
       exit;
     end;
 
-
     // Give priority to PazoTasks
     if ((not (i1 is TPazoTask)) and (not (i2 is TPazoTask))) then
     begin
       Result := 0;
-      exit; //ezeket kurvara nem fontos mozganti
+      exit;
     end;
     if ((i1 is TPazoTask) and (not (i2 is TPazoTask))) then
     begin
@@ -127,7 +126,6 @@ var
       Result := 1;
       exit;
     end;
-
 
     tp1 := TPazoTask(Item1);
     tp2 := TPazoTask(Item2);
@@ -210,95 +208,107 @@ var
         exit;
       end;
 
-      // Sample priority
-      sample_priority := config.ReadInteger('queue', 'sample_priority', 1);
-      if ((sample_priority > 0) and (sample_priority <= 2)) then
+      // Sample dir priority
+      if (tpr1.IsSample) or (tpr2.IsSample) then
       begin
-        if ((tpr1.IsSample) and (not tpr2.IsSample)) then
+        sample_dirs_priority := config.ReadInteger('queue', 'sample_dirs_priority', 1);
+        if ((sample_dirs_priority > 0) and (sample_dirs_priority <= 2)) then
         begin
-          if sample_priority = 1 then Result := -1;
-          if sample_priority = 2 then Result := 1;
-          exit;
-        end;
-        if ((not tpr1.IsSample) and (tpr2.IsSample)) then
-        begin
-          if sample_priority = 1 then Result := 1;
-          if sample_priority = 2 then Result := -1;
-          exit;
-        end;
-        if ((tpr1.IsSample) and (tpr2.IsSample)) then
-        begin
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-          exit;
+          if ((tpr1.IsSample) and (not tpr2.IsSample)) then
+          begin
+            if sample_dirs_priority = 1 then Result := -1;
+            if sample_dirs_priority = 2 then Result := 1;
+            exit;
+          end;
+          if ((not tpr1.IsSample) and (tpr2.IsSample)) then
+          begin
+            if sample_dirs_priority = 1 then Result := 1;
+            if sample_dirs_priority = 2 then Result := -1;
+            exit;
+          end;
+          if ((tpr1.IsSample) and (tpr2.IsSample)) then
+          begin
+            Result := CompareValue(tpr2.rank, tpr1.rank);
+            exit;
+          end;
         end;
       end;
 
       // Proof priority
-      proof_priority := config.ReadInteger('queue', 'proof_priority', 0);
-      if ((proof_priority > 0) and (proof_priority <= 2)) then
+      if (tpr1.IsProof) or (tpr2.IsProof) then
       begin
-        if ((tpr1.IsProof) and (not tpr2.IsProof)) then
+        proof_dirs_priority := config.ReadInteger('queue', 'proof_dirs_priority', 0);
+        if ((proof_dirs_priority > 0) and (proof_dirs_priority <= 2)) then
         begin
-          if proof_priority = 1 then Result := -1;
-          if proof_priority = 2 then Result := 1;
-          exit;
-        end;
-        if ((not tpr1.IsProof) and (tpr2.IsProof)) then
-        begin
-          if proof_priority = 1 then Result := 1;
-          if proof_priority = 2 then Result := -1;
-          exit;
-        end;
-        if ((tpr1.IsProof) and (tpr2.IsProof)) then
-        begin
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-          exit;
+          if ((tpr1.IsProof) and (not tpr2.IsProof)) then
+          begin
+            if proof_dirs_priority = 1 then Result := -1;
+            if proof_dirs_priority = 2 then Result := 1;
+            exit;
+          end;
+          if ((not tpr1.IsProof) and (tpr2.IsProof)) then
+          begin
+            if proof_dirs_priority = 1 then Result := 1;
+            if proof_dirs_priority = 2 then Result := -1;
+            exit;
+          end;
+          if ((tpr1.IsProof) and (tpr2.IsProof)) then
+          begin
+            Result := CompareValue(tpr2.rank, tpr1.rank);
+            exit;
+          end;
         end;
       end;
 
       // Subs priority
-      subs_priority := config.ReadInteger('queue', 'subs_priority', 0);
-      if ((subs_priority > 0) and (subs_priority <= 2)) then
+      if (tpr1.IsSubs) or (tpr2.IsSubs) then
       begin
-        if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
+        subs_dirs_priority := config.ReadInteger('queue', 'subs_dirs_priority', 0);
+        if ((subs_dirs_priority > 0) and (subs_dirs_priority <= 2)) then
         begin
-          if subs_priority = 1 then Result := -1;
-          if subs_priority = 2 then Result := 1;
-          exit;
-        end;
-        if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
-        begin
-          if subs_priority = 1 then Result := 1;
-          if subs_priority = 2 then Result := -1;
-          exit;
-        end;
-        if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
-        begin
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-          exit;
+          if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
+          begin
+            if subs_dirs_priority = 1 then Result := -1;
+            if subs_dirs_priority = 2 then Result := 1;
+            exit;
+          end;
+          if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
+          begin
+            if subs_dirs_priority = 1 then Result := 1;
+            if subs_dirs_priority = 2 then Result := -1;
+            exit;
+          end;
+          if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
+          begin
+            Result := CompareValue(tpr2.rank, tpr1.rank);
+            exit;
+          end;
         end;
       end;
 
       // Covers priority
-      covers_priority := config.ReadInteger('queue', 'covers_priority', 0);
-      if ((covers_priority > 0) and (covers_priority <= 2)) then
+      if (tpr1.IsCovers) or (tpr2.IsCovers) then
       begin
-        if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
+        cover_dirs_priority := config.ReadInteger('queue', 'cover_dirs_priority', 0);
+        if ((cover_dirs_priority > 0) and (cover_dirs_priority <= 2)) then
         begin
-          if covers_priority = 1 then Result := -1;
-          if covers_priority = 2 then Result := 1;
-          exit;
-        end;
-        if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
-        begin
-          if covers_priority = 1 then Result := 1;
-          if covers_priority = 2 then Result := -1;
-          exit;
-        end;
-        if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
-        begin
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-          exit;
+          if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
+          begin
+            if cover_dirs_priority = 1 then Result := -1;
+            if cover_dirs_priority = 2 then Result := 1;
+            exit;
+          end;
+          if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
+          begin
+            if cover_dirs_priority = 1 then Result := 1;
+            if cover_dirs_priority = 2 then Result := -1;
+            exit;
+          end;
+          if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
+          begin
+            Result := CompareValue(tpr2.rank, tpr1.rank);
+            exit;
+          end;
         end;
       end;
 
@@ -1205,23 +1215,35 @@ begin
         if i < 0 then
           Break;
       except
-        Break;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
+          Break;
+        end;
       end;
       try
         tt := TTask(tasks.items[i]);
+
+        if tt = nil then
+          Continue;
+
         j  := tt.dependencies.IndexOf(t.UidText);
         if j <> -1 then
         begin
           tt.dependencies.Delete(j);
         end;
       except
-        Continue;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
+          Continue;
+        end;
       end;
     end;
   except
-    on E: Exception do
+    on e: Exception do
     begin
-      Debug(dpError, 'kb', Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
       exit;
     end;
   end;
@@ -1263,13 +1285,25 @@ begin
             if i < 0 then
               Break;
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
+              Break;
+            end;
           end;
           try
             t := TTask(tasks.items[i]);
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
+              Continue;
+            end;
           end;
+
+          if t = nil then
+            Continue;
+
           try
             if (t.readydel) then
             begin
@@ -1290,6 +1324,7 @@ begin
           except
             on e: Exception do
             begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
               Continue;
             end;
           end;
@@ -1298,21 +1333,34 @@ begin
         queueth.main_lock.Leave;
       end;
 
-      for i := tasks.Count - 1 downto 0 do
-      begin
-        try
-          if i < 0 then
-            Break;
-        except
-          Break;
-        end;
-        queueth.main_lock.Enter();
-        try
+      queueth.main_lock.Enter();
+      try
+        for i := tasks.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
+              Break;
+            end;
+          end;
+
           try
             t := TTask(tasks.items[i]);
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
+              Continue;
+            end;
           end;
+
+          if t = nil then
+            Continue;
+
           try
             if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
             begin
@@ -1320,49 +1368,68 @@ begin
               t.readydelat := Now();
             end;
           except
-            Continue;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
+              Continue;
+            end;
           end;
-        finally
-          queueth.main_lock.Leave;
         end;
+      finally
+        queueth.main_lock.Leave;
       end;
 
-      for i := 0 to tasks.Count - 1 do
-      begin
-        try
-          if i > tasks.Count then
-            Break;
-        except
-          Break;
-        end;
-        queueth.main_lock.Enter();
-        try
+      queueth.main_lock.Enter();
+      try
+        for i := 0 to tasks.Count - 1 do
+        begin
+          try
+            if i > tasks.Count then
+              Break;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
+              Break;
+            end;
+          end;
+
           try
             t := TTask(tasks.items[i]);
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
+              Continue;
+            end;
           end;
+
+          if t = nil then
+            Continue;
+
           try
             if queue_debug_mode then
               Continue;
 
-            // fuggoseg kereses
             if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and
               (not t.readyerror)) then
             begin
               if ((t.startat = 0) or (t.startat <= queue_last_run)) then
               begin
                 if (t.dependencies.Count = 0) then
-                // crash
                   TryToAssignSlots(t);
               end;
             end;
           except
-            Continue;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+              Continue;
+            end;
           end;
-        finally
-          queueth.main_lock.Leave;
         end;
+      finally
+        queueth.main_lock.Leave;
       end;
 
       QueueStat;
@@ -1374,26 +1441,47 @@ begin
           if i > sites.Count then
             Break;
         except
-          Break;
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (sites.Count) : %s', [e.Message]));
+            Break;
+          end;
         end;
         try
           ts := TSite(sites[i]);
         except
-          Break;
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (ts) : %s', [e.Message]));
+            Continue;
+          end;
         end;
+
         for j := 0 to ts.slots.Count - 1 do
         begin
           try
             if j > ts.slots.Count then
               Break;
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (ts.slots.Count) : %s', [e.Message]));
+              Break;
+            end;
           end;
           try
             s := TSiteSlot(ts.slots[j]);
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (s) : %s', [e.Message]));
+              Continue;
+            end;
           end;
+
+          if s = nil then
+            Continue;
+
           try
             if ((s.todotask = nil) and (s.status = ssOnline)) then
             begin
@@ -1408,7 +1496,11 @@ begin
               end;
             end;
           except
-            Continue;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (idletask) : %s', [e.Message]));
+              Continue;
+            end;
           end;
         end;
       end;
@@ -1417,8 +1509,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute : %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute : %s', [e.Message]));
       end;
     end;
 
