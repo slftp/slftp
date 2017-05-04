@@ -124,7 +124,7 @@ type
     procedure Sort;
     procedure SortByModify;
 
-    procedure SetFullPath(value: AnsiString = 'Unknown');
+    procedure SetFullPath(value: AnsiString);
 
     function RegenerateSkiplist: Boolean;
 
@@ -170,6 +170,7 @@ var
   d: TDirlistEntry;
   files: Integer;
   size: Int64;
+  tag: AnsiString;
   ResultType: AnsiString;
 begin
   Result := False;
@@ -245,8 +246,8 @@ begin
     //check if there is a complete tag in the dir
     Result := CompleteByTag;
 
-    // no complete tag found - check if the release is multi cd
-    if (not Result) and (MultiCD) then
+   // no complete tag found - check if the release is multi cd
+   if (not Result) and (MultiCD) then
    begin
       if allcdshere then
       begin
@@ -255,21 +256,44 @@ begin
         // check if all multi-cd subdirs are complete
         for i := entries.Count - 1 downto 0 do
         begin
-          try if i < 0 then Break; except Break; end;
+          if i < 0 then
+            Break;
           try
             d := TDirlistEntry(entries[i]);
+
+            if d = nil then
+              Continue;
+
             if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
             begin
               Result := False;
-              break;
+              Break;
             end;
           except
-            Continue;
+            on e: Exception do
+            begin
+              debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Complete (MultiCD): %s', [e.Message]);
+              Continue;
+            end;
           end;
         end;
-
       end;
     end;
+
+    // is the release a special kind of release (dirfix, nfofix, etc.)
+    if not Result then
+    begin
+      for tag in SpecialDirsTags do
+      begin
+        if AnsiMatchText(tag, full_path) then
+        begin
+          // TODO: Maybe add case by case checks instead of considering complete
+          Result := True;
+          Break;
+        end;
+      end;
+    end;
+
   end;
 
   // set complete date if not already set
@@ -301,7 +325,7 @@ begin
   self.date_completed := 0;
 
   self.site_name := site_name;
-  self.full_path := 'Unknown';
+  self.full_path := 'Not set';
 
   fLastChanged := Now();
   allcdshere := False;
@@ -710,6 +734,7 @@ begin
                   de.DirType := IsCovers;
 
               finally
+                // TODO: remove debug
                 Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, de.DirTypeAsString]);
                 splx.Free;
               end;
@@ -745,7 +770,9 @@ begin
 
             if (de.Directory) then
             begin
-              de.subdirlist:= TDirlist.Create(site_name, de, skiplist);
+              de.subdirlist := TDirlist.Create(site_name, de, skiplist);
+              if de.subdirlist <> nil then
+                de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
             end;
 
             if (self.date_started = 0) then
@@ -782,7 +809,7 @@ begin
   if ((need_mkdir) and (entries.Count > 0)) then
     need_mkdir:= False;
 
-  if parent = nil then // changed the status MULTI CD
+  if parent = nil then
   begin
     try
       SetSkiplists;
@@ -857,9 +884,9 @@ function DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
 var
     i1, i2: TDirlistEntry;
     c1, c2: Integer;
-    i1IsImage, i1IsSample: Integer;
-    i2IsImage, i2IsSample: Integer;
-    proofs_priority, covers_priority, samples_priority: Integer;
+    i1IsImage, i1IsVideo: Boolean;
+    i2IsImage, i2IsVideo: Boolean;
+    image_files_priority, videos_files_priority: Integer;
 
 begin
   (*
@@ -867,106 +894,114 @@ begin
             := 1  (i2 wins)
             := 0  (no change)
   *)
-  Result:= 0;
+  Result := 0;
   try
     i1:= TDirlistEntry(Item1);
     i2:= TDirlistEntry(Item2);
 
-    // sfv priority
-    if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.sfv') and (AnsiLowerCase(i2.Extension) = '.sfv')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
-
-    // nfo priority
-    if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
-    begin
-      Result:= -1;
-      exit;
-    end;
-    if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
-    begin
-      Result:= 1;
-      exit;
-    end;
-
-    // optimize?
-    i1IsImage := AnsiIndexText(AnsiLowerCase(i1.Extension), ImageFileExtensions);
-    i2IsImage := AnsiIndexText(AnsiLowerCase(i2.Extension), ImageFileExtensions);
-
-    // image files priority (i.e.: proof, covers)
-    if (i1IsImage <> -1) or (i2IsImage <> -1)  then
-    begin
-      proofs_priority := config.ReadInteger('queue', 'proofs_priority', 0);
-      if (dirtype in [IsProof]) and ((proofs_priority > 0) and (proofs_priority <= 2)) then
-      begin
-        if ((i1IsImage <> -1) and (i1IsImage = -1)) then
-        begin
-          if (proofs_priority = 1) then Result := -1;
-          if (proofs_priority = 2) then Result := 1;
-        end;
-        if ((i1IsImage = -1) and (i1IsImage <> -1)) then
-        begin
-          if (proofs_priority = 1) then Result := 1;
-          if (proofs_priority = 2) then Result := -1;
-        end;
-        Debug(dpError, section, 'DirListSorter (proof): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-        exit;
-      end;
-
-      covers_priority := config.ReadInteger('queue', 'covers_priority', 0);
-      if (dirtype in [IsCovers]) and ((covers_priority > 0) and (covers_priority <= 2)) then
-      begin
-        if ((i1IsImage <> -1) and (i1IsImage = -1)) then
-        begin
-          if (covers_priority = 1) then Result := -1;
-          if (covers_priority = 2) then Result := 1;
-        end;
-        if ((i1IsImage = -1) and (i1IsImage <> -1)) then
-        begin
-          if (covers_priority = 1) then Result := 1;
-          if (covers_priority = 2) then Result := -1;
-        end;
-        Debug(dpError, section, 'DirListSorter (covers): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-        exit;
-      end;
-    end;
-
-    i1IsSample := AnsiIndexText(AnsiLowerCase(i1.Extension), SampleFileExtensions);
-    i2IsSample := AnsiIndexText(AnsiLowerCase(i2.Extension), SampleFileExtensions);
-    // Sample priority
-    samples_priority := config.ReadInteger('queue', 'samples_priority', 0);
-    if (dirtype in [IsSample]) and ((samples_priority > 0) and (samples_priority <= 2)) then
-    begin
-      if ((i1IsSample <> -1) and (i2IsSample = -1)) then
-      begin
-        if (samples_priority = 1) then Result := -1;
-        if (samples_priority = 2) then Result := 1;
-      end;
-      if ((i1IsSample = -1) and (i2IsSample <> -1)) then
-      begin
-        if (samples_priority = 1) then Result := 1;
-        if (samples_priority = 2) then Result := -1;
-      end;
-      Debug(dpError, section, 'DirListSorter (sample): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-      exit;
-    end;
-
-    // TODO: Read and understand the following
+    // We don't care about skiplisted entries
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
 
-    if ((i1.directory) and (i2.directory)) then
+    // At least one file need to have an extension for extention sorting
+    if (i1.Extension <> '') or (i2.Extension <> '') then
     begin
-      if (i1.dirlist.sf_d <> nil) then
+      // sfv priority
+      if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
       begin
-        c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
-        c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
+        Result:= -1;
+        exit;
+      end;
+      if ((AnsiLowerCase(i1.Extension) <> '.sfv') and (AnsiLowerCase(i2.Extension) = '.sfv')) then
+      begin
+        Result:= 1;
+        exit;
+      end;
+
+      // nfo priority
+      if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
+      begin
+        Result:= -1;
+        exit;
+      end;
+      if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
+      begin
+        Result:= 1;
+        exit;
+      end;
+
+      // image files priority (i.e.: proofs, covers)
+      i1IsImage := AnsiMatchText(i1.Extension, ImageFileExtensions);
+      i2IsImage := AnsiMatchText(i2.Extension, ImageFileExtensions);
+      if (i1IsImage) or (i2IsImage)  then
+      begin
+        image_files_priority := config.ReadInteger('queue', 'image_files_priority', 0);
+        if (image_files_priority > 0) and (image_files_priority <= 2) then
+        begin
+          if ((i1IsImage) and (not i2IsImage)) then
+          begin
+            if (image_files_priority = 1) then Result := -1;
+            if (image_files_priority = 2) then Result := 1;
+          end;
+          if ((not i1IsImage) and (i2IsImage)) then
+          begin
+            if (image_files_priority = 1) then Result := 1;
+            if (image_files_priority = 2) then Result := -1;
+          end;
+          Debug(dpError, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+          exit;
+        end;
+      end;
+
+      // video files priority
+      i1IsVideo := AnsiMatchText(i1.Extension, VideoFileExtensions);
+      i2IsVideo := AnsiMatchText(i2.Extension, VideoFileExtensions);
+      videos_files_priority := config.ReadInteger('queue', 'videos_files_priority', 0);
+      if (i1IsVideo) or (i2IsVideo)  then
+      begin
+      if (videos_files_priority > 0) and (videos_files_priority <= 2) then
+        begin
+          if ((i1IsVideo) and (not i2IsVideo)) then
+          begin
+            if (videos_files_priority = 1) then Result := -1;
+            if (videos_files_priority = 2) then Result := 1;
+          end;
+          if ((not i1IsVideo) and (i2IsVideo)) then
+          begin
+            if (videos_files_priority = 1) then Result := 1;
+            if (videos_files_priority = 2) then Result := -1;
+          end;
+          Debug(dpError, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+          exit;
+        end;
+      end;
+    end;
+
+    // If not sorting occured yet - try default sorting
+    // Sorting two directories
+    if Result = 0 then
+    begin
+      if ((i1.directory) and (i2.directory)) then
+      begin
+        if (i1.dirlist.sf_d <> nil) then
+        begin
+          c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
+          c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
+
+          if (c1 > c2) then
+            Result:= 1
+          else
+          if (c1 < c2) then
+            Result:= -1
+          else
+            Result:= 0;
+        end else
+          Result:= CompareStr(i1.filename, i2.filename);
+      end
+      else
+      if ((not i1.directory) and (not i2.directory)) then
+      begin
+        c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
+        c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
 
         if (c1 > c2) then
           Result:= 1
@@ -974,41 +1009,30 @@ begin
         if (c1 < c2) then
           Result:= -1
         else
-          Result:= 0;
-      end else
-        Result:= CompareStr(i1.filename, i2.filename);
-    end
-    else
-    if ((not i1.directory) and (not i2.directory)) then
-    begin
-      c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
-      c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
-
-      if (c1 > c2) then
-        Result:= 1
+        begin
+          // files are of the same type - sort by size
+          if i1.filesize > i2.filesize then
+            Result:= -1
+          else
+          if i1.filesize < i2.filesize then
+            Result:= 1
+          else
+            Result:= 0;
+        end;
+      end
       else
-      if (c1 < c2) then
+      // Priority to directories
+      if (i1.directory) then
         Result:= -1
       else
-      begin
-        // mindketto ugyanolyan kategoriaju fajl, itt fajlmeret alapjan rendezunk.
-        //both show the same class file, be settled in size.
-        if i1.filesize > i2.filesize then
-          Result:= -1
-        else
-        if i1.filesize < i2.filesize then
-          Result:= 1
-        else
-          Result:= 0;
-      end;
-    end
-    else
-    if (i1.directory) then //i2 = file, elorebb kell lennie = forward should be
-      Result:= -1
-    else
-      Result:= 1; //i1 = file, jo a sorrend = good order
+        Result:= 1;
+    end;
   except
-    Result:= 0;
+    on e: Exception do
+    begin
+      debugunit.Debug(dpError, section, '[EXCEPTION] DirListSorter: %s', [e.Message]);
+      Result:= 0;
+    end;
   end;
 end;
 
@@ -1176,7 +1200,11 @@ begin
     end;
 
     if d.subdirlist = nil then
+    begin
       d.subdirlist := TDirlist.Create(site_name, d, skiplist);
+      if d.subdirlist <> nil then
+        d.subdirlist.SetFullPath(MyIncludeTrailingSlash(self.full_path) + d.filename);
+    end;
   except
     on E: Exception do
     begin
@@ -1462,7 +1490,7 @@ begin
   end;
 end;
 
-procedure TDirList.SetFullPath(value: AnsiString = 'Unknown');
+procedure TDirList.SetFullPath(value: AnsiString);
 begin
   self.full_path := value;
 end;
