@@ -947,7 +947,7 @@ begin
             if (image_files_priority = 1) then Result := 1;
             if (image_files_priority = 2) then Result := -1;
           end;
-          Debug(dpError, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+          //Debug(dpSpam, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
           exit;
         end;
       end;
@@ -970,7 +970,7 @@ begin
             if (videos_files_priority = 1) then Result := 1;
             if (videos_files_priority = 2) then Result := -1;
           end;
-          Debug(dpError, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+          //Debug(dpSpam, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
           exit;
         end;
       end;
