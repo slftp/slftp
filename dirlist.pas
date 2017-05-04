@@ -285,9 +285,10 @@ begin
     begin
       for tag in SpecialDirsTags do
       begin
-        if AnsiMatchText(tag, full_path) then
+        if AnsiContainsText(full_path, tag) then
         begin
           // TODO: Maybe add case by case checks instead of considering complete
+          debugunit.Debug(dpError, section, '[DEBUG] SpecialDir %s contains %s.', [full_path, tag]);
           Result := True;
           Break;
         end;
