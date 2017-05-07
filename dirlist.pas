@@ -887,7 +887,7 @@ var
     c1, c2: Integer;
     i1IsImage, i1IsVideo: Boolean;
     i2IsImage, i2IsVideo: Boolean;
-    image_files_priority, videos_files_priority: Integer;
+    image_files_priority, video_files_priority: Integer;
 
 begin
   (*
@@ -933,47 +933,45 @@ begin
       // image files priority (i.e.: proofs, covers)
       i1IsImage := AnsiMatchText(i1.Extension, ImageFileExtensions);
       i2IsImage := AnsiMatchText(i2.Extension, ImageFileExtensions);
-      if (i1IsImage) or (i2IsImage)  then
+      if (i1IsImage) or (i2IsImage) then
       begin
         image_files_priority := config.ReadInteger('queue', 'image_files_priority', 0);
         if (image_files_priority > 0) and (image_files_priority <= 2) then
-        begin
           if ((i1IsImage) and (not i2IsImage)) then
-          begin
-            if (image_files_priority = 1) then Result := -1;
-            if (image_files_priority = 2) then Result := 1;
-          end;
-          if ((not i1IsImage) and (i2IsImage)) then
-          begin
-            if (image_files_priority = 1) then Result := 1;
-            if (image_files_priority = 2) then Result := -1;
-          end;
-          //Debug(dpSpam, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-          exit;
-        end;
+            case image_files_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not i1IsImage) and (i2IsImage)) then
+            case image_files_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end;
+
+        //Debug(dpSpam, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        exit;
       end;
 
       // video files priority
       i1IsVideo := AnsiMatchText(i1.Extension, VideoFileExtensions);
       i2IsVideo := AnsiMatchText(i2.Extension, VideoFileExtensions);
-      videos_files_priority := config.ReadInteger('queue', 'videos_files_priority', 0);
-      if (i1IsVideo) or (i2IsVideo)  then
+      if (i1IsVideo) or (i2IsVideo) then
       begin
-      if (videos_files_priority > 0) and (videos_files_priority <= 2) then
-        begin
+        video_files_priority := config.ReadInteger('queue', 'video_files_priority', 0);
+        if (video_files_priority > 0) and (video_files_priority <= 2) then
           if ((i1IsVideo) and (not i2IsVideo)) then
-          begin
-            if (videos_files_priority = 1) then Result := -1;
-            if (videos_files_priority = 2) then Result := 1;
-          end;
-          if ((not i1IsVideo) and (i2IsVideo)) then
-          begin
-            if (videos_files_priority = 1) then Result := 1;
-            if (videos_files_priority = 2) then Result := -1;
-          end;
-          //Debug(dpSpam, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-          exit;
-        end;
+            case video_files_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not i1IsVideo) and (i2IsVideo)) then
+            case video_files_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end;
+
+        //Debug(dpSpam, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        exit;
       end;
     end;
 
