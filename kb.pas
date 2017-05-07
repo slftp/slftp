@@ -2313,9 +2313,9 @@ begin
   mvrx := TRegexpr.Create;
   try
     mvrx.ModifierI := True;
-    mvrx.Expression := '\-(\d{4})\-';
+    mvrx.Expression := '\-((19|20)\d{2})\-';
     if mvrx.Exec(rlsname) then
-      mvid_year := strtointdef(mvrx.Match[1], 0);
+      mvid_year := StrToIntDef(mvrx.Match[1], 0);
     mvrx.Expression := '^VA[\-\_\.]';
     mvid_va := mvrx.Exec(rlsname);
     mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
