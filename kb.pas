@@ -1088,7 +1088,7 @@ begin
           begin
             r.PredOnAnySite := True;
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, event]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
@@ -1097,7 +1097,7 @@ begin
           if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, event]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
