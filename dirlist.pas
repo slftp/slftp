@@ -283,6 +283,7 @@ begin
     // is the release a special kind of release (dirfix, nfofix, etc.)
     if not Result then
     begin
+      //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, full_path]);
       for tag in SpecialDirsTags do
       begin
         if AnsiContainsText(full_path, tag) then
@@ -735,8 +736,6 @@ begin
                   de.DirType := IsCovers;
 
               finally
-                // TODO: remove debug
-                Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, de.DirTypeAsString]);
                 splx.Free;
               end;
             end;
@@ -774,6 +773,7 @@ begin
               de.subdirlist := TDirlist.Create(site_name, de, skiplist);
               if de.subdirlist <> nil then
                 de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
+                Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
             end;
 
             if (self.date_started = 0) then
