@@ -392,6 +392,7 @@ begin
       if p = nil then
         Continue;
 
+      // still crashes
       if (p.rls.rlsname = rlsname) then
       begin
         Result := p;
