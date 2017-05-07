@@ -37,9 +37,9 @@ ImageFileExtensions: array[0..2] of AnsiString = (
   '.jpg', '.jpeg', '.png'
 );
 
-SpecialDirsTags: array[0..7] of AnsiString = (
-  'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX',
-  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX'
+SpecialDirsTags: array[0..9] of AnsiString = (
+  'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX', 'COVERFiX',
+  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
 );
 
 FileSizeUnitCount = 8;
