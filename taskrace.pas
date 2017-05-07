@@ -361,7 +361,7 @@ begin
             aktdir := aktdir + de.filename;
             Debug(dpSpam, c_section, 'READD: adding dirlist task to subdir ' + aktdir);
             irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[DIRLIST]</c> %s %s %s Dirlist added to : %s',
+              Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
               [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
             try
               r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);

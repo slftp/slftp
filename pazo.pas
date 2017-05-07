@@ -552,8 +552,8 @@ begin
       begin
         try
           pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
-          Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s', [pazo.rls.rlsname, dir, Name, dst.Name, dst.Name]);
-          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s', [pazo.rls.section, pazo.rls.rlsname, dir, dst.Name]));
+          Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [pazo.rls.rlsname, dir, Name, dst.Name, dst.Name]);
+          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [pazo.rls.section, pazo.rls.rlsname, dir, dst.Name]));
           dstdl.dirlistadded := True;
           AddTask(pd);
         except
