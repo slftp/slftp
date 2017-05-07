@@ -213,25 +213,19 @@ var
       begin
         sample_dirs_priority := config.ReadInteger('queue', 'sample_dirs_priority', 1);
         if ((sample_dirs_priority > 0) and (sample_dirs_priority <= 2)) then
-        begin
           if ((tpr1.IsSample) and (not tpr2.IsSample)) then
-          begin
-            if sample_dirs_priority = 1 then Result := -1;
-            if sample_dirs_priority = 2 then Result := 1;
-            exit;
-          end;
-          if ((not tpr1.IsSample) and (tpr2.IsSample)) then
-          begin
-            if sample_dirs_priority = 1 then Result := 1;
-            if sample_dirs_priority = 2 then Result := -1;
-            exit;
-          end;
-          if ((tpr1.IsSample) and (tpr2.IsSample)) then
-          begin
+            case sample_dirs_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
+            case sample_dirs_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end
+          else if ((tpr1.IsSample) and (tpr2.IsSample)) then
             Result := CompareValue(tpr2.rank, tpr1.rank);
-            exit;
-          end;
-        end;
+        exit;
       end;
 
       // Proof priority
@@ -239,25 +233,19 @@ var
       begin
         proof_dirs_priority := config.ReadInteger('queue', 'proof_dirs_priority', 0);
         if ((proof_dirs_priority > 0) and (proof_dirs_priority <= 2)) then
-        begin
           if ((tpr1.IsProof) and (not tpr2.IsProof)) then
-          begin
-            if proof_dirs_priority = 1 then Result := -1;
-            if proof_dirs_priority = 2 then Result := 1;
-            exit;
-          end;
-          if ((not tpr1.IsProof) and (tpr2.IsProof)) then
-          begin
-            if proof_dirs_priority = 1 then Result := 1;
-            if proof_dirs_priority = 2 then Result := -1;
-            exit;
-          end;
-          if ((tpr1.IsProof) and (tpr2.IsProof)) then
-          begin
+            case proof_dirs_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
+            case proof_dirs_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end
+          else if ((tpr1.IsProof) and (tpr2.IsProof)) then
             Result := CompareValue(tpr2.rank, tpr1.rank);
-            exit;
-          end;
-        end;
+        exit;
       end;
 
       // Subs priority
@@ -265,25 +253,19 @@ var
       begin
         subs_dirs_priority := config.ReadInteger('queue', 'subs_dirs_priority', 0);
         if ((subs_dirs_priority > 0) and (subs_dirs_priority <= 2)) then
-        begin
           if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
-          begin
-            if subs_dirs_priority = 1 then Result := -1;
-            if subs_dirs_priority = 2 then Result := 1;
-            exit;
-          end;
-          if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
-          begin
-            if subs_dirs_priority = 1 then Result := 1;
-            if subs_dirs_priority = 2 then Result := -1;
-            exit;
-          end;
-          if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
-          begin
+            case subs_dirs_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
+            case subs_dirs_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end
+          else if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
             Result := CompareValue(tpr2.rank, tpr1.rank);
-            exit;
-          end;
-        end;
+        exit;
       end;
 
       // Covers priority
@@ -291,25 +273,19 @@ var
       begin
         cover_dirs_priority := config.ReadInteger('queue', 'cover_dirs_priority', 0);
         if ((cover_dirs_priority > 0) and (cover_dirs_priority <= 2)) then
-        begin
           if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
-          begin
-            if cover_dirs_priority = 1 then Result := -1;
-            if cover_dirs_priority = 2 then Result := 1;
-            exit;
-          end;
-          if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
-          begin
-            if cover_dirs_priority = 1 then Result := 1;
-            if cover_dirs_priority = 2 then Result := -1;
-            exit;
-          end;
-          if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
-          begin
+            case cover_dirs_priority of
+              1 : Result := -1;
+              2 : Result := 1;
+            end
+          else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
+            case cover_dirs_priority of
+              1 : Result := 1;
+              2 : Result := -1;
+            end
+          else if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
             Result := CompareValue(tpr2.rank, tpr1.rank);
-            exit;
-          end;
-        end;
+        exit;
       end;
 
       Result := CompareValue(tpr2.rank, tpr1.rank);
