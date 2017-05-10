@@ -896,9 +896,20 @@ begin
             := 0  (no change)
   *)
   Result := 0;
+
   try
     i1:= TDirlistEntry(Item1);
     i2:= TDirlistEntry(Item2);
+
+    // avoid and debug gone objects
+    if (i1 = nil) or (i2 = nil) then
+    begin
+      if i1 = nil then
+        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 is gone.');
+      if i2 = nil then
+        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 is gone.');
+      exit;
+    end;
 
     // We don't care about skiplisted entries
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
