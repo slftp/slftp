@@ -70,6 +70,7 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: AnsiString;
+    lock: TCriticalSection;
 
     procedure SetSkiplists;
     procedure SetLastChanged(value: TDateTime);
@@ -316,6 +317,8 @@ end;
 constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False);
 var sf: TSkipListFilter;
 begin
+  lock := TCriticalSection.Create;
+
   biggestcd:= 0;
   self.error := False;
 
@@ -359,6 +362,13 @@ begin
     ParseDirlist(s);
 end;
 
+destructor TDirList.Destroy;
+begin
+  entries.Free;
+  lock.Free;
+  inherited;
+end;
+
 procedure TDirList.SetSkiplists;
 var s: AnsiString;
 begin
@@ -380,12 +390,6 @@ begin
     Result := parent.dirlist.Depth + 1
   else
     Result := 1;
-end;
-
-destructor TDirList.Destroy;
-begin
-  entries.Free;
-  inherited;
 end;
 
 function TDirList.Dirname: AnsiString;
