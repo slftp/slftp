@@ -158,7 +158,7 @@ var
 
 implementation
 
-uses SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
+uses SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, BeRoHighResolutionTimer;
 
 const section = 'dirlist';
 
@@ -1069,7 +1069,14 @@ begin
 end;
 
 procedure TDirList.Sort();
+var
+  hrt: THighResolutionTimer;
+  st1, et1, st2, et2: Int64;
 begin
+  hrt := THighResolutionTimer.Create;
+
+  st1 := hrt.GetTime;
+  // without locking
   try
     entries.Sort(@DirListSorter);
   except
@@ -1078,6 +1085,27 @@ begin
       debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort : %s', [e.Message]);
     end;
   end;
+  et1 := hrt.GetTime;
+
+
+  // with locking
+  st2 := hrt.GetTime;
+  lock.Enter;
+  try
+    try
+      entries.Sort(@DirListSorter);
+    except
+      on E: Exception do
+      begin
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort : %s', [e.Message]);
+      end;
+    end;
+  finally
+    lock.Leave;
+  end;
+  et2 := hrt.GetTime;
+  debugunit.Debug(dpError, section, Format('DirList Sorter timing: ms Without lock: %n ms - With lock: %n ms', [((hrt.ToMicroSeconds(et1-st1) div 1) / 1000), ((hrt.ToMicroSeconds(et2-st2) div 1) / 1000)]));
+  FreeAndNil(hrt);
 end;
 
 function TDirList.CompleteByTag: Boolean;
