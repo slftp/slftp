@@ -898,36 +898,21 @@ begin
   Result := 0;
 
   try
+    i1:= TDirlistEntry(Item1);
+    i2:= TDirlistEntry(Item2);
 
-    try
-      i1 := TDirlistEntry(Item1);
-      i2 := TDirlistEntry(Item2);
-    except
-      on e: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 or i2 is gone.');
-
-        if i1 = nil then
-          debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 is gone.');
-        if i2 = nil then
-          debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 is gone.');
-        exit;
-      end;
+    // avoid and debug gone objects
+    if (i1 = nil) or (i2 = nil) then
+    begin
+      if i1 = nil then
+        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 is gone.');
+      if i2 = nil then
+        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 is gone.');
+      exit;
     end;
 
-
-    try
-
-      // We don't care about skiplisted entries
-      if ((i1.skiplisted) and (i2.skiplisted)) then exit;
-
-    except
-      on e: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 or i2 skiplisted is gone.');
-        exit;
-      end;
-    end;
+    // We don't care about skiplisted entries
+    if ((i1.skiplisted) and (i2.skiplisted)) then exit;
 
     // At least one file need to have an extension for extention sorting
     if (i1.Extension <> '') or (i2.Extension <> '') then
@@ -1005,57 +990,28 @@ begin
     // Sorting two directories
     if Result = 0 then
     begin
-
-    try
-
-        if ((i1.directory) and (i2.directory)) then
+      if ((i1.directory) and (i2.directory)) then
+      begin
+        if (i1.dirlist.sf_d <> nil) then
         begin
-          if (i1.dirlist.sf_d <> nil) then
-          begin
+          c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
+          c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
 
-            try
-              c1 := i1.dirlist.sf_d.MatchFile(i1.filename);
-              c2 := i2.dirlist.sf_d.MatchFile(i2.filename);
-            except
-              on e: Exception do
-              begin
-                debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 or i2 sf_d matchfile is gone.');
-                if i1.dirlist.sf_d = nil then
-                  debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 dirlist sf_d is gone.');
-                if i2.dirlist.sf_d = nil then
-                  debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 dirlist sf_d is gone.');
-                exit;
-              end;
-            end;
-
-            if (c1 > c2) then
-              Result:= 1
-            else
-            if (c1 < c2) then
-              Result:= -1
-            else
-              Result:= 0;
-          end else
-            Result:= CompareStr(i1.filename, i2.filename);
+          if (c1 > c2) then
+            Result:= 1
+          else
+          if (c1 < c2) then
+            Result:= -1
+          else
+            Result:= 0;
+        end else
+          Result:= CompareStr(i1.filename, i2.filename);
       end
       else
       if ((not i1.directory) and (not i2.directory)) then
       begin
-
-        try
-          c1 := i1.dirlist.sf_f.MatchFile(i1.filename);
-          c2 := i2.dirlist.sf_f.MatchFile(i2.filename);
-        except
-          on e: Exception do
-          begin
-            debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 or i2 sf_f matchfile is gone.');
-            if i1.dirlist.sf_f = nil then
-              debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 dirlist sf_f is gone.');
-            if i2.dirlist.sf_f = nil then
-              debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 dirlist sf_f is gone.');
-            exit;
-          end;
-        end;
+        c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
+        c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
 
         if (c1 > c2) then
           Result:= 1
@@ -1080,22 +1036,12 @@ begin
         Result:= -1
       else
         Result:= 1;
-
-  except
-      on e: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 or i2 directory or dirlist.sf_d is gone.');
-        exit;
-      end;
     end;
-
-  end;
-
   except
     on e: Exception do
     begin
       debugunit.Debug(dpError, section, '[EXCEPTION] DirListSorter: %s', [e.Message]);
-      Result := 0;
+      Result:= 0;
     end;
   end;
 end;
