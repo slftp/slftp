@@ -1545,7 +1545,10 @@ begin
 
       450, 452, 533, 553:
         begin
-          if ( (0 < AnsiPos('out of disk space', lastResponse)) or (0 < AnsiPos('No space left on device', lastResponse)) or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
+          if ( (0 < AnsiPos('out of disk space', lastResponse))
+            or (0 < AnsiPos('No space left on device', lastResponse))
+            or (0 < AnsiPos('Error writing file', lastResponse))
+            or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.SetOutofSpace;
             if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
