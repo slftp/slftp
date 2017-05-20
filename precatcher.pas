@@ -79,7 +79,7 @@ const
 var
   catcherFilename, replacefromline: AnsiString;
   cd, skiprlses: THashedStringList;
-  tagline, ignorelista, replacefrom, replaceto: TStringList;
+  tagline, irclines_ignorewords, replacefrom, replaceto: TStringList;
   huntartunk: huntartunk_tipus;
 
   debug_f: TextFile;
@@ -508,13 +508,40 @@ begin
         on e: Exception do
         begin
           Debug(dpError, rsections, Format('[EXCEPTION] MainStripping : %s', [e.Message]));
-          //ts_data.Free;
           exit;
         end;
       end;
 
       ts_data.DelimitedText := Data;
       MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
+
+
+
+      // nukewords check
+      // word by word check for single words
+      for i := 0 to ts_data.Count - 1 do
+      begin
+        igindex := irclines_ignorewords.IndexOf(ts_data.Strings[i]);
+        if igindex > -1 then
+        begin
+          MyDebug('Nukeword ' + irclines_ignorewords[igindex] + ' found in ' + Data);
+          Debug(dpSpam, rsections, 'Nukeword ' + irclines_ignorewords.strings[igindex] + ' found in ' + Data);
+          exit;
+        end;
+      end;
+
+      // fulltext check for quoted phrases (that contains at least one space)
+      for i := 0 to irclines_ignorewords.Count - 1 do
+      begin
+        if AnsiContainsText(irclines_ignorewords[i],' ') and AnsiContainsText(ts_data.DelimitedText, irclines_ignorewords[i]) then
+        begin
+          MyDebug('Nukeword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          exit;
+        end;
+      end;
+
+
 
       // Extract the release name, returns '' when no rlsname found
       try
@@ -543,31 +570,6 @@ begin
         exit;
       end;
 
-
-
-      // nukewords check
-      // word by word check for single words
-      for i := 0 to ts_data.Count - 1 do
-      begin
-        igindex := ignorelista.IndexOf(ts_data.Strings[i]);
-        if igindex > -1 then
-        begin
-          MyDebug('Nukeword ' + ignorelista[igindex] + ' found in ' + Data);
-          Debug(dpSpam, rsections, 'Nukeword ' + ignorelista.strings[igindex] + ' found in ' + Data);
-          exit;
-        end;
-      end;
-
-      // fulltext check for quoted phrases (that contains at least one space)
-      for i := 0 to ignorelista.Count - 1 do
-      begin
-        if AnsiContainsText(ignorelista[i],' ') and AnsiContainsText(ts_data.DelimitedText, ignorelista[i]) then
-        begin
-          MyDebug('Nukeword (phrase) "' + ignorelista[i] + '" found in ' + Data);
-          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + ignorelista[i] + '" found in ' + Data);
-          exit;
-        end;
-      end;
 
       // do the [replace] from slftp.precatcher
       s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
@@ -811,7 +813,7 @@ end;
 procedure ProcessIgnoreList(s: AnsiString);
 begin
   if (SubString(s, '=', 1) = 'nukewords') then
-    ignorelista.DelimitedText := SubString(s, '=', 2)
+    irclines_ignorewords.DelimitedText := SubString(s, '=', 2)
   else if (SubString(s, '=', 1) = 'tagline') then
     tagline.DelimitedText := SubString(s, '=', 2);
 
@@ -1007,11 +1009,11 @@ begin
   cd := THashedStringList.Create;
   cd.CaseSensitive := False;
 
-  ignorelista := TStringList.Create;
-  ignorelista.Delimiter := ' ';
-  ignorelista.QuoteChar := '"';
-  ignorelista.Sorted := True;
-  ignorelista.Duplicates := dupIgnore;
+  irclines_ignorewords := TStringList.Create;
+  irclines_ignorewords.Delimiter := ' ';
+  irclines_ignorewords.QuoteChar := '"';
+  irclines_ignorewords.Sorted := True;
+  irclines_ignorewords.Duplicates := dupIgnore;
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
   tagline.QuoteChar := '"';
@@ -1054,7 +1056,7 @@ procedure Precatcher_UnInit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
 
-  ignorelista.Free;
+  irclines_ignorewords.Free;
 
   sectionlist.Free;
   mappingslist.Free;
@@ -1164,7 +1166,7 @@ begin
   // clear in-memory data
   mappingslist.Clear;
   sectionlist.Clear;
-  ignorelista.Clear;
+  irclines_ignorewords.Clear;
   replacefrom.Clear;
   replaceto.Clear;
   catcherFile.Clear;
@@ -1201,7 +1203,7 @@ begin
 
   result := 'Precatcher reloaded successfully.' + sLineBreak;
   result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
-  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, ignorelista.Count]);
+  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, irclines_ignorewords.Count]);
 end;
 
 function precatcherauto: boolean;
