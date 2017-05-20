@@ -44,15 +44,15 @@ procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
 function precatcher_logfilename: AnsiString;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
+function PrecatcherSectionMapping(const rls, section: AnsiString; x_count: integer = 0): AnsiString;
 
 function FindSection(const section: AnsiString): boolean;
 function ExtractReleasename(ts_data: TStringList): AnsiString;
 
 function StripNoValidChars(aInput: AnsiString): AnsiString; // { removes all chars from string which are not in array ValidChars }
 
-function KibontasSection(s, section: AnsiString): AnsiString;
-function ProcessDoReplace(s: AnsiString): AnsiString;
+function KibontasSection(const s, section: AnsiString): AnsiString;
+function ProcessDoReplace(const s: AnsiString): AnsiString;
 
 var
   precatcher_debug: boolean = False;
@@ -257,7 +257,7 @@ begin
   end;
 end;
 
-function PrecatcherSectionMapping(rls, section: AnsiString; x_count: integer = 0): AnsiString;
+function PrecatcherSectionMapping(const rls, section: AnsiString; x_count: integer = 0): AnsiString;
 var
   i: integer;
   x: TMap;
@@ -267,11 +267,11 @@ begin
   Inc(x_count);
   if (x_count > 500) then
   begin
-    Debug(dpError, rsections, Format(
-      '[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
+    Debug(dpError, rsections, Format('[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
     Result := '';
     exit;
   end;
+
   Result := section;
 
   for i := 0 to mappingslist.Count - 1 do
@@ -285,8 +285,7 @@ begin
         MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
         if (x.mask.Matches(rls)) then
         begin
-          if ((config.ReadBool(rsections, 'recursiv_mapping', False)) and
-            (x.newsection <> 'TRASH')) then
+          if ((config.ReadBool(rsections, 'recursiv_mapping', False)) and (x.newsection <> 'TRASH')) then
           begin
             Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
             exit;
@@ -302,8 +301,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
         break;
       end;
     end;
@@ -311,72 +309,7 @@ begin
 
 end;
 
-{
-function PrecatcherSectionMapping(rls, section: string; x_count : Integer = 0): string;
-var i: Integer;
-   x: TMap;
-begin
- MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
-
- inc(x_count);
- if (x_count > 500) then
- begin
-   Debug(dpError, rsections, Format('[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
-   Result:= '';
-   exit;
- end;
-
- Result:= section;
- for i:= 0 to mappingslist.Count -1 do
- begin
-
- if i > mappingslist.Count then Break;
- x:= mappingslist[i] as TMap;
-if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
-     begin
-       MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
-       if (x.mask.Matches(rls)) then
-       begin
-         if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
-         begin
-           Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
-           exit;
-         end else begin
-           Result:= x.newsection;
-           MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
-           exit;
-         end;
-       end;
-     end;
-
-//    try if i > mappingslist.Count then Break; except Break; end;
-//    try x:= mappingslist[i] as TMap; except Break; end;
-
-   try
-     if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
-     begin
-       MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
-       if (x.mask.Matches(rls)) then
-       begin
-         if ((config.ReadBool(rsections,'recursiv_mapping',False)) and (x.newsection <> 'TRASH')) then
-         begin
-           Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
-           exit;
-         end else begin
-           Result:= x.newsection;
-           MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
-           exit;
-         end;
-       end;
-     end
-   except
-     Break;
-   end;
- end;
-end;
-}
-
-function KibontasSection(s, section: AnsiString): AnsiString;
+function KibontasSection(const s, section: AnsiString): AnsiString;
 var
   i: integer;
 begin
@@ -394,21 +327,22 @@ begin
   end;
 end;
 
-function _findMP3GenreOnAnnounce(text:ansistring): string;
-var i: Integer;
+function _findMP3GenreOnAnnounce(const text: AnsiString): String;
+var
+  i: Integer;
 begin
-  for i:= 0 to mp3genres.Count-1 do
+  for i := 0 to mp3genres.Count - 1 do
   begin
-    if (AnsiContainsText(text,mp3genres[i]) or
-        AnsiContainsText(Csere (mp3genres[i], ' ', ''), text)) then
+    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
     begin
-      Result:= mp3genres[i];
+      Result := mp3genres[i];
+      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce %s %s', [text, Result]));
       break;
     end;
   end;
 end;
 
-function ProcessDoReplace(s: AnsiString): AnsiString;
+function ProcessDoReplace(const s: AnsiString): AnsiString;
 var
   i: integer;
   rep_s: AnsiString;
@@ -425,8 +359,8 @@ begin
   end
   else
     Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
+
   Result := rep_s;
-  //  Irc_AddText('','','s= %s ;; rep_s= %s',[s,rep_s]);
 end;
 
 procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
@@ -464,7 +398,8 @@ begin
       section := KibontasSection(s, section);
     end;
     MyDebug('Section: %s', [section]);
-  except on E: Exception do
+  except
+    on E: Exception do
     begin
       Debug(dpError, rsections, Format('[EXCEPTION] KibontasSection: %s', [e.Message]));
     end;
@@ -480,8 +415,7 @@ begin
       on e: Exception do
       begin
         section := '';
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
       end;
     end;
   end;
@@ -504,7 +438,10 @@ begin
   begin
     genre := _findMP3GenreOnAnnounce(s);
     if genre <> '' then
+    begin
       MyDebug('Genre: %s', [genre]);
+      Debug(dpError, rsections, Format('Result from _findMP3GenreOnAnnounce %s', [genre]));
+    end;
   end;
 
   if (event = '') then
