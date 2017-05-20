@@ -3,7 +3,7 @@ unit globals;
 interface
 
 type
-  TDirType = (Unknown, IsMain, IsMultiCD, IsSample, IsProof, IsCovers, IsSubs);
+  TDirType = (IsUnknown, IsMain, IsMultiCD, IsSample, IsProof, IsCovers, IsSubs);
 
 implementation
 
