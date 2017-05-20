@@ -332,20 +332,26 @@ function _findMP3GenreOnAnnounce(const text: AnsiString; ts_data: TStringList): 
 var
   i, x: Integer;
 begin
+  Result := '';
   for i := 0 to mp3genres.Count - 1 do
   begin
+  {
+  * TODO
+  * only useful if we add an extra event for GENRE
+    * [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
+    * ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
     x := ts_data.IndexOf(mp3genres[i]);
     if x <> -1 then
     begin
       Result := mp3genres[i];
       Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
     end;
+  }
 
     if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
     begin
       Result := mp3genres[i];
-      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce %s %s', [text, Result]));
-      Debug(dpError, rsections, Format('genres: %s', [mp3genres.DelimitedText]));
+      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce %s :: %s', [text, Result]));
       break;
     end;
   end;
@@ -449,7 +455,7 @@ begin
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
-      Debug(dpError, rsections, Format('Result from _findMP3GenreOnAnnounce %s', [genre]));
+      Debug(dpError, rsections, Format('Genre: %s', [genre]));
     end;
   end;
 
@@ -565,7 +571,7 @@ begin
 
       if (rls = '') then
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherProcessB: relasename is empty! (%s)', [ts_data.DelimitedText]));
+        Debug(dpSpam, rsections, Format('PrecatcherProcessB: Relasename is empty! (%s)', [ts_data.DelimitedText]));
         exit;
       end;
 
