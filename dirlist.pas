@@ -14,7 +14,7 @@ type
 
     megvanmeg: Boolean;
     justadded: Boolean;
-    error: Boolean; //< { @true if file cannot be send, will be skiped then, @false otherwise. }
+    error: Boolean; //< { @true if file cannot be send, will be skipped then, @false otherwise. }
 
     username: AnsiString;
     groupname: AnsiString;
@@ -91,7 +91,7 @@ type
 
     parent: TDirListEntry;
     entries: TObjectList;
-    skiped: TStringList;
+    skipped: TStringList;
 
     complete_tag: AnsiString;
 
@@ -189,8 +189,8 @@ begin
   if error then
   begin
     // set dir as complete if an error is catched (not sure it's really useful)
-    //Result:= True;
-    //cache_completed:= Result;
+    //Result := True;
+    //cache_completed := Result;
     //exit;
     Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
   end;
@@ -247,36 +247,41 @@ begin
     //check if there is a complete tag in the dir
     Result := CompleteByTag;
 
-   // no complete tag found - check if the release is multi cd
-   if (not Result) and (MultiCD) then
-   begin
+    // no complete tag found - check if the release is multi cd
+    if (not Result) and (MultiCD) then
+    begin
       if allcdshere then
       begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        for i := entries.Count - 1 downto 0 do
-        begin
-          if i < 0 then
-            Break;
-          try
-            d := TDirlistEntry(entries[i]);
-
-            if d = nil then
-              Continue;
-
-            if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
-            begin
-              Result := False;
+        lock.Enter;
+        try
+          for i := entries.Count - 1 downto 0 do
+          begin
+            if i < 0 then
               Break;
-            end;
-          except
-            on e: Exception do
-            begin
-              debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Complete (MultiCD): %s', [e.Message]);
-              Continue;
+            try
+              d := TDirlistEntry(entries[i]);
+
+              if d = nil then
+                Continue;
+
+              if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
+              begin
+                Result := False;
+                Break;
+              end;
+            except
+              on e: Exception do
+              begin
+                debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Complete (MultiCD): %s', [e.Message]);
+                Continue;
+              end;
             end;
           end;
+        finally
+          lock.Leave;
         end;
       end;
     end;
@@ -335,8 +340,8 @@ begin
   fLastChanged := Now();
   allcdshere := False;
   entries := TObjectList.Create;
-  skiped := TStringList.Create;
-  skiped.CaseSensitive := False;
+  skipped := TStringList.Create;
+  skipped.CaseSensitive := False;
   self.parent := parentdir;
 
   self.s := s;
@@ -415,24 +420,32 @@ begin
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
+    lock.Enter;
+    try
+      for i:= entries.Count -1 downto 0 do
+      begin
+        if i < 0 then Break;
+        try
+          de := TDirListEntry(entries[i]);
 
-    for i:= entries.Count -1 downto 0 do
-    begin
-      try if i < 0 then Break; except Break; end;
-      try
-        de := TDirListEntry(entries[i]);
+          if de.cdno <> 0 then
+          begin
+            Result := True;
+            s:= s + IntToStr(de.cdno);
 
-        if de.cdno <> 0 then
-        begin
-          Result := True;
-          s:= s + IntToStr(de.cdno);
-
-          if de.cdno > biggestcd then
-            biggestcd := de.cdno;
+            if de.cdno > biggestcd then
+              biggestcd := de.cdno;
+          end;
+        except
+          on e: Exception do
+          begin
+            debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.MultiCD: %s', [e.Message]);
+            Continue;
+          end;
         end;
-      except
-        Continue;
       end;
+    finally
+      lock.Leave;
     end;
 
     if biggestcd > 1 then
@@ -461,19 +474,27 @@ var i: Integer;
 begin
   Result:= 0;
 
-  for i := entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      if ((not TDirListEntry(entries[i]).skiplisted) and (not TDirListEntry(entries[i]).done)) then
-      begin
-        inc(Result);
+  lock.Enter;
+  try
+    for i := entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        if ((not TDirListEntry(entries[i]).skiplisted) and (not TDirListEntry(entries[i]).done)) then
+        begin
+          inc(Result);
+        end;
+      except
+        on e: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.No_Raceable: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 function TDirList.No_Skiplisted: Integer;
@@ -481,17 +502,26 @@ var i: Integer;
 begin
   Result := 0;
 
-  for i := entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      if TDirListEntry(entries[i]).skiplisted then
-      begin
-        inc(Result);
+  lock.Enter;
+  try
+    for i := entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        if TDirListEntry(entries[i]).skiplisted then
+        begin
+          inc(Result);
+        end;
+      except
+        on e: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.No_Skiplisted: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
 end;
 
@@ -570,11 +600,7 @@ begin
   added := False;
 
   // No need to parse the dir again if it's complete
-  if cache_completed then
-  begin
-    //Debug(dpError, section, 'SKIP: Directory %s on %s is considered complete. ParseDirList skipped (cache_complete)', [Dirname, site_name]);
-    exit;
-  end;
+  if cache_completed then exit;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
 
@@ -590,229 +616,235 @@ begin
     skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        de.megvanmeg := False;
+      except
+        on e: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist: %s', [e.Message]);
+          Continue;
+        end;
+      end;
     end;
-
-    try
-      de := TDirlistEntry(entries[i]);
-      de.megvanmeg := False;
-    except
-      Continue;
-    end;
+  finally
+    lock.Leave;
   end;
 
   rrgx := TRegExpr.Create;
+  rrgx.ModifierI := True;
+  rrgx.Expression := global_skip;
+
+  lock.Enter;
   try
-    rrgx.ModifierI := True;
-    rrgx.Expression := global_skip;
+    while(true) do
+    begin
+      tmp := trim(Elsosor(s));
 
-      while(true) do
+      if tmp = '' then break;
+      //Inc(lines_read);
+      //if (lines_read > 2000) then break;
+
+      //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+      if (length(tmp) > 11) then
       begin
-        tmp:= trim(Elsosor(s));
+        if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
+          continue;
 
-        if tmp = '' then
-          break;
-        //Inc(lines_read);
-        //if (lines_read > 2000) then break;
+        dirmaszk:= Fetch(tmp, ' '); // dir mask
+        Fetch(tmp, ' '); // No. of something
+        username:= Fetch(tmp, ' '); // dir mask
+        groupname:= Fetch(tmp, ' '); // dir mask
+        filesize:= StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
 
-        //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-        if (length(tmp) > 11) then
+        if filesize < 0 then
+          Continue;
+
+        datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
+        filename:= Trim(tmp);
+
+        if filename = '' then
+          Continue;
+
+        if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
+          continue;
+
+        if rrgx.Exec(filename) then
         begin
-          if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
-            continue;
+          //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
+          Continue;
+        end;
 
-          dirmaszk:= Fetch(tmp, ' '); // dir mask
-          Fetch(tmp, ' '); // No. of something
-          username:= Fetch(tmp, ' '); // dir mask
-          groupname:= Fetch(tmp, ' '); // dir mask
-          filesize:= StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
-
-          if filesize < 0 then
-            Continue;
-
-          datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
-          filename:= Trim(tmp);
-
-          if filename = '' then
-            Continue;
-
-          if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
-            continue;
-
-          if rrgx.Exec(filename) then
+        // Dont add complete tags to dirlist entries
+        if ((dirmaszk[1] = 'd') or (filesize = 0)) then
+        begin
+          j:= TagComplete(filename);
+          if (j <> 0) then
           begin
-            //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
+            complete_tag:= filename;
             Continue;
           end;
+        end;
 
-          // Dont add complete tags to dirlist entries
-          if ((dirmaszk[1] = 'd') or (filesize = 0)) then
-          begin
-            j:= TagComplete(filename);
-            if (j <> 0) then
-            begin
-              complete_tag:= filename;
-              Continue;
-            end;
-          end;
+        // file is flagged as skipped
+        if (skipped.IndexOf(filename) <> -1) then
+          Continue;
 
-          // file is flagged as skipped
-          if (skiped.IndexOf(filename) <> -1) then
-            Continue;
+        // entry is a file and is 0 byte
+        if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
+        begin
+          Continue;
+        end;
 
-          // entry is a file and is 0 byte
-          if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
+        // entry is a file and is not downlodable
+        if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+        begin
+          Continue;
+        end;
+
+        // entry is a file and is being uploaded (glftpd only?)
+        if skip_being_uploaded_files then
+        begin
+          if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
           begin
             Continue;
           end;
+        end;
 
-          // entry is a file and is not downlodable
-          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+        akttimestamp:= Timestamp(datum);
+
+        de:= Find(filename);
+        if de = nil then
+        begin
+          de:= TDirListEntry.Create(filename, self);
+
+          if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
           begin
+            de.Free;
+            Continue;
+          end;
+          if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
+          begin
+            de.Free;
             Continue;
           end;
 
-          // entry is a file and is being uploaded (glftpd only?)
-          if skip_being_uploaded_files then
+          de.username:= username;
+          de.groupname:= groupname;
+          de.timestamp:= akttimestamp;
+          de.done:= True;
+          de.justadded:= True;
+          de.directory := (dirmaszk[1] = 'd');
+
+          if not de.directory then
+            de.filesize := filesize;
+
+
+          if (de.directory) then
           begin
-            if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
-            begin
-              Continue;
-            end;
-          end;
-
-          akttimestamp:= Timestamp(datum);
-
-          de:= Find(filename);
-          if de = nil then
-          begin
-            de:= TDirListEntry.Create(filename, self);
-
-            if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
-            begin
-              de.Free;
-              Continue;
-            end;
-            if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
-            begin
-              de.Free;
-              Continue;
-            end;
-
-            de.username:= username;
-            de.groupname:= groupname;
-            de.timestamp:= akttimestamp;
-            de.done:= True;
-            de.justadded:= True;
-            de.directory := (dirmaszk[1] = 'd');
-
-            if not de.directory then
-              de.filesize := filesize;
-
-
-            if (de.directory) then
-            begin
-              // check if we have a special kind of subdirectory
-              de.DirType := Unknown;
-              splx := TRegExpr.Create;
+            // check if we have a special kind of subdirectory
+            de.DirType := IsUnknown;
+            splx := TRegExpr.Create;
+            splx.ModifierI := True;
+            try
               try
-                splx.ModifierI := True;
                 splx.Expression := '^sample$';
                 if (splx.Exec(filename)) then
                   de.DirType := IsSample;
-
                 splx.Expression := '^proof$';
                 if (splx.Exec(filename)) then
                   de.DirType := IsProof;
-
                 splx.Expression := '^(sub|subs)$';
                 if(splx.Exec(filename)) then
                   de.DirType := IsSubs;
-
                 splx.Expression := '^(cover|covers)$';
                 if (splx.Exec(filename)) then
                   de.DirType := IsCovers;
-
-              finally
-                splx.Free;
+              except
+                on e: Exception do
+                  debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
               end;
+            finally
+              splx.Free;
             end;
-
-            if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
-            begin
-              de.Free;
-              Continue;
-            end;
-
-            if ((not de.Directory) and (not (de.filesize > 0))) then
-            begin
-              de.Free;
-              Continue;
-            end;
-
-            // Dont add skip files to dirlist
-            if ((not de.Directory) and (skiplist <> nil)) then
-            begin
-              de.RegenerateSkiplist;
-              if (de.skiplisted) then
-              begin
-                de.Free;
-                Continue;
-              end;
-            end;
-
-            if ((not de.Directory) and (AnsiLowerCase(de.Extension) = '.sfv') and (de.filesize > 0)) then
-            begin
-              sfv_status:= dlSFVFound;
-            end;
-
-            if (de.Directory) then
-            begin
-              de.subdirlist := TDirlist.Create(site_name, de, skiplist);
-              if de.subdirlist <> nil then
-                de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
-                Debug(dpError, section, 'DEBUG SET TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
-            end;
-
-            if (self.date_started = 0) then
-            begin
-              self.date_started:= Now();
-            end;
-
-            entries.Add(de);
-
-            LastChanged:= Now();
-            added:= True;
-          end
-          else if (de.filesize <> filesize) then
-          begin
-            if ((de.filesize <> filesize) or (de.username <> username)) then
-            begin
-              LastChanged:= Now();
-            end;
-
-            de.filesize:= filesize;
-            de.timestamp:= akttimestamp;
-            de.username:= username;
-            de.groupname:= groupname;
           end;
-          de.megvanmeg:= True;
+
+          if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
+          begin
+            de.Free;
+            Continue;
+          end;
+
+          if ((not de.Directory) and (not (de.filesize > 0))) then
+          begin
+            de.Free;
+            Continue;
+          end;
+
+          // Dont add skip files to dirlist
+          if ((not de.Directory) and (skiplist <> nil)) then
+          begin
+            de.RegenerateSkiplist;
+            if (de.skiplisted) then
+            begin
+              de.Free;
+              Continue;
+            end;
+          end;
+
+          if ((not de.Directory) and (AnsiLowerCase(de.Extension) = '.sfv') and (de.filesize > 0)) then
+          begin
+            sfv_status := dlSFVFound;
+          end;
+
+          if (de.Directory) then
+          begin
+            de.subdirlist := TDirlist.Create(site_name, de, skiplist);
+            if de.subdirlist <> nil then
+              de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
+              // TODO: Remove debug when satisfied 
+              Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
+          end;
+
+          if (self.date_started = 0) then
+          begin
+            self.date_started := Now();
+          end;
+
+          entries.Add(de);
+
+          LastChanged := Now();
+          added := True;
+        end
+        else if (de.filesize <> filesize) then
+        begin
+          if ((de.filesize <> filesize) or (de.username <> username)) then
+          begin
+            LastChanged := Now();
+          end;
+
+          de.filesize := filesize;
+          de.timestamp := akttimestamp;
+          de.username := username;
+          de.groupname := groupname;
         end;
+        de.megvanmeg := True;
       end;
+    end;
 
   finally
+    lock.Leave;
     rrgx.Free;
   end;
 
   // entries found means the dir exists
   if ((need_mkdir) and (entries.Count > 0)) then
-    need_mkdir:= False;
+    need_mkdir := False;
 
   if parent = nil then
   begin
@@ -821,21 +853,20 @@ begin
     except
       on E: Exception do
       begin
-        debugunit.Debug(dpError, section, 'SetSkiplists exception : %s', [e.Message]);
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList (SetSkiplists): %s', [e.Message]);
       end;
     end;
   end;
 
   // exit if the dir is complete
-  if (Complete) then
-    exit;
+  if (Complete) then exit;
 
   // set defaults values if direcotry was just added
   if added then
   begin
     cache_completed := False;
     cache_multicd := False;
-    allcdshere:= False;
+    allcdshere := False;
 
     if skiplist <> nil then
     begin
@@ -844,7 +875,7 @@ begin
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] RegenerateSkiplist: %s', [e.Message]);
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList(RegenerateSkiplist): %s', [e.Message]);
         end;
       end;
 
@@ -853,7 +884,7 @@ begin
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, '[EXCEPTION]Sort: %s', [e.Message]);
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList(Sort): %s', [e.Message]);
         end;
       end;
 
@@ -870,17 +901,24 @@ begin
   Result:= False;
   if skiplist = nil then exit;
 
-
+  lock.Enter;
+  try
   for i:= entries.Count -1 downto 0 do
   begin
-    try if i < 0 then Break; except Break; end;
+    if i < 0 then Break;
     try
       ld:= TDirListEntry(entries[i]);
-      if ld.RegenerateSkiplist then
-        Result:= True;
+      if ld.RegenerateSkiplist then Result:= True;
     except
-      Continue;
+      on E: Exception do
+      begin
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.RegenerateSkiplist: %s', [e.Message]);
+        Continue;
+      end;
     end;
+  end;
+  finally
+    lock.Leave;
   end;
 
 end;
@@ -902,18 +940,8 @@ begin
   Result := 0;
 
   try
-    i1:= TDirlistEntry(Item1);
-    i2:= TDirlistEntry(Item2);
-
-    // avoid and debug gone objects
-    if (i1 = nil) or (i2 = nil) then
-    begin
-      if i1 = nil then
-        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i1 is gone.');
-      if i2 = nil then
-        debugunit.Debug(dpError, section, '[DEBUG] DirListSorter: i2 is gone.');
-      exit;
-    end;
+    i1 := TDirlistEntry(Item1);
+    i2 := TDirlistEntry(Item2);
 
     // We don't care about skiplisted entries
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
@@ -924,24 +952,24 @@ begin
       // sfv priority
       if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
       begin
-        Result:= -1;
+        Result := -1;
         exit;
       end;
       if ((AnsiLowerCase(i1.Extension) <> '.sfv') and (AnsiLowerCase(i2.Extension) = '.sfv')) then
       begin
-        Result:= 1;
+        Result := 1;
         exit;
       end;
 
       // nfo priority
       if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
       begin
-        Result:= -1;
+        Result := -1;
         exit;
       end;
       if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
       begin
-        Result:= 1;
+        Result := 1;
         exit;
       end;
 
@@ -998,55 +1026,52 @@ begin
       begin
         if (i1.dirlist.sf_d <> nil) then
         begin
-          c1:= i1.dirlist.sf_d.MatchFile(i1.filename);
-          c2:= i2.dirlist.sf_d.MatchFile(i2.filename);
+          c1 := i1.dirlist.sf_d.MatchFile(i1.filename);
+          c2 := i2.dirlist.sf_d.MatchFile(i2.filename);
 
           if (c1 > c2) then
-            Result:= 1
+            Result := 1
           else
           if (c1 < c2) then
-            Result:= -1
+            Result := -1
           else
-            Result:= 0;
+            Result := 0;
         end else
-          Result:= CompareStr(i1.filename, i2.filename);
+          Result := CompareStr(i1.filename, i2.filename);
       end
       else
       if ((not i1.directory) and (not i2.directory)) then
       begin
-        c1:= i1.dirlist.sf_f.MatchFile(i1.filename);
-        c2:= i2.dirlist.sf_f.MatchFile(i2.filename);
+        c1 := i1.dirlist.sf_f.MatchFile(i1.filename);
+        c2 := i2.dirlist.sf_f.MatchFile(i2.filename);
 
         if (c1 > c2) then
-          Result:= 1
+          Result := 1
         else
         if (c1 < c2) then
-          Result:= -1
+          Result := -1
         else
         begin
           // files are of the same type - sort by size
           if i1.filesize > i2.filesize then
-            Result:= -1
+            Result := -1
           else
           if i1.filesize < i2.filesize then
-            Result:= 1
+            Result := 1
           else
-            Result:= 0;
+            Result := 0;
         end;
       end
       else
       // Priority to directories
       if (i1.directory) then
-        Result:= -1
+        Result := -1
       else
-        Result:= 1;
+        Result := 1;
     end;
   except
     on e: Exception do
-    begin
       debugunit.Debug(dpError, section, '[EXCEPTION] DirListSorter: %s', [e.Message]);
-      Result:= 0;
-    end;
   end;
 end;
 
@@ -1055,8 +1080,8 @@ var i1, i2: TDirlistEntry;
 begin
   // compare: -1 bekenhagyas, jo a sorrend     ~ good order
   // compare:  1 csere
-  i1:= TDirlistEntry(Item1);
-  i2:= TDirlistEntry(Item2);
+  i1 := TDirlistEntry(Item1);
+  i2 := TDirlistEntry(Item2);
 
   Result:= CompareValue(i2.timestamp, i1.timestamp);
   (*
@@ -1073,6 +1098,7 @@ var
   hrt: THighResolutionTimer;
   st1, et1, st2, et2: Int64;
 begin
+  (*
   hrt := THighResolutionTimer.Create;
 
   st1 := hrt.GetTime;
@@ -1087,9 +1113,9 @@ begin
   end;
   et1 := hrt.GetTime;
 
-
-  // with locking
   st2 := hrt.GetTime;
+  *)
+  // with locking
   lock.Enter;
   try
     try
@@ -1097,15 +1123,17 @@ begin
     except
       on E: Exception do
       begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort : %s', [e.Message]);
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort (DirListSorter): %s', [e.Message]);
       end;
     end;
   finally
     lock.Leave;
   end;
+  (*
   et2 := hrt.GetTime;
   debugunit.Debug(dpError, section, Format('DirList Sorter timing: ms Without lock: %n ms - With lock: %n ms', [((hrt.ToMicroSeconds(et1-st1) div 1) / 1000), ((hrt.ToMicroSeconds(et2-st2) div 1) / 1000)]));
   FreeAndNil(hrt);
+  *)
 end;
 
 function TDirList.CompleteByTag: Boolean;
@@ -1134,29 +1162,37 @@ begin
   files := 0;
   size := 0;
 
-  for i:= entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de:= TDirlistEntry(entries[i]);
-      if de.skiplisted then Continue;
+  lock.Enter;
+  try
+    for i := entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if de.skiplisted then Continue;
 
-      if de.Useful then
-      begin
-        inc(files);
-        inc(size, de.filesize);
+        if de.Useful then
+        begin
+          inc(files);
+          inc(size, de.filesize);
+        end;
+        if ((de.directory) and (de.subdirlist <> nil)) then
+        begin
+          de.subdirlist.Usefulfiles(afiles, asize);
+          inc(files, afiles);
+          inc(size, asize);
+        end;
+      except
+        on e: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Usefulfiles: %s', [e.Message]);
+          Continue;
+        end;
       end;
-      if ((de.directory) and (de.subdirlist <> nil)) then
-      begin
-        de.subdirlist.Usefulfiles(afiles, asize);
-        inc(files, afiles);
-        inc(size, asize);
-      end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 function TDirList.Find(filename: AnsiString): TDirListEntry;
@@ -1165,29 +1201,31 @@ var
   de: TDirListEntry;
 begin
   Result := nil;
-  if entries.Count = 0 then
-    exit;
+  if entries.Count = 0 then exit;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-    try
-      de := TDirListEntry(entries[i]);
-      if (AnsiUpperCase(de.filename) = AnsiUpperCase(filename)) then
-      begin
-        Result := de;
-        Break;
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirListEntry(entries[i]);
+        if (AnsiUpperCase(de.filename) = AnsiUpperCase(filename)) then
+        begin
+          Result := de;
+          Break;
+        end;
+      except
+        on e: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Find: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 procedure TDirList.SetLastChanged(value: TDateTime);
@@ -1251,7 +1289,6 @@ begin
     on E: Exception do
     begin
       debugunit.Debug(dpError, section, 'TDirList.FindDirlist: %s', [e.Message]);
-      Result := nil;
       exit;
     end;
   end;
@@ -1265,20 +1302,28 @@ var
 begin
   Result := 0;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-     de := TDirlistEntry(entries[i]);
-      if de.skiplisted then Continue;
-      if de.done then inc(Result);
-      if ((de.directory) and (de.subdirlist <> nil)) then
-        inc(Result, de.subdirlist.Done);
-    except
-      Continue;
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+       de := TDirlistEntry(entries[i]);
+        if de.skiplisted then Continue;
+        if de.done then inc(Result);
+        if ((de.directory) and (de.subdirlist <> nil)) then
+          inc(Result, de.subdirlist.Done);
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.Done: %s', [e.Message]);
+          Continue;
+        end;
+      end;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 function TDirList.RacedByMe(only_useful: boolean = False): Integer;
@@ -1288,28 +1333,36 @@ var
 begin
   Result := 0;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de := TDirlistEntry(entries[i]);
-      if only_useful then
-      begin
-        if (de.racedbyme and de.Useful) then inc(Result);
-      end
-      else
-      begin
-        if de.racedbyme then inc(Result);
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if only_useful then
+        begin
+          if (de.racedbyme and de.Useful) then inc(Result);
+        end
+        else
+        begin
+          if de.racedbyme then inc(Result);
+        end;
+        if ((de.directory) and (de.subdirlist <> nil)) then
+        begin
+          inc(Result, de.subdirlist.RacedbyMe(only_useful));
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.RacedByMe: %s', [e.Message]);
+          Continue;
+        end;
       end;
-      if ((de.directory) and (de.subdirlist <> nil)) then
-      begin
-        inc(Result, de.subdirlist.RacedbyMe(only_useful));
-      end;
-    except
-      Break;
     end;
-  end ;
-
+  finally
+    lock.Leave;
+  end;
 end;
 
 function TDirList.SizeRacedByMe(only_useful: boolean = False): Int64;
@@ -1319,25 +1372,33 @@ var
 begin
   Result:= 0;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de := TDirlistEntry(entries[i]);
-      if only_useful then
-      begin
-        if (de.racedbyme and de.Useful) then inc(result,de.filesize);
-      end
-      else
-      begin
-        if de.racedbyme then inc(result,de.filesize);
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if only_useful then
+        begin
+          if (de.racedbyme and de.Useful) then inc(result,de.filesize);
+        end
+        else
+        begin
+          if de.racedbyme then inc(result,de.filesize);
+        end;
+        if ((de.directory) and (de.subdirlist <> nil)) then inc(result,de.subdirlist.SizeRacedByMe(only_useful));
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.SizeRacedByMe: %s', [e.Message]);
+          Continue;
+        end;
       end;
-      if ((de.directory) and (de.subdirlist <> nil)) then inc(result,de.subdirlist.SizeRacedByMe(only_useful));
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 
@@ -1353,21 +1414,29 @@ begin
     exit;
   end;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try de := TDirlistEntry(entries[i]);
-      if ((AnsiLowerCase(de.Extension) = '.sfv') and (de.megvanmeg) and (de.filesize > 0)) then
-      begin
-        Result := True;
-        Self.cache_hassfv := True;
-        exit;
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try de := TDirlistEntry(entries[i]);
+        if ((AnsiLowerCase(de.Extension) = '.sfv') and (de.megvanmeg) and (de.filesize > 0)) then
+        begin
+          Result := True;
+          Self.cache_hassfv := True;
+          exit;
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.hassfv: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Break;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 function TDirList.hasnfo: boolean;
@@ -1382,22 +1451,30 @@ begin
     exit;
   end;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de := TDirlistEntry(entries[i]);
-      if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.megvanmeg) and (de.filesize > 0)) then
-      begin
-        Result := True;
-        Self.cache_hasnfo := True;
-        exit;
+  lock.Enter;
+  try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.megvanmeg) and (de.filesize > 0)) then
+        begin
+          Result := True;
+          Self.cache_hasnfo := True;
+          exit;
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.hasnfo: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 
@@ -1409,22 +1486,44 @@ begin
   fLastChanged := 0;
   biggestcd := 0;
 
-  for i := entries.Count - 1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      TDirlistEntry(entries[i]).megvanmeg := False;
-      TDirlistEntry(entries[i]).error := False;
-    except
-      Continue;
+  lock.Enter;
+  try
+
+    for i := entries.Count - 1 downto 0 do
+    begin
+      try if i < 0 then Break; except Break; end;
+      try
+        TDirlistEntry(entries[i]).megvanmeg := False;
+        TDirlistEntry(entries[i]).error := False;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, 'TDirList.Clear: %s', [e.Message]);
+          Continue;
+        end;
+      end;
     end;
+  finally
+    lock.Leave;
   end;
 
 end;
 
 procedure TDirList.SortByModify;
 begin
-  entries.Sort(@DirListModSorter);
+  lock.Enter;
+  try
+    try
+      entries.Sort(@DirListModSorter);
+    except
+      on E: Exception do
+      begin
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.SortByModify (DirListModSorter): %s', [e.Message]);
+      end;
+    end;
+  finally
+    lock.Leave;
+  end;
 end;
 
 function TDirList.FindNfo: TDirListEntry;
@@ -1433,43 +1532,57 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  for i := 0 to entries.Count - 1 do
-  begin
-//    try if i < 0 then Break; except Break; end;
-    try de := TDirlistEntry(entries[i]);
+  lock.Enter;
+  try
+    for i := 0 to entries.Count - 1 do
+    begin
+      if i < 0 then Break;
+      try de := TDirlistEntry(entries[i]);
 
-      if ((de.Extension = '.nfo') and (de.filesize > 0) and (de.filesize < 32768)) then //nfo always smaller than 32kb
-      begin
-        Result := de;
-        exit;
+        if ((de.Extension = '.nfo') and (de.filesize > 0) and (de.filesize < 32768)) then //nfo always smaller than 32kb
+        begin
+          Result := de;
+          exit;
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.FindNfo: %s', [e.Message]);
+          Continue;
+        end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
-
 end;
 
 function TDirList.Directories: Integer;
 var i: Integer;
     de: TDirlistEntry;
 begin
-  Result:= 0;
+  Result := 0;
 
-
-  for i:= entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de:= TDirlistEntry(entries[i]);
-      if ((de.directory) and (not de.skiplisted) and (de.timestamp <> 0)) then
-        inc(result);
-    except
-      Continue;
+  lock.Enter;
+  try
+    for i := entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if ((de.directory) and (not de.skiplisted) and (de.timestamp <> 0)) then
+          inc(result);
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Directories: %s', [e.Message]);
+          Continue;
+        end;
+      end;
     end;
+  finally
+    lock.Leave;
   end;
-
-
 end;
 
 function TDirList.firstfile: TDateTime;
@@ -1477,27 +1590,37 @@ var i: Integer;
     de: TDirlistEntry;
     t: TDateTime;
 begin
-  REsult:= 0;
-  for i:= entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de:= TDirlistEntry(entries[i]);
-      if (de.timestamp <> 0) and (not de.skiplisted) then
-      begin
-        if ((Result= 0) or (Result > de.timestamp)) then
-          Result:= de.timestamp;
+  Result := 0;
 
-        if ((de.Directory) and (de.subdirlist <> nil)) then
+  lock.Enter;
+  try
+    for i:= entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if (de.timestamp <> 0) and (not de.skiplisted) then
         begin
-          t:= de.subdirlist.firstfile;
-          if ((t <> 0) and (Result > t)) then
-            Result:= t;
+          if ((Result = 0) or (Result > de.timestamp)) then
+            Result := de.timestamp;
+
+          if ((de.Directory) and (de.subdirlist <> nil)) then
+          begin
+            t := de.subdirlist.firstfile;
+            if ((t <> 0) and (Result > t)) then
+              Result := t;
+          end;
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.firstfile: %s', [e.Message]);
+          Continue;
         end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
 end;
 
@@ -1506,29 +1629,37 @@ var i: Integer;
     de: TDirlistEntry;
     t: TDateTime;
 begin
-  Result:= 0;
+  Result := 0;
 
-
-  for i:= entries.Count -1 downto 0 do
-  begin
-    try if i < 0 then Break; except Break; end;
-    try
-      de:= TDirlistEntry(entries[i]);
-      if (de.timestamp <> 0) and (not de.skiplisted) then
-      begin
-        if ((Result= 0) or (Result < de.timestamp)) then
-          Result:= de.timestamp;
-
-        if ((de.Directory) and (de.subdirlist <> nil)) then
+  lock.Enter;
+  try
+    for i := entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        de := TDirlistEntry(entries[i]);
+        if (de.timestamp <> 0) and (not de.skiplisted) then
         begin
-          t:= de.subdirlist.lastfile;
-          if ((t <> 0) and (Result < t)) then
-            Result:= t;
+          if ((Result = 0) or (Result < de.timestamp)) then
+            Result := de.timestamp;
+
+          if ((de.Directory) and (de.subdirlist <> nil)) then
+          begin
+            t := de.subdirlist.lastfile;
+            if ((t <> 0) and (Result < t)) then
+              Result := t;
+          end;
+        end;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.firstfile: %s', [e.Message]);
+          Continue;
         end;
       end;
-    except
-      Continue;
     end;
+  finally
+    lock.Leave;
   end;
 end;
 
@@ -1624,25 +1755,29 @@ var
   rrgx: TRegExpr;
 begin
   Result := False;
+
   if filesize = 0 then exit;
   if directory then exit;
 
   rrgx := TRegExpr.Create;
+  rrgx.ModifierI := True;
+  rrgx.Expression := useful_skip;
   try
-    rrgx.ModifierI := True;
-    rrgx.Expression := useful_skip;
-
-    if rrgx.Exec(filename) then
-    begin
-      Result := False;
-      exit;
+    try
+      if not rrgx.Exec(filename) then
+      begin
+        Result := True;
+        exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirListEntry.Useful: %s', [e.Message]);
+      end;
     end;
-
   finally
     rrgx.Free;
   end;
-
-  Result := True;
 end;
 
 
@@ -1661,6 +1796,7 @@ function TDirListEntry.DirTypeAsString: String;
 begin
   Result := 'Undefined';
   case self.DirType of
+    IsUnknown: Result := 'Unknown';
     IsMain: Result := 'Main';
     IsMultiCD: Result := 'MultiCD';
     IsSample: Result := 'Sample';
@@ -1699,7 +1835,7 @@ begin
           if ( (filename[l-6] = '(') and (filename[l-4] = ')') and (filename[l-5] in ['0'..'9']) ) or ( (filename[l-7] = '(') and (filename[l-5] = ')') and (filename[l-6] in ['0'..'9']) )then
           begin
             skiplisted := True;
-            dirlist.skiped.Add(filename);
+            dirlist.skipped.Add(filename);
             irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
             exit;
           end;
@@ -1708,7 +1844,7 @@ begin
         if sf = nil then
         begin
           skiplisted := True;
-          dirlist.skiped.Add(filename);
+          dirlist.skipped.Add(filename);
           irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
         end
         else
@@ -1727,7 +1863,7 @@ begin
           if sf = nil then
           begin
             skiplisted := True;
-            dirlist.skiped.Add(filename);
+            dirlist.skipped.Add(filename);
             irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
           end
           else
