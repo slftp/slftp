@@ -328,16 +328,24 @@ begin
   end;
 end;
 
-function _findMP3GenreOnAnnounce(const text: AnsiString): String;
+function _findMP3GenreOnAnnounce(const text: AnsiString; ts_data: TStringList): String;
 var
-  i: Integer;
+  i, x: Integer;
 begin
   for i := 0 to mp3genres.Count - 1 do
   begin
+    x := ts_data.IndexOf(mp3genres[i]);
+    if x <> -1 then
+    begin
+      Result := mp3genres[i];
+      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
+    end;
+
     if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
     begin
       Result := mp3genres[i];
       Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce %s %s', [text, Result]));
+      Debug(dpError, rsections, Format('genres: %s', [mp3genres.DelimitedText]));
       break;
     end;
   end;
@@ -437,7 +445,7 @@ begin
   genre := '';
   if (1 = Pos('MP3', section)) then
   begin
-    genre := _findMP3GenreOnAnnounce(s);
+    genre := _findMP3GenreOnAnnounce(s, ts_data);
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
