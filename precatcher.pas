@@ -84,6 +84,7 @@ var
 
   debug_f: TextFile;
   precatcher_debug_lock: TCriticalSection;
+  precatcher_lock: TCriticalSection;
 
   ValidChars: set of AnsiChar = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
     '/', ':', ';', ' '];
@@ -604,7 +605,14 @@ begin
         if (mind) then
         begin
           try
-            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
+
+            precatcher_lock.Enter;
+            try
+              ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
+            finally
+              precatcher_lock.Leave;
+            end;
+
           except
             on e: Exception do
             begin
@@ -621,7 +629,15 @@ begin
       if sc.sections.Count = 0 then
       begin
         try
-          ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', rls, ts_data);
+
+          precatcher_lock.Enter;
+          try
+            ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', rls, ts_data);
+          finally
+            precatcher_lock.Leave;
+          end;
+
+
         except
           on e: Exception do
           begin
@@ -653,8 +669,10 @@ begin
   if not precatcherauto then
     Exit;
 
-  queue_lock.Enter;
+{
+  precatcher_lock.Enter;
   try
+}
     try
       PrecatcherProcessB(net, chan, nick, Data);
     except
@@ -663,9 +681,11 @@ begin
         Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s', [e.Message]));
       end;
     end;
+{
   finally
-    queue_lock.Leave;
+    precatcher_lock.Leave;
   end;
+}
 
 end;
 
@@ -1014,6 +1034,9 @@ begin
   irclines_ignorewords.QuoteChar := '"';
   irclines_ignorewords.Sorted := True;
   irclines_ignorewords.Duplicates := dupIgnore;
+
+  precatcher_lock := TCriticalSection.Create;
+
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
   tagline.QuoteChar := '"';
@@ -1057,6 +1080,8 @@ begin
   Debug(dpSpam, rsections, 'Uninit1');
 
   irclines_ignorewords.Free;
+
+  precatcher_lock.Free;
 
   sectionlist.Free;
   mappingslist.Free;
