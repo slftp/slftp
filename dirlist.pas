@@ -656,11 +656,11 @@ begin
         if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
           continue;
 
-        dirmaszk:= Fetch(tmp, ' '); // dir mask
+        dirmaszk := Fetch(tmp, ' '); // dir mask
         Fetch(tmp, ' '); // No. of something
-        username:= Fetch(tmp, ' '); // dir mask
-        groupname:= Fetch(tmp, ' '); // dir mask
-        filesize:= StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
+        username := Fetch(tmp, ' '); // dir mask
+        groupname := Fetch(tmp, ' '); // dir mask
+        filesize := StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
 
         if filesize < 0 then
           Continue;
@@ -681,12 +681,12 @@ begin
         end;
 
         // Dont add complete tags to dirlist entries
-        if ((dirmaszk[1] = 'd') or (filesize = 0)) then
+        if ((dirmaszk[1] = 'd') or (filesize < 1)) then
         begin
-          j:= TagComplete(filename);
+          j := TagComplete(filename);
           if (j <> 0) then
           begin
-            complete_tag:= filename;
+            complete_tag := filename;
             Continue;
           end;
         end;
@@ -696,7 +696,7 @@ begin
           Continue;
 
         // entry is a file and is 0 byte
-        if ((dirmaszk[1] <> 'd') and (filesize = 0)) then
+        if ((dirmaszk[1] <> 'd') and (filesize < 1)) then
         begin
           Continue;
         end;
@@ -716,9 +716,9 @@ begin
           end;
         end;
 
-        akttimestamp:= Timestamp(datum);
+        akttimestamp := Timestamp(datum);
 
-        de:= Find(filename);
+        de := Find(filename);
         if de = nil then
         begin
           de:= TDirListEntry.Create(filename, self);
@@ -734,11 +734,11 @@ begin
             Continue;
           end;
 
-          de.username:= username;
-          de.groupname:= groupname;
-          de.timestamp:= akttimestamp;
-          de.done:= True;
-          de.justadded:= True;
+          de.username := username;
+          de.groupname := groupname;
+          de.timestamp := akttimestamp;
+          de.done := True;
+          de.justadded := True;
           de.directory := (dirmaszk[1] = 'd');
 
           if not de.directory then
@@ -898,7 +898,7 @@ function TDirList.RegenerateSkiplist: Boolean;
 var i: Integer;
     ld: TDirListEntry;
 begin
-  Result:= False;
+  Result := False;
   if skiplist = nil then exit;
 
   lock.Enter;
@@ -908,7 +908,7 @@ begin
     if i < 0 then Break;
     try
       ld:= TDirListEntry(entries[i]);
-      if ld.RegenerateSkiplist then Result:= True;
+      if ld.RegenerateSkiplist then Result := True;
     except
       on E: Exception do
       begin
