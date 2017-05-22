@@ -9,22 +9,22 @@ function CheckStandardPercentDir(const filename: AnsiString): Integer;
 
 implementation
 
-uses Classes, SysUtils, mystrings, configunit, debugunit, RegExpr, SyncObjs;
+uses Classes, SysUtils, mystrings, configunit, debugunit, FLRE, SyncObjs;
 
 const
   section = 'tags';
 
 var
   cs: TCriticalSection;
-  crc, cri: TRegExpr;
+  crc, cri: TFLRE;
 
 function TagComplete(const filename: AnsiString): Integer;
 begin
   (*
-    Result
-    0 if nothing matched (normal file/dir)
-    1 if file/dir is a complete tag
-    -1 if file/dir is an incomplete tag
+    Result:
+       0 if nothing matched (normal file/dir)
+       1 if file/dir is a complete tag
+      -1 if file/dir is an incomplete tag
   *)
 
   // check if the dir is a percent dir
@@ -37,33 +37,37 @@ begin
   try
     // is the file/dir a complete tag
     try
-      if crc.Exec(filename) then
+      if crc.Find(filename) <> 0 then
       begin
-        Debug(dpSpam, section, 'TagComplete By RegExpr %s', [filename]);
+        Debug(dpSpam, section, 'TagComplete By FLRE %s', [filename]);
         Result := 1;
         exit;
       end;
     except
       on e: Exception do
+      begin
         Debug(dpError, section, Format('[EXCEPTION] TagComplete(crc): Exception : %s', [e.Message]));
+      end;
     end;
 
     // is the file/dir an incomplete tag
     try
-      if cri.Exec(filename) then
+      if cri.Find(filename) <> 0 then
       begin
-        Debug(dpSpam, section, 'TagIncomplete By RegExpr %s', [filename]);
+        Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [filename]);
         Result := -1;
         exit;
       end;
     except
       on e: Exception do
+      begin
         Debug(dpError, section, Format('[EXCEPTION] TagComplete(cri): Exception : %s', [e.Message]));
+      end;
     end;
-
   finally
     cs.Leave;
   end;
+
 end;
 
 function CheckStandardPercentDir(const filename: AnsiString): Integer;
@@ -105,50 +109,45 @@ procedure TagsInit;
 var
   complete_regex, incomplete_regex: String;
   complete_regex_default, incomplete_regex_default: String;
-
+  dummy_string: String;
 begin
   Debug(dpSpam, section, 'Init %s begins', [section]);
 
   complete_regex_default := '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)';
   incomplete_regex_default := '(\d{1,2}\s*%\s*Complete|incomplete)';
 
+  dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
+
   cs := TCriticalSection.Create;
 
   // check custom slftp.ini complete_regex
   complete_regex := config.ReadString(section, 'complete_regex', complete_regex_default);
-  begin
-    crc := TRegExpr.Create;
-    crc.ModifierI := True;
-    crc.Expression := complete_regex;
-    try
-      crc.Compile;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-        crc.Expression := complete_regex_default;
-        crc.Compile;
-      end;
+
+  crc := TFLRE.Create(complete_regex, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+  try
+    crc.Test(dummy_string);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
+      crc := TFLRE.Create(complete_regex_default, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
     end;
   end;
 
   // check custom slftp.ini incomplete_regex
   incomplete_regex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
-  begin
-    cri := TRegExpr.Create;
-    cri.ModifierI := True;
-    cri.Expression := incomplete_regex;
-    try
-      cri.Compile;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-        cri.Expression := incomplete_regex_default;
-        cri.Compile;
-      end;
+
+  cri := TFLRE.Create(incomplete_regex, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+  try
+    cri.Test(dummy_string);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
+      cri := TFLRE.Create(incomplete_regex_default, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
     end;
   end;
+
   Debug(dpSpam, section, 'Init %s done', [section]);
 end;
 
