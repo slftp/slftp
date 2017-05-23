@@ -206,7 +206,6 @@ begin
     Result := Result + Source[i];
 end;
 
-
 function MinMax(aValue, minimal, maximum: integer): integer;
 begin
   if aValue < minimal then
