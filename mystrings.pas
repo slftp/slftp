@@ -49,7 +49,6 @@ function MinMax(aValue, minimal, maximum: integer): integer;
 function SubString(const s, seperator: AnsiString; index: integer): AnsiString;
 function Csere(const Source, old, new: AnsiString): AnsiString;
 function AtConvert(Source: AnsiString; style: integer): AnsiString;
-function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
 function myEncode(what: AnsiString): AnsiString;//spaceket  csereli at
 function myDecode(what: AnsiString): AnsiString;
 function CleanString(mit: AnsiString): AnsiString;
@@ -199,15 +198,6 @@ begin
 end;
 
 function RightStr(const Source: AnsiString; Count: integer): AnsiString;
-var
-  i: integer;
-begin
-  Result := '';
-  for i := length(Source) - Count + 1 to length(Source) do
-    Result := Result + Source[i];
-end;
-
-function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
 var
   i: integer;
 begin
@@ -384,7 +374,7 @@ function GetLastDir(g: AnsiString): AnsiString;
 begin
   if ((length(g) > 0) and (g[length(g)] = '\')) then
     Delete(g, length(g), 1);
-  Result := RightStrv2(g, RPos('\', g));
+  Result := RightStr(g, RPos('\', g));
 end;
 
 function ExtractUrlFileName(url: AnsiString): AnsiString;
