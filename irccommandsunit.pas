@@ -731,7 +731,7 @@ begin
 
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  secs := UpperCase(RightStr(params, length(sitename) + 1));
+  secs := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
 
   if ((sitename = '') and (secs = '')) then
   begin
@@ -781,7 +781,7 @@ var
   i: integer;
 begin
   section := UpperCase(SubString(params, ' ', 1));
-  toadd := RightStr(params, length(section) + 1);
+  toadd := mystrings.RightStr(params, length(section) + 1);
   x:=TStringList.Create;
   x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
 //  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
@@ -842,7 +842,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  dir := RightStr(params, length(sitename) + length(section) + 2);
+  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
 
   if ((section = '*') or (section = '')) then
   begin
@@ -1239,12 +1239,12 @@ begin
   end;
   predir := s.sectiondir[section];
 
-  dir := RightStr(params, length(sitename) + length(section) + 2);
+  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStr(params, length(sitename) + 1);
+    dir := mystrings.RightStr(params, length(sitename) + 1);
   end;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
@@ -1399,7 +1399,7 @@ begin
       irc_addtext(Netname, Channel, '<c><b>ERROR</c></b>: %s', [E.Message]);
   end;
 
-  // sitename:= UpperCase( RightStr(params, length(section)+length(rlsname)+2));
+  // sitename:= UpperCase( mystrings.RightStr(params, length(section)+length(rlsname)+2));
 
   if ((sitename = '*') or (sitename = '')) then
   begin
@@ -1537,12 +1537,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStr(params, length(sitename) + length(section) + 2);
+  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStr(params, length(sitename) + 1);
+    dir := mystrings.RightStr(params, length(sitename) + 1);
   end;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
@@ -1688,12 +1688,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStr(params, length(sitename) + length(section) + 2);
+  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStr(params, length(sitename) + 1);
+    dir := mystrings.RightStr(params, length(sitename) + 1);
   end;
 
   if (predir = '') then
@@ -2986,7 +2986,7 @@ var
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
-  Perform := RightStr(params, length(nn) + 1);
+  Perform := mystrings.RightStr(params, length(nn) + 1);
 
   if FindIrcnetwork(nn) = nil then
   begin
@@ -3923,7 +3923,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  command := RightStr(params, length(sitename) + 1);
+  command := mystrings.RightStr(params, length(sitename) + 1);
 
   if sitename = '*' then
   begin
@@ -3973,7 +3973,7 @@ var
 begin
   Result := False;
   username := UpperCase(SubString(params, ' ', 1));
-  command := RightStr(params, length(username) + 1);
+  command := mystrings.RightStr(params, length(username) + 1);
 
   x := TStringList.Create;
   y := TStringList.Create;
@@ -4417,7 +4417,7 @@ var
 begin
   result := False;
   nn := UpperCase(SubString(params, ' ', 1));
-  n_modes := RightStr(params, length(nn) + 1);
+  n_modes := mystrings.RightStr(params, length(nn) + 1);
 
   ircn := FindIrcnetwork(nn);
   if nil = ircn then
@@ -4622,7 +4622,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  tosay := RightStr(params, length(nn) + length(blowchannel) + 2);
+  tosay := mystrings.RightStr(params, length(nn) + length(blowchannel) + 2);
   if nil = FindIrcBlowfish(nn, blowchannel, False) then
   begin
     irc_addtext(Netname, Channel, 'Cant find channel.');
@@ -4657,7 +4657,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  Names := UpperCase(RightStr(params, length(nn) + length(blowchannel) + 2));
+  Names := UpperCase(mystrings.RightStr(params, length(nn) + length(blowchannel) + 2));
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4743,7 +4743,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  key := RightStr(params, length(nn) + length(blowchannel) + 2);
+  key := mystrings.RightStr(params, length(nn) + length(blowchannel) + 2);
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4809,7 +4809,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  key := RightStr(params, length(nn) + length(blowchannel) + 2);
+  key := mystrings.RightStr(params, length(nn) + length(blowchannel) + 2);
   cbc:= False;
 
  if AnsiStartsStr('cbc',key) then begin
@@ -5409,7 +5409,7 @@ begin
   net := UpperCase(SubString(params, ' ', 1));
   chan := SubString(params, ' ', 2);
   nick := SubString(params, ' ', 3);
-  rest := RightStr(params, length(net) + length(chan) + length(nick) + 3);
+  rest := mystrings.RightStr(params, length(net) + length(chan) + length(nick) + 3);
 
   if nil = FindIrcBlowfish(net, chan, False) then
   begin
@@ -5760,7 +5760,7 @@ var
   Text, sitename: AnsiString;
 begin
   sitename := SubString(params, ' ', 1);
-  Text := RightStr(params, length(sitename) + 2);
+  Text := mystrings.RightStr(params, length(sitename) + 2);
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -6037,7 +6037,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  affils := RightStr(params, length(sitename) + 1);
+  affils := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6073,7 +6073,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  ident := RightStr(params, length(sitename) + 1);
+  ident := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6108,7 +6108,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  s2 := RightStr(params, length(sitename) + 1);
+  s2 := mystrings.RightStr(params, length(sitename) + 1);
   q := StrToIntDef(s2, -1);
 
   s := FindSiteByName(Netname, sitename);
@@ -6208,7 +6208,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  users := RightStr(params, length(sitename) + 1);
+  users := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6231,7 +6231,7 @@ var
 begin
   Result := False;
   sitename := AnsiUpperCase(SubString(params, ' ', 1));
-  country := AnsiUpperCase(RightStr(params, length(sitename) + 1));
+  country := AnsiUpperCase(mystrings.RightStr(params, length(sitename) + 1));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6270,7 +6270,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  link := RightStr(params, length(sitename) + 1);
+  link := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6291,7 +6291,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  notes := RightStr(params, length(sitename) + 1);
+  notes := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6312,7 +6312,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  size := RightStr(params, length(sitename) + 1);
+  size := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6333,7 +6333,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  Name := RightStr(params, length(sitename) + 1);
+  Name := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6354,7 +6354,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  users := RightStr(params, length(sitename) + 1);
+  users := mystrings.RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6561,7 +6561,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStr(params, length(sitename) + 1 +
+  sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -6970,7 +6970,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStr(params, length(sitename) + 1 +
+  sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -7045,7 +7045,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStr(params, length(sitename) + 1 +
+  sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -7247,7 +7247,7 @@ var
 begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
-  extra := RightStr(params, length(section) + length(rls) + 2);
+  extra := mystrings.RightStr(params, length(section) + length(rls) + 2);
   kb_Add(Netname, Channel, '', section, extra, 'NEWDIR', rls, '', True);
 
   Result := True;
@@ -8278,11 +8278,10 @@ var
   todel: AnsiString;
   d1, d2: double;
   d: TDirList;
-  //  rls:    TRelease;
 begin
   Result := False;
   tn := nil;
-  // eloszor validaljuk az osszes parametert...
+
   // First, validate all the parameters ...
   params := trim(UpperCase(params));
   fssitename := '';
@@ -8325,47 +8324,40 @@ begin
       fsfilename := s.sectiondir['SPEEDTEST'];
   end;
 
-  // most megnezzuk, van e mar speedtest file a forras siteon
-  // Now look, this is already the source file Speedtest site
-
+  // Getting files from SPEEDTEST directory
   d := DirlistB(Netname, Channel, fssitename, fsfilename, True);
   try
     if d = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant dirlist %s in %s.', [fsfilename, fssitename]);
+      irc_addtext(Netname, Channel, 'Can''t dirlist %s in %s.', [fsfilename, fssitename]);
       exit;
     end;
     // now we pick a file
     PickupSpeedtestFile(d, fsfilename, fsfilesize);
   finally
-    // we dont need the dirlist anymore.
     d.Free;
   end;
 
   if ((fsfilesize = 0) or (fsfilename = '')) then
   begin
-    irc_addtext(Netname, Channel,
-      'No suitable file found on site %s for speedtesting, check slftp.ini',
-      [ss]);
+    irc_addtext(Netname, Channel,'No suitable file found on site %s for speedtesting, check slftp.ini. Speedtest aborted.', [ss]);
     exit;
   end;
 
   fsfilesizemb := fsfilesize / 1024 / 1024;
-  irc_addtext(Netname, Channel,
-    'Testing outgoing speed with file %s (%d bytes)', [fsfilename, fsfilesize]);
+  irc_addtext(Netname, Channel, 'Testing outgoing speed with file %s (%d bytes)', [fsfilename, fsfilesize]);
 
-  // most megnezzuk, hogy destination siteokon van e, ha igen, akkor torlunk
-  // Now we look at the destination siteokon is this, if so, delete
-
+  // Checking if the file already exists on destinations
   try
     tn := AddNotify;
   except
-    on E: Exception do
+    on e: Exception do
     begin
-      irc_addtext(Netname, Channel,
-        '<c4>[Exception]</c> in SpeedTestOut-AddNotify: %s', [E.Message]);
+      irc_addtext(Netname, Channel, '<c4>[EXCEPTION]</c> in SpeedTestOut-AddNotify: %s', [e.Message]);
+      exit;
     end;
   end;
+
   params := oparams;
 
   while (True) do
@@ -8387,12 +8379,13 @@ begin
 
   if tn.tasks.Count = 0 then
   begin
-    irc_addtext(Netname, Channel, 'wtf?');
+    irc_addtext(Netname, Channel, 'Failed to check if speedtest file %s already exists on destination sites. Speedtest aborted.', [speedtestfilename]);
     exit;
   end;
 
   tn.event.WaitFor($FFFFFFFF);
 
+  // deleting existing destination files
   todel := '';
   for i := 0 to tn.responses.Count - 1 do
   begin
@@ -8404,19 +8397,15 @@ begin
   todel := trim(todel);
   if todel <> '' then
   begin
-    irc_addtext(Netname, Channel,
-      'Removing existing speedtest files from %s', [todel]);
+    irc_addtext(Netname, Channel, 'Removing existing speedtest files from %s', [todel]);
     if not IrcSpeedTestCleanup(Netname, Channel, todel) then
     begin
-      irc_addtext(Netname, Channel,
-        'Removing existing speedtest files failed.');
+      irc_addtext(Netname, Channel, 'Removing existing speedtest files failed. Speedtest aborted.');
       exit;
     end;
   end;
 
-  // es most kezdodik a moka, megcsinaljuk a pazot meg a szarjait
-  // And now the fun begins, you do make a shit pazot
-
+  // Creating the pazo entries for the speedtest
   firstsite := nil;
   params := oparams;
 
@@ -8447,11 +8436,9 @@ begin
   for i := 1 to p.sites.Count - 1 do
   begin
     ps := TPazoSite(p.sites[i]);
-    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s  ->> %s',
-      [firstsite.Name, ps.Name, ps.maindir]);
+    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s  ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
-    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name,
-      ps.Name, p, '', fsfilename, fsfilesize, 1);
+    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, '', fsfilename, fsfilesize, 1);
     t.storfilename := speedtestfilename;
 
     tn.tasks.Add(t);
@@ -8483,12 +8470,10 @@ begin
             [firstsite.Name, ps.Name, d1, fsfilesizemb, d2]);
       end
       else
-        irc_addtext(Netname, Channel, '%s -> %s failed.',
-          [firstsite.Name, ps.Name]);
+        irc_addtext(Netname, Channel, '%s -> %s failed.', [firstsite.Name, ps.Name]);
     end
     else
-      irc_addtext(Netname, Channel, '%s -> %s failed.',
-        [firstsite.Name, ps.Name]);
+      irc_addtext(Netname, Channel, '%s -> %s failed.', [firstsite.Name, ps.Name]);
 
     RemoveTN(tn);
   end;
@@ -9505,7 +9490,7 @@ var
 begin
   s1 := SubString(params, ' ', 1);
   s2 := lowercase(SubString(params, ' ', 2));
-  s3 := RightStr(params, length(s1) + 1 + length(s2) + 1);
+  s3 := mystrings.RightStr(params, length(s1) + 1 + length(s2) + 1);
   ss1 := SubString(s1, '-', 1);
   ss2 := SubString(s1, '-', 2);
 
@@ -10006,7 +9991,7 @@ begin
   xs := TStringList.Create;
   try
     sitename := UpperCase(SubString(params, ' ', 1));
-    sections := RightStr(params, length(sitename) + 1);
+    sections := mystrings.RightStr(params, length(sitename) + 1);
 
     if sections <> '' then
     begin
@@ -10050,7 +10035,7 @@ var
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  // uppercase(RightStr(params, length(sitename)+1));
+  // uppercase(mystrings.RightStr(params, length(sitename)+1));
 
   sitess := TStringList.Create;
   sectionss := TStringList.Create;
@@ -10721,7 +10706,7 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   s_pretime := SubString(params, ' ', 3);
-  // RightStr(params, length(sitename)+1+length(section)+1);
+  // mystrings.RightStr(params, length(sitename)+1+length(section)+1);
 
   if s_pretime = '-' then
     pretime := -10
@@ -11223,7 +11208,7 @@ var
 begin
   Result := False;
   section := UpperCase(SubString(params, ' ', 1));
-  glist := RightStr(params, length(section) + 1);
+  glist := mystrings.RightStr(params, length(section) + 1);
 
   if kb_sections.IndexOf(section) = -1 then
   begin
@@ -11640,7 +11625,7 @@ begin
   if mazeid > -1 then
     tvi := getTVInfoByShowID(inttostr(mazeid))
   else
-    tvi := getTVInfoByReleaseName(RightStr(params, length(inttostr(tvrageid)) + 1));
+    tvi := getTVInfoByReleaseName(mystrings.RightStr(params, length(inttostr(tvrageid)) + 1));
 
   if tvi = nil then
   begin
@@ -11664,7 +11649,7 @@ begin
   if mazeid > -1 then
     tvi := getTVInfoByShowID(inttostr(mazeid))
   else
-    tvi := getTVInfoByReleaseName(RightStr(params, length(inttostr(thetvdbid)) + 1));
+    tvi := getTVInfoByReleaseName(mystrings.RightStr(params, length(inttostr(thetvdbid)) + 1));
 
   if tvi = nil then
   begin
@@ -11687,7 +11672,7 @@ var
 begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
-  ssname := RightStr(params, length(sid) + 1);
+  ssname := mystrings.RightStr(params, length(sid) + 1);
   sresMAXi := strtointdef(config.ReadString('tasktvinfo', 'max_sid_lookup_results', '5'), 5);
 
   x := TRegExpr.Create;
@@ -11755,7 +11740,7 @@ begin
     end;
 
     tvr := parseTVMazeInfos(resp, ssname);
-    tvr.rls_showname := RightStr(params, length(sid) + 1);
+    tvr.rls_showname := mystrings.RightStr(params, length(sid) + 1);
     try
       tvr.Save;
     except
@@ -11769,7 +11754,7 @@ begin
         Exit;
       end;
     end;
-    tvr.PostResults(RightStr(params, length(sid) + 1), Netname, Channel);
+    tvr.PostResults(mystrings.RightStr(params, length(sid) + 1), Netname, Channel);
     tvr.Free;
   end
   else

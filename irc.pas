@@ -817,7 +817,7 @@ begin
   if netname = 'CONSOLE' then
     irc_addtext('CONSOLE', 'Admin', irccmdprefix + msg);
 
-  params := Trim(RightStr(msg, length(cmd) + 1));
+  params := Trim(mystrings.RightStr(msg, length(cmd) + 1));
   c := Count(' ', params);
   if params <> '' then
     inc(c);
@@ -859,8 +859,8 @@ begin
     try
       //privat uzenet, ki kell hamozni a nikket
       channel := nick;
-      msg := RightStr(s, Pos(' ', s));
-      msg := RightStr(msg, Pos(':', msg));
+      msg := mystrings.RightStr(s, Pos(' ', s));
+      msg := mystrings.RightStr(msg, Pos(':', msg));
       //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
       if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
       begin
@@ -877,8 +877,8 @@ begin
     end;
   end;
 
-  msg := RightStr(s, Pos(' ', s));
-  msg := RightStr(msg, Pos(':', msg));
+  msg := mystrings.RightStr(s, Pos(' ', s));
+  msg := mystrings.RightStr(msg, Pos(':', msg));
 
   l := length(msg);
   if l = 0 then
@@ -1177,7 +1177,7 @@ begin
     if (s1 = 'ERROR') then
     begin
       //  02-20 20:28:16.887 (12C8) [irc         ] << ERROR :Closing Link: 213.186.38.105 (*** Banned )
-      irc_addadmin(Format('<%s> %s', [netname, RightStr(s, 7)]));
+      irc_addadmin(Format('<%s> %s', [netname, mystrings.RightStr(s, 7)]));
     end;
 
     s2 := SubString(s, ' ', 2);
