@@ -123,28 +123,32 @@ begin
   // check custom slftp.ini complete_regex
   complete_regex := config.ReadString(section, 'complete_regex', complete_regex_default);
 
-  crc := TFLRE.Create(complete_regex, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+  crc := TFLRE.Create(complete_regex, [rfIGNORECASE]);
   try
     crc.Test(dummy_string);
   except
     on e: Exception do
     begin
+      if Assigned(crc) then
+        crc.Free;
       Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      crc := TFLRE.Create(complete_regex_default, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+      crc := TFLRE.Create(complete_regex_default, [rfIGNORECASE]);
     end;
   end;
 
   // check custom slftp.ini incomplete_regex
   incomplete_regex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
 
-  cri := TFLRE.Create(incomplete_regex, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+  cri := TFLRE.Create(incomplete_regex, [rfIGNORECASE]);
   try
     cri.Test(dummy_string);
   except
     on e: Exception do
     begin
+      if Assigned(cri) then
+        cri.Free;
       Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      cri := TFLRE.Create(incomplete_regex_default, [rfIGNORECASE, rfONLYFASTOPTIMIZATIONS]);
+      cri := TFLRE.Create(incomplete_regex_default, [rfIGNORECASE]);
     end;
   end;
 
