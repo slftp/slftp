@@ -268,7 +268,7 @@ begin
   end;
 end;
 
-function getGenreFromTheTVDb(id: AnsiString): AnsiString;
+function getGenreFromTheTVDb(const id: AnsiString): AnsiString;
 var
   s, url: AnsiString;
   xml: TSLXMLDocument;
@@ -292,7 +292,7 @@ begin
 
   if not AnsiStartsText('<?xml', s) then
   begin
-    Debug(dpError, section, 'Warning: TheTVDB answer for show id %d was not in XML format.');
+    Debug(dpError, section, 'Warning: TheTVDB answer for show id %s was not in XML format.', [id]);
     exit;
   end;
 
