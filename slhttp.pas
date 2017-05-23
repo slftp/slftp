@@ -84,18 +84,17 @@ end;
 
 constructor TslHTTP.Create;
 begin
-  //Timeout:= slDefaultTimeout;
-  Timeout := 30000;
+  Timeout := slDefaultTimeout;
   Response := TStringStream.Create('');
   CustomHeaders := TStringList.Create;
   ResponseHeaders := TStringList.Create;
 
   (*
- if ((ProxyName = '!!NOIN!!') or (ProxyName = '0') or (ProxyName = '')) then
- SetupSocks5(self, config.ReadBool(section, 'socks5', False)) else
- mSLSetupSocks5(proxyname,self, True);
-*)
-//  SetupSocks5(self, config.ReadBool(section, 'socks5', False));
+    if ((ProxyName = '!!NOIN!!') or (ProxyName = '0') or (ProxyName = '')) then
+    SetupSocks5(self, config.ReadBool(section, 'socks5', False)) else
+    mSLSetupSocks5(proxyname,self, True);
+    SetupSocks5(self, config.ReadBool(section, 'socks5', False));
+  *)
 
   inherited Create();
 
@@ -126,8 +125,8 @@ function TslHTTP.Get(const url: AnsiString; params: TStringList; output: TStream
 const
   headernekszantresz = 8192;
 var
-rx:TRegexpr;
-sss,  s, ss, paramsstr: AnsiString;
+  rx: TRegExpr;
+  s, ss, sss, paramsstr: AnsiString;
   uri: AnsiString;
   i: Integer;
   olvass: Integer;
@@ -145,8 +144,8 @@ begin
     begin
       if i <> 0 then
         paramsstr := paramsstr + '&';
-      paramsstr := paramsstr + UrlEncode(params.Names[i]) + '=' +
-        UrlEncode(params.ValueFromIndex[i],true);
+
+      paramsstr := paramsstr + UrlEncode(params.Names[i]) + '=' + UrlEncode(params.ValueFromIndex[i],true);
     end;
   end;
 
@@ -199,8 +198,10 @@ begin
 
   if not WriteLn('GET ' + uri + ' HTTP/1.0') then
     exit;
+
   if not WriteLn('Host: ' + host) then
     exit;
+
   for i := 0 to CustomHeaders.Count - 1 do
     if not WriteLn(CustomHeaders.Names[i] + ': ' +
       CustomHeaders.ValueFromIndex[i]) then
@@ -213,50 +214,48 @@ begin
     olvass := 0
   else
     olvass := headernekszantresz;
+
   if not Read(Response, Timeout, olvass, True) then
     exit;
 
   Response.Position := 0;
-  sss:= Response.DataString;
+  sss := Response.DataString;
 
-  rx:=TRegexpr.Create;
+  rx :=TRegexpr.Create;
   try
-rx.ModifierI:=True;
-rx.ModifierM:=True;
-rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
-if rx.Exec(sss) then begin
-rx.Expression:='^Location\:\s(.*?)$';
-if rx.Exec(sss) then begin
+    rx.ModifierI:=True;
+    rx.ModifierM:=True;
+    rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
 
-uri:=rx.Match[1];
-Cleanup;
-  if not Connect(Timeout) then
-    exit;
+    if rx.Exec(sss) then
+    begin
+      rx.Expression:='^Location\:\s(.*?)$';
+      if rx.Exec(sss) then
+      begin
+        uri := rx.Match[1];
+        Cleanup;
+        if not Connect(Timeout) then
+          exit;
+        if not WriteLn('GET ' + uri + ' HTTP/1.0') then
+          exit;
+        if not WriteLn('Host: ' + host) then
+          exit;
+        for i := 0 to CustomHeaders.Count - 1 do
+          if not WriteLn(CustomHeaders.Names[i] + ': ' + CustomHeaders.ValueFromIndex[i]) then
+            exit;
+        if not WriteLn('') then
+          exit;
+        if output = nil then
+          olvass := 0
+        else
+          olvass := headernekszantresz;
+        if not Read(Response, Timeout, olvass, True) then
+          exit;
 
-  if not WriteLn('GET ' + uri + ' HTTP/1.0') then
-    exit;
-  if not WriteLn('Host: ' + host) then
-    exit;
-  for i := 0 to CustomHeaders.Count - 1 do
-    if not WriteLn(CustomHeaders.Names[i] + ': ' +
-      CustomHeaders.ValueFromIndex[i]) then
-      exit;
-
-  if not WriteLn('') then
-    exit;
-
-  if output = nil then
-    olvass := 0
-  else
-    olvass := headernekszantresz;
-  if not Read(Response, Timeout, olvass, True) then
-    exit;
-
-  Response.Position := 0;
-  sss:= Response.DataString;
-
-end;
-end;
+        Response.Position := 0;
+        sss:= Response.DataString;
+      end;
+    end;
   finally
    rx.Free;
 //   result:=True;

@@ -731,7 +731,7 @@ begin
 
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  secs := UpperCase(RightStrV2(params, length(sitename) + 1));
+  secs := UpperCase(RightStr(params, length(sitename) + 1));
 
   if ((sitename = '') and (secs = '')) then
   begin
@@ -781,7 +781,7 @@ var
   i: integer;
 begin
   section := UpperCase(SubString(params, ' ', 1));
-  toadd := RightStrV2(params, length(section) + 1);
+  toadd := RightStr(params, length(section) + 1);
   x:=TStringList.Create;
   x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
 //  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
@@ -842,7 +842,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  dir := RightStrV2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
 
   if ((section = '*') or (section = '')) then
   begin
@@ -1239,12 +1239,12 @@ begin
   end;
   predir := s.sectiondir[section];
 
-  dir := RightStrV2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStrV2(params, length(sitename) + 1);
+    dir := RightStr(params, length(sitename) + 1);
   end;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
@@ -1399,7 +1399,7 @@ begin
       irc_addtext(Netname, Channel, '<c><b>ERROR</c></b>: %s', [E.Message]);
   end;
 
-  // sitename:= UpperCase( RightStrv2(params, length(section)+length(rlsname)+2));
+  // sitename:= UpperCase( RightStr(params, length(section)+length(rlsname)+2));
 
   if ((sitename = '*') or (sitename = '')) then
   begin
@@ -1537,12 +1537,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStrV2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStrV2(params, length(sitename) + 1);
+    dir := RightStr(params, length(sitename) + 1);
   end;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
@@ -1688,12 +1688,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStrV2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStrV2(params, length(sitename) + 1);
+    dir := RightStr(params, length(sitename) + 1);
   end;
 
   if (predir = '') then
@@ -2986,7 +2986,7 @@ var
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
-  Perform := RightStrV2(params, length(nn) + 1);
+  Perform := RightStr(params, length(nn) + 1);
 
   if FindIrcnetwork(nn) = nil then
   begin
@@ -3923,7 +3923,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  command := RightStrV2(params, length(sitename) + 1);
+  command := RightStr(params, length(sitename) + 1);
 
   if sitename = '*' then
   begin
@@ -3973,7 +3973,7 @@ var
 begin
   Result := False;
   username := UpperCase(SubString(params, ' ', 1));
-  command := RightStrV2(params, length(username) + 1);
+  command := RightStr(params, length(username) + 1);
 
   x := TStringList.Create;
   y := TStringList.Create;
@@ -4417,7 +4417,7 @@ var
 begin
   result := False;
   nn := UpperCase(SubString(params, ' ', 1));
-  n_modes := RightStrV2(params, length(nn) + 1);
+  n_modes := RightStr(params, length(nn) + 1);
 
   ircn := FindIrcnetwork(nn);
   if nil = ircn then
@@ -4622,7 +4622,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  tosay := RightStrV2(params, length(nn) + length(blowchannel) + 2);
+  tosay := RightStr(params, length(nn) + length(blowchannel) + 2);
   if nil = FindIrcBlowfish(nn, blowchannel, False) then
   begin
     irc_addtext(Netname, Channel, 'Cant find channel.');
@@ -4657,7 +4657,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  Names := UpperCase(RightStrV2(params, length(nn) + length(blowchannel) + 2));
+  Names := UpperCase(RightStr(params, length(nn) + length(blowchannel) + 2));
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4743,7 +4743,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  key := RightStrV2(params, length(nn) + length(blowchannel) + 2);
+  key := RightStr(params, length(nn) + length(blowchannel) + 2);
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4809,7 +4809,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
-  key := RightStrV2(params, length(nn) + length(blowchannel) + 2);
+  key := RightStr(params, length(nn) + length(blowchannel) + 2);
   cbc:= False;
 
  if AnsiStartsStr('cbc',key) then begin
@@ -5409,7 +5409,7 @@ begin
   net := UpperCase(SubString(params, ' ', 1));
   chan := SubString(params, ' ', 2);
   nick := SubString(params, ' ', 3);
-  rest := RightStrV2(params, length(net) + length(chan) + length(nick) + 3);
+  rest := RightStr(params, length(net) + length(chan) + length(nick) + 3);
 
   if nil = FindIrcBlowfish(net, chan, False) then
   begin
@@ -5760,7 +5760,7 @@ var
   Text, sitename: AnsiString;
 begin
   sitename := SubString(params, ' ', 1);
-  Text := RightStrV2(params, length(sitename) + 2);
+  Text := RightStr(params, length(sitename) + 2);
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -6037,7 +6037,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  affils := RightStrV2(params, length(sitename) + 1);
+  affils := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6073,7 +6073,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  ident := RightStrV2(params, length(sitename) + 1);
+  ident := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6108,7 +6108,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  s2 := RightStrV2(params, length(sitename) + 1);
+  s2 := RightStr(params, length(sitename) + 1);
   q := StrToIntDef(s2, -1);
 
   s := FindSiteByName(Netname, sitename);
@@ -6208,7 +6208,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  users := RightStrV2(params, length(sitename) + 1);
+  users := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6231,7 +6231,7 @@ var
 begin
   Result := False;
   sitename := AnsiUpperCase(SubString(params, ' ', 1));
-  country := AnsiUpperCase(RightStrV2(params, length(sitename) + 1));
+  country := AnsiUpperCase(RightStr(params, length(sitename) + 1));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6270,7 +6270,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  link := RightStrV2(params, length(sitename) + 1);
+  link := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6291,7 +6291,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  notes := RightStrV2(params, length(sitename) + 1);
+  notes := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6312,7 +6312,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  size := RightStrV2(params, length(sitename) + 1);
+  size := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6333,7 +6333,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  Name := RightStrV2(params, length(sitename) + 1);
+  Name := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6354,7 +6354,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  users := RightStrV2(params, length(sitename) + 1);
+  users := RightStr(params, length(sitename) + 1);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6561,7 +6561,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStrV2(params, length(sitename) + 1 +
+  sections := UpperCase(RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -6970,7 +6970,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStrV2(params, length(sitename) + 1 +
+  sections := UpperCase(RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -7045,7 +7045,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(RightStrV2(params, length(sitename) + 1 +
+  sections := UpperCase(RightStr(params, length(sitename) + 1 +
     length(IntToStr(status)) + 1));
 
   s := FindSiteByName(Netname, sitename);
@@ -7247,7 +7247,7 @@ var
 begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
-  extra := RightStrV2(params, length(section) + length(rls) + 2);
+  extra := RightStr(params, length(section) + length(rls) + 2);
   kb_Add(Netname, Channel, '', section, extra, 'NEWDIR', rls, '', True);
 
   Result := True;
@@ -9505,7 +9505,7 @@ var
 begin
   s1 := SubString(params, ' ', 1);
   s2 := lowercase(SubString(params, ' ', 2));
-  s3 := RightStrV2(params, length(s1) + 1 + length(s2) + 1);
+  s3 := RightStr(params, length(s1) + 1 + length(s2) + 1);
   ss1 := SubString(s1, '-', 1);
   ss2 := SubString(s1, '-', 2);
 
@@ -10006,7 +10006,7 @@ begin
   xs := TStringList.Create;
   try
     sitename := UpperCase(SubString(params, ' ', 1));
-    sections := RightStrV2(params, length(sitename) + 1);
+    sections := RightStr(params, length(sitename) + 1);
 
     if sections <> '' then
     begin
@@ -10050,7 +10050,7 @@ var
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  // uppercase(RightStrv2(params, length(sitename)+1));
+  // uppercase(RightStr(params, length(sitename)+1));
 
   sitess := TStringList.Create;
   sectionss := TStringList.Create;
@@ -10721,7 +10721,7 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   s_pretime := SubString(params, ' ', 3);
-  // RightStrv2(params, length(sitename)+1+length(section)+1);
+  // RightStr(params, length(sitename)+1+length(section)+1);
 
   if s_pretime = '-' then
     pretime := -10
@@ -11223,7 +11223,7 @@ var
 begin
   Result := False;
   section := UpperCase(SubString(params, ' ', 1));
-  glist := RightStrV2(params, length(section) + 1);
+  glist := RightStr(params, length(section) + 1);
 
   if kb_sections.IndexOf(section) = -1 then
   begin
@@ -11449,53 +11449,59 @@ var
   db_tvrage: TTVInfoDB;
 begin
 
-  if StrToIntDef(params, -1) = -1 then
-  begin
-    try
-      db_tvrage := getTVInfoByReleaseName(params);
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section,
-          format('Exception in IrcAnnounceTheTVDbInfo.getTVInfoBbyShowName: %s', [E.Message]));
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in IrcAnnounceTVInfo.getTheTVInfoByShowName: %s',
-          [E.Message]));
-        Result := True;
-        exit;
-      end;
-    end;
-  end
-  else
-  begin
-    try
-      db_tvrage := getTVInfoByShowID(params);
-    except
-      on E: Exception do
-      begin
-        //        db_tvrage := nil;
-        Debug(dpError, section,
-          format('Exception in IrcAnnounceTVInfo: %s',
-          [E.Message]));
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in IrcAnnounceTVInfo: %s',
-          [E.Message]));
-        Result := True;
-        exit;
-      end;
-    end;
-  end;
+  db_tvrage := nil;
 
-  if db_tvrage <> nil then
-  begin
-    db_tvrage.PostResultsv2(db_tvrage.rls_showname, Netname, Channel);
-    Result := True;
-  end
-  else
-  begin
-    irc_addtext(Netname, Channel,
-      format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
-    Result := True;
+  try
+    if StrToIntDef(params, -1) = -1 then
+    begin
+      try
+        db_tvrage := getTVInfoByReleaseName(params);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section,
+            format('Exception in IrcAnnounceTheTVDbInfo.getTVInfoBbyShowName: %s', [E.Message]));
+          irc_AddText(Netname, Channel,
+            format('<c4>[Exception]</c> in IrcAnnounceTVInfo.getTheTVInfoByShowName: %s',
+            [E.Message]));
+          Result := True;
+          exit;
+        end;
+      end;
+    end
+    else
+    begin
+      try
+        db_tvrage := getTVInfoByShowID(params);
+      except
+        on E: Exception do
+        begin
+          //        db_tvrage := nil;
+          Debug(dpError, section,
+            format('Exception in IrcAnnounceTVInfo: %s',
+            [E.Message]));
+          irc_AddText(Netname, Channel,
+            format('<c4>[Exception]</c> in IrcAnnounceTVInfo: %s',
+            [E.Message]));
+          Result := True;
+          exit;
+        end;
+      end;
+    end;
+
+    if db_tvrage <> nil then
+    begin
+      db_tvrage.PostResults(db_tvrage.rls_showname, Netname, Channel);
+      Result := True;
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel,
+        format('<c4>[<b>FAILED<b>]</c> Nothing found for <b>%s</b>', [params]));
+      Result := True;
+    end;
+  finally
+    db_tvrage.Free;
   end;
 end;
 
@@ -11607,7 +11613,7 @@ begin
       if (newtvi.Update(True)) then
       begin
         Result := True;
-        newtvi.PostResultsv2(newtvi.tv_showname, Netname, Channel);
+        newtvi.PostResults(newtvi.tv_showname, Netname, Channel);
       end;
     finally
       newtvi.free;
@@ -11634,7 +11640,7 @@ begin
   if mazeid > -1 then
     tvi := getTVInfoByShowID(inttostr(mazeid))
   else
-    tvi := getTVInfoByReleaseName(RightStrV2(params, length(inttostr(tvrageid)) + 1));
+    tvi := getTVInfoByReleaseName(RightStr(params, length(inttostr(tvrageid)) + 1));
 
   if tvi = nil then
   begin
@@ -11658,7 +11664,7 @@ begin
   if mazeid > -1 then
     tvi := getTVInfoByShowID(inttostr(mazeid))
   else
-    tvi := getTVInfoByReleaseName(RightStrV2(params, length(inttostr(thetvdbid)) + 1));
+    tvi := getTVInfoByReleaseName(RightStr(params, length(inttostr(thetvdbid)) + 1));
 
   if tvi = nil then
   begin
@@ -11681,7 +11687,7 @@ var
 begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
-  ssname := RightStrV2(params, length(sid) + 1);
+  ssname := RightStr(params, length(sid) + 1);
   sresMAXi := strtointdef(config.ReadString('tasktvinfo', 'max_sid_lookup_results', '5'), 5);
 
   x := TRegExpr.Create;
@@ -11700,7 +11706,7 @@ begin
   if ((sid = '--SEARCH') or (sid = '--S') or (sid = '-SEARCH') or (sid = '-S')) then
   begin
     getShowValues(ssname, showname);
-    resp := findTVMazeIDByNamev2(showname, netname, channel);
+    resp := findTVMazeIDByName(showname, netname, channel);
 
     if resp <> 'FAILED' then
     begin
@@ -11749,7 +11755,7 @@ begin
     end;
 
     tvr := parseTVMazeInfos(resp, ssname);
-    tvr.rls_showname := RightStrV2(params, length(sid) + 1);
+    tvr.rls_showname := RightStr(params, length(sid) + 1);
     try
       tvr.Save;
     except
@@ -11763,7 +11769,8 @@ begin
         Exit;
       end;
     end;
-    tvr.PostResultsv2(RightStrV2(params, length(sid) + 1), Netname, Channel);
+    tvr.PostResults(RightStr(params, length(sid) + 1), Netname, Channel);
+    tvr.Free;
   end
   else
     irc_Addtext(netname, channel,
