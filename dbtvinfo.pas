@@ -36,7 +36,7 @@ type
     function Name: AnsiString;
     procedure Save;
 
-    procedure PostResultsv2(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
+    procedure PostResults(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
     procedure SetTVDbRelease(tr: TTVRelease);
     function Update(fromIRC:Boolean = False): boolean;
 
@@ -353,7 +353,7 @@ begin
   end;
 
   if config.ReadBool(section, 'post_lookup_infos', false) then
-    PostResultsv2(rls_showname);
+    PostResults(rls_showname);
 
 end;
 
@@ -385,7 +385,7 @@ begin
   end;
 end;
 
-procedure TTVInfoDB.PostResultsv2(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
+procedure TTVInfoDB.PostResults(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
 var
   toAnnounce: TStringlist;
   toStats: boolean;

@@ -215,12 +215,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStrv2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
-    dir := RightStrv2(params, length(sitename) + 1);
+    dir := RightStr(params, length(sitename) + 1);
   end;
 
   genremode := 'genre' = SubString(dir, ' ', 2);
@@ -364,7 +364,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  precmd := RightStrv2(params, length(sitename) + 1 + length(section) + 1);
+  precmd := RightStr(params, length(sitename) + 1 + length(section) + 1);
 
   if kb_sections.IndexOf(section) = -1 then
   begin
@@ -897,7 +897,7 @@ begin
   Result   := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
-  dir      := RightStrv2(params, Length(sitename) + Length(section) + 2);
+  dir      := RightStr(params, Length(sitename) + Length(section) + 2);
 
   queue_lock.Enter;
   s := FindSiteByName(netname, sitename);
@@ -910,7 +910,7 @@ begin
   predir := s.sectiondir[section];
   if predir = '' then
   begin
-    dir     := RightStrv2(params, Length(sitename) + 1);
+    dir     := RightStr(params, Length(sitename) + 1);
     section := 'PRE';
     predir  := s.sectiondir[section];
   end;
@@ -1204,12 +1204,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStrv2(params, length(sitename) + length(section) + 2);
+  dir := RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir  := s.sectiondir[section];
-    dir     := RightStrv2(params, length(sitename) + 1);
+    dir     := RightStr(params, length(sitename) + 1);
   end;
   if (predir = '') then
   begin

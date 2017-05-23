@@ -234,10 +234,13 @@ begin
       Result := ((files <> 0) and (size <> 0));
     end;
 
+    // For debug purposes only
+    (*
     if (Result) then
       Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size])
     else
-      Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
+      Debug(dpError, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
+    *)
 
   end
   else
@@ -295,7 +298,7 @@ begin
         if AnsiContainsText(full_path, tag) then
         begin
           // TODO: Maybe add case by case checks instead of considering complete
-          debugunit.Debug(dpError, section, '[DEBUG] SpecialDir %s contains %s.', [full_path, tag]);
+          debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [full_path, tag]);
           Result := True;
           Break;
         end;
@@ -807,8 +810,8 @@ begin
             de.subdirlist := TDirlist.Create(site_name, de, skiplist);
             if de.subdirlist <> nil then
               de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
-              // TODO: Remove debug when satisfied 
-              Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
+
+            //Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
           end;
 
           if (self.date_started = 0) then
