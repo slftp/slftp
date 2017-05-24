@@ -454,6 +454,7 @@ begin
   if (event = '') then
     event := 'NEWDIR';
 
+  Debug(dpError, rsections, Format('Section: %s handler is %s', [section, FindSectionHandler(section).Name]));
   genre := '';
   if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
@@ -624,7 +625,7 @@ begin
 
             precatcher_lock.Enter;
             try
-              ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
+               ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
             finally
               precatcher_lock.Leave;
             end;
