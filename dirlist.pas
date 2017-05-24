@@ -236,10 +236,13 @@ begin
 
     // For debug purposes only
     if (Result) then
-      Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size])
+    begin
+      Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size]);
+    end
     else
-      Debug(dpError, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
-
+    begin
+      //Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
+    end
   end
   else
   begin
