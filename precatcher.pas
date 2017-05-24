@@ -454,7 +454,6 @@ begin
   if (event = '') then
     event := 'NEWDIR';
 
-  Debug(dpError, rsections, Format('Section: %s handler is %s', [section, FindSectionHandler(section).Name]));
   genre := '';
   if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
