@@ -235,12 +235,10 @@ begin
     end;
 
     // For debug purposes only
-    (*
     if (Result) then
       Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size])
     else
       Debug(dpError, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
-    *)
 
   end
   else
@@ -811,7 +809,7 @@ begin
             if de.subdirlist <> nil then
               de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
 
-            //Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
+            Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
           end;
 
           if (self.date_started = 0) then

@@ -1277,7 +1277,9 @@ begin
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
   if dirlist <> nil then
-    dirlist.SetFullPath(maindir);
+  begin
+    dirlist.SetFullPath(MyIncludeTrailingSlash(maindir) + MyIncludeTrailingSlash(pazo.rls.rlsname));
+  end;
 
   s_dirlisttasks := TSafeInteger.Create;
   s_racetasks := TSafeInteger.Create;
