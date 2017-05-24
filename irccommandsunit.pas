@@ -4043,88 +4043,6 @@ begin
   Result := True;
 end;
 
-//procedure SitesD(const Netname, Channel: string; out sitesup: TStringList;
-//  out sitesdn: TStringList; out sitesuk: TStringList; out sitespd: TStringList);
-
-procedure SitesD(const Netname, Channel: AnsiString; var sitesup, sitesdn, sitesuk, sitespd:
-  TStringList);
-var
-  s: TSite;
-  i: integer;
-begin
-  //sitesup := TStringList.Create;
-  //sitesdn := TStringList.Create;
-  //sitespd := TStringList.Create;
-  //sitesuk := TStringList.Create;
-
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-    if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'))
-      then
-      Continue;
-
-    if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
-      Continue;
-    if s.PermDown then
-    begin
-      sitespd.Add(s.Name);
-      Continue;
-    end;
-    case s.working of
-      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' +
-          IntToStr(s.slots.Count) + ')');
-      sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
-      sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
-    end;
-  end;
-
-end;
-
-procedure SitesC(const Netname, Channel: AnsiString);
-var
-  s: TSite;
-  i: integer;
-  sup, sd, suk: TStringList;
-begin
-  sup := TStringList.Create;
-  sd := TStringList.Create;
-  suk := TStringList.Create;
-  try
-
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := TSite(sites[i]);
-      if UpperCase(s.Name) = UpperCase(config.ReadString(
-        'sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
-      if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
-        Continue;
-      case s.working of
-        sstUp:
-          sup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) +
-            '</b>/' + IntToStr(s.slots.Count) + ')');
-        sstDown:
-          sd.Add('<b>' + s.Name + '</b>');
-        sstUnknown:
-          suk.Add('<b>' + s.Name + '</b>');
-      end;
-    end;
-
-    irc_addtext(Netname, Channel, 'UP: ' + sup.commatext);
-    irc_addtext(Netname, Channel, 'DN: ' + sd.commatext);
-    irc_addtext(Netname, Channel, '??: ' + suk.commatext);
-    irc_addtext(Netname, Channel, '##: %d UP:%d DN:%d ??:%d ',
-      [sites.Count, sup.Count, sd.Count, suk.Count]);
-
-  finally
-    sup.Free;
-    sd.Free;
-    suk.Free;
-  end;
-
-end;
-
 procedure SitesB(const Netname, Channel: AnsiString);
 var
   up, down, unk: AnsiString;
@@ -5728,12 +5646,19 @@ var
   scount: integer;
 begin
   scount := sites.Count - 1;
+
   sup := TStringList.Create;
   spd := TStringList.Create;
   sdn := TStringList.Create;
   suk := TStringList.Create;
   try
-    SitesD(Netname, Channel, sup, sdn, suk, spd);
+    SitesWorkingStatusToStringlist(Netname, Channel, sup, sdn, suk, spd);
+
+    // make it alphabetically
+    sup.Sort;
+    spd.Sort;
+    sdn.Sort;
+    suk.Sort;
 
     IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
       'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
@@ -11178,7 +11103,7 @@ begin
   sdn := TStringList.Create;
   suk := TStringList.Create;
   try
-    SitesD(Netname, Channel, sup, sdn, suk, spd);
+    SitesWorkingStatusToStringlist(Netname, Channel, sup, sdn, suk, spd);
 
     irc_addtext(Netname, Channel,
       '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
