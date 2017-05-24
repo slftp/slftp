@@ -1471,6 +1471,11 @@ begin
   end;
 end;
 
+class function TRelease.Name: AnsiString;
+begin
+  Result := 'TRelease';
+end;
+
 { TMP3Release }
 
 function TMP3Release.Evszam(s: AnsiString): boolean;
