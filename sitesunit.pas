@@ -12,10 +12,31 @@ type
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
 
+  {
+  @value(sswUnknown unknown ftpd software)
+  @value(sswGlftpd glFTPd software)
+  @value(sswDrftpd DrFTPD software)
+  @value(sswIoftpd ioFTPD software)
+  }
   TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
+
   TProtection = (prNone, prProtP, prProtC);
-  TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds,
-    sstOutOfSpace);
+
+  {
+  @value(sstUnknown unknown (not yet connected) status)
+  @value(sstUp reachable and usable (UP) status)
+  @value(sstDown down status)
+  @value(sstMarkedDown marked as down because of temporary problems (MAYBE, NOT SURE ABOUT IT!))
+  @value(sstOutOfCreds no credits left)
+  @value(sstOutOfSpace no space left)
+  }
+  TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds, sstOutOfSpace);
+
+  {
+  @value(srNone Site to Site (s2s) SSL not needed)
+  @value(srNeeded Site to Site (s2s) SSL needed)
+  @value(srUnsupported Site to Site (s2s) SSL not supported)
+  }
   TSSLReq = (srNone, srNeeded, srUnsupported);
 
   TSite = class; // forward
@@ -326,6 +347,15 @@ function SiteSoftWareToSTring(site: TSite): AnsiString; overload;
 function sslMethodToSTring(sitename: AnsiString): AnsiString; overload;
 function sslMethodToSTring(site: TSite): AnsiString; overload;
 
+{ Checks each sites working property and add it to a formated Stringlist for irc output
+  Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
+  @param(sitesup Stringlist for working (sstUp) sites)
+  @param(sitesdn Stringlist for down (sstDown) sites)
+  @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
+  @param(sitespd Stringlist for permdown (PermDown) sites)
+}
+procedure SitesWorkingStatusToStringlist(const Netname, Channel: AnsiString; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
+
 var
   sitesdat: TEncIniFile = nil;
   sites: TObjectList = nil;
@@ -394,8 +424,36 @@ begin
   end;
 end;
 
-// NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
+procedure SitesWorkingStatusToStringlist(const Netname, Channel: AnsiString; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
+var
+  s: TSite;
+  i: integer;
+begin
 
+  for i := 0 to sites.Count - 1 do
+  begin
+    s := TSite(sites[i]);
+    if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      Continue;
+
+    if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
+      Continue;
+    if s.PermDown then
+    begin
+      sitespd.Add(s.Name);
+      Continue;
+    end;
+
+    case s.working of
+      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+      sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
+      sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
+    end;
+  end;
+
+end;
+
+// NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
 function FindSiteByName(netname, sitename: AnsiString): TSite;
 var
   i: integer;
