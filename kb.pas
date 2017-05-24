@@ -94,7 +94,7 @@ type
     procedure SetPretime(TimeStamp: int64 = 0);
     class function Name: AnsiString; virtual; abstract;
     class function DefaultSections: AnsiString; virtual; abstract;
-    class function SectionAccepted(section: AnsiString): boolean;
+    class function SectionAccepted(const section: AnsiString): boolean;
   end;
 
   T0DayRelease = class(TRelease)
@@ -264,8 +264,8 @@ function renameCheck(pattern, i, len: integer; rls: AnsiString): boolean;
 function kb_Add(const netname, channel: AnsiString;
   sitename, section, genre, event, rls, cdno: AnsiString; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
-//forceRebuild: Boolean = False;
-function FindSectionHandler(section: AnsiString): TCRelease;
+
+function FindSectionHandler(const section: AnsiString): TCRelease;
 
 procedure kb_FreeList;
 procedure kb_Save;
@@ -348,7 +348,7 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
 
-function FindSectionHandler(section: AnsiString): TCRelease;
+function FindSectionHandler(const section: AnsiString): TCRelease;
 var
   i: integer;
 begin
@@ -1448,7 +1448,7 @@ begin
   Result := '';
 end;
 
-class function TRelease.SectionAccepted(section: AnsiString): boolean;
+class function TRelease.SectionAccepted(const section: AnsiString): boolean;
 var
   i: integer;
   x: TStringList;
