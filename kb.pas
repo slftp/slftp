@@ -92,7 +92,7 @@ type
     function Aktualizal(p: TObject): boolean; virtual;
 
     procedure SetPretime(TimeStamp: int64 = 0);
-    class function Name: AnsiString; virtual; abstract;
+    class function Name: AnsiString; virtual;// abstract;
     class function DefaultSections: AnsiString; virtual; abstract;
     class function SectionAccepted(const section: AnsiString): boolean;
   end;
@@ -1469,6 +1469,11 @@ begin
       Result := False;
     end;
   end;
+end;
+
+class function TRelease.Name: AnsiString;
+begin
+  Result := 'TRelease';
 end;
 
 { TMP3Release }
