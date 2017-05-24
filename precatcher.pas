@@ -346,6 +346,9 @@ begin
       Result := mp3genres[i];
       Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
     end;
+
+    note: Can't we !catchadd a line with event UPDATE to handle this line ?
+
   }
 
     if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
@@ -448,8 +451,11 @@ begin
     exit;
   end;
 
+  if (event = '') then
+    event := 'NEWDIR';
+
   genre := '';
-  if (1 = Pos('MP3', section)) then
+  if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
     genre := _findMP3GenreOnAnnounce(s, ts_data);
     if genre <> '' then
@@ -459,10 +465,6 @@ begin
     end;
   end;
 
-  if (event = '') then
-  begin
-    event := 'NEWDIR';
-  end;
   MyDebug('Event: %s', [event]);
   Debug(dpSpam, rsections, 'Event: %s', [event]);
 
