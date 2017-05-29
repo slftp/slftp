@@ -755,55 +755,59 @@ begin
             de.filesize := filesize;
 
 
-          if (de.directory) and (not isFromIrc) then
+          // Do not filter if we call the dirlist from irc
+          if not isFromIrc then
           begin
-            // check if we have a special kind of subdirectory
-            de.DirType := IsUnknown;
-            splx := TRegExpr.Create;
-            splx.ModifierI := True;
-            try
+            if (de.directory) then
+            begin
+              // check if we have a special kind of subdirectory
+              de.DirType := IsUnknown;
+              splx := TRegExpr.Create;
+              splx.ModifierI := True;
               try
-                splx.Expression := '^sample$';
-                if (splx.Exec(filename)) then
-                  de.DirType := IsSample;
-                splx.Expression := '^proof$';
-                if (splx.Exec(filename)) then
-                  de.DirType := IsProof;
-                splx.Expression := '^(sub|subs)$';
-                if(splx.Exec(filename)) then
-                  de.DirType := IsSubs;
-                splx.Expression := '^(cover|covers)$';
-                if (splx.Exec(filename)) then
-                  de.DirType := IsCovers;
-              except
-                on e: Exception do
-                  debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
+                try
+                  splx.Expression := '^sample$';
+                  if (splx.Exec(filename)) then
+                    de.DirType := IsSample;
+                  splx.Expression := '^proof$';
+                  if (splx.Exec(filename)) then
+                    de.DirType := IsProof;
+                  splx.Expression := '^(sub|subs)$';
+                  if(splx.Exec(filename)) then
+                    de.DirType := IsSubs;
+                  splx.Expression := '^(cover|covers)$';
+                  if (splx.Exec(filename)) then
+                    de.DirType := IsCovers;
+                except
+                  on e: Exception do
+                    debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
+                end;
+              finally
+                splx.Free;
               end;
-            finally
-              splx.Free;
             end;
-          end;
 
-          if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest) and (not isFromIrc)) then
-          begin
-            de.Free;
-            Continue;
-          end;
-
-          if ((not de.Directory) and (not (de.filesize > 0) and (not isFromIrc))) then
-          begin
-            de.Free;
-            Continue;
-          end;
-
-          // Dont add skip files to dirlist
-          if ((not de.Directory) and (skiplist <> nil) and (not isFromIrc)) then
-          begin
-            de.RegenerateSkiplist;
-            if (de.skiplisted) then
+            if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
             begin
               de.Free;
               Continue;
+            end;
+
+            if ((not de.Directory) and (not (de.filesize > 0))) then
+            begin
+              de.Free;
+              Continue;
+            end;
+
+            // Dont add skip files to dirlist
+            if ((not de.Directory) and (skiplist <> nil)) then
+            begin
+              de.RegenerateSkiplist;
+              if (de.skiplisted) then
+              begin
+                de.Free;
+                Continue;
+              end;
             end;
           end;
 
