@@ -1290,7 +1290,7 @@ begin
 
   try
     sitesdat.ReadSectionValues('speed-from-' + Name, speed_from);
-    sitesdat.ReadSectionValues('speed-from-' + Name, speed_to);
+    sitesdat.ReadSectionValues('speed-to-' + Name, speed_to);
 
     speed_from.CustomSort(myspeedcomparer);
     speed_to.CustomSort(myspeedcomparer);
