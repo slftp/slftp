@@ -68,7 +68,7 @@ type
     last_race: TDateTime;
 
     speed_from: TStringList;
-    speed_to: TStringList;
+    //speed_to: TStringList; // not used
 
     activeTransfers: TStringList;
 
@@ -1286,14 +1286,14 @@ begin
   s_mkdirtasks := TSafeInteger.Create;
 
   speed_from := TStringList.Create;
-  speed_to := TStringList.Create;
+  // speed_to := TStringList.Create; // not used
 
   try
     sitesdat.ReadSectionValues('speed-from-' + Name, speed_from);
-    sitesdat.ReadSectionValues('speed-to-' + Name, speed_to);
+    // sitesdat.ReadSectionValues('speed-to-' + Name, speed_to); // not used
 
     speed_from.CustomSort(myspeedcomparer);
-    speed_to.CustomSort(myspeedcomparer);
+    // speed_to.CustomSort(myspeedcomparer); // not used
   except
     on e: Exception do
     begin
@@ -1301,7 +1301,7 @@ begin
         Format('[EXCEPTION] TPazoSite.Create speed(s): %s',
         [e.Message]));
       speed_from.Clear;
-      speed_to.Clear;
+      // speed_to.Clear; // not used
     end;
   end;
 end;
@@ -1319,7 +1319,7 @@ begin
   s_mkdirtasks.Free;
 
   speed_from.Free;
-  speed_to.Free;
+  // speed_to.Free; // not used
 
   inherited;
 end;
