@@ -106,6 +106,7 @@ type
     dependency_mkdir: AnsiString;
 
     isSpeedTest: Boolean;
+    isFromIrc: Boolean;
 
     procedure Clear;
     function hasnfo: Boolean;
@@ -115,8 +116,8 @@ type
     function No_NotSkiplisted: Integer;
     function firstfile: TDateTime;
     function lastfile: TDateTime;
-    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False); overload;
-    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: Boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -318,12 +319,12 @@ begin
   cache_completed := Result;
 end;
 
-constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False);
+constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
-  Create(site_name, parentdir, skiplist, '', speedtest);
+  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
 end;
 
-constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False);
+constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False; FromIrc: boolean = False);
 var sf: TSkipListFilter;
 begin
   lock := TCriticalSection.Create;
@@ -353,6 +354,7 @@ begin
   SetSkiplists;
 
   self.isSpeedTest := SpeedTest;
+  self.isFromIrc := FromIrc;
 
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
@@ -684,39 +686,43 @@ begin
           Continue;
         end;
 
-        // Dont add complete tags to dirlist entries
-        if ((dirmaszk[1] = 'd') or (filesize < 1)) then
+        // Do not filter if we call the dirlist from irc
+        if not isFromIrc then
         begin
-          j := TagComplete(filename);
-          if (j <> 0) then
+          // Dont add complete tags to dirlist entries
+          if ((dirmaszk[1] = 'd') or (filesize < 1)) then
           begin
-            complete_tag := filename;
+            j := TagComplete(filename);
+            if (j <> 0) then
+            begin
+              complete_tag := filename;
+              Continue;
+            end;
+          end;
+
+          // file is flagged as skipped
+          if (skipped.IndexOf(filename) <> -1) then
+            Continue;
+
+          // entry is a file and is 0 byte
+          if ((dirmaszk[1] <> 'd') and (filesize < 1)) then
+          begin
             Continue;
           end;
-        end;
 
-        // file is flagged as skipped
-        if (skipped.IndexOf(filename) <> -1) then
-          Continue;
-
-        // entry is a file and is 0 byte
-        if ((dirmaszk[1] <> 'd') and (filesize < 1)) then
-        begin
-          Continue;
-        end;
-
-        // entry is a file and is not downlodable
-        if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
-        begin
-          Continue;
-        end;
-
-        // entry is a file and is being uploaded (glftpd only?)
-        if skip_being_uploaded_files then
-        begin
-          if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+          // entry is a file and is not downlodable
+          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
           begin
             Continue;
+          end;
+
+          // entry is a file and is being uploaded (glftpd only?)
+          if skip_being_uploaded_files then
+          begin
+            if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+            begin
+              Continue;
+            end;
           end;
         end;
 
@@ -749,7 +755,7 @@ begin
             de.filesize := filesize;
 
 
-          if (de.directory) then
+          if (de.directory) and (not isFromIrc) then
           begin
             // check if we have a special kind of subdirectory
             de.DirType := IsUnknown;
@@ -778,20 +784,20 @@ begin
             end;
           end;
 
-          if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
+          if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest) and (not isFromIrc)) then
           begin
             de.Free;
             Continue;
           end;
 
-          if ((not de.Directory) and (not (de.filesize > 0))) then
+          if ((not de.Directory) and (not (de.filesize > 0) and (not isFromIrc))) then
           begin
             de.Free;
             Continue;
           end;
 
           // Dont add skip files to dirlist
-          if ((not de.Directory) and (skiplist <> nil)) then
+          if ((not de.Directory) and (skiplist <> nil) and (not isFromIrc)) then
           begin
             de.RegenerateSkiplist;
             if (de.skiplisted) then
@@ -808,11 +814,9 @@ begin
 
           if (de.Directory) then
           begin
-            de.subdirlist := TDirlist.Create(site_name, de, skiplist);
+            de.subdirlist := TDirlist.Create(site_name, de, skiplist, isSpeedTest, isFromIrc);
             if de.subdirlist <> nil then
               de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
-
-            Debug(dpError, section, 'DEBUG SET SUBDIR TYPE: Site: %s - Dir: %s - DirType: %s', [site_name, de.subdirlist.full_path, de.DirTypeAsString]);
           end;
 
           if (self.date_started = 0) then
