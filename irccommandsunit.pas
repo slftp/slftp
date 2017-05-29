@@ -665,6 +665,19 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
 
 const
   section = 'irccommands';
+  
+  CountryCodes: array [0..249] of string = ('AD','AE','AF','AG','AI','AL','AM','AN','AO','AQ','AR','AS','AT','AU','AW','AZ','BA','BB','BD','BE','BF','BG','BH','BI','BJ','BM','BN','BO','BR','BS','BT','BV','BW','BY','BZ','CA','CC','CD','CF','CG','CH','CI','CK','CL','CM','CN','CO','CR','CU','CV','CX','CY','CZ','DE','DJ','DK','DM','DO','DZ','EC','EE','EG','EH','ER','ES','ET','FI','FJ','FK','FM','FO','FR','FX','GA','GB','GD','GE','GF','GH','GI','GL','GM','GN','GP','GQ','GR','GS','GT','GU','GW',
+                                           'GY','HK','HM','HN','HR','HT','HU','ID','IE','IL','IN','IO','IQ','IR','IS','IT','JM','JO','JP','KE','KG','KH','KI','KM','KN','KP','KR','KW','KY','KZ','LA','LB','LC','LI','LK','LR','LS','LT','LU','LV','LY','MA','MC','MD','MG','MH','MK','ML','MM','MN','MO','MP','MQ','MR','MS','MT','MU','MV','MW','MX','MY','MZ','NA','NC','NE','NF','NG','NI','NL','NO','NP','NR','NU','NZ','OM','PA','PE','PF','PG','PH','PK','PL','PM','PN','PR','PS','PT','PW','PY','QA','RE','RO','RU',
+                                           'RW','SA','SB','SC','SD','SE','SG','SH','SI','SJ','SK','SL','SM','SN','SO','SR','ST','SV','SY','SZ','TC','TD','TF','TG','TH','TJ','TK','TM','TN','TO','TL','TR','TT','TV','TW','TZ','UA','UG','UM','US','UY','UZ','VA','VC','VE','VG','VI','VN','VU','WF','WS','YE','YT','RS','ZA','ZM','ME','ZW','A1','A2','O1','AX','GG','IM','JE','BL','MF');
+
+  CountryNames: array [0..249] of string = ('Andorra','United Arab Emirates','Afghanistan','Antigua and Barbuda','Anguilla','Albania','Armenia','Netherlands Antilles','Angola','Antarctica','Argentina','American Samoa','Austria','Australia','Aruba','Azerbaijan','Bosnia and Herzegovina','Barbados','Bangladesh','Belgium','Burkina Faso','Bulgaria','Bahrain','Burundi','Benin','Bermuda','Brunei Darussalam','Bolivia','Brazil','Bahamas','Bhutan','Bouvet Island','Botswana',
+                                           'Belarus','Belize','Canada','Cocos (Keeling) Islands','Congo, The Democratic Republic of the','Central African Republic','Congo','Switzerland','Cote D''Ivoire','Cook Islands','Chile','Cameroon','China','Colombia','Costa Rica','Cuba','Cape Verde','Christmas Island','Cyprus','Czech Republic','Germany','Djibouti','Denmark','Dominica','Dominican Republic','Algeria','Ecuador','Estonia','Egypt','Western Sahara','Eritrea','Spain','Ethiopia','Finland','Fiji',
+                                           'Falkland Islands (Malvinas)','Micronesia, Federated States of','Faroe Islands','France','France, Metropolitan','Gabon','United Kingdom','Grenada','Georgia','French Guiana','Ghana','Gibraltar','Greenland','Gambia','Guinea','Guadeloupe','Equatorial Guinea','Greece','South Georgia and the South Sandwich Islands','Guatemala','Guam','Guinea-Bissau','Guyana','Hong Kong','Heard Island and McDonald Islands','Honduras','Croatia','Haiti','Hungary','Indonesia','Ireland',
+                                           'Israel','India','British Indian Ocean Territory','Iraq','Iran, Islamic Republic of','Iceland','Italy','Jamaica','Jordan','Japan','Kenya','Kyrgyzstan','Cambodia','Kiribati','Comoros','Saint Kitts and Nevis','Korea, Democratic People''s Republic of','Korea, Republic of','Kuwait','Cayman Islands','Kazakhstan','Lao People''s Democratic Republic','Lebanon','Saint Lucia','Liechtenstein','Sri Lanka','Liberia','Lesotho','Lithuania','Luxembourg','Latvia',
+                                           'Libyan Arab Jamahiriya','Morocco','Monaco','Moldova, Republic of','Madagascar','Marshall Islands','Macedonia, the Former Yugoslav Republic of','Mali','Myanmar','Mongolia','Macao','Northern Mariana Islands','Martinique','Mauritania','Montserrat','Malta','Mauritius','Maldives','Malawi','Mexico','Malaysia','Mozambique','Namibia','New Caledonia','Niger','Norfolk Island','Nigeria','Nicaragua','Netherlands','Norway','Nepal','Nauru','Niue','New Zealand','Oman',
+                                           'Panama','Peru','French Polynesia','Papua New Guinea','Philippines','Pakistan','Poland','Saint Pierre and Miquelon','Pitcairn','Puerto Rico','Palestinian Territory, Occupied','Portugal','Palau','Paraguay','Qatar','Reunion','Romania','Russian Federation','Rwanda','Saudi Arabia','Solomon Islands','Seychelles','Sudan','Sweden','Singapore','Saint Helena','Slovenia','Svalbard and Jan Mayen','Slovakia','Sierra Leone','San Marino','Senegal','Somalia','Suriname',
+                                           'Sao Tome and Principe','El Salvador','Syrian Arab Republic','Swaziland','Turks and Caicos Islands','Chad','French Southern Territories','Togo','Thailand','Tajikistan','Tokelau','Turkmenistan','Tunisia','Tonga','Timor-Leste','Turkey','Trinidad and Tobago','Tuvalu','Taiwan','Tanzania, United Republic of','Ukraine','Uganda','United States Minor Outlying Islands','United States','Uruguay','Uzbekistan','Holy See (Vatican City State)',
+                                           'Saint Vincent and the Grenadines','Venezuela','Virgin Islands, British','Virgin Islands, U.S.','Vietnam','Vanuatu','Wallis and Futuna','Samoa','Yemen','Mayotte','Serbia','South Africa','Zambia','Montenegro','Zimbabwe','Anonymous Proxy','Satellite Provider','Other','Aland Islands','Guernsey','Isle of Man','Jersey','Saint Barthelemy','Saint Martin');
 
 procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
   QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
@@ -1046,7 +1059,7 @@ end;
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename1, sitename2: AnsiString;
-  speed: integer;
+  i, j, speed: integer;
   s1, s2: TSite;
 begin
   Result := False;
@@ -1054,34 +1067,180 @@ begin
   sitename2 := UpperCase(SubString(params, ' ', 2));
   speed := StrToIntDef(SubString(params, ' ', 3), -1);
 
-  if ((speed >= 10) or (speed < 0)) then
+  if ( (speed >= 10) or (speed < 0) ) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
-
-  s1 := FindSiteByName(Netname, sitename1);
-  if s1 = nil then
+  
+  if (sitename1 = sitename2) then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
-    exit;
-  end;
-  s2 := FindSiteByName(Netname, sitename2);
-  if s2 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>. Your doing a loop!</c>');
     exit;
   end;
 
-  if speed > 0 then
+  // sitename1[1] = '.' for setroute by location ( need to be setup as .se )
+  if ( (sitename1 = '*') or (sitename1[1] = '.') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
   begin
-    sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
-    sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
-  end
+    for i := 0 to sites.Count - 1 do
+    begin
+      s1 := TSite(sites[i]);
+      
+      if ( (sitename2 = '*') or (sitename2[1] = '.') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
+      begin
+        for j := 0 to sites.Count - 1 do
+        begin
+          s2 := TSite(sites[j]);
+          if ( s1.Name = s2.Name ) then
+            continue;
+          
+          if ( sitename2 = '*' ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+            continue;
+          end;
+          
+          if ( sitename2[1] = '.' ) then
+          begin
+            if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
+            begin
+              sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+              sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+              continue;
+            end;
+          end;
+          
+          if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+          end;
+        end;
+      end
+      else
+      begin
+        s2 := FindSiteByName(Netname, sitename2);
+        if s2 = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+          exit;
+        end;
+        
+        if ( s1.Name = s2.Name ) then
+          continue;
+          
+        if ( sitename1[1] = '.' ) then
+        begin
+          if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
+            continue;
+          end;
+        end;
+        
+        if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
+          sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
+          sitesdat.WriteInteger('speed-to-' + sitename2, s1.Name, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, sitename2]);
+        end;
+      end;
+    end
+  else if ( (sitename2 = '*') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      s2 := TSite(sites[i]);
+      
+      if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
+      begin
+        for j := 0 to sites.Count - 1 do
+        begin
+          s1 := TSite(sites[j]);
+          if ( s2.Name = s1.Name ) then
+            continue;
+          
+          if ( sitename1 = '*' ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+            continue;
+          end;
+          
+          if ( sitename1[1] = '.' ) then
+          begin
+            if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
+            begin
+              sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+              sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+              continue;
+            end;
+          end;
+          
+          if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+          end;
+        end;
+      end
+      else
+      begin
+        s1 := FindSiteByName(Netname, sitename1);
+        if s1 = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
+          exit;
+        end;
+        
+        if ( s2.Name = s1.Name ) then
+          continue;
+          
+        if ( sitename1[1] = '.' ) then
+        begin
+          if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
+          begin
+            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
+            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
+            continue;
+          end;
+        end;
+        
+        if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
+          sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
+          sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [sitename1, s2.Name]);
+        end;
+      end;
+    end
   else
   begin
-    sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
-    sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
+    s2 := FindSiteByName(Netname, sitename2);
+    if s2 = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+      exit;
+    end;
+
+    if speed > 0 then
+    begin
+      sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
+      sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
+    end
+    else
+    begin
+      sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
+      sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
+    end;
   end;
 
   Result := True;
@@ -5798,15 +5957,13 @@ begin
 
       if x.Strings[i] = 'sslmethod' then
       begin
-        irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''),
-          sslMethodToSTring(s)]);
+        irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), sslMethodToSTring(s)]);
         Continue;
       end;
 
       if x.Strings[i] = 'sw' then
       begin
-        irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''),
-          SiteSoftWareToSTring(s)]);
+        irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), SiteSoftWareToSTring(s)]);
         Continue;
       end;
 
@@ -5844,10 +6001,8 @@ begin
         else
         begin
           //we can use j_sec because it's set to 0 below when used there - so no need to create a new integer variable!
-          j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))),
-            CountryCodes);
-          irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''),
-            CountryNames[j_sec]]);
+          j_sec := AnsiIndexText(copy(s.RCString(x[i], ''), 2, length(s.RCString(x[i], ''))), CountryCodes);
+          irc_addtext(Netname, Channel, ' %s: %s (%s)', [x[i], s.RCString(x[i], ''), CountryNames[j_sec]]);
           continue;
         end;
       end
@@ -6175,15 +6330,12 @@ begin
   i := AnsiIndexText(countrywithoutdot, CountryCodes);
   if not (i > -1) then
   begin
-    irc_addtext(Netname, Channel,
-      'Country %s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements',
-      [country]);
+    irc_addtext(Netname, Channel, 'Country %s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements', [country]);
     exit;
   end;
 
   s.WCString('country', country);
-  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country,
-    CountryNames[i]]);
+  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country, CountryNames[i]]);
 
   Result := True;
 end;
