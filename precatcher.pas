@@ -954,14 +954,14 @@ begin
       if rx.Exec(ss) then
       begin
         repeat
-          mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2), rx.Match[1]));
+          mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), rx.Match[1]));
         until not rx.ExecNext;
       end
       else
       begin
         db := Count(',', ss);
         for i := 1 to db + 1 do
-          mappingslist.Add(TMap.Create(SubString(s, ';', 1), SubString(s, ';', 2), SubString(ss, ',', i)));
+          mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), SubString(ss, ',', i)));
       end;
     end;
 
