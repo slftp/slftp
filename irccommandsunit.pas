@@ -1212,7 +1212,7 @@ begin
 
   if s <> '' then
   begin
-    Result := TDirList.Create(sitename, nil, nil, s, SpeedTest);
+    Result := TDirList.Create(sitename, nil, nil, s, SpeedTest, true);
     if Result <> nil then
       Result.SetFullPath(dir);
   end;
