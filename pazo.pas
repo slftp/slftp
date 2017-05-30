@@ -173,9 +173,9 @@ type
     function PRegisterFile(dir, filename: AnsiString; filesize: Int64): integer;
   end;
 
-function FindPazoById(id: integer): TPazo;
-function FindPazoByName(section, rlsname: AnsiString): TPazo;
-function FindPazoByRls(rlsname: AnsiString): TPazo;
+function FindPazoById(const id: integer): TPazo;
+function FindPazoByName(const section, rlsname: AnsiString): TPazo;
+function FindPazoByRls(const rlsname: AnsiString): TPazo;
 function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
 procedure PazoInit;
 procedure PazoUninit;
@@ -309,26 +309,7 @@ begin
   Inc(local_pazo_id);
 end;
 
-(*
-function FindPazoById(id: Integer): TPazo;
-var i: integer;
-    p: TPazo;
-begin
-  Result:= nil;
-  for i:= pazos.Count -1 downto 0 do
-  begin
-    p:= TPazo(pazos[i]);
-    if p.pazo_id = id then
-    begin
-      p.lastTouch:= Now();
-      Result:= p;
-      exit;
-    end;
-  end;
-end;
-*)
-
-function FindPazoById(id: integer): TPazo;
+function FindPazoById(const id: integer): TPazo;
 var
   i: integer;
   p: TPazo;
@@ -358,7 +339,7 @@ begin
   end;
 end;
 
-function FindPazoByName(section, rlsname: AnsiString): TPazo;
+function FindPazoByName(const section, rlsname: AnsiString): TPazo;
 var
   i: integer;
 begin
@@ -379,7 +360,7 @@ begin
   end;
 end;
 
-function FindPazoByRls(rlsname: AnsiString): TPazo;
+function FindPazoByRls(const rlsname: AnsiString): TPazo;
 var
   i: integer;
   p: TPazo;
@@ -407,7 +388,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
+      Result := nil;
     end;
   end;
 end;
@@ -1667,7 +1649,7 @@ begin
       exit;
 
     lines_read := 0;
-    // crashes 
+    // crashes
     while (True) do
     begin
       s := Elsosor(resp);
