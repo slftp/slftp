@@ -1045,179 +1045,124 @@ end;
 
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename1, sitename2: AnsiString;
-  i, j, speed: integer;
-  s1, s2: TSite;
+  source, dest: AnsiString;
+  c1, c2, sw1, sw2: AnsiString;
+  i,j: integer;
+  apply: Boolean;
+  source_sites, dest_sites: TStringList;
+  site: TSite;
+  speed: integer;
+
 begin
   Result := False;
-  sitename1 := UpperCase(SubString(params, ' ', 1));
-  sitename2 := UpperCase(SubString(params, ' ', 2));
+
+  source := UpperCase(SubString(params, ' ', 1));
+  dest := UpperCase(SubString(params, ' ', 2));
   speed := StrToIntDef(SubString(params, ' ', 3), -1);
+  c1 := '';
+  c2 := '';
+  sw1 := '';
+  sw2 := '';
+  apply := False;
 
-  if ( (speed >= 10) or (speed < 0) ) then
+  // sanity check for first args
+  if (source <> '*') and (AnsiContainsText(source, '-')) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(Netname, Channel, '<c4><b>First argument must be a site name or *</b>.</c>');
     exit;
   end;
-  
-  if (sitename1 = sitename2) then
+  if (dest <> '*') and (AnsiContainsText(dest, '-')) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>. Your doing a loop!</c>');
+    irc_addtext(Netname, Channel, '<c4><b>Second argument must be a site name or *</b>.</c>');
+    exit;
+  end;
+  if ((speed >= 10) or (speed < 0)) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Third argument must be a speed between 0 and 9</b>.</c>');
     exit;
   end;
 
-  // sitename1[1] = '.' for setroute by location ( need to be setup as .se )
-  if ( (sitename1 = '*') or (sitename1[1] = '.') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
-  begin
-    for i := 0 to sites.Count - 1 do
+  // lookup optional filters from params line
+
+
+  // here we go with the real stuff
+  source_sites := TStringList.Create;
+  dest_sites := TStringList.Create;
+  site := nil;
+  try
+    // lookup source site(s)
+    if source = '*' then
     begin
-      s1 := TSite(sites[i]);
-      
-      if ( (sitename2 = '*') or (sitename2[1] = '.') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
+      for i := 0 to sites.Count - 1 do
       begin
-        for j := 0 to sites.Count - 1 do
-        begin
-          s2 := TSite(sites[j]);
-          if ( s1.Name = s2.Name ) then
-            continue;
-          
-          if ( sitename2 = '*' ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
-            continue;
-          end;
-          
-          if ( sitename2[1] = '.' ) then
-          begin
-            if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
-            begin
-              sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
-              sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
-              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
-              continue;
-            end;
-          end;
-          
-          if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
-          end;
-        end;
-      end
-      else
-      begin
-        s2 := FindSiteByName(Netname, sitename2);
-        if s2 = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
-          exit;
-        end;
-        
-        if ( s1.Name = s2.Name ) then
+        site := nil;
+        site := TSite(sites[i]);
+
+        // site not found (shouldn't happen)
+        if site = nil then
           continue;
-          
-        if ( sitename1[1] = '.' ) then
-        begin
-          if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s2.Name, s1.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
-            continue;
-          end;
-        end;
-        
-        if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
-          sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
-          sitesdat.WriteInteger('speed-to-' + sitename2, s1.Name, speed);
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, sitename2]);
-        end;
+
+        // here add filters handling
+
+        // add site to the source sites list
+        source_sites.Add(site.Name);
       end;
     end
-  else if ( (sitename2 = '*') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
-  begin
-    for i := 0 to sites.Count - 1 do
+    else
     begin
-      s2 := TSite(sites[i]);
-      
-      if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
+      site := FindSiteByName(Netname, source);
+      if site = nil then
       begin
-        for j := 0 to sites.Count - 1 do
-        begin
-          s1 := TSite(sites[j]);
-          if ( s2.Name = s1.Name ) then
-            continue;
-          
-          if ( sitename1 = '*' ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
-            continue;
-          end;
-          
-          if ( sitename1[1] = '.' ) then
-          begin
-            if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
-            begin
-              sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
-              sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
-              irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
-              continue;
-            end;
-          end;
-          
-          if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
-          end;
-        end;
-      end
-      else
+        irc_addtext(Netname, Channel, 'Source site <b>%s</b> not found.', [source]);
+        exit;
+      end;
+      source_sites.Add(site.Name);
+    end;
+
+    // lookup destination site(s)
+    if dest = '*' then
+    begin
+      for i := 0 to sites.Count - 1 do
       begin
-        s1 := FindSiteByName(Netname, sitename1);
-        if s1 = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
-          exit;
-        end;
-        
-        if ( s2.Name = s1.Name ) then
+        site := nil;
+        site := TSite(sites[i]);
+
+        // site not found (shouldn't happen)
+        if site = nil then
           continue;
-          
-        if ( sitename1[1] = '.' ) then
-        begin
-          if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
-          begin
-            sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
-            sitesdat.WriteInteger('speed-to-' + s1.Name, s2.Name, speed);
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
-            continue;
-          end;
-        end;
-        
-        if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
-          sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
-          sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [sitename1, s2.Name]);
-        end;
+
+        // here add filters handling
+
+        // add site to the destination sites list
+        dest_sites.Add(site.Name);
       end;
     end
-  else
-  begin
-    s2 := FindSiteByName(Netname, sitename2);
-    if s2 = nil then
+    else
     begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
+      site := FindSiteByName(Netname, dest);
+      if site = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Destination site <b>%s</b> not found.', [source]);
+        exit;
+      end;
+      dest_sites.Add(site.Name);
+    end;
+
+    // Check if we have work to do
+    if source_sites.Count < 1 then
+    begin
+      irc_addtext(Netname, Channel, 'No source site match your criterias.');
+      exit;
+    end;
+    if source_sites.Count < 1 then
+    begin
+      irc_addtext(Netname, Channel, 'No destination site match your criterias.');
       exit;
     end;
 
+    exit;
+
+    (*
     if speed > 0 then
     begin
       sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
@@ -1228,6 +1173,10 @@ begin
       sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
       sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
     end;
+    *)
+  finally
+    FreeAndNil(source_sites);
+    FreeAndNil(dest_sites);
   end;
 
   Result := True;
