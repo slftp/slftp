@@ -344,6 +344,8 @@ begin
         Break;
       end;
       p := TPazo(kb_list.Objects[i]);
+      if p = nil then
+        exit;
       if p.pazo_id = id then
       begin
         Result := p;
@@ -366,7 +368,10 @@ begin
     if i <> -1 then
     begin
       Result := TPazo(kb_list.Objects[i]);
-      Result.lastTouch := Now();
+
+      if Result <> nil then
+        Result.lastTouch := Now();
+
       exit;
     end;
   except
