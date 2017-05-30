@@ -297,6 +297,7 @@ type
     property ProxyName: AnsiString read GetProxyName write SetProxyName;
     property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
     property PassWord: AnsiString read GetSitePassword write SetSitePassword;
+    property Country: AnsiString read GetSiteCountry write SetSiteCountry;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -3309,6 +3310,16 @@ end;
 function TSite.GetSitePassword;
 begin
   Result := RCString('password', 'CR4P_P4$$W0RD');
+end;
+
+procedure TSite.SetSiteCountry(Value: AnsiString);
+begin
+  WCString('country', Value);
+end;
+
+function TSite.GetSiteCountry;
+begin
+  Result := RCString('country', '??');
 end;
 
 function TSite.GetNoLoginMSG: boolean;

@@ -1059,7 +1059,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
-  
+
   if (sitename1 = sitename2) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>. Your doing a loop!</c>');
@@ -1072,7 +1072,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s1 := TSite(sites[i]);
-      
+
       if ( (sitename2 = '*') or (sitename2[1] = '.') or (sitename2 = '!GLFTPD!') or (sitename2 = '!DRFTPD!') or (sitename2 = '!IOFTPD!') ) then
       begin
         for j := 0 to sites.Count - 1 do
@@ -1080,7 +1080,7 @@ begin
           s2 := TSite(sites[j]);
           if ( s1.Name = s2.Name ) then
             continue;
-          
+
           if ( sitename2 = '*' ) then
           begin
             sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
@@ -1088,7 +1088,7 @@ begin
             irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s1.Name, s2.Name]);
             continue;
           end;
-          
+
           if ( sitename2[1] = '.' ) then
           begin
             if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
@@ -1099,7 +1099,7 @@ begin
               continue;
             end;
           end;
-          
+
           if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
           begin
             sitesdat.WriteInteger('speed-from-' + s1.Name, s2.Name, speed);
@@ -1116,10 +1116,10 @@ begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
           exit;
         end;
-        
+
         if ( s1.Name = s2.Name ) then
           continue;
-          
+
         if ( sitename1[1] = '.' ) then
         begin
           if ( (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') = s2.RCString('country', '')) ) then
@@ -1130,7 +1130,7 @@ begin
             continue;
           end;
         end;
-        
+
         if ( AnsiUpperCase(SiteSoftWareToSTring(s1)) = AnsiUpperCase(SiteSoftWareToSTring(s2)) ) then
           sitesdat.WriteInteger('speed-from-' + s1.Name, sitename2, speed);
           sitesdat.WriteInteger('speed-to-' + sitename2, s1.Name, speed);
@@ -1143,7 +1143,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s2 := TSite(sites[i]);
-      
+
       if ( (sitename1 = '*') or (sitename1 = '!GLFTPD!') or (sitename1 = '!DRFTPD!') or (sitename1 = '!IOFTPD!') ) then
       begin
         for j := 0 to sites.Count - 1 do
@@ -1151,7 +1151,7 @@ begin
           s1 := TSite(sites[j]);
           if ( s2.Name = s1.Name ) then
             continue;
-          
+
           if ( sitename1 = '*' ) then
           begin
             sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
@@ -1159,7 +1159,7 @@ begin
             irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [s2.Name, s1.Name]);
             continue;
           end;
-          
+
           if ( sitename1[1] = '.' ) then
           begin
             if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
@@ -1170,7 +1170,7 @@ begin
               continue;
             end;
           end;
-          
+
           if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
           begin
             sitesdat.WriteInteger('speed-from-' + s2.Name, s1.Name, speed);
@@ -1187,10 +1187,10 @@ begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
           exit;
         end;
-        
+
         if ( s2.Name = s1.Name ) then
           continue;
-          
+
         if ( sitename1[1] = '.' ) then
         begin
           if ( (s2.RCString('country', '') <> '') AND (s1.RCString('country', '') <> '') AND (s2.RCString('country', '') = s1.RCString('country', '')) ) then
@@ -1201,7 +1201,7 @@ begin
             continue;
           end;
         end;
-        
+
         if ( AnsiUpperCase(SiteSoftWareToSTring(s2)) = AnsiUpperCase(SiteSoftWareToSTring(s1)) ) then
           sitesdat.WriteInteger('speed-from-' + sitename1, s2.Name, speed);
           sitesdat.WriteInteger('speed-to-' + s2.Name, sitename1, speed);
@@ -5880,8 +5880,7 @@ begin
 
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
     irc_addtext(Netname, Channel, ' name/speed/location/size:B %s / %s / %s / %s',
-      [s.RCString('name', '??'), s.RCString('link', '??'),
-      s.RCString('country', '??'), s.RCString('size', '??')]);
+      [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
     irc_addtext(Netname, Channel, ' sections:B %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
@@ -6321,8 +6320,8 @@ begin
     exit;
   end;
 
-  s.WCString('country', country);
-  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country, CountryNames[i]]);
+  s.Country := country;
+  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, s.Country, CountryNames[i]]);
 
   Result := True;
 end;
@@ -6540,7 +6539,7 @@ begin
   begin
     s := TSite(sites[i]);
 
-    if country = s.RCString('country', '') then
+    if country = s.Country then
     begin
       ss := ss + format(' <b>%s</b>', [s.Name]);
       site_found := True;
