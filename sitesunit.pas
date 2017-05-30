@@ -190,6 +190,9 @@ type
     function GetSitePassword: AnsiString;
     procedure SetSitePassword(Value: AnsiString);
 
+    function GetSiteCountry: AnsiString;
+    procedure SetSiteCountry(Value: AnsiString);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
