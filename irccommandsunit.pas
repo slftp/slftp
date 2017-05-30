@@ -1045,7 +1045,7 @@ end;
 
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  source, dest: AnsiString;
+  source, dest, admin_site: AnsiString;
   c1, c2, sw1, sw2: AnsiString;
   i,j: integer;
   apply: Boolean;
@@ -1055,7 +1055,6 @@ var
 
 begin
   Result := False;
-
   source := UpperCase(SubString(params, ' ', 1));
   dest := UpperCase(SubString(params, ' ', 2));
   speed := StrToIntDef(SubString(params, ' ', 3), -1);
@@ -1063,7 +1062,9 @@ begin
   c2 := '';
   sw1 := '';
   sw2 := '';
-  apply := False;
+  apply := True;
+
+  admin_site := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 
   // sanity check for first args
   if (source <> '*') and (AnsiContainsText(source, '-')) then
@@ -1076,6 +1077,11 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Second argument must be a site name or *</b>.</c>');
     exit;
   end;
+  if (source = admin_site) or (dest = admin_site) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>You can not use admin site with this function</b>.</c>');
+    exit;
+  end;
   if ((speed >= 10) or (speed < 0)) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Third argument must be a speed between 0 and 9</b>.</c>');
@@ -1084,6 +1090,9 @@ begin
 
   // lookup optional filters from params line
 
+
+  if (source = '*') or (dest = '*') then
+    apply := False;
 
   // here we go with the real stuff
   source_sites := TStringList.Create;
@@ -1100,7 +1109,9 @@ begin
 
         // site not found (shouldn't happen)
         if site = nil then
-          continue;
+          Continue;
+        if site.Name = admin_site then
+          Continue;
 
         // here add filters handling
 
@@ -1129,7 +1140,9 @@ begin
 
         // site not found (shouldn't happen)
         if site = nil then
-          continue;
+          Continue;
+        if site.Name = admin_site then
+          Continue;
 
         // here add filters handling
 
@@ -1142,7 +1155,7 @@ begin
       site := FindSiteByName(Netname, dest);
       if site = nil then
       begin
-        irc_addtext(Netname, Channel, 'Destination site <b>%s</b> not found.', [source]);
+        irc_addtext(Netname, Channel, 'Destination site <b>%s</b> not found.', [dest]);
         exit;
       end;
       dest_sites.Add(site.Name);
@@ -1154,26 +1167,40 @@ begin
       irc_addtext(Netname, Channel, 'No source site match your criterias.');
       exit;
     end;
-    if source_sites.Count < 1 then
+    if dest_sites.Count < 1 then
     begin
       irc_addtext(Netname, Channel, 'No destination site match your criterias.');
       exit;
     end;
 
-    exit;
+    for i := 0 to source_sites.Count - 1 do
+    begin
+      for j := 0 to dest_sites.Count - 1 do
+      begin
+        // Source and dest is the same. Skipping.
+        if (source_sites[i] = dest_sites[j]) then
+          Continue;
 
-    (*
-    if speed > 0 then
-    begin
-      sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
-      sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
-    end
-    else
-    begin
-      sitesdat.DeleteKey('speed-from-' + sitename1, sitename2);
-      sitesdat.DeleteKey('speed-to-' + sitename2, sitename1);
-    end;
-    *)
+        irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [source_sites[i], dest_sites[j]]);
+
+        // When using wildcards apply changes only if -apply has been specified (to avoid unwanted changes)
+        if Apply then
+        begin
+          if speed > 0 then
+          begin
+            sitesdat.WriteInteger('speed-from-' + source_sites[i], dest_sites[j], speed);
+            sitesdat.WriteInteger('speed-to-' + dest_sites[j], source_sites[i], speed);
+          end
+          else
+            sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
+            sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
+          end;
+        end;
+      end;
+
+    if not Apply then
+      irc_addtext(Netname, Channel, 'Route were not really added. Check if you are satisfied and add -apply to the command.');
+
   finally
     FreeAndNil(source_sites);
     FreeAndNil(dest_sites);
