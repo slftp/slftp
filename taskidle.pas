@@ -2,7 +2,7 @@ unit taskidle;
 
 interface
 
-uses tasksunit;
+uses tasksunit, Math;
 
 type TIdleTask = class(TTask)
   idlecmd: AnsiString;
