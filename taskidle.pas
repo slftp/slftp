@@ -1,12 +1,12 @@
 unit taskidle;
 
 interface
-     
+
 uses tasksunit;
 
 type TIdleTask = class(TTask)
   idlecmd: AnsiString;
-  constructor Create(const netname, channel: AnsiString; site: AnsiString);
+  constructor Create(const netname, channel: AnsiString; const site: AnsiString);
   function Execute(slot: Pointer): Boolean; override;
   function Name: AnsiString; override;
 end;
@@ -25,7 +25,7 @@ var
   idlecommands: TStringList;
 
 { TIdleTask }
-constructor TIdleTask.Create(const netname, channel: AnsiString; site: AnsiString);
+constructor TIdleTask.Create(const netname, channel: AnsiString; const site: AnsiString);
 begin
   idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);
@@ -92,16 +92,18 @@ begin
 end;
 
 procedure TaskIdleInit;
-var s, ss: AnsiString;
-    i: Integer;
+var
+  s, ss: AnsiString;
+  i: Integer;
 begin
   idlecommands := TStringList.Create;
-  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .');
+  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .,SITE RULES,NOOP');
   i := 1;
-  while(true)do
+  while (true) do
   begin
     ss := SubString(s, ',', i);
-    if ss = '' then Break;
+    if ss = '' then
+      Break;
     idlecommands.Add(ss);
     inc(i);
   end;
