@@ -97,7 +97,7 @@ var
   i: Integer;
 begin
   idlecommands := TStringList.Create;
-  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .,SITE RULES,NOOP');
+  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .,SITE RULES,NOOP,SITE HELP,SITE VERS');
   i := 1;
   while (true) do
   begin
