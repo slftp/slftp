@@ -126,6 +126,7 @@
     {^} Show in a log message what's wrong with MySQL when using as predb
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
     {^} TVMaze Us US mismatch gets detected better now (#1)
+    {^} Rule tvrunning will be also true on Status "In Development"
     {^} No 'Section on SITE for SECTION was not found' on COMPLETE and NUKE announce (#117)
     {^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
     {^} No [NOT SET] message if site is set to permdown & rename to [SECTION NOT SET] (#108)

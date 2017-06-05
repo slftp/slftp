@@ -563,7 +563,7 @@ begin
     else
       tvr.tv_classification := AnsiString(js.Field['type'].Value);
 
-    tvr.tv_running := Boolean(lowercase(tvr.tv_status) = 'running');
+    tvr.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
     tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
 
     if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
