@@ -3350,7 +3350,7 @@ end;
 
 function TSite.GetSkipBeingUploadedFiles: boolean;
 begin
-  Result := RCBool('skip_being_uploaded_files', config.ReadBool(section, 'skip_being_uploaded_files', False));
+  Result := RCBool('skip_being_uploaded_files', config.ReadBool('dirlist', 'skip_being_uploaded_files', False));
 end;
 
 procedure TSite.SetSkipBeingUploadedFiles(Value: boolean);
