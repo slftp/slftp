@@ -973,11 +973,6 @@ begin
     Result := Result + Chr(b[i]);
 end;
 
-function myRand(mini, maxi: integer): integer;
-begin
-  Result := Random(maxi - mini + 1) + mini;
-end;
-
 function RPos(SubStr: AnsiChar; Str: AnsiString): integer;
 var
   m, i: integer;
