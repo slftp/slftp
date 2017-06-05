@@ -88,7 +88,6 @@ function CheckCompanyTaxNumber(TaxNumber: AnsiString): integer;
 function IsValidEmail(const Value: AnsiString): boolean;
 procedure MyWriteLn(s: AnsiString);
 function MyCopy(b: array of byte; index, len: integer): AnsiString;
-function myRand(mini, maxi: integer): integer;
 function ParseResponseCode(s: AnsiString): integer;
 
 {$IFDEF MSWINDOWS}
