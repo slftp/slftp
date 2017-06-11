@@ -1,9 +1,9 @@
 SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
-CFLAGS = -MDelphi -O3 -Xs
+CFLAGS = -MDelphi -O3 -Xs -Cg-
 CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE
-CDBFLAGS = -MDelphi -gl -gp -gs -gw3
+CDBFLAGS = -MDelphi -gl -gp -gs -gw3 -Cg-
 default: clean slftp
 
 all: slftp install
