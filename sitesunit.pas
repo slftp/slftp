@@ -2076,12 +2076,13 @@ end;
 
 function TSite.Getconnect_timeout: integer;
 begin
+  //TODO: Maybe use [timeout] from slftp.ini as default value
   Result := RCInteger('connect_timeout', 15);
 end;
 
 function TSite.GetIdleInterval: integer;
 begin
-  Result := RCInteger('idleinterval', 20);
+  Result := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
 end;
 
 function TSite.Getio_timeout: integer;
@@ -2091,7 +2092,7 @@ end;
 
 function TSite.GetMaxIdle: integer;
 begin
-  Result := RCInteger('max_idle', 120);
+  Result := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
 end;
 
 function TSite.GetMaxDn: integer;
