@@ -122,6 +122,7 @@
     {#} Classification was never updated when doing a tvinfo update
     {#} IMDB post_lookup_infos config setting is now respected
     {#} disable MySQL if host=(empty) in slftp.ini
+    {#} default values for maxidle and idleinterval never used from slftp.ini
     {^} Error handling for taskrace (dirlisttask, mkdirtask and racetask) is done
     {^} Show in a log message what's wrong with MySQL when using as predb
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
