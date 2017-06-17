@@ -205,25 +205,25 @@ type
 {$ENDIF}
 
 
-
-
-
 procedure slConsoleInit;
 begin
 {$IFDEF MSWINDOWS}
-  slScreen:= TslWindowsScreen.Create;
+  slScreen := TslWindowsScreen.Create;
 {$ELSE}
-  slScreen:= TslUnixScreen.Create;
+  slScreen := TslUnixScreen.Create;
 {$ENDIF}
 end;
-procedure   slConsoleUnInit;
+
+procedure slConsoleUnInit;
 begin
+  FreeAndNil(slScreen);
+  {
   slScreen.Free;
-  slScreen:= nil;
+  slScreen := nil;
+  }
 end;
 
 { TslScreen }
-
 procedure TslScreen.ClrScr;
 var px,py: Integer;
     i: Integer;
@@ -592,7 +592,7 @@ begin
   hStdin:= GetStdHandle(STD_INPUT_HANDLE) ;
   hStdout:= GetStdHandle(STD_OUTPUT_HANDLE) ;
   SetConsoleCtrlHandler (@ConProc, True);
- 
+
   inherited;
 end;
 
@@ -833,7 +833,7 @@ begin
   slSignal(SIGINT, @termCtrlC);
   slSignal(SIGTSTP, @termCtrlC);
 
-  w:= initscr; 
+  w:= initscr;
   cbreak;
   noecho;
   keypad(w, TRUE);
@@ -868,7 +868,7 @@ Begin
    Keypressed := FALSE;
    nodelay(w,TRUE);
    lll := wgetch(w);
-   If lll <> -1 Then  
+   If lll <> -1 Then
    Begin // ERR = -(1) from unit ncurses
       ungetch(lll);
       Keypressed := TRUE;
