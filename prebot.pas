@@ -857,7 +857,7 @@ begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
-  dir := RightStrv2(params, Length(sitename) + Length(section) + 2);
+  dir := mystrings.RightStr(params, Length(sitename) + Length(section) + 2);
 
   queue_lock.Enter;
   try
@@ -871,7 +871,7 @@ begin
     predir := s.sectiondir[section];
     if predir = '' then
     begin
-      dir := RightStrv2(params, Length(sitename) + 1);
+      dir := mystrings.RightStr(params, Length(sitename) + 1);
       section := 'PRE';
       predir := s.sectiondir[section];
     end;
@@ -1146,7 +1146,8 @@ var
   nfofound, added: boolean;
   sr: TSiteResponse;
   d: TDirList;
-  failed, perfect, aktfiles, aktsize, addednumber, i, files, size: integer;
+  failed, perfect, aktfiles, addednumber, i, files: integer;
+  aktsize, size: Int64;
   p: TPazo;
   ps: TPazoSite;
   r: TDirListTask;
@@ -1170,12 +1171,12 @@ begin
 
   predir := s.sectiondir[section];
 
-  dir := RightStrv2(params, length(sitename) + length(section) + 2);
+  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir  := s.sectiondir[section];
-    dir     := RightStrv2(params, length(sitename) + 1);
+    dir     := mystrings.RightStr(params, length(sitename) + 1);
   end;
   if (predir = '') then
   begin
