@@ -140,6 +140,7 @@
     {^} !sslmethod checks if valid SSL method + shows which one is used
     {^} Removed warning when "section not found" for complete & nuke announce (#117)
     {^} Some TV Shows weren't detected as STV from IMDb fetch
+    {^} Improvement of autodirlist announces
     {^} MVID Year regex changed from \-(\d{4})\- to \-((19|20)\d{2})\-
     {^} PermDown check on all irc commands with sitename = '*', means no setting changing for PermDown sites when using '*'
     {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)                                                                  ---- guess still no drop on mp3genre rule if not found ----
