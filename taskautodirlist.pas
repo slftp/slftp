@@ -33,11 +33,7 @@ type
     procedure Execute; override;
   end;
 
-  { TAutoSectionTask }
-
-var
-  reqrgx: TRegExpr;
-
+{ TAutoSectionTask }
 procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
 var
   x: TStringList;
@@ -69,8 +65,8 @@ begin
   i := kb_list.IndexOf('REQUEST-' + site1 + '-' + releasenametofind);
   if i <> -1 then
   begin
-    irc_Addadmin('already sending');
-    exit; // already sending
+    irc_Addadmin(format('already sending request %s to %s',[releasenametofind, site1]));
+    exit;
   end;
 
   s := slot;
@@ -169,6 +165,7 @@ var
   asection, ss, section, sectiondir: AnsiString;
   dl: TDirList;
   de: TDirListEntry;
+  reqrgx: TRegExpr;
 
   procedure UjraAddolas;
   begin
@@ -253,13 +250,16 @@ begin
             if section = 'REQUEST' then
             begin
               reqrgx := TRegExpr.Create;
-              reqrgx.ModifierI := True;
-              reqrgx.Expression := '^R[3E]Q(UEST)?-(by.[^\-]+\-)?(.*)$';
-              if reqrgx.Exec(de.filename) then
-              begin
-                ProcessRequest(slot, MyIncludeTrailingSlash(sectiondir), de.filename, reqrgx.match[3]);
+              try
+                reqrgx.ModifierI := True;
+                reqrgx.Expression := '^R[3E]Q(UEST)?-(by.[^\-]+\-)?(.*)$';
+                if reqrgx.Exec(de.filename) then
+                begin
+                  ProcessRequest(slot, MyIncludeTrailingSlash(sectiondir), de.filename, reqrgx.match[3]);
+                end;
+              finally
+                reqrgx.Free;
               end;
-              reqrgx.free;
             end
             else
             begin
