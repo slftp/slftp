@@ -65,7 +65,7 @@ begin
   i := kb_list.IndexOf('REQUEST-' + site1 + '-' + releasenametofind);
   if i <> -1 then
   begin
-    irc_Addadmin(format('already sending request %s to %s',[releasenametofind, site1]));
+    irc_Addadmin(Format('already sending request %s to %s', [releasenametofind, site1]));
     exit;
   end;
 
@@ -93,12 +93,6 @@ begin
           Break;
         if not s.Read('MKD Already_on_site_in_' + ss) then
           break;
-
-        {
-        // that's crap, why sending reqfilled before we fill it? This is done by TReqFillerThread
-        if not s.Send('SITE REQFILLED %s', [releasename]) then Break;
-        if not s.Read('SITE REQFILLED') then break;
-        }
 
         db := 0;
         Break;
@@ -205,7 +199,7 @@ begin
   begin
     ujraaddolas();
     readyerror := True;
-    irc_Addadmin('s.site.working = sstDown');
+    irc_Addadmin(Format('%s: s.site.working = sstDown', [s.site.Name]));
     exit;
   end;
 
@@ -215,7 +209,7 @@ begin
     begin
       ujraaddolas();
       readyerror := True;
-      irc_Addadmin('s.status <> ssOnline');
+      irc_Addadmin(Format('%s s.status <> ssOnline', [s.site.Name]));
       exit;
     end;
   end;
@@ -235,7 +229,7 @@ begin
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin
         readyerror := True;
-        irc_Addadmin('daydir might have change');
+        irc_Addadmin(Format('%s daydir might have change', [s.site.Name]));
         exit;
       end;
 
@@ -315,16 +309,14 @@ end;
 procedure TReqFillerThread.Execute;
 var
   rt: TRawTask;
+  reqfill_delay: Integer;
 begin
-  //irc_addtext('','','<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,TPazoSite(p.sites[0]).name,TPazoSite(p.sites[1]).name,irccmdprefix,p.pazo_id]);
-  //irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d',[p.rls.rlsname,p.srcsite,p.dstsite,irccmdprefix,p.pazo_id]));
-  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.sites[0]).name, TPazoSite(p.sites[1]).name, irccmdprefix, p.pazo_id]));
-  //msg that the traanfs. has be starrted...
+  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.sites[0]).Name, TPazoSite(p.sites[1]).Name, irccmdprefix, p.pazo_id]));
+
   while (true) do
   begin
     if p.readyerror then
     begin
-      //irc_addtext('','','readyWithError %s',[p.errorreason]);
       irc_Addadmin('readyWithError %s', [p.errorreason]);
       Break;
     end;
@@ -332,10 +324,10 @@ begin
     //check if filecount on dst (p.sites[0]) is the same as on src (p.sites[1])
     if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
     begin
-      irc_Addadmin('Request is ready?');
-      //Done! go to reqfill.
-      rt := TRawTask.Create('', '', TPazoSite(p.sites[0]).name, secdir, 'SITE REQFILLED ' + rlsname);
-      rt.startat := IncSecond(now, config.ReadInteger(rsections, 'reqfill_delay', 60));
+      reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
+      irc_Addadmin(Format('Request on %s is ready! Reqfill Command will be executed in %d s', [TPazoSite(p.sites[0]).Name, reqfill_delay]));
+      rt := TRawTask.Create('', '', TPazoSite(p.sites[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
+      rt.startat := IncSecond(now, reqfill_delay);
       try
         AddTask(rt);
       except
