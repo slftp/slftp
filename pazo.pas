@@ -186,7 +186,7 @@ implementation
 
 uses SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper,
-  Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr;
+  Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr, statsunit;
 
 const
   section = 'pazo';
@@ -1684,11 +1684,11 @@ end;
 
 function TPazoSite.Stats: AnsiString;
 var
-  fsize: real;
+  fsize: double;
   fsname, fsizetrigger: AnsiString;
 begin
-  fsizetrigger := 'KB';
   fsname := Name;
+
   if status = rssRealPre then
     fsname := format('<c10>%s</c>', [Name]); //bCyan(name);
   if status = rssShouldPre then
@@ -1705,26 +1705,14 @@ begin
       fsize := dirlist.SizeRacedByMe(True);
       fsize := fsize / 1024;
 
-      if fsize > 1024 then
-      begin
-        fsize := fsize / 1024;
-        fsizetrigger := 'MB';
-      end;
+      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-      if fsize > 1024 then
-      begin
-        fsize := fsize / 1024;
-        fsizetrigger := 'GB';
-      end;
-
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)',
-        [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
     end
     else
     begin
       if ((status = rssRealPre) or (status = rssShouldPre)) then
         exit;
-      //if ((sources.Count = 0) and (destinations.Count = 0)) then
       if (destinations.Count = 0) then
       begin
         Result := Format('<c5>%s</c>', [fsname]);
