@@ -1490,7 +1490,7 @@ function IrcLatest(const Netname, Channel: AnsiString; params: AnsiString): bool
 var
   s: TSite;
   i: integer;
-  sitename, section, predir: AnsiString;
+  sitename, section, sectiondir: AnsiString;
   d: TDirList;
   de: TDirListEntry;
   amount: integer;
@@ -1507,9 +1507,9 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
     exit;
   end;
-  predir := s.sectiondir[section];
+  sectiondir := s.sectiondir[section];
 
-  if (predir = '') then
+  if (sectiondir = '') then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.', [sitename, section]);
     exit;
@@ -1521,9 +1521,9 @@ begin
     exit;
   end;
 
-  predir := todaycsere(predir);
+  sectiondir := todaycsere(sectiondir);
 
-  d := DirlistB(Netname, Channel, sitename, predir);
+  d := DirlistB(Netname, Channel, sitename, sectiondir);
   try
     if d <> nil then
     begin
@@ -1712,8 +1712,7 @@ begin
   Result := True;
 end;
 
-function IrcDelallrelease(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcDelallrelease(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   s: TSite;
   predir, section, sitename, dir: AnsiString;
@@ -1855,8 +1854,7 @@ end;
 
 function mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
 begin
-  Result := CompareValue(StrToIntDef(List.ValueFromIndex[Index2], 0),
-    StrToIntDef(List.ValueFromIndex[Index1], 0));
+  Result := CompareValue(StrToIntDef(List.ValueFromIndex[Index2], 0), StrToIntDef(List.ValueFromIndex[Index1], 0));
 end;
 
 function IrcSpread(const Netname, Channel: AnsiString; params: AnsiString): boolean;
