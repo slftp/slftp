@@ -1,12 +1,12 @@
 unit taskidle;
 
 interface
-     
-uses tasksunit;
+
+uses tasksunit, Math;
 
 type TIdleTask = class(TTask)
   idlecmd: AnsiString;
-  constructor Create(const netname, channel: AnsiString; site: AnsiString);
+  constructor Create(const netname, channel: AnsiString; const site: AnsiString);
   function Execute(slot: Pointer): Boolean; override;
   function Name: AnsiString; override;
 end;
@@ -18,30 +18,33 @@ implementation
 
 uses Classes, SysUtils, sitesunit, mystrings, configunit, DebugUnit, irc;
 
-const section = 'taskidle';
+const
+  section = 'taskidle';
 
 var
   idlecommands: TStringList;
 
 { TIdleTask }
-constructor TIdleTask.Create(const netname, channel: AnsiString; site: AnsiString);
+constructor TIdleTask.Create(const netname, channel: AnsiString; const site: AnsiString);
 begin
-  idlecmd := idlecommands[myRand(0, idlecommands.Count-1)];
+  idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);
 end;
 
 function TIdleTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    h: AnsiString;
-    p: Integer;
-    numerrors: Integer;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  h: AnsiString;
+  p: Integer;
+  numerrors: Integer;
 begin
   Result := False;
   s := slot;
   debugunit.Debug(dpSpam, section, Name);
   numerrors := 0;
-  
+
 ujra:
   inc(numerrors);
   if numerrors > 3 then
@@ -49,12 +52,12 @@ ujra:
     readyerror := True;
     exit;
   end;
-  
+
   if s.status <> ssOnline then
   begin
     if not s.ReLogin(1, False, section) then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
@@ -74,7 +77,6 @@ ujra:
   begin
     irc_Adderror(Format('<c7>[ERROR idle]</c> %s: %s', [name, s.Name]));
     s.Quit;
-    //goto ujra;
   end;
 
   ready := True;
@@ -90,16 +92,18 @@ begin
 end;
 
 procedure TaskIdleInit;
-var s, ss: AnsiString;
-    i: Integer;
+var
+  s, ss: AnsiString;
+  i: Integer;
 begin
   idlecommands := TStringList.Create;
-  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .');
+  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .,SITE RULES,NOOP,SITE HELP,SITE VERS');
   i := 1;
-  while(true)do
+  while (true) do
   begin
     ss := SubString(s, ',', i);
-    if ss = '' then Break;
+    if ss = '' then
+      Break;
     idlecommands.Add(ss);
     inc(i);
   end;

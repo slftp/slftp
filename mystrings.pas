@@ -88,7 +88,6 @@ function CheckCompanyTaxNumber(TaxNumber: AnsiString): integer;
 function IsValidEmail(const Value: AnsiString): boolean;
 procedure MyWriteLn(s: AnsiString);
 function MyCopy(b: array of byte; index, len: integer): AnsiString;
-function myRand(mini, maxi: integer): integer;
 function ParseResponseCode(s: AnsiString): integer;
 
 {$IFDEF MSWINDOWS}
@@ -971,11 +970,6 @@ begin
   Result := '';
   for i := index to index + len - 1 do
     Result := Result + Chr(b[i]);
-end;
-
-function myRand(mini, maxi: integer): integer;
-begin
-  Result := Random(maxi - mini + 1) + mini;
 end;
 
 function RPos(SubStr: AnsiChar; Str: AnsiString): integer;

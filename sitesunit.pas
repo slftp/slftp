@@ -190,6 +190,9 @@ type
     function GetSitePassword: AnsiString;
     procedure SetSitePassword(Value: AnsiString);
 
+    function GetSiteCountry: AnsiString;
+    procedure SetSiteCountry(Value: AnsiString);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
@@ -297,6 +300,7 @@ type
     property ProxyName: AnsiString read GetProxyName write SetProxyName;
     property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
     property PassWord: AnsiString read GetSitePassword write SetSitePassword;
+    property Country: AnsiString read GetSiteCountry write SetSiteCountry;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -2072,12 +2076,13 @@ end;
 
 function TSite.Getconnect_timeout: integer;
 begin
+  //TODO: Maybe use [timeout] from slftp.ini as default value
   Result := RCInteger('connect_timeout', 15);
 end;
 
 function TSite.GetIdleInterval: integer;
 begin
-  Result := RCInteger('idleinterval', 20);
+  Result := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
 end;
 
 function TSite.Getio_timeout: integer;
@@ -2087,7 +2092,7 @@ end;
 
 function TSite.GetMaxIdle: integer;
 begin
-  Result := RCInteger('max_idle', 120);
+  Result := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
 end;
 
 function TSite.GetMaxDn: integer;
@@ -3311,6 +3316,16 @@ begin
   Result := RCString('password', 'CR4P_P4$$W0RD');
 end;
 
+procedure TSite.SetSiteCountry(Value: AnsiString);
+begin
+  WCString('country', Value);
+end;
+
+function TSite.GetSiteCountry;
+begin
+  Result := RCString('country', '??');
+end;
+
 function TSite.GetNoLoginMSG: boolean;
 begin
   Result := RCBool('nologinmsg', False);
@@ -3336,7 +3351,7 @@ end;
 
 function TSite.GetSkipBeingUploadedFiles: boolean;
 begin
-  Result := RCBool('skip_being_uploaded_files', config.ReadBool(section, 'skip_being_uploaded_files', False));
+  Result := RCBool('skip_being_uploaded_files', config.ReadBool('dirlist', 'skip_being_uploaded_files', False));
 end;
 
 procedure TSite.SetSkipBeingUploadedFiles(Value: boolean);

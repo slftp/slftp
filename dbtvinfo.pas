@@ -111,7 +111,7 @@ begin
 end;
 
 procedure getShowValues(rip: AnsiString; out showName: AnsiString);
-var                                                                                  
+var
   season: integer;
   episode: int64;
 begin
@@ -696,7 +696,7 @@ begin
       tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
       tvi.tv_days.CommaText := tvinfodb.column_text(gettvrage, 19);
       tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
-      tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
+      tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
       tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
       tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
       tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), -1);
@@ -761,7 +761,7 @@ begin
         tvi.tv_genres.CommaText := tvinfodb.column_text(gettvrage, 13);
         tvi.tv_days.CommaText := tvinfodb.column_text(gettvrage, 19);
         tvi.tv_network := tvinfodb.column_text(gettvrage, 12);
-        tvi.tv_running := Boolean(lowercase(tvi.tv_status) = 'running');
+        tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
         tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
         tvi.last_updated := StrToIntDef(tvinfodb.column_text(gettvrage, 15), -1);
         tvi.tv_next_date := StrToIntDef(tvinfodb.column_text(gettvrage, 16), 0);

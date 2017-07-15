@@ -1912,302 +1912,303 @@ begin
   end;
 
   y := TStringList.Create;
-
-  // recurrere run, so we can use y.text to check! or?
   try
-    Routeable(sitename, y);
-  except
-    on E: Exception do
-    begin
-      Irc_AddText(Netname, Channel,
-        '<c4><b>ERROR</c></b>: IrcSpread.Routeable: %s',
-        [e.Message]);
-      Debug(dpError, section, Format('[EXCEPTION] IrcSpread.Routeable: %s',
-        [e.Message]));
-    end;
-  end;
 
-  if y.Text = '' then
-  begin
-    irc_addtext(Netname, Channel, 'No Routeable sites found!');
-    y.Free;
-    exit;
-  end;
-
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    ps := TPazoSite(p.sites[i]);
-    sp := FindSiteByName('', ps.Name);
-
-    if sp.SkipPre then
-    begin
-      irc_addtext(Netname, Channel,
-        '<c8><b>INFO</c></b>: we skip %s for spread ',
-        [TSite(p.sites[i]).Name]);
-      Continue;
-    end;
-
+    // recurrere run, so we can use y.text to check! or?
     try
-      FireRuleSet(p, ps);
+      Routeable(sitename, y);
     except
       on E: Exception do
       begin
-        Irc_AddText(Netname, Channel,
-          '<c4><b>ERROR</c></b>: IrcSpread.FireRuleSet: %s',
-          [e.Message]);
-        Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRuleSet: %s',
-          [e.Message]));
+        Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcSpread.Routeable: %s', [e.Message]);
+        Debug(dpError, section, Format('[EXCEPTION] IrcSpread.Routeable: %s', [e.Message]));
       end;
     end;
 
-    try
-      FireRules(p, ps);
-    except
-      on E: Exception do
-      begin
-        Irc_AddText(Netname, Channel,
-          '<c4><b>ERROR</c></b>: IrcSpread.FireRules: %s',
-          [e.Message]);
-        Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRules: %s',
-          [e.Message]));
-      end;
-    end;
-
-    try
-      s := FindSiteByName(Netname, ps.Name);
-    except
-      on E: Exception do
-      begin
-        Irc_AddText(Netname, Channel,
-          '<c4><b>ERROR</c></b>: IrcSpread.FindSiteByName: %s',
-          [e.Message]);
-        Debug(dpError, section,
-          Format('[EXCEPTION] IrcSpread.FindSiteByName: %s',
-          [e.Message]));
-      end;
-    end;
-
-    if s.working <> sstUp then
+    if y.Text = '' then
     begin
+      irc_addtext(Netname, Channel, 'No Routeable sites found!');
+      exit;
+    end;
+
+    for i := 0 to p.sites.Count - 1 do
+    begin
+      ps := TPazoSite(p.sites[i]);
+      sp := FindSiteByName('', ps.Name);
+
+      if sp.SkipPre then
+      begin
+        irc_addtext(Netname, Channel,
+          '<c8><b>INFO</c></b>: we skip %s for spread ',
+          [TSite(p.sites[i]).Name]);
+        Continue;
+      end;
+
+      try
+        FireRuleSet(p, ps);
+      except
+        on E: Exception do
+        begin
+          Irc_AddText(Netname, Channel,
+            '<c4><b>ERROR</c></b>: IrcSpread.FireRuleSet: %s',
+            [e.Message]);
+          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRuleSet: %s',
+            [e.Message]));
+        end;
+      end;
+
+      try
+        FireRules(p, ps);
+      except
+        on E: Exception do
+        begin
+          Irc_AddText(Netname, Channel,
+            '<c4><b>ERROR</c></b>: IrcSpread.FireRules: %s',
+            [e.Message]);
+          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRules: %s',
+            [e.Message]));
+        end;
+      end;
+
+      try
+        s := FindSiteByName(Netname, ps.Name);
+      except
+        on E: Exception do
+        begin
+          Irc_AddText(Netname, Channel,
+            '<c4><b>ERROR</c></b>: IrcSpread.FindSiteByName: %s',
+            [e.Message]);
+          Debug(dpError, section,
+            Format('[EXCEPTION] IrcSpread.FindSiteByName: %s',
+            [e.Message]));
+        end;
+      end;
+
+      if s.working <> sstUp then
+      begin
+
+        if s.working = sstUnknown then
+          sss := 'unknown';
+        if s.working = sstDown then
+          sss := 'down';
+        if s.working = sstMarkedDown then
+          sss := 'marked down';
+        if s.working = sstOutOfCreds then
+          sss := 'out of creds';
+        if s.working = sstOutOfSpace then
+          sss := 'out of space';
+        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.',
+          [s.Name, sss]);
+      end;
 
       if s.working = sstUnknown then
-        sss := 'unknown';
-      if s.working = sstDown then
-        sss := 'down';
-      if s.working = sstMarkedDown then
-        sss := 'marked down';
-      if s.working = sstOutOfCreds then
-        sss := 'out of creds';
-      if s.working = sstOutOfSpace then
-        sss := 'out of space';
-      irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.',
-        [s.Name, sss]);
-    end;
-
-    if s.working = sstUnknown then
-    begin
-      irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.',
-        [s.Name]);
-      added := False;
-      break;
-    end;
-
-    if ((ps.Name <> sitename) and (s.working = sstUp)) then
-    begin
-      Inc(addednumber);
-      if - 1 = y.IndexOf(ps.Name) then
       begin
-        irc_addtext(Netname, Channel,
-          '<b>%s</b> -> <b>%s</b> is not routeable.', [sitename, ps.Name]);
+        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.',
+          [s.Name]);
         added := False;
         break;
-      end; // if -1 = y.IndexOf(ps.name) then begin
-    end; // if ((ps.name <> sitename) and (s.working = sstUp)) then begin
-  end; // for i:= 0 to p.sites.Count -1 do begin
+      end;
 
-  if (addednumber = 0) then
-  begin
-    irc_addtext(Netname, Channel, 'There are no sites up to spread to...');
-    added := False;
-  end;
-
-  if not added then
-  begin
-    y.Free;
-    exit;
-  end;
-
-  if 1 = Pos('PRE', section) then
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'PRE',
-      dir, '', False, True)
-  else
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR',
-      dir, '', False, True);
-  if pazo_id = -1 then
-  begin
-    irc_addtext(Netname, Channel, 'Is it allowed anywhere at all?');
-    exit;
-  end;
-
-  irc_addtext(Netname, Channel,
-    'Spread has started. Type %sstop <b>%d</b> if you want.',
-    [irccmdprefix, pazo_id]);
-
-  si := '-1';
-  sj := '-1';
-  sdone := '-1';
-
-  ann := config.ReadInteger('spread', 'announcetime', 40);
-  lastAnn := now();
-  while (True) do
-  begin
-    if (slshutdown) then
-      exit;
-    Sleep(500);
-
-    p := FindPazoById(pazo_id);
-    if p = nil then
-    begin
-      irc_addtext(Netname, Channel, 'No valid Pazo found for %s', [dir]);
-      exit; // ez a szituacio nem nagyon fordulhat elo
-    end;
-
-    if p.stopped then
-    begin
-      if RemovePazo(p.pazo_id) then
-        irc_addtext(Netname, Channel, 'DEBUG - Pazo Removed!')
-      else
-        irc_addtext(Netname, Channel, 'DEBUG - Pazo NOT Removed!');
-      irc_addtext(Netname, Channel,
-        'Spreading of <b>%s</b> has been stopped.', [dir]);
-      Result := True;
-      exit;
-    end;
-
-    if ((p.ready) or (p.readyerror)) then
-    begin
-      ssss := 'successfully finished.';
-      if p.readyerror then
+      if ((ps.Name <> sitename) and (s.working = sstUp)) then
       begin
-        if p.errorreason = '' then
-          irc_addtext(Netname, Channel,
-            '<b>%s</b> ERROR: <c4>NO ERROR MSG FOUND, SORRY!</c>', [dir])
+        Inc(addednumber);
+        if y.IndexOf(ps.Name) = -1 then
+        begin
+          irc_addtext(Netname, Channel, '<b>%s</b> -> <b>%s</b> is not routeable.', [sitename, ps.Name]);
+          added := False;
+          break;
+        end;
+      end;
+    end;
+
+    if (addednumber = 0) then
+    begin
+      irc_addtext(Netname, Channel, 'There are no sites up to spread to...');
+      added := False;
+    end;
+
+    if not added then
+    begin
+      exit;
+    end;
+
+    if 1 = Pos('PRE', section) then
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'PRE',
+        dir, '', False, True)
+    else
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR',
+        dir, '', False, True);
+    if pazo_id = -1 then
+    begin
+      irc_addtext(Netname, Channel, 'Is it allowed anywhere at all?');
+      exit;
+    end;
+
+    irc_addtext(Netname, Channel,
+      'Spread has started. Type %sstop <b>%d</b> if you want.',
+      [irccmdprefix, pazo_id]);
+
+    si := '-1';
+    sj := '-1';
+    sdone := '-1';
+
+    ann := config.ReadInteger('spread', 'announcetime', 40);
+    lastAnn := now();
+    while (True) do
+    begin
+      if (slshutdown) then
+        exit;
+      Sleep(500);
+
+      p := FindPazoById(pazo_id);
+      if p = nil then
+      begin
+        irc_addtext(Netname, Channel, 'No valid Pazo found for %s', [dir]);
+        exit; // ez a szituacio nem nagyon fordulhat elo
+      end;
+
+      if p.stopped then
+      begin
+        if RemovePazo(p.pazo_id) then
+          irc_addtext(Netname, Channel, 'DEBUG - Pazo Removed!')
         else
-          irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>',
-            [dir, p.errorreason]);
-        ssss := 'stopped!';
-        RemovePazo(p.pazo_id);
-        Result := True;
-      end
-      else
-        Result := True;
-      irc_addtext(Netname, Channel, 'Spreading of %s has been %s', [dir, ssss]);
-      break;
-
-    end;
-
-    if ((ann <> 0) and (SecondsBetween(now, lastAnn) > ann)) then
-    begin
-
-      ps := p.FindSite(sitename);
-
-      if ps = nil then
+          irc_addtext(Netname, Channel, 'DEBUG - Pazo NOT Removed!');
         irc_addtext(Netname, Channel,
-          '<c4>DEBUG<b></c></b>: %s is not a valid pazo site.', [sitename]);
-      if ps.dirlist = nil then
-        irc_addtext(Netname, Channel,
-          '<c4>DEBUG<b></c></b>: %s have no dirlist.', [sitename]);
-      if ((ps <> nil) and (ps.dirlist <> nil)) then
-        si := IntToStr(ps.dirlist.Done)
-      else
-        si := '?';
+          'Spreading of <b>%s</b> has been stopped.', [dir]);
+        Result := True;
+        exit;
+      end;
 
-      sss := '';
-
-      for ii := 0 to p.sites.Count - 1 do
+      if ((p.ready) or (p.readyerror)) then
       begin
-        sj := '?';
-        ps := TPazoSite(p.sites[ii]);
-        if ps = nil then
+        ssss := 'successfully finished.';
+        if p.readyerror then
         begin
-          irc_addtext(Netname, Channel,
-            '<c8>DEBUG<b></c></b>: %s is not a valid pazo site.',
-            [TPazoSite(p.sites[ii]).Name]);
-          Continue;
-        end;
-
-        if ps.Name = ssite then
-          Continue;
-        if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-          Continue;
-
-        if ps.dirlist = nil then
-          irc_addtext(Netname, Channel,
-            '<c7>DEBUG<b></c></b>: %s have no dirlist.', [ps.Name]);
-
-        if ((ps <> nil) and (ps.dirlist <> nil)) then
-        begin
-          sj := IntToStr(ps.dirlist.RacedByMe);
-          sdone := IntToStr(ps.dirlist.Done);
-
-          dd := ps.dirlist.SizeRacedByMe;
-
-          ssss := 'byte';
-          if dd > 1024 then
-          begin
-            dd := dd / 1024;
-            ssss := 'KB';
-          end;
-          if dd > 1024 then
-          begin
-            dd := dd / 1024;
-            ssss := 'MB';
-          end;
-          if dd > 1024 then
-          begin
-            dd := dd / 1024;
-            ssss := 'GB';
-          end;
-
-          if sdone = si then
-          begin
-            ss := format('<c3>%s</c>', [ps.Name]);
-            if sss = '' then
-              sss := ss
-            else
-              sss := sss + ', ' + ss;
-            Continue;
-          end;
-
-          if si = sj then
-          begin
-            ss := format('<c3>%s</c>', [ps.Name]);
-            if sss = '' then
-              sss := ss
-            else
-              sss := sss + ', ' + ss;
-            Continue;
-          end;
-
-          if dd = 0 then
-            ss := format('"<b>%s</b> (%s/%sF)"', [ps.Name, sj, si])
+          if p.errorreason = '' then
+            irc_addtext(Netname, Channel,
+              '<b>%s</b> ERROR: <c4>NO ERROR MSG FOUND, SORRY!</c>', [dir])
           else
-            ss := format('"<b>%s</b> (%s/%sF in %.2f%s)"',
-              [ps.Name, sj, si, dd, ssss]);
-
-          if sss = '' then
-            sss := ss
-          else
-            sss := sss + ', ' + ss;
-        end;
+            irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>',
+              [dir, p.errorreason]);
+          ssss := 'stopped!';
+          RemovePazo(p.pazo_id);
+          Result := True;
+        end
+        else
+          Result := True;
+        irc_addtext(Netname, Channel, 'Spreading of %s has been %s', [dir, ssss]);
+        break;
 
       end;
-      IrcLineBreak(Netname, Channel, sss, AnsiChar('"'), '<b>STATUS</b>: ', 5);
-      lastAnn := now();
-    end;
-  end; // while
 
-  y.Free;
+      if ((ann <> 0) and (SecondsBetween(now, lastAnn) > ann)) then
+      begin
+
+        ps := p.FindSite(sitename);
+
+        if ps = nil then
+          irc_addtext(Netname, Channel,
+            '<c4>DEBUG<b></c></b>: %s is not a valid pazo site.', [sitename]);
+        if ps.dirlist = nil then
+          irc_addtext(Netname, Channel,
+            '<c4>DEBUG<b></c></b>: %s have no dirlist.', [sitename]);
+        if ((ps <> nil) and (ps.dirlist <> nil)) then
+          si := IntToStr(ps.dirlist.Done)
+        else
+          si := '?';
+
+        sss := '';
+
+        for ii := 0 to p.sites.Count - 1 do
+        begin
+          sj := '?';
+          ps := TPazoSite(p.sites[ii]);
+          if ps = nil then
+          begin
+            irc_addtext(Netname, Channel,
+              '<c8>DEBUG<b></c></b>: %s is not a valid pazo site.',
+              [TPazoSite(p.sites[ii]).Name]);
+            Continue;
+          end;
+
+          if ps.Name = ssite then
+            Continue;
+          if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+            Continue;
+
+          if ps.dirlist = nil then
+            irc_addtext(Netname, Channel,
+              '<c7>DEBUG<b></c></b>: %s have no dirlist.', [ps.Name]);
+
+          if ((ps <> nil) and (ps.dirlist <> nil)) then
+          begin
+            sj := IntToStr(ps.dirlist.RacedByMe);
+            sdone := IntToStr(ps.dirlist.Done);
+
+            dd := ps.dirlist.SizeRacedByMe;
+
+(*
+            ssss := 'byte';
+            if dd > 1024 then
+            begin
+              dd := dd / 1024;
+              ssss := 'KB';
+            end;
+            if dd > 1024 then
+            begin
+              dd := dd / 1024;
+              ssss := 'MB';
+            end;
+            if dd > 1024 then
+            begin
+              dd := dd / 1024;
+              ssss := 'GB';
+            end;
+*)
+
+            RecalcSizeValueAndUnit(dd, ssss, 0);
+
+            if sdone = si then
+            begin
+              ss := format('<c3>%s</c>', [ps.Name]);
+              if sss = '' then
+                sss := ss
+              else
+                sss := sss + ', ' + ss;
+              Continue;
+            end;
+
+            if si = sj then
+            begin
+              ss := format('<c3>%s</c>', [ps.Name]);
+              if sss = '' then
+                sss := ss
+              else
+                sss := sss + ', ' + ss;
+              Continue;
+            end;
+
+            if dd = 0 then
+              ss := format('"<b>%s</b> (%s/%sF)"', [ps.Name, sj, si])
+            else
+              ss := format('"<b>%s</b> (%s/%sF in %.2f%s)"',
+                [ps.Name, sj, si, dd, ssss]);
+
+            if sss = '' then
+              sss := ss
+            else
+              sss := sss + ', ' + ss;
+          end;
+
+        end;
+        IrcLineBreak(Netname, Channel, sss, AnsiChar('"'), '<b>STATUS</b>: ', 5);
+        lastAnn := now();
+      end;
+    end;
+
+  finally
+    y.Free;
+  end;
 end;
 
 function IrcTransfer(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -5890,8 +5891,7 @@ begin
 
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
     irc_addtext(Netname, Channel, ' name/speed/location/size:B %s / %s / %s / %s',
-      [s.RCString('name', '??'), s.RCString('link', '??'),
-      s.RCString('country', '??'), s.RCString('size', '??')]);
+      [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
     irc_addtext(Netname, Channel, ' sections:B %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
@@ -6331,8 +6331,8 @@ begin
     exit;
   end;
 
-  s.WCString('country', country);
-  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, country, CountryNames[i]]);
+  s.Country := country;
+  irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, s.Country, CountryNames[i]]);
 
   Result := True;
 end;
@@ -6550,7 +6550,7 @@ begin
   begin
     s := TSite(sites[i]);
 
-    if country = s.RCString('country', '') then
+    if country = s.Country then
     begin
       ss := ss + format(' <b>%s</b>', [s.Name]);
       site_found := True;
