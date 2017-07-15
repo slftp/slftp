@@ -94,6 +94,7 @@ function IrcNoannouncesite(const netname, channel: AnsiString; params: AnsiStrin
 function IrcSpeeds(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcSetSpeed(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcLockSpeed(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetRoute(const netname, channel: AnsiString; params: AnsiString; lock: boolean = False): boolean;
 function IrcInroutes(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcOutroutes(const netname, channel: AnsiString; params: AnsiString): boolean;
 
@@ -403,7 +404,7 @@ const
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routeset'; hnd: IrcSetspeed; minparams: 3; maxparams: -1 ; hlpgrp: 'route'),
-    (cmd: 'routelock'; hnd: IrcLockspeed; minparams: 3; maxparams: 3; hlpgrp: 'route'),
+    (cmd: 'routelock'; hnd: IrcLockspeed; minparams: 3; maxparams: -1; hlpgrp: 'route'),
     (cmd: 'routesin'; hnd: IrcInroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routesout'; hnd: IrcOutroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'speedstats'; hnd: IrcSpeedStats; minparams: 1; maxparams: 4; hlpgrp: 'route'),
@@ -659,7 +660,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON;
+  tasktvinfolookup, uLkJSON, TypInfo;
 
 {$I common.inc}
 
@@ -1044,11 +1045,29 @@ begin
 end;
 
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+
+  if (IrcSetRoute(Netname, Channel, params, False)) then
+    Result := True;
+end;
+
+
+function IrcLockSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+
+  if (IrcSetRoute(Netname, Channel, params, True)) then
+    Result := True;
+end;
+
+function IrcSetRoute(const Netname, Channel: AnsiString; params: AnsiString; lock: boolean = False): boolean;
 var
   source, dest, admin_site: AnsiString;
   rcmd: TCommandLineReader;
   c1, c2, sw1, sw2: AnsiString;
   i,j: integer;
+  DoIt: Boolean;
   apply, back: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
@@ -1057,11 +1076,12 @@ var
 begin
   Result := False;
 
+  // Parse the params
   rcmd := TCommandLineReader.create();
 
   try
     try
-      rcmd.allowDOSStyle := False;
+      rcmd.allowDOSStyle := True;
       rcmd.automaticalShowError := False;
       rcmd.declareString('c1','','');
       rcmd.declareString('c2','','');
@@ -1076,7 +1096,7 @@ begin
     except
       on e: Exception do
       begin
-        irc_addtext(Netname, Channel, '<c4><b>EXCEPTION</c></b> IrcSetSpeed(rcmd.parse): %s', [e.Message]);
+        irc_addtext(Netname, Channel, '<c4><b>%s</b></c>', [e.Message]);
         Debug(dpError, section, '[EXCEPTION] IrcSetSpeed(rcmd.parse): %s', [e.Message]);
         exit;
       end;
@@ -1084,7 +1104,7 @@ begin
 
     source := rcmd.readNamelessString()[0];
     dest := rcmd.readNamelessString()[1];
-    speed := rcmd.readNamelessInt()[0];
+    speed := StrToIntDef(rcmd.readNamelessString()[2], -1);
     c1 := stringreplace(rcmd.readString('c1'), '.', '', [rfReplaceAll]);
     c2 := stringreplace(rcmd.readString('c2'), '.', '', [rfReplaceAll]);
     sw1 := rcmd.readString('sw1');
@@ -1092,14 +1112,13 @@ begin
     apply := rcmd.readFlag('apply');
     back := rcmd.readFlag('back');
 
-    irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | apply: %s',
-      [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(apply)]);
+    // debug shit to be removed
+    //irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | backroute: %s | apply: %s',
+    //  [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(back), BoolToStr(apply)]);
 
   finally
     rcmd.Free;
   end;
-
-  exit;
 
   admin_site := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 
@@ -1119,7 +1138,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>You can not use admin site with this function</b>.</c>');
     exit;
   end;
-  if ((speed >= 10) or (speed < 0)) then
+  if (speed > 9) or (speed < 0) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Third argument must be a speed between 0 and 9</b>.</c>');
     exit;
@@ -1128,18 +1147,30 @@ begin
   // additional checks for optional filters
   if (c1 <> '') and (AnsiIndexText(c1, CountryCodes) = -1) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %1 is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c1]);
+    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %s is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c1]);
     exit;
   end;
   if (c2 <> '') and (AnsiIndexText(c2, CountryCodes) = -1) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %1 is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c2]);
+    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %s is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c2]);
+    exit;
+  end;
+  if (sw1 <> '') and (StringToSiteSoftWare(sw1) = sswUnknown) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Hey dude, %s is not a valid ftp server software.</b>. Must be one of GLFTPD, IOFTPD, DRFTPD.</c>', [sw1]);
+    exit;
+  end;
+  if (sw2 <> '') and (StringToSiteSoftWare(sw2) = sswUnknown) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Hey dude, %s is not a valid ftp server software.</b>. Must be one of GLFTPD, IOFTPD, DRFTPD.</c>', [sw2]);
     exit;
   end;
 
   // by default do not apply changes if we are using the overpowered wildcards stuff
-  if (source = '*') or (dest = '*') then
-    apply := False;
+  if ((source = '*') or (dest = '*')) and (not Apply)then
+    doit := False
+  else
+    doit := True;
 
   // here we go with the real stuff
   source_sites := TStringList.Create;
@@ -1157,11 +1188,17 @@ begin
         // site not found (shouldn't happen)
         if site = nil then
           Continue;
+
+        // Admin site
         if site.Name = admin_site then
           Continue;
 
-        // here add filters handling
-
+        // filters handling
+        if (c1 <> '') and (AnsiLowerCase(site.Country) <> ('.' + AnsiLowerCase(c1))) then
+          Continue;
+        if (sw1 <> '') and (StringToSiteSoftWare(sw1) <> site.sw) then begin
+          Continue;
+        end;
         // add site to the source sites list
         source_sites.Add(site.Name);
       end;
@@ -1191,7 +1228,11 @@ begin
         if site.Name = admin_site then
           Continue;
 
-        // here add filters handling
+        // filters handling
+        if (c2 <> '') and (AnsiLowerCase(site.Country) <> ('.' + AnsiLowerCase(c2))) then
+          Continue;
+        if (sw2 <> '') and (StringToSiteSoftWare(sw2) <> site.sw) then
+          Continue;
 
         // add site to the destination sites list
         dest_sites.Add(site.Name);
@@ -1228,39 +1269,63 @@ begin
         if (source_sites[i] = dest_sites[j]) then
           Continue;
 
-        irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set.', [source_sites[i], dest_sites[j]]);
+        if lock then
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d (LOCKED)', [source_sites[i], dest_sites[j], speed])
+        else
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d', [source_sites[i], dest_sites[j], speed]);
 
         // When using wildcards apply changes only if -apply has been specified (to avoid unwanted changes)
-        if Apply then
+        if DoIt then
         begin
           if speed > 0 then
           begin
             sitesdat.WriteInteger('speed-from-' + source_sites[i], dest_sites[j], speed);
             sitesdat.WriteInteger('speed-to-' + dest_sites[j], source_sites[i], speed);
+            if back then
+            begin
+              sitesdat.WriteInteger('speed-from-' + dest_sites[j], source_sites[i], speed);
+              sitesdat.WriteInteger('speed-to-' + source_sites[i], dest_sites[j], speed);
+            end;
+            if lock then
+            begin
+              sitesdat.WriteInteger('speedlock-from-' + source_sites[i], dest_sites[j], speed);
+              sitesdat.WriteInteger('speedlock-to-' + dest_sites[j], source_sites[i], speed);
+              if back then
+              begin
+                sitesdat.WriteInteger('speedlock-from-' + dest_sites[j], source_sites[i], speed);
+                sitesdat.WriteInteger('speedlock-to-' + source_sites[i], dest_sites[j], speed);
+              end;
+            end;
           end
           else
             sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
             sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
+            if back then
+            begin
+              sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
+              sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
+            end;
+            if lock then
+            begin
+              sitesdat.DeleteKey('speedlock-from-' + source_sites[i], dest_sites[j]);
+              sitesdat.DeleteKey('speedlock-to-' + dest_sites[j], source_sites[i]);
+              if back then
+              begin
+                sitesdat.DeleteKey('speedlock-from-' + dest_sites[j], source_sites[i]);
+                sitesdat.DeleteKey('speedlock-to-' + source_sites[i], dest_sites[j]);
+              end;
+            end;
           end;
         end;
       end;
 
-    if not Apply then
+    if not DoIt then
       irc_addtext(Netname, Channel, 'Route were not really added. Check if you are satisfied and add -apply to the command.');
 
   finally
     FreeAndNil(source_sites);
     FreeAndNil(dest_sites);
   end;
-
-  Result := True;
-end;
-
-function IrcLockSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-begin
-  Result := False;
-
-  // We will call IrcSetSpeed with lock attribute heh
 
   Result := True;
 end;
