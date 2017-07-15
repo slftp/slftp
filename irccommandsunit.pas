@@ -1049,7 +1049,7 @@ var
   rcmd: TCommandLineReader;
   c1, c2, sw1, sw2: AnsiString;
   i,j: integer;
-  apply: Boolean;
+  apply, back: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
   speed: integer;
@@ -1063,12 +1063,14 @@ begin
     try
       rcmd.allowDOSStyle := False;
       rcmd.automaticalShowError := False;
-      rcmd.declareString('c1','','s1');
-      rcmd.declareString('c2','','s2');
-      rcmd.declareString('sw1','','s3');
-      rcmd.declareString('sw2','','s4');
+      rcmd.declareString('c1','','');
+      rcmd.declareString('c2','','');
+      rcmd.declareString('sw1','','');
+      rcmd.declareString('sw2','','');
       rcmd.declareFlag('apply','Apply changes');
       rcmd.addAbbreviation('a', 'apply');
+      rcmd.declareFlag('back','Also add back route');
+      rcmd.addAbbreviation('b', 'back');
       rcmd.parse(params);
 
     except
@@ -1083,11 +1085,12 @@ begin
     source := rcmd.readNamelessString()[0];
     dest := rcmd.readNamelessString()[1];
     speed := rcmd.readNamelessInt()[0];
-    c1 := rcmd.readString('c1');
-    c2 := rcmd.readString('c2');
+    c1 := stringreplace(rcmd.readString('c1'), '.', '', [rfReplaceAll]);
+    c2 := stringreplace(rcmd.readString('c2'), '.', '', [rfReplaceAll]);
     sw1 := rcmd.readString('sw1');
     sw2 := rcmd.readString('sw2');
     apply := rcmd.readFlag('apply');
+    back := rcmd.readFlag('back');
 
     irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | apply: %s',
       [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(apply)]);
@@ -1100,7 +1103,7 @@ begin
 
   admin_site := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 
-  // sanity check for first args
+  // basic sanity check for first args
   if (source <> '*') and (AnsiContainsText(source, '-')) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>First argument must be a site name or *</b>.</c>');
@@ -1122,9 +1125,19 @@ begin
     exit;
   end;
 
-  // lookup optional filters from params line
+  // additional checks for optional filters
+  if (c1 <> '') and (AnsiIndexText(c1, CountryCodes) = -1) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %1 is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c1]);
+    exit;
+  end;
+  if (c2 <> '') and (AnsiIndexText(c2, CountryCodes) = -1) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Sorry bro, %1 is not a valid country code.</b>. Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements</c>', [c2]);
+    exit;
+  end;
 
-
+  // by default do not apply changes if we are using the overpowered wildcards stuff
   if (source = '*') or (dest = '*') then
     apply := False;
 
@@ -1244,47 +1257,10 @@ begin
 end;
 
 function IrcLockSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  sitename1, sitename2: AnsiString;
-  speed: integer;
-  s1, s2: TSite;
 begin
   Result := False;
-  sitename1 := UpperCase(SubString(params, ' ', 1));
-  sitename2 := UpperCase(SubString(params, ' ', 2));
-  speed := StrToIntDef(SubString(params, ' ', 3), -1);
 
-  if ((speed >= 10) or (speed < 0)) then
-  begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-    exit;
-  end;
-
-  s1 := FindSiteByName(Netname, sitename1);
-  if s1 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename1]);
-    exit;
-  end;
-  s2 := FindSiteByName(Netname, sitename2);
-  if s2 = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename2]);
-    exit;
-  end;
-
-  if speed > 0 then
-  begin
-    sitesdat.WriteInteger('speed-from-' + sitename1, sitename2, speed);
-    sitesdat.WriteInteger('speed-to-' + sitename2, sitename1, speed);
-    sitesdat.WriteInteger('speedlock-from-' + sitename1, sitename2, speed);
-    sitesdat.WriteInteger('speedlock-to-' + sitename2, sitename1, speed);
-  end
-  else
-  begin
-    sitesdat.DeleteKey('speedlock-from-' + sitename1, sitename2);
-    sitesdat.DeleteKey('speedlock-to-' + sitename2, sitename1);
-  end;
+  // We will call IrcSetSpeed with lock attribute heh
 
   Result := True;
 end;
