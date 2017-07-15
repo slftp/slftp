@@ -16,9 +16,6 @@ type
 procedure RankStatAdd(const sitename, section: AnsiString; const score: Integer); overload;
 procedure RankStatAdd(s: TRankStat); overload;
 
-function DeleteRanks(sitename:AnsiString):boolean;
-
-
 procedure RanksInit;
 procedure RanksUnInit;
 procedure RanksSave;
@@ -26,8 +23,10 @@ procedure RanksStart;
 procedure RanksRecalc(const netname, channel: AnsiString);
 procedure RanksProcess(p: TPazo);
 
-function RanksReload:boolean;
-function RemoveRanks(sitename:AnsiString):boolean;
+function RemoveRanks(sitename: string): boolean; overload;
+function RemoveRanks(sitename, section: string): boolean; overload;
+
+function RanksReload: boolean;
 
 var
   ranks_last_save: TDateTime;
@@ -45,59 +44,49 @@ var
   rankslock: TCriticalSection;
 
 
-function DeleteRanks(sitename:AnsiString): boolean;
-var
-  I: Integer;
-begin
-  result := False;
-  try
-    for I := ranks.Count - 1 downto 0 do
-      if TRankStat(ranks.Items[i]).sitename = sitename then
-        ranks.Delete(i);
-  except
-    exit;
-  end;
-  result := True;
-end;
-
-
-function RemoveRanks(sitename:AnsiString): boolean;
+function RemoveRanks(sitename: string): boolean;
 var
   i: Integer;
 begin
-  result := False;
+  Result := False;
   try
-    for I := ranks.Count - 1 downto 0 do
-      if TRankStat(ranks.Items[i]).sitename = sitename then
-        ranks.Delete(i);
+    rankslock.Enter;
+    try
+      for I := ranks.Count - 1 downto 0 do
+        if TRankStat(ranks.Items[i]).sitename = sitename then
+          ranks.Delete(i);
+    finally
+      rankslock.Leave;
+    end;
   except
     exit;
   end;
-  result := True;
+  Result := True;
 end;
 
-(*
-function RemoveRanks(sitename:string):boolean;
-var x:TEncStringlist; i:Integer;
+function RemoveRanks(sitename, section: string): boolean;
+var
+  i: Integer;
+  rank: TRankStat;
 begin
-result:=False;
-x:=TEncstringlist.create(passphrase);
-rankslock.Enter;
-x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.ranks');
-x.BeginUpdate;
-try
-for I := 0 to x.Count - 1 do begin
-if pos(sitename,x.Strings[i]) = 1 then x.Delete(i);
+  Result := False;
+  try
+    rankslock.Enter;
+    try
+      for I := ranks.Count - 1 downto 0 do
+      begin
+        rank := TRankStat(ranks.Items[i]);
+        if ((rank.sitename = sitename) and (rank.section = section)) then
+          ranks.Delete(i);
+      end;
+    finally
+      rankslock.Leave;
+    end;
+  except
+    exit;
+  end;
+  Result := True;
 end;
-x.SaveToFile(ExtractFilePath(ParamStr(0))+'slftp.ranks');
-result:=True;
-finally
-x.EndUpdate;
-x.free;
-end;
-rankslock.Leave;
-end;
- *)
 
 function RanksReload: boolean;
 begin
@@ -173,16 +162,20 @@ end;
 function FindSite(const s: AnsiString; const section: AnsiString): Boolean; overload;
 begin
   result := False;
-  if sitesdat.ReadString('site-' + s, 'username', '') = '' then exit;
-  if sitesdat.ReadBool('site-' + s, section + '-ranklock', False) = True then exit;
+  if sitesdat.ReadString('site-' + s, 'username', '') = '' then
+    exit;
+  if sitesdat.ReadBool('site-' + s, section + '-ranklock', False) = True then
+    exit;
   Result := True;
 end;
 
 function FindSite(const s: AnsiString): Boolean; overload;
 begin
   Result := False;
-  if sitesdat.ReadString('site-' + s, 'username', '') = '' then exit;
-  if sitesdat.ReadBool('site-' + s, 'ranklock', False) = True then exit;
+  if sitesdat.ReadString('site-' + s, 'username', '') = '' then
+    exit;
+  if sitesdat.ReadBool('site-' + s, 'ranklock', False) = True then
+    exit;
   Result := True;
 end;
 

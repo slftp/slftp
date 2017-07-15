@@ -858,8 +858,13 @@ begin
 
   if section = 'REQUESTS' then
   begin
-    irc_addtext(Netname, Channel,
-      '<c4><b>Syntax error</b></c>, use REQUEST as section name.');
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b></c>, use REQUEST as section name.');
+    exit;
+  end;
+
+  if section = 'SPEEDTESTS' then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b></c>, use SPEEDTEST as section name.');
     exit;
   end;
 
@@ -886,10 +891,13 @@ begin
   s.sectiondir[section] := dir;
   s.SetSections(section, False);
 
-  if dir = '' then // el kell tavolitani a rulejait is
+  if dir = '' then // It can be removed
   begin
     s.SetSections(section, True);
+    s.sectionpretime[section] := -10;
+    s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
+    RemoveRanks(sitename, section);
   end;
 
   Result := True;
