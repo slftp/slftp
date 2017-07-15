@@ -402,7 +402,7 @@ const
 
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),
-    (cmd: 'routeset'; hnd: IrcSetspeed; minparams: 3; maxparams: 3; hlpgrp: 'route'),
+    (cmd: 'routeset'; hnd: IrcSetspeed; minparams: 3; maxparams: -1 ; hlpgrp: 'route'),
     (cmd: 'routelock'; hnd: IrcLockspeed; minparams: 3; maxparams: 3; hlpgrp: 'route'),
     (cmd: 'routesin'; hnd: IrcInroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routesout'; hnd: IrcOutroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
@@ -656,7 +656,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-  RegExpr, mslproxys, slhttp, strUtils, inifiles,
+  RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON;
@@ -1046,6 +1046,7 @@ end;
 function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   source, dest, admin_site: AnsiString;
+  rcmd: TCommandLineReader;
   c1, c2, sw1, sw2: AnsiString;
   i,j: integer;
   apply: Boolean;
@@ -1055,14 +1056,47 @@ var
 
 begin
   Result := False;
-  source := UpperCase(SubString(params, ' ', 1));
-  dest := UpperCase(SubString(params, ' ', 2));
-  speed := StrToIntDef(SubString(params, ' ', 3), -1);
-  c1 := '';
-  c2 := '';
-  sw1 := '';
-  sw2 := '';
-  apply := True;
+
+  rcmd := TCommandLineReader.create();
+
+  try
+    try
+      rcmd.allowDOSStyle := False;
+      rcmd.automaticalShowError := False;
+      rcmd.declareString('c1','','s1');
+      rcmd.declareString('c2','','s2');
+      rcmd.declareString('sw1','','s3');
+      rcmd.declareString('sw2','','s4');
+      rcmd.declareFlag('apply','Apply changes');
+      rcmd.addAbbreviation('a', 'apply');
+      rcmd.parse(params);
+
+    except
+      on e: Exception do
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>EXCEPTION</c></b> IrcSetSpeed(rcmd.parse): %s', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] IrcSetSpeed(rcmd.parse): %s', [e.Message]);
+        exit;
+      end;
+    end;
+
+    source := rcmd.readNamelessString()[0];
+    dest := rcmd.readNamelessString()[1];
+    speed := rcmd.readNamelessInt()[0];
+    c1 := rcmd.readString('c1');
+    c2 := rcmd.readString('c2');
+    sw1 := rcmd.readString('sw1');
+    sw2 := rcmd.readString('sw2');
+    apply := rcmd.readFlag('apply');
+
+    irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | apply: %s',
+      [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(apply)]);
+
+  finally
+    rcmd.Free;
+  end;
+
+  exit;
 
   admin_site := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 
