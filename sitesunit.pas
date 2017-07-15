@@ -345,11 +345,12 @@ function getAdminSiteName: AnsiString;
 
 //function
 
-function SiteSoftWareToSTring(sitename: AnsiString): AnsiString; overload;
-function SiteSoftWareToSTring(site: TSite): AnsiString; overload;
+function SiteSoftWareToString(sitename: AnsiString): AnsiString; overload;
+function SiteSoftWareToString(site: TSite): AnsiString; overload;
+function StringToSiteSoftWare(s: AnsiString): TSiteSw;
 
-function sslMethodToSTring(sitename: AnsiString): AnsiString; overload;
-function sslMethodToSTring(site: TSite): AnsiString; overload;
+function sslMethodToString(sitename: AnsiString): AnsiString; overload;
+function sslMethodToString(site: TSite): AnsiString; overload;
 
 { Checks each sites working property and add it to a formated Stringlist for irc output
   Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
@@ -390,14 +391,15 @@ begin
   Result := config.ReadString('sites', 'admin_sitename', 'SLFTP');
 end;
 
-function SiteSoftWareToSTring(sitename: AnsiString): AnsiString;
+function SiteSoftWareToString(sitename: AnsiString): AnsiString;
 begin
-  Result := SiteSoftWareToSTring(FindSiteByName('', sitename));
+  Result := SiteSoftWareToString(FindSiteByName('', sitename));
 end;
 
-function SiteSoftWareToSTring(site: TSite): AnsiString;
+function SiteSoftWareToString(site: TSite): AnsiString;
 begin
   Result := 'Unknown';
+
   // sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd
   case TSite(site).Software of
     sswUnknown: Result := 'Unknown';
@@ -407,12 +409,25 @@ begin
   end;
 end;
 
-function sslMethodToSTring(sitename: AnsiString): AnsiString;
+function StringToSiteSoftWare(s: AnsiString): TSiteSw;
 begin
-  Result := sslMethodToSTring(FindSiteByName('', sitename));
+  Result := sswUnknown;
+  s := AnsiLowerCase(s);
+
+  if s = 'glftpd' then
+    Result := sswGlftpd;
+  if s = 'drftpd' then
+    Result := sswDrftpd;
+  if s = 'ioftpd' then
+    Result := sswIoftpd;
 end;
 
-function sslMethodToSTring(site: TSite): AnsiString;
+function sslMethodToString(sitename: AnsiString): AnsiString;
+begin
+  Result := sslMethodToString(FindSiteByName('', sitename));
+end;
+
+function sslMethodToString(site: TSite): AnsiString;
 begin
   Result := 'Unknown';
   case TSite(site).sslmethod of

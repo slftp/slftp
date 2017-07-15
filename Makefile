@@ -2,7 +2,7 @@ SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs -Cg-
-CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE
+CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline
 CDBFLAGS = -MDelphi -gl -gp -gs -gw3 -Cg-
 default: clean slftp
 
