@@ -1,6 +1,7 @@
 unit speedstatsunit;
 
 interface
+
 uses Contnrs;
 
 type
@@ -26,7 +27,9 @@ procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString); ove
 procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString); overload;
 procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString); overload;
 
-function SpeedStatsScale(toscale: Double): Integer;
+procedure RemoveSpeedStats(const sitename, section: AnsiString);
+
+function SpeedStatsScale(const toscale: Double): Integer;
 
 var
   speedstats_last_save: TDateTime;
@@ -405,60 +408,6 @@ begin
   Debug(dpMessage, r_section, 'Recalculating speed stats end');
 end;
 
-function SpeedStatsScale(toscale: Double): Integer;
-var
-  i, j: Integer;
-  min_speed, max_speed: Double;
-  x, y: TStringList;
-  d, diff: Double;
-begin
-  Result := 0;
-
-  x := TStringList.Create;
-  y := TStringList.Create;
-  try
-    AddSites('', '', x);
-
-    // eloszor a kimeno sebessegeket rekalibraljuk
-    min_speed := 1000000000;
-    max_speed := 0;
-    for i := 0 to x.Count - 1 do
-    begin
-      AddSites(x[i], '', y);
-      for j := 0 to y.Count - 1 do
-      begin
-        d := AvgSpeed(x[i], y[j]);
-        if d < min_speed then
-        begin
-          min_speed := d;
-        end;
-        if d > max_speed then
-        begin
-          max_speed := d;
-        end;
-      end;
-    end;
-
-    if max_speed > min_speed then
-    begin
-      if ((max_speed > toscale) and (min_speed < toscale)) then
-      begin
-        diff := max_speed - min_speed;
-        Result := Round((toscale - min_speed) / diff * 8) + 1;
-      end
-      else
-      if max_speed < toscale then
-        Result := 9
-      else
-      if min_speed > toscale then
-        Result := 1;
-    end;
-  finally
-    y.Free;
-    x.Free;
-  end;
-end;
-
 procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString); overload;
 var
   x: TStringList;
@@ -777,7 +726,7 @@ begin
   end;
 end;
 
-procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip:AnsiString); overload;
+procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip: AnsiString); overload;
 var
   s: TSpeedStat;
 begin
@@ -825,6 +774,77 @@ begin
     begin
       Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
     end;
+  end;
+end;
+
+procedure RemoveSpeedStats(const sitename, section: AnsiString);
+var
+  i: integer;
+begin
+  speedstatlock.Enter;
+  try
+    for i := 0 to speedstats.Count - 1 do
+    begin
+      if (((TSpeedStat(speedstats.Items[i]).src = sitename) or (TSpeedStat(speedstats.Items[i]).dst = sitename)) and (TSpeedStat(speedstats.Items[i]).section = section)) then
+        speedstats.Delete(i);
+    end;
+  finally
+    speedstatlock.Leave;
+  end;
+  SpeedStatsSave;
+end;
+
+function SpeedStatsScale(const toscale: Double): Integer;
+var
+  i, j: Integer;
+  min_speed, max_speed: Double;
+  x, y: TStringList;
+  d, diff: Double;
+begin
+  Result := 0;
+
+  x := TStringList.Create;
+  y := TStringList.Create;
+  try
+    AddSites('', '', x);
+
+    // eloszor a kimeno sebessegeket rekalibraljuk
+    min_speed := 1000000000;
+    max_speed := 0;
+    for i := 0 to x.Count - 1 do
+    begin
+      AddSites(x[i], '', y);
+      for j := 0 to y.Count - 1 do
+      begin
+        d := AvgSpeed(x[i], y[j]);
+        if d < min_speed then
+        begin
+          min_speed := d;
+        end;
+        if d > max_speed then
+        begin
+          max_speed := d;
+        end;
+      end;
+    end;
+
+    if max_speed > min_speed then
+    begin
+      if ((max_speed > toscale) and (min_speed < toscale)) then
+      begin
+        diff := max_speed - min_speed;
+        Result := Round((toscale - min_speed) / diff * 8) + 1;
+      end
+      else
+      if max_speed < toscale then
+        Result := 9
+      else
+      if min_speed > toscale then
+        Result := 1;
+    end;
+  finally
+    y.Free;
+    x.Free;
   end;
 end;
 

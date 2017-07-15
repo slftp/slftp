@@ -23,8 +23,8 @@ procedure RanksStart;
 procedure RanksRecalc(const netname, channel: AnsiString);
 procedure RanksProcess(p: TPazo);
 
-function RemoveRanks(sitename: string): boolean; overload;
-function RemoveRanks(sitename, section: string): boolean; overload;
+function RemoveRanks(sitename: AnsiString): boolean; overload;
+function RemoveRanks(sitename, section: AnsiString): boolean; overload;
 
 function RanksReload: boolean;
 
@@ -44,7 +44,7 @@ var
   rankslock: TCriticalSection;
 
 
-function RemoveRanks(sitename: string): boolean;
+function RemoveRanks(sitename: AnsiString): boolean;
 var
   i: Integer;
 begin
@@ -52,7 +52,7 @@ begin
   try
     rankslock.Enter;
     try
-      for I := ranks.Count - 1 downto 0 do
+      for i := ranks.Count - 1 downto 0 do
         if TRankStat(ranks.Items[i]).sitename = sitename then
           ranks.Delete(i);
     finally
@@ -64,7 +64,7 @@ begin
   Result := True;
 end;
 
-function RemoveRanks(sitename, section: string): boolean;
+function RemoveRanks(sitename, section: AnsiString): boolean;
 var
   i: Integer;
   rank: TRankStat;
@@ -73,7 +73,7 @@ begin
   try
     rankslock.Enter;
     try
-      for I := ranks.Count - 1 downto 0 do
+      for i := ranks.Count - 1 downto 0 do
       begin
         rank := TRankStat(ranks.Items[i]);
         if ((rank.sitename = sitename) and (rank.section = section)) then
