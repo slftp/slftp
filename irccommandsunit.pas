@@ -898,6 +898,7 @@ begin
     s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
+    RemoveSpeedStats(sitename, section);
   end;
 
   Result := True;
