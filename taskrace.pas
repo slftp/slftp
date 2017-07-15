@@ -178,6 +178,7 @@ var
   numerrors: integer;
   tname: AnsiString;
   ps: TPazoSite;
+  secondsWithNoChange: Int64;
 begin
   numerrors := 0;
   Result := False;
@@ -414,25 +415,27 @@ begin
   //check if we should give up with empty/incomplete/long release
   if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then
   begin
+    secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
-    if ((d.entries.Count = 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_empty', 300))) then
+    if ((d.entries.Count = 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_empty', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
         irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%s) > newdir_max_empty(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
+      Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
     end;
 
-    if ((d.entries.Count > 0) and (SecondsBetween(Now, d.LastChanged) > config.ReadInteger(c_section, 'newdir_max_unchanged', 300))) then
+    if ((d.entries.Count > 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_unchanged', 300))) then
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
+        irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
       end;
       ps1.dirlistgaveup := True;
-      Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%s) > newdir_max_unchanged(%d)', [ps1.Name, IntToStr(SecondsBetween(Now, d.LastChanged)), config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
+      Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
     end;
 
     if (is_pre) then
