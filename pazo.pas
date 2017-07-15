@@ -72,8 +72,7 @@ type
 
     activeTransfers: TStringList;
 
-    // returns true if its a pre or at least it should be one
-    function StatusRealPreOrShouldPre: boolean;
+    function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
     function Complete: boolean;
 
@@ -709,8 +708,7 @@ var
   i: integer;
   ps: TPazoSite;
 begin
-  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(
-    sites.Count) + ' sites)' + #13#10;
+  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(sites.Count) + ' sites)' + #13#10;
   for i := 0 to sites.Count - 1 do
   begin
     try
@@ -719,8 +717,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText : %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText : %s', [e.Message]));
         break;
       end;
     end;
@@ -768,8 +765,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.PRegisterFile: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazo.PRegisterFile: %s', [e.Message]));
       Result := filesize;
     end;
   end;
@@ -1717,6 +1713,8 @@ begin
       begin
         Result := Format('<c5>%s</c>', [fsname]);
       end
+      else if (dirlistgaveup) then
+        Result := Format('<c13>%s</c>', [fsname])
       else
       begin
         Result := Format('<c14>%s</c>', [fsname]);
@@ -1768,13 +1766,25 @@ begin
   status := rssComplete;
 end;
 
+function TPazoSite.Age: integer;
+begin
+  if ts <> 0 then
+  begin
+    Result := SecondsBetween(Now, ts);
+    exit;
+  end;
+
+  Result := -1;
+  if dirlist <> nil then
+    Result := SecondsBetween(Now, dirlist.LastChanged);
+end;
+
 function TPazoSite.AsText: AnsiString;
 var
   i: integer;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
-  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) +
-    ' items)';
+  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) + ' items)';
 
   if (dirlist.Complete) then
   begin
@@ -1786,16 +1796,16 @@ begin
   //for i:= 0 to sources.Count -1 do
   //  Result:= Result + TPazoSite(sources[i]).name+' ';
   //Result:= Result + #13#10;
+
   Result := Result + 'Destinations: ';
   for i := 0 to destinations.Count - 1 do
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(
-      destinationRanks[i]) + ')' + ' ';
+    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr( destinationRanks[i]) + ')' + ' ';
+
   Result := Result + #13#10;
   Result := Result + 'Status: ';
   case status of
     rssNotAllowed: Result := Result + '<c4>not allowed</c> (' + reason + ')';
-    rssNotAllowedButItsThere: Result := Result + 'not allowed but its there (' +
-      reason + ')';
+    rssNotAllowedButItsThere: Result := Result + 'not allowed but its there (' + reason + ')';
     rssAllowed: Result := Result + 'allowed (' + reason + ')';
     rssShouldPre: Result := Result + '(?)pre';
     rssRealPre: Result := Result + '<b>pre</b>';
@@ -1812,23 +1822,9 @@ begin
   Result := '<u>' + Name + '</u> ->';
   for i := 0 to destinations.Count - 1 do
   begin
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(
-      destinationRanks[i]) + ')' + ' ';
+    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(destinationRanks[i]) + ')' + ' ';
   end;
   Result := Result + #13#10;
-end;
-
-function TPazoSite.Age: integer;
-begin
-  if ts <> 0 then
-  begin
-    Result := SecondsBetween(Now, ts);
-    exit;
-  end;
-
-  Result := -1;
-  if dirlist <> nil then
-    Result := SecondsBetween(Now, dirlist.LastChanged);
 end;
 
 function TPazoSite.Allfiles: AnsiString;
