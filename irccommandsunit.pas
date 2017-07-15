@@ -423,7 +423,7 @@ const
     (cmd: 'speedtestcleanup'; hnd: IrcSpeedTestCleanup; minparams: 0; maxparams: - 1; hlpgrp: 'speed'),
 
     (cmd: 'WORK'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$work'),
-    (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 1; maxparams: 3; hlpgrp: 'work'),
+    (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'autodirlist'; hnd: IrcAutoDirlist; minparams: 1; maxparams: - 1; hlpgrp: 'work'),
     (cmd: 'latest'; hnd: IrcLatest; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'lame'; hnd: IrcLame; minparams: 2; maxparams: 3; hlpgrp: 'work'),
@@ -1431,7 +1431,7 @@ function IrcDirlist(const Netname, Channel: AnsiString; params: AnsiString): boo
 var
   s: TSite;
   i: integer;
-  sitename, section, predir, dir: AnsiString;
+  sitename, section, sectiondir, dir: AnsiString;
   d: TDirList;
   de: TDirListEntry;
 begin
@@ -1439,6 +1439,7 @@ begin
 
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
+  dir := SubString(params, ' ', 3);
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -1446,14 +1447,13 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
     exit;
   end;
-  predir := s.sectiondir[section];
 
-  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
-  if ((dir = '') and (predir = '')) then
+  sectiondir := s.sectiondir[section];
+
+  if (sectiondir = '') then
   begin
-    section := 'PRE';
-    predir := s.sectiondir[section];
-    dir := mystrings.RightStr(params, length(sitename) + 1);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section <b>%s</b>.', [sitename, section]);
+    exit;
   end;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
@@ -1462,16 +1462,9 @@ begin
     exit;
   end;
 
-  if (predir = '') then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section <b>%s</b>.',
-      [sitename, section]);
-    exit;
-  end;
+  sectiondir := todaycsere(sectiondir);
 
-  predir := todaycsere(predir);
-
-  d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
+  d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(sectiondir) + dir);
   try
     if d <> nil then
     begin
@@ -1518,8 +1511,7 @@ begin
 
   if (predir = '') then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.', [sitename,
-      section]);
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.', [sitename, section]);
     exit;
   end;
 
