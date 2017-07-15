@@ -39,7 +39,6 @@ program slftp;
 *******************************************************************************}
 uses
   FastMM4,
-  rcmdline in 'libs/rcmdline/rcmdline.pas',
   console;
 
 {$APPTYPE CONSOLE}
