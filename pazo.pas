@@ -72,8 +72,7 @@ type
 
     activeTransfers: TStringList;
 
-    // returns true if its a pre or at least it should be one
-    function StatusRealPreOrShouldPre: boolean;
+    function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
     function Complete: boolean;
 
@@ -173,9 +172,9 @@ type
     function PRegisterFile(dir, filename: AnsiString; filesize: Int64): integer;
   end;
 
-function FindPazoById(id: integer): TPazo;
-function FindPazoByName(section, rlsname: AnsiString): TPazo;
-function FindPazoByRls(rlsname: AnsiString): TPazo;
+function FindPazoById(const id: integer): TPazo;
+function FindPazoByName(const section, rlsname: AnsiString): TPazo;
+function FindPazoByRls(const rlsname: AnsiString): TPazo;
 function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
 procedure PazoInit;
 procedure PazoUninit;
@@ -186,7 +185,7 @@ implementation
 
 uses SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper,
-  Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr;
+  Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr, statsunit;
 
 const
   section = 'pazo';
@@ -309,26 +308,7 @@ begin
   Inc(local_pazo_id);
 end;
 
-(*
-function FindPazoById(id: Integer): TPazo;
-var i: integer;
-    p: TPazo;
-begin
-  Result:= nil;
-  for i:= pazos.Count -1 downto 0 do
-  begin
-    p:= TPazo(pazos[i]);
-    if p.pazo_id = id then
-    begin
-      p.lastTouch:= Now();
-      Result:= p;
-      exit;
-    end;
-  end;
-end;
-*)
-
-function FindPazoById(id: integer): TPazo;
+function FindPazoById(const id: integer): TPazo;
 var
   i: integer;
   p: TPazo;
@@ -358,7 +338,7 @@ begin
   end;
 end;
 
-function FindPazoByName(section, rlsname: AnsiString): TPazo;
+function FindPazoByName(const section, rlsname: AnsiString): TPazo;
 var
   i: integer;
 begin
@@ -379,7 +359,7 @@ begin
   end;
 end;
 
-function FindPazoByRls(rlsname: AnsiString): TPazo;
+function FindPazoByRls(const rlsname: AnsiString): TPazo;
 var
   i: integer;
   p: TPazo;
@@ -407,7 +387,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
+      Result := nil;
     end;
   end;
 end;
@@ -727,8 +708,7 @@ var
   i: integer;
   ps: TPazoSite;
 begin
-  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(
-    sites.Count) + ' sites)' + #13#10;
+  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(sites.Count) + ' sites)' + #13#10;
   for i := 0 to sites.Count - 1 do
   begin
     try
@@ -737,8 +717,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText : %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText : %s', [e.Message]));
         break;
       end;
     end;
@@ -786,8 +765,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.PRegisterFile: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazo.PRegisterFile: %s', [e.Message]));
       Result := filesize;
     end;
   end;
@@ -1667,7 +1645,7 @@ begin
       exit;
 
     lines_read := 0;
-    // crashes 
+    // crashes
     while (True) do
     begin
       s := Elsosor(resp);
@@ -1702,11 +1680,11 @@ end;
 
 function TPazoSite.Stats: AnsiString;
 var
-  fsize: real;
+  fsize: double;
   fsname, fsizetrigger: AnsiString;
 begin
-  fsizetrigger := 'KB';
   fsname := Name;
+
   if status = rssRealPre then
     fsname := format('<c10>%s</c>', [Name]); //bCyan(name);
   if status = rssShouldPre then
@@ -1723,30 +1701,20 @@ begin
       fsize := dirlist.SizeRacedByMe(True);
       fsize := fsize / 1024;
 
-      if fsize > 1024 then
-      begin
-        fsize := fsize / 1024;
-        fsizetrigger := 'MB';
-      end;
+      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-      if fsize > 1024 then
-      begin
-        fsize := fsize / 1024;
-        fsizetrigger := 'GB';
-      end;
-
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)',
-        [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
     end
     else
     begin
       if ((status = rssRealPre) or (status = rssShouldPre)) then
         exit;
-      //if ((sources.Count = 0) and (destinations.Count = 0)) then
       if (destinations.Count = 0) then
       begin
         Result := Format('<c5>%s</c>', [fsname]);
       end
+      else if (dirlistgaveup) then
+        Result := Format('<c13>%s</c>', [fsname])
       else
       begin
         Result := Format('<c14>%s</c>', [fsname]);
@@ -1798,13 +1766,25 @@ begin
   status := rssComplete;
 end;
 
+function TPazoSite.Age: integer;
+begin
+  if ts <> 0 then
+  begin
+    Result := SecondsBetween(Now, ts);
+    exit;
+  end;
+
+  Result := -1;
+  if dirlist <> nil then
+    Result := SecondsBetween(Now, dirlist.LastChanged);
+end;
+
 function TPazoSite.AsText: AnsiString;
 var
   i: integer;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
-  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) +
-    ' items)';
+  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) + ' items)';
 
   if (dirlist.Complete) then
   begin
@@ -1816,16 +1796,16 @@ begin
   //for i:= 0 to sources.Count -1 do
   //  Result:= Result + TPazoSite(sources[i]).name+' ';
   //Result:= Result + #13#10;
+
   Result := Result + 'Destinations: ';
   for i := 0 to destinations.Count - 1 do
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(
-      destinationRanks[i]) + ')' + ' ';
+    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr( destinationRanks[i]) + ')' + ' ';
+
   Result := Result + #13#10;
   Result := Result + 'Status: ';
   case status of
     rssNotAllowed: Result := Result + '<c4>not allowed</c> (' + reason + ')';
-    rssNotAllowedButItsThere: Result := Result + 'not allowed but its there (' +
-      reason + ')';
+    rssNotAllowedButItsThere: Result := Result + 'not allowed but its there (' + reason + ')';
     rssAllowed: Result := Result + 'allowed (' + reason + ')';
     rssShouldPre: Result := Result + '(?)pre';
     rssRealPre: Result := Result + '<b>pre</b>';
@@ -1842,23 +1822,9 @@ begin
   Result := '<u>' + Name + '</u> ->';
   for i := 0 to destinations.Count - 1 do
   begin
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(
-      destinationRanks[i]) + ')' + ' ';
+    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(destinationRanks[i]) + ')' + ' ';
   end;
   Result := Result + #13#10;
-end;
-
-function TPazoSite.Age: integer;
-begin
-  if ts <> 0 then
-  begin
-    Result := SecondsBetween(Now, ts);
-    exit;
-  end;
-
-  Result := -1;
-  if dirlist <> nil then
-    Result := SecondsBetween(Now, dirlist.LastChanged);
 end;
 
 function TPazoSite.Allfiles: AnsiString;
