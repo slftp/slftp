@@ -888,9 +888,6 @@ begin
     end;
   end;
 
-  s.sectiondir[section] := dir;
-  s.SetSections(section, False);
-
   if dir = '' then // It can be removed
   begin
     s.SetSections(section, True);
@@ -898,7 +895,13 @@ begin
     s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
+    RemoveStats(sitename, section);
     RemoveSpeedStats(sitename, section);
+  end
+  else
+  begin
+    s.sectiondir[section] := dir;
+    s.SetSections(section, False);
   end;
 
   Result := True;

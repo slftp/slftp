@@ -2,7 +2,7 @@ unit statsunit;
 
 interface
 
-uses slsqlite, slmysql2, dirlist;
+uses slsqlite, dirlist;
 
 procedure statsStart;
 procedure statsInit;
@@ -11,7 +11,7 @@ procedure statsBeginTransaction();
 procedure statsEndTransaction();
 function statsQuery(const q: AnsiString): AnsiString;
 
-function StatsAlive:boolean;
+function StatsAlive: boolean;
 
 procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
 
@@ -21,21 +21,29 @@ procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Bo
 
 procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
 
+procedure RemoveStats(const sitename: AnsiString); overload;
+procedure RemoveStats(const sitename, section: AnsiString); overload;
+
 
 implementation
 
 uses DateUtils, debugunit, configunit, sitesunit, queueunit, SysUtils, pazo, kb, ranksunit, irc;
 
-const section = 'stats';
+const
+  section = 'stats';
 
 var
-    statsInsert: Psqlite3_stmt;
-    statsRace: Psqlite3_stmt;
-    stats: TslSqliteDB;
+  statsInsert: Psqlite3_stmt;
+  statsRace: Psqlite3_stmt;
+  stats: TslSqliteDB;
 
-function StatsAlive:boolean;
+
+function StatsAlive: boolean;
 begin
-  if stats = nil then result:= False else result:=true;
+  if stats = nil then
+    Result := False
+  else
+    Result := true;
 end;
 
 function statsQuery(const q: AnsiString): AnsiString;
@@ -55,20 +63,10 @@ begin
     {$ELSE}
     size := StrToInt(StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
     {$ENDIF}
-    s_unit := 'MB';
 
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'TB';
-    end;
+    RecalcSizeValueAndUnit(size, s_unit, 2);
 
-    //RecalcSizeValueAndUnit(size, s_unit, 2);
-
-    Result := Result + Format('%d. %s (%.2f %s)', [i, stats.column_text(s, 0), size,s_unit])+#13#10;
+    Result := Result + Format('%d. %s (%.2f %s)', [i, stats.column_text(s, 0), size, s_unit]) + #13#10;
     inc(i);
   end;
 end;
@@ -96,6 +94,23 @@ begin
 
   sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
+
+procedure RemoveStats(const sitename: AnsiString); overload;
+begin
+  if stats = nil then
+    Exit;
+  stats.ExecSQL('DELETE FROM hit WHERE sitename = ' + chr(39) + sitename + chr(39) + ';');
+  stats.ExecSQL('DELETE FROM race WHERE ( sitedst = ' + chr(39) + sitename + chr(39) + ' OR sitedst = ' + chr(39) + sitename + chr(39) + ' );');
+end;
+
+procedure RemoveStats(const sitename, section: AnsiString); overload;
+begin
+  if stats = nil then
+    Exit;
+  stats.ExecSQL('DELETE FROM hit WHERE sitename = ' + chr(39) + sitename + chr(39) + ' AND section = ' + chr(39) + section + chr(39) + ';');
+  stats.ExecSQL('DELETE FROM race WHERE ( sitedst = ' + chr(39) + sitename + chr(39) + ' OR sitedst = ' + chr(39) + sitename + chr(39) + ' ) AND section = ' + chr(39) + section + chr(39) + ';');
+end;
+
 
 procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
 var
