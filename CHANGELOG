@@ -69,6 +69,11 @@
       image_files_priority
       video_files_priority
 
+--==========================( NEW slftp.precatcher ITEMS )===============================-
+
+    // REPLACE
+      nukewords to ignorewords
+
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -101,7 +106,8 @@
     {+} Wrap IRC Messages into 256 char long chunks (#36)
     {+} Wrap lines on console window based on width (#36)
     {+} Option to enable/disable autoinvite -> !help autoinvite (#84)
-    {#} nukewords from slftp.precatcher works as intended, supporting double quoted strings and shows correct matched nukeword (#144)   ---- rename nukewords to skipwords or irclines_ignorewords  ----
+    {#} nukewords from slftp.precatcher works as intended, supporting double quoted strings and shows correct matched nukeword (#144)
+        -> Rename nukewords to ignorewords in slftp.precatcher (see above!)
     {#} Precatcher reload (!catchreload) works correctly when using split_site_data=1 (#132)
     {#} Precatcher should be faster due to several code changes which improves performance and [EXCEPTION] ProcessReleaseVegeB mind = true is fixed
     {#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
