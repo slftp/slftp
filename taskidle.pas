@@ -64,6 +64,7 @@ ujra:
 
   if s.site.sw = sswDrftpd then
   begin
+    // is that really useful ?
     idlecmd := 'CWD .';
   end;
 
@@ -97,7 +98,7 @@ var
   i: Integer;
 begin
   idlecommands := TStringList.Create;
-  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .,SITE RULES,NOOP,SITE HELP,SITE VERS');
+  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .');
   i := 1;
   while (true) do
   begin
