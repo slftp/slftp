@@ -5647,7 +5647,7 @@ begin
       while not EOF(f) do
       begin
         ReadLn(f, s);
-        s := trim(s);
+        //s := trim(s);
         if s <> '' then
         begin
           s := Csere(s, '<prefix>', irccmdprefix);
