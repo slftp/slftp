@@ -82,19 +82,18 @@
     {+} Partial use of Faster Regex Engine FLRE (https://github.com/BeRo1985/flre) (much faster!!!)
     {+} New dirlist Code including:
         - Changed filesize variables to use Int64 instead of Integer
-        - flag to enable/disable racing incomplete files (at least with glftpd) (#16)     ---- only GL or also DR?? ----
-            global via .ini -> "skip_being_uploaded_files" or per site
-        - Reworked the file sorting
+        - flag to enable/disable racing incomplete files (at least with glftpd for now) (see !skipinc) (#16)
+        - Reworked the file sorting with more options
         - Reworked/optimized dirlist sorting
         - Added handling for special dirs completeness (i.e. dirfix)
     {+} !skipinc to enable/disable racing incomplete files (#16)
     {+} tvlanguage rule for TVMaze infos (#79)
     {+} !sites output is in alphabetically order (#152)
     {+} !siteuser to change a site username
-    {+} !routeset supports several new ways to set routes -> !help routeset (#82)         ---- need to be completly added first! ----
-    {+} Add all available Genres from TVMaze und TheTVDB
     {+} !sitepass to change a site password
-    {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (e.g. ZzZz & ZzZz_INT) (#129)        ---- need to be tested ----
+    {+} !routeset/!routelock supports several new ways to set routes -> !help routeset (#82)
+    {+} Add all available Genres from TVMaze und TheTVDB
+    {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (e.g. ZzZz & ZzZz_INT) (#129)
     {+} New IRC Help Command -> !help nhelp
     {+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
     {+} New !affils cmd (acts like chgrp on glftpd) -> !help affils
@@ -112,28 +111,27 @@
     {#} Fix for tvtag rules -> tvtag weren't initialized (#102)
     {#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
     {#} Rule 'pred' should work now (#136)
-    {#} !dirlist works as expected and lists everything in dir (#135, #143)               ---- #135 need to be coded first ----
+    {#} !dirlist works as expected and lists everything in dir (#135, #143)
     {#} No more stalling of slftp if languagebase file is missing (#111)
     {#} Year regex improvement for shows like "1066: A Year to Conquer England" or 2017.Flick.Electric.Co.Comedy.Gala.Part.2.720p.HDTV.x264-FiHTV
     {#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
     {#} sitename for !speedtestin and !speedtestout, no empty "Site '' has no suitable file for speedtesting" (#130)
-    {#} !credits * does not show all other sites when a site is offline
+    {#} !credits * does not show all other sites when a site is offline (#97)
     {#} No more blank lines removed from slftp.ini when file is rewritten (split_site_data only) (#145)
     {#} Classification was never updated when doing a tvinfo update
     {#} IMDB post_lookup_infos config setting is now respected
     {#} disable MySQL if host=(empty) in slftp.ini
     {#} default values for maxidle and idleinterval never used from slftp.ini
-    {^} Error handling for taskrace (dirlisttask, mkdirtask and racetask) is done
+    {^} Error handling for ftpd response in taskrace (dirlisttask, mkdirtask and racetask) is done
     {^} Show in a log message what's wrong with MySQL when using as predb
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
     {^} TVMaze Us US mismatch gets detected better now (#1)
-    {^} Rule tvrunning will be also true on Status "In Development"
+    {^} Rule tvrunning will be also true on Status "In Development" (#150)
     {^} No 'Section on SITE for SECTION was not found' on COMPLETE and NUKE announce (#117)
     {^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
     {^} No [NOT SET] message if site is set to permdown & rename to [SECTION NOT SET] (#108)
     {^} Re-written backup unit code, supporting old options (skipfiles, backup_dir) and includes all .db files in backup (#134)
     {^} Announce old + renamed groupname when check with renamed_group_checker was positive
-    {^} languagebase.slftp gets automatically renamed to slftp.languagebase
     {^} Disabled all fake checking for sitepres
     {^} Better input checks and more output for !setoffset, !pretimemode, !pretimemode2 and !addpremode
     {^} No need to !setdown before !setpermdown (#108)
@@ -146,13 +144,15 @@
     {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)                                                                  ---- guess still no drop on mp3genre rule if not found ----
     {^} Update to latest LibTar 2.1.2
     {^} Several improvements for tags (COMPLETE/INCOMPLETE detection):
-        - constant regexp initialization/freeing by an unique one at startup (much faster)
+        - no more constant regexp initialization/freeing; instead using an unique one at startup (much faster!)
         - Added locking/unlocking on regexp instances to avoid access exceptions on heavy load
     {^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
     {^} some improvements to !site output (Linebreaks, more text for pretime)
     {^} Changed irc "Too few parameters" errors with better ones
     {^} Added additionnal infos to "Dirlist added" messages
-    {-} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)                                   ---- not really a fix for it ----
+    {^} Color a site if it was stopped due to dirlist gave up in [STATS] announce + Output seconds for [EMPTY|INCOMPLETE] announce
+    {^} Omitting dir parameter in !setdir was leaving some values in config (#21)
+    {-} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)
     {-} !setaffils removed -> use !affils
     {-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
     {-} Support for deprecated OpenSSL 1.0.1 series
