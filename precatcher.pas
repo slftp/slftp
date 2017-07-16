@@ -534,15 +534,15 @@ begin
 
 
 
-      // nukewords check
+      // ignorewords check
       // word by word check for single words
       for i := 0 to ts_data.Count - 1 do
       begin
         igindex := irclines_ignorewords.IndexOf(ts_data.Strings[i]);
         if igindex > -1 then
         begin
-          MyDebug('Nukeword ' + irclines_ignorewords[igindex] + ' found in ' + Data);
-          Debug(dpSpam, rsections, 'Nukeword ' + irclines_ignorewords.strings[igindex] + ' found in ' + Data);
+          MyDebug('Ignoreword ' + irclines_ignorewords[igindex] + ' found in ' + Data);
+          Debug(dpSpam, rsections, 'Ignoreword ' + irclines_ignorewords.strings[igindex] + ' found in ' + Data);
           exit;
         end;
       end;
@@ -552,8 +552,8 @@ begin
       begin
         if AnsiContainsText(irclines_ignorewords[i],' ') and AnsiContainsText(ts_data.DelimitedText, irclines_ignorewords[i]) then
         begin
-          MyDebug('Nukeword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
-          Debug(dpSpam, rsections, 'Nukeword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          MyDebug('Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          Debug(dpSpam, rsections, 'Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
           exit;
         end;
       end;
@@ -848,7 +848,7 @@ end;
 
 procedure ProcessIgnoreList(s: AnsiString);
 begin
-  if (SubString(s, '=', 1) = 'nukewords') then
+  if (SubString(s, '=', 1) = 'ignorewords') then
     irclines_ignorewords.DelimitedText := SubString(s, '=', 2)
   else if (SubString(s, '=', 1) = 'tagline') then
     tagline.DelimitedText := SubString(s, '=', 2);
