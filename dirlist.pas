@@ -199,7 +199,7 @@ begin
   if parent <> nil then
   begin
     // we are in a subdirectory
-    // Debug(dpMessage, section, 'TDirlist.Complete DEBUG (START): Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
+    // Debug(dpSpam, section, 'TDirlist.Complete DEBUG (START): Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
 
     // check if subdir has a complete tag
     Result := CompleteByTag;
@@ -238,12 +238,13 @@ begin
     // For debug purposes only
     if (Result) then
     begin
-      Debug(dpError, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size]);
+      Debug(dpSpam, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size]);
     end
     else
     begin
       //Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
     end
+
   end
   else
   begin
