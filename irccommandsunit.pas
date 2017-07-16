@@ -6345,13 +6345,13 @@ end;
 
 function IrcCountry(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  sitename, country, countrywithoutdot: AnsiString;
+  sitename, country: AnsiString;
   i: Integer;
   s: TSite;
 begin
   Result := False;
   sitename := AnsiUpperCase(SubString(params, ' ', 1));
-  country := AnsiUpperCase(mystrings.RightStr(params, length(sitename) + 1));
+  country := AnsiUpperCase(stringreplace(mystrings.RightStr(params, length(sitename) + 1), '.', '', [rfReplaceAll]));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -6360,21 +6360,14 @@ begin
     exit;
   end;
 
-  if (country[1] <> '.') then
-  begin
-    irc_addtext(Netname, Channel, 'The location/country need to begin with a dot!');
-    exit;
-  end;
-
-  countrywithoutdot := copy(country, 2, length(country));
-  i := AnsiIndexText(countrywithoutdot, CountryCodes);
+  i := AnsiIndexText(country, CountryCodes);
   if not (i > -1) then
   begin
-    irc_addtext(Netname, Channel, 'Country %s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements', [country]);
+    irc_addtext(Netname, Channel, 'Country .%s is not a valid country! Check https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements', [country]);
     exit;
   end;
 
-  s.Country := country;
+  s.Country := '.' + country;
   irc_addtext(Netname, Channel, 'Country for %s set to %s (%s)', [sitename, s.Country, CountryNames[i]]);
 
   Result := True;
@@ -6585,15 +6578,15 @@ var
   site_found: boolean;
   country, ss: AnsiString;
 begin
-  country := SubString(params, ' ', 1);
+  country := AnsiUpperCase(stringreplace(SubString(params, ' ', 1), '.', '', [rfReplaceAll]));
   site_found := False;
-  ss := format('Site(s) with Country %s:', [Country]);
+  ss := format('Site(s) with Country .%s:', [country]);
 
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
 
-    if country = s.Country then
+    if '.' + country = s.Country then
     begin
       ss := ss + format(' <b>%s</b>', [s.Name]);
       site_found := True;
@@ -6607,7 +6600,7 @@ begin
   end
   else
   begin
-    irc_addtext(Netname, Channel, 'No sites with this Country found!');
+    irc_addtext(Netname, Channel, 'No sites in country .%s found!', [country]);
   end;
 
   Result := True;
