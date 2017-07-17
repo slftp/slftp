@@ -421,7 +421,6 @@ begin
     begin
       if spamcfg.readbool(c_section, 'incomplete', True) then
       begin
-        irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir]));
         irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
       end;
       ps1.dirlistgaveup := True;
