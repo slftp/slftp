@@ -1620,14 +1620,22 @@ begin
             exit;
           end;
 
+          if (0 < AnsiPos('550 Requested action not taken. File exists.', lastResponse)) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False);
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<-- DUPE ' + tname);
+            exit;
+          end;
+
           //if above one don't match, we still have an error with sdst.lastResponseCode = 500 or sdst.lastResponseCode = 550
           ps2.ParseDupe(netname, channel, dir, filename, False);
           ready := True;
           Result := True;
-          Debug(dpMessage, c_section, '<-- DUPE ' + tname);
+          Debug(dpMessage, c_section, '<-- DUPE ' + tname + ' - ' + lastresponse);
           exit;
         end;
-
 
       503:
         begin
