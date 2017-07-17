@@ -225,8 +225,17 @@ begin
   try
     rx.ModifierI:=True;
     rx.ModifierM:=True;
-    rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
 
+    // 404 not found
+    rx.Expression:='HTTPS?\/[\d\.]+\s404\sNot\sFound';
+    if rx.Exec(sss) then
+    begin
+      Result := False;
+      exit;
+    end;
+
+    // 301 moved
+    rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
     if rx.Exec(sss) then
     begin
       rx.Expression:='^Location\:\s(.*?)$';
