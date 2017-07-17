@@ -1607,7 +1607,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
+        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
@@ -1632,13 +1632,13 @@ begin
 
     if not Send(cmd) then
     begin
-      Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not send command %s to %s', [cmd, site.Name]);
+      Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not send command %s to %s', [cmd, site.Name]);
       exit;
     end;
 
     if not Read('Dirlist') then
     begin
-      Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
+      Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
     end;
 
