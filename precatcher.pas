@@ -354,7 +354,6 @@ begin
     if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
     begin
       Result := mp3genres[i];
-      Debug(dpSpam, rsections, Format('_findMP3GenreOnAnnounce %s :: %s', [text, Result]));
       break;
     end;
   end;
@@ -461,7 +460,7 @@ begin
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
-      Debug(dpError, rsections, Format('Genre: %s', [genre]));
+      Debug(dpSpam, rsections, Format('Genre found via _findMP3GenreOnAnnounce: %s', [genre]));
     end;
   end;
 
