@@ -11658,9 +11658,7 @@ begin
   tv_showname := '';
 
   if strtointdef(params, -1) > -1 then
-  begin
-    tvmaze_id := params;
-  end
+    tvmaze_id := params
   else
   begin
     otvr := getTVInfoByReleaseName(params);
@@ -11679,22 +11677,18 @@ begin
 
   if tvmaze_id = '' then
   begin
-    Irc_AddText(Netname, Channel, Format('<b><c4>Error</c></b>: Show named <b>%s</b> not found in our local database.', [tv_showname]));
+    Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: Show named <b>%s</b> not found in our local database.', [tv_showname]);
     exit;
   end;
 
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id +
-    '?embed[]=nextepisode&embed[]=previousepisode');
+  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
 
   if respo = '' then
   begin
     if tv_showname <> '' then
-      Irc_AddText(Netname, Channel,
-        Format('<b><c4>Error</c></b>: HTTP response for %s (ID :%d) was empty.', [tv_showname,
-        tvmaze_id]))
+      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for %s (ID :%s) was empty.', [tv_showname, tvmaze_id])
     else
-      Irc_AddText(Netname, Channel,
-        Format('<b><c4>Error</c></b>: HTTP response for ID %d was empty.', [tvmaze_id]));
+      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for ID %s was empty.', [tvmaze_id]);
     exit;
   end;
 
@@ -11716,8 +11710,7 @@ begin
 
   except on e: Exception do
     begin
-      irc_AddText(Netname, Channel, Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s',
-        [e.Message]));
+      irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]);
       Exit;
     end;
   end;
