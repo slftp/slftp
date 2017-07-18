@@ -221,23 +221,14 @@ begin
   Response.Position := 0;
   sss := Response.DataString;
 
-  rx :=TRegexpr.Create;
-  try
-    rx.ModifierI:=True;
-    rx.ModifierM:=True;
+  // 301 moved
+  if ResponseCode = 301 then
+  begin
+    rx := TRegexpr.Create;
+    try
+      rx.ModifierI:=True;
+      rx.ModifierM:=True;
 
-    // 404 not found
-    rx.Expression:='HTTPS?\/[\d\.]+\s404\sNot\sFound';
-    if rx.Exec(sss) then
-    begin
-      Result := False;
-      exit;
-    end;
-
-    // 301 moved
-    rx.Expression:='HTTPS?\/[\d\.]+\s301\sMoved\sPermanently';
-    if rx.Exec(sss) then
-    begin
       rx.Expression:='^Location\:\s(.*?)$';
       if rx.Exec(sss) then
       begin
@@ -264,11 +255,16 @@ begin
         Response.Position := 0;
         sss:= Response.DataString;
       end;
+    finally
+     rx.Free;
     end;
-  finally
-   rx.Free;
-//   result:=True;
-//   exit;
+  end;
+
+  // 404 Not Found
+  if ResponseCode = 404 then
+  begin
+    Result := False;
+    exit;
   end;
 
   s := Response.ReadString(16384);
@@ -277,7 +273,6 @@ begin
   if ResponseStartsAt = 0 then
     exit;
   inc(ResponseStartsAt, 4);
-
 
   ResponseCode := StrToIntDef(Copy(s, 10, 3), 0);
   if ResponseCode = 0 then
