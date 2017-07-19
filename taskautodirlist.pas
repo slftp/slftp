@@ -199,7 +199,7 @@ begin
   begin
     ujraaddolas();
     readyerror := True;
-    irc_Addadmin(Format('%s: s.site.working = sstDown', [s.site.Name]));
+    irc_Addadmin(Format('s.site.working = sstDown for %s (so can''t autodirlist)',[s.site.Name]));
     exit;
   end;
 
@@ -209,7 +209,7 @@ begin
     begin
       ujraaddolas();
       readyerror := True;
-      irc_Addadmin(Format('%s s.status <> ssOnline', [s.site.Name]));
+      irc_Addadmin(Format('s.status <> ssOnline for %s (so can''t autodirlist)',[s.site.Name]));
       exit;
     end;
   end;
