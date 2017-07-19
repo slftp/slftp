@@ -113,7 +113,7 @@ var
 begin
   Debug(dpSpam, section, 'Init %s begins', [section]);
 
-  complete_regex_default := '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)';
+  complete_regex_default := '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)|([^\w].*DONE\s\-\>\s\d+F[^\w]*)';
   incomplete_regex_default := '(\d{1,2}\s*%\s*Complete|incomplete)';
 
   dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
