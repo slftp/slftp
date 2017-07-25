@@ -1276,98 +1276,96 @@ begin
 
     rrgx := TRegExpr.Create;
     try
+      rrgx.ModifierI := True;
+      rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
+      if rrgx.Exec(rlsname) then
+        Internal := True;
 
-    rrgx.ModifierI := True;
-    rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
-    if rrgx.Exec(rlsname) then
-      Internal := True;
-
-    //detect groupname
-    groupname := '';
-    rrgx.ModifierI := True;
-    rrgx.Expression := '\-([^\-]+)$';
-    if rrgx.Exec(rlsname) then
-    begin
-      groupname := rrgx.Match[1];
-    end;
-
-    //old way if groupname not found by regex
-    if (groupname = '') then
-    begin
-      if uppercase(words.strings[words.Count - 1]) = 'INT' then
-        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
-      else
-        groupname := words.strings[words.Count - 1];
-    end;
-
-    dots := 0;
-    number_of_chars := 0;
-    vowels := 0;
-    s := '';
-    for i := 1 to length(rlsname) do
-    begin
-      if 0 = Pos(rlsname[i], s) then
+      //detect groupname
+      groupname := '';
+      rrgx.ModifierI := True;
+      rrgx.Expression := '\-([^\-]+)$';
+      if rrgx.Exec(rlsname) then
       begin
-        Inc(number_of_chars);
-        s := s + rlsname[i];
+        groupname := rrgx.Match[1];
       end;
-      if rlsname[i] = '.' then
-        Inc(dots);
-      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-        Inc(vowels);
-    end;
 
-    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
-
-    if not use_new_language_base then
-    begin
-
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+      //old way if groupname not found by regex
+      if (groupname = '') then
       begin
-        for I := 0 to mp3languages.Count - 1 do
+        if uppercase(words.strings[words.Count - 1]) = 'INT' then
+          groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
+        else
+          groupname := words.strings[words.Count - 1];
+      end;
+
+      dots := 0;
+      number_of_chars := 0;
+      vowels := 0;
+      s := '';
+      for i := 1 to length(rlsname) do
+      begin
+        if 0 = Pos(rlsname[i], s) then
         begin
-          rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
-          if rrgx.Exec(rlsname) then
+          Inc(number_of_chars);
+          s := s + rlsname[i];
+        end;
+        if rlsname[i] = '.' then
+          Inc(dots);
+        if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+          Inc(vowels);
+      end;
+
+      rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+
+      if not use_new_language_base then
+      begin
+
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        begin
+          for I := 0 to mp3languages.Count - 1 do
           begin
-            languages.Add(mp3languages.strings[i]);
-            Break;
+            rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
+            if rrgx.Exec(rlsname) then
+            begin
+              languages.Add(mp3languages.strings[i]);
+              Break;
+            end;
           end;
         end;
-      end;
 
-      for i := 0 to kb_languages.Count - 1 do
-      begin
-        if kb_languages[i] <> '' then
+        for i := 0 to kb_languages.Count - 1 do
         begin
-          for ii := 0 to tags.Count - 1 do
-            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
-              languages.Add(kb_languages.strings[i]);
+          if kb_languages[i] <> '' then
+          begin
+            for ii := 0 to tags.Count - 1 do
+              if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
+                languages.Add(kb_languages.strings[i]);
+          end;
         end;
-      end;
-    end
-    else
-    begin
-      vlang := '';
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-      begin
-        vlang := FindLanguageOnDirectory(rlsname, True);
       end
       else
       begin
-        vlang := FindLanguageOnDirectory(rlsname, False);
+        vlang := '';
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        begin
+          vlang := FindLanguageOnDirectory(rlsname, True);
+        end
+        else
+        begin
+          vlang := FindLanguageOnDirectory(rlsname, False);
+        end;
+        if vlang <> '' then
+          languages.Add(vlang);
       end;
-      if vlang <> '' then
-        languages.Add(vlang);
-    end;
 
-    if (languages.Count = 0) then
-    begin
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-        languages.Add('EN')
-      else
-        languages.Add('English');
-    end;
-
+      if (languages.Count = 0) then
+      begin
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+          languages.Add('EN')
+        else
+          languages.Add('English');
+      end;
     finally
       rrgx.free;
     end;
@@ -1557,8 +1555,7 @@ begin
   end;
 end;
 
-constructor TMP3Release.Create(rlsname, section: AnsiString;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMP3Release.Create(rlsname, section: AnsiString; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
   kotojelekszama: integer;
@@ -1765,9 +1762,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
       end;
     end;
     Result := True;
@@ -2299,8 +2294,7 @@ begin
   Result := False;
 end;
 
-constructor TMVIDRelease.Create(rlsname: AnsiString; section: AnsiString;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMVIDRelease.Create(rlsname: AnsiString; section: AnsiString; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   mvrx: TRegexpr;
 begin
@@ -2318,11 +2312,14 @@ begin
   mvrx := TRegexpr.Create;
   try
     mvrx.ModifierI := True;
+
     mvrx.Expression := '\-((19|20)\d{2})\-';
     if mvrx.Exec(rlsname) then
       mvid_year := StrToIntDef(mvrx.Match[1], 0);
+
     mvrx.Expression := '^VA[\-\_\.]';
     mvid_va := mvrx.Exec(rlsname);
+
     mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
     mvid_live := mvrx.Exec(rlsname);
   finally
