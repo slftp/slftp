@@ -18,9 +18,12 @@ implementation
 
 uses debugunit, sysutils, irc;
 
+const
+  section = 'globalskip';
+
 procedure Initglobalskiplist;
 begin
-  Debug(dpSpam, 'global_skip_group', 'Loading up Global group skiplist..');
+  Debug(dpSpam, section, 'Loading up Global group skiplist..');
   globalgroupskip := TStringlist.Create;
   Rehashglobalskiplist;
 end;
@@ -29,8 +32,7 @@ procedure Uninitglobalskiplist;
 begin
   if globalgroupskip <> nil then
   begin
-    globalgroupskip.free;
-    globalgroupskip := nil;
+    FreeAndNil(globalgroupskip);
   end;
 end;
 
@@ -45,15 +47,14 @@ begin
       globalgroupskip.Clear;
       globalgroupskip.Delimiter := ' ';
       globalgroupskip.DelimitedText := x.text;
-      result := True;
+      Result := True;
     finally
       x.free;
     end;
   except on E: Exception do
     begin
-      Debug(dpError, 'globalskip', format('Exception in Rehashglobalskiplist: %s',
-        [E.Message]));
-      result := False;
+      Debug(dpError, section, Format('Exception in Rehashglobalskiplist: %s', [E.Message]));
+      Result := False;
     end;
   end;
 end;
@@ -62,16 +63,16 @@ function CheckForBadAssGroup(const rls: AnsiString): boolean;
 var
   r: TRegexpr;
 begin
-  result := False;
+  Result := False;
   r := TRegexpr.Create;
   try
     r.Expression := '\-([^\-]+)$';
     if r.Exec(rls) then
     begin
       if globalgroupskip.IndexOf(r.Match[1]) <> -1 then
-        result := True
+        Result := True
       else
-        result := False;
+        Result := False;
     end;
   finally
     r.free;
