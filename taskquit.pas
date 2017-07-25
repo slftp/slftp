@@ -4,19 +4,19 @@ interface
 
 uses tasksunit;
 
-type TQuitTask = class(TTask)
-       constructor Create(const netname, channel, site: AnsiString);
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
-     end;
+type
+  TQuitTask = class(TTask)
+    constructor Create(const netname, channel, site: AnsiString);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: AnsiString; override;
+  end;
 
 implementation
 
 uses sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
 
-{ TLoginTask }
-
-const section = 'quit';
+const
+  section = 'quit';
 
 constructor TQuitTask.Create(const netname, channel, site: AnsiString);
 begin
@@ -24,25 +24,27 @@ begin
 end;
 
 function TQuitTask.Execute(slot: Pointer): Boolean;
-var s: TSiteSlot;
+var
+  s: TSiteSlot;
 begin
-  Result:= False;
+  Result := False;
 
-  s:= slot;
-
+  s := slot;
   s.Quit;
+
   ready:= True;
+
   Debug(dpSpam, section, Name);
-  if spamcfg.readbool('sites','login_logout',True) then
+  if spamcfg.readbool('sites', 'login_logout', True) then
     irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 end;
 
 function TQuitTask.Name: AnsiString;
 begin
   try
-    Result:= Format('QUIT <b>%s</b>',[site1]);
+    Result := Format('QUIT <b>%s</b>',[site1]);
   except
-    Result:= 'QUIT';
+    Result := 'QUIT';
   end;
 end;
 
