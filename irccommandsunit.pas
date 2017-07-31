@@ -5861,11 +5861,11 @@ begin
     suk.Sort;
 
     IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
-      'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+      '<c9>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'),
-      'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
+      '<c4>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
-      '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
+      '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
       'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
