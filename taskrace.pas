@@ -1710,6 +1710,21 @@ begin
           end;
 
 
+          //COMPLETE MSG: 550 Permission Denied: 300.0GB bandwidth usage detected. Current Ratio:(0.46/0.5).
+          if (0 < AnsiPos('bandwidth usage detected', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'permission_denied', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
+
+            //TODO: Disable downloading for this site for some time until you uploaded more stuff to download again
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Permission denied - limit of bandwidth usage detected';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+
           //COMPLETE MSG: 550 You have downloaded the same file too often. Please check your AUTO retry setti ... ?
           if (0 < AnsiPos('downloaded the same file too often', lastResponse)) then
           begin
