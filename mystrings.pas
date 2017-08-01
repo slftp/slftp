@@ -115,9 +115,7 @@ function InArray(const s: AnsiString; const d: array of AnsiString;
 function BoolToStr(Value: boolean; const TS, FS: AnsiString): AnsiString; overload;
 function BoolToStr(Value: boolean): AnsiString; overload;
 
-
-procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
-  const Dest: TStringList);
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString; const Dest: TStringList);
 
 implementation
 
@@ -1412,11 +1410,7 @@ begin
   Result := BoolToStr(Value, 'TRUE', 'FALSE');
 end;
 
-
-
-
-procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
-  const Dest: TStringList);
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString; const Dest: TStringList);
 var
   Count: integer;
   LStartpos, LEndepos, LSourcelength: integer;
