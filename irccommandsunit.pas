@@ -7975,20 +7975,21 @@ end;
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename, section, rip: AnsiString;
+  s: TSite;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   rip := SubString(params, ' ', 3);
 
-  if ((section = '') and (rip = '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename);
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    exit;
+  end;
 
-  if ((section <> '') and (rip = '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename, section);
-
-  if ((section <> '') and (rip <> '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename, section, rip);
+  SpeedStatsShowStats(Netname, Channel, sitename, section, rip);
 
   Result := True;
 end;
