@@ -2,7 +2,8 @@ unit speedstatsunit;
 
 interface
 
-uses Contnrs;
+uses
+  Contnrs, SysUtils, Classes, SyncObjs;
 
 type
   TSpeedStat = class
@@ -23,12 +24,11 @@ procedure SpeedStatsUnInit;
 procedure SpeedStatsSave;
 procedure SpeedStatsStart;
 procedure SpeedStatsRecalc(const netname, channel: AnsiString);
-procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString); overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString); overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString); overload;
+
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
 
 procedure RemoveSpeedStats(const sitename, section: AnsiString);
-
 function SpeedStatsScale(const toscale: Double): Integer;
 
 var
@@ -38,7 +38,8 @@ var
 
 implementation
 
-uses Classes, SyncObjs, irc, sitesunit, Debugunit, SysUtils, mystrings, configunit, encinifile, UIntList;
+uses
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, UIntList, Math;
 
 const
   r_section = 'speedstats';
@@ -408,234 +409,158 @@ begin
   Debug(dpMessage, r_section, 'Recalculating speed stats end');
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString); overload;
+
+function GetSpeed(const stri: AnsiString): Double;
 var
-  x: TStringList;
-  i: Integer;
-  db: Integer;
-  d: Double;
-  ss: AnsiString;
+  splitted: TStringList;
 begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s</b> :',[sitename]);
-
-  x := TStringList.Create;
+  splitted := TStringList.Create;
   try
-    AddSites(sitename, '', x);
+    splitString(stri, ':', splitted);
 
-    // majd megjelenitjuk
-    db := 0;
-    ss := '';
-    for i := 0 to x.Count - 1 do
+    if (splitted.Count = 2) then
     begin
-      d := AvgSpeed(sitename, x[i]);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss + ', ';
-
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
-      else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
-
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s -> %s', [sitename, ss]);
-        db := 0;
-        ss := '';
+      try
+        Result := StrToFloat(splitted[0]);
+      except
+        on E: Exception do
+        begin
+          Result := 0;
+        end;
       end;
-    end;
-
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s -> %s', [sitename, ss]);
-
-
-    // most osszes destination sitet
-    AddSites('', sitename, x);
-
-    // majd ezt is
-    db := 0;
-    ss := '';
-    for i := 0 to x.Count - 1 do
-    begin
-      d:= AvgSpeed(x[i], sitename);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss + ', ';
-
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
-      else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
-
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s <- %s', [sitename, ss]);
-        db := 0;
-        ss := '';
-      end;
-    end;
-
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s <- %s', [sitename, ss]);
-
+    end
+    else
+      Result := 0;
   finally
-    x.Free;
+    splitted.Free;
   end;
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString); overload;
+function CompareSpeed(List: TStringList; Index1, Index2: Integer): Integer;
 var
-  x: TStringList;
-  i: Integer;
-  db: Integer;
-  d: Double;
-  ss: AnsiString;
+  speed1, speed2: Double;
 begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s %s</b> :',[sitename, section]);
+  speed1 := GetSpeed(List[Index1]);
+  speed2 := GetSpeed(List[Index2]);
+  Result := CompareValue(speed1, speed2);
+end;
 
-  x := TStringList.Create;
+function GetSiteName(const stri: AnsiString): AnsiString;
+var
+  splitted: TStringList;
+begin
+  splitted := TStringList.Create;
   try
-    AddSites(sitename, '', x);
+    splitString(stri,':', splitted);
 
-    // majd megjelenitjuk
-    db := 0;
-    ss := '';
-    for i:= 0 to x.Count -1 do
-    begin
-      d := AvgSpeed(sitename, x[i],section);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss + ', ';
-
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
-      else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
-
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-        db := 0;
-        ss := '';
-      end;
-    end;
-
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-
-
-    // most osszes destination sitet
-    AddSites('', sitename, x);
-
-    // majd ezt is
-    db := 0;
-    ss := '';
-    for i := 0 to x.Count - 1 do
-    begin
-      d := AvgSpeed(x[i], sitename, section);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss + ', ';
-
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
-      else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
-
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-        db := 0;
-        ss := '';
-      end;
-    end;
-
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-
+    if (splitted.Count = 2) then
+      Result := splitted[1]
+    else
+      Result := '';
   finally
-    x.Free;
+    splitted.Free;
   end;
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString); overload;
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
 var
-  x: TStringList;
-  i: Integer;
-  db: Integer;
+  i, db: Integer;
+  ss, otherSite: AnsiString;
   d: Double;
-  ss: AnsiString;
 begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s %s %s</b> :',[sitename, section, rlsname]);
+  db := 0;
+  ss := '';
 
-  x := TStringList.Create;
+  if (sitesList = nil) then exit;
+
+  sitesList.CustomSort(CompareSpeed);
+
+  for i := 0 to sitesList.Count - 1 do
+  begin
+    if ss <> '' then
+      ss := ss + ', ';
+
+    d := GetSpeed(sitesList[i]);
+    otherSite := GetSiteName(sitesList[i]);
+
+    if d > 1024 then
+      ss := ss + Format('%s %.1f mB/s', [otherSite, d/1024])
+    else
+      ss := ss + Format('%s %.1f kB/s', [otherSite, d]);
+
+    inc(db);
+
+    if db >= 10 then
+    begin
+      irc_addtext(netname, channel, '%s %s %s', [sitename, delimiter, ss]);
+      db := 0;
+      ss := '';
+    end;
+  end;
+
+  if ss <> '' then
+    irc_addtext(netname, channel, '%s %s %s', [sitename, delimiter, ss]);
+end;
+
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
+var
+  listSites, listSitesSpeeds: TStringList;
+  i: Integer;
+  speed: Double;
+  sectionOnly, releaseAndSection: Boolean;
+begin
+  sectionOnly := (section <> '') and (rlsname = '');
+  releaseAndSection := (section <> '') and (rlsname <> '');
+
+  if releaseAndSection then
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s %s %s</b> :',[sitename, section, rlsname])
+  else if sectionOnly then
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s %s</b> :',[sitename, section])
+  else
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s</b> :',[sitename]);
+
+  listSitesSpeeds := TStringList.Create;
+  listSites := TStringList.Create;
   try
-    AddSites(sitename, '', x);
+    AddSites(sitename, '', listSites);
 
-    // majd megjelenitjuk
-    db := 0;
-    ss := '';
-    for i := 0 to x.Count - 1 do
+    for i := 0 to listSites.Count - 1 do
     begin
-      d := AvgSpeed(sitename, x[i], section, rlsname);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss + ', ';
-
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
+      if releaseAndSection then
+        speed := AvgSpeed(sitename, listSites[i], section, rlsname)
+      else if sectionOnly then
+        speed := AvgSpeed(sitename, listSites[i], section)
       else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
+        speed := AvgSpeed(sitename, listSites[i]);
 
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-        db := 0;
-        ss := '';
-      end;
+      if speed <> 0 then
+        listSitesSpeeds.Add(FloatToStr(speed) + ':' + listSites[i]);
+    end;
+    ShowSpeeds(netname, channel, sitename, '->', listSitesSpeeds);
+
+    listSitesSpeeds.Clear;
+
+    AddSites('', sitename, listSites);
+    for i := 0 to listSites.Count - 1 do
+    begin
+      if releaseAndSection then
+        speed := AvgSpeed(listSites[i], sitename, section, rlsname)
+      else if sectionOnly then
+        speed := AvgSpeed(listSites[i], sitename, section)
+      else
+        speed := AvgSpeed(listSites[i], sitename);
+
+      if speed <> 0 then
+        listSitesSpeeds.Add(FloatToStr(speed) + ':' + listSites[i]);
     end;
 
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-
-
-    // most osszes destination sitet
-    AddSites('', sitename, x);
-
-    // majd ezt is
-    db := 0;
-    ss := '';
-    for i := 0 to x.Count - 1 do
-    begin
-      d := AvgSpeed(x[i], sitename, section, rlsname);
-      if d = 0 then Continue;
-
-      if ss <> '' then ss := ss+', ';
-      if d > 1024 then
-        ss := ss + Format('%s %.1f mB/s', [x[i], d/1024])
-      else
-        ss := ss + Format('%s %.1f kB/s', [x[i], d]);
-
-      inc(db);
-      if db >= 10 then
-      begin
-        irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-        db := 0;
-        ss := '';
-      end;
-    end;
-    if ss <> '' then
-      irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-
+    ShowSpeeds(netname, channel, sitename, '<-', listSitesSpeeds);
   finally
-    x.Free;
+    listSites.Free;
+    listSitesSpeeds.Free;
   end;
 end;
+
 
 procedure SpeedStatsStart;
 var
