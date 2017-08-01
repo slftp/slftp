@@ -892,17 +892,20 @@ begin
   if dir = '' then // It can be removed
   begin
     s.SetSections(section, True);
+    s.sectiondir[section] := '';
     s.sectionpretime[section] := -10;
     s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
     RemoveStats(sitename, section);
     RemoveSpeedStats(sitename, section);
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> removed from site <b>%s</b>', [section, s.Name]);
   end
   else
   begin
     s.sectiondir[section] := dir;
     s.SetSections(section, False);
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> dir on site <b>%s</b> set to <b>%s</b>', [section, s.Name, dir]);
   end;
 
   Result := True;
@@ -933,6 +936,7 @@ begin
     irc_addtext(Netname, Channel, '<b>%s (%d)</b> -> <b>%s</b>', [sitename, ii, ss]);
 
 end;
+
 
 procedure OutroutesB(const Netname, Channel: AnsiString; const sitename: AnsiString);
 var
@@ -4243,54 +4247,6 @@ begin
   Result := True;
 end;
 
-procedure SitesB(const Netname, Channel: AnsiString);
-var
-  up, down, unk: AnsiString;
-  i: integer;
-  s: TSite;
-begin
-  up := '';
-  down := '';
-  unk := '';
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-    if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
-      Continue;
-    if UpperCase(s.Name) = Uppercase(config.ReadString(
-      'sites', 'admin_sitename', 'SLFTP')) then
-      Continue;
-    case s.working of
-      sstUp:
-        begin
-          if up <> '' then
-            up := up + ', ';
-          up := up + '<b>' + s.Name + '</b>' + ' (<b>' +
-            IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')';
-        end;
-      sstDown:
-        begin
-          if down <> '' then
-            down := down + ', ';
-          down := down + '<b>' + s.Name + '</b>';
-        end;
-      sstUnknown:
-        begin
-          if unk <> '' then
-            unk := unk + ', ';
-          unk := unk + '<b>' + s.Name + '</b>';
-        end;
-    end;
-  end;
-
-  if up <> '' then
-    irc_addtext(Netname, Channel, 'UP: ' + up);
-  if down <> '' then
-    irc_addtext(Netname, Channel, 'DN: ' + down);
-  if unk <> '' then
-    irc_addtext(Netname, Channel, '??: ' + unk);
-end;
-
 function IrcKill(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
@@ -4326,9 +4282,9 @@ begin
   s := nil;
   db := 0;
   x := TStringList.Create;
-  x.Delimiter := ' ';
-  x.DelimitedText := UpperCase(params);
   try
+    x.Delimiter := ' ';
+    x.DelimitedText := UpperCase(params);
 
     if x.Count > 0 then
     begin
@@ -4375,35 +4331,36 @@ begin
           added := True;
       end;
     end;
-    if added then
-      QueueFire;
-
-    if added then
-      tn.event.WaitFor($FFFFFFFF);
-
-    if (db > 1) then
-      SitesB(Netname, Channel);
-
-    s.RemoveAutoIndex;
-    s.RemoveAutoBnctest;
-    s.RemoveAutoNuke;
-    s.RemoveAutoDirlist;
-    s.RemoveAutoRules;
-    // s.RemoveAutoCrawler;
-
-    if s.RCInteger('autonuke', 0) <> 0 then
-      s.AutoNuke;
-    if s.RCInteger('autoindex', 0) <> 0 then
-      s.AutoIndex;
-    if s.RCInteger('autorules', 0) <> 0 then
-      s.AutoRules;
-    // if s.RCString('autologin','-1') <> '-1' then
-    if s.RCInteger('autobnctest', 0) <> 0 then
-      s.AutoBnctest;
 
   finally
     x.Free;
   end;
+
+  if added then
+    QueueFire;
+
+  if added then
+    tn.event.WaitFor($FFFFFFFF);
+
+  if (db > 1) then
+    IrcSites(Netname, Channel, 'IrcBnctest');
+
+  s.RemoveAutoIndex;
+  s.RemoveAutoBnctest;
+  s.RemoveAutoNuke;
+  s.RemoveAutoDirlist;
+  s.RemoveAutoRules;
+  // s.RemoveAutoCrawler;
+
+  if s.RCInteger('autonuke', 0) <> 0 then
+    s.AutoNuke;
+  if s.RCInteger('autoindex', 0) <> 0 then
+    s.AutoIndex;
+  if s.RCInteger('autorules', 0) <> 0 then
+    s.AutoRules;
+  // if s.RCString('autologin','-1') <> '-1' then
+  if s.RCInteger('autobnctest', 0) <> 0 then
+    s.AutoBnctest;
 
   RemoveTN(tn);
 
