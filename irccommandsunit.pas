@@ -892,17 +892,20 @@ begin
   if dir = '' then // It can be removed
   begin
     s.SetSections(section, True);
+    s.sectiondir[section] := '';
     s.sectionpretime[section] := -10;
     s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
     RemoveStats(sitename, section);
     RemoveSpeedStats(sitename, section);
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> removed from site <b>%s</b>', [section, s.Name]);
   end
   else
   begin
     s.sectiondir[section] := dir;
     s.SetSections(section, False);
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> dir on site <b>%s</b> set to <b>%s</b>', [section, s.Name, dir]);
   end;
 
   Result := True;
@@ -933,6 +936,7 @@ begin
     irc_addtext(Netname, Channel, '<b>%s (%d)</b> -> <b>%s</b>', [sitename, ii, ss]);
 
 end;
+
 
 procedure OutroutesB(const Netname, Channel: AnsiString; const sitename: AnsiString);
 var
