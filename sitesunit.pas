@@ -448,13 +448,11 @@ var
   s: TSite;
   i: integer;
 begin
-
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
     if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
       Continue;
-
     if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
       Continue;
     if s.PermDown then
@@ -469,7 +467,6 @@ begin
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
   end;
-
 end;
 
 // NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit

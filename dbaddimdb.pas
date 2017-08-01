@@ -209,13 +209,10 @@ begin
     dbaddimdb_FireKbAdd(rls);
 
     i:= last_imdbdata.Count;
-    if i > 125 then
+    while i > 100 do
     begin
-      while i > 100 do
-      begin
-        last_imdbdata.Delete(0);
-        i:= last_imdbdata.Count - 1;
-      end;
+      last_imdbdata.Delete(0);
+      i:= last_imdbdata.Count - 1;
     end;
   end;
 end;

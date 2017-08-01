@@ -865,7 +865,7 @@ begin
           // 550 System Error- /incoming/games/pc/Lara.Croft.GO-R: Permission denied.
           // 550 System Error- /TV-BLURAY/Magnum.P.I.S01E11.720p.: Input/output error.
           // 550 System Error- /GAMES/Mass.Effect.Andromeda.Updat: No space left on device.
-          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) OR (0 <> AnsiPos('Input/output error', s.lastResponse)) )  ) then
+          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) OR (0 <> AnsiPos('Input/output error', s.lastResponse)) OR (0 <> AnsiPos('No space left', s.lastResponse)) )  ) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
