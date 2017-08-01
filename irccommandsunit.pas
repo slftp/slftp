@@ -894,7 +894,7 @@ begin
     s.SetSections(section, True);
     s.sectionpretime[section] := -10;
     s.SetRankLock(section, 0);
-    RulesRemove(sitename, section);
+    //RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
     RemoveStats(sitename, section);
     RemoveSpeedStats(sitename, section);
