@@ -1106,11 +1106,11 @@ begin
   // change order of bnc if the current successfull bnc is not the first
   if i <> 0 then
   begin
-    bnccsere.Enter;
     bncList := TStringList.Create;
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
+    bnccsere.Enter;
     try
       currentBnc := Host + ':' + IntToStr(Port);
       bncList.Add(currentBnc);
@@ -1133,17 +1133,33 @@ begin
 
         bncList.Add(tmpBnc);
 
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
-
         inc(j)
       end;
 
+      // Something went wrong populating the new bnc list. Exiting
+      if bncList.Count < 1 then
+      begin
+        Debug(dpError, section, '[DEBUG] Error re-ordering bnc list. New bnc list count is %n.', [bncList.Count]);
+        exit;
+      end;
+
+      // Clear current bnclist
+      j := 0;
+      while (True) do
+      begin
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
+        Debug(dpError, section, '[DEBUG] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
+        inc(j)
+      end;
+
+      // Re-add sorted bnc list
       for j := 0 to bncList.Count - 1 do
       begin
         splitString(bncList[j], ':', splitted);
         tmpHost := splitted[0];
         tmpPort := StrToInt(splitted[1]);
+        Debug(dpError, section, '[DEBUG] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
 
         sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
         sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
