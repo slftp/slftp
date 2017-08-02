@@ -11132,6 +11132,7 @@ var
   r: TRawTask;
   tn: TTaskNotify;
   sitename: AnsiString;
+  sitesList : TStringList;
 begin
   Result := False;
   sitename := AnsiUpperCase(SubString(params, ' ', 1));
@@ -11181,44 +11182,57 @@ begin
   end
   else
   begin
-    s := FindSiteByName(Netname, sitename);
-    if s = nil then
-    begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-      exit;
-    end;
-    if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-    begin
-      exit;
-    end;
-    if (s.PermDown) then
-    begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitename]);
-      exit;
-    end;
-
-    tn := AddNotify;
+    sitesList := TStringList.Create;
     try
-      try
-        r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-        tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
-        tn.event.WaitFor($FFFFFFFF);
-      except on E: Exception do
+      sitesList.Delimiter := ' ';
+      sitesList.DelimitedText := UpperCase(params);
+
+      for i := 0 to sitesList.Count - 1 do
+      begin
+        s := FindSiteByName(Netname, sitesList[i]);
+
+        if s = nil then
         begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitesList[i]]);
+          continue;
+        end;
+
+        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+          continue;
+
+        if (s.PermDown) then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitesList[i]]);
+          continue;
+        end;
+
+        tn := AddNotify;
+        try
+          try
+            r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
+            tn.tasks.Add(r);
+            AddTask(r);
+            QueueFire;
+            tn.event.WaitFor($FFFFFFFF);
+          except on E: Exception do
+            begin
+              RemoveTN(tn);
+              irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+              continue;
+            end;
+          end;
+
+          irc_addtext(Netname, Channel, parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
+        finally
           RemoveTN(tn);
-          irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-          Exit;
         end;
       end;
 
-      irc_addtext(Netname, Channel, parseSTATLine(s.Name,
-        TSiteResponse(tn.responses[0]).response));
     finally
-      RemoveTN(tn);
+      sitesList.Free;
     end;
   end;
+
   Result := True;
 end;
 
