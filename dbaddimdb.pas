@@ -175,19 +175,44 @@ begin
   i:= last_addimdb.IndexOf(rls);
   if i = -1 then
   begin
-    db_imdb:= TDbImdb.Create(rls, imdb_id);
-    last_addimdb.AddObject(rls, db_imdb);
+    db_imdb := TDbImdb.Create(rls, imdb_id);
+
+    try
+      last_addimdb.AddObject(rls, db_imdb);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (AddObject): %s', [e.Message]));
+        exit;
+      end;
+    end;
 
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [rls, imdb_id]));
     irc_Addtext_by_key('addimdb', '!addimdb '+rls+' '+imdb_id);
 
-    dbaddimdb_ParseImdb(rls, imdb_id);
+    try
+      dbaddimdb_ParseImdb(rls, imdb_id);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (Parse): %s', [e.Message]));
+        exit;
+      end;
+    end;
 
     i:= last_addimdb.Count;
-    while i > 100 do
-    begin
-      last_addimdb.Delete(0);
-      i:= last_addimdb.Count - 1;
+    try
+      while i > 100 do
+      begin
+        last_addimdb.Delete(0);
+        i:= last_addimdb.Count - 1;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (cleanup): %s', [e.Message]));
+        exit;
+      end;
     end;
   end;
 end;
@@ -198,7 +223,15 @@ begin
   i:= last_imdbdata.IndexOf(rls);
   if i = -1 then
   begin
-    last_imdbdata.AddObject(rls, imdbdata);
+    try
+      last_imdbdata.AddObject(rls, imdbdata);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (AddObject): %s', [e.Message]));
+        exit;
+      end;
+    end;
 
     if config.ReadBool(section, 'post_lookup_infos', false) then
     begin
@@ -206,13 +239,29 @@ begin
       imdbdata.PostResults(rls);
     end;
 
-    dbaddimdb_FireKbAdd(rls);
+    try
+      dbaddimdb_FireKbAdd(rls);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (FireKbAdd): %s', [e.Message]));
+        exit;
+      end;
+    end;
 
     i:= last_imdbdata.Count;
-    while i > 100 do
-    begin
-      last_imdbdata.Delete(0);
-      i:= last_imdbdata.Count - 1;
+    try
+      while i > 100 do
+      begin
+        last_imdbdata.Delete(0);
+        i:= last_imdbdata.Count - 1;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (cleanup): %s', [e.Message]));
+        exit;
+      end;
     end;
   end;
 end;

@@ -942,6 +942,11 @@ function TSiteSlot.LoginBnc(i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: AnsiString;
+  bncList, splitted: TStringList;
+  j: Integer;
+  currentBnc, tmpBnc, tmpHost: AnsiString;
+  tmpPort: Integer;
+
 begin
   Result := False;
 
@@ -1097,21 +1102,76 @@ begin
 
   // successful login
   Result := True;
-(*
-  // change order of BNC if it's not number 0 and actually number 0 failed to login
+
+  // change order of bnc if the current successfull bnc is not the first
   if i <> 0 then
   begin
+    bncList := TStringList.Create;
+    bncList.CaseSensitive := False;
+    bncList.Duplicates := dupIgnore;
+    splitted := TStringList.Create;
     bnccsere.Enter;
     try
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-0', Port);
+      currentBnc := Host + ':' + IntToStr(Port);
+      bncList.Add(currentBnc);
+
+      j := 0;
+      while (True) do
+      begin
+        tmpHost := RCString('bnc_host-' + IntToStr(j), '');
+
+        // reached end of bnc list for this site
+        if tmpHost = '' then
+          break;
+
+        tmpPort := RCInteger('bnc_port-' + IntToStr(j), 0);
+        tmpBnc := tmpHost + ':' + IntToStr(tmpPort);
+
+        // skip active bnc
+        if tmpBnc <> currentBnc then
+          bncList.Add(tmpBnc);
+
+        inc(j)
+      end;
+
+      // Something went wrong populating the new bnc list. Exiting
+      if bncList.Count < 1 then
+      begin
+        Debug(dpError, section, '[bncsort] Error re-ordering bnc list. New bnc list count is %n.', [bncList.Count]);
+        exit;
+      end;
+
+      // Clear current bnclist
+      j := 0;
+      while (True) do
+      begin
+        if RCString('bnc_host-' + IntToStr(j), '') = '' then
+          break;
+
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
+        Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
+        inc(j)
+      end;
+
+      // Re-add sorted bnc list
+      for j := 0 to bncList.Count - 1 do
+      begin
+        splitString(bncList[j], ':', splitted);
+        tmpHost := splitted[0];
+        tmpPort := StrToInt(splitted[1]);
+        Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
+
+        sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
+        sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
+      end;
     finally
-    bnccsere.Leave;
+      bnccsere.Leave;
+      FreeAndNil(bncList);
+      FreeAndNil(splitted);
     end;
   end;
-*)
+
   if spamcfg.readbool(section, 'login_logout', True) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
