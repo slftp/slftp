@@ -936,7 +936,8 @@ begin
     end
     else if ((event = 'COMPLETE') and (not psource.StatusRealPreOrShouldPre)) then
     begin
-      psource.setcomplete(cdno);
+      psource.dirlist.SetCompleteInfoFromIrc;
+      psource.SetComplete(cdno);
     end;
 
     if event = 'NUKE' then

@@ -5818,7 +5818,7 @@ begin
     suk.Sort;
 
     IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
-      '<c9>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+      '<c3>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'),
       '<c4>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
