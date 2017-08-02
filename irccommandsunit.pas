@@ -4247,54 +4247,6 @@ begin
   Result := True;
 end;
 
-procedure SitesB(const Netname, Channel: AnsiString);
-var
-  up, down, unk: AnsiString;
-  i: integer;
-  s: TSite;
-begin
-  up := '';
-  down := '';
-  unk := '';
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-    if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
-      Continue;
-    if UpperCase(s.Name) = Uppercase(config.ReadString(
-      'sites', 'admin_sitename', 'SLFTP')) then
-      Continue;
-    case s.working of
-      sstUp:
-        begin
-          if up <> '' then
-            up := up + ', ';
-          up := up + '<b>' + s.Name + '</b>' + ' (<b>' +
-            IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')';
-        end;
-      sstDown:
-        begin
-          if down <> '' then
-            down := down + ', ';
-          down := down + '<b>' + s.Name + '</b>';
-        end;
-      sstUnknown:
-        begin
-          if unk <> '' then
-            unk := unk + ', ';
-          unk := unk + '<b>' + s.Name + '</b>';
-        end;
-    end;
-  end;
-
-  if up <> '' then
-    irc_addtext(Netname, Channel, 'UP: ' + up);
-  if down <> '' then
-    irc_addtext(Netname, Channel, 'DN: ' + down);
-  if unk <> '' then
-    irc_addtext(Netname, Channel, '??: ' + unk);
-end;
-
 function IrcKill(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
@@ -4330,9 +4282,9 @@ begin
   s := nil;
   db := 0;
   x := TStringList.Create;
-  x.Delimiter := ' ';
-  x.DelimitedText := UpperCase(params);
   try
+    x.Delimiter := ' ';
+    x.DelimitedText := UpperCase(params);
 
     if x.Count > 0 then
     begin
@@ -4379,35 +4331,36 @@ begin
           added := True;
       end;
     end;
-    if added then
-      QueueFire;
-
-    if added then
-      tn.event.WaitFor($FFFFFFFF);
-
-    if (db > 1) then
-      SitesB(Netname, Channel);
-
-    s.RemoveAutoIndex;
-    s.RemoveAutoBnctest;
-    s.RemoveAutoNuke;
-    s.RemoveAutoDirlist;
-    s.RemoveAutoRules;
-    // s.RemoveAutoCrawler;
-
-    if s.RCInteger('autonuke', 0) <> 0 then
-      s.AutoNuke;
-    if s.RCInteger('autoindex', 0) <> 0 then
-      s.AutoIndex;
-    if s.RCInteger('autorules', 0) <> 0 then
-      s.AutoRules;
-    // if s.RCString('autologin','-1') <> '-1' then
-    if s.RCInteger('autobnctest', 0) <> 0 then
-      s.AutoBnctest;
 
   finally
     x.Free;
   end;
+
+  if added then
+    QueueFire;
+
+  if added then
+    tn.event.WaitFor($FFFFFFFF);
+
+  if (db > 1) then
+    IrcSites(Netname, Channel, 'IrcBnctest');
+
+  s.RemoveAutoIndex;
+  s.RemoveAutoBnctest;
+  s.RemoveAutoNuke;
+  s.RemoveAutoDirlist;
+  s.RemoveAutoRules;
+  // s.RemoveAutoCrawler;
+
+  if s.RCInteger('autonuke', 0) <> 0 then
+    s.AutoNuke;
+  if s.RCInteger('autoindex', 0) <> 0 then
+    s.AutoIndex;
+  if s.RCInteger('autorules', 0) <> 0 then
+    s.AutoRules;
+  // if s.RCString('autologin','-1') <> '-1' then
+  if s.RCInteger('autobnctest', 0) <> 0 then
+    s.AutoBnctest;
 
   RemoveTN(tn);
 
@@ -5865,11 +5818,11 @@ begin
     suk.Sort;
 
     IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
-      'UP(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+      '<c9>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'),
-      'DN(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
+      '<c4>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
-      '??(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
+      '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
       'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
@@ -7979,20 +7932,21 @@ end;
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename, section, rip: AnsiString;
+  s: TSite;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   rip := SubString(params, ' ', 3);
 
-  if ((section = '') and (rip = '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename);
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    exit;
+  end;
 
-  if ((section <> '') and (rip = '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename, section);
-
-  if ((section <> '') and (rip <> '')) then
-    SpeedStatsShowStats(Netname, Channel, sitename, section, rip);
+  SpeedStatsShowStats(Netname, Channel, sitename, section, rip);
 
   Result := True;
 end;
