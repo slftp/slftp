@@ -1128,10 +1128,8 @@ begin
         tmpBnc := tmpHost + ':' + IntToStr(tmpPort);
 
         // skip active bnc
-        if tmpBnc = currentBnc then
-          continue;
-
-        bncList.Add(tmpBnc);
+        if tmpBnc <> currentBnc then
+          bncList.Add(tmpBnc);
 
         inc(j)
       end;
