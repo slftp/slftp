@@ -139,6 +139,7 @@
     {^} Re-written backup unit code, supporting old options (skipfiles, backup_dir) and includes all .db files in backup (#134)
     {^} Announce old + renamed groupname when check with renamed_group_checker was positive
     {^} Disabled all fake checking for sitepres
+    {^} !speedstats output sorted by speed (lower to higher)
     {^} Better input checks and more output for !setoffset, !pretimemode, !pretimemode2 and !addpremode
     {^} No need to !setdown before !setpermdown (#108)
     {^} !sslmethod checks if valid SSL method + shows which one is used
