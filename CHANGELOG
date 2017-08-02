@@ -96,6 +96,7 @@
     {+} !sites output is in alphabetically order (#152)
     {+} !siteuser to change a site username
     {+} !sitepass to change a site password
+    {+} sites in [STATS] line are ordered by completion time (uses both, ftp and irc, if catchline added)
     {+} !routeset/!routelock supports several new ways to set routes -> !help routeset (#82)
     {+} Add all available Genres from TVMaze und TheTVDB
     {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (e.g. ZzZz & ZzZz_INT) (#129)

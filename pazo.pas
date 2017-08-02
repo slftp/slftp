@@ -79,7 +79,7 @@ type
     function Age: integer;
     function AsText: AnsiString;
     function RoutesText: AnsiString;
-
+    function DirlistGaveUpAndSentNoFiles: Boolean;
     procedure DelaySetup;
 
     procedure RemoveMkdir;
@@ -944,40 +944,98 @@ begin
 
 end;
 
+function CompareCompleteTimes(pazo1, pazo2: TPazoSite): Integer;
+begin
+  if (pazo1.StatusRealPreOrShouldPre and pazo2.StatusRealPreOrShouldPre) then
+    Result := CompareText(pazo1.Name, pazo2.name)
+  else if (pazo1.StatusRealPreOrShouldPre) then
+    Result := -1
+  else if (pazo2.StatusRealPreOrShouldPre) then
+    Result := 1
+  else
+  begin
+    if (((pazo1.status = rssNotAllowed) and (pazo2.status = rssNotAllowed)) or ((pazo1.DirlistGaveUpAndSentNoFiles) and pazo2.DirlistGaveUpAndSentNoFiles)) then
+        Result := CompareText(pazo1.Name, pazo2.name)
+    else if ((pazo1.status = rssNotAllowed) or (pazo1.DirlistGaveUpAndSentNoFiles)) then
+        Result := 1
+    else if ((pazo2.status = rssNotAllowed) or (pazo2.DirlistGaveUpAndSentNoFiles)) then
+        Result := -1
+    else if ((pazo1.dirlist <> nil) and (pazo2.dirlist <> nil)) then
+      begin
+        if ((pazo1.dirlist.date_completed = 0) and (pazo2.dirlist.date_completed = 0)) then
+          Result := CompareText(pazo1.Name, pazo2.name)
+        else if (pazo1.dirlist.date_completed = 0) then
+          Result := 1
+        else if (pazo2.dirlist.date_completed = 0) then
+          Result := -1
+        else
+          Result := CompareDateTime(pazo1.dirlist.date_completed, pazo2.dirlist.date_completed);
+      end
+    else
+      Result := 0;
+  end;
+end;
+
 function TPazo.Stats(console: boolean; withdirlist: boolean = True): AnsiString;
 var
-  i: integer;
+  i, numComplete: integer;
   ps: TPazoSite;
   s: TSite;
+  sitesSorted: TObjectList;
+  completeTimeReference: TDateTime;
+  secondsAfter: Int64;
 begin
   Result := '';
+  numComplete := 1;
+  completeTimeReference := 0;
 
-  //  ii:=0;
-  for i := 0 to sites.Count - 1 do
-  begin
-    try
-      ps := TPazoSite(sites[i]);
-      if ps.status = rssNotAllowed then
-        Continue;
-      s := FindSiteByName('', ps.Name);
-      if s = nil then
-        Continue;
-      if s.noannounce and not console then
-        Continue;
+  sitesSorted := TObjectList.Create(False);
+  try
+    sitesSorted.Assign(sites);
+    sitesSorted.Sort(@CompareCompleteTimes);
 
-      if Result <> '' then
-        Result := Result + ', ';
+    for i := 0 to sitesSorted.Count - 1 do
+    begin
+      try
+        ps := TPazoSite(sitesSorted[i]);
+        if ps.status = rssNotAllowed then
+          Continue;
+        s := FindSiteByName('', ps.Name);
+        if s = nil then
+          Continue;
+        if s.noannounce and not console then
+          Continue;
 
-      if ((ps.dirlist <> nil) and (ps.dirlist.dirlistadded) and (withdirlist))
-        then
-        Result := Result + '"' + ps.Stats + '"'
-      else
-        Result := Result + '"' + ps.Stats + '"';
-      // inc(ii);
-    except
-      Continue;
+        if Result <> '' then
+          Result := Result + ', ';
+
+        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.date_completed = 0)) then
+          Result := Result + '"' + ps.Stats + '"'
+        else
+        begin
+          if CompleteTimeReference = 0 then
+          begin
+            Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
+            completeTimeReference := ps.dirlist.date_completed;
+          end
+          else
+          begin
+            secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.date_completed);
+            if secondsAfter <> 0 then
+              Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, ' (+', IntToStr(secondsAfter), 's)"')
+            else
+              Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
+          end;
+          inc(numComplete);
+        end;
+      except
+        Continue;
+      end;
     end;
+  finally
+    sitesSorted.Free;
   end;
+
 end;
 
 function TPazo.FullStats: AnsiString;
@@ -1704,21 +1762,24 @@ begin
       RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
       Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
+
+      // TODO: Find out why it is negative sometimes + try to fix
+      if fsize < 0 then
+        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %d for %s SizeRacedByMe(true) = %d, /1024 : %d, dirname : %s</b>', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
     end
     else
     begin
-      if ((status = rssRealPre) or (status = rssShouldPre)) then
+      if ((StatusRealPreOrShouldPre) or (status = rssNotAllowed)) then
         exit;
+
       if (destinations.Count = 0) then
-      begin
-        Result := Format('<c5>%s</c>', [fsname]);
-      end
+        Result := Format('<c5>%s</c>', [fsname])
       else if (dirlistgaveup) then
         Result := Format('<c13>%s</c>', [fsname])
+      else if ((dirlist <> nil) and (dirlist.date_completed = 0)) then
+        Result := Format('<c12>%s</c>', [fsname])
       else
-      begin
         Result := Format('<c14>%s</c>', [fsname]);
-      end;
     end;
   end;
 end;
@@ -1800,6 +1861,12 @@ begin
   Result := Result + 'Destinations: ';
   for i := 0 to destinations.Count - 1 do
     Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr( destinationRanks[i]) + ')' + ' ';
+
+  if ((dirlist.GetCompleteInfo <> 'Not Complete') and (not StatusRealPreOrShouldPre)) then
+  begin
+    Result := Result + #13#10;
+    Result := Result + 'Completion Time: ' + TimeToStr(dirlist.date_completed) + ' via ' + dirlist.GetCompleteInfo;
+  end;
 
   Result := Result + #13#10;
   Result := Result + 'Status: ';
@@ -1905,6 +1972,11 @@ begin
   begin
     RemovePazoMKDIR(pazo.pazo_id, Name, '');
   end;
+end;
+
+function TPazoSite.DirlistGaveUpAndSentNoFiles: Boolean;
+begin
+  Result := dirlistgaveup and (dirlist.RacedByMe(False) = 0);
 end;
 
 procedure TPazoSite.DelaySetup;

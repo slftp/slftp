@@ -6,6 +6,7 @@ uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
 
 type
   TdlSFV = (dlSFVUnknown, dlSFVNoNeed, dlSFVFound, dlSFVNotFound);
+  TCompleteInfo = (NotComplete = 0, FromIrc = 4, FromFtpd = 5, FromFtpdAndIrc = 9);
 
   TDirlist = class;
 
@@ -71,10 +72,14 @@ type
     sf_d, sf_f: TSkiplistFilter;
     s: AnsiString;
     lock: TCriticalSection;
+    _completeInfo: TCompleteInfo;
 
     procedure SetSkiplists;
     procedure SetLastChanged(value: TDateTime);
     class function Timestamp(ts: AnsiString): TDateTime;
+
+    procedure SetCompleteInfo(info : TCompleteInfo);
+    procedure SetCompleteInfoFromFtpd;
   public
     dirlistadded: Boolean;
     mindenmehetujra: Boolean;
@@ -145,6 +150,9 @@ type
     function Done: Integer;
     function RacedByMe(only_useful: boolean = False): Integer;
     function SizeRacedByMe(only_useful: boolean = False): Int64;
+
+    procedure SetCompleteInfoFromIrc();
+    function GetCompleteInfo: AnsiString;
   published
     property LastChanged: TDateTime read fLastChanged write SetLastChanged;
   end;
@@ -183,6 +191,7 @@ begin
   // dir has already been seen as complete
   if cache_completed then
   begin
+    SetCompleteInfoFromFtpd;
     Result := True;
     exit;
   end;
@@ -342,6 +351,7 @@ begin
 
   self.site_name := site_name;
   self.full_path := 'Not set';
+  _completeInfo := NotComplete;
 
   fLastChanged := Now();
   allcdshere := False;
@@ -1679,6 +1689,49 @@ end;
 procedure TDirList.SetFullPath(value: AnsiString);
 begin
   self.full_path := value;
+end;
+
+procedure TDirList.SetCompleteInfoFromIrc;
+begin
+  SetCompleteInfo(FromIrc);
+end;
+
+procedure TDirList.SetCompleteInfoFromFtpd;
+begin
+  SetCompleteInfo(FromFtpd);
+end;
+
+procedure TDirList.SetCompleteInfo(info : TCompleteInfo);
+begin
+  if (_completeInfo <> FromFtpdAndIrc) then
+  begin
+    if ((_completeInfo = NotComplete) or ((_completeInfo <> FromFtpdAndIrc) and (info <> _completeInfo))) then
+      _completeInfo := TCompleteInfo(ord(_completeInfo) + ord(info));
+    if (date_completed = 0) and (_completeInfo in [FromIrc, FromFtpdAndIrc]) then
+      date_completed := Now();
+  end;
+end;
+
+function TDirList.GetCompleteInfo: AnsiString;
+begin
+  case TCompleteInfo(_completeInfo) of
+    NotComplete:
+      begin
+        Result := 'Not Complete';
+      end;
+    FromIrc:
+      begin
+        Result := 'IRC';
+      end;
+    FromFtpd:
+      begin
+        Result := 'FTP';
+      end;
+    FromFtpdAndIrc:
+      begin
+        Result := 'FTP + IRC';
+      end;
+  end;
 end;
 
 { TDirListEntry }
