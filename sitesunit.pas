@@ -1137,7 +1137,7 @@ begin
       // Something went wrong populating the new bnc list. Exiting
       if bncList.Count < 1 then
       begin
-        Debug(dpError, section, '[DEBUG] Error re-ordering bnc list. New bnc list count is %n.', [bncList.Count]);
+        Debug(dpError, section, '[bncsort] Error re-ordering bnc list. New bnc list count is %n.', [bncList.Count]);
         exit;
       end;
 
@@ -1145,9 +1145,12 @@ begin
       j := 0;
       while (True) do
       begin
+        if RCString('bnc_host-' + IntToStr(j), '') = '' then
+          break;
+
         sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
         sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
-        Debug(dpError, section, '[DEBUG] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
+        Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
         inc(j)
       end;
 
@@ -1157,7 +1160,7 @@ begin
         splitString(bncList[j], ':', splitted);
         tmpHost := splitted[0];
         tmpPort := StrToInt(splitted[1]);
-        Debug(dpError, section, '[DEBUG] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
+        Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
 
         sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
         sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
