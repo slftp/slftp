@@ -29,7 +29,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb;
+  sitesunit, queueunit, slmasks, slhttp, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';
@@ -131,7 +131,6 @@ end;
 
 procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 var
-  rr: TRegexpr;
   imdbid: AnsiString;
 begin
   try
