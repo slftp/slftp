@@ -391,9 +391,7 @@ end;
 { Status }
 function dbaddimdb_Status: AnsiString;
 begin
-  Result := '';
-
-  Result:= Format('<b>iMDB</b>: %d, <b>iMDB data</b>: %d',[last_addimdb.Count, last_imdbdata.Count]);
+  Result := Format('<b>iMDB</b>: %d, <b>iMDB data</b>: %d',[last_addimdb.Count, last_imdbdata.Count]);
 end;
 
 { Init }

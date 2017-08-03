@@ -123,7 +123,7 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    // clean old db entries  
+    // clean old db entries
     last_addnfo.BeginUpdate;
     try
       i := last_addnfo.Count;
@@ -189,6 +189,7 @@ begin
     exit;
   end;
 
+  // do further parsing if section not related to IMDB
   dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
@@ -231,11 +232,8 @@ begin
 end;
 
 { Status }
-
 function dbaddnfo_Status: AnsiString;
 begin
-  Result := '';
-
   Result := Format('<b>Nfo</b>: %d', [last_addnfo.Count]);
 end;
 
