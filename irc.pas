@@ -1704,8 +1704,10 @@ begin
           Sleep(1000);
         end;
       if not shouldquit then
-        Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
-        BncCsere;
+        Begin
+          Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
+          BncCsere;
+        End;
     except
       on e: Exception do
       begin
