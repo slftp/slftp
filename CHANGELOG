@@ -123,12 +123,14 @@
     {#} Year regex improvement for shows like "1066: A Year to Conquer England" or 2017.Flick.Electric.Co.Comedy.Gala.Part.2.720p.HDTV.x264-FiHTV
     {#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
     {#} sitename for !speedtestin and !speedtestout, no empty "Site '' has no suitable file for speedtesting" (#130)
-    {#} !credits * does not show all other sites when a site is offline (#97)
+    {#} !credits * does not show all other sites when a site is offline, support for multiple input of sitenames (#97)
     {#} No more blank lines removed from slftp.ini when file is rewritten (split_site_data only) (#145)
     {#} Classification was never updated when doing a tvinfo update
     {#} IMDB post_lookup_infos config setting is now respected
     {#} disable MySQL if host=(empty) in slftp.ini
+    {#} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)
     {#} default values for maxidle and idleinterval never used from slftp.ini
+    {#} Don't send messages to admin_net when you are not connected or have a configuration error (#122)
     {^} Error handling for ftpd response in taskrace (dirlisttask, mkdirtask and racetask) is done
     {^} Show in a log message what's wrong with MySQL when using as predb
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
@@ -143,6 +145,8 @@
     {^} !speedstats output sorted by speed (lower to higher)
     {^} Better input checks and more output for !setoffset, !pretimemode, !pretimemode2 and !addpremode
     {^} No need to !setdown before !setpermdown (#108)
+    {^} !transfer cmd works as expected (#128)
+    {^} check if it's a valid IMDB ID before adding it -> no more exceptions
     {^} !sslmethod checks if valid SSL method + shows which one is used
     {^} Removed warning when "section not found" for complete & nuke announce (#117)
     {^} Some TV Shows weren't detected as STV from IMDb fetch
@@ -160,7 +164,6 @@
     {^} Added additionnal infos to "Dirlist added" messages
     {^} Color a site if it was stopped due to dirlist gave up in [STATS] announce + Output seconds for [EMPTY|INCOMPLETE] announce
     {^} Omitting dir parameter in !setdir was leaving some values in config (#21)
-    {-} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)
     {-} !setaffils removed -> use !affils
     {-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
     {-} Support for deprecated OpenSSL 1.0.1 series
