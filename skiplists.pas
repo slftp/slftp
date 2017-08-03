@@ -271,7 +271,11 @@ begin
       filemask.Add(TslMask.Create('*.s[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.t[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.u[0-9][0-9]'));
-      filemask.Add(TslMask.Create('*.v[0-9][0-9]')); // occured @ Quantum.Break.COMPLETE-CODEX
+      filemask.Add(TslMask.Create('*.v[0-9][0-9]'));
+      filemask.Add(TslMask.Create('*.w[0-9][0-9]'));
+      filemask.Add(TslMask.Create('*.x[0-9][0-9]'));
+      filemask.Add(TslMask.Create('*.y[0-9][0-9]'));
+      filemask.Add(TslMask.Create('*.z[0-9][0-9]'));
       filemask.Add(TslMask.Create('*.[0-9][0-9][0-9]'));
     end
     else
