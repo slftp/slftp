@@ -18,7 +18,7 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, regexpr, dbaddimdb,
+uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
   configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl;
 
 const
@@ -27,7 +27,6 @@ const
 procedure parseNFO(const rls, rls_section, nfo_data: AnsiString);
 var
   sec: TCRelease;
-  r: TRegExpr;
   imdbid: AnsiString;
 begin
   sec := FindSectionHandler(rls_section);

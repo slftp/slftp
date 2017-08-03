@@ -178,7 +178,6 @@ end;
 procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
 var
   sec: TCRelease;
-  r: TRegExpr;
   imdbid: AnsiString;
 begin
   sec := FindSectionHandler(section);
