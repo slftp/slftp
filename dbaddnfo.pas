@@ -32,7 +32,7 @@ implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpnfo,
-  dbaddurl, pazo, dbaddimdb;
+  dbaddurl, dbaddimdb, pazo;
 
 const
   section = 'dbaddnfo';
@@ -123,7 +123,7 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    // clean old db entries
+    // clean old db entries  
     last_addnfo.BeginUpdate;
     try
       i := last_addnfo.Count;
@@ -177,16 +177,19 @@ end;
 
 procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
 var
-  imdbttid: AnsiString;
+  sec: TCRelease;
+  r: TRegExpr;
+  imdbid: AnsiString;
 begin
-  imdbttid := CheckIfValidIMDBiD(section, nfo_data);
-  if (imdbttid <> 'INVALID') then
+  sec := FindSectionHandler(section);
+
+  if sec.ClassName = 'TIMDBRelease' then
   begin
-    dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbttid + '/');
+    if dbaddimdb_parseid(nfo_data, imdbid) then
+      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
     exit;
   end;
 
-  // further check for non imdb links
   dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
