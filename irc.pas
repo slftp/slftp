@@ -865,7 +865,21 @@ begin
       if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
       begin
         adminnet := FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
-        adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
+        if (adminnet <> NIL) then
+          begin
+             if (adminnet.status = 'online...') then
+             begin
+                adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
+             end
+             else
+             begin
+               Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: Adminnet not in Status Online');
+             end;
+          end
+          else
+          begin
+            Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: no IRC-Server found or NIL');
+          End;
       end;
       exit;
     except
@@ -1690,6 +1704,7 @@ begin
           Sleep(1000);
         end;
       if not shouldquit then
+        Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
         BncCsere;
     except
       on e: Exception do
