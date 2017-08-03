@@ -357,7 +357,7 @@ begin
       end;
     end;
   finally
-    cs.Free;
+    cs.Leave;
   end;
 end;
 
