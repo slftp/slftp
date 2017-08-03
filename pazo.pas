@@ -554,10 +554,6 @@ begin
       // We're handling a file
       if not de.directory then
       begin
-        // destination directory needs to be mkdir'ed
-        if dstdl.need_mkdir then
-          Continue;
-
         // destination dir is not complete
         if not dstdl.complete then
         begin
@@ -1505,7 +1501,6 @@ begin
               RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
             end;
           end;
-// crash here
           if not de.Directory then
             de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
 

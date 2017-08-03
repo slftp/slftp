@@ -765,7 +765,6 @@ begin
           if not de.directory then
             de.filesize := filesize;
 
-
           // Do not filter if we call the dirlist from irc
           if not isFromIrc then
           begin
@@ -880,9 +879,6 @@ begin
       end;
     end;
   end;
-
-  // exit if the dir is complete
-  if (Complete) then exit;
 
   // set defaults values if direcotry was just added
   if added then
