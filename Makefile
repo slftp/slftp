@@ -33,7 +33,7 @@ slftp_64_debug:
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
 
 clean:
-	@rm -f *.ppu *.o slftp *.exe
+  @find . -type f \( -iname "*.ppu" -o -iname "*.o" -o -iname "*.exe" -o -iname "slftp" \) -exec sh -c 'rm "$0"' {} \;
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
