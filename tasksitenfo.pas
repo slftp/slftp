@@ -24,25 +24,16 @@ uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console
 const
   section = 'tasksitenfo';
 
-procedure parseNFO(rls,rls_section,nfo_data: AnsiString);
+procedure parseNFO(const rls, rls_section, nfo_data: AnsiString);
 var
-  sec: TCRelease;
-  r: TRegExpr;
+  imdbttid: AnsiString;
 begin
-  sec := FindSectionHandler(rls_section);
-  r := TRegExpr.Create;
-  try
-    if sec.ClassName = 'TIMDBRelease' then
-    begin
-      r.Expression := 'tt\d{5,7}';
-      if r.Exec(nfo_data) then
-      dbaddimdb_SaveImdb(rls,r.Match[0]);
-      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + r.Match[0] + '/');
-    end;
-  finally
-    r.Free;
+  imdbttid := CheckIfValidIMDBiD(rls_section, nfo_data);
+  if (imdbttid <> 'INVALID') then
+  begin
+    dbaddimdb_SaveImdb(rls, imdbttid);
+    dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbttid + '/');
   end;
-
 end;
 
 { TPazoSiteNfoTask }
