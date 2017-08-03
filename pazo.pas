@@ -1739,22 +1739,25 @@ begin
   fsname := Name;
 
   if status = rssRealPre then
-    fsname := format('<c10>%s</c>', [Name]); //bCyan(name);
+    fsname := Format('<c10>%s</c>', [Name]); //Cyan(name); || release was a pre on this site
   if status = rssShouldPre then
-    fsname := format('<c7>%s</c>', [Name]); //Orange(name);
+    fsname := Format('<c7>%s</c>', [Name]); //Orange(name); || release should be pred on this site but wasn't pred there
   if status = rssNotAllowed then
-    fsname := format('<c4>%s</c>', [Name]); //Red(name);
+    fsname := Format('<c4>%s</c>', [Name]); //Red(name); || release is not allowed on this site
 
   Result := fsname;
 
-  if ((not StatusRealPreOrShouldPre) and (dirlist <> nil)) then
+  if ( (not (status in [rssRealPre, rssShouldPre, rssNotAllowed])) and (dirlist <> nil) ) then
   begin
     if dirlist.RacedByMe(True) >= 1 then
     begin
+      // we send some files
       fsize := dirlist.SizeRacedByMe(True);
       fsize := fsize / 1024;
-
       RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
+
+      if not dirlist.Complete then
+        fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
 
       Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
 
@@ -1764,19 +1767,18 @@ begin
     end
     else
     begin
-      if ((StatusRealPreOrShouldPre) or (status = rssNotAllowed)) then
-        exit;
-
+      // we didn't send some files
       if (destinations.Count = 0) then
-        Result := Format('<c5>%s</c>', [fsname])
+        Result := Format('<c5>%s</c>', [fsname]) //Brown(name); || not used to race from because no destination(s) added
+      else if not dirlist.Complete then
+        Result := Format('<c11>%s</c>', [fsname]) //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
       else if (dirlistgaveup) then
-        Result := Format('<c13>%s</c>', [fsname])
-      else if ((dirlist <> nil) and (dirlist.date_completed = 0)) then
-        Result := Format('<c12>%s</c>', [fsname])
+        Result := Format('<c13>%s</c>', [fsname]) //Pink(name); || dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
       else
-        Result := Format('<c14>%s</c>', [fsname]);
+        Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
     end;
   end;
+
 end;
 
 function TPazoSite.Complete: boolean;
