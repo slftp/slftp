@@ -329,7 +329,7 @@ begin
   Result := nil;
 
   // Check if section starts with a slash (for compatiblity with !transfer using absolute paths)
-  if ((1 = AnsiPos('/', section)) or (length(srcdir) = LastDelimiter('/', srcdir))) then
+  if ((1 = AnsiPos('/', section)) or (length(section) = LastDelimiter('/', section))) then
   begin
     Result := skiplist[0] as TSkipList;
   end;
