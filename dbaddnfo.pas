@@ -16,8 +16,8 @@ function dbaddnfo_Process(net, chan, nick, msg: AnsiString): boolean;
 procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: AnsiString); overload;
 procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: AnsiString); overload;
 procedure dbaddnfo_addnfo(params: AnsiString);
-procedure dbaddnfo_ParseNfo(rls, nfo_data: AnsiString); overload;
-procedure dbaddnfo_ParseNfo(rls, section, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
 
 function dbaddnfo_Status: AnsiString;
 
@@ -32,7 +32,7 @@ implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpnfo,
-  dbaddurl, dbaddimdb, pazo;
+  dbaddurl, pazo, dbaddimdb;
 
 const
   section = 'dbaddnfo';
@@ -123,7 +123,7 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    // clean old db entries  
+    // clean old db entries
     last_addnfo.BeginUpdate;
     try
       i := last_addnfo.Count;
@@ -175,25 +175,22 @@ begin
 end;
 
 
-procedure dbaddnfo_ParseNfo(rls, section, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
 var
-  sec: TCRelease;
-  r: TRegExpr;
-  imdbid: AnsiString;
+  imdbttid: AnsiString;
 begin
-  sec := FindSectionHandler(section);
-
-  if sec.ClassName = 'TIMDBRelease' then
+  imdbttid := CheckIfValidIMDBiD(section, nfo_data);
+  if (imdbttid <> 'INVALID') then
   begin
-    if dbaddimdb_parseid(nfo_data, imdbid) then
-      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
+    dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbttid + '/');
     exit;
   end;
 
+  // further check for non imdb links
   dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
-procedure dbaddnfo_ParseNfo(rls, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
 var
   URLTemplate: AnsiString;
   url: AnsiString;
