@@ -1169,6 +1169,9 @@ type
   PNativeUInt = ^Cardinal;
   IntPtr = Integer;
   UIntPtr = Cardinal;
+  {$else}
+  NativeUInt = PtrUInt;
+  PNativeUInt = ^PtrUInt;
   {$endif}
 {$endif}
 
@@ -1570,9 +1573,9 @@ uses
   FastMM4Messages;
 
 {$ifdef fpc}
-{$ifdef linux}
-Const clib = 'c';
-{$endif}
+const
+  clib = 'c';
+
 function valloc(__size:size_t):pointer;cdecl;external clib name 'valloc';
 procedure free(__ptr:pointer);cdecl;external clib name 'free';
 function usleep(__useconds:dword):longint;cdecl;external clib name 'usleep';
@@ -2306,7 +2309,7 @@ end;
 {Compare [AAddress], CompareVal:
  If Equal: [AAddress] := NewVal and result = CompareVal
  If Unequal: Result := [AAddress]}
-function LockCmpxchg(CompareVal, NewVal: Byte; AAddress: PByte): Byte; {$ifdef fpc64bit}nostackframe; assembler;{$endif}
+function LockCmpxchg(CompareVal, NewVal: Byte; AAddress: PByte): Byte; {$ifdef fpc64bit}assembler; nostackframe;{$endif}
 asm
 {$ifdef 32Bit}
   {On entry:
@@ -2337,7 +2340,7 @@ end;
 
 {$ifndef ASMVersion}
 {Gets the first set bit in the 32-bit number, returning the bit index}
-function FindFirstSetBit(ACardinal: Cardinal): Cardinal; {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+function FindFirstSetBit(ACardinal: Cardinal): Cardinal; {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 64Bit}
   {$ifndef unix}
@@ -2495,7 +2498,7 @@ end;
 {Fixed size move operations ignore the size parameter. All moves are assumed to
  be non-overlapping.}
 
-procedure Move4(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move4(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   mov eax, [eax]
@@ -2513,7 +2516,7 @@ asm
 end;
 
 {$ifdef 64Bit}
-procedure Move8(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move8(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifndef unix}
 .noframe
@@ -2526,7 +2529,7 @@ asm
 end;
 {$endif}
 
-procedure Move12(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move12(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   mov ecx, [eax]
@@ -2551,7 +2554,7 @@ asm
 {$endif}
 end;
 
-procedure Move20(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move20(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   mov ecx, [eax]
@@ -2581,7 +2584,7 @@ asm
 end;
 
 {$ifdef 64Bit}
-procedure Move24(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move24(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
   {$ifndef unix}
 .noframe
@@ -2598,7 +2601,7 @@ asm
 end;
 {$endif}
 
-procedure Move28(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move28(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   mov ecx, [eax]
@@ -2635,7 +2638,7 @@ asm
 {$endif}
 end;
 
-procedure Move36(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move36(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   fild qword ptr [eax]
@@ -2669,7 +2672,7 @@ asm
 end;
 
 {$ifdef 64Bit}
-procedure Move40(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move40(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
   {$ifndef unix}
 .noframe
@@ -2690,7 +2693,7 @@ asm
 end;
 {$endif}
 
-procedure Move44(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move44(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   fild qword ptr [eax]
@@ -2729,7 +2732,7 @@ asm
 {$endif}
 end;
 
-procedure Move52(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move52(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   fild qword ptr [eax]
@@ -2771,7 +2774,7 @@ asm
 end;
 
 {$ifdef 64Bit}
-procedure Move56(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move56(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
   {$ifndef unix}
 .noframe
@@ -2796,7 +2799,7 @@ asm
 end;
 {$endif}
 
-procedure Move60(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move60(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   fild qword ptr [eax]
@@ -2843,7 +2846,7 @@ asm
 {$endif}
 end;
 
-procedure Move68(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure Move68(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   fild qword ptr [eax]
@@ -2896,7 +2899,7 @@ end;
  SizeOf(Pointer). Important note: Always moves at least 16 - SizeOf(Pointer)
  bytes (the minimum small block size with 16 byte alignment), irrespective of
  ACount.}
-procedure MoveX16LP(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure MoveX16LP(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   {Make the counter negative based: The last 12 bytes are moved separately}
@@ -3022,7 +3025,7 @@ end;
  SizeOf(Pointer). Important note: Always moves at least 8 - SizeOf(Pointer)
  bytes (the minimum small block size with 8 byte alignment), irrespective of
  ACount.}
-procedure MoveX8LP(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure MoveX8LP(const ASource; var ADest; ACount: NativeInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   {Make the counter negative based: The last 4 bytes are moved separately}
@@ -3196,7 +3199,7 @@ end;
 
 {Fills a block of memory with the given dword (32-bit) or qword (64-bit).
  Always fills a multiple of SizeOf(Pointer) bytes}
-procedure DebugFillMem(var AAddress; AByteCount: NativeInt; AFillValue: NativeUInt); {$ifdef fpc64bit} nostackframe; assembler; {$endif}
+procedure DebugFillMem(var AAddress; AByteCount: NativeInt; AFillValue: NativeUInt); {$ifdef fpc64bit} assembler; nostackframe; {$endif}
 asm
 {$ifdef 32Bit}
   {On Entry:
@@ -5131,7 +5134,7 @@ begin
     else
     begin
       {Allocate a Large block}
-      if ASize > 0 then 
+      if ASize > 0 then
       begin
         Result := AllocateLargeBlock(ASize {$ifdef LogLockContention}, LDidSleep{$endif});
 {$ifdef LogLockContention}
@@ -5145,7 +5148,7 @@ begin
   end;
 {$ifdef LogLockContention}
 {$ifndef FullDebugMode}
-  if Assigned(ACollector) then 
+  if Assigned(ACollector) then
   begin
     GetStackTrace(@LStackTrace, StackTraceDepth, 1);
     ACollector.Add(@LStackTrace[0], StackTraceDepth);
@@ -9641,7 +9644,7 @@ begin
       else
       begin
 {$ifdef LogLockContention}
-        if assigned(LCollector) then 
+        if assigned(LCollector) then
         begin
           GetStackTrace(@LStackTrace, StackTraceDepth, 1);
           LCollector.Add(@LStackTrace[0], StackTraceDepth);
@@ -12048,13 +12051,13 @@ begin
   LargeBlockCollector.GetData(mergedData, mergedCount);
   MediumBlockCollector.GetData(data, count);
   LargeBlockCollector.Merge(mergedData, mergedCount, data, count);
-  for i := 0 to High(SmallBlockTypes) do 
+  for i := 0 to High(SmallBlockTypes) do
   begin
     SmallBlockTypes[i].BlockCollector.GetData(data, count);
     LargeBlockCollector.Merge(mergedData, mergedCount, data, count);
   end;
 
-  if mergedCount > 0 then 
+  if mergedCount > 0 then
   begin
     FillChar(LErrorMessage, SizeOf(LErrorMessage), 0);
     FillChar(LMessageTitleBuffer, SizeOf(LMessageTitleBuffer), 0);
@@ -12079,7 +12082,7 @@ begin
     end;
     AppendStringToModuleName(LockingReportTitle, LMessageTitleBuffer);
     ShowMessageBox(LErrorMessage, LMessageTitleBuffer);
-    for i := 4 to 10 do 
+    for i := 4 to 10 do
     begin
       if i > mergedCount then
         break; //for i
@@ -12930,14 +12933,12 @@ begin
     {$ifdef RequireIDEPresenceForLeakReporting}
         and DelphiIsRunning
     {$endif}
-    {$ifndef fpc}
     {$ifdef RequireDebuggerPresenceForLeakReporting}
         and ((DebugHook <> 0)
         {$ifdef PatchBCBTerminate}
         or (Assigned(pCppDebugHook) and (pCppDebugHook^ <> 0))
         {$endif PatchBCBTerminate}
         )
-    {$endif}
     {$endif}
     {$ifdef ManualLeakReportingControl}
         and ReportMemoryLeaksOnShutdown
@@ -12952,14 +12953,14 @@ begin
     {$ifdef RequireIDEPresenceForLeakReporting}
         and DelphiIsRunning
     {$endif}
-    {$ifndef fpc}
     {$ifdef RequireDebuggerPresenceForLeakReporting}
+        {$ifndef fpc}
         and ((DebugHook <> 0)
         {$ifdef PatchBCBTerminate}
         or (Assigned(pCppDebugHook) and (pCppDebugHook^ <> 0))
         {$endif PatchBCBTerminate}
         )
-    {$endif}
+        {$endif}
     {$endif}
     {$ifdef ManualLeakReportingControl}
         and ReportMemoryLeaksOnShutdown
