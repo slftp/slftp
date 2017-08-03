@@ -1137,7 +1137,7 @@ begin
       // Something went wrong populating the new bnc list. Exiting
       if bncList.Count < 1 then
       begin
-        Debug(dpError, section, '[bncsort] Error re-ordering bnc list. New bnc list count is %n.', [bncList.Count]);
+        Debug(dpError, section, '[bncsort] Error re-ordering bnc list. New bnc list count is %d.', [bncList.Count]);
         exit;
       end;
 
