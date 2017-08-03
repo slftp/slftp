@@ -29,7 +29,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb, pazo;
+  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';
@@ -110,7 +110,7 @@ begin
 
     dbaddurl_ParseUrl(rls, url);
 
-    // clean old db entries
+    // clean old db entries  
     last_addurl.BeginUpdate;
     try
       i := last_addurl.Count;
@@ -131,23 +131,26 @@ end;
 
 procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 var
-  imdbttid, SectionOfRelease: AnsiString;
-  pazo: TPazo;
+  rr: TRegexpr;
+  imdbid: AnsiString;
 begin
-  pazo := FindPazoByRls(rls);
-  if pazo <> nil then
-  begin
-    SectionOfRelease := pazo.rls.section;
-    imdbttid := CheckIfValidIMDBiD(SectionOfRelease, url);
-
-    if (imdbttid <> 'INVALID') then
-      dbaddimdb_SaveImdb(rls, imdbttid);
+  try
+    if dbaddimdb_parseid(url, imdbid) then
+      dbaddimdb_SaveImdb(rls, imdbid);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
+    end;
   end;
 end;
 
 { Status }
+
 function dbaddurl_Status: AnsiString;
 begin
+  Result := '';
+
   Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;
 

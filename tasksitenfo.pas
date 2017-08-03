@@ -26,13 +26,17 @@ const
 
 procedure parseNFO(const rls, rls_section, nfo_data: AnsiString);
 var
-  imdbttid: AnsiString;
+  sec: TCRelease;
+  r: TRegExpr;
+  imdbid: AnsiString;
 begin
-  imdbttid := CheckIfValidIMDBiD(rls_section, nfo_data);
-  if (imdbttid <> 'INVALID') then
+  sec := FindSectionHandler(rls_section);
+
+  if sec.ClassName = 'TIMDBRelease' then
   begin
-    dbaddimdb_SaveImdb(rls, imdbttid);
-    dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbttid + '/');
+    if dbaddimdb_parseid(nfo_data, imdbid) then
+      dbaddimdb_SaveImdb(rls, imdbid);
+      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
   end;
 end;
 
@@ -299,3 +303,4 @@ begin
 end;
 
 end.
+
