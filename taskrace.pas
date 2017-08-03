@@ -997,7 +997,6 @@ begin
   end;
 end;
 
-
 { TPazoRaceTask }
 constructor TPazoRaceTask.Create(const netname, channel: AnsiString;
   site1, site2: AnsiString; pazo: TPazo; dir, filename: AnsiString; filesize: Int64; rank: integer);

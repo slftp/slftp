@@ -2275,22 +2275,19 @@ var
 begin
   Result := False;
 
-  //!transfer srcsite dstsite srcdir dstdir rlsname
-
   srcsitename := UpperCase(SubString(params, ' ', 1));
   dstsitename := UpperCase(SubString(params, ' ', 2));
-  //uppercase don't work with path...so use uppercase later in code
   srcdir := SubString(params, ' ', 3);
   dstdir := SubString(params, ' ', 4);
   rlsname := SubString(params, ' ', 5);
 
-  if ((srcsitename = '') or (dstsitename = '') or (srcdir = '') or (dstdir = '') or (rlsname =
-    '')) then
+  if ((srcsitename = '') or (dstsitename = '') or (srcdir = '') or (dstdir = '') or (rlsname = '')) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
 
+  // Check if source site is valid
   srcsite := FindSiteByName(Netname, srcsitename);
   if srcsite = nil then
   begin
@@ -2303,6 +2300,7 @@ begin
     exit;
   end;
 
+  // Check if destination site is valid
   dstsite := FindSiteByName(Netname, dstsitename);
   if dstsite = nil then
   begin
@@ -2315,6 +2313,7 @@ begin
     exit;
   end;
 
+  // Decide whether the supplied source dir is a direct path or a section
   if ((1 = AnsiPos('/', srcdir)) or (length(srcdir) = LastDelimiter('/', srcdir))) then
   begin
     if ((1 = AnsiPos('/', srcdir)) and (length(srcdir) = LastDelimiter('/', srcdir))) then
@@ -2335,6 +2334,7 @@ begin
     irc_addtext(Netname, Channel, '<c14><b>srcdir is a slftp section</b>.</c>');
   end;
 
+  // Decide whether the supplied destination dir is a direct path or a section
   if ((1 = AnsiPos('/', dstdir)) or (length(dstdir) = LastDelimiter('/', dstdir))) then
   begin
     if ((1 = AnsiPos('/', dstdir)) and (length(dstdir) = LastDelimiter('/', dstdir))) then
@@ -2355,7 +2355,7 @@ begin
     irc_addtext(Netname, Channel, '<c14><b>dstdir is a slftp section</b>.</c>');
   end;
 
-  //for the case if a slftp section is used but no dir is set
+  // Check if source or destination dir is a SECTION but dir is not set
   if (ftpsrcdir = '') then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.',
@@ -2369,6 +2369,7 @@ begin
     exit;
   end;
 
+  // The fun begins
   rc := FindSectionHandler(srcdir); //srcdir is our "section"
   rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
@@ -2387,7 +2388,7 @@ begin
   ps_src := TPazoSite(p.sites[0]);
   ps_src.dirlist.dirlistadded := True;
 
-  pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False);
+  pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);
   AddTask(pd);
   QueueFire;
 
@@ -2458,6 +2459,7 @@ begin
       if ((ps_dst <> nil) and (ps_dst.dirlist <> nil)) then
       begin
         j := IntToStr(ps_dst.dirlist.RacedByMe);
+
         k := IntToStr(ps_dst.dirlist.Done);
       end;
 
