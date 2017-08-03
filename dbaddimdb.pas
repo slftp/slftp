@@ -41,12 +41,12 @@ procedure dbaddimdb_ParseImdb(rls, imdb_id: AnsiString);
 procedure dbaddimdb_FireKbAdd(rls : AnsiString);
 
 function dbaddimdb_Status: AnsiString;
-function dbaddimdb_checkid(const imdbid: AnsiString): Boolean;
-function dbaddimdb_parseid(const text: AnsiString; out imdbid: AnsiString): Boolean;
 
 procedure dbaddimdbInit;
 procedure dbaddimdbStart;
 procedure dbaddimdbUnInit;
+
+function CheckIfValidIMDBiD(const SectionOfRelease, imdbinput: AnsiString): AnsiString;
 
 var
   last_addimdb: THashedStringList;
@@ -54,16 +54,13 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, FLRE, SyncObjs,
+uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpimdb, pazo, mrdohutils;
 
 const
   section = 'dbaddimdb';
 
 var
-  cs: TCriticalSection;
-  rx_imdbid: TFLRE;
-  rx_captures: TFLREMultiCaptures;
   addimdbcmd: AnsiString;
 
 { TDbImdb }
@@ -150,11 +147,7 @@ begin
   imdb_id := '';
   imdb_id := SubString(params, ' ', 2);
 
-  if not dbaddimdb_checkid(imdb_id) then
-  begin
-    Debug(dpSpam, section, '[ADDIMDB] Invalid IMDB ID for %s: %s', [rls, imdb_id]);
-    exit;
-  end;
+//  irc_addtext('CONSOLE','ADMIN',imdb_id);
 
   if ((rls <> '') and (imdb_id <> '')) then
   begin
@@ -169,7 +162,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in dbaddimdb_addimdb (SaveImdb): %s', [e.Message]));
+        Debug(dpError, section, Format('Exception in dbaddimdb_addimdb AddTask: %s', [e.Message]));
         exit;
       end;
     end;
@@ -186,19 +179,14 @@ begin
   begin
     db_imdb := TDbImdb.Create(rls, imdb_id);
 
-    cs.Enter;
     try
-      try
-        last_addimdb.AddObject(rls, db_imdb);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (AddObject): %s', [e.Message]));
-          exit;
-        end;
+      last_addimdb.AddObject(rls, db_imdb);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (AddObject): %s', [e.Message]));
+        exit;
       end;
-    finally
-      cs.Leave;
     end;
 
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [rls, imdb_id]));
@@ -214,48 +202,37 @@ begin
       end;
     end;
 
-    cs.Enter;
+    i:= last_addimdb.Count;
     try
-      i:= last_addimdb.Count;
-      try
-        while i > 100 do
-        begin
-          last_addimdb.Delete(0);
-          i:= last_addimdb.Count - 1;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (cleanup): %s', [e.Message]));
-          exit;
-        end;
+      while i > 100 do
+      begin
+        last_addimdb.Delete(0);
+        i:= last_addimdb.Count - 1;
       end;
-    finally
-      cs.Leave;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (cleanup): %s', [e.Message]));
+        exit;
+      end;
     end;
   end;
 end;
 
 procedure dbaddimdb_SaveImdbData(rls: AnsiString; imdbdata: TDbImdbData);
-var
-  i: Integer;
+var i: Integer;
 begin
   i:= last_imdbdata.IndexOf(rls);
   if i = -1 then
   begin
-    cs.Enter;
     try
-      try
-        last_imdbdata.AddObject(rls, imdbdata);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (AddObject): %s', [e.Message]));
-          exit;
-        end;
+      last_imdbdata.AddObject(rls, imdbdata);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (AddObject): %s', [e.Message]));
+        exit;
       end;
-    finally
-      cs.Leave;
     end;
 
     if config.ReadBool(section, 'post_lookup_infos', false) then
@@ -274,24 +251,19 @@ begin
       end;
     end;
 
-    cs.Enter;
+    i:= last_imdbdata.Count;
     try
-      i:= last_imdbdata.Count;
-      try
-        while i > 100 do
-        begin
-          last_imdbdata.Delete(0);
-          i:= last_imdbdata.Count - 1;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (cleanup): %s', [e.Message]));
-          exit;
-        end;
+      while i > 100 do
+      begin
+        last_imdbdata.Delete(0);
+        i:= last_imdbdata.Count - 1;
       end;
-    finally
-      cs.Leave;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (cleanup): %s', [e.Message]));
+        exit;
+      end;
     end;
   end;
 end;
@@ -340,55 +312,8 @@ begin
   end;
 end;
 
-{ Checkid }
-function dbaddimdb_checkid(const imdbid: AnsiString): Boolean;
-begin
-  Result := False;
-  cs.Enter;
-  try
-    try
-      if rx_imdbid.Find(imdbid) <> 0 then
-        Result := True;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_checkid: Exception : %s', [e.Message]));
-        exit;
-      end;
-    end;
-  finally
-    cs.Free;
-  end;
-end;
-
-{ Parseid }
-function dbaddimdb_parseid(const text: AnsiString; out imdbid: AnsiString): Boolean;
-begin
-  imdbid := '';
-  Result := False;
-  try
-    cs.Enter;
-    try
-      if rx_imdbid.MatchAll(text, rx_captures, 1 ,1) then
-      begin
-        imdbid := Copy(text, rx_captures[0][0].Start, rx_captures[0][0].Length);
-        Result := True;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_checkid: Exception : %s', [e.Message]));
-        exit;
-      end;
-    end;
-  finally
-    SetLength(rx_captures, 0);
-    cs.Leave;
-  end;
-end;
-
-
 { Status }
+
 function dbaddimdb_Status: AnsiString;
 begin
   Result := '';
@@ -400,12 +325,10 @@ end;
 
 procedure dbaddimdbInit;
 begin
-  cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
-  rx_imdbid := TFLRE.Create('tt(\d{6,7})', [rfIGNORECASE]);
 end;
 
 procedure dbaddimdbStart;
@@ -413,17 +336,33 @@ begin
   addimdbcmd := config.ReadString(section, 'addimdbcmd', '!addimdb');
 end;
 
+
 procedure dbaddimdbUninit;
 begin
-  cs.Enter;
-  try
-    FreeAndNil(last_addimdb);
-    FreeAndNil(last_imdbdata);
-    FreeAndNil(rx_imdbid);
-  finally
-    cs.Leave;
+  last_addimdb.Free;
+  last_imdbdata.Free;
+end;
+
+function CheckIfValidIMDBiD(const SectionOfRelease, imdbinput: AnsiString): AnsiString;
+var
+  sec: TCRelease;
+  r: TRegExpr;
+begin
+  Result := 'INVALID';
+
+  sec := FindSectionHandler(SectionOfRelease);
+  if sec.ClassName = 'TIMDBRelease' then
+  begin
+    r := TRegExpr.Create;
+    try
+      r.ModifierI := True;
+      r.Expression := 'tt\d{5,7}';
+      if r.Exec(imdbinput) then
+        Result := r.Match[0];
+    finally
+      r.Free;
+    end;
   end;
-  cs.Free;
 end;
 
 end.
