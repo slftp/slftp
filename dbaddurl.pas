@@ -8,13 +8,13 @@ type
   TDbUrl = class
     rls: AnsiString;
     url: AnsiString;
-    constructor Create(rls, url: AnsiString);
+    constructor Create(const rls, url: AnsiString);
     destructor Destroy; override;
   end;
 
 function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
-procedure dbaddurl_SaveUrl(rls, url: AnsiString);
-procedure dbaddurl_addurl(params: AnsiString);
+procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
+procedure dbaddurl_addurl(const params: AnsiString);
 procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 
 function dbaddurl_Status: AnsiString;
@@ -39,7 +39,7 @@ var
 
 { TDbUrl }
 
-constructor TDbUrl.Create(rls, url: AnsiString);
+constructor TDbUrl.Create(const rls, url: AnsiString);
 begin
   self.rls := rls;
   self.url := url;
@@ -63,7 +63,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_addurl(params: AnsiString);
+procedure dbaddurl_addurl(const params: AnsiString);
 var
   rls: AnsiString;
   url: AnsiString;
@@ -94,7 +94,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_SaveUrl(rls, url: AnsiString);
+procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
 var
   i: Integer;
   db_url: TDbUrl;
@@ -110,7 +110,7 @@ begin
 
     dbaddurl_ParseUrl(rls, url);
 
-    // clean old db entries  
+    // clean old db entries
     last_addurl.BeginUpdate;
     try
       i := last_addurl.Count;
@@ -145,11 +145,8 @@ begin
 end;
 
 { Status }
-
 function dbaddurl_Status: AnsiString;
 begin
-  Result := '';
-
   Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;
 
