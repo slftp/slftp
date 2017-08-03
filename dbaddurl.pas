@@ -15,7 +15,7 @@ type
 function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
 procedure dbaddurl_SaveUrl(rls, url: AnsiString);
 procedure dbaddurl_addurl(params: AnsiString);
-procedure dbaddurl_ParseUrl(rls, url: AnsiString);
+procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 
 function dbaddurl_Status: AnsiString;
 
@@ -29,7 +29,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb;
+  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb, pazo;
 
 const
   section = 'dbaddurl';
@@ -110,7 +110,7 @@ begin
 
     dbaddurl_ParseUrl(rls, url);
 
-    // clean old db entries  
+    // clean old db entries
     last_addurl.BeginUpdate;
     try
       i := last_addurl.Count;
@@ -129,39 +129,25 @@ begin
   end;
 end;
 
-procedure dbaddurl_ParseUrl(rls, url: AnsiString);
+procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 var
-  rr: TRegexpr;
-  imdb_id: AnsiString;
+  imdbttid, SectionOfRelease: AnsiString;
+  pazo: TPazo;
 begin
-  rr := TRegexpr.Create;
-  try
-    rr.ModifierI := True;
-    rr.Expression := 'tt(\d{6,7})';
-    if rr.exec(url) then
-    begin
-      imdb_id := 'tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
-      try
-        dbaddimdb_SaveImdb(rls, imdb_id);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
-        end;
-      end;
-    end;
+  pazo := FindPazoByRls(rls);
+  if pazo <> nil then
+  begin
+    SectionOfRelease := pazo.rls.section;
+    imdbttid := CheckIfValidIMDBiD(SectionOfRelease, url);
 
-  finally
-    rr.Free;
+    if (imdbttid <> 'INVALID') then
+      dbaddimdb_SaveImdb(rls, imdbttid);
   end;
 end;
 
 { Status }
-
 function dbaddurl_Status: AnsiString;
 begin
-  Result := '';
-
   Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;
 

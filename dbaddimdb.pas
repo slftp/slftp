@@ -46,6 +46,8 @@ procedure dbaddimdbInit;
 procedure dbaddimdbStart;
 procedure dbaddimdbUnInit;
 
+function CheckIfValidIMDBiD(const SectionOfRelease, imdbinput: AnsiString): AnsiString;
+
 var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
@@ -154,7 +156,7 @@ begin
     begin
       exit;
     end;
-    
+
     try
       dbaddimdb_SaveImdb(rls, imdb_id);
     except
@@ -339,6 +341,28 @@ procedure dbaddimdbUninit;
 begin
   last_addimdb.Free;
   last_imdbdata.Free;
+end;
+
+function CheckIfValidIMDBiD(const SectionOfRelease, imdbinput: AnsiString): AnsiString;
+var
+  sec: TCRelease;
+  r: TRegExpr;
+begin
+  Result := 'INVALID';
+
+  sec := FindSectionHandler(SectionOfRelease);
+  if sec.ClassName = 'TIMDBRelease' then
+  begin
+    r := TRegExpr.Create;
+    try
+      r.ModifierI := True;
+      r.Expression := 'tt\d{5,7}';
+      if r.Exec(imdbinput) then
+        Result := r.Match[0];
+    finally
+      r.Free;
+    end;
+  end;
 end;
 
 end.
