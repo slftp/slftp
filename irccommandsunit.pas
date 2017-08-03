@@ -2316,55 +2316,39 @@ begin
   // Decide whether the supplied source dir is a direct path or a section
   if ((1 = AnsiPos('/', srcdir)) or (length(srcdir) = LastDelimiter('/', srcdir))) then
   begin
-    if ((1 = AnsiPos('/', srcdir)) and (length(srcdir) = LastDelimiter('/', srcdir))) then
-    begin
-      ftpsrcdir := srcdir;
-      irc_addtext(Netname, Channel, '<c14><b>srcdir is a path</b>.</c>');
-    end
-    else
-    begin
-      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b> - Sure if it is a path?</c>');
-      exit;
-    end;
+    ftpsrcdir := srcdir;
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a path.</c>', [srcdir]);
   end
   else
   begin
     srcdir := UpperCase(srcdir);
     ftpsrcdir := srcsite.sectiondir[srcdir];
-    irc_addtext(Netname, Channel, '<c14><b>srcdir is a slftp section</b>.</c>');
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section<.</c>', [srcdir]);
   end;
 
   // Decide whether the supplied destination dir is a direct path or a section
   if ((1 = AnsiPos('/', dstdir)) or (length(dstdir) = LastDelimiter('/', dstdir))) then
   begin
-    if ((1 = AnsiPos('/', dstdir)) and (length(dstdir) = LastDelimiter('/', dstdir))) then
-    begin
-      ftpdstdir := dstdir;
-      irc_addtext(Netname, Channel, '<c14><b>dstdir is a path</b>.</c>');
-    end
-    else
-    begin
-      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b> - Sure if it is a path?</c>');
-      exit;
-    end;
+    ftpdstdir := dstdir;
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a path.</c>', [dstdir]);
   end
   else
   begin
     dstdir := UpperCase(dstdir);
     ftpdstdir := dstsite.sectiondir[dstdir];
-    irc_addtext(Netname, Channel, '<c14><b>dstdir is a slftp section</b>.</c>');
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section.</c>', [dstdir]);
   end;
 
   // Check if source or destination dir is a SECTION but dir is not set
   if (ftpsrcdir = '') then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.',
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section <b>%s</b>.',
       [srcsitename, srcdir]);
     exit;
   end;
   if (ftpdstdir = '') then
   begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section %s.',
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> has no dir set for section <b>%s</b>.',
       [dstsitename, dstdir]);
     exit;
   end;
