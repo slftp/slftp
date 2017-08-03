@@ -33,7 +33,13 @@ slftp_64_debug:
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
 
 clean:
-  @find . -type f \( -iname "*.ppu" -o -iname "*.o" -o -iname "*.exe" -o -iname "slftp" \) -exec sh -c 'rm "$0"' {} \;
+	@rm -f libs/FastMM4/*.ppu libs/FastMM4/*.o
+	@rm -f libs/BeRoHighResolutionTimer/*.ppu libs/BeRoHighResolutionTimer/*.o
+	@rm -f libs/FLRE/*.ppu libs/FLRE/*.o
+	@rm -f libs/rcmdline/*.ppu libs/rcmdline/*.o
+	@rm -f libs/DFFLibV15_UIntList/*.ppu libs/DFFLibV15_UIntList/*.o
+	@rm -f libs/lkJSON/*.ppu libs/lkJSON/*.o
+	@rm -f *.ppu *.o slftp *.exe
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
