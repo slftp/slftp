@@ -326,20 +326,22 @@ var
   i: integer;
   s: TSkipList;
 begin
-  Result := nil; //skiplist[0] as TSkipList;
-  (*
-  if TSkipList(skiplists[0]).sectionname = '*' then
-    Result := skiplist[0] as TSkipList else result := nil;
-  *)
+  Result := nil;
+
+  // Check if section starts with a slash (for compatiblity with !transfer using absolute paths)
+  if ((1 = AnsiPos('/', section)) or (length(srcdir) = LastDelimiter('/', srcdir))) then
+  begin
+    Result := skiplist[0] as TSkipList;
+  end;
+
+  // Lookup for section skiplist
   try
     for i := 1 to skiplist.Count - 1 do
     begin
       s := TSkipList(skiplist[i]);
 
-if s.mask.Matches(section) then
-
-
-//      if (AnsiCompareText(s.sectionname, section) = 0) then
+      // Section found in skiplist
+      if s.mask.Matches(section) then
       begin
         Result := s;
         break;
@@ -353,6 +355,7 @@ if s.mask.Matches(section) then
     end;
   end;
 
+  // Fallback to default skiplist if nothing is found
   if Result = nil then
   begin
     irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIPLIST]</c> section <b>%s</b> not found in slftp.skip', [section]));
