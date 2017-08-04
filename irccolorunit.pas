@@ -24,9 +24,7 @@ interface
 
 uses classes, sysutils;
 
-//function stripColorTags(msg: string): string;
-
-function ReplaceThemeMSG(msg: string): string;
+function ReplaceThemeMSG(const msg: string): string;
 
 implementation
 
@@ -38,13 +36,11 @@ const
   bColorExpression: string = '<d(\d+)>(.*?)<\/d>';
   bColorChar: string = #4;
 
-function ReplaceThemeMSG(msg: string): string;
+function ReplaceThemeMSG(const msg: string): string;
 var
   bcolrx, colrx: TRegExpr;
-  //fixrx, swirx,  linkrx, itarx, unlrx, bolrx: TRegExpr;
   smsg, s: string;
 begin
-
   smsg := msg;
   colrx := TRegExpr.Create;
   bcolrx := TRegExpr.Create;
@@ -53,6 +49,7 @@ begin
     colrx.ModifierI := True;
     colrx.Expression := mColorExpression;
     bcolrx.Expression := bColorExpression;
+
     smsg := StringReplace(smsg, '<b>', #2, [rfReplaceAll]);
     smsg := StringReplace(smsg, '</b>', #2, [rfReplaceAll]);
     smsg := StringReplace(smsg, '<u>', #31, [rfReplaceAll]);
@@ -66,25 +63,27 @@ begin
     smsg := StringReplace(smsg, '<r>', #18, [rfReplaceAll]);
     smsg := StringReplace(smsg, '</r>', #18, [rfReplaceAll]);
 
+  //TODO: Implement it in FLRE, used very often and TRegExpr is super slow...
+
     {   mIRC Color    }
     if colrx.Exec(smsg) then
     begin
       repeat
         s := Format('%s%s%s%:0s', [mColorChar, colrx.Match[1], colrx.Match[2]]);
-        smsg := StringReplace(smsg, colrx.Match[0], s,
-          [rfReplaceAll, rfIgnoreCase]);
+        smsg := StringReplace(smsg, colrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
       until not colrx.ExecNext;
     end;
+
     {   bersirc (RGB) Color    }
     if bcolrx.Exec(smsg) then
     begin
       repeat
         s := Format('%s%s%s%:0s', [bColorChar, bcolrx.Match[1], bcolrx.Match[2]]);
-        smsg := StringReplace(smsg, bcolrx.Match[0], s,
-          [rfReplaceAll, rfIgnoreCase]);
+        smsg := StringReplace(smsg, bcolrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
       until not bcolrx.ExecNext;
     end;
-    result := smsg;
+
+    Result := smsg;
   finally
     bcolrx.Free;
     colrx.Free;

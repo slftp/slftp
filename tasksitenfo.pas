@@ -18,31 +18,25 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, regexpr, dbaddimdb,
+uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
   configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl;
 
 const
   section = 'tasksitenfo';
 
-procedure parseNFO(rls,rls_section,nfo_data: AnsiString);
+procedure parseNFO(const rls, rls_section, nfo_data: AnsiString);
 var
   sec: TCRelease;
-  r: TRegExpr;
+  imdbid: AnsiString;
 begin
   sec := FindSectionHandler(rls_section);
-  r := TRegExpr.Create;
-  try
-    if sec.ClassName = 'TIMDBRelease' then
-    begin
-      r.Expression := 'tt\d{5,7}';
-      if r.Exec(nfo_data) then
-      dbaddimdb_SaveImdb(rls,r.Match[0]);
-      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + r.Match[0] + '/');
-    end;
-  finally
-    r.Free;
-  end;
 
+  if sec.ClassName = 'TIMDBRelease' then
+  begin
+    if dbaddimdb_parseid(nfo_data, imdbid) then
+      dbaddimdb_SaveImdb(rls, imdbid);
+      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
+  end;
 end;
 
 { TPazoSiteNfoTask }
@@ -308,3 +302,4 @@ begin
 end;
 
 end.
+

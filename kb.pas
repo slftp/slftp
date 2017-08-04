@@ -92,9 +92,9 @@ type
     function Aktualizal(p: TObject): boolean; virtual;
 
     procedure SetPretime(TimeStamp: int64 = 0);
-    class function Name: AnsiString; virtual; abstract;
+    class function Name: AnsiString; virtual;// abstract;
     class function DefaultSections: AnsiString; virtual; abstract;
-    class function SectionAccepted(section: AnsiString): boolean;
+    class function SectionAccepted(const section: AnsiString): boolean;
   end;
 
   T0DayRelease = class(TRelease)
@@ -250,7 +250,6 @@ type
   private
     kbevent: TEvent;
     function AddCompleteTransfers(pazo: Pointer): boolean;
-    function AddCompleteTransfersv2(pazo: Pointer): boolean;
   public
     constructor Create;
     procedure Execute; override;
@@ -265,8 +264,8 @@ function renameCheck(pattern, i, len: integer; rls: AnsiString): boolean;
 function kb_Add(const netname, channel: AnsiString;
   sitename, section, genre, event, rls, cdno: AnsiString; dontFire: boolean = False;
   forceFire: boolean = False; ts: TDateTime = 0): integer;
-//forceRebuild: Boolean = False;
-function FindSectionHandler(section: AnsiString): TCRelease;
+
+function FindSectionHandler(const section: AnsiString): TCRelease;
 
 procedure kb_FreeList;
 procedure kb_Save;
@@ -349,7 +348,7 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
 
-function FindSectionHandler(section: AnsiString): TCRelease;
+function FindSectionHandler(const section: AnsiString): TCRelease;
 var
   i: integer;
 begin
@@ -937,7 +936,8 @@ begin
     end
     else if ((event = 'COMPLETE') and (not psource.StatusRealPreOrShouldPre)) then
     begin
-      psource.setcomplete(cdno);
+      psource.dirlist.SetCompleteInfoFromIrc;
+      psource.SetComplete(cdno);
     end;
 
     if event = 'NUKE' then
@@ -1073,14 +1073,24 @@ begin
         try
           ps := TPazoSite(p.sites[i]);
 
+          // dirlist not available
+          if ps.dirlist = nil then
+          begin
+            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+            Continue;
+          end;
+
+          // dirlist task already added
+          if ps.dirlist.dirlistadded then
+            Continue;
+
           // Source site is PRE site for this group
           if ps.status in [rssShouldPre, rssRealPre] then
           begin
             r.PredOnAnySite := True;
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
-            if (ps.dirlist <> nil) then
-              ps.dirlist.dirlistadded := True;
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, event]));
+            ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
@@ -1088,9 +1098,8 @@ begin
           if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s', [section, rls, ps.Name]));
-            if (ps.dirlist <> nil) then
-              ps.dirlist.dirlistadded := True;
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, event]));
+            ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
 
@@ -1102,8 +1111,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, 'kb', Format('[EXCEPTION] kb_Add add dirlist: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
       exit;
     end;
   end;
@@ -1269,98 +1277,96 @@ begin
 
     rrgx := TRegExpr.Create;
     try
+      rrgx.ModifierI := True;
+      rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
+      if rrgx.Exec(rlsname) then
+        Internal := True;
 
-    rrgx.ModifierI := True;
-    rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
-    if rrgx.Exec(rlsname) then
-      Internal := True;
-
-    //detect groupname
-    groupname := '';
-    rrgx.ModifierI := True;
-    rrgx.Expression := '\-([^\-]+)$';
-    if rrgx.Exec(rlsname) then
-    begin
-      groupname := rrgx.Match[1];
-    end;
-
-    //old way if groupname not found by regex
-    if (groupname = '') then
-    begin
-      if uppercase(words.strings[words.Count - 1]) = 'INT' then
-        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
-      else
-        groupname := words.strings[words.Count - 1];
-    end;
-
-    dots := 0;
-    number_of_chars := 0;
-    vowels := 0;
-    s := '';
-    for i := 1 to length(rlsname) do
-    begin
-      if 0 = Pos(rlsname[i], s) then
+      //detect groupname
+      groupname := '';
+      rrgx.ModifierI := True;
+      rrgx.Expression := '\-([^\-]+)$';
+      if rrgx.Exec(rlsname) then
       begin
-        Inc(number_of_chars);
-        s := s + rlsname[i];
+        groupname := rrgx.Match[1];
       end;
-      if rlsname[i] = '.' then
-        Inc(dots);
-      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-        Inc(vowels);
-    end;
 
-    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
-
-    if not use_new_language_base then
-    begin
-
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+      //old way if groupname not found by regex
+      if (groupname = '') then
       begin
-        for I := 0 to mp3languages.Count - 1 do
+        if uppercase(words.strings[words.Count - 1]) = 'INT' then
+          groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
+        else
+          groupname := words.strings[words.Count - 1];
+      end;
+
+      dots := 0;
+      number_of_chars := 0;
+      vowels := 0;
+      s := '';
+      for i := 1 to length(rlsname) do
+      begin
+        if 0 = Pos(rlsname[i], s) then
         begin
-          rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
-          if rrgx.Exec(rlsname) then
+          Inc(number_of_chars);
+          s := s + rlsname[i];
+        end;
+        if rlsname[i] = '.' then
+          Inc(dots);
+        if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+          Inc(vowels);
+      end;
+
+      rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+
+      if not use_new_language_base then
+      begin
+
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        begin
+          for I := 0 to mp3languages.Count - 1 do
           begin
-            languages.Add(mp3languages.strings[i]);
-            Break;
+            rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
+            if rrgx.Exec(rlsname) then
+            begin
+              languages.Add(mp3languages.strings[i]);
+              Break;
+            end;
           end;
         end;
-      end;
 
-      for i := 0 to kb_languages.Count - 1 do
-      begin
-        if kb_languages[i] <> '' then
+        for i := 0 to kb_languages.Count - 1 do
         begin
-          for ii := 0 to tags.Count - 1 do
-            if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
-              languages.Add(kb_languages.strings[i]);
+          if kb_languages[i] <> '' then
+          begin
+            for ii := 0 to tags.Count - 1 do
+              if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
+                languages.Add(kb_languages.strings[i]);
+          end;
         end;
-      end;
-    end
-    else
-    begin
-      vlang := '';
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-      begin
-        vlang := FindLanguageOnDirectory(rlsname, True);
       end
       else
       begin
-        vlang := FindLanguageOnDirectory(rlsname, False);
+        vlang := '';
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        begin
+          vlang := FindLanguageOnDirectory(rlsname, True);
+        end
+        else
+        begin
+          vlang := FindLanguageOnDirectory(rlsname, False);
+        end;
+        if vlang <> '' then
+          languages.Add(vlang);
       end;
-      if vlang <> '' then
-        languages.Add(vlang);
-    end;
 
-    if (languages.Count = 0) then
-    begin
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-        languages.Add('EN')
-      else
-        languages.Add('English');
-    end;
-
+      if (languages.Count = 0) then
+      begin
+        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+          languages.Add('EN')
+        else
+          languages.Add('English');
+      end;
     finally
       rrgx.free;
     end;
@@ -1441,7 +1447,7 @@ begin
   Result := '';
 end;
 
-class function TRelease.SectionAccepted(section: AnsiString): boolean;
+class function TRelease.SectionAccepted(const section: AnsiString): boolean;
 var
   i: integer;
   x: TStringList;
@@ -1462,6 +1468,11 @@ begin
       Result := False;
     end;
   end;
+end;
+
+class function TRelease.Name: AnsiString;
+begin
+  Result := 'TRelease';
 end;
 
 { TMP3Release }
@@ -1545,8 +1556,7 @@ begin
   end;
 end;
 
-constructor TMP3Release.Create(rlsname, section: AnsiString;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMP3Release.Create(rlsname, section: AnsiString; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
   kotojelekszama: integer;
@@ -1753,9 +1763,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s',
-          [e.Message]));
+        Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
       end;
     end;
     Result := True;
@@ -1880,22 +1888,16 @@ begin
   aktualizalva := True;
   if showname = '' then
     exit;
-  (*
-    // we already have info
-    if (showid <> '') then
-      exit;
-              *)
+
   pazo := TPazo(p); // ugly shit
 
-  db_tvinfo := nil;
   try
     db_tvinfo := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
       db_tvinfo := nil;
-      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s', [e.Message]));
     end;
   end;
 
@@ -2090,7 +2092,6 @@ begin
 end;
 
 { TIMDBRelease }
-
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
@@ -2099,17 +2100,17 @@ var
   imdbdata: TDbImdbData;
   ir: TIMDBRelease;
 begin
+  Result := False;
   try
-    Result := False;
     aktualizalva := True;
 
     pazo := TPazo(p); // ugly shit
 
     i := last_imdbdata.IndexOf(rlsname);
+
     if i = -1 then
     begin
       // no imdb infos, check if we have a nfo
-  (*
       i := last_addnfo.IndexOf(rlsname);
       if i <> -1 then
       begin
@@ -2117,7 +2118,7 @@ begin
         Result := True;
         exit;
       end;
-  *)
+
       // no nfo start searching nfo
       for j := pazo.sites.Count - 1 downto 0 do
       begin
@@ -2134,9 +2135,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, rsections,
-              Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s',
-              [e.Message]));
+            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
           end;
         end;
       end;
@@ -2166,9 +2165,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-            [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
         end;
       end;
       Result := True;
@@ -2177,9 +2174,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections,
-        Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
     end;
   end;
 
@@ -2300,8 +2295,7 @@ begin
   Result := False;
 end;
 
-constructor TMVIDRelease.Create(rlsname: AnsiString; section: AnsiString;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMVIDRelease.Create(rlsname: AnsiString; section: AnsiString; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   mvrx: TRegexpr;
 begin
@@ -2319,11 +2313,14 @@ begin
   mvrx := TRegexpr.Create;
   try
     mvrx.ModifierI := True;
+
     mvrx.Expression := '\-((19|20)\d{2})\-';
     if mvrx.Exec(rlsname) then
       mvid_year := StrToIntDef(mvrx.Match[1], 0);
+
     mvrx.Expression := '^VA[\-\_\.]';
     mvid_va := mvrx.Exec(rlsname);
+
     mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
     mvid_live := mvrx.Exec(rlsname);
   finally
@@ -2774,7 +2771,7 @@ begin
   kbevent.Free;
 end;
 
-function TKBThread.AddCompleteTransfersv2(pazo: Pointer): boolean;
+function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
   i, j: integer;
   psrc, pdest: TPazoSite;
@@ -2895,9 +2892,9 @@ begin
         on e: Exception do
         begin
           Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
             [e.Message]));
-          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfersv2.AddTask: %s',
+          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
             [e.Message]));
           Result := False;
         end;
@@ -2909,6 +2906,8 @@ begin
     [p.rls.rlsname]);
 end;
 
+{
+-- PREVIOUS VERSION --
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
   j, i: integer;
@@ -2959,7 +2958,7 @@ begin
     //There is some error we need to check in later revs!
     if ps.error then
     begin
-      irc_Addstats(Format('<c4>Error: AddCompleteTransfersv2 for %s (%s)</c>', [ps.Name, ps.reason]));
+      irc_Addstats(Format('<c4>Error: AddCompleteTransfers for %s (%s)</c>', [ps.Name, ps.reason]));
       Continue;
     end;
 
@@ -3195,6 +3194,7 @@ begin
     irc_Addstats(Format('<-- AddCompleteTransfers %s', [p.rls.rlsname]));
   end;
 end;
+}
 
 procedure TKBThread.Execute;
 var
@@ -3241,7 +3241,7 @@ begin
               p.completezve := True;
               Debug(dpSpam, rsections, 'Looking for incomplete sites of %s',
                 [p.rls.rlsname]);
-              AddCompleteTransfersv2(p);
+              AddCompleteTransfers(p);
             end;
           end;
 

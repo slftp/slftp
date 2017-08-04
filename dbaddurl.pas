@@ -8,14 +8,14 @@ type
   TDbUrl = class
     rls: AnsiString;
     url: AnsiString;
-    constructor Create(rls, url: AnsiString);
+    constructor Create(const rls, url: AnsiString);
     destructor Destroy; override;
   end;
 
 function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
-procedure dbaddurl_SaveUrl(rls, url: AnsiString);
-procedure dbaddurl_addurl(params: AnsiString);
-procedure dbaddurl_ParseUrl(rls, url: AnsiString);
+procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
+procedure dbaddurl_addurl(const params: AnsiString);
+procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 
 function dbaddurl_Status: AnsiString;
 
@@ -29,7 +29,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, dbaddimdb;
+  sitesunit, queueunit, slmasks, slhttp, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';
@@ -39,7 +39,7 @@ var
 
 { TDbUrl }
 
-constructor TDbUrl.Create(rls, url: AnsiString);
+constructor TDbUrl.Create(const rls, url: AnsiString);
 begin
   self.rls := rls;
   self.url := url;
@@ -63,7 +63,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_addurl(params: AnsiString);
+procedure dbaddurl_addurl(const params: AnsiString);
 var
   rls: AnsiString;
   url: AnsiString;
@@ -94,7 +94,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_SaveUrl(rls, url: AnsiString);
+procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
 var
   i: Integer;
   db_url: TDbUrl;
@@ -110,7 +110,7 @@ begin
 
     dbaddurl_ParseUrl(rls, url);
 
-    // clean old db entries  
+    // clean old db entries
     last_addurl.BeginUpdate;
     try
       i := last_addurl.Count;
@@ -129,39 +129,24 @@ begin
   end;
 end;
 
-procedure dbaddurl_ParseUrl(rls, url: AnsiString);
+procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
 var
-  rr: TRegexpr;
-  imdb_id: AnsiString;
+  imdbid: AnsiString;
 begin
-  rr := TRegexpr.Create;
   try
-    rr.ModifierI := True;
-    rr.Expression := 'tt(\d{6,7})';
-    if rr.exec(url) then
+    if dbaddimdb_parseid(url, imdbid) then
+      dbaddimdb_SaveImdb(rls, imdbid);
+  except
+    on e: Exception do
     begin
-      imdb_id := 'tt' + Format('%-7.7d', [StrToInt(rr.Match[1])]);
-      try
-        dbaddimdb_SaveImdb(rls, imdb_id);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
-        end;
-      end;
+      Debug(dpError, section, Format('[EXCEPTION] dbaddurl_SaveUrl dbaddimdb_SaveImdbRls: %s ', [e.Message]));
     end;
-
-  finally
-    rr.Free;
   end;
 end;
 
 { Status }
-
 function dbaddurl_Status: AnsiString;
 begin
-  Result := '';
-
   Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;
 

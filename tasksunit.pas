@@ -4,9 +4,7 @@ interface
 
 uses Classes;
 
-{ TTask }
 type
-
   // ez az ose az osszes feladatnak
   TTask = class
   public
@@ -24,14 +22,14 @@ type
     dontremove: Boolean;
     wantedslot: AnsiString;
 
-    created: TDateTime;// ez ugyanaz mint az added
+    created: TDateTime; //< datetime when it was added
     assigned: TDateTime;
-    startat: TDateTime;// ennel elobb nem kezdodhet -- not begin with a primary
+    startat: TDateTime; //< datetime when it should start (it's delayed)
 
     response: AnsiString;
     announce: AnsiString;
 
-    ready: Boolean; // ready to free
+    ready: Boolean; //< ready to free because the task is done
     readyerror: Boolean;
 
     readydel: Boolean;
@@ -72,10 +70,12 @@ implementation
 
 uses SysUtils, SyncObjs, debugunit, queueunit, sitesunit;
 
-const section = 'task';
+const
+  section = 'tasks';
 
-var uidg: Integer = 1;
-    uid_lock: TCriticalSection;
+var
+  uidg: Integer = 1;
+  uid_lock: TCriticalSection;
 
 constructor TTask.Create(const netname, channel: AnsiString; site1: AnsiString);
 begin
@@ -84,47 +84,47 @@ end;
 
 constructor TTask.Create(const netname, channel: AnsiString; site1, site2: AnsiString);
 begin
-  created:= Now();
-  assigned:=0;
-  self.netname:= netname;
-  self.channel:= channel;
-  ido:= 0;
+  created := Now();
+  assigned := 0;
+  self.netname := netname;
+  self.channel := channel;
+  ido := 0;
   TryToAssign := 0;
 
-  response:= '';
-  wantedslot:= '';
-  slot1:= nil;
-  slot2:= nil;
-  self.site1:= site1;
-  self.site2:= site2;
+  response := '';
+  wantedslot := '';
+  slot1 := nil;
+  slot2 := nil;
+  self.site1 := site1;
+  self.site2 := site2;
 
-  ready:= False;
-  readyerror:= False;
-  readydel:= False;
+  ready := False;
+  readyerror := False;
+  readydel := False;
 
-  startat:= 0;
-  announce:= '';
-  slot1name:= '';
-  slot2name:= '';
-  dependencies:= TStringList.Create;
+  startat := 0;
+  announce := '';
+  slot1name := '';
+  slot2name := '';
+  dependencies := TStringList.Create;
 
-  ssite1:= FindSiteByName('', site1);
+  ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
-    readyerror:= True;
+    readyerror := True;
 
   if site2 <> '' then
   begin
-    ssite2:= FindSiteByName('', site2);
+    ssite2 := FindSiteByName('', site2);
     if ssite2 = nil then
-      readyerror:= True;
+      readyerror := True;
   end;
 
-  uid_Lock.Enter;
+  uid_lock.Enter;
   try
-    uid:= uidg;
+    uid := uidg;
     inc(uidg);
   finally
-    uid_Lock.Leave;
+    uid_lock.Leave;
   end;
 end;
 
@@ -143,33 +143,34 @@ begin
 end;
 
 function TTask.Fullname: AnsiString;
-var s_dep:AnsiString;
+var
+  s_dep: AnsiString;
 begin
   try
-    s_dep:=Format('[%s]',[dependencies.DelimitedText]);
-    Result:=format('#%d (%s): %s [%d] %s',[uid, site1 ,name, TryToAssign, s_dep]);
-//    Result:=format('#%d (%s): %s %s',[uid, site1 ,name,s_dep]);
+    s_dep := Format('[%s]', [dependencies.DelimitedText]);
+    Result := Format('#%d (%s): %s [%d] %s', [uid, site1, name, TryToAssign, s_dep]);
   except
-    Result:= 'TTask';
+    Result := 'TTask';
   end;
 end;
 
 function TTask.ScheduleText: AnsiString;
 begin
-  Result:= '';
+  Result := '';
   if startat <> 0 then
-    Result:= ' '+TimeToStr(startat);
+    Result := ' ' + TimeToStr(startat);
 end;
 
 function TTask.UidText: AnsiString;
 begin
-  Result:= '#'+IntToStr(uid);
+  Result := '#' + IntToStr(uid);
 end;
 
 procedure Tasks_Init;
 begin
-  uid_lock:= TCriticalSection.Create;
+  uid_lock := TCriticalSection.Create;
 end;
+
 procedure Tasks_Uninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
@@ -178,23 +179,24 @@ begin
 end;
 
 function FindTaskByUidText(uidtext: AnsiString): TTask;
-var i: Integer;
+var
+  i: Integer;
 begin
-  Result:= nil;
+  Result := nil;
 
-  for i:= tasks.Count -1 downto 0 do
+  for i := tasks.Count - 1 downto 0 do
   begin
     try
       if ((TTask(tasks[i]).UidText = uidtext) and (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
       begin
-        Result:= TTask(tasks[i]);
+        Result := TTask(tasks[i]);
         break;
       end;
     except
       on e: Exception do
       begin
-        Debug(dpError, 'tasks', Format('[EXCEPTION] FindTaskByUidText: %s', [e.Message]));
-        Result:= nil;
+        Debug(dpError, section, Format('[EXCEPTION] FindTaskByUidText: %s', [e.Message]));
+        Result := nil;
       end;
     end;
   end;

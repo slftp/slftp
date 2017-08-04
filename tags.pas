@@ -2,53 +2,80 @@ unit tags;
 
 interface
 
-function TagComplete(filename: AnsiString): Integer;
 procedure TagsInit;
 procedure TagsUninit;
+function TagComplete(const filename: AnsiString): Integer;
+function CheckStandardPercentDir(const filename: AnsiString): Integer;
 
 implementation
 
-uses Classes, SysUtils, mystrings, configunit, debugunit, RegExpr;
+uses Classes, SysUtils, mystrings, configunit, debugunit, FLRE, SyncObjs;
 
 const
   section = 'tags';
-  ftprush_regex: AnsiString = '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)';
 
 var
-  tags_complete: TStringList = nil;
-  tags_incomplete: TStringList = nil;
+  cs: TCriticalSection;
+  crc, cri: TFLRE;
 
-
-//  1 if complete
-// -1 if incomplete
-//  0 otherwise, if nothing matched
-function TagComplete(filename: AnsiString): Integer;
-var
-  i, j: Integer;
-  voltszam: Boolean; // voltszam = I was an ass
-  cr: TRegExpr;
+function TagComplete(const filename: AnsiString): Integer;
 begin
-  Result := 0;
+  (*
+    Result:
+       0 if nothing matched (normal file/dir)
+       1 if file/dir is a complete tag
+      -1 if file/dir is an incomplete tag
+  *)
 
-  //we should quit if the regex don't match or? -- atm we will try tags then
-  //will be faster if we drop tags usage if regex is enabled. save memory too
-  //because we can exit the tagsinit and tagsuninit before creating Stringlist
-  if (config.ReadBool(section, 'useregex', false)) then
-  begin
-    cr := TRegExpr.Create;
+  // check if the dir is a percent dir
+  Result := CheckStandardPercentDir(filename);
+  if Result <> 0 then
+    exit;
+
+  // regex matching
+  cs.Enter;
+  try
+    // is the file/dir a complete tag
     try
-      cr.ModifierI := True;
-      cr.Expression := config.ReadString(section, 'regex', ftprush_regex);
-      if cr.Exec(filename) then
+      if crc.Find(filename) <> 0 then
       begin
-        Debug(dpSpam, section, 'TagComplete By RegExp %s', [filename]);
-        result := 1;
+        Debug(dpSpam, section, 'TagComplete By FLRE %s', [filename]);
+        Result := 1;
         exit;
       end;
-    finally
-      cr.Free;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TagComplete(crc): Exception : %s', [e.Message]));
+      end;
     end;
+
+    // is the file/dir an incomplete tag
+    try
+      if cri.Find(filename) <> 0 then
+      begin
+        Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [filename]);
+        Result := -1;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TagComplete(cri): Exception : %s', [e.Message]));
+      end;
+    end;
+  finally
+    cs.Leave;
   end;
+
+end;
+
+function CheckStandardPercentDir(const filename: AnsiString): Integer;
+var
+  i, j: Integer;
+  voltszam: Boolean;
+begin
+  Result := 0;
 
   i := AnsiPos(AnsiUpperCase('% complete'), AnsiUpperCase(filename));
   if i > 4 then
@@ -66,7 +93,6 @@ begin
           break;
         end;
       end;
-
     if i = 100 then
     begin
       Result := 1;
@@ -77,63 +103,72 @@ begin
       exit;
     end;
   end;
-
-  for i := 0 to tags_incomplete.Count-1 do
-    if (0 <> AnsiPos(AnsiUpperCase(tags_incomplete[i]), AnsiUpperCase(filename))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-
-  for i := 0 to tags_complete.Count-1 do
-    if (0 <> AnsiPos(AnsiUpperCase(tags_complete[i]), AnsiUpperCase(filename))) then
-    begin
-      Debug(dpSpam, section, 'TagComplete By Tag %s', [filename]);
-      Result:= 1;
-      exit;
-    end;
 end;
 
 procedure TagsInit;
-var 
-  i: Integer;
-  s, ss: AnsiString;
+var
+  complete_regex, incomplete_regex: String;
+  complete_regex_default, incomplete_regex_default: String;
+  dummy_string: String;
 begin
-  tags_complete := TStringList.Create;
-  s := LowerCase(config.ReadString(section, 'complete', '')); // milyen elbaszott egy kibaszott szarfoshugygeci ez
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(s, ',', i);
-    if Trim(ss) = '' then break;
-    tags_complete.Add(ss);
+  Debug(dpSpam, section, 'Init %s begins', [section]);
+
+  complete_regex_default := '([^\w]*100%[^\w]*)|([^\w]*-\sCOMPLETE\s\)[^\w]*)|([^\w]*-\sCOMPLETE\s-[^\w]*)|([^\w].*DONE\s\-\>\s\d+F[^\w]*)';
+  incomplete_regex_default := '(\d{1,2}\s*%\s*Complete|incomplete)';
+
+  dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
+
+  cs := TCriticalSection.Create;
+
+  // check custom slftp.ini complete_regex
+  complete_regex := config.ReadString(section, 'complete_regex', complete_regex_default);
+
+  crc := TFLRE.Create(complete_regex, [rfIGNORECASE]);
+  try
+    crc.Test(dummy_string);
+  except
+    on e: Exception do
+    begin
+      if Assigned(crc) then
+        crc.Free;
+      Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
+      crc := TFLRE.Create(complete_regex_default, [rfIGNORECASE]);
+    end;
   end;
 
-  tags_incomplete := TStringList.Create;
-  s := LowerCase(config.ReadString(section, 'incomplete', '')); // milyen elbaszott egy kibaszott szarfoshugygeci ez
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(s, ',', i);
-    if Trim(ss) = '' then break;
-    tags_incomplete.Add(ss);
+  // check custom slftp.ini incomplete_regex
+  incomplete_regex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
+
+  cri := TFLRE.Create(incomplete_regex, [rfIGNORECASE]);
+  try
+    cri.Test(dummy_string);
+  except
+    on e: Exception do
+    begin
+      if Assigned(cri) then
+        cri.Free;
+      Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
+      cri := TFLRE.Create(incomplete_regex_default, [rfIGNORECASE]);
+    end;
   end;
 
+  Debug(dpSpam, section, 'Init %s done', [section]);
 end;
 
 procedure TagsUninit;
 begin
-  Debug(dpSpam, section, 'Uninit tags_complete');
-  if tags_complete <> nil then
-  begin
-    tags_complete.Free;
-    tags_complete := nil;
-  end;
+  Debug(dpSpam, section, 'Uninit %s begins', [section]);
 
-  if tags_incomplete <> nil then
-  begin
-    tags_incomplete.Free;
-    tags_incomplete := nil;
+  cs.Enter;
+  try
+    FreeAndNil(crc);
+    FreeAndNil(cri);
+  finally
+    cs.Leave;
   end;
-  Debug(dpSpam, section, 'Uninit tags_incomplete');
+  cs.Free;
+
+  Debug(dpSpam, section, 'Uninit %s done', [section]);
 end;
 
 end.

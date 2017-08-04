@@ -26,7 +26,7 @@ type
   TslSocket = record
     socket: TSocket;
     peerip: AnsiString;
-    peerport: Integer;    
+    peerport: Integer;
     localip: AnsiString;
     localport: Integer;
   end;
@@ -133,8 +133,8 @@ begin
   r:= ioctlsocket(s.socket, FIONBIO, iMode);
   if(r<>0) then
   begin
-		error:= 'setnonblocking set flags failed '+IntToStr(r);
-		exit;
+    error:= 'setnonblocking set flags failed '+IntToStr(r);
+    exit;
   end;
   Result:= True;
 end;
@@ -147,16 +147,16 @@ begin
 
 //-------------------------
 // Set the socket I/O mode: In this case FIONBIO
-// enables or disables the blocking mode for the 
+// enables or disables the blocking mode for the
 // socket based on the numerical value of iMode.
-// If iMode = 0, blocking is enabled; 
+// If iMode = 0, blocking is enabled;
 // If iMode != 0, non-blocking mode is enabled.
   iMode:= 0;
   r:= ioctlsocket(s.socket, FIONBIO, iMode);
   if(r<>0) then
   begin
-		error:= 'setblocking set flags failed '+IntToStr(r);
-		exit;
+    error:= 'setblocking set flags failed '+IntToStr(r);
+    exit;
   end;
   Result:= True;
 end;
@@ -171,21 +171,21 @@ begin
 {$ELSE}
   flags:= fcntl(s.socket, F_GETFL, 0);
 {$ENDIF}
-	if(flags = -1) then
-	begin
-		error:= 'setnonblocking get flags failed';
-		exit;
-	end;
-	flags := flags or O_NONBLOCK;
+  if(flags = -1) then
+  begin
+    error:= 'setnonblocking get flags failed';
+    exit;
+  end;
+  flags := flags or O_NONBLOCK;
 {$IFDEF FPC}
-	if (fpfcntl(s.socket, F_SETFL, flags) = -1) then
+  if (fpfcntl(s.socket, F_SETFL, flags) = -1) then
 {$ELSE}
         if (fcntl(s.socket, F_SETFL, flags) = -1) then
 {$ENDIF}
-	begin
-		error:= 'setnonblocking set flags failed';
-		exit;
-	end;
+  begin
+    error:= 'setnonblocking set flags failed';
+    exit;
+  end;
 
   Result:= True;
 end;
@@ -199,21 +199,21 @@ begin
 {$ELSE}
   flags:= fcntl(s.socket, F_GETFL, 0);
 {$ENDIF}
-	if(flags = -1) then
-	begin
-		error:= 'setblocking get flags failed';
-		exit;
-	end;
-	flags := flags and not O_NONBLOCK;
+  if(flags = -1) then
+  begin
+    error:= 'setblocking get flags failed';
+    exit;
+  end;
+  flags := flags and not O_NONBLOCK;
 {$IFDEF FPC}
         if (fpfcntl(s.socket, F_SETFL, flags) = -1) then
 {$ELSE}
         if (fcntl(s.socket, F_SETFL, flags) = -1) then
 {$ENDIF}
-	begin
-		error:= 'setblocking set flags failed';
-		exit;
-	end;
+  begin
+    error:= 'setblocking set flags failed';
+    exit;
+  end;
 
   Result:= True;
 end;
@@ -300,7 +300,7 @@ begin
   {$ELSE}
     pa := Host^.h_addr_list^;
   {$ENDIF}
-  
+
   {$IFDEF FPC}
     {$IFDEF MSWINDOWS}
     sa.S_un_b.s_b1 := pa[0];
@@ -377,7 +377,7 @@ var
   AHost: PHostEnt;
   PAdrPtr: PaPInAddr;
 begin
-  Result:= True;
+  Result := True; //TODO: shouldn't this be false? And what about returning an error?
   l.Clear ;
   AHost := GetHostByName(PChar(slGetHostName));
   if AHost <> nil then
@@ -398,7 +398,7 @@ begin
       Inc(I);
     end;
     l.Add('127.0.0.1');
-    Result:= True;
+    Result := True;
   end;
 // else
 //    error:= 'Cant query local addresses';
@@ -1215,14 +1215,14 @@ end;
 
 function slAccept(var listenSocket, newSocket: TslSocket; var error: AnsiString): Boolean;
 var
-	i: Integer;
+  i: Integer;
   Addr: TSockAddr;
 begin
   Result:= False;
   i := SizeOf(addr);
 {$IFDEF FPC}
   newSocket.socket := fpAccept(listenSocket.socket, @addr, @i);
-{$ELSE}  
+{$ELSE}
   newSocket.socket := Accept(listenSocket.socket, @addr, @i);
 {$ENDIF}
   if newSocket.socket > 0 then
@@ -1251,7 +1251,7 @@ var
   LAddr: TSockAddr;
 {$ELSE}
   LAddr: TSockAddrIn;
-{$ENDIF}  
+{$ENDIF}
 begin
   i := SizeOf(LAddr);
 {$IFDEF FPC}

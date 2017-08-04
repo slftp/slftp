@@ -1,21 +1,22 @@
 unit speedstatsunit;
 
 interface
-uses Contnrs;
+
+uses
+  Contnrs, SysUtils, Classes, SyncObjs;
 
 type
   TSpeedStat = class
-    section,rlsname,src, dst: AnsiString;
+    section, rlsname, src, dst: AnsiString;
     speed: Double;
     function ToString: AnsiString;
     function ToStringEx: AnsiString;
     constructor Create(src, dst: AnsiString; speed: Double); overload;
-    constructor Create(src, dst: AnsiString; speed: Double; rip,section:AnsiString); overload;
+    constructor Create(src, dst: AnsiString; speed: Double; rip, section: AnsiString); overload;
     constructor Create(line: AnsiString); overload;
   end;
 
-//procedure SpeedStatAdd(const src, dst: string; const speed: Double); overload;
-procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip:AnsiString); overload;
+procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip: AnsiString); overload;
 procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
 
 procedure SpeedStatsInit;
@@ -23,34 +24,37 @@ procedure SpeedStatsUnInit;
 procedure SpeedStatsSave;
 procedure SpeedStatsStart;
 procedure SpeedStatsRecalc(const netname, channel: AnsiString);
-procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString);overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString);overload;
-procedure SpeedStatsShowStats(const netname, channel, sitename, section,rlsname: AnsiString);overload;
 
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
 
-//procedure SpeedStatsShowStats(const netname, channel, sitename, rlsname: string);overload;
+procedure RemoveSpeedStats(const sitename, section: AnsiString);
+function SpeedStatsScale(const toscale: Double): Integer;
 
-function SpeedStatsScale(toscale: Double): Integer;
-
-var speedstats_last_save: TDateTime;
-    speedstats_last_recalc: TDateTime;
-    speedstats: TObjectList;
+var
+  speedstats_last_save: TDateTime;
+  speedstats_last_recalc: TDateTime;
+  speedstats: TObjectList;
 
 implementation
 
-uses Classes, SyncObjs, irc, sitesunit, Debugunit, SysUtils, mystrings, configunit, encinifile, UIntList;
+uses
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, UIntList, Math;
 
-const r_section = 'speedstats';
+const
+  r_section = 'speedstats';
 
-var speedstatlock: TCriticalSection;
+var
+  speedstatlock: TCriticalSection;
 
 procedure SpeedStatsInit;
 begin
-  speedstatlock:= TCriticalSection.Create;
-  speedstats_last_save:= Now;
-  speedstats_last_recalc:= Now;
-  speedStats:= TObjectList.Create;
+  speedstatlock := TCriticalSection.Create;
+  speedstats_last_save := Now;
+  speedstats_last_recalc := Now;
+  speedStats := TObjectList.Create;
 end;
+
 procedure SpeedStatsUnInit;
 begin
   Debug(dpSpam, r_section, 'Uninit1');
@@ -60,207 +64,222 @@ begin
 end;
 
 procedure SpeedStatsSave;
-var x: TEncStringList;
-    i: Integer;
+var
+  x: TEncStringList;
+  i: Integer;
 begin
   debug(dpMessage, r_section, '--> Saving speedstats');
   //irc_Addconsole('--> SpeedStatsSave : '+FormatDateTime('hh:nn:ss', now));
-  try
-    speedstatlock.Enter;
-    // Cleanup
 
-    // Save
-    x:= TEncStringlist.Create(passphrase);
+  speedstatlock.Enter;
+  try
     try
-      for i:= speedstats.Count-1 downto 0 do
-      begin
-        if ((TSpeedStat(speedstats.Items[i]).section <> '') or (TSpeedStat(speedstats.Items[i]).rlsname <> '')) then
-          x.Add(TSpeedStat(speedstats[i]).ToStringEx)
-        else
-          x.Add(TSpeedStat(speedstats[i]).ToString);
+      // Cleanup
+
+      // Save
+      x := TEncStringlist.Create(passphrase);
+      try
+        for i := speedstats.Count - 1 downto 0 do
+        begin
+          if ((TSpeedStat(speedstats.Items[i]).section <> '') or (TSpeedStat(speedstats.Items[i]).rlsname <> '')) then
+            x.Add(TSpeedStat(speedstats[i]).ToStringEx)
+          else
+            x.Add(TSpeedStat(speedstats[i]).ToString);
+        end;
+        x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
+      finally
+        x.Free;
       end;
-      x.SaveToFile(ExtractFilePath(ParamStr(0))+'slftp.speedstats');
-    finally
-      x.Free;
-      speedstatlock.Leave;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] SpeedStatsSave: %s', [e.Message]);
+      end;
     end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, r_section, '[EXCEPTION] SpeedStatsSave: %s', [e.Message]);
-    end;
+  finally
+    speedstatlock.Leave;
   end;
+
   speedstats_last_save:= Now;
   //irc_Addconsole('<-- SpeedStatsSave : '+FormatDateTime('hh:nn:ss', now));
   debug(dpMessage, r_section, '<-- Saving speedstats');
 end;
 
-
-function AvgSpeedByReleasename(const Rip: AnsiString): Double;
-var i, db: Integer;
-    sum: Double;
-    s: TSpeedStat;
+function AvgSpeedByReleasename(const rip: AnsiString): Double;
+var
+  i, db: Integer;
+  sum: Double;
+  s: TSpeedStat;
 begin
-  sum:= 0;
-  db:= 0;
-  Result:= 0;
+  sum := 0;
+  db := 0;
+  Result := 0;
 
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if s.rlsname = rip then
       begin
-        sum:= sum + s.speed;
+        sum := sum + s.speed;
         inc(db);
       end;
     end;
     if db <> 0 then
     begin
-      Result:= sum / db / 1024; // kilobyte / sec
+      Result := sum / db / 1024; // kilobyte / sec
     end;
   except
-    Result:= 0;
+    Result := 0;
   end;
+
 end;
 
 function AvgSpeedBySection(const section: AnsiString): Double;
-var i, db: Integer;
-    sum: Double;
-    s: TSpeedStat;
+var
+  i, db: Integer;
+  sum: Double;
+  s: TSpeedStat;
 begin
-  sum:= 0;
-  db:= 0;
-  Result:= 0;
+  sum := 0;
+  db := 0;
+  Result := 0;
 
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if s.section = section then
       begin
-        sum:= sum + s.speed;
+        sum := sum + s.speed;
         inc(db);
       end;
     end;
     if db <> 0 then
     begin
-      Result:= sum / db / 1024; // kilobyte / sec
+      Result := sum / db / 1024; // kilobyte / sec
     end;
   except
-    Result:= 0;
+    Result := 0;
   end;
+
 end;
 
-function AvgSpeed(const src, dst: AnsiString): Double;overload;
-var i, db: Integer;
-    sum: Double;
-    s: TSpeedStat;
+function AvgSpeed(const src, dst: AnsiString): Double; overload;
+var
+  i, db: Integer;
+  sum: Double;
+  s: TSpeedStat;
 begin
-  sum:= 0;
-  db:= 0;
-  Result:= 0;
+  sum := 0;
+  db := 0;
+  Result := 0;
 
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if ((s.src = src) and (s.dst = dst)) then
       begin
         if (s.speed > 0) then
-          sum:= sum + s.speed;
+          sum := sum + s.speed;
         inc(db);
       end;
     end;
     if db <> 0 then
     begin
-      Result:= sum / db / 1024; // kilobyte / sec
+      Result := sum / db / 1024; // kilobyte / sec
     end;
   except
-    Result:= 0;
+    Result := 0;
   end;
+
 end;
 
-function AvgSpeed(const src, dst, section: AnsiString): Double;overload;
-var i, db: Integer;
-    sum: Double;
-    s: TSpeedStat;
+function AvgSpeed(const src, dst, section: AnsiString): Double; overload;
+var
+  i, db: Integer;
+  sum: Double;
+  s: TSpeedStat;
 begin
-  sum:= 0;
-  db:= 0;
-  Result:= 0;
+  sum := 0;
+  db := 0;
+  Result := 0;
 
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if ((s.src = src) and (s.dst = dst) and (s.section = section)) then
       begin
         if (s.speed > 0) then
-          sum:= sum + s.speed;
+          sum := sum + s.speed;
         inc(db);
       end;
     end;
     if db <> 0 then
     begin
-      Result:= sum / db / 1024; // kilobyte / sec
+      Result := sum / db / 1024; // kilobyte / sec
     end;
   except
-    Result:= 0;
+    Result := 0;
   end;
+
 end;
 
-function AvgSpeed(const src, dst, section, rip: AnsiString): Double;overload;
-var i, db: Integer;
-    sum: Double;
-    s: TSpeedStat;
+function AvgSpeed(const src, dst, section, rip: AnsiString): Double; overload;
+var
+  i, db: Integer;
+  sum: Double;
+  s: TSpeedStat;
 begin
-  sum:= 0;
-  db:= 0;
-  Result:= 0;
+  sum := 0;
+  db := 0;
+  Result := 0;
 
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if ((s.src = src) and (s.dst = dst) and (s.section = section) and (s.rlsname = rip)) then
       begin
         if (s.speed > 0) then
-          sum:= sum + s.speed;
+          sum := sum + s.speed;
         inc(db);
       end;
     end;
     if db <> 0 then
     begin
-      Result:= sum / db / 1024; // kilobyte / sec
+      Result := sum / db / 1024; // kilobyte / sec
     end;
   except
-    Result:= 0;
+    Result := 0;
   end;
 end;
 
 
 procedure AddSites(const src, dst: AnsiString; x: TStringList);
-var i: Integer;
-    s: TSpeedStat;
+var
+  i: Integer;
+  s: TSpeedStat;
 begin
   x.Clear;
+
   try
-    for i:= speedstats.Count-1 downto 0 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
-      s:= TSpeedStat(speedstats[i]);
+      s := TSpeedStat(speedstats[i]);
       if ((dst = '') and (s.src = src)) then
       begin
         if x.IndexOf(s.dst) = -1 then
           x.Add( s.dst );
-      end else
-      if ((src = '') and (s.dst = dst)) then
+      end
+      else if ((src = '') and (s.dst = dst)) then
       begin
         if x.IndexOf(s.src) = -1 then
           x.Add( s.src );
       end
-      else
-      if (src ='') and (dst = '') then
+      else if (src ='') and (dst = '') then
       begin
         if x.IndexOf(s.src) = -1 then
           x.Add( s.src );
@@ -276,10 +295,12 @@ end;
 
 function FindSite(const s: AnsiString): Boolean;
 begin
-  Result:= False;
-  if '' =  sitesdat.ReadString('site-'+s, 'username', '') then exit;
+  Result := False;
 
-  Result:= True;
+  if sitesdat.ReadString('site-' + s, 'username', '') = '' then
+    exit;
+
+  Result := True;
 end;
 
 procedure SpeedStatsRecalc(const netname, channel: AnsiString);
@@ -388,7 +409,317 @@ begin
   Debug(dpMessage, r_section, 'Recalculating speed stats end');
 end;
 
-function SpeedStatsScale(toscale: Double): Integer;
+
+function GetSpeed(const stri: AnsiString): Double;
+var
+  splitted: TStringList;
+begin
+  splitted := TStringList.Create;
+  try
+    splitString(stri, ':', splitted);
+
+    if (splitted.Count = 2) then
+    begin
+      try
+        Result := StrToFloat(splitted[0]);
+      except
+        on E: Exception do
+        begin
+          Result := 0;
+        end;
+      end;
+    end
+    else
+      Result := 0;
+  finally
+    splitted.Free;
+  end;
+end;
+
+function CompareSpeed(List: TStringList; Index1, Index2: Integer): Integer;
+var
+  speed1, speed2: Double;
+begin
+  speed1 := GetSpeed(List[Index1]);
+  speed2 := GetSpeed(List[Index2]);
+  Result := CompareValue(speed1, speed2);
+end;
+
+function GetSiteName(const stri: AnsiString): AnsiString;
+var
+  splitted: TStringList;
+begin
+  splitted := TStringList.Create;
+  try
+    splitString(stri,':', splitted);
+
+    if (splitted.Count = 2) then
+      Result := splitted[1]
+    else
+      Result := '';
+  finally
+    splitted.Free;
+  end;
+end;
+
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
+var
+  i, db: Integer;
+  ss, otherSite: AnsiString;
+  d: Double;
+begin
+  db := 0;
+  ss := '';
+
+  if (sitesList = nil) then exit;
+
+  sitesList.CustomSort(CompareSpeed);
+
+  for i := 0 to sitesList.Count - 1 do
+  begin
+    if ss <> '' then
+      ss := ss + ', ';
+
+    d := GetSpeed(sitesList[i]);
+    otherSite := GetSiteName(sitesList[i]);
+
+    if d > 1024 then
+      ss := ss + Format('%s %.1f mB/s', [otherSite, d/1024])
+    else
+      ss := ss + Format('%s %.1f kB/s', [otherSite, d]);
+
+    inc(db);
+
+    if db >= 10 then
+    begin
+      irc_addtext(netname, channel, '%s %s %s', [sitename, delimiter, ss]);
+      db := 0;
+      ss := '';
+    end;
+  end;
+
+  if ss <> '' then
+    irc_addtext(netname, channel, '%s %s %s', [sitename, delimiter, ss]);
+end;
+
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
+var
+  listSites, listSitesSpeeds: TStringList;
+  i: Integer;
+  speed: Double;
+  sectionOnly, releaseAndSection: Boolean;
+begin
+  sectionOnly := (section <> '') and (rlsname = '');
+  releaseAndSection := (section <> '') and (rlsname <> '');
+
+  if releaseAndSection then
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s %s %s</b> :',[sitename, section, rlsname])
+  else if sectionOnly then
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s %s</b> :',[sitename, section])
+  else
+    irc_addtext(netname, channel, 'SpeedStats for <b>%s</b> :',[sitename]);
+
+  listSitesSpeeds := TStringList.Create;
+  listSites := TStringList.Create;
+  try
+    AddSites(sitename, '', listSites);
+
+    for i := 0 to listSites.Count - 1 do
+    begin
+      if releaseAndSection then
+        speed := AvgSpeed(sitename, listSites[i], section, rlsname)
+      else if sectionOnly then
+        speed := AvgSpeed(sitename, listSites[i], section)
+      else
+        speed := AvgSpeed(sitename, listSites[i]);
+
+      if speed <> 0 then
+        listSitesSpeeds.Add(FloatToStr(speed) + ':' + listSites[i]);
+    end;
+    ShowSpeeds(netname, channel, sitename, '->', listSitesSpeeds);
+
+    listSitesSpeeds.Clear;
+
+    AddSites('', sitename, listSites);
+    for i := 0 to listSites.Count - 1 do
+    begin
+      if releaseAndSection then
+        speed := AvgSpeed(listSites[i], sitename, section, rlsname)
+      else if sectionOnly then
+        speed := AvgSpeed(listSites[i], sitename, section)
+      else
+        speed := AvgSpeed(listSites[i], sitename);
+
+      if speed <> 0 then
+        listSitesSpeeds.Add(FloatToStr(speed) + ':' + listSites[i]);
+    end;
+
+    ShowSpeeds(netname, channel, sitename, '<-', listSitesSpeeds);
+  finally
+    listSites.Free;
+    listSitesSpeeds.Free;
+  end;
+end;
+
+
+procedure SpeedStatsStart;
+var
+  x: TEncStringList;
+  i: Integer;
+  s: TSpeedStat;
+begin
+  x := TEncStringlist.Create(passphrase);
+  try
+    speedstatlock.Enter;
+    try
+      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
+      for i := 0 to x.Count - 1 do
+      begin
+        s := TSpeedStat.Create(x[i]);
+        SpeedStatAdd(s, True);
+      end;
+    finally
+      speedstatlock.Leave;
+    end;
+  finally
+    x.Free;
+  end;
+end;
+
+{ TSpeedStat }
+constructor TSpeedStat.Create(line: AnsiString);
+begin
+  src := Fetch(line, ' ');
+  dst := Fetch(line, ' ');
+  speed := myStrToFloat( Fetch(line, ' '), 0 );
+  rlsname := Fetch(line, ' ');
+  section := Fetch(line, ' ');
+end;
+
+constructor TSpeedStat.Create(src, dst: AnsiString; speed: Double);
+begin
+  self.src := src;
+  self.dst := dst;
+  self.speed := speed;
+end;
+
+constructor TSpeedStat.Create(src: AnsiString; dst: AnsiString; speed: Double; rip: AnsiString; section: AnsiString);
+begin
+  self.src := src;
+  self.dst := dst;
+  self.speed := speed;
+  self.section :=section;
+  self.rlsname :=rip;
+end;
+
+function TSpeedStat.ToString: AnsiString;
+begin
+  try
+    Result := FormaT('%s %s %f', [src, dst, speed]);
+  except
+    Result := '';
+  end;
+end;
+
+function TSpeedStat.ToStringEx:AnsiString;
+begin
+  try
+    Result := FormaT('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
+  except
+    Result := '';
+  end;
+end;
+
+procedure SpeedStatAdd(const src, dst: AnsiString; const speed: Double); overload;
+var
+  s: TSpeedStat;
+begin
+  try
+    if (speed > 0) then
+    begin
+      s := TSpeedStat.Create;
+      s.src := src;
+      s.dst := dst;
+      s.speed := speed;
+      SpeedStatAdd(s);
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
+    end;
+  end;
+end;
+
+procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip: AnsiString); overload;
+var
+  s: TSpeedStat;
+begin
+  try
+    if (speed > 0) then
+    begin
+      s := TSpeedStat.Create;
+      s.src := src;
+      s.dst := dst;
+      s.speed := speed;
+      s.rlsname := rip;
+      s.section := section;
+      SpeedStatAdd(s);
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
+    end;
+  end;
+end;
+
+procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
+var
+  max_entries: Integer;
+begin
+  if not nolog then
+    debug(dpSpam, r_section, 'Speedstat %s -> %s %.1f', [s.src, s.dst, s.speed]);
+
+  max_entries := config.readInteger(r_section, 'max_entries', 5000);
+
+  try
+    speedstatlock.Enter;
+    try
+      speedstats.Add(s);
+      while (speedstats.Count > max_entries) do
+      begin
+        speedstats.Delete(0);
+      end;
+    finally
+      speedstatlock.Leave;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
+    end;
+  end;
+end;
+
+procedure RemoveSpeedStats(const sitename, section: AnsiString);
+var
+  i: integer;
+begin
+  speedstatlock.Enter;
+  try
+    for i := 0 to speedstats.Count - 1 do
+    begin
+      if (((TSpeedStat(speedstats.Items[i]).src = sitename) or (TSpeedStat(speedstats.Items[i]).dst = sitename)) and (TSpeedStat(speedstats.Items[i]).section = section)) then
+        speedstats.Delete(i);
+    end;
+  finally
+    speedstatlock.Leave;
+  end;
+  SpeedStatsSave;
+end;
+
+function SpeedStatsScale(const toscale: Double): Integer;
 var
   i, j: Integer;
   min_speed, max_speed: Double;
@@ -441,340 +772,5 @@ begin
     x.Free;
   end;
 end;
-
-procedure SpeedStatsShowStats(const netname, channel, sitename: AnsiString);overload;
-var x: TStringList;
-    i: Integer;
-    db: Integer;
-    d: Double;
-    ss: AnsiString;
-begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s</b> :',[sitename]);
-
-  x:= TStringList.Create;
-  AddSites(sitename, '', x);
-
-  // majd megjelenitjuk
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(sitename, x[i]);
-    if d = 0 then Continue;
-    
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-
-
-  // most osszes destination sitet
-  AddSites('', sitename, x);
-
-  // majd ezt is
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(x[i], sitename);
-    if d = 0 then Continue;
-
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-
-  x.Free;
-end;
-
-procedure SpeedStatsShowStats(const netname, channel, sitename, section: AnsiString);overload;
-var x: TStringList;
-    i: Integer;
-    db: Integer;
-    d: Double;
-    ss: AnsiString;
-begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s %s</b> :',[sitename, section]);
-
-  x:= TStringList.Create;
-  AddSites(sitename, '', x);
-
-  // majd megjelenitjuk
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(sitename, x[i],section);
-    if d = 0 then Continue;
-
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-
-
-  // most osszes destination sitet
-  AddSites('', sitename, x);
-
-  // majd ezt is
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(x[i], sitename, section);
-    if d = 0 then Continue;
-
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-
-  x.Free;
-end;
-
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);overload;
-var x: TStringList;
-    i: Integer;
-    db: Integer;
-    d: Double;
-    ss: AnsiString;
-begin
-  irc_addtext(netname, channel, 'SpeedStats for <b>%s %s %s</b> :',[sitename, section, rlsname]);
-
-  x:= TStringList.Create;
-  AddSites(sitename, '', x);
-
-  // majd megjelenitjuk
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(sitename, x[i], section, rlsname);
-    if d = 0 then Continue;
-
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s -> %s',[sitename, ss]);
-
-
-  // most osszes destination sitet
-  AddSites('', sitename, x);
-
-  // majd ezt is
-  db:= 0;
-  ss:= '';
-  for i:= 0 to x.Count -1 do
-  begin
-    d:= AvgSpeed(x[i], sitename, section, rlsname);
-    if d = 0 then Continue;
-    
-    if ss <> '' then ss:= ss+', ';
-    if d > 1024 then
-      ss:= ss + Format('%s %.1f mB/s', [x[i], d/1024])
-    else
-      ss:= ss + Format('%s %.1f kB/s', [x[i], d]);
-    inc(db);
-    if db >= 10 then
-    begin
-      irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-      db:= 0;
-      ss:= '';
-    end;
-  end;
-  if ss <> '' then
-    irc_addtext(netname, channel, '%s <- %s',[sitename, ss]);
-
-  x.Free;
-end;
-
-procedure SpeedStatsStart;
-var x: TEncStringList;
-    i: Integer;
-    s: TSpeedStat;
-begin
-  x:= TEncStringlist.Create(passphrase);
-  speedstatlock.Enter;
-  try
-    x.LoadFromFile(ExtractFilePath(ParamStr(0))+'slftp.speedstats');
-    for i:= 0 to x.Count-1 do
-    begin
-      s:= TSpeedStat.Create(x[i]);
-      SpeedStatAdd(s, True);
-    end;
-
-  finally
-    x.Free;
-    speedstatlock.Leave;
-  end;
-end;
-
-{ TSpeedStat }
-constructor TSpeedStat.Create(line: AnsiString);
-begin
-  src:= Fetch(line, ' ');
-  dst:= Fetch(line, ' ');
-  speed:= myStrToFloat( Fetch(line, ' '), 0 );
-  rlsname:=Fetch(line, ' ');
-  section:=Fetch(line, ' ');
-end;
-
-constructor TSpeedStat.Create(src, dst: AnsiString; speed: Double);
-begin
-  self.src:= src;
-  self.dst:= dst;
-  self.speed:= speed;
-end;
-
-constructor TSpeedStat.Create(src: AnsiString; dst: AnsiString; speed: Double; rip: AnsiString; section: AnsiString);
-begin
-  self.src:= src;
-  self.dst:= dst;
-  self.speed:= speed;
-  self.section:=section;
-  self.rlsname:=rip;
-end;
-
-function TSpeedStat.ToString: AnsiString;
-begin
-  try
-    Result:= FormaT('%s %s %f', [src, dst, speed]);
-  except
-    Result:= '';
-  end;
-end;
-
-function TSpeedStat.ToStringEx:AnsiString;
-begin
-  try
-    Result:= FormaT('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
-  except
-    Result:= '';
-  end;
-end;
-
-procedure SpeedStatAdd(const src, dst: AnsiString; const speed: Double); overload;
-var s: TSpeedStat;
-begin
-  try
-    if (speed > 0) then
-    begin
-      s:= TSpeedStat.Create;
-      s.src:= src;
-      s.dst:= dst;
-      s.speed:= speed;
-      SpeedStatAdd(s);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
-    end;
-  end;
-end;
-procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip:AnsiString); overload;
-var s: TSpeedStat;
-begin
-  try
-    if (speed > 0) then
-    begin
-      s:= TSpeedStat.Create;
-      s.src:= src;
-      s.dst:= dst;
-      s.speed:= speed;
-      s.rlsname:=rip;
-      s.section:=section;
-      SpeedStatAdd(s);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
-    end;
-  end;
-end;
-procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
-var max_entries: Integer;
-begin
-  if not nolog then
-    debug(dpSpam, r_section, 'Speedstat %s -> %s %.1f', [s.src, s.dst, s.speed]);
-
-  max_entries:= config.readInteger(r_section, 'max_entries', 5000);
-
-  try
-    speedstatlock.Enter;
-    try
-      speedstats.Add(s);
-      while (speedstats.Count > max_entries) do
-      begin
-        speedstats.Delete(0);
-      end;
-    finally
-      speedstatlock.Leave;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, r_section, '[EXCEPTION] SpeedStatAdd: %s', [e.Message]);
-    end;
-  end;
-end;
-
-
 
 end.

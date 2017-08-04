@@ -49,7 +49,6 @@ function MinMax(aValue, minimal, maximum: integer): integer;
 function SubString(const s, seperator: AnsiString; index: integer): AnsiString;
 function Csere(const Source, old, new: AnsiString): AnsiString;
 function AtConvert(Source: AnsiString; style: integer): AnsiString;
-function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
 function myEncode(what: AnsiString): AnsiString;//spaceket  csereli at
 function myDecode(what: AnsiString): AnsiString;
 function CleanString(mit: AnsiString): AnsiString;
@@ -89,7 +88,6 @@ function CheckCompanyTaxNumber(TaxNumber: AnsiString): integer;
 function IsValidEmail(const Value: AnsiString): boolean;
 procedure MyWriteLn(s: AnsiString);
 function MyCopy(b: array of byte; index, len: integer): AnsiString;
-function myRand(mini, maxi: integer): integer;
 function ParseResponseCode(s: AnsiString): integer;
 
 {$IFDEF MSWINDOWS}
@@ -99,7 +97,7 @@ function GetContentType(fname: AnsiString): AnsiString;
 {$ENDIF}
 function MyIncludeTrailingSlash(s: AnsiString): AnsiString;
 function CombineDirectories(dir1, dir2: AnsiString): AnsiString;
-function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
+function ParsePasvString(s: AnsiString; out host: AnsiString; out port: integer): boolean;
 
 function IsALetter(const c: AnsiChar): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
 function IsANumber(const c: AnsiChar): boolean; // { returns with true if it's a number: [0-9] }
@@ -117,9 +115,7 @@ function InArray(const s: AnsiString; const d: array of AnsiString;
 function BoolToStr(Value: boolean; const TS, FS: AnsiString): AnsiString; overload;
 function BoolToStr(Value: boolean): AnsiString; overload;
 
-
-procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
-  const Dest: TStringList);
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString; const Dest: TStringList);
 
 implementation
 
@@ -203,19 +199,9 @@ var
   i: integer;
 begin
   Result := '';
-  for i := length(Source) - Count + 1 to length(Source) do
-    Result := Result + Source[i];
-end;
-
-function RightStrv2(const Source: AnsiString; Count: integer): AnsiString;
-var
-  i: integer;
-begin
-  Result := '';
   for i := Count + 1 to length(Source) do
     Result := Result + Source[i];
 end;
-
 
 function MinMax(aValue, minimal, maximum: integer): integer;
 begin
@@ -384,7 +370,7 @@ function GetLastDir(g: AnsiString): AnsiString;
 begin
   if ((length(g) > 0) and (g[length(g)] = '\')) then
     Delete(g, length(g), 1);
-  Result := RightStrv2(g, RPos('\', g));
+  Result := RightStr(g, RPos('\', g));
 end;
 
 function ExtractUrlFileName(url: AnsiString): AnsiString;
@@ -984,11 +970,6 @@ begin
     Result := Result + Chr(b[i]);
 end;
 
-function myRand(mini, maxi: integer): integer;
-begin
-  Result := Random(maxi - mini + 1) + mini;
-end;
-
 function RPos(SubStr: AnsiChar; Str: AnsiString): integer;
 var
   m, i: integer;
@@ -1058,7 +1039,7 @@ begin
     Result := '/';
 end;
 
-function ParsePasvString(s: AnsiString; var host: AnsiString; var port: integer): boolean;
+function ParsePasvString(s: AnsiString; out host: AnsiString; out port: integer): boolean;
 begin
   Result := False;
 
@@ -1429,11 +1410,7 @@ begin
   Result := BoolToStr(Value, 'TRUE', 'FALSE');
 end;
 
-
-
-
-procedure splitString(const Source: AnsiString; const Delimiter: AnsiString;
-  const Dest: TStringList);
+procedure splitString(const Source: AnsiString; const Delimiter: AnsiString; const Dest: TStringList);
 var
   Count: integer;
   LStartpos, LEndepos, LSourcelength: integer;
