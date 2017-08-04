@@ -927,7 +927,7 @@ begin
       begin
         if (s <> nil) then
         begin
-          if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', False))) then
+          if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', True))) then
             s.AddAffil(r.groupname);
         end;
       end;

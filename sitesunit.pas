@@ -2307,7 +2307,7 @@ begin
     foutofannounce := Now();
     irc_addadmin(Format('<c4>Site <b>%s</b> is out of disk space.</c>', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
+    if config.ReadBool(section, 'set_down_on_out_of_space', False) then
     begin
       markeddown := True;
       working := sstDown;
@@ -2325,7 +2325,7 @@ begin
     fkreditz := Now();
     irc_addadmin(Format('Site %s is out of credits.', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool('sites', 'set_down_on_out_of_credits', False) then
+    if config.ReadBool(section, 'set_down_on_out_of_credits', False) then
     begin
       markeddown := True;
       working := sstDown;
