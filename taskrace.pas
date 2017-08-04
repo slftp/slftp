@@ -919,11 +919,6 @@ begin
           if (0 <> AnsiPos('out of disk space', s.lastResponse)) then // 553 Error: out of disk space, contact the siteop!
           begin
             s.site.SetOutofSpace;
-            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
-            begin
-              s.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
-              //s.DestroySocket(True); // all code from here is a copy of code from tpazoracetask
-            end;
             failure := True;
           end;
         end;
