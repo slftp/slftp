@@ -1274,7 +1274,8 @@ begin
           //COMPLETE MSG: 530 No transfer-slave(s) available
           if (0 <> AnsiPos('No transfer-slave(s) available', lastResponse)) then
           begin
-            // Question: Why mark the SOURCE site as out of space ??
+            // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
+            // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
             ssrc.site.SetOutofSpace;
             if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
               ssrc.DestroySocket(True);
