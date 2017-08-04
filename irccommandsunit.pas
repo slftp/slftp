@@ -1118,8 +1118,8 @@ begin
       end;
     end;
 
-    source := rcmd.readNamelessString()[0];
-    dest := rcmd.readNamelessString()[1];
+    source := AnsiUpperCase(rcmd.readNamelessString()[0]);
+    dest := AnsiUpperCase(rcmd.readNamelessString()[1]);
     speed := StrToIntDef(rcmd.readNamelessString()[2], -1);
     c1 := stringreplace(rcmd.readString('c1'), '.', '', [rfReplaceAll]);
     c2 := stringreplace(rcmd.readString('c2'), '.', '', [rfReplaceAll]);
@@ -1136,19 +1136,9 @@ begin
     rcmd.Free;
   end;
 
-  admin_site := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  admin_site := AnsiUpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 
   // basic sanity check for first args
-  if (source <> '*') and (AnsiContainsText(source, '-')) then
-  begin
-    irc_addtext(Netname, Channel, '<c4><b>First argument must be a site name or *</b>.</c>');
-    exit;
-  end;
-  if (dest <> '*') and (AnsiContainsText(dest, '-')) then
-  begin
-    irc_addtext(Netname, Channel, '<c4><b>Second argument must be a site name or *</b>.</c>');
-    exit;
-  end;
   if (source = admin_site) or (dest = admin_site) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>You can not use admin site with this function</b>.</c>');
