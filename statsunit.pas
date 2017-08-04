@@ -2,7 +2,7 @@ unit statsunit;
 
 interface
 
-uses slsqlite, slmysql2, dirlist;
+uses slsqlite, dirlist;
 
 procedure statsStart;
 procedure statsInit;
@@ -11,7 +11,7 @@ procedure statsBeginTransaction();
 procedure statsEndTransaction();
 function statsQuery(const q: AnsiString): AnsiString;
 
-function StatsAlive:boolean;
+function StatsAlive: boolean;
 
 procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
 
@@ -21,21 +21,29 @@ procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Bo
 
 procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
 
+procedure RemoveStats(const sitename: AnsiString); overload;
+procedure RemoveStats(const sitename, section: AnsiString); overload;
+
 
 implementation
 
 uses DateUtils, debugunit, configunit, sitesunit, queueunit, SysUtils, pazo, kb, ranksunit, irc;
 
-const section = 'stats';
+const
+  section = 'stats';
 
 var
-    statsInsert: Psqlite3_stmt;
-    statsRace: Psqlite3_stmt;
-    stats: TslSqliteDB;
+  statsInsert: Psqlite3_stmt;
+  statsRace: Psqlite3_stmt;
+  stats: TslSqliteDB;
 
-function StatsAlive:boolean;
+
+function StatsAlive: boolean;
 begin
-  if stats = nil then result:= False else result:=true;
+  if stats = nil then
+    Result := False
+  else
+    Result := true;
 end;
 
 function statsQuery(const q: AnsiString): AnsiString;
@@ -55,20 +63,10 @@ begin
     {$ELSE}
     size := StrToInt(StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
     {$ENDIF}
-    s_unit := 'MB';
 
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'GB';
-    end;
-    if size > 1024  then begin
-      size := size / 1024;
-      s_unit := 'TB';
-    end;
+    RecalcSizeValueAndUnit(size, s_unit, 2);
 
-    //RecalcSizeValueAndUnit(size, s_unit, 2);
-
-    Result := Result + Format('%d. %s (%.2f %s)', [i, stats.column_text(s, 0), size,s_unit])+#13#10;
+    Result := Result + Format('%d. %s (%.2f %s)', [i, stats.column_text(s, 0), size, s_unit]) + #13#10;
     inc(i);
   end;
 end;
@@ -96,6 +94,23 @@ begin
 
   sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
+
+procedure RemoveStats(const sitename: AnsiString); overload;
+begin
+  if stats = nil then
+    Exit;
+  stats.ExecSQL('DELETE FROM hit WHERE sitename = ' + chr(39) + sitename + chr(39) + ';');
+  stats.ExecSQL('DELETE FROM race WHERE ( sitedst = ' + chr(39) + sitename + chr(39) + ' OR sitedst = ' + chr(39) + sitename + chr(39) + ' );');
+end;
+
+procedure RemoveStats(const sitename, section: AnsiString); overload;
+begin
+  if stats = nil then
+    Exit;
+  stats.ExecSQL('DELETE FROM hit WHERE sitename = ' + chr(39) + sitename + chr(39) + ' AND section = ' + chr(39) + section + chr(39) + ';');
+  stats.ExecSQL('DELETE FROM race WHERE ( sitedst = ' + chr(39) + sitename + chr(39) + ' OR sitedst = ' + chr(39) + sitename + chr(39) + ' ) AND section = ' + chr(39) + section + chr(39) + ';');
+end;
+
 
 procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
 var
@@ -148,25 +163,6 @@ begin
         files_per_site_out := StrToInt(stats.column_text(s, 0));
         files_all_out := files_all_out + files_per_site_out;
 
-{
-        s_unit := 'KB';
-        if size > 1024 then
-        begin
-          size := size / 1024;
-          s_unit := 'MB';
-        end;
-        if size > 1024 then
-        begin
-          size := size / 1024;
-          s_unit := 'GB';
-        end;
-        if size > 1024 then
-        begin
-          size := size / 1024;
-          s_unit := 'TB';
-        end;
-}
-
         RecalcSizeValueAndUnit(size, s_unit, 1);
 
         irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
@@ -186,52 +182,12 @@ begin
         files_per_site_in := StrToInt(stats.column_text(s, 0));
         files_all_in := files_all_in + files_per_site_in;
 
-{
-        s_unit := 'KB';
-        if size > 1024 then
-        begin
-          size := size / 1024;
-          s_unit := 'MB';
-        end;
-        if size > 1024 then
-        begin
-         size := size / 1024;
-         s_unit := 'GB';
-        end;
-        if size > 1024 then
-        begin
-          size := size / 1024;
-          s_unit := 'TB';
-        end;
-}
-
         RecalcSizeValueAndUnit(size, s_unit, 1);
 
         irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
       end;
 
     end;
-
-{
-    //in and out files/size are the same
-    // size_all_out == size_all_in
-    s_unit := 'KB';
-    if size_all_out > 1024 then
-    begin
-      size_all_out := size_all_out / 1024;
-      s_unit := 'MB';
-    end;
-    if size_all_out > 1024 then
-    begin
-      size_all_out := size_all_out / 1024;
-      s_unit := 'GB';
-    end;
-    if size_all_out > 1024 then
-    begin
-      size_all_out := size_all_out / 1024;
-      s_unit := 'TB';
-    end;
-}
 
     RecalcSizeValueAndUnit(size_all_out, s_unit, 1);
 
@@ -252,25 +208,6 @@ begin
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 
-{
-      s_unit := 'KB';
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'MB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'GB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'TB';
-      end;
-}
-
       RecalcSizeValueAndUnit(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
@@ -287,24 +224,6 @@ begin
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 
-{
-      s_unit := 'KB';
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'MB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'GB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'TB';
-      end;
-}
       RecalcSizeValueAndUnit(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, stats.column_text(s, 0)]));
@@ -312,7 +231,7 @@ begin
 
     if not detailed then Exit;
 
-    q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+') GROUP BY sitedst ORDER BY sitedst';
+    q := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = '+ chr(39) + sitename + chr(39) +' AND ts > date('+ chr(39) + 'now' + chr(39) + ',' + chr(39) + sql_period + chr(39) +') GROUP BY sitedst ORDER BY size';
     s := stats.Open(q);
     while stats.Step(s) do
     begin
@@ -322,32 +241,13 @@ begin
         s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
-
-{
-      s_unit := 'KB';
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'MB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'GB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'TB';
-      end;
-}
 
       RecalcSizeValueAndUnit(size, s_unit, 1);
 
       irc_addtext(netname, channel, Format('  <b>to</b> %s: %.2f %s (%s files)', [stats.column_text(s, 0), size, s_unit, stats.column_text(s, 1)]));
     end;
 
-    q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+chr(39)+sitename+chr(39)+' AND ts > date('+chr(39)+'now'+chr(39)+','+chr(39)+sql_period+chr(39)+') GROUP BY sitesrc ORDER BY sitesrc';
+    q := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = '+ chr(39) + sitename + chr(39) +' AND ts > date('+ chr(39) + 'now' + chr(39) + ',' + chr(39) + sql_period + chr(39) +') GROUP BY sitesrc ORDER BY size';
     s := stats.Open(q);
     while stats.Step(s) do
     begin
@@ -357,25 +257,6 @@ begin
         s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
-
-{
-      s_unit := 'KB';
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'MB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'GB';
-      end;
-      if size > 1024 then
-      begin
-        size := size / 1024;
-        s_unit := 'TB';
-      end;
-}
 
       RecalcSizeValueAndUnit(size, s_unit, 1);
 

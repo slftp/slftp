@@ -85,15 +85,15 @@ begin
     Result := 'Couldnt init TCP library!';
     exit;
   end;
+
   if not slssl_inited then
   begin
     Result := 'Could not load OpenSSL!' + #10#13;
-{$IFDEF MSWINDOWS}
-    Result := Result + 'Install it from:' + #13#10 +
-      'http://www.slproweb.com/products/Win32OpenSSL.html';
-      {$ELSE}
+    {$IFDEF MSWINDOWS}
+      Result := Result + 'Install it from:' + #13#10 + 'http://www.slproweb.com/products/Win32OpenSSL.html';
+    {$ELSE}
       Result := Result + 'Try to copy the libssl.so and libcrypto.so libs into slftp dir!';
-{$ENDIF}
+    {$ENDIF}
     exit;
   end;
 
@@ -126,13 +126,13 @@ begin
     Exit;
   end;
 
-{$IFNDEF MSWINDOWS}
-  if Ncurses_Version < lib_Ncurses then
-  begin
-    Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
-    exit;
-  end;
-{$ENDIF}
+  {$IFNDEF MSWINDOWS}
+    if Ncurses_Version < lib_Ncurses then
+    begin
+      Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
+      exit;
+    end;
+  {$ENDIF}
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
@@ -196,8 +196,7 @@ begin
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
-  speedstats_recalc_routes_interval :=
-    config.readInteger('speedstats', 'recalc_routes_interval', 3600);
+  speedstats_recalc_routes_interval := config.readInteger('speedstats', 'recalc_routes_interval', 3600);
   backup_interval := config.ReadInteger('backup', 'backup_interval', 0);
 end;
 
@@ -221,8 +220,7 @@ begin
     end;
   end;
 
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >=
-    queueclean_interval)) then
+  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
   begin
     try
       QueueClean;
@@ -235,8 +233,7 @@ begin
     end;
   end;
 
-  if ((ranks_save_interval > 0) and (SecondsBetween(Now, ranks_last_save) >=
-    ranks_save_interval)) then
+  if ((ranks_save_interval > 0) and (SecondsBetween(Now, ranks_last_save) >= ranks_save_interval)) then
   begin
     try
       RanksSave;
@@ -249,8 +246,7 @@ begin
     end;
   end;
 
-  if ((recalc_ranks_interval > 0) and (SecondsBetween(Now, ranks_last_process) >=
-    recalc_ranks_interval)) then
+  if ((recalc_ranks_interval > 0) and (SecondsBetween(Now, ranks_last_process) >= recalc_ranks_interval)) then
   begin
     try
       RanksRecalc('', '');
@@ -263,8 +259,7 @@ begin
     end;
   end;
 
-  if ((speedstats_save_interval > 0) and
-    (SecondsBetween(Now, speedstats_last_save) >= speedstats_save_interval)) then
+  if ((speedstats_save_interval > 0) and (SecondsBetween(Now, speedstats_last_save) >= speedstats_save_interval)) then
   begin
     try
       SpeedStatsSave;
@@ -277,23 +272,20 @@ begin
     end;
   end;
 
-  if ((speedstats_recalc_routes_interval > 0) and
-    (SecondsBetween(Now, speedstats_last_recalc) >= speedstats_recalc_routes_interval)) then
+  if ((speedstats_recalc_routes_interval > 0) and (SecondsBetween(Now, speedstats_last_recalc) >= speedstats_recalc_routes_interval)) then
   begin
     try
       SpeedStatsRecalc('CONSOLE', 'SPEEDSTATS');
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in SpeedStatsRecalc: %s',
-          [e.Message]));
+        Debug(dpError, section, Format('Exception in SpeedStatsRecalc: %s', [e.Message]));
         speedstats_last_recalc := Now;
       end;
     end;
   end;
 
-  if ((backup_interval > 0) and (SecondsBetween(Now, backup_last_backup) >=
-    backup_interval)) then
+  if ((backup_interval > 0) and (SecondsBetween(Now, backup_last_backup) >= backup_interval)) then
   begin
     try
       BackupBackup;
@@ -321,9 +313,10 @@ begin
   Debug(dpError, section, '%s started', [Get_VersionString(ParamStr(0))]);
 
   Debug(dpMessage, section, OpenSSLVersion());
-{$IFNDEF MSWINDOWS}
-  Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
-{$ENDIF}
+
+  {$IFNDEF MSWINDOWS}
+    Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
+  {$ENDIF}
 
   started := Now();
   MycryptoStart(passphrase);
