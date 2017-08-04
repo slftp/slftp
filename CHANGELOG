@@ -34,46 +34,11 @@
               0.    :.
               .     .ß
 
---==========================( NEW SLFTP.ini ITEMS )===============================-
+--=========================( NEW SETTINGS AND FILES )==============================-
 
-    // THIS CAN BE REMOVED, DON'T NEED IT ANYMORE
-      [sites]
-      ratio_regex
-      credits_regex
-
-    // REPLACE
-      [tasktvinfo]
-      daysbetweenlastUpdate with days_between_last_update
-
-    // REMOVE
-      [tags]
-      use_regex=
-      complete=
-      incomplete=
-
-    // ADD
-      [tags]
-      complete_regex=([^\w]*100%[^\w]*)|([^\w]*-\s(COMPLETE|DONE))|release_complete
-      incomplete_regex=(\d{1,2}\s*%\s*Complete|incomplete|_missing_)
-
-    // ADD
-      [dirlist]
-      skip_being_uploaded_files=0
-
-    // ADD
-      [queue]
-      sample_dirs_priority
-      proof_dirs_priority
-      subs_dirs_priority
-      cover_dirs_priority
-      image_files_priority
-      video_files_priority
-
---==========================( NEW slftp.precatcher ITEMS )===============================-
-
-    // REPLACE
-      nukewords to ignorewords
-
+    1. compare your slftp.ini with the provided one in /dist folder, many changes
+    2. rename nukewords to ignorewords in slftp.precatcher
+    3. update your helpfiles with the provided one in /dist/help folder
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -81,7 +46,7 @@
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
 
 --=============================( SLFTP v1.5.5 )===================================-
-  ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX OR THE MAKE.BAT ON WINDOWS **
+  ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
 
     {+} FastMM4 memory manager (https://github.com/pleriche/FastMM4)
     {+} Partial use of Faster Regex Engine FLRE (https://github.com/BeRo1985/flre) (much faster!!!)
@@ -113,7 +78,7 @@
     {#} Precatcher should be faster due to several code changes which improves performance and [EXCEPTION] ProcessReleaseVegeB mind = true is fixed
     {#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
     {#} Bug with !dirlist not showing entries (#112)
-    {#} Bug with looping of Sample folder fixed (#4)                                                                          ---- need some more code changes - uses SetFileError ---
+    {#} Bug with looping of Sample folder fixed (#4)                                                                 ---- need some more code changes - uses SetFileError ---
     {#} Uppercasing mappings sections names in slftp.precatcher (#153)
     {#} Fix for tvtag rules -> tvtag weren't initialized (#102)
     {#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
@@ -153,7 +118,7 @@
     {^} Improvement of autodirlist announces
     {^} MVID Year regex changed from \-(\d{4})\- to \-((19|20)\d{2})\-
     {^} PermDown check on all irc commands with sitename = '*', means no setting changing for PermDown sites when using '*'
-    {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)                                                                  ---- guess still no drop on mp3genre rule if not found ----
+    {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)                                   ---- guess still no drop on mp3genre rule if not found ----
     {^} Update to latest LibTar 2.1.2
     {^} Several improvements for tags (COMPLETE/INCOMPLETE detection):
         - no more constant regexp initialization/freeing; instead using an unique one at startup (much faster!)
