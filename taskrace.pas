@@ -1274,12 +1274,10 @@ begin
           //COMPLETE MSG: 530 No transfer-slave(s) available
           if (0 <> AnsiPos('No transfer-slave(s) available', lastResponse)) then
           begin
+            // Question: Why mark the SOURCE site as out of space ??
             ssrc.site.SetOutofSpace;
-            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
-            begin
-              ssrc.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
+            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
               ssrc.DestroySocket(True);
-            end;
           end;
         end;
 
@@ -1435,11 +1433,8 @@ begin
             or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.SetOutofSpace;
-            if config.ReadBool(c_section, 'mark_site_down_if_out_of_space', True) then
-            begin
-              sdst.site.markeddown := True; // <-- already done in Setoutofspace if option enabled
+            if config.ReadBool('sites', 'set_down_on_out_of_credits', False) then
               sdst.DestroySocket(True);
-            end;
             readyerror := True;
             mainpazo.errorreason := 'No freespace or slave';
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
