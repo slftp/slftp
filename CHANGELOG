@@ -44,6 +44,7 @@
 
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
+    Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
