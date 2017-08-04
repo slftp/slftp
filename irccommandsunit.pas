@@ -11129,18 +11129,18 @@ begin
     begin
       s := TSite(sites.Items[i]);
       if s = nil then
-        Continue;
+        continue;
       if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        Continue;
+        continue;
       if (s.PermDown) then
       begin
         irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
-        Continue;
+        continue;
       end;
       if (s.working <> sstUp) then
       begin
         irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
-        Continue;
+        continue;
       end;
 
       tn := AddNotify;
@@ -11189,6 +11189,12 @@ begin
         if (s.PermDown) then
         begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitesList[i]]);
+          continue;
+        end;
+
+        if (s.working <> sstUp) then
+        begin
+          irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
           continue;
         end;
 
