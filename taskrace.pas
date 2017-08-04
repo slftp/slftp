@@ -881,18 +881,12 @@ begin
           begin
             if config.ReadBool(c_section, 'autoruleadd', True) then
             begin
-              if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) then
+              if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) or (0 <> AnsiPos('This group is BANNED', s.lastResponse)) then
               begin
-                // TODO: maybe we can just use TRelease.groupname instead of catch it from last response
-                // auto adding blacklist rule for group
-                e := s.lastResponse;
-                grp := Fetch(e, ' ');
-                grp := Fetch(e, ' '); // second word
+                Debug(dpError, c_section, 'Adding rule to DROP group %s on %s', [mainpazo.rls.groupname, site1]);
+                irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 e := '';
-                Debug(dpError, c_section, 'Adding grp %s to blacklist on %s -> TELL DEVELOPER: %s', [grp, site1, mainpazo.rls.groupname]);
-                irc_Addadmin(Format('Adding Group %s to blacklist on %s -> TELL DEVELOPER: %s', [grp, site1, mainpazo.rls.groupname]));
-
-                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, grp]), e);
+                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), e);
                 if ((r <> nil) and (e = '')) then
                 begin
                   rules.Insert(0, r);
