@@ -16,9 +16,11 @@ function RemoveWEB(const grp: AnsiString): AnsiString;
 
 implementation
 
-uses Classes, SysUtils, StrUtils, configunit, regexpr;
+uses
+  Classes, SysUtils, StrUtils, configunit, regexpr;
 
-var kg: TStringList;
+var
+  kg: TStringList;
 
 procedure KnowngroupsInit;
 begin
@@ -126,8 +128,10 @@ var
 begin
   Result := grp_notconfigured;
   try
-    if config.ReadBool('kb','remove_internal_tag_on_knowgroup',False) then groupname := RemoveINT(groupname);
-    if config.ReadBool('kb','remove_web_tag_on_knowgroup',False) then groupname := RemoveWEB(groupname);
+    if config.ReadBool('kb', 'remove_internal_tag_on_knowgroup', False) then
+      groupname := RemoveINT(groupname);
+    if config.ReadBool('kb', 'remove_web_tag_on_knowgroup', False) then
+      groupname := RemoveWEB(groupname);
 
     s := kg.Values[section];
     if s = '' then exit;
