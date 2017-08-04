@@ -1433,7 +1433,7 @@ begin
             or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.SetOutofSpace;
-            if config.ReadBool('sites', 'set_down_on_out_of_credits', False) then
+            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
               sdst.DestroySocket(True);
             readyerror := True;
             mainpazo.errorreason := 'No freespace or slave';
