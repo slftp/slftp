@@ -12,10 +12,31 @@ type
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
 
+  {
+  @value(sswUnknown unknown ftpd software)
+  @value(sswGlftpd glFTPd software)
+  @value(sswDrftpd DrFTPD software)
+  @value(sswIoftpd ioFTPD software)
+  }
   TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
+
   TProtection = (prNone, prProtP, prProtC);
-  TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds,
-    sstOutOfSpace);
+
+  {
+  @value(sstUnknown unknown (not yet connected) status)
+  @value(sstUp reachable and usable (UP) status)
+  @value(sstDown down status)
+  @value(sstMarkedDown marked as down because of temporary problems (MAYBE, NOT SURE ABOUT IT!))
+  @value(sstOutOfCreds no credits left)
+  @value(sstOutOfSpace no space left)
+  }
+  TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds, sstOutOfSpace);
+
+  {
+  @value(srNone Site to Site (s2s) SSL not needed)
+  @value(srNeeded Site to Site (s2s) SSL needed)
+  @value(srUnsupported Site to Site (s2s) SSL not supported)
+  }
   TSSLReq = (srNone, srNeeded, srUnsupported);
 
   TSite = class; // forward
@@ -85,7 +106,7 @@ type
     function SendProtC: boolean;
     function Mkdir(dirtocreate: AnsiString): boolean;
     function TranslateFilename(filename: AnsiString): AnsiString;
-    function Pwd(var dir: AnsiString): boolean;
+    function Pwd(out dir: AnsiString): boolean;
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask;
@@ -169,11 +190,17 @@ type
     function GetSitePassword: AnsiString;
     procedure SetSitePassword(Value: AnsiString);
 
+    function GetSiteCountry: AnsiString;
+    procedure SetSiteCountry(Value: AnsiString);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
+
+    function GetSkipBeingUploadedFiles: boolean;
+    procedure SetSkipBeingUploadedFiles(Value: boolean);
 
     function GetIRCNick: AnsiString;
     procedure SetIRCNick(Value: AnsiString);
@@ -273,6 +300,7 @@ type
     property ProxyName: AnsiString read GetProxyName write SetProxyName;
     property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
     property PassWord: AnsiString read GetSitePassword write SetSitePassword;
+    property Country: AnsiString read GetSiteCountry write SetSiteCountry;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -292,6 +320,7 @@ type
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
+    property SkipBeingUploadedFiles: boolean read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -316,11 +345,21 @@ function getAdminSiteName: AnsiString;
 
 //function
 
-function SiteSoftWareToSTring(sitename: AnsiString): AnsiString; overload;
-function SiteSoftWareToSTring(site: TSite): AnsiString; overload;
+function SiteSoftWareToString(sitename: AnsiString): AnsiString; overload;
+function SiteSoftWareToString(site: TSite): AnsiString; overload;
+function StringToSiteSoftWare(s: AnsiString): TSiteSw;
 
-function sslMethodToSTring(sitename: AnsiString): AnsiString; overload;
-function sslMethodToSTring(site: TSite): AnsiString; overload;
+function sslMethodToString(sitename: AnsiString): AnsiString; overload;
+function sslMethodToString(site: TSite): AnsiString; overload;
+
+{ Checks each sites working property and add it to a formated Stringlist for irc output
+  Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
+  @param(sitesup Stringlist for working (sstUp) sites)
+  @param(sitesdn Stringlist for down (sstDown) sites)
+  @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
+  @param(sitespd Stringlist for permdown (PermDown) sites)
+}
+procedure SitesWorkingStatusToStringlist(const Netname, Channel: AnsiString; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 
 var
   sitesdat: TEncIniFile = nil;
@@ -352,14 +391,15 @@ begin
   Result := config.ReadString('sites', 'admin_sitename', 'SLFTP');
 end;
 
-function SiteSoftWareToSTring(sitename: AnsiString): AnsiString;
+function SiteSoftWareToString(sitename: AnsiString): AnsiString;
 begin
-  Result := SiteSoftWareToSTring(FindSiteByName('', sitename));
+  Result := SiteSoftWareToString(FindSiteByName('', sitename));
 end;
 
-function SiteSoftWareToSTring(site: TSite): AnsiString;
+function SiteSoftWareToString(site: TSite): AnsiString;
 begin
   Result := 'Unknown';
+
   // sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd
   case TSite(site).Software of
     sswUnknown: Result := 'Unknown';
@@ -369,12 +409,25 @@ begin
   end;
 end;
 
-function sslMethodToSTring(sitename: AnsiString): AnsiString;
+function StringToSiteSoftWare(s: AnsiString): TSiteSw;
 begin
-  Result := sslMethodToSTring(FindSiteByName('', sitename));
+  Result := sswUnknown;
+  s := AnsiLowerCase(s);
+
+  if s = 'glftpd' then
+    Result := sswGlftpd;
+  if s = 'drftpd' then
+    Result := sswDrftpd;
+  if s = 'ioftpd' then
+    Result := sswIoftpd;
 end;
 
-function sslMethodToSTring(site: TSite): AnsiString;
+function sslMethodToString(sitename: AnsiString): AnsiString;
+begin
+  Result := sslMethodToString(FindSiteByName('', sitename));
+end;
+
+function sslMethodToString(site: TSite): AnsiString;
 begin
   Result := 'Unknown';
   case TSite(site).sslmethod of
@@ -390,8 +443,33 @@ begin
   end;
 end;
 
-// NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
+procedure SitesWorkingStatusToStringlist(const Netname, Channel: AnsiString; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
+var
+  s: TSite;
+  i: integer;
+begin
+  for i := 0 to sites.Count - 1 do
+  begin
+    s := TSite(sites[i]);
+    if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      Continue;
+    if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
+      Continue;
+    if s.PermDown then
+    begin
+      sitespd.Add(s.Name);
+      Continue;
+    end;
 
+    case s.working of
+      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+      sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
+      sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
+    end;
+  end;
+end;
+
+// NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
 function FindSiteByName(netname, sitename: AnsiString): TSite;
 var
   i: integer;
@@ -620,6 +698,7 @@ begin
           Debug(dpSpam, section, Format('--> %s', [Name]));
 
           try
+            // crash
             if todotask.Execute(self) then
               lastactivity := Now();
 
@@ -863,6 +942,11 @@ function TSiteSlot.LoginBnc(i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: AnsiString;
+  bncList, splitted: TStringList;
+  j: Integer;
+  currentBnc, tmpBnc, tmpHost: AnsiString;
+  tmpPort: Integer;
+
 begin
   Result := False;
 
@@ -1018,21 +1102,76 @@ begin
 
   // successful login
   Result := True;
-(*
-  // change order of BNC if it's not number 0 and actually number 0 failed to login
+
+  // change order of bnc if the current successfull bnc is not the first
   if i <> 0 then
   begin
+    bncList := TStringList.Create;
+    bncList.CaseSensitive := False;
+    bncList.Duplicates := dupIgnore;
+    splitted := TStringList.Create;
     bnccsere.Enter;
     try
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(i), RCString('bnc_host-0', ''));
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(i), RCInteger('bnc_port-0', 0));
-    sitesdat.WriteString('site-' + site.Name, 'bnc_host-0', Host);
-    sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-0', Port);
+      currentBnc := Host + ':' + IntToStr(Port);
+      bncList.Add(currentBnc);
+
+      j := 0;
+      while (True) do
+      begin
+        tmpHost := RCString('bnc_host-' + IntToStr(j), '');
+
+        // reached end of bnc list for this site
+        if tmpHost = '' then
+          break;
+
+        tmpPort := RCInteger('bnc_port-' + IntToStr(j), 0);
+        tmpBnc := tmpHost + ':' + IntToStr(tmpPort);
+
+        // skip active bnc
+        if tmpBnc <> currentBnc then
+          bncList.Add(tmpBnc);
+
+        inc(j)
+      end;
+
+      // Something went wrong populating the new bnc list. Exiting
+      if bncList.Count < 1 then
+      begin
+        Debug(dpError, section, '[bncsort] Error re-ordering bnc list. New bnc list count is %d.', [bncList.Count]);
+        exit;
+      end;
+
+      // Clear current bnclist
+      j := 0;
+      while (True) do
+      begin
+        if RCString('bnc_host-' + IntToStr(j), '') = '' then
+          break;
+
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
+        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
+        Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
+        inc(j)
+      end;
+
+      // Re-add sorted bnc list
+      for j := 0 to bncList.Count - 1 do
+      begin
+        splitString(bncList[j], ':', splitted);
+        tmpHost := splitted[0];
+        tmpPort := StrToInt(splitted[1]);
+        Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
+
+        sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
+        sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
+      end;
     finally
-    bnccsere.Leave;
+      bnccsere.Leave;
+      FreeAndNil(bncList);
+      FreeAndNil(splitted);
     end;
   end;
-*)
+
   if spamcfg.readbool(section, 'login_logout', True) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
@@ -1459,7 +1598,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Pwd(var dir: AnsiString): boolean;
+function TSiteSlot.Pwd(out dir: AnsiString): boolean;
 begin
   Result := False;
   try
@@ -1467,8 +1606,6 @@ begin
       exit;
     if not Read('PWD') then
       exit;
-    //[L] PWD
-    //[L] 257 "/MOVIES/DivX-XviD-TVRiP/Xxx-Porno" is current directory.
 
     if lastResponseCode <> 257 then
       exit;
@@ -1495,6 +1632,7 @@ begin
   list_everything := '';
 
   {
+  Difference between STAT -l and STAT -la on GLFTPD and DRFTPD, see below:
   * GLFTPD
   [L] 213- status of -l ZABKAT.xplorer2.Ult.v3.3.0.2.x64.Multilingual.Incl.Patch.and.Keymaker-ZWT:
   [L] total 5535
@@ -1516,7 +1654,7 @@ begin
   [L] 213 End of Status
 
   * DRFTPD
-  * same result for both commands on my side (only 1 site to test)
+  * same result for both commands on my side (tested with 1 site)
   }
 
   try
@@ -1526,7 +1664,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-       // Debug(dpError, 'dirlist', 'ERROR: %s, can not cwd %s', [site.Name, dir]);
+        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
@@ -1551,12 +1689,13 @@ begin
 
     if not Send(cmd) then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: %s, can not send %s', [site.Name, dir]);
+      Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not send command %s to %s', [cmd, site.Name]);
       exit;
     end;
+
     if not Read('Dirlist') then
     begin
-      Debug(dpError, 'dirlist', 'ERROR: %s, can not read %s', [site.Name, dir]);
+      Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
     end;
 
@@ -1611,7 +1750,7 @@ begin
       ParsePasvString(lastResponse, host, port);
       if port = 0 then
       begin
-        irc_AddText(todotask, site.name + ': couldnt parse passive string / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Could not parse PASV string from site %s while getting %s', [site.name, filename]);
         Result := -1;
         exit;
       end;
@@ -1629,16 +1768,16 @@ begin
 
       if not idTCP.Connect(site.connect_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt connect to site (' + idTCP.error + ') / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Can not connect to site %s while getting %s: %s', [site.name, filename, idTCP.error]);
         DestroySocket(False);
         Result := -1;
         exit;
       end;
 
-      if not idTCP.TurnToSSL(slssl_ctx_sslv23_client, site.io_timeout * 1000) then
+      if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt negotiate the SSL connection (' + idTCP.error + ') / ' + filename);
-        site.UseForNFOdownload := 2; // for crap sites with old SSL or so
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
+        site.UseForNFOdownload := 2; // TODO: rename me
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1646,14 +1785,14 @@ begin
 
       if not Read('RETR') then
       begin
-        irc_AddText(todotask, site.name + ': couldnt read response of site / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: No response from site %s while getting %s: %s', [site.name, filename]);
         Result := -1;
         exit;
       end;
 
       if not idTCP.Read(dest, site.io_timeout * 1000, maxRead, True) then
       begin
-        irc_AddText(todotask, site.name + ': couldnt fetch content (' + idTCP.error + ') / ' + filename);
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Could not get file content on site %s while getting %s: %s', [site.name, filename, idTCP.error]);
         DestroySocket(False);
         Result := -1;
         exit;
@@ -1691,9 +1830,15 @@ begin
   begin
     fDownloadingFrom := Value;
     if fDownloadingFrom then
-      site.num_dn := site.num_dn + 1
+    begin
+      site.num_dn := site.num_dn + 1;
+      Debug(dpMessage, section, 'Site %s: slots DN in use: %d!', [site.Name,site.num_dn ]);
+    end
     else
+    begin
       site.num_dn := site.num_dn - 1;
+      Debug(dpMessage, section, 'Site %s: slots DN in use: %d!', [site.Name,site.num_dn ]);
+    end;
   end;
 end;
 
@@ -1703,9 +1848,15 @@ begin
   begin
     fUploadingTo := Value;
     if fUploadingTo then
-      site.num_up := site.num_up + 1
+      begin
+        site.num_up := site.num_up + 1;
+        Debug(dpMessage, section, 'Site %s: slots UP in use: %d!', [site.Name,site.num_up ]);
+      end
     else
-      site.num_up := site.num_up - 1;
+      begin
+        site.num_up := site.num_up - 1;
+        Debug(dpMessage, section, 'Site %s: slots UP in use: %d!', [site.Name,site.num_up ]);
+      end;
   end;
 end;
 
@@ -1715,9 +1866,15 @@ begin
   begin
     fTodotask := Value;
     if fTodoTask <> nil then
-      site.freeslots := site.freeslots - 1
+      begin
+        site.freeslots := site.freeslots - 1;
+        Debug(dpMessage, section, 'Site %s: slots FREE in use: %d!', [site.Name,site.freeslots ]);
+        end
     else
-      site.freeslots := site.freeslots + 1;
+      begin
+        site.freeslots := site.freeslots + 1;
+        Debug(dpMessage, section, 'Site %s: slots FREE in use: %d!', [site.Name,site.freeslots ]);
+      end;
   end;
 end;
 
@@ -1852,6 +2009,7 @@ destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   QueueEmpty(Name);
+  // crash on !die
   slots.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -2008,12 +2166,13 @@ end;
 
 function TSite.Getconnect_timeout: integer;
 begin
+  //TODO: Maybe use [timeout] from slftp.ini as default value
   Result := RCInteger('connect_timeout', 15);
 end;
 
 function TSite.GetIdleInterval: integer;
 begin
-  Result := RCInteger('idleinterval', 20);
+  Result := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
 end;
 
 function TSite.Getio_timeout: integer;
@@ -2023,7 +2182,7 @@ end;
 
 function TSite.GetMaxIdle: integer;
 begin
-  Result := RCInteger('max_idle', 120);
+  Result := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
 end;
 
 function TSite.GetMaxDn: integer;
@@ -2879,6 +3038,7 @@ procedure TSite.RemoveAutoIndex;
 var
   t: TAutoIndexTask;
 begin
+  //crashes with !bnctest <sitename>
   t := FetchAutoIndex;
   if ((t <> nil) and (t.slot1 = nil)) then
     t.ready := True;
@@ -2888,6 +3048,7 @@ procedure TSite.RemoveAutoBnctest;
 var
   t: TLoginTask;
 begin
+  //crashes
   t := FetchAutoBnctest;
   if ((t <> nil) and (t.slot1 = nil)) then
     t.ready := True;
@@ -3245,6 +3406,16 @@ begin
   Result := RCString('password', 'CR4P_P4$$W0RD');
 end;
 
+procedure TSite.SetSiteCountry(Value: AnsiString);
+begin
+  WCString('country', Value);
+end;
+
+function TSite.GetSiteCountry;
+begin
+  Result := RCString('country', '??');
+end;
+
 function TSite.GetNoLoginMSG: boolean;
 begin
   Result := RCBool('nologinmsg', False);
@@ -3266,6 +3437,16 @@ end;
 procedure TSite.SetUseForNFOdownload(Value: integer);
 begin
   WCInteger('usefornfodownload', Value);
+end;
+
+function TSite.GetSkipBeingUploadedFiles: boolean;
+begin
+  Result := RCBool('skip_being_uploaded_files', config.ReadBool('dirlist', 'skip_being_uploaded_files', False));
+end;
+
+procedure TSite.SetSkipBeingUploadedFiles(Value: boolean);
+begin
+  WCBool('skip_being_uploaded_files', Value);
 end;
 
 function TSite.GetPermDownStatus: boolean;

@@ -16,8 +16,8 @@ function dbaddnfo_Process(net, chan, nick, msg: AnsiString): boolean;
 procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: AnsiString); overload;
 procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: AnsiString); overload;
 procedure dbaddnfo_addnfo(params: AnsiString);
-procedure dbaddnfo_ParseNfo(rls, nfo_data: AnsiString); overload;
-procedure dbaddnfo_ParseNfo(rls, section, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
 
 function dbaddnfo_Status: AnsiString;
 
@@ -32,7 +32,7 @@ implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpnfo,
-  dbaddurl, pazo;
+  dbaddurl, dbaddimdb, pazo;
 
 const
   section = 'dbaddnfo';
@@ -123,7 +123,7 @@ begin
 
     dbaddnfo_ParseNfo(rls, section, nfo_data);
 
-    // clean old db entries  
+    // clean old db entries
     last_addnfo.BeginUpdate;
     try
       i := last_addnfo.Count;
@@ -175,33 +175,25 @@ begin
 end;
 
 
-procedure dbaddnfo_ParseNfo(rls, section, nfo_data: AnsiString); overload;
-var //URLTemplate : String;
-    //url : string;
-    //imdburl:boolean;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
+var
   sec: TCRelease;
-  r:   TRegExpr;
+  imdbid: AnsiString;
 begin
   sec := FindSectionHandler(section);
-  r   := TRegExpr.Create;
-  try
 
   if sec.ClassName = 'TIMDBRelease' then
   begin
-    r.Expression := 'tt\d{5,7}';
-    if r.Exec(nfo_data) then
-      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + r.Match[0] + '/');
-    Exit;
+    if dbaddimdb_parseid(nfo_data, imdbid) then
+      dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
+    exit;
   end;
 
-  finally
-    r.Free;
-  end;
-
+  // do further parsing if section not related to IMDB
   dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
-procedure dbaddnfo_ParseNfo(rls, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
 var
   URLTemplate: AnsiString;
   url: AnsiString;
@@ -240,11 +232,8 @@ begin
 end;
 
 { Status }
-
 function dbaddnfo_Status: AnsiString;
 begin
-  Result := '';
-
   Result := Format('<b>Nfo</b>: %d', [last_addnfo.Count]);
 end;
 

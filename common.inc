@@ -20,6 +20,8 @@ generatedFiles: array[0..gFilecount] of AnsiString =(
 'slftp.preurls','slftp.socks5','slftp.news','sites.dat'
 );
 
+// Not used anymore - is it really worth it ?
+(*
 tvinfo_genreList: array[0..37] of AnsiString =(
 'Action','Adult','Adventure','Animals','Anime','Animation','Children','Comedy',
 'Cooking','Crime','DIY','Documentary','Drama','Espionage','Family','Fantasy',
@@ -28,9 +30,19 @@ tvinfo_genreList: array[0..37] of AnsiString =(
 'Special Interest','Soap','Sport','Suspense','Talk Show','Thriller','Travel',
 'War','Western'
 );
+*)
 
-SampleFileExtension: array[0..5] of AnsiString = (
-'.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
+VideoFileExtensions: array[0..5] of AnsiString = (
+  '.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
+);
+
+ImageFileExtensions: array[0..2] of AnsiString = (
+  '.jpg', '.jpeg', '.png'
+);
+
+SpecialDirsTags: array[0..9] of AnsiString = (
+  'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX', 'COVERFiX',
+  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
 );
 
 FileSizeUnitCount = 8;

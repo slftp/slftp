@@ -58,7 +58,7 @@ type
     function RCString(name, def: AnsiString): AnsiString;
     function RCInt(name: AnsiString; def: integer): integer;
 
-    procedure WCInt(name: AnsiString; val: integer);
+    //procedure WCInt(name: AnsiString; val: integer);
     procedure WCString(name: AnsiString; val: AnsiString);
     procedure WCBool(name: AnsiString; val: boolean);
 
@@ -254,12 +254,14 @@ end;
 procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
 var
   direct_echo: TMyIrcThread;
-  msgs:TStringList;
+  msgs: TStringList;
   i: Integer;
+
 begin
   if slshutdown then
     exit;
 
+  // actually we want to send this msg to the console
   if ((netname = 'CONSOLE') or (netname = '')) then
   begin
     try
@@ -272,33 +274,35 @@ begin
     end;
     exit;
   end;
+
+  // okay it's not for the console
   irc_message_lock.Enter;
-  msgs:=TStringList.Create;
+  msgs := TStringList.Create;
   try
-    msgs.Text:=wraptext(msg,280);
-  try
-    if (config.ReadBool(section, 'direct_echo', False)) then
-    begin
-      direct_echo := FindIrcnetwork(netname);
-      if (direct_echo <> nil) then
+    msgs.Text := wraptext(msg, 256);
+    try
+      if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        for I := 0 to msgs.Count - 1 do
-          direct_echo.IrcSendPrivMessage(channel + ' ' + msgs.Strings[i]);
-      end;
-    end
-    else
-    begin
-        for I := 0 to msgs.Count - 1 do begin
-          irc_queue.Add(channel + ' ' + msgs.Strings[i]);
-          irc_queue_nets.Add(netname);
+        direct_echo := FindIrcnetwork(netname);
+        if (direct_echo <> nil) then
+        begin
+          for I := 0 to msgs.Count - 1 do
+            direct_echo.IrcSendPrivMessage(channel + ' ' + msgs.Strings[i]);
         end;
+      end
+      else
+      begin
+          for I := 0 to msgs.Count - 1 do begin
+            irc_queue.Add(channel + ' ' + msgs.Strings[i]);
+            irc_queue_nets.Add(netname);
+          end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
+      end;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
-    end;
-  end;
   finally
     irc_message_lock.Leave;
     msgs.Free;
@@ -357,6 +361,9 @@ var
   b: TIrcBlowKey;
   i: Integer;
 begin
+  if chankeys = nil then
+    exit;
+
   try
     for i := chankeys.Count - 1 downto 0 do
     begin
@@ -379,6 +386,10 @@ var
   s, ss: AnsiString;
 begin
   Result := 0;
+
+  if chankeys = nil then
+    exit;
+
   try
     for i := chankeys.Count - 1 downto 0 do
     begin
@@ -386,7 +397,6 @@ begin
       if b.HasKey(key) then
       begin
         inc(Result);
-
         s := msg;
         for j := 1 to 1000 do
         begin
@@ -675,36 +685,6 @@ begin
 
 end;
 
-(*
-
-function TMyIrcThread.IrcWrite(s: string; hide:boolean = False): Boolean;
-begin
-  Result:= False;
-  try
-    irc_last_read:= Now();
-    irc_lock.Enter;
-    try
-      Result:= WriteLn(Copy(s,1, MaxInt));
-    finally
-      irc_lock.Leave;
-    end;
-    //if not hide then Debug(dpSpam, section, netname+'>> '+s);
-    try
-    console_addline(netname, s);
-    except on E: Exception do
-    Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite(console_addline) : %s', [e.Message]);
-    end;
-
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite : %s', [e.Message]);
-    end;
-  end;
-end;
-
-*)
-
 function TMyIrcThread.IrcConnect: Boolean;
 var
   LOurAddr: AnsiString;
@@ -837,19 +817,19 @@ begin
   if netname = 'CONSOLE' then
     irc_addtext('CONSOLE', 'Admin', irccmdprefix + msg);
 
-  params := Trim(RightStrv2(msg, length(cmd) + 1));
+  params := Trim(mystrings.RightStr(msg, length(cmd) + 1));
   c := Count(' ', params);
   if params <> '' then
     inc(c);
 
   if ((irccommands[i].minparams <> -1) and (irccommands[i].minparams > c)) then
   begin
-    irc_Addtext(netname, channel, 'Too few parameters.');
+    irc_Addtext(netname, channel, 'Not enough parameters specified. Try !help %s', [cmd]);
     exit;
   end;
   if ((irccommands[i].maxparams <> -1) and (irccommands[i].maxparams < c)) then
   begin
-    irc_Addtext(netname, channel, 'Too few parameters.');
+    irc_Addtext(netname, channel, 'Too many parameters specified. Try !help %s', [cmd]);
     exit;
   end;
 
@@ -879,13 +859,27 @@ begin
     try
       //privat uzenet, ki kell hamozni a nikket
       channel := nick;
-      msg := RightStrv2(s, Pos(' ', s));
-      msg := RightStrv2(msg, Pos(':', msg));
+      msg := mystrings.RightStr(s, Pos(' ', s));
+      msg := mystrings.RightStr(msg, Pos(':', msg));
       //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
       if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
       begin
         adminnet := FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
-        adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
+        if (adminnet <> NIL) then
+          begin
+             if (adminnet.status = 'online...') then
+             begin
+                adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
+             end
+             else
+             begin
+               Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: Adminnet not in Status Online');
+             end;
+          end
+          else
+          begin
+            Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: no IRC-Server found or NIL');
+          End;
       end;
       exit;
     except
@@ -897,8 +891,8 @@ begin
     end;
   end;
 
-  msg := RightStrv2(s, Pos(' ', s));
-  msg := RightStrv2(msg, Pos(':', msg));
+  msg := mystrings.RightStr(s, Pos(' ', s));
+  msg := mystrings.RightStr(msg, Pos(':', msg));
 
   l := length(msg);
   if l = 0 then
@@ -1197,7 +1191,7 @@ begin
     if (s1 = 'ERROR') then
     begin
       //  02-20 20:28:16.887 (12C8) [irc         ] << ERROR :Closing Link: 213.186.38.105 (*** Banned )
-      irc_addadmin(Format('<%s> %s', [netname, RightStrV2(s, 7)]));
+      irc_addadmin(Format('<%s> %s', [netname, mystrings.RightStr(s, 7)]));
     end;
 
     s2 := SubString(s, ' ', 2);
@@ -1395,6 +1389,9 @@ begin
   debug(dpSpam, section, netname + ': ShouldJoinGame');
 
   shouldjoin := False;
+
+  if chankeys = nil then
+    exit;
 
   // most akkor belepunk mindenhova illetve addoljuk az invite taskokat
   for i := 0 to chankeys.Count - 1 do
@@ -1707,7 +1704,10 @@ begin
           Sleep(1000);
         end;
       if not shouldquit then
-        BncCsere;
+        Begin
+          Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
+          BncCsere;
+        End;
     except
       on e: Exception do
       begin
@@ -1912,10 +1912,12 @@ begin
   sitesdat.WriteBool('ircnet-' + netname, name, val);
 end;
 
+(*
 procedure TMyIrcThread.WCInt(name: AnsiString; val: integer);
 begin
   sitesdat.WriteInteger('ircnet-' + netname, name, val);
 end;
+*)
 
 end.
 
