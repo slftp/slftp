@@ -875,6 +875,8 @@ end;
 procedure TPazo.QueueEvent(Sender: TObject; Value: integer);
 var
   s: AnsiString;
+  ps: TPazoSite;
+  i: Integer;
 begin
   if Value < 0 then
     Value := 0;
@@ -890,21 +892,35 @@ begin
     ready := True;
     if ((not slshutdown) and (rls <> nil)) then
     begin
-      Debug(dpSpam, section, 'Number of pazo tasks is zero now! ' +
-        IntToStr(pazo_id));
+      Debug(dpSpam, section, 'Number of pazo tasks is now zero! ' + IntToStr(pazo_id));
       if not stopped then
       begin
+        // Reset the dirlistadded status for each site of this race (attempt to fix late imdb issue)
+        for i := sites.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
+            Break;
+          end;
+          ps := TPazoSite(sites[i]);
+          ps.dirlist.dirlistadded := False;
+        end;
+
+        // display race stats on console
         s := Stats(True, False);
         if ((lastannounceconsole <> s) and (s <> '')) then
         begin
-          irc_addtext('CONSOLE', 'Stats', rls.section + ' ' + rls.rlsname +
-            ' (' + IntToStr(StatsAllFiles) + '): ' + s);
+          irc_addtext('CONSOLE', 'Stats', rls.section + ' ' + rls.rlsname + ' (' + IntToStr(StatsAllFiles) + '): ' + s);
           lastannounceconsole := s;
         end;
 
+        // we don't want to display this section race stats on irc
         if noannouncesections.IndexOf(rls.section) <> -1 then
           exit;
 
+        // display race stats on irc
         s := Stats(False, False);
         if ((lastannounceirc <> s) and (s <> '')) then
         begin
