@@ -1683,7 +1683,8 @@ begin
             goto TryAgain_RETR;
           end;
 
-          if (0 < AnsiPos('Permission denied', lastResponse)) then
+          //COMPLETE MSG: 553 Permission Denied: not allowed to download from this directory!
+          if ((0 < AnsiPos('Permission denied', lastResponse)) or (0 < AnsiPos('Permission Denied', lastResponse))) then
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
