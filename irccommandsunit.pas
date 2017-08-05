@@ -11474,7 +11474,13 @@ var
 begin
   //  Result := False;
 
-  i := last_imdbdata.IndexOf(params);
+  dbaddimdb_cs.Enter;
+  try
+    i := last_imdbdata.IndexOf(params);
+  finally
+    dbaddimdb_cs.Leave; 
+  end;
+
   if i = -1 then
   begin
     irc_addtext(Netname, Channel,
@@ -11484,7 +11490,13 @@ begin
   end
   else
   begin
-    imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+    dbaddimdb_cs.Enter;
+    try
+      imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+    finally
+      dbaddimdb_cs.Leave;
+    end;
+
     imdbdata.PostResults(Netname, Channel, params);
   end;
   Result := True;
