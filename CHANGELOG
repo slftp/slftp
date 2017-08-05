@@ -114,7 +114,6 @@
     {^} !transfer cmd works as expected (#128)
     {^} check if it's a valid IMDB ID before adding it -> no more exceptions
     {^} !sslmethod checks if valid SSL method + shows which one is used
-    {^} Removed warning when "section not found" for complete & nuke announce (#117)
     {^} Some TV Shows weren't detected as STV from IMDb fetch
     {^} Improvement of autodirlist announces
     {^} MVID Year regex changed from \-(\d{4})\- to \-((19|20)\d{2})\-
