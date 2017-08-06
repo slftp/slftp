@@ -5,30 +5,34 @@ interface
 procedure MidnightInit;
 procedure MidnightUninit;
 procedure MidnightStart;
-function IsMidnight(section: AnsiString): Boolean;
+function IsMidnight(const section: AnsiString): Boolean;
 
 implementation
 
-uses DateUtils, mystrings, SysUtils, Classes, configunit;
+uses
+  DateUtils, mystrings, SysUtils, Classes, configunit;
 
 var
   ms: TStringList;
   m_starts: TDateTime;
   m_ends: TDateTime;
 
-const rsections = 'midnight';
+const
+  rsections = 'midnight';
 
-function IsMidnight(section: AnsiString): Boolean;
+function IsMidnight(const section: AnsiString): Boolean;
 var
   m: TDateTime;
 begin
   Result := False;
 
-  if ms.IndexOf(section) = -1 then exit;
+  if ms.IndexOf(section) = -1 then
+    exit;
 
   m := Timeof(Now);
 
-  if ((m >= m_ends) and (m <= m_starts)) then exit;
+  if ((m >= m_ends) and (m <= m_starts)) then
+    exit;
 
   Result := True;
 end;
@@ -47,8 +51,8 @@ end;
 procedure MidnightStart;
 begin
   ms.DelimitedText := config.ReadString(rsections, 'sections', '');
-  m_starts := MyStrToTime(config.ReadString(rsections, 'starts', '23:30'));
-  m_ends := MyStrToTime(config.ReadString(rsections, 'ends', '00:30'));
+  m_starts := MyStrToTime(config.ReadString(rsections, 'starts', '23:45'));
+  m_ends := MyStrToTime(config.ReadString(rsections, 'ends', '00:15'));
 end;
 
 end.
