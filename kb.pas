@@ -1081,7 +1081,7 @@ begin
           end;
 
           // dirlist task already added
-          if ps.dirlist.dirlistadded then
+          if (ps.dirlist.dirlistadded) and (event <> 'UPDATE') then
             Continue;
 
           // Source site is PRE site for this group
