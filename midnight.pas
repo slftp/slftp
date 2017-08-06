@@ -5,20 +5,22 @@ interface
 procedure MidnightInit;
 procedure MidnightUninit;
 procedure MidnightStart;
-function IsMidnight(section: AnsiString): Boolean;
+function IsMidnight(const section: AnsiString): Boolean;
 
 implementation
 
-uses DateUtils, mystrings, SysUtils, Classes, configunit;
+uses
+  DateUtils, mystrings, SysUtils, Classes, configunit;
 
 var
   ms: TStringList;
   m_starts: TDateTime;
   m_ends: TDateTime;
 
-const rsections = 'midnight';
+const
+  rsections = 'midnight';
 
-function IsMidnight(section: AnsiString): Boolean;
+function IsMidnight(const section: AnsiString): Boolean;
 var
   m: TDateTime;
 begin
