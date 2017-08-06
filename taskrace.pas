@@ -66,18 +66,17 @@ type
 
 implementation
 
-uses StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
+uses
+  StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit, // console,
-  rulesunit, mainthread, Regexpr, mrdohutils;
+  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils;
 
 const
   c_section = 'taskrace';
 
-  { TLoginTask }
 
-constructor TPazoPlainTask.Create(const netname, channel: AnsiString;
-  site1: AnsiString; site2: AnsiString; pazo: TPazo);
+
+constructor TPazoPlainTask.Create(const netname, channel: AnsiString; site1: AnsiString; site2: AnsiString; pazo: TPazo);
 begin
   // egy taszk letrehozasakor es felszabaditasakor a queue lock mindig aktiv
   //tasks can create a queue and release the lock still active
@@ -266,7 +265,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
+      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -278,7 +277,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
+      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
