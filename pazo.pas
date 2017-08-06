@@ -895,19 +895,6 @@ begin
       Debug(dpSpam, section, 'Number of pazo tasks is now zero! ' + IntToStr(pazo_id));
       if not stopped then
       begin
-        // Reset the dirlistadded status for each site of this race (attempt to fix late imdb issue)
-        for i := sites.Count - 1 downto 0 do
-        begin
-          try
-            if i < 0 then
-              Break;
-          except
-            Break;
-          end;
-          ps := TPazoSite(sites[i]);
-          ps.dirlist.dirlistadded := False;
-        end;
-
         // display race stats on console
         s := Stats(True, False);
         if ((lastannounceconsole <> s) and (s <> '')) then
