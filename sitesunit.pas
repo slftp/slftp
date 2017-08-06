@@ -1598,17 +1598,20 @@ begin
   end;
 end;
 
-function TSiteSlot.Pwd(out dir: AnsiString): boolean;
+function TSiteSlot.Pwd(var dir: AnsiString): boolean;
 begin
   Result := False;
   try
     if not Send('PWD') then
+      Debug(dpError, section, '[PWD] Could not send command PWD to :%s', [site.Name]);
       exit;
     if not Read('PWD') then
+      Debug(dpError, section, '[PWD] Could not read PWD answer from :%s', [site.Name]);
+      exit;
+    if lastResponseCode <> 257 then
+      Debug(dpError, section, '[PWD] Last response code not expected :%d', [lastResponseCode]);
       exit;
 
-    if lastResponseCode <> 257 then
-      exit;
     dir := Copy(lastResponse, 6, 100);
     dir := Copy(dir, 1, Pos('"', dir) - 1);
 
