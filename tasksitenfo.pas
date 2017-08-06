@@ -74,25 +74,28 @@ begin
     exit;
   end;
 
-
   // exit if imdb info is already known in last_imdbdata
+  dbaddimdb_cs.Enter;
   try
-    i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
-    if i <> -1 then
-    begin
-      Result := True;
-      ready := True;
-      exit;
+    try
+      i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
+      if i <> -1 then
+      begin
+        Result := True;
+        ready := True;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
-      readyerror := True;
-      exit;
-    end;
+  finally
+    dbaddimdb_cs.Leave;
   end;
-
 
   // exit if nfo is already in dbaddnfo
   try
@@ -112,7 +115,6 @@ begin
     end;
   end;
 
-
   // we don't want to use this site for NFO download (e.g. they banned our IP for download because it's a rented one)
   if s.site.UseForNFOdownload <> 1 then
   begin
@@ -120,7 +122,6 @@ begin
     ready := True;
     exit;
   end;
-
 
   // Number of errors too high. Exiting.
   TryAgain:

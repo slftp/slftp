@@ -1081,7 +1081,7 @@ begin
           end;
 
           // dirlist task already added
-          if ps.dirlist.dirlistadded then
+          if (ps.dirlist.dirlistadded) and (event <> 'UPDATE') then
             Continue;
 
           // Source site is PRE site for this group
@@ -2106,7 +2106,12 @@ begin
 
     pazo := TPazo(p); // ugly shit
 
-    i := last_imdbdata.IndexOf(rlsname);
+    dbaddimdb_cs.Enter;
+    try
+      i := last_imdbdata.IndexOf(rlsname);
+    finally
+      dbaddimdb_cs.Leave;
+    end;
 
     if i = -1 then
     begin
@@ -2143,7 +2148,13 @@ begin
     else
     begin
       try
-        imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+        dbaddimdb_cs.Enter;
+        try
+          imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+        finally
+          dbaddimdb_cs.Leave;
+        end;
+
         if pazo.rls is TIMDBRelease then
         begin
           ir := TIMDBRelease(pazo.rls);

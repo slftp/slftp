@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs;
+uses Classes, IniFiles, irc, kb, Contnrs, SyncObjs;
 
 type
   TDbImdb = class
@@ -51,17 +51,17 @@ procedure dbaddimdbUnInit;
 var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
+  dbaddimdb_cs: TCriticalSection;
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, FLRE, SyncObjs,
+uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, FLRE,
   sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpimdb, pazo, mrdohutils;
 
 const
   section = 'dbaddimdb';
 
 var
-  cs: TCriticalSection;
   rx_imdbid: TFLRE;
   rx_captures: TFLREMultiCaptures;
   addimdbcmd: AnsiString;
@@ -158,7 +158,13 @@ begin
 
   if ((rls <> '') and (imdb_id <> '')) then
   begin
-    i:= last_addimdb.IndexOf(rls);
+    dbaddimdb_cs.Enter;
+    try
+      i:= last_addimdb.IndexOf(rls);
+    finally
+      dbaddimdb_cs.Leave;
+    end;
+
     if i <> -1 then
     begin
       exit;
@@ -181,12 +187,17 @@ var
   i: Integer;
   db_imdb: TDbImdb;
 begin
-  i:= last_addimdb.IndexOf(rls);
+  dbaddimdb_cs.Enter;
+  try
+    i:= last_addimdb.IndexOf(rls);
+  finally
+    dbaddimdb_cs.Leave;
+  end;
   if i = -1 then
   begin
     db_imdb := TDbImdb.Create(rls, imdb_id);
 
-    cs.Enter;
+    dbaddimdb_cs.Enter;
     try
       try
         last_addimdb.AddObject(rls, db_imdb);
@@ -198,7 +209,7 @@ begin
         end;
       end;
     finally
-      cs.Leave;
+      dbaddimdb_cs.Leave;
     end;
 
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [rls, imdb_id]));
@@ -214,7 +225,7 @@ begin
       end;
     end;
 
-    cs.Enter;
+    dbaddimdb_cs.Enter;
     try
       i:= last_addimdb.Count;
       try
@@ -231,7 +242,7 @@ begin
         end;
       end;
     finally
-      cs.Leave;
+      dbaddimdb_cs.Leave;
     end;
   end;
 end;
@@ -240,10 +251,16 @@ procedure dbaddimdb_SaveImdbData(rls: AnsiString; imdbdata: TDbImdbData);
 var
   i: Integer;
 begin
-  i:= last_imdbdata.IndexOf(rls);
+  dbaddimdb_cs.Enter;
+  try
+    i:= last_imdbdata.IndexOf(rls);
+  finally
+    dbaddimdb_cs.Leave;
+  end;
+
   if i = -1 then
   begin
-    cs.Enter;
+    dbaddimdb_cs.Enter;
     try
       try
         last_imdbdata.AddObject(rls, imdbdata);
@@ -255,7 +272,7 @@ begin
         end;
       end;
     finally
-      cs.Leave;
+      dbaddimdb_cs.Leave;
     end;
 
     if config.ReadBool(section, 'post_lookup_infos', false) then
@@ -274,7 +291,7 @@ begin
       end;
     end;
 
-    cs.Enter;
+    dbaddimdb_cs.Enter;
     try
       i:= last_imdbdata.Count;
       try
@@ -291,7 +308,7 @@ begin
         end;
       end;
     finally
-      cs.Leave;
+      dbaddimdb_cs.Leave;
     end;
   end;
 end;
@@ -344,7 +361,7 @@ end;
 function dbaddimdb_checkid(const imdbid: AnsiString): Boolean;
 begin
   Result := False;
-  cs.Enter;
+  dbaddimdb_cs.Enter;
   try
     try
       if rx_imdbid.Find(imdbid) <> 0 then
@@ -357,7 +374,7 @@ begin
       end;
     end;
   finally
-    cs.Leave;
+    dbaddimdb_cs.Leave;
   end;
 end;
 
@@ -367,7 +384,7 @@ begin
   imdbid := '';
   Result := False;
   try
-    cs.Enter;
+    dbaddimdb_cs.Enter;
     try
       if rx_imdbid.MatchAll(text, rx_captures, 1 ,1) then
       begin
@@ -383,7 +400,7 @@ begin
     end;
   finally
     SetLength(rx_captures, 0);
-    cs.Leave;
+    dbaddimdb_cs.Leave;
   end;
 end;
 
@@ -398,7 +415,7 @@ end;
 
 procedure dbaddimdbInit;
 begin
-  cs := TCriticalSection.Create;
+  dbaddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_imdbdata:= THashedStringList.Create;
@@ -413,15 +430,15 @@ end;
 
 procedure dbaddimdbUninit;
 begin
-  cs.Enter;
+  dbaddimdb_cs.Enter;
   try
     FreeAndNil(last_addimdb);
     FreeAndNil(last_imdbdata);
     FreeAndNil(rx_imdbid);
   finally
-    cs.Leave;
+    dbaddimdb_cs.Leave;
   end;
-  cs.Free;
+  dbaddimdb_cs.Free;
 end;
 
 end.
