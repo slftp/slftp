@@ -66,18 +66,17 @@ type
 
 implementation
 
-uses StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
+uses
+  StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit, // console,
-  rulesunit, mainthread, Regexpr, mrdohutils;
+  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils;
 
 const
   c_section = 'taskrace';
 
-  { TLoginTask }
 
-constructor TPazoPlainTask.Create(const netname, channel: AnsiString;
-  site1: AnsiString; site2: AnsiString; pazo: TPazo);
+
+constructor TPazoPlainTask.Create(const netname, channel: AnsiString; site1: AnsiString; site2: AnsiString; pazo: TPazo);
 begin
   // egy taszk letrehozasakor es felszabaditasakor a queue lock mindig aktiv
   //tasks can create a queue and release the lock still active
@@ -266,7 +265,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
+      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -278,7 +277,7 @@ begin
         goto TryAgain;
 
       ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
+      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -1274,7 +1273,8 @@ begin
           //COMPLETE MSG: 530 No transfer-slave(s) available
           if (0 <> AnsiPos('No transfer-slave(s) available', lastResponse)) then
           begin
-            // Question: Why mark the SOURCE site as out of space ??
+            // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
+            // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
             ssrc.site.SetOutofSpace;
             if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
               ssrc.DestroySocket(True);
@@ -1682,7 +1682,8 @@ begin
             goto TryAgain_RETR;
           end;
 
-          if (0 < AnsiPos('Permission denied', lastResponse)) then
+          //COMPLETE MSG: 553 Permission Denied: not allowed to download from this directory!
+          if ((0 < AnsiPos('Permission denied', lastResponse)) or (0 < AnsiPos('Permission Denied', lastResponse))) then
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
