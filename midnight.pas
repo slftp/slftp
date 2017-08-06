@@ -24,11 +24,13 @@ var
 begin
   Result := False;
 
-  if ms.IndexOf(section) = -1 then exit;
+  if ms.IndexOf(section) = -1 then
+    exit;
 
   m := Timeof(Now);
 
-  if ((m >= m_ends) and (m <= m_starts)) then exit;
+  if ((m >= m_ends) and (m <= m_starts)) then
+    exit;
 
   Result := True;
 end;
@@ -47,8 +49,8 @@ end;
 procedure MidnightStart;
 begin
   ms.DelimitedText := config.ReadString(rsections, 'sections', '');
-  m_starts := MyStrToTime(config.ReadString(rsections, 'starts', '23:30'));
-  m_ends := MyStrToTime(config.ReadString(rsections, 'ends', '00:30'));
+  m_starts := MyStrToTime(config.ReadString(rsections, 'starts', '23:45'));
+  m_ends := MyStrToTime(config.ReadString(rsections, 'ends', '00:15'));
 end;
 
 end.
