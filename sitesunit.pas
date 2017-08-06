@@ -106,7 +106,7 @@ type
     function SendProtC: boolean;
     function Mkdir(dirtocreate: AnsiString): boolean;
     function TranslateFilename(filename: AnsiString): AnsiString;
-    function Pwd(out dir: AnsiString): boolean;
+    function Pwd(var dir: AnsiString): boolean;
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask;
@@ -1603,14 +1603,20 @@ begin
   Result := False;
   try
     if not Send('PWD') then
+    begin
       Debug(dpError, section, '[PWD] Could not send command PWD to :%s', [site.Name]);
       exit;
+    end;
     if not Read('PWD') then
+    begin
       Debug(dpError, section, '[PWD] Could not read PWD answer from :%s', [site.Name]);
       exit;
+    end;
     if lastResponseCode <> 257 then
+    begin
       Debug(dpError, section, '[PWD] Last response code not expected :%d', [lastResponseCode]);
       exit;
+    end;
 
     dir := Copy(lastResponse, 6, 100);
     dir := Copy(dir, 1, Pos('"', dir) - 1);
