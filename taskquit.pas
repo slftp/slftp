@@ -13,7 +13,8 @@ type
 
 implementation
 
-uses sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
+uses
+  sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
 
 const
   section = 'quit';
@@ -32,11 +33,12 @@ begin
   s := slot;
   s.Quit;
 
-  ready:= True;
+  ready := True;
+
+  if spamcfg.readbool('sites', 'login_logout', False) then
+    irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 
   Debug(dpSpam, section, Name);
-  if spamcfg.readbool('sites', 'login_logout', True) then
-    irc_SendRACESTATS(Name + Format(' (%s)', [s.Name]));
 end;
 
 function TQuitTask.Name: AnsiString;
