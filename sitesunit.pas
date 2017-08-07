@@ -755,7 +755,7 @@ begin
             end;
         else { Timeout reach }
           begin
-            if spamcfg.readbool(section, 'siteslot_recycle', True) then
+            if spamcfg.readbool(section, 'siteslot_recycle', False) then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
                 Name + ' SiteSlot Recycle 15min');
             Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
@@ -1172,7 +1172,7 @@ begin
     end;
   end;
 
-  if spamcfg.readbool(section, 'login_logout', True) then
+  if spamcfg.readbool(section, 'login_logout', False) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
   status := ssOnline;
