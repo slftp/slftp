@@ -1,20 +1,24 @@
 unit taskrules;
+
 interface
 
-uses Classes, tasksunit;
+uses
+  Classes, tasksunit;
 
-type TRulesTask = class(TTask)
-       constructor Create(const netname, channel: AnsiString; site: AnsiString);
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
-     end;
+type
+  TRulesTask = class(TTask)
+    constructor Create(const netname, channel: AnsiString; site: AnsiString);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: AnsiString; override;
+  end;
 
 implementation
 
-uses sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit,
-encinifile, configunit, queueunit, irc, mrdohutils;
+uses
+  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils;
 
-const section = 'taskrules';
+const
+  section = 'taskrules';
 
 { TRulesTask }
 
@@ -24,20 +28,22 @@ begin
 end;
 
 function TRulesTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    cmd : AnsiString;
-    t: TRulesTask;
-    i: Integer;
-    rules, ss: AnsiString;
-    f: TStringlist;
-    new_rules, old_rules: TStringList;
-    hash_new_rules, hash_old_rules : TList;
-    rules_path, rules_file: AnsiString;
-    Diff: TDiff;
-    news_file: AnsiString;
-    news_x: TEncStringList;
-    numerrors: Integer;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  cmd : AnsiString;
+  t: TRulesTask;
+  i: Integer;
+  rules, ss: AnsiString;
+  f: TStringlist;
+  new_rules, old_rules: TStringList;
+  hash_new_rules, hash_old_rules : TList;
+  rules_path, rules_file: AnsiString;
+  Diff: TDiff;
+  news_file: AnsiString;
+  news_x: TEncStringList;
+  numerrors: Integer;
 begin
   Result := False;
   numerrors := 0;
@@ -207,7 +213,7 @@ ujra:
       end
       else
       begin
-        if spamcfg.readbool('sites', 'rules_nochange', True) then
+        if spamcfg.readbool('sites', 'rules_nochange', False) then
           irc_Addstats('<b>[RULES '+s.site.name+']</b> No Changes ');
       end;
     end;
@@ -272,7 +278,7 @@ end;
 
 function TRulesTask.Name: AnsiString;
 begin
-  Result := 'AUTORULES '+ScheduleText;
+  Result := 'AUTORULES ' + ScheduleText;
 end;
 
 end.
