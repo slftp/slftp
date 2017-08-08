@@ -543,7 +543,7 @@ begin
 
     if LowerCase(tvr.tv_showname) = 'not found' then
     begin
-      irc_addAdmin('<c14><b>Info</c></b>: TVMaze returned 404 - Not Found.');
+      irc_addAdmin('<c14><b>WARNING</c></b>: TVMaze returned a 404 Not Found page for show <b>%s</b>. Show ID changed?', [Showname]);
       Exit;
     end;
 
