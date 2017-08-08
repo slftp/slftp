@@ -38,7 +38,9 @@
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. rename nukewords to ignorewords in slftp.precatcher
-    3. update your helpfiles with the provided one in /dist/help folder
+    3. update your default [skiplist] in slftp.skip with the one provided
+       (this is required for !transfer to fully works as intended)
+    4. update your helpfiles with the provided one in /dist/help folder
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 

@@ -1084,6 +1084,7 @@ var
   c1, c2, sw1, sw2: AnsiString;
   i,j: integer;
   DoIt: Boolean;
+  backtext: AnsiString;
   apply, back: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
@@ -1275,16 +1276,31 @@ begin
         if (source_sites[i] = dest_sites[j]) then
           Continue;
 
-        if lock then
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d (LOCKED)', [source_sites[i], dest_sites[j], speed])
+        // announce what we're doing
+        backtext := '';
+        if back then
+          backtext := ' (and backroute)';
+        if speed > 0 then
+        begin
+          if lock then
+            irc_addtext(Netname, Channel, 'Routelock from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext])
+          else
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext]);
+        end
         else
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d', [source_sites[i], dest_sites[j], speed]);
+        begin
+          if lock then
+            irc_addtext(Netname, Channel, 'Routelock from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext])
+          else
+            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext]);
+        end;
 
         // When using wildcards apply changes only if -apply has been specified (to avoid unwanted changes)
         if DoIt then
         begin
           if speed > 0 then
           begin
+            // normal route
             sitesdat.WriteInteger('speed-from-' + source_sites[i], dest_sites[j], speed);
             sitesdat.WriteInteger('speed-to-' + dest_sites[j], source_sites[i], speed);
             if back then
@@ -1292,6 +1308,8 @@ begin
               sitesdat.WriteInteger('speed-from-' + dest_sites[j], source_sites[i], speed);
               sitesdat.WriteInteger('speed-to-' + source_sites[i], dest_sites[j], speed);
             end;
+
+            // locked route
             if lock then
             begin
               sitesdat.WriteInteger('speedlock-from-' + source_sites[i], dest_sites[j], speed);
@@ -1304,6 +1322,8 @@ begin
             end;
           end
           else
+          begin
+            // normal route
             sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
             sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
             if back then
@@ -1311,6 +1331,8 @@ begin
               sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
               sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
             end;
+
+            // locked route
             if lock then
             begin
               sitesdat.DeleteKey('speedlock-from-' + source_sites[i], dest_sites[j]);
@@ -1324,6 +1346,7 @@ begin
           end;
         end;
       end;
+    end;
 
     if not DoIt then
       irc_addtext(Netname, Channel, 'Route were not really added. Check if you are satisfied and add -apply to the command.');
@@ -11046,7 +11069,7 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := '\[?(R(atio)?|Shield|Health\s?)[\:\(]\s*(.*?)[)\]]'; // hardcoded for better result handling..
+    x.Expression := config.ReadString('sites', 'ratio_regex', '\[?(R(atio)?|Shield|Health\s?)[\:\(]\s*(.*?)[)\]]');
     if x.Exec(line) then
     begin
       if (AnsiContainsText(x.Match[3], 'Unlimited') or (x.Match[3] = '1:0.0')) then
@@ -11055,7 +11078,7 @@ begin
         ratio := x.Match[3];
     end;
 
-    x.Expression := '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)[:(]?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)[\]\)]?'; // hardcoded for better result handling..
+    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)[:(]?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)[\]\)]?');
     if x.Exec(line) then
     begin
       minus := False;
