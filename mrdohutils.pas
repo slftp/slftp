@@ -2,7 +2,8 @@ unit mrdohutils;
 
 interface
 
-uses encinifile, slmd5, configunit, irc, debugunit, sysutils;
+uses
+  encinifile, slmd5, configunit, irc, debugunit, sysutils;
 
 procedure InitmRdOHConfigFiles;
 procedure UninitmRdOHConfigFiles;
@@ -43,7 +44,8 @@ var
 
 implementation
 
-uses mainthread, DateUtils, sitesunit, mystrings;
+uses
+  mainthread, DateUtils, sitesunit, mystrings;
 
 function RandomHEXString(strlength: integer = 16): AnsiString;
 var
@@ -186,17 +188,14 @@ end;
 procedure InitmRdOHConfigFiles;
 begin
   last_max_uptime_check := now;
-  spamcfg := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.spamconf',
-    '');
-  //spamcfg:= TEncIniFile.Create(GetETCPath+'slftp.spamconf', '');
+  spamcfg := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.spamconf', '');
 end;
 
 procedure UninitmRdOHConfigFiles;
 begin
-  if spamcfg <> nil then
+  if Assigned(spamcfg) then
   begin
-    spamcfg.free;
-    spamcfg := nil;
+    FreeAndNil(spamcfg);
   end;
   (*
   if preurls <> nil then begin
