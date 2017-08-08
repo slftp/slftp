@@ -11069,7 +11069,7 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := '\[?(R(atio)?|Shield|Health\s?)[\:\(]\s*(.*?)[)\]]'; // hardcoded for better result handling..
+    x.Expression := config.ReadString('sites', 'ratio_regex', '\[?(R(atio)?|Shield|Health\s?)[\:\(]\s*(.*?)[)\]]');
     if x.Exec(line) then
     begin
       if (AnsiContainsText(x.Match[3], 'Unlimited') or (x.Match[3] = '1:0.0')) then
@@ -11078,7 +11078,7 @@ begin
         ratio := x.Match[3];
     end;
 
-    x.Expression := '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)[:(]?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)[\]\)]?'; // hardcoded for better result handling..
+    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)[:(]?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)[\]\)]?');
     if x.Exec(line) then
     begin
       minus := False;
