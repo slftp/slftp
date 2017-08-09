@@ -10027,22 +10027,17 @@ begin
   Result := True;
 end;
 
-function IrcTestLanguageBase(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcTestLanguageBase(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
-  irc_addtext(Netname, Channel, 'Read language for: ' + params +
-    '    (only new languagebase supported right now...)');
+  Result := False;
+  irc_addtext(Netname, Channel, 'Read language for: ' + params + ' (only new languagebase supported right now...)');
   // if use_new_language_base then begin
   // irc_addtext(netname,channel,'New languagebase...');
-  irc_addtext(Netname, Channel, 'language ->' +
-    FindLanguageOnDirectory(params));
+  irc_addtext(Netname, Channel, 'language ->' + FindLanguageOnDirectory(params));
   Result := True;
-  // end;
-
 end;
 
-function IrcLanguageBaseReload(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcLanguageBaseReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   irc_addtext(Netname, Channel, SLLanguagesReload);
   Result := True;
@@ -10052,18 +10047,21 @@ function IrcShowAllRules(const Netname, Channel: AnsiString; params: AnsiString)
 var
   sitename, sections: AnsiString;
   xs: TStringList;
-  ii, i: integer;
+  ii, i: Integer;
   r: TRule;
 begin
-  xs := TStringList.Create;
-  try
-    sitename := UpperCase(SubString(params, ' ', 1));
-    sections := mystrings.RightStr(params, length(sitename) + 1);
+  Result := False;
 
-    if sections <> '' then
-    begin
+  sitename := UpperCase(SubString(params, ' ', 1));
+  sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
+
+  if sections <> '' then
+  begin
+    xs := TStringList.Create;
+    try
       xs.Delimiter := ' ';
       xs.DelimitedText := sections;
+
       for i := 0 to xs.Count - 1 do
       begin
         for ii := 0 to rules.Count - 1 do
@@ -10075,24 +10073,26 @@ begin
           end;
         end;
       end;
-    end
-    else
+    finally
+      xs.Free;
+    end;
+  end
+  else
+  begin
+    for ii := 0 to rules.Count - 1 do
     begin
-      for ii := 0 to rules.Count - 1 do
+      r := TRule(rules[ii]);
+      if r.sitename = sitename then
       begin
-        r := TRule(rules[ii]);
-        if r.sitename = sitename then
-        begin
-          irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
-        end;
+        irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
       end;
     end;
-    Result := True;
-  finally
-    xs.Free;
   end;
+
+  Result := True;
 end;
 
+// TODO: rewrite it, it's not working as in helpfile declared
 function IrcAllRuleDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitess, sectionss: TStringList;
@@ -10113,8 +10113,7 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename',
-            'SLFTP')) then
+          if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
             Continue;
           if TSite(sites.Items[i]).PermDown then
             Continue;
@@ -10161,12 +10160,11 @@ begin
   Result := True;
 end;
 
-function IrcSetMYSQLData(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcSetMYSQLData(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   fhostport, fhost, fport, fuser, fpassw, fdbname, ftable: AnsiString;
 begin
-  //  Result := False;
+  Result := False;
   try
     fhostport := SubString(params, ' ', 1);
     fuser := SubString(params, ' ', 2);
@@ -10175,6 +10173,7 @@ begin
     ftable := SubString(params, ' ', 5);
     fhost := SubString(fhostport, ':', 1);
     fport := SubString(fhostport, ':', 2);
+
     sitesdat.WriteString('MYSQL', 'Host', fhost);
     sitesdat.WriteString('MYSQL', 'Port', fport);
     sitesdat.WriteString('MYSQL', 'Username', fuser);
@@ -10183,12 +10182,11 @@ begin
     sitesdat.WriteString('MYSQL', 'tablename', ftable);
   finally
     sitesdat.UpdateFile;
-    Result := True;
   end;
+  Result := True;
 end;
 
-function IrcViewMYSQLValue(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcViewMYSQLValue(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   Result := True;
 end;
@@ -10203,8 +10201,7 @@ begin
   Result := False;
 end;
 
-function IrcCreateBackup(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcCreateBackup(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   error: AnsiString;
 begin
@@ -11501,7 +11498,7 @@ begin
   try
     i := last_imdbdata.IndexOf(params);
   finally
-    dbaddimdb_cs.Leave; 
+    dbaddimdb_cs.Leave;
   end;
 
   if i = -1 then
