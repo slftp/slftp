@@ -2710,10 +2710,10 @@ begin
 
   use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
     False);
-  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete',
-    True);
-  try_to_complete_after := config.ReadInteger(rsections,
-    'try_to_complete_after', 900);
+  // disabled until we look deeper into issues with it
+  //enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
+  enable_try_to_complete := False;
+  try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 1100);
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
