@@ -302,9 +302,6 @@ begin
     begin
       goto TryAgain;
     end;
-
-    // otherwise let's try again
-    goto TryAgain;
   end
   else
   begin
