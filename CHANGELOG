@@ -99,6 +99,7 @@
     {#} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)
     {#} default values for maxidle and idleinterval never used from slftp.ini
     {#} Don't send messages to admin_net when you are not connected or have a configuration error (#122)
+    {#} Section input for !allrules is no more case sensitive (#162)
     {^} Error handling for ftpd response in taskrace (dirlisttask, mkdirtask and racetask) is done
     {^} Show in a log message what's wrong with MySQL when using as predb
     {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
