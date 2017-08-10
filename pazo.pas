@@ -1480,9 +1480,10 @@ begin
   end;
 
   // Do some stuff obviously
+  // Do some stuff obviously
+  pazo.cs.Enter;
+  d.dirlist_lock.Enter;
   try
-    pazo.cs.Enter;
-
     for i := 0 to d.entries.Count - 1 do
     begin
       try
@@ -1516,8 +1517,9 @@ begin
         Continue;
       end;
     end;
-   finally
-     pazo.cs.Leave;
+  finally
+    d.dirlist_lock.Leave;
+    pazo.cs.Leave;
   end;
 
   // Everything went fine

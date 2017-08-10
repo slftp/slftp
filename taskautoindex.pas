@@ -44,21 +44,6 @@ begin
         end;
       end;
 
-      (*
-          for i:= 0 to dl.entries.Count -1 do
-          begin
-            de:= TDirlistEntry(dl.entries[i]);
-            if ((de.Extension = '.nfo') and (de.filesize > 0)) then
-            begin
-              if not rx.exec(de.filename) then
-              begin
-                Result:= de;
-                break;
-              end;
-            end;
-          end;
-      *)
-
     except
       on e: Exception do
       begin
@@ -84,24 +69,28 @@ var
   var
     i: Integer;
   begin
-    for i := 0 to dl.entries.Count - 1 do
-    begin
-      try
-        de := TDirlistEntry(dl.entries[i]);
-        if de.Directory then
-        begin
-          indexerAddRelease(de.filename, site1, sectionname, path);
-          inc(Result);
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
-          Break;
+    dl.dirlist_lock.Enter;
+    try
+      for i := 0 to dl.entries.Count - 1 do
+      begin
+        try
+          de := TDirlistEntry(dl.entries[i]);
+          if de.Directory then
+          begin
+            indexerAddRelease(de.filename, site1, sectionname, path);
+            inc(Result);
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
+            Break;
+          end;
         end;
       end;
+    finally
+      dl.dirlist_lock.Leave;
     end;
-
   end;
 begin
   s := slot;
