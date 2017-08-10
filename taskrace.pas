@@ -2111,6 +2111,18 @@ begin
           end
         end;
 
+      550:
+        begin
+          //COMPLETE MSG: 550 Requested action not taken. File exists.
+          if (0 < AnsiPos('File exists', lastResponse)) then
+          begin
+            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
+            exit;
+          end
+        end;
 
       553:
         begin
