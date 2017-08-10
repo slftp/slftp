@@ -50,6 +50,7 @@ begin
     exit;
   end;
   d:= TDirList.Create(s.site.name, nil, nil, s.lastResponse);
+  d.dirlist_lock.Enter;
   try
     for i:= 0 to d.entries.Count -1 do
     begin
@@ -85,6 +86,7 @@ begin
       Result:= s.RemoveDir(dir);
     end;
   finally
+    d.dirlist_lock.Leave;
     d.Free;
   end;
 end;
