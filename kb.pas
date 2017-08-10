@@ -276,7 +276,7 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
-function GotGroupname(rlz: AnsiString): AnsiString;
+function GotGroupname(const rlz: AnsiString): AnsiString;
 
 var
   kb_sections: TStringList;
@@ -361,43 +361,46 @@ begin
     end;
 end;
 
+// TODO: as it does the same as GotGroupname, emrge both function and have a second parameter to say remove grpname or not
 function RemoveGroupname(rlz: AnsiString): AnsiString;
 var
   x: TStringList;
   g, s: AnsiString;
 begin
+  s := Csere(rlz, '(', '');
+  s := Csere(s, ')', '');
+  s := Csere(s, '.', ' ');
+  s := Csere(s, '-', ' ');
+  s := Csere(s, '_', ' ');
+
   x := TStringList.Create;
   try
-    s := Csere(rlz, '(', '');
-    s := Csere(s, ')', '');
-    s := Csere(s, '.', ' ');
-    s := Csere(s, '-', ' ');
-    s := Csere(s, '_', ' ');
-
     x.Delimiter := ' ';
     x.DelimitedText := s;
     if uppercase(x.Strings[x.Count - 1]) = 'INT' then
       g := '-' + x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
     else
       g := x.Strings[x.Count - 1];
-    Result := Csere(rlz, g, '');
   finally
     x.Free;
   end;
+
+  Result := Csere(rlz, g, '');
 end;
 
-function GotGroupname(rlz: AnsiString): AnsiString;
+function GotGroupname(const rlz: AnsiString): AnsiString;
 var
   x: TStringList;
   s: AnsiString;
 begin
+  s := Csere(rlz, '(', '');
+  s := Csere(s, ')', '');
+  s := Csere(s, '.', ' ');
+  s := Csere(s, '-', ' ');
+  s := Csere(s, '_', ' ');
+
   x := TStringList.Create;
   try
-    s := Csere(rlz, '(', '');
-    s := Csere(s, ')', '');
-    s := Csere(s, '.', ' ');
-    s := Csere(s, '-', ' ');
-    s := Csere(s, '_', ' ');
     x.Delimiter := ' ';
     x.DelimitedText := s;
     if uppercase(x.Strings[x.Count - 1]) = 'INT' then
@@ -528,7 +531,7 @@ begin
           if uppercase(grp) <> uppercase(ss) then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, uppercase(grp), uppercase(ss)]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, grp, ss]));
             kb_skip.Insert(0, rls);
             exit;
           end;
