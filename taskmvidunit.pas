@@ -190,11 +190,11 @@ ujra:
       exit;
     end;
 
-
     j := 0;
     filecount :=0;
     nfofile := '';
     d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
+    d.dirlist_lock.Enter;
     try
       for i:= 0 to d.entries.Count-1 do
       begin
@@ -214,10 +214,11 @@ ujra:
       end;
 
     finally
+      d.dirlist_lock.Leave;
       d.Free;
     end;
 
-if nfofile = '' then
+  if nfofile = '' then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin

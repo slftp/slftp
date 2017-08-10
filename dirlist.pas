@@ -71,7 +71,6 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: AnsiString;
-    lock: TCriticalSection;
     _completeInfo: TCompleteInfo;
 
     procedure SetSkiplists;
@@ -81,6 +80,8 @@ type
     procedure SetCompleteInfo(info : TCompleteInfo);
     procedure SetCompleteInfoFromFtpd;
   public
+    dirlist_lock: TCriticalSection;
+
     dirlistadded: Boolean;
     mindenmehetujra: Boolean;
 
@@ -270,7 +271,7 @@ begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        lock.Enter;
+        dirlist_lock.Enter;
         try
           for i := entries.Count - 1 downto 0 do
           begin
@@ -296,7 +297,7 @@ begin
             end;
           end;
         finally
-          lock.Leave;
+          dirlist_lock.Leave;
         end;
       end;
     end;
@@ -337,7 +338,7 @@ end;
 constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False; FromIrc: boolean = False);
 var sf: TSkipListFilter;
 begin
-  lock := TCriticalSection.Create;
+  dirlist_lock := TCriticalSection.Create;
 
   biggestcd:= 0;
   self.error := False;
@@ -387,7 +388,7 @@ end;
 destructor TDirList.Destroy;
 begin
   entries.Free;
-  lock.Free;
+  dirlist_lock.Free;
   inherited;
 end;
 
@@ -437,7 +438,7 @@ begin
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
-    lock.Enter;
+    dirlist_lock.Enter;
     try
       for i:= entries.Count -1 downto 0 do
       begin
@@ -462,7 +463,7 @@ begin
         end;
       end;
     finally
-      lock.Leave;
+      dirlist_lock.Leave;
     end;
 
     if biggestcd > 1 then
@@ -491,7 +492,7 @@ var i: Integer;
 begin
   Result:= 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count -1 downto 0 do
     begin
@@ -510,7 +511,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -519,7 +520,7 @@ var i: Integer;
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count -1 downto 0 do
     begin
@@ -538,7 +539,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -633,7 +634,7 @@ begin
     skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -650,14 +651,14 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 
   rrgx := TRegExpr.Create;
   rrgx.ModifierI := True;
   rrgx.Expression := global_skip;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     while(true) do
     begin
@@ -860,7 +861,7 @@ begin
     end;
 
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
     rrgx.Free;
   end;
 
@@ -920,24 +921,24 @@ begin
   Result := False;
   if skiplist = nil then exit;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
-  for i:= entries.Count -1 downto 0 do
-  begin
-    if i < 0 then Break;
-    try
-      ld:= TDirListEntry(entries[i]);
-      if ld.RegenerateSkiplist then Result := True;
-    except
-      on E: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.RegenerateSkiplist: %s', [e.Message]);
-        Continue;
+    for i:= entries.Count -1 downto 0 do
+    begin
+      if i < 0 then Break;
+      try
+        ld:= TDirListEntry(entries[i]);
+        if ld.RegenerateSkiplist then Result := True;
+      except
+        on E: Exception do
+        begin
+          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.RegenerateSkiplist: %s', [e.Message]);
+          Continue;
+        end;
       end;
     end;
-  end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 
 end;
@@ -1117,25 +1118,7 @@ var
   hrt: THighResolutionTimer;
   st1, et1, st2, et2: Int64;
 begin
-  (*
-  hrt := THighResolutionTimer.Create;
-
-  st1 := hrt.GetTime;
-  // without locking
-  try
-    entries.Sort(@DirListSorter);
-  except
-    on E: Exception do
-    begin
-      debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort : %s', [e.Message]);
-    end;
-  end;
-  et1 := hrt.GetTime;
-
-  st2 := hrt.GetTime;
-  *)
-  // with locking
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     try
       entries.Sort(@DirListSorter);
@@ -1146,13 +1129,8 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
-  (*
-  et2 := hrt.GetTime;
-  debugunit.Debug(dpError, section, Format('DirList Sorter timing: ms Without lock: %n ms - With lock: %n ms', [((hrt.ToMicroSeconds(et1-st1) div 1) / 1000), ((hrt.ToMicroSeconds(et2-st2) div 1) / 1000)]));
-  FreeAndNil(hrt);
-  *)
 end;
 
 function TDirList.CompleteByTag: Boolean;
@@ -1181,7 +1159,7 @@ begin
   files := 0;
   size := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count -1 downto 0 do
     begin
@@ -1210,7 +1188,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1222,7 +1200,7 @@ begin
   Result := nil;
   if entries.Count = 0 then exit;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1243,7 +1221,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1321,7 +1299,7 @@ var
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1341,7 +1319,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1352,7 +1330,7 @@ var
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1380,7 +1358,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1391,7 +1369,7 @@ var
 begin
   Result:= 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1416,7 +1394,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1433,7 +1411,7 @@ begin
     exit;
   end;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1454,7 +1432,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1470,7 +1448,7 @@ begin
     exit;
   end;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1492,7 +1470,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1505,7 +1483,7 @@ begin
   fLastChanged := 0;
   biggestcd := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
 
     for i := entries.Count - 1 downto 0 do
@@ -1523,14 +1501,14 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 
 end;
 
 procedure TDirList.SortByModify;
 begin
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     try
       entries.Sort(@DirListModSorter);
@@ -1541,7 +1519,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1551,7 +1529,7 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := 0 to entries.Count - 1 do
     begin
@@ -1572,7 +1550,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1582,7 +1560,7 @@ var i: Integer;
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count -1 downto 0 do
     begin
@@ -1600,7 +1578,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1611,7 +1589,7 @@ var i: Integer;
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i:= entries.Count -1 downto 0 do
     begin
@@ -1639,7 +1617,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
@@ -1650,7 +1628,7 @@ var i: Integer;
 begin
   Result := 0;
 
-  lock.Enter;
+  dirlist_lock.Enter;
   try
     for i := entries.Count -1 downto 0 do
     begin
@@ -1678,7 +1656,7 @@ begin
       end;
     end;
   finally
-    lock.Leave;
+    dirlist_lock.Leave;
   end;
 end;
 
