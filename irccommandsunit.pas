@@ -1482,6 +1482,7 @@ begin
   sectiondir := todaycsere(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(sectiondir) + dir);
+  d.dirlist_lock.Enter;
   try
     if d <> nil then
     begin
@@ -1495,8 +1496,8 @@ begin
           irc_addtext(Netname, Channel, '%s (%d)', [de.filename, de.filesize]);
       end;
     end;
-
   finally
+    d.dirlist_lock.Leave;
     d.Free;
   end;
 
@@ -1541,6 +1542,7 @@ begin
   sectiondir := todaycsere(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, sectiondir);
+  d.dirlist_lock.Enter;
   try
     if d <> nil then
     begin
@@ -1560,6 +1562,7 @@ begin
       end;
     end;
   finally
+    d.dirlist_lock.Leave;
     d.Free;
   end;
 
@@ -8081,17 +8084,22 @@ var
 begin
   fsfilename := '';
   fsfilesize := 0;
-  for i := 0 to d.entries.Count - 1 do
-  begin
-    de := TDirListEntry(d.entries[i]);
-    if ((de.filesize > fsfilesize) and (de.filesize >=
-      config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
-      (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *
-      1024 * 1024)) then
+  d.dirlist_lock.Enter;
+  try
+    for i := 0 to d.entries.Count - 1 do
     begin
-      fsfilename := de.filename;
-      fsfilesize := de.filesize;
+      de := TDirListEntry(d.entries[i]);
+      if ((de.filesize > fsfilesize) and (de.filesize >=
+        config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
+        (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *
+        1024 * 1024)) then
+      begin
+        fsfilename := de.filename;
+        fsfilesize := de.filesize;
+      end;
     end;
+  finally
+    d.dirlist_lock.Leave; 
   end;
 end;
 

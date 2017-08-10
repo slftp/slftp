@@ -336,46 +336,51 @@ begin
     // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
-      for i := 0 to d.entries.Count - 1 do
-      begin
-        try
-          if i > d.entries.Count then
+      d.dirlist_lock.Enter;
+      try
+        for i := 0 to d.entries.Count - 1 do
+        begin
+          try
+            if i > d.entries.Count then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          de := TDirlistEntry(d.entries[i]);
+          end;
+          try
+            de := TDirlistEntry(d.entries[i]);
 
-          if ((de.directory) and (not de.skiplisted)) then
-          begin
-            if ((de.subdirlist <> nil) and (de.subdirlist.dirlistadded)) then
-              Continue;
+            if ((de.directory) and (not de.skiplisted)) then
+            begin
+              if ((de.subdirlist <> nil) and (de.subdirlist.dirlistadded)) then
+                Continue;
 
-            aktdir := dir;
-            if aktdir <> '' then
-              aktdir := aktdir + '/';
-            aktdir := aktdir + de.filename;
-            Debug(dpSpam, c_section, 'READD: adding dirlist task to subdir ' + aktdir);
-            irc_Addtext_by_key('PRECATCHSTATS',
-              Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
-              [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
-            try
-              r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
-              if (de.subdirlist <> nil) then
-                de.subdirlist.dirlistadded := True;
-              AddTask(r);
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+              aktdir := dir;
+              if aktdir <> '' then
+                aktdir := aktdir + '/';
+              aktdir := aktdir + de.filename;
+              Debug(dpSpam, c_section, 'READD: adding dirlist task to subdir ' + aktdir);
+              irc_Addtext_by_key('PRECATCHSTATS',
+                Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
+                [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
+              try
+                r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
+                if (de.subdirlist <> nil) then
+                  de.subdirlist.dirlistadded := True;
+                AddTask(r);
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, c_section,
+                    Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                end;
               end;
             end;
+          except
+            Continue;
           end;
-        except
-          Continue;
         end;
+      finally
+        d.dirlist_lock.Leave;
       end;
     end;
   except
@@ -2111,6 +2116,18 @@ begin
           end
         end;
 
+      550:
+        begin
+          //COMPLETE MSG: 550 Requested action not taken. File exists.
+          if (0 < AnsiPos('File exists', lastResponse)) then
+          begin
+            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
+            exit;
+          end
+        end;
 
       553:
         begin
