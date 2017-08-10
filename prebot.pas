@@ -253,9 +253,9 @@ begin
       added := False;
       addednumber := 0;
       queue_lock.Enter;
+      d.dirlist_lock.Enter;
       try
         tn := AddNotify;
-
         for i := 0 to d.entries.Count - 1 do
         begin
           de := TDirListEntry(d.entries[i]);
@@ -279,6 +279,7 @@ begin
         //d.Free;
         QueueFire;
       finally
+        d.dirlist_lock.Leave;
         queue_lock.Leave;
       end;
 
@@ -1486,8 +1487,8 @@ begin
       Continue;
 
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
+    d.dirlist_lock.Enter;
     try
-
       if d <> nil then
       begin
         for ii := 0 to d.entries.Count - 1 do
@@ -1509,8 +1510,8 @@ begin
           end;
         end;
       end;
-
     finally
+      d.dirlist_lock.Leave;
       d.Free;
     end;
   end;
@@ -1565,6 +1566,7 @@ begin
         //  Irc_addtext(Netname,CHannel,'Going for: %s',[s.name]);
 
         d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
+        d.dirlist_lock.Enter;
         try
           if d <> nil then
           begin
@@ -1580,6 +1582,7 @@ begin
           end;
 
         finally
+          d.dirlist_lock.Leave;
           d.Free;
         end;
 
@@ -1615,6 +1618,7 @@ begin
       Irc_addtext(Netname, CHannel, 'Read content for %s:', [s.Name]);
 
       d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
+      d.dirlist_lock.Enter;
       try
         if d <> nil then
         begin
@@ -1629,6 +1633,7 @@ begin
           end;
         end;
       finally
+        d.dirlist_lock.Leave;
         d.Free;
       end;
 

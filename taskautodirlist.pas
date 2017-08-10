@@ -235,6 +235,7 @@ begin
 
       // dirlist successful, you must work with the elements
       dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+      dl.dirlist_lock.Enter;
       try
         for j := 0 to dl.entries.Count - 1 do
         begin
@@ -274,6 +275,7 @@ begin
         end;
       finally
         dl.Free;
+        dl.dirlist_lock.Enter;
       end;
     end;
   end;
