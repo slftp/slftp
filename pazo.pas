@@ -1518,6 +1518,7 @@ begin
       end;
     end;
   finally
+    d.dirlist_lock.Leave;
     pazo.cs.Leave;
   end;
 
