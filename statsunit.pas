@@ -372,31 +372,36 @@ begin
   if statsInsert = nil then
     exit;
 
-  for i := 0 to d.entries.Count - 1 do
-  begin
-    try if i > d.entries.Count then Break; except Break; end;
-    try
-      de:= TDirlistEntry(d.entries[i]);
-      if not de.directory then
-      begin
-        if ((de.megvanmeg) and (not de.skiplisted) and (de.username <> '') and (de.filesize >= config.ReadInteger(section, 'min_filesize', 1000000))) then
+  d.dirlist_lock.Enter;
+  try
+    for i := 0 to d.entries.Count - 1 do
+    begin
+      try if i > d.entries.Count then Break; except Break; end;
+      try
+        de:= TDirlistEntry(d.entries[i]);
+        if not de.directory then
         begin
-          if de.username <> username then
-            u := de.username
-          else
-            u := '!me!';
-          stats.ExecSQL( statsInsert, [uppercase(sitename), uppercase(rls_section), u, UpperCase(de.groupname), de.filename, Round(de.filesize / 1024), FormatDateTime('yyyy-mm-dd hh:nn:ss', de.timestamp)]);
+          if ((de.megvanmeg) and (not de.skiplisted) and (de.username <> '') and (de.filesize >= config.ReadInteger(section, 'min_filesize', 1000000))) then
+          begin
+            if de.username <> username then
+              u := de.username
+            else
+              u := '!me!';
+            stats.ExecSQL( statsInsert, [uppercase(sitename), uppercase(rls_section), u, UpperCase(de.groupname), de.filename, Round(de.filesize / 1024), FormatDateTime('yyyy-mm-dd hh:nn:ss', de.timestamp)]);
+          end;
+        end
+        else
+          statsProcessDirlist(de.subdirlist, sitename, rls_section, username);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] statsProcessDirlist : %s', [e.Message]));
+          Break;
         end;
-      end
-      else
-        statsProcessDirlist(de.subdirlist, sitename, rls_section, username);
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] statsProcessDirlist : %s', [e.Message]));
-        Break;
       end;
     end;
+  finally
+    d.dirlist_lock.Leave;
   end;
 end;
 

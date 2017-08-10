@@ -276,7 +276,7 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
-function GotGroupname(rlz: AnsiString): AnsiString;
+function GotGroupname(const rlz: AnsiString): AnsiString;
 
 var
   kb_sections: TStringList;
@@ -361,43 +361,46 @@ begin
     end;
 end;
 
+// TODO: as it does the same as GotGroupname, emrge both function and have a second parameter to say remove grpname or not
 function RemoveGroupname(rlz: AnsiString): AnsiString;
 var
   x: TStringList;
   g, s: AnsiString;
 begin
+  s := Csere(rlz, '(', '');
+  s := Csere(s, ')', '');
+  s := Csere(s, '.', ' ');
+  s := Csere(s, '-', ' ');
+  s := Csere(s, '_', ' ');
+
   x := TStringList.Create;
   try
-    s := Csere(rlz, '(', '');
-    s := Csere(s, ')', '');
-    s := Csere(s, '.', ' ');
-    s := Csere(s, '-', ' ');
-    s := Csere(s, '_', ' ');
-
     x.Delimiter := ' ';
     x.DelimitedText := s;
     if uppercase(x.Strings[x.Count - 1]) = 'INT' then
       g := '-' + x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
     else
       g := x.Strings[x.Count - 1];
-    Result := Csere(rlz, g, '');
   finally
     x.Free;
   end;
+
+  Result := Csere(rlz, g, '');
 end;
 
-function GotGroupname(rlz: AnsiString): AnsiString;
+function GotGroupname(const rlz: AnsiString): AnsiString;
 var
   x: TStringList;
   s: AnsiString;
 begin
+  s := Csere(rlz, '(', '');
+  s := Csere(s, ')', '');
+  s := Csere(s, '.', ' ');
+  s := Csere(s, '-', ' ');
+  s := Csere(s, '_', ' ');
+
   x := TStringList.Create;
   try
-    s := Csere(rlz, '(', '');
-    s := Csere(s, ')', '');
-    s := Csere(s, '.', ' ');
-    s := Csere(s, '-', ' ');
-    s := Csere(s, '_', ' ');
     x.Delimiter := ' ';
     x.DelimitedText := s;
     if uppercase(x.Strings[x.Count - 1]) = 'INT' then
@@ -528,7 +531,7 @@ begin
           if uppercase(grp) <> uppercase(ss) then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
-              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, uppercase(grp), uppercase(ss)]));
+              irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, grp, ss]));
             kb_skip.Insert(0, rls);
             exit;
           end;
@@ -2795,84 +2798,74 @@ begin
 
   p := TPazo(pazo);
 
-  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s',
-    [p.rls.rlsname]);
+  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
 
   for i := 0 to p.sites.Count - 1 do
   begin
     pdest := TPazoSite(p.sites[i]);
+
+    // checking if we want to try to complete the destination site
     if pdest.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
       Continue;
     if pdest.Complete then
       Continue;
     if pdest.status <> rssAllowed then
       Continue;
-
     if pdest.error then
     begin
       Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
         [pdest.Name, pdest.reason]));
       Continue;
     end;
-
     sdest := TSite(FindSiteByName('', pdest.Name));
     if sdest = nil then
       Continue;
     if sdest.PermDown then
       Continue;
 
-    //checking if a irc chan is added for the site
-    //not sure if we really need this, psrc.Complete should be set while dirlist - not from irc
-    if Precatcher_Sitehasachan(pdest.Name) then
+    // Looking for possible source for trying to complete release on destination
+    ssrc_found := False;
+    psrc := nil;
+
+    for j := 0 to p.sites.Count - 1 do
     begin
       ssrc_found := False;
-      psrc := nil;
+      psrc := TPazoSite(p.sites[j]);
 
-      for j := 0 to p.sites.Count - 1 do
+      if psrc = nil then
+        Continue;
+      if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        Continue;
+      if psrc.Name = pdest.Name then
+        Continue;
+
+      if psrc.error then
       begin
-        ssrc_found := False;
-        psrc := TPazoSite(p.sites[j]);
-
-        if psrc = nil then
-          Continue;
-        if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-          Continue;
-        if psrc.Name = pdest.Name then
-          Continue;
-
-        if psrc.error then
-        begin
-          Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
-            [psrc.Name, psrc.reason]));
-          Continue;
-        end;
-
-        if not psrc.Complete then
-          Continue;
-
-        ssrc := TSite(FindSiteByName('', psrc.Name));
-        if ssrc = nil then
-          Continue;
-        if ssrc.PermDown then
-          Continue;
-
-        if config.ReadBool(rsections,
-          'only_use_routable_sites_on_try_to_complete',
-          False) then
-          ssrc_found := ssrc.isRouteableTo(sdest.Name)
-        else
-          ssrc_found := True;
-
-        if ssrc_found then
-          break;
-
+        Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
+          [psrc.Name, psrc.reason]));
+        Continue;
       end;
+
+      if not psrc.Complete then
+        Continue;
+
+      ssrc := TSite(FindSiteByName('', psrc.Name));
+      if ssrc = nil then
+        Continue;
+      if ssrc.PermDown then
+        Continue;
+
+      if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
+        ssrc_found := ssrc.isRouteableTo(sdest.Name)
+      else
+        ssrc_found := True;
+
+      if ssrc_found then
+        break;
 
       //will continue with next site if ssrc_found is FALSE
       if not ssrc_found then
         continue;
-
-
 
       if psrc = nil then
       begin
@@ -2886,8 +2879,6 @@ begin
         irc_Addstats(Format('ssrc is nil (%s)', [psrc.Name]));
         Exit;
       end;
-
-
 
       try
         Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
