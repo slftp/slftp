@@ -275,7 +275,7 @@ begin
         end;
       finally
         dl.Free;
-        dl.dirlist_lock.Enter;
+        dl.dirlist_lock.Leave;
       end;
     end;
   end;
