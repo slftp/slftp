@@ -1841,12 +1841,12 @@ begin
     if fDownloadingFrom then
     begin
       site.num_dn := site.num_dn + 1;
-      Debug(dpMessage, section, 'Site %s: slots DN in use: %d!', [site.Name,site.num_dn ]);
+      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
       site.num_dn := site.num_dn - 1;
-      Debug(dpMessage, section, 'Site %s: slots DN in use: %d!', [site.Name,site.num_dn ]);
+      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
   end;
 end;
@@ -1859,12 +1859,12 @@ begin
     if fUploadingTo then
       begin
         site.num_up := site.num_up + 1;
-        Debug(dpMessage, section, 'Site %s: slots UP in use: %d!', [site.Name,site.num_up ]);
+        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
         site.num_up := site.num_up - 1;
-        Debug(dpMessage, section, 'Site %s: slots UP in use: %d!', [site.Name,site.num_up ]);
+        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
   end;
 end;
@@ -1877,12 +1877,12 @@ begin
     if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpMessage, section, 'Site %s: slots FREE in use: %d!', [site.Name,site.freeslots ]);
+        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
         end
     else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpMessage, section, 'Site %s: slots FREE in use: %d!', [site.Name,site.freeslots ]);
+        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
   end;
 end;
