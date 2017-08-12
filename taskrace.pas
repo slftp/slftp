@@ -619,8 +619,7 @@ var
   failure: boolean;
   bIsMidnight: boolean;
   r: TRule;
-  e: AnsiString;
-  grp: AnsiString;
+  rule_err: AnsiString;
   numerrors: integer;
   tname: AnsiString;
 begin
@@ -886,9 +885,9 @@ begin
               begin
                 Debug(dpError, c_section, 'Adding rule to DROP group %s on %s', [mainpazo.rls.groupname, site1]);
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
-                e := '';
-                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), e);
-                if ((r <> nil) and (e = '')) then
+                rule_err := '';
+                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
+                if ((r <> nil) and (rule_err = '')) then
                 begin
                   rules.Insert(0, r);
                   RulesSave;

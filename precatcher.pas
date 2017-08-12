@@ -330,7 +330,8 @@ end;
 
 function _findMP3GenreOnAnnounce(const text: AnsiString; ts_data: TStringList): String;
 var
-  i, x: Integer;
+  //i, x: Integer;
+  i: Integer;
 begin
   Result := '';
   for i := 0 to mp3genres.Count - 1 do
