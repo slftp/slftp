@@ -50,7 +50,7 @@ type
     no: integer;
     fstatus: TSlotStatus;
     event: TEvent;
-    function LoginBnc(i: integer; kill: boolean = False): boolean;
+    function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
     procedure ProcessFeat;
@@ -88,24 +88,21 @@ type
 
     function MdtmSeconds(filename: AnsiString): integer;
     function Read(read_cmd: AnsiString = ''): boolean; overload;
-    function Read(read_cmd: AnsiString; raiseontimeout: boolean;
-      raiseonclose: boolean; timeout: integer = 0): boolean; overload;
-    function Send(s: AnsiString): boolean; overload;
-    function Send(s: AnsiString; const Args: array of const): boolean; overload;
-    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False;
-      s_message: AnsiString = ''): boolean;
+    function Read(const read_cmd: AnsiString; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
+    function Send(const s: AnsiString): boolean; overload;
+    function Send(const s: AnsiString; const Args: array of const): boolean; overload;
+    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: AnsiString = ''): boolean;
     function bnc: AnsiString;
     function Cwd(dir: AnsiString; force: boolean = False): boolean;
-    function Dirlist(dir: AnsiString; forcecwd: boolean = False;
-      fulldirlist: boolean = False): boolean;
+    function Dirlist(const dir: AnsiString; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
     function Leechfile(dest: TStream; const filename: AnsiString; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
     //    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
-    function RemoveFile(dir, filename: AnsiString): boolean;
+    function RemoveFile(const dir, filename: AnsiString): boolean;
     function RemoveDir(dir: AnsiString): boolean;
     function SendProtP: boolean;
     function SendProtC: boolean;
-    function Mkdir(dirtocreate: AnsiString): boolean;
-    function TranslateFilename(filename: AnsiString): AnsiString;
+    function Mkdir(const dirtocreate: AnsiString): boolean;
+    function TranslateFilename(const filename: AnsiString): AnsiString;
     function Pwd(var dir: AnsiString): boolean;
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
@@ -149,7 +146,6 @@ type
     procedure Setsslmethod(const Value: TSSLMethods);
     function Getsslfxp: TSSLReq;
     procedure Setsslfxp(const Value: TSSLReq);
-    procedure WCBool(Name: AnsiString; val: boolean);
     function GetPredir: AnsiString;
     procedure SetPredir(const Value: AnsiString);
     function Getlegacydirlist: boolean;
@@ -220,24 +216,26 @@ type
     siteinvited: boolean;
 
     ffreeslots: integer;
-      Name: AnsiString;
+    Name: AnsiString; //< sitename
     slots: TObjectList;
 
-    //    siteinvited: Boolean;
+    // siteinvited: Boolean;
 
-    function GetSw: TSiteSw;
-    procedure SetSw(Value: TSiteSw);
-    procedure Stop;
-    constructor Create(Name: AnsiString);
+    constructor Create(const Name: AnsiString);
     destructor Destroy; override;
-    procedure DeleteKey(Name: AnsiString);
-    function RCBool(Name: AnsiString; def: boolean): boolean;
-    function RCInteger(Name: AnsiString; def: integer): integer;
-    function RCDateTime(Name: AnsiString; def: TDateTime): TDateTime;
-    function RCString(Name, def: AnsiString): AnsiString;
-    procedure WCDateTime(Name: AnsiString; val: TDateTime);
-    procedure WCInteger(Name: AnsiString; val: integer);
-    procedure WCString(Name: AnsiString; val: AnsiString);
+
+    procedure Stop;
+    procedure DeleteKey(const Name: AnsiString);
+
+    function RCString(const Name, def: AnsiString): AnsiString;
+    procedure WCString(const Name: AnsiString; const val: AnsiString);
+    function RCInteger(const Name: AnsiString; const def: integer): integer;
+    procedure WCInteger(const Name: AnsiString; const val: integer);
+    function RCBool(const Name: AnsiString; const def: boolean): boolean;
+    procedure WCBool(const Name: AnsiString; const val: boolean);
+    function RCDateTime(const Name: AnsiString; def: TDateTime): TDateTime;
+    procedure WCDateTime(const Name: AnsiString; val: TDateTime);
+
     procedure SetOutofSpace;
     procedure SetKredits;
 
@@ -259,19 +257,22 @@ type
     procedure RecalcFreeslots;
     procedure FullLogin;
 
-    function GetRank(section: AnsiString): integer;
-    procedure SetRank(section: AnsiString; Value: integer);
-    function GetRankLock(section: AnsiString): integer;
-    procedure SetRankLock(section: AnsiString; Value: integer);
+    function GetSw: TSiteSw; //< function for sw property to read Site Software from inifile
+    procedure SetSw(Value: TSiteSw); //< procedure for sw property to write Site Software to inifile
+
+    function GetRank(const section: AnsiString): integer;
+    procedure SetRank(const section: AnsiString; Value: integer);
+    function GetRankLock(const section: AnsiString): integer;
+    procedure SetRankLock(const section: AnsiString; Value: integer);
 
     function FreeLeechSlots: integer;
     function FreeTraderSlots: integer;
-    function SetSections(sections: AnsiString; remove: boolean = False): AnsiString;
-    function SetLeechers(users: AnsiString; remove: boolean): AnsiString;
-    function SetTraders(users: AnsiString; remove: boolean): AnsiString;
-    function IsSection(section: AnsiString): boolean;
+    function SetSections(const sections: AnsiString; remove: boolean = False): AnsiString;
+    function SetLeechers(const users: AnsiString; remove: boolean): AnsiString;
+    function SetTraders(const users: AnsiString; remove: boolean): AnsiString;
+    function IsSection(const section: AnsiString): boolean;
     function IsAffil(affil: AnsiString): boolean;
-    function AddAffil(affil: AnsiString): boolean;
+    function AddAffil(const affil: AnsiString): boolean;
     // TODO function DelAffil(affil: string): Boolean;
 //    function SetAffils(affils: AnsiString): AnsiString;
     function SetAffilsALL(affils: AnsiString): AnsiString;
@@ -279,11 +280,11 @@ type
     function IsLeecher(user: AnsiString): boolean;
     function IsTrader(user: AnsiString): boolean;
 
-    function IsPretimeOk(section: AnsiString; rlz_pretime: TDateTime): boolean;
-    function GetPretime(section: AnsiString): AnsiString;
+    function IsPretimeOk(const section: AnsiString; rlz_pretime: TDateTime): boolean;
+    function GetPretime(const section: AnsiString): AnsiString;
 
-    function isRouteableTo(sitename: AnsiString): boolean;
-    function isRouteableFrom(sitename: AnsiString): boolean;
+    function isRouteableTo(const sitename: AnsiString): boolean;
+    function isRouteableFrom(const sitename: AnsiString): boolean;
 
     property sections: AnsiString read GetSections write SettSections;
     property leechers: AnsiString read GetLeechers write SettLeechers;
@@ -331,13 +332,13 @@ type
   end;
 
 function ReadSites(): boolean;
-procedure SitesStart;
 procedure SlotsFire;
 procedure SiteAutoStart;
 
 function FindSiteByName(netname, sitename: AnsiString): TSite;
 function FindSlotByName(slotname: AnsiString): TSiteSlot;
 procedure SitesInit;
+procedure SitesStart;
 procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
@@ -552,6 +553,44 @@ begin
   sitelaststart := Now();
   bnccsere := TCriticalSection.Create;
   sites := TObjectList.Create;
+end;
+
+function CompareSiteNamesForAlphabeticalOrder(site1, site2: TSite): Integer;
+begin
+  Result := CompareText(site1.Name, site2.Name);
+end;
+
+procedure SitesStart;
+var
+  x: TStringList;
+  i: integer;
+begin
+  debug(dpSpam, section, 'SitesStart begin');
+
+  delay_between_connects := config.readInteger(section, 'delay_between_connects', 200);
+  admin_sitename := config.ReadString(section, 'admin_sitename', 'SLFTP');
+  admin_siteslots := config.ReadInteger(section, 'admin_siteslots', 10);
+  maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
+  autologin := config.ReadBool(section, 'autologin', False);
+  killafter := config.ReadInteger(section, 'killafter', 0);
+
+  // Add admin site
+  sites.Add(TSite.Create(admin_sitename));
+
+  x := TStringList.Create;
+  try
+    sitesdat.ReadSections(x);
+    for i := 0 to x.Count - 1 do
+      if 1 = Pos('site-', x[i]) then
+        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+  finally
+    x.Free;
+  end;
+
+  // sort sites alphabetical
+  sites.Sort(@CompareSiteNamesForAlphabeticalOrder);
+
+  debug(dpSpam, section, 'SitesStart end');
 end;
 
 procedure SitesUninit;
@@ -938,7 +977,7 @@ begin
   Result := True;
 end;
 
-function TSiteSlot.LoginBnc(i: integer; kill: boolean = False): boolean;
+function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: AnsiString;
@@ -946,7 +985,6 @@ var
   j: Integer;
   currentBnc, tmpBnc, tmpHost: AnsiString;
   tmpPort: Integer;
-
 begin
   Result := False;
 
@@ -1344,8 +1382,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Read(read_cmd: AnsiString; raiseontimeout: boolean;
-  raiseonclose: boolean; timeout: integer = 0): boolean;
+function TSiteSlot.Read(const read_cmd: AnsiString; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean;
 label
   ujra;
 var
@@ -1387,8 +1424,7 @@ begin
       DestroySocket(False);
       if raiseOnClose then
       begin
-        irc_Adderror(todotask, '<c4>[ERROR Read]</c> %s: %s %s %d/%d (%s)',
-          [Name, read_cmd, error, MilliSecondsBetween(Now, read_start), timeout, bnc]);
+        irc_Adderror(todotask, '<c4>[ERROR Read]</c> %s: %s %s %d/%d (%s)', [Name, read_cmd, error, MilliSecondsBetween(Now, read_start), timeout, bnc]);
         Result := False;
       end;
       exit;
@@ -1435,7 +1471,7 @@ begin
   Result := True;
 end;
 
-function TSiteSlot.Send(s: AnsiString): boolean;
+function TSiteSlot.Send(const s: AnsiString): boolean;
 begin
   Result := False;
   try
@@ -1448,29 +1484,27 @@ begin
       DestroySocket(False);
       exit;
     end;
-    //Debug(dpSpam, 'protocol', name+' >>'+#13#10+s);
+
     lastio := Now();
     Result := True;
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s',
-        [e.Message, s]));
+      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
       Result := False;
       exit;
     end;
   end;
 end;
 
-function TSiteSlot.Send(s: AnsiString; const Args: array of const): boolean;
+function TSiteSlot.Send(const s: AnsiString; const Args: array of const): boolean;
 begin
   try
     Result := Send(Format(s, Args));
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s',
-        [e.Message, s]));
+      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
       Result := False;
       exit;
     end;
@@ -1521,7 +1555,7 @@ begin
   Result := site.RCBool(Name, def);
 end;
 
-function TSiteSlot.RemoveFile(dir, filename: AnsiString): boolean;
+function TSiteSlot.RemoveFile(const dir, filename: AnsiString): boolean;
 var
   cmd: AnsiString;
 begin
@@ -1572,7 +1606,7 @@ begin
   Result := True;
 end;
 
-function TSiteSlot.Mkdir(dirtocreate: AnsiString): boolean;
+function TSiteSlot.Mkdir(const dirtocreate: AnsiString): boolean;
 var
   dir: AnsiString;
 begin
@@ -1584,10 +1618,12 @@ begin
     end
     else
       dir := aktdir + dirtocreate;
+
     if not Send('MKD %s', [dir]) then
       exit;
     if not Read('MKD') then
       exit;
+
     Result := True;
   except
     on e: Exception do
@@ -1633,7 +1669,7 @@ begin
 end;
 
 
-function TSiteSlot.Dirlist(dir: AnsiString; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
+function TSiteSlot.Dirlist(const dir: AnsiString; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
 var
   cmd, list_everything: AnsiString;
 begin
@@ -1826,7 +1862,7 @@ begin
   end;
 end;
 
-function TSiteSlot.TranslateFilename(filename: AnsiString): AnsiString;
+function TSiteSlot.TranslateFilename(const filename: AnsiString): AnsiString;
 begin
   Result := filename;
   if ((filename[1] <> '/') and (not site.legacydirlist)) then
@@ -1889,7 +1925,7 @@ end;
 
 { TSite }
 
-constructor TSite.Create(Name: AnsiString);
+constructor TSite.Create(const Name: AnsiString);
 var
   i, j: integer;
   ss, affils: AnsiString;
@@ -1958,7 +1994,7 @@ begin
   debug(dpSpam, section, 'Site %s has created', [Name]);
 end;
 
-function TSite.isRouteableTo(sitename: AnsiString): boolean;
+function TSite.isRouteableTo(const sitename: AnsiString): boolean;
 var
   y: TStringList;
 begin
@@ -1975,7 +2011,7 @@ begin
   end;
 end;
 
-function TSite.isRouteableFrom(sitename: AnsiString): boolean;
+function TSite.isRouteableFrom(const sitename: AnsiString): boolean;
 var
   y: TStringList;
 begin
@@ -2014,6 +2050,51 @@ begin
   Debug(dpSpam, section, 'Site %s stop end', [Name]);
 end;
 
+procedure TSite.DeleteKey(const Name: AnsiString);
+begin
+  sitesdat.DeleteKey('site-' + self.Name, Name);
+end;
+
+function TSite.RCString(const Name: AnsiString; const def: AnsiString): AnsiString;
+begin
+  Result := sitesdat.ReadString('site-' + self.Name, Name, def);
+end;
+
+procedure TSite.WCString(const Name: AnsiString; const val: AnsiString);
+begin
+  sitesdat.WriteString('site-' + self.Name, Name, val);
+end;
+
+function TSite.RCInteger(const Name: AnsiString; const def: integer): integer;
+begin
+  Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
+end;
+
+procedure TSite.WCInteger(const Name: AnsiString; const val: integer);
+begin
+  sitesdat.WriteInteger('site-' + self.Name, Name, val);
+end;
+
+function TSite.RCBool(const Name: AnsiString; const def: boolean): boolean;
+begin
+  Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
+end;
+
+procedure TSite.WCBool(const Name: AnsiString; const val: boolean);
+begin
+  sitesdat.WriteBool('site-' + self.Name, Name, val);
+end;
+
+function TSite.RCDateTime(const Name: AnsiString; def: TDateTime): TDateTime;
+begin
+  Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
+end;
+
+procedure TSite.WCDateTime(const Name: AnsiString; val: TDateTime);
+begin
+  sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
+end;
+
 destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
@@ -2024,35 +2105,6 @@ begin
   inherited;
 end;
 
-procedure SitesStart;
-var
-  x: TStringList;
-  i: integer;
-begin
-  debug(dpSpam, section, 'SitesStart begin');
-
-  delay_between_connects := config.readInteger(section, 'delay_between_connects', 200);
-  admin_sitename := config.ReadString(section, 'admin_sitename', 'SLFTP');
-  admin_siteslots := config.ReadInteger(section, 'admin_siteslots', 10);
-  maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
-  autologin := config.ReadBool(section, 'autologin', False);
-  killafter := config.ReadInteger(section, 'killafter', 0);
-
-  // Add admin site
-  sites.Add(TSite.Create(admin_sitename));
-
-  x := TStringList.Create;
-  try
-    sitesdat.ReadSections(x);
-    for i := 0 to x.Count - 1 do
-      if 1 = Pos('site-', x[i]) then
-        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
-  finally
-    x.Free;
-  end;
-  debug(dpSpam, section, 'SitesStart end');
-end;
-
 procedure SlotsFire;
 var
   i, j: integer;
@@ -2060,31 +2112,6 @@ begin
   for i := 0 to sites.Count - 1 do
     for j := 0 to TSite(sites[i]).slots.Count - 1 do
       TSiteSlot(TSite(sites[i]).slots[j]).Fire;
-end;
-
-function TSite.RCString(Name: AnsiString; def: AnsiString): AnsiString;
-begin
-  Result := sitesdat.ReadString('site-' + self.Name, Name, def);
-end;
-
-function TSite.RCInteger(Name: AnsiString; def: integer): integer;
-begin
-  Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
-end;
-
-procedure TSite.WCDateTime(Name: AnsiString; val: TDateTime);
-begin
-  sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
-end;
-
-function TSite.RCDateTime(Name: AnsiString; def: TDateTime): TDateTime;
-begin
-  Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
-end;
-
-function TSite.RCBool(Name: AnsiString; def: boolean): boolean;
-begin
-  Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
 end;
 
 procedure SiteStat;
@@ -2256,21 +2283,6 @@ begin
   WCInteger('sslmethod', integer(Value));
 end;
 
-procedure TSite.WCBool(Name: AnsiString; val: boolean);
-begin
-  sitesdat.WriteBool('site-' + self.Name, Name, val);
-end;
-
-procedure TSite.WCInteger(Name: AnsiString; val: integer);
-begin
-  sitesdat.WriteInteger('site-' + self.Name, Name, val);
-end;
-
-procedure TSite.WCString(Name: AnsiString; val: AnsiString);
-begin
-  sitesdat.WriteString('site-' + self.Name, Name, val);
-end;
-
 function TSite.Getsslfxp: TSSLReq;
 begin
   Result := TSSLReq(RCInteger('sslfxp', 0));
@@ -2371,11 +2383,6 @@ begin
   WCString('sections', Value);
 end;
 
-procedure TSite.DeleteKey(Name: AnsiString);
-begin
-  sitesdat.DeleteKey('site-' + self.Name, Name);
-end;
-
 function TSite.GetAffils: AnsiString;
 begin
   Result := RCString('affils', '');
@@ -2403,7 +2410,7 @@ begin
   end;
 end;
 
-function TSite.IsPretimeOk(section: AnsiString; rlz_pretime: TDateTime): boolean;
+function TSite.IsPretimeOk(const section: AnsiString; rlz_pretime: TDateTime): boolean;
 var
   sec_pretime: integer;
 begin
@@ -2431,7 +2438,7 @@ begin
   end;
 end;
 
-function TSite.GetPretime(section: AnsiString): AnsiString;
+function TSite.GetPretime(const section: AnsiString): AnsiString;
 var
   sec_pretime: integer;
 begin
@@ -2450,19 +2457,13 @@ begin
   end;
 
   if sec_pretime >= 604800 then
-    Result := Format('%2.2d Weeks %1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
-      [sec_pretime div 604800, (sec_pretime div 86400) mod 7,
-      (sec_pretime div 3600) mod 24, (sec_pretime div 60) mod 60, sec_pretime mod 60])
+    Result := Format('%2.2d Weeks %1.1d Days %2.2d Hour %2.2d Min %2.2d Sec', [sec_pretime div 604800, (sec_pretime div 86400) mod 7, (sec_pretime div 3600) mod 24, (sec_pretime div 60) mod 60, sec_pretime mod 60])
   else if sec_pretime >= 86400 then
-    Result := Format('%1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
-      [sec_pretime div 86400, (sec_pretime div 3600) mod 24,
-      (sec_pretime div 60) mod 60, sec_pretime mod 60])
+    Result := Format('%1.1d Days %2.2d Hour %2.2d Min %2.2d Sec', [sec_pretime div 86400, (sec_pretime div 3600) mod 24, (sec_pretime div 60) mod 60, sec_pretime mod 60])
   else if sec_pretime >= 3600 then
-    Result := Format('%2.2d Hour %2.2d Min %2.2d Sec',
-      [sec_pretime div 3600, (sec_pretime div 60) mod 60, sec_pretime mod 60])
+    Result := Format('%2.2d Hour %2.2d Min %2.2d Sec', [sec_pretime div 3600, (sec_pretime div 60) mod 60, sec_pretime mod 60])
   else if sec_pretime >= 60 then
-    Result := Format('%2.2d Min %2.2d Sec', [(sec_pretime div 60) mod
-      60, sec_pretime mod 60])
+    Result := Format('%2.2d Min %2.2d Sec', [(sec_pretime div 60) mod 60, sec_pretime mod 60])
   else
     Result := Format('%2.2d Sec', [sec_pretime mod 60]);
 end;
@@ -2482,7 +2483,7 @@ begin
   end;
 end;
 
-function TSite.IsSection(section: AnsiString): boolean;
+function TSite.IsSection(const section: AnsiString): boolean;
 var
   x: TStringList;
 begin
@@ -2517,7 +2518,7 @@ begin
   end;
 end;
 
-function TSite.SetSections(sections: AnsiString; remove: boolean): AnsiString;
+function TSite.SetSections(const sections: AnsiString; remove: boolean): AnsiString;
 var
   x: TStringList;
   ss: AnsiString;
@@ -2550,7 +2551,7 @@ begin
   end;
 end;
 
-function TSite.SetLeechers(users: AnsiString; remove: boolean): AnsiString;
+function TSite.SetLeechers(const users: AnsiString; remove: boolean): AnsiString;
 var
   x: TStringList;
   ss: AnsiString;
@@ -2598,7 +2599,7 @@ begin
   end;
 end;
 
-function TSite.SetTraders(users: AnsiString; remove: boolean): AnsiString;
+function TSite.SetTraders(const users: AnsiString; remove: boolean): AnsiString;
 var
   x: TStringList;
   ss: AnsiString;
@@ -2657,8 +2658,8 @@ begin
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
-    x.Sorted:=True;
-    x.Duplicates:=dupIgnore;
+    x.Sorted := True;
+    x.Duplicates := dupIgnore;
     ExtractStrings([' ', ',', '|'], [], PAnsiChar(affils), List);
 
     for i := 0 to List.Count - 1 do
@@ -2678,15 +2679,15 @@ begin
   end;
 end;
 
-function TSite.AddAffil(affil: AnsiString): boolean;
+function TSite.AddAffil(const affil: AnsiString): boolean;
 var
   x: TStringList;
 begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
-    x.Sorted:=True;
-    x.Duplicates:=dupIgnore;
+    x.Sorted := True;
+    x.Duplicates := dupIgnore;
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
     if x.IndexOf(affil) = -1 then
@@ -3204,7 +3205,7 @@ begin
   WCInteger('sw', integer(Value));
 end;
 
-function TSite.GetRank(section: AnsiString): integer;
+function TSite.GetRank(const section: AnsiString): integer;
 begin
   Result := RCInteger('ranklock-' + section, 0);
   if Result = 0 then
@@ -3217,7 +3218,7 @@ begin
   end;
 end;
 
-procedure TSite.SetRank(section: AnsiString; Value: integer);
+procedure TSite.SetRank(const section: AnsiString; Value: integer);
 begin
   if Value <> 0 then
     WCInteger('rank-' + section, Value)
@@ -3225,7 +3226,7 @@ begin
     DeleteKey('rank-' + section);
 end;
 
-function TSite.GetRankLock(section: AnsiString): integer;
+function TSite.GetRankLock(const section: AnsiString): integer;
 begin
   Result := RCInteger('ranklock-' + section, 0);
   if Result = 0 then
@@ -3234,7 +3235,7 @@ begin
   end;
 end;
 
-procedure TSite.SetRankLock(section: AnsiString; Value: integer);
+procedure TSite.SetRankLock(const section: AnsiString; Value: integer);
 begin
   if ((section = '') or (section = '*')) then
   begin

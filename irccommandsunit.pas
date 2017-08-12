@@ -5826,7 +5826,7 @@ begin
     IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
       '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
-      'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
+      '<c5>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
     sup.Free;
     spd.Free;
@@ -8099,7 +8099,7 @@ begin
       end;
     end;
   finally
-    d.dirlist_lock.Leave; 
+    d.dirlist_lock.Leave;
   end;
 end;
 
@@ -11055,15 +11055,13 @@ begin
   Result := True;
 end;
 
-function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   RulesReload;
   Result := True;
 end;
 
-function parseSTATLine(sitename, line: AnsiString; includeLastCredits: boolean = false):
-  AnsiString;
+function parseSTATLine(sitename, line: AnsiString; includeLastCredits: boolean = false): AnsiString;
 var
   x: TRegExpr;
   ss, creds, ratio: AnsiString;
