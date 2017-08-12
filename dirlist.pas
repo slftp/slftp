@@ -1114,9 +1114,6 @@ begin
 end;
 
 procedure TDirList.Sort();
-var
-  hrt: THighResolutionTimer;
-  st1, et1, st2, et2: Int64;
 begin
   dirlist_lock.Enter;
   try

@@ -1030,16 +1030,23 @@ Begin
    nClrScr(w,TextAttr);
 End;
 
+// TODO: use Pchar instead of variable ps + check if it works with fpc/delphi and shows all correctly
 { write a string to a window at the current cursor position }
-Procedure TslUnixScreen.nWrite(win : pWindow; s : AnsiString);
+Procedure TslUnixScreen.nWrite(win: pWindow; s: AnsiString);
 var
-   ps : array [0..255] of AnsiChar;       { for use with pchars }
-
+  ps : array [0..255] of AnsiChar;       { for use with pchars }
+  //p: Pchar;
 Begin
-   If TextAttr <> prev_textattr Then
-      nWinColor(win,TextAttr);
-   waddstr(win,StrPCopy(ps,s));
-   wrefresh(win);
+  //p := StrAlloc(Length(s) + 1);
+
+  If TextAttr <> prev_textattr Then
+    nWinColor(win,TextAttr);
+
+  waddstr(win, StrPCopy(ps, s));
+  //waddstr(win, StrPCopy(p, s));
+  wrefresh(win);
+
+  //StrDispose(p);
 End;
 
 {=========================================================================

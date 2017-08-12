@@ -875,8 +875,6 @@ end;
 procedure TPazo.QueueEvent(Sender: TObject; Value: integer);
 var
   s: AnsiString;
-  ps: TPazoSite;
-  i: Integer;
 begin
   if Value < 0 then
     Value := 0;
@@ -890,9 +888,11 @@ begin
   begin
     readyat := Now();
     ready := True;
+
     if ((not slshutdown) and (rls <> nil)) then
     begin
       Debug(dpSpam, section, 'Number of pazo tasks is now zero! ' + IntToStr(pazo_id));
+
       if not stopped then
       begin
         // display race stats on console
