@@ -184,46 +184,49 @@ begin
 end;
 
 function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;
-var temp, eText: AnsiString;
-    i: Integer;
-    bf: TIrcBlowkey;
+var
+  temp, eText: AnsiString;
+  i: Integer;
+  bf: TIrcBlowkey;
 begin
+  Result := '';
   eText := '';
 
-  if(dText<>'') then
+  if (dText = '') then
+    exit;
+
+  bf := FindIrcBlowfish(netname, channel);
+  if ((bf = nil) or (bf.blowkey = '')) then
   begin
-    bf:= FindIrcBlowfish(netname, channel);
-    if ((bf = nil) or (bf.blowkey = '')) then
-    begin
-      Result:= dText;
-      exit;
-    end;
-
-    temp := '';
-    if (length(dText) mod 8 > 0) then
-      for i:= 1 to 8 - (length(dText) mod 8) do
-        dText:= dText+ #0;
-
-    SetLength(temp, 8);
-
-    for i:= 1 to length(dText) div 8 do
-    begin
-      temp:= Copy(dText, 1+(i-1)*8,8);
-      if bf.cbc then
-      BlowfishEncryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
-      else
-      BlowfishEncryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
-      eText := eText + bytetoB64(temp);
-    end;
-
+    Result := dText;
+    exit;
   end;
 
-  if bf.cbc then eText:= '*'+eText+'==';
+  temp := '';
+  if (length(dText) mod 8 > 0) then
+    for i := 1 to 8 - (length(dText) mod 8) do
+      dText:= dText+ #0;
+
+  SetLength(temp, 8);
+
+  for i := 1 to length(dText) div 8 do
+  begin
+    temp := Copy(dText, 1+(i-1)*8,8);
+    if bf.cbc then
+      BlowfishEncryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
+    else
+      BlowfishEncryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
+
+    eText := eText + bytetoB64(temp);
+  end;
+
+  if bf.cbc then
+    eText := '*' + eText + '==';
 
   if include_ok then
-    Result:= '+OK '+eText
+    Result := '+OK ' + eText
   else
-    Result:= eText;
+    Result := eText;
 end;
 
 
@@ -302,7 +305,7 @@ begin
   for i:= 0 to chankeys.Count -1 do
     BlowfishBurn(TIrcBlowkey(chankeys[i]).KeyData);
   chankeys.Free;
-  Debug(dpSpam, section, 'Uninit2');  
+  Debug(dpSpam, section, 'Uninit2');
 end;
 
 // ezt a fuggvenyt csak irc_lock mellett szabad hivni!

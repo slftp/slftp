@@ -86,11 +86,11 @@ type
     procedure MarkSiteAsFailed(echomsg: boolean = False);
 
     function ParseDirlist(const netname, channel: AnsiString; dir, liststring: AnsiString; pre: boolean = False): boolean;
-    function MkdirReady(dir: AnsiString): boolean;
-    function MkdirError(dir: AnsiString): boolean;
-    function AddDestination(sitename: AnsiString; rank: integer): boolean; overload;
-    function AddDestination(ps: TPazoSite; rank: integer): boolean; overload;
-    constructor Create(pazo: TPazo; Name, maindir: AnsiString);
+    function MkdirReady(const dir: AnsiString): boolean;
+    function MkdirError(const dir: AnsiString): boolean;
+    function AddDestination(const sitename: AnsiString; const rank: integer): boolean; overload;
+    function AddDestination(ps: TPazoSite; const rank: integer): boolean; overload;
+    constructor Create(pazo: TPazo; const Name, maindir: AnsiString);
     destructor Destroy; override;
     procedure ParseXdupe(const netname, channel: AnsiString; dir, resp: AnsiString; added: boolean = False);
     function ParseDupe(const netname, channel: AnsiString; dir, filename: AnsiString; byme: boolean): boolean; overload;
@@ -98,7 +98,7 @@ type
     function SetFileError(const netname, channel, dir, filename: AnsiString): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: AnsiString;
     function Allfiles: AnsiString;
-    procedure SetComplete(cdno: AnsiString);
+    procedure SetComplete(const cdno: AnsiString);
     function StatusText: AnsiString;
     procedure Clear;
   private
@@ -154,22 +154,22 @@ type
     cache_files: TStringList;
 
     function allfiles: integer;
-    procedure SiteDown(sitename: AnsiString);
+    procedure SiteDown(const sitename: AnsiString); //< searches for sitename via TPazo.FindSite and calls TPazoSite.MarkSiteAsFailed
     procedure Clear;
     function StatusText: AnsiString;
     function Age: integer;
     function AsText: AnsiString;
     function RoutesText: AnsiString;
-    function Stats(console: boolean; withdirlist: boolean = True): AnsiString;
+    function Stats(const console: boolean; withdirlist: boolean = True): AnsiString;
     function FullStats: AnsiString;
-    constructor Create(rls: TRelease; pazo_id: integer);
+    constructor Create(rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
-    function FindSite(sitename: AnsiString): TPazoSite;
-    function AddSite(sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
+    function FindSite(const sitename: AnsiString): TPazoSite;
+    function AddSite(const sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
     function AddSites(): boolean;
     function AddSitesForSpread(): boolean;
-    function PFileSize(dir, filename: AnsiString): Int64;
-    function PRegisterFile(dir, filename: AnsiString; filesize: Int64): integer;
+    function PFileSize(const dir, filename: AnsiString): Int64;
+    function PRegisterFile(const dir, filename: AnsiString; const filesize: Int64): integer;
   end;
 
 function FindPazoById(const id: integer): TPazo;
@@ -183,15 +183,15 @@ function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
 implementation
 
-uses SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
-  taskrace, mystrings, irc, sltcp, slhelper,
-  Math, helper, taskpretime, configunit, mrdohutils, console, RegExpr, statsunit;
+uses
+  SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
+  taskrace, mystrings, irc, sltcp, slhelper, Math, helper, taskpretime, configunit,
+  mrdohutils, console, RegExpr, statsunit;
 
 const
   section = 'pazo';
 
 var
-  //    pazos: TObjectList;
   local_pazo_id: integer;
 
 
@@ -635,7 +635,7 @@ end;
 // TODO: Remove it add replace all calls to AddSite with TPazoSite.Create(self, s.Name, sectiondir);
 // TPazo.AddSites is used from kb_AddB, which calls TPazoSite.Create()
 // Sometime before TPazoSite.AddSites called AddSite but was changed to create TPazoSite instantly!
-function TPazo.AddSite(sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
+function TPazo.AddSite(const sitename, maindir: AnsiString; delay: boolean = True): TPazoSite;
 begin
   Result := TPazoSite.Create(self, sitename, maindir);
   if delay then
@@ -730,12 +730,11 @@ begin
 
 end;
 
-function TPazo.PRegisterFile(dir, filename: AnsiString; filesize: Int64): integer;
+function TPazo.PRegisterFile(const dir, filename: AnsiString; const filesize: Int64): integer;
 var
   i: integer;
   cache_file: TCacheFile;
 begin
-  //  Result:= filesize;
   try
     cs.Enter;
     try
@@ -744,6 +743,7 @@ begin
       begin
         cache_file := TCacheFile.Create(dir, filename, filesize);
         cache_files.AddObject(dir + '/' + filename, cache_file);
+
         Result := filesize;
       end
       else
@@ -753,6 +753,7 @@ begin
         begin
           cache_file.filesize := filesize;
         end;
+
         Result := cache_file.filesize;
       end;
     finally
@@ -767,7 +768,7 @@ begin
   end;
 end;
 
-function TPazo.PFileSize(dir, filename: AnsiString): Int64;
+function TPazo.PFileSize(const dir, filename: AnsiString): Int64;
 var
   i: integer;
 begin
@@ -779,16 +780,14 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.PFileSize: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazo.PFileSize: %s', [e.Message]));
       Result := -1;
     end;
   end;
 end;
 
-constructor TPazo.Create(rls: TRelease; pazo_id: integer);
+constructor TPazo.Create(rls: TRelease; const pazo_id: integer);
 begin
-  //  Debug(dpSpam, section, 'TPazo.Create: %s', [rls.rlsname]);
   if rls <> nil then
   begin
     Debug(dpSpam, section, 'TPazo.Create: %s', [rls.rlsname]);
@@ -842,7 +841,7 @@ begin
   inherited;
 end;
 
-function TPazo.FindSite(sitename: AnsiString): TPazoSite;
+function TPazo.FindSite(const sitename: AnsiString): TPazoSite;
 var
   i: integer;
 begin
@@ -865,8 +864,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
       Result := nil;
     end;
   end;
@@ -875,8 +873,6 @@ end;
 procedure TPazo.QueueEvent(Sender: TObject; Value: integer);
 var
   s: AnsiString;
-  ps: TPazoSite;
-  i: Integer;
 begin
   if Value < 0 then
     Value := 0;
@@ -890,9 +886,11 @@ begin
   begin
     readyat := Now();
     ready := True;
+
     if ((not slshutdown) and (rls <> nil)) then
     begin
       Debug(dpSpam, section, 'Number of pazo tasks is now zero! ' + IntToStr(pazo_id));
+
       if not stopped then
       begin
         // display race stats on console
@@ -975,7 +973,7 @@ begin
   end;
 end;
 
-function TPazo.Stats(console: boolean; withdirlist: boolean = True): AnsiString;
+function TPazo.Stats(const console: boolean; withdirlist: boolean = True): AnsiString;
 var
   i, numComplete: integer;
   ps: TPazoSite;
@@ -1207,7 +1205,7 @@ begin
   end;
 end;
 
-procedure TPazo.SiteDown(sitename: AnsiString);
+procedure TPazo.SiteDown(const sitename: AnsiString);
 var
   ps: TPazoSite;
 begin
@@ -1223,7 +1221,7 @@ end;
 
 { TPazoSite }
 
-function TPazoSite.AddDestination(sitename: AnsiString; rank: integer): boolean;
+function TPazoSite.AddDestination(const sitename: AnsiString; const rank: integer): boolean;
 var
   ps: TPazoSite;
 begin
@@ -1247,7 +1245,7 @@ begin
     pazo.errorreason := 'AddDest - PazoSite is NIL';
 end;
 
-function TPazoSite.AddDestination(ps: TPazoSite; rank: integer): boolean;
+function TPazoSite.AddDestination(ps: TPazoSite; const rank: integer): boolean;
 var
   i: integer;
 begin
@@ -1300,7 +1298,7 @@ begin
   end;
 end;
 
-constructor TPazoSite.Create(pazo: TPazo; Name, maindir: AnsiString);
+constructor TPazoSite.Create(pazo: TPazo; const Name, maindir: AnsiString);
 begin
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
   inherited Create;
@@ -1367,7 +1365,7 @@ begin
   inherited;
 end;
 
-function TPazoSite.MkdirReady(dir: AnsiString): boolean;
+function TPazoSite.MkdirReady(const dir: AnsiString): boolean;
 var
   d: TDirList;
 begin
@@ -1400,7 +1398,7 @@ begin
   Result := True;
 end;
 
-function TPazoSite.MkdirError(dir: AnsiString): boolean;
+function TPazoSite.MkdirError(const dir: AnsiString): boolean;
 var
   d: TDirList;
 begin
@@ -1797,7 +1795,7 @@ begin
   Result := (status = rssAllowed) or Complete;
 end;
 
-procedure TPazoSite.SetComplete(cdno: AnsiString);
+procedure TPazoSite.SetComplete(const cdno: AnsiString);
 var
   i: integer;
   d: TDirlist;

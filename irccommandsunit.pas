@@ -779,7 +779,7 @@ function IrcInsSection(const Netname, Channel: AnsiString; params: AnsiString): 
 var
   section, toadd: AnsiString;
   nsecs, osecs: TStringList;
-  ini: TInifile;
+//  ini: TInifile;
   x:TStringList;
   i: integer;
 begin
@@ -2507,7 +2507,7 @@ function IrcSslmethod(const Netname, Channel: AnsiString; params: AnsiString): b
 var
   method, sitename: AnsiString;
   s: TSite;
-  i, v: integer;
+  i: integer;
   x: TStringList;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -2516,8 +2516,7 @@ begin
 
   if ((method <> '') and ((i < 0) or (i > Integer(High(TSSLMethods))))) then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.',
-      [method]);
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.', [method]);
     Result := True;
     Exit;
   end;
@@ -2531,9 +2530,10 @@ begin
         Continue;
       if s.PermDown then
         Continue;
-      if method <> '' then s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
-      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
-        sslMethodToSTring(s)]);
+      if method <> '' then
+        s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
+
+      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
     end;
   end
   else
@@ -2545,15 +2545,17 @@ begin
       s := FindSiteByName(Netname, x.Strings[i]);
       if s = nil then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [x.Strings[i]]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
         Continue;
       end;
-     if method <> '' then s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
-      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename,
-        sslMethodToSTring(s)]);
+
+      if method <> '' then
+        s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
+
+      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
     end;
   end;
+
   Result := True;
 end;
 
@@ -5828,7 +5830,7 @@ begin
     IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
       '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
     IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
-      'PD(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
+      '<c5>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
     sup.Free;
     spd.Free;
@@ -11072,15 +11074,13 @@ begin
   Result := True;
 end;
 
-function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   RulesReload;
   Result := True;
 end;
 
-function parseSTATLine(sitename, line: AnsiString; includeLastCredits: boolean = false):
-  AnsiString;
+function parseSTATLine(sitename, line: AnsiString; includeLastCredits: boolean = false): AnsiString;
 var
   x: TRegExpr;
   ss, creds, ratio: AnsiString;

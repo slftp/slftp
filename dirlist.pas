@@ -46,11 +46,11 @@ type
     procedure CalcCDNumber;
     function Extension: AnsiString;
 
-    constructor Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False); overload;
+    constructor Create(const filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
 
-    procedure SetDirectory(value: Boolean);
+    procedure SetDirectory(const value: Boolean);
     property Directory: Boolean read fDirectory write SetDirectory;
 
     procedure SetDirType(value: TDirType);
@@ -122,8 +122,8 @@ type
     function No_NotSkiplisted: Integer;
     function firstfile: TDateTime;
     function lastfile: TDateTime;
-    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
-    constructor Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; const s: AnsiString; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -132,7 +132,7 @@ type
     procedure Sort;
     procedure SortByModify;
 
-    procedure SetFullPath(value: AnsiString);
+    procedure SetFullPath(const value: AnsiString);
 
     function RegenerateSkiplist: Boolean;
 
@@ -145,9 +145,9 @@ type
     procedure Usefulfiles(out files: Integer; out size: Int64);
 
     function FindNfo: TDirListEntry;
-    function Find(filename: AnsiString): TDirListEntry;
+    function Find(const filename: AnsiString): TDirListEntry;
 
-    function FindDirlist(dirname: AnsiString; createit: Boolean = False): TDirList;
+    function FindDirlist(const dirname: AnsiString; createit: Boolean = False): TDirList;
     function Done: Integer;
     function RacedByMe(only_useful: boolean = False): Integer;
     function SizeRacedByMe(only_useful: boolean = False): Int64;
@@ -168,9 +168,11 @@ var
 
 implementation
 
-uses SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, BeRoHighResolutionTimer;
+uses
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
 
-const section = 'dirlist';
+const
+  section = 'dirlist';
 
 {$I common.inc}
 
@@ -330,13 +332,14 @@ begin
   cache_completed := Result;
 end;
 
-constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
   Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
 end;
 
-constructor TDirList.Create(site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; s: AnsiString; SpeedTest: boolean = False; FromIrc: boolean = False);
-var sf: TSkipListFilter;
+constructor TDirList.Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; const s: AnsiString; SpeedTest: boolean = False; FromIrc: boolean = False);
+var
+  sf: TSkipListFilter;
 begin
   dirlist_lock := TCriticalSection.Create;
 
@@ -545,11 +548,11 @@ end;
 
 class function TDirlist.Timestamp(ts: AnsiString): TDateTime;
 const
-  Months: array[1..12] of AnsiString =
-    ('Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
-var s1,s2,s3: AnsiString;
-   l, ev, ora,perc, honap, nap, i: Integer;
-   evnelkul: Boolean;
+  Months: array[1..12] of AnsiString = ('Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+var
+  s1,s2,s3: AnsiString;
+  l, ev, ora,perc, honap, nap, i: Integer;
+  evnelkul: Boolean;
 begin
   Result := 0;
 
@@ -557,21 +560,24 @@ begin
   s2 := Fetch(ts, ' ');
   s3 := Fetch(ts, ' ');
 
-  if s3 = '' then exit;
+  if s3 = '' then
+    exit;
 
-  honap:= 0;
-   for i:=1 to 12 do
+  honap := 0;
+   for i := 1 to 12 do
    begin
      if (Months[i] = s1) then
      begin
-       honap:= i;
+       honap := i;
        Break;
      end;
   end;
-  if (honap = 0) then exit;
+  if (honap = 0) then
+    exit;
 
-  nap:= StrToIntDef(s2, 0);
-  if ((nap < 1) or (nap > 31)) then exit;
+  nap := StrToIntDef(s2, 0);
+  if ((nap < 1) or (nap > 31)) then
+    exit;
 
 
   l:= length(s3);
@@ -593,10 +599,11 @@ begin
     perc:= StrToIntDef(Copy(s3,4,2),0);
     if not TryEncodeDateTime(YearOf(Now()), honap, nap, ora, perc, 0, 0, Result) then
       exit;
-  end else
+  end
+  else
     exit;
 
-  if((Result > Now)and(evnelkul)) then
+  if ((Result > Now) and (evnelkul)) then
     TryEncodeDateTime(YearOf(Now)-1, honap, nap, ora, perc,0,0, Result);
 
 end;
@@ -1114,9 +1121,6 @@ begin
 end;
 
 procedure TDirList.Sort();
-var
-  hrt: THighResolutionTimer;
-  st1, et1, st2, et2: Int64;
 begin
   dirlist_lock.Enter;
   try
@@ -1192,13 +1196,14 @@ begin
   end;
 end;
 
-function TDirList.Find(filename: AnsiString): TDirListEntry;
+function TDirList.Find(const filename: AnsiString): TDirListEntry;
 var
   i: Integer;
   de: TDirListEntry;
 begin
   Result := nil;
-  if entries.Count = 0 then exit;
+  if entries.Count = 0 then
+    exit;
 
   dirlist_lock.Enter;
   try
@@ -1232,7 +1237,7 @@ begin
     parent.dirlist.LastChanged:= fLastChanged;
 end;
 
-function TDirList.FindDirlist(dirname: AnsiString; createit: Boolean = False): TDirList;
+function TDirList.FindDirlist(const dirname: AnsiString; createit: Boolean = False): TDirList;
 var
   p: Integer;
   firstdir, lastdir: AnsiString;
@@ -1660,7 +1665,7 @@ begin
   end;
 end;
 
-procedure TDirList.SetFullPath(value: AnsiString);
+procedure TDirList.SetFullPath(const value: AnsiString);
 begin
   self.full_path := value;
 end;
@@ -1710,7 +1715,7 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
+constructor TDirListEntry.Create(const filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1821,10 +1826,11 @@ begin
 end;
 
 
-procedure TDirListEntry.SetDirectory(value: Boolean);
+procedure TDirListEntry.SetDirectory(const value: Boolean);
 begin
   fDirectory := value;
-  if directory then CalcCDNumber;
+  if directory then
+    CalcCDNumber;
 end;
 
 procedure TDirListEntry.SetDirType(value: TDirType);
