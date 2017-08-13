@@ -569,7 +569,7 @@ const
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: 'info'),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: 'info'),
     (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
@@ -6112,11 +6112,25 @@ begin
 end;
 
 function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  ss, sitename: AnsiString;
+  s: TSite;
 begin
   Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.',
+      [sitename]);
+    exit;
+  end;
 
-  irc_addtext(Netname, Channel, '<b><c4>NOPE</c></b>: Command disabled at the moment. Use <b>!setaffils</b>');
-  Result:= True;
+  ss := s.SiteAffils;
+  if ss <> '' then
+  IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',['', sitename]), 12) else
+  irc_addText(Netname, Channel, 'No affils available.');
+  Result := True;
 end;
 
 function IrcSetAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
