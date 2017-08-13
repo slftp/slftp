@@ -145,7 +145,7 @@ function IrcRulesLoad(const netname, channel: AnsiString; params: AnsiString): b
 function IrcRulesReload(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-//function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcInfo(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -352,7 +352,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..247] of TIrcCommand = (
+  irccommands: array[1..248] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -570,6 +570,7 @@ const
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
+    (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
     (cmd: 'notes'; hnd: IrcNotes; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
@@ -6111,6 +6112,14 @@ begin
 end;
 
 function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+
+  irc_addtext(Netname, Channel, '<b><c4>NOPE</c></b>: Command disabled at the moment. Use <b>!setaffils</b>');
+  Result:= True;
+end;
+
+function IrcSetAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   affils, ss, sitename: AnsiString;
   s: TSite;
@@ -6122,8 +6131,7 @@ begin
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.',
-      [sitename]);
+    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.', [sitename]);
     exit;
   end;
 
@@ -6136,12 +6144,6 @@ begin
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
   else
     irc_addText(Netname, Channel, 'No affils available.');
-  (*
-    ss := s.siteaffils;
-    if ss <> '' then
-      IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',
-        ['', sitename]), 12);
-        *)
   Result := True;
 end;
 
