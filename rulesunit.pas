@@ -299,25 +299,25 @@ type
 
     function Execute(r: TPazo): TRuleAction;
 
-    function AsText(includeSitesection: boolean): AnsiString;
+    function AsText(const includeSitesection: boolean): AnsiString;
     procedure Reparse(rule: AnsiString);
-    constructor Create(rule: AnsiString);
+    constructor Create(const rule: AnsiString);
     destructor Destroy; override;
   end;
 
-procedure RulesRemove(sitename, section: AnsiString);
+procedure RulesRemove(const sitename, section: AnsiString);
 procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
-procedure RulesLoad(action, filename: AnsiString);
-function AddRule(rule: AnsiString; var error: AnsiString): TRule;
+procedure RulesLoad(const action, filename: AnsiString);
+function AddRule(const rule: AnsiString; var error: AnsiString): TRule;
 procedure RulesOrder(p: TPazo);
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
 procedure RulesUninit;
 
-function FindConditionClassByName(Name: AnsiString): TConditionClass;
+function FindConditionClassByName(const Name: AnsiString): TConditionClass;
 
 var
   rules: TObjectList;
@@ -326,9 +326,9 @@ var
 
 implementation
 
-uses SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit,
-  configunit, knowngroups, DateUtils
-{$IFDEF MSWINDOWS}, Windows{$ENDIF};
+uses
+  SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit,
+  knowngroups, DateUtils {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   dsection = 'rules';
@@ -2304,12 +2304,13 @@ begin
   end;
 end;
 
-procedure RulesRemove(sitename, section: AnsiString);
+procedure RulesRemove(const sitename, section: AnsiString);
 var
   i: integer;
   r: TRule;
 begin
   i := 0;
+
   while (i < rules.Count) do
   begin
     r := TRule(rules[i]);
@@ -2318,11 +2319,12 @@ begin
       rules.Remove(r);
       Dec(i);
     end;
+
     Inc(i);
   end;
 end;
 
-function AddRule(rule: AnsiString; var error: AnsiString): TRule;
+function AddRule(const rule: AnsiString; var error: AnsiString): TRule;
 var
   r: TRule;
 begin
@@ -2338,7 +2340,7 @@ begin
     Result := r;
 end;
 
-procedure RulesLoad(action, filename: AnsiString);
+procedure RulesLoad(const action, filename: AnsiString);
 var
   fst: TStringList;
   i: integer;
@@ -3749,14 +3751,17 @@ end;
 
 { TRule }
 
-function TRule.AsText(includeSitesection: boolean): AnsiString;
+function TRule.AsText(const includeSitesection: boolean): AnsiString;
 begin
   Result := '';
+
   if includeSitesection then
     Result := sitename + ' ' + section + ' ';
+
   Result := Result + 'if ' + conditions.AsText;
 
   Result := Result + ' then ';
+
   if action = raDrop then
     Result := Result + 'DROP'
   else if action = raDontmatch then
@@ -3765,7 +3770,7 @@ begin
     Result := Result + 'ALLOW';
 end;
 
-constructor TRule.Create(rule: AnsiString);
+constructor TRule.Create(const rule: AnsiString);
 begin
   error := '';
   reparse(rule);
@@ -5203,7 +5208,7 @@ begin
     Result := TMVIDRelease(r.rls).mvid_live;
 end;
 
-function FindConditionClassByName(Name: AnsiString): TConditionClass;
+function FindConditionClassByName(const Name: AnsiString): TConditionClass;
 var
   i: integer;
 begin
