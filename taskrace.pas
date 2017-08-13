@@ -856,7 +856,7 @@ begin
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
-              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, aktdir]);
             end;
             failure := True;
           end
@@ -869,7 +869,7 @@ begin
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
-              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, aktdir]);
             end;
             // TODO for Read-only file system: setdown site, no transfer possible but more checking needed if it's only for current directory or for whole site
             // TODO for No space left on device: Setdown site
@@ -896,7 +896,7 @@ begin
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
-              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s',[s.Name, s.lastResponse]);
+              irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, aktdir]);
             end;
             failure := True;
           end
