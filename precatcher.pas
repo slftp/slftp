@@ -533,7 +533,7 @@ begin
       MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
 
 
-
+      MyDebug('Checking main stripped line for ignore words.');
       // ignorewords check
       // word by word check for single words
       for i := 0 to ts_data.Count - 1 do
