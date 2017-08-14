@@ -46,9 +46,11 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
-    {+} x
-    {#} y
-    {^} all irc commands should be in alphabetical order (#163)
+    {^} Requests can be filled from sites without checking the routes. New slftp.ini parameter 
+        only_use_routable_sites_on_reqfill=0 (#168)
+    {^} All irc commands should be in alphabetical order (#163)
+    {+} foo
+    {#} bar
     {-} !
 
 --=============================( SLFTP v1.5.5 )===================================-

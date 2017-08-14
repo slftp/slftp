@@ -101,8 +101,11 @@ begin
       site := FindSiteByName(netname, sitename);
       notdown := ((site <> nil) and (site.working <> sstDown));
 
-      // most megnezzuk vezet a route    -- Now look at the route leads
-      if ((notdown) and (0 < sitesdat.ReadInteger('speed-from-' + sitename, site1, 0))) then
+
+      if ((notdown) and (
+        (0 < sitesdat.ReadInteger('speed-from-' + sitename, site1, 0)) or
+        (config.ReadBool('kb', 'only_use_routable_sites_on_reqfill', False))
+        )) then
       begin
         inc(db);
         inc(i);
