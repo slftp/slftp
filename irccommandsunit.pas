@@ -145,7 +145,6 @@ function IrcRulesLoad(const netname, channel: AnsiString; params: AnsiString): b
 function IrcRulesReload(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcToggleAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -353,7 +352,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..249] of TIrcCommand = (
+  irccommands: array[1..248] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -570,8 +569,7 @@ const
     (cmd: 'info'; hnd: IrcInfo; minparams: 1; maxparams: 1; hlpgrp: 'info'),
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
-    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: 'info'),
-    (cmd: 'toggleaffils'; hnd: IrcToggleAffils; minparams: 1; maxparams: -1; hlpgrp: 'info'),
+    (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
@@ -6114,41 +6112,18 @@ begin
     Result := slshutdown;
   end;
 end;
-
-function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  ss, sitename: AnsiString;
-  s: TSite;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.',
-      [sitename]);
-    exit;
-  end;
-
-  ss := s.SiteAffils;
-  if ss <> '' then
-  IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ',['', sitename]), 12) else
-  irc_addText(Netname, Channel, 'No affils available.');
-  Result := True;
-end;
-
-function IrcToggleAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
+function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;var
   affils_new, affils_old, ss, sitename: AnsiString;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
   i: integer;
 begin
   Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   affils_new := mystrings.RightStr(params, length(sitename) + 1);
-  s := FindSiteByName(Netname, sitename);
 
+  s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
     irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Site <b>%s</b> not found.', [sitename]);
@@ -6169,27 +6144,23 @@ begin
       TStringList_affils_old.Sort;
       TStringList_affils_old.DelimitedText := s.SiteAffils;
 
-      for i := 0 to TStringList_affils_new.Count-1 do
+      for i := 0 to TStringList_affils_new.Count - 1 do
       begin
         if (TStringList_affils_old.IndexOf(TStringList_affils_new[i]) <> -1) then
         Begin
-            TStringList_affils_old.Delete(TStringList_affils_old.IndexOf(TStringList_affils_new[i]));
+          TStringList_affils_old.Delete(TStringList_affils_old.IndexOf(TStringList_affils_new[i]));
         End
         else
         begin
-           TStringList_affils_old.Add(TStringList_affils_new[i]);
+          TStringList_affils_old.Add(TStringList_affils_new[i]);
         end
       end;
 
-      finally
-      begin
-        s.SiteAffils := TStringList_affils_old.DelimitedText;
-        TStringList_affils_new.Free;
-        TStringList_affils_old.Free;
-      end;
-
+      s.SiteAffils := TStringList_affils_old.DelimitedText;
+    finally
+      TStringList_affils_new.Free;
+      TStringList_affils_old.Free;
     end;
-
   end;
 
   ss := s.SiteAffils;
@@ -6222,11 +6193,14 @@ begin
   begin
     s.siteAffils := affils;
   end;
+
   ss := s.SiteAffils;
+
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
   else
     irc_addText(Netname, Channel, 'No affils available.');
+
   Result := True;
 end;
 
