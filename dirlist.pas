@@ -1005,7 +1005,7 @@ begin
       i2IsImage := AnsiMatchText(i2.Extension, ImageFileExtensions);
       if (i1IsImage) or (i2IsImage) then
       begin
-        image_files_priority := config.ReadInteger('queue', 'image_files_priority', 0);
+        image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
         if (image_files_priority > 0) and (image_files_priority <= 2) then
           if ((i1IsImage) and (not i2IsImage)) then
             case image_files_priority of
@@ -1027,7 +1027,7 @@ begin
       i2IsVideo := AnsiMatchText(i2.Extension, VideoFileExtensions);
       if (i1IsVideo) or (i2IsVideo) then
       begin
-        video_files_priority := config.ReadInteger('queue', 'video_files_priority', 0);
+        video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
         if (video_files_priority > 0) and (video_files_priority <= 2) then
           if ((i1IsVideo) and (not i2IsVideo)) then
             case video_files_priority of

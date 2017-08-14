@@ -231,7 +231,7 @@ var
       // Proof priority
       if (tpr1.IsProof) or (tpr2.IsProof) then
       begin
-        proof_dirs_priority := config.ReadInteger('queue', 'proof_dirs_priority', 0);
+        proof_dirs_priority := config.ReadInteger('queue', 'proof_dirs_priority', 2);
         if ((proof_dirs_priority > 0) and (proof_dirs_priority <= 2)) then
           if ((tpr1.IsProof) and (not tpr2.IsProof)) then
             case proof_dirs_priority of
@@ -251,7 +251,7 @@ var
       // Subs priority
       if (tpr1.IsSubs) or (tpr2.IsSubs) then
       begin
-        subs_dirs_priority := config.ReadInteger('queue', 'subs_dirs_priority', 0);
+        subs_dirs_priority := config.ReadInteger('queue', 'subs_dirs_priority', 2);
         if ((subs_dirs_priority > 0) and (subs_dirs_priority <= 2)) then
           if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
             case subs_dirs_priority of
@@ -271,7 +271,7 @@ var
       // Covers priority
       if (tpr1.IsCovers) or (tpr2.IsCovers) then
       begin
-        cover_dirs_priority := config.ReadInteger('queue', 'cover_dirs_priority', 0);
+        cover_dirs_priority := config.ReadInteger('queue', 'cover_dirs_priority', 2);
         if ((cover_dirs_priority > 0) and (cover_dirs_priority <= 2)) then
           if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
             case cover_dirs_priority of
@@ -856,7 +856,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;      
+        queueth.main_lock.Leave;
       end;
     except
       on E: Exception do
@@ -900,7 +900,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;      
+        queueth.main_lock.Leave;
       end;
     except
       on E: Exception do
