@@ -10,7 +10,7 @@ all: slftp install
 
 all_32: slftp_32 install
 
-all_64: slftp_64 insall
+all_64: slftp_64 install
 slftp:
 	make clean
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
