@@ -6847,17 +6847,17 @@ begin
   Result := True;
 end;
 
-function IrcAutoBnctest(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+// TODO: add a property in TSite for autobnctest
+function IrcAutoBnctest(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   status: integer;
   s: TSite;
-  kell: boolean;
+  enableAutobnctest: boolean;
   i: integer;
   x: TStringList;
 begin
-  //  Result   := True;
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
 
@@ -6865,19 +6865,19 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
 
-      kell := False;
+      enableAutobnctest := False;
       if status > -1 then
       begin
         if status <> 0 then
         begin
           if TSite(sites.Items[i]).RCInteger('autobnctest', 0) <= 0 then
-            kell := True;
+            enableAutobnctest := True;
+
           TSite(sites.Items[i]).WCInteger('autobnctest', status);
         end
         else
@@ -6886,18 +6886,15 @@ begin
           TSite(sites.Items[i]).RemoveAutoBnctest;
         end;
       end;
-      irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d',
-        [TSite(sites.Items[i]).Name, TSite(sites.Items[i])
-        .RCInteger('autobnctest', 0)]);
 
-      if kell then
+      irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).RCInteger('autobnctest', 0)]);
+
+      if enableAutobnctest then
         TSite(sites.Items[i]).AutoBnctest;
     end;
-    //    Result := True;
   end
   else
   begin
-
     x := TStringList.Create;
     try
       x.commatext := sitename;
@@ -6906,26 +6903,24 @@ begin
         s := FindSiteByName(Netname, x.Strings[i]);
         if s = nil then
         begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-            [x.Strings[i]]);
-
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
           Continue;
         end;
 
         if (s.PermDown) then
         begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.',
-            [x.Strings[i]]);
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set to PermDown.', [x.Strings[i]]);
           Continue;
         end;
 
-        kell := False;
+        enableAutobnctest := False;
         if status > -1 then
         begin
           if status <> 0 then
           begin
             if s.RCInteger('autobnctest', 0) <= 0 then
-              kell := True;
+              enableAutobnctest := True;
+
             s.WCInteger('autobnctest', status);
           end
           else
@@ -6934,17 +6929,17 @@ begin
             s.RemoveAutoBnctest;
           end;
         end;
-        irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d',
-          [sitename, s.RCInteger('autobnctest', 0)]);
 
-        if kell then
+        irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [sitename, s.RCInteger('autobnctest', 0)]);
+
+        if enableAutobnctest then
           s.AutoBnctest;
       end;
-
     finally
       x.Free;
     end;
   end;
+
   Result := True;
 end;
 
@@ -11308,8 +11303,7 @@ begin
   Result := True;
 end;
 
-function Ircaddknowngroup(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function Ircaddknowngroup(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   section, glist: AnsiString;
   y, x: TStringList;
@@ -11324,23 +11318,27 @@ begin
     irc_addtext(Netname, Channel, 'Section <b>%s</b> not found!', [section]);
     exit;
   end;
+
   x := TStringList.Create;
   y := TStringList.Create;
   try
     x.Delimiter := ' ';
     x.DelimitedText := glist;
     y.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.knowngroups');
+
     for i := 0 to x.Count - 1 do
     begin
       if IsKnownGroup(section, x.Strings[i]) <> grp_known then
         y.Values[section] := y.Values[section] + ' ' + x.Strings[i];
     end;
+
     y.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.knowngroups');
     KnownGroupsStart;
   finally
     x.Free;
     y.Free;
   end;
+
   Result := True;
 end;
 
