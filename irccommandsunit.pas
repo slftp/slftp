@@ -6187,7 +6187,9 @@ begin
         TStringList_affils_new.Free;
         TStringList_affils_old.Free;
       end;
+
     end;
+
   end;
 
   ss := s.SiteAffils;
