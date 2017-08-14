@@ -865,12 +865,12 @@ end;
 
 procedure _updateToV3;
 begin
-tvinfodb.ExecSQL('ALTER TABLE infos ADD COLUMN tv_language TEXT;');
-tvinfodb.ExecSQL('PRAGMA user_version = 3;');
+  tvinfodb.ExecSQL('ALTER TABLE infos ADD COLUMN tv_language TEXT;');
+  tvinfodb.ExecSQL('PRAGMA user_version = 3;');
 end;
 
 procedure dbTVInfoStart;
-const currentDbVersion:integer = 3;
+const currentDbVersion: integer = 3;
 var
   db_name, db_params: AnsiString;
   user_version: Psqlite3_stmt;
@@ -886,13 +886,12 @@ begin
     if tvinfodb.Step(user_version) then
       uV := StrToIntDef(tvinfodb.column_text(user_version, 0), -1);
     if not tvinfodb.Close(user_version) then
-      Irc_AddAdmin('konnte user_version nicht closen...');
+      Irc_AddAdmin('Unable to close user_version...');
 
-case uV of
-  0:tvinfodb.ExecSQL(Format('PRAGMA user_version = %d;',[currentDbVersion]));
-  2:_updateToV3;
-end;
-
+    case uV of
+      0: tvinfodb.ExecSQL(Format('PRAGMA user_version = %d;', [currentDbVersion]));
+      2: _updateToV3;
+    end;
 
     tvinfodb.ExecSQL('CREATE TABLE IF NOT EXISTS "series" ("rip"  TEXT NOT NULL,"showname"  TEXT NOT NULL,"rip_country"  TEXT,"tvmaze_url"  TEXT,"id"  INTEGER NOT NULL,PRIMARY KEY ("rip"));');
 
@@ -903,7 +902,6 @@ end;
 
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
     tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
-
   end;
 
   Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
@@ -911,7 +909,6 @@ end;
 
 procedure dbTVInfoInit;
 begin
-
   addtinfodbcmd := config.ReadString(section, 'addcmd', '!addtvmaze');
 end;
 
