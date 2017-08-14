@@ -571,7 +571,7 @@ const
     (cmd: 'name'; hnd: IrcName; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'link'; hnd: IrcLink; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'affils'; hnd: IrcAffils; minparams: 1; maxparams: 1; hlpgrp: 'info'),
-    (cmd: 'toggleaffils'; hnd: IrcToggleAffils; minparams: 2; maxparams: 2; hlpgrp: 'info'),
+    (cmd: 'toggleaffils'; hnd: IrcToggleAffils; minparams: 1; maxparams: -1; hlpgrp: 'info'),
     (cmd: 'setaffils'; hnd: IrcSetAffils; minparams: 1; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'size'; hnd: IrcSize; minparams: 2; maxparams: - 1; hlpgrp: 'info'),
     (cmd: 'country'; hnd: IrcCountry; minparams: 2; maxparams: 2; hlpgrp: 'info'),
@@ -6141,7 +6141,7 @@ end;
 var
   affils_new, affils_old, ss, sitename: AnsiString;
   s: TSite;
-  TList_affils_new, TList_affils_old: TStringList;
+  TStringList_affils_new, TStringList_affils_old: TStringList;
   i: integer;
 begin
   Result := False;
@@ -6157,36 +6157,40 @@ begin
 
   if affils_new <> '' then
   begin
-    TList_affils_new := TStringList.Create;
-    TList_affils_old := TStringList.Create;
+    TStringList_affils_new := TStringList.Create;
+    TStringList_affils_old := TStringList.Create;
     try
-      TList_affils_new.Delimiter := ' ';
-      TList_affils_new.CaseSensitive := False;
-      TList_affils_new.DelimitedText := affils_new;
+      TStringList_affils_new.Delimiter := ' ';
+      TStringList_affils_new.CaseSensitive := False;
+      TStringList_affils_new.DelimitedText := affils_new;
 
-      TList_affils_old.Delimiter := ' ';
-      TList_affils_old.CaseSensitive := False;
-      TList_affils_old.DelimitedText := s.SiteAffils;
+      TStringList_affils_old.Delimiter := ' ';
+      TStringList_affils_old.CaseSensitive := False;
+      TStringList_affils_old.Sort;
+      TStringList_affils_old.DelimitedText := s.SiteAffils;
 
-      for i := 0 to TList_affils_new.Count-1 do
+      for i := 0 to TStringList_affils_new.Count-1 do
       begin
-        if (TList_affils_old.IndexOf(TList_affils_new[i]) <> -1) then
+        if (TStringList_affils_old.IndexOf(TStringList_affils_new[i]) <> -1) then
         Begin
-            TList_affils_old.Delete(TList_affils_old.IndexOf(TList_affils_new[i]));
+            TStringList_affils_old.Delete(TStringList_affils_old.IndexOf(TStringList_affils_new[i]));
         End
         else
         begin
-           TList_affils_old.Add(TList_affils_new[i]);
+           TStringList_affils_old.Add(TStringList_affils_new[i]);
         end
       end;
     finally
       begin
-        s.SiteAffils := TList_affils_old.DelimitedText;
-        TList_affils_new.Free;
-        TList_affils_old.Free;
+        s.SiteAffils := TStringList_affils_old.DelimitedText;
+        TStringList_affils_new.Free;
+        TStringList_affils_old.Free;
       end;
+
     end;
+
   end;
+
   ss := s.SiteAffils;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
