@@ -103,7 +103,7 @@ begin
 
 
       if ((notdown) and (
-        (0 < sitesdat.ReadInteger('speed-from-' + sitename, site1, 0)) or
+        (0 < sitesdat.ReadInteger('speed-from-' + sitename, site1, 0)) or not
         (config.ReadBool('kb', 'only_use_routable_sites_on_reqfill', False))
         )) then
       begin
