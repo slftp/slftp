@@ -6141,7 +6141,7 @@ begin
 
       TStringList_affils_old.Delimiter := ' ';
       TStringList_affils_old.CaseSensitive := False;
-      TStringList_affils_old.Sort;
+      TStringList_affils_old.Sorted := True;
       TStringList_affils_old.DelimitedText := s.SiteAffils;
 
       for i := 0 to TStringList_affils_new.Count - 1 do
