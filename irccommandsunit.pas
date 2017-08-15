@@ -6137,6 +6137,7 @@ begin
     try
       TStringList_affils_new.Delimiter := ' ';
       TStringList_affils_new.CaseSensitive := False;
+      TStringList_affils_new.Sorted := True;
       TStringList_affils_new.Duplicates := dupIgnore;
       TStringList_affils_new.DelimitedText := affils_new;
 
