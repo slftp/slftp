@@ -42,10 +42,12 @@ var
   imdbdata: TDbImdbData;
   rr, rr2: TRegexpr;
   imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang,
-    imdb_genr, imdb_countr, imdb_lang, imdb_region: AnsiString;
+    imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date: AnsiString;
   ir: TImdbRelease;
 
   mainsite, rlsdatesite, businesssite: AnsiString;
+  release_date: TDateTime;
+  formatSettings: TFormatSettings;
 begin
   Result:=False;
 
@@ -351,7 +353,7 @@ begin
     end;
   end;
 
-
+  imdb_date := '';
 
   if not imdb_stv then
   begin
@@ -413,9 +415,31 @@ begin
 
     rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
     if rr.Exec(businesssite) then
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>'
+    begin
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>';
     else
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">([^<>]+' + IntToStr(imdb_year) + ')</a>';
+    begin
+      bom_date := '[^<>]+' + imdb_year;
+      if imdb_date <> '' then
+      begin
+        {$IFDEF MSWINDOWS}
+          GetLocaleFormatSettings(1033, formatSettings);
+        {$ELSE}
+          formatSettings := DefaultFormatSettings;
+        {$ENDIF}
+        formatSettings.ShortDateFormat := 'd mmmm yyyy';
+        release_date := StrToDate(imdb_date, formatSettings);
+        formatSettings.ShortDateFormat := 'mm/dd/yyyy';
+        imdb_date := DateToStr(release_date, formatSettings);
+
+        if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
+          bom_date := imdb_date
+        else
+          bom_date := bom_date + '|' + imdb_date;
+      end;
+
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">(' + bom_date + ')</a>';
+    end;
 
     if rr2.Exec(businesssite) then
     begin
