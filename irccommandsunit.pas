@@ -379,7 +379,7 @@ const
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
     (cmd: 'slots'; hnd: IrcSlots; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
-    (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 2; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     //(cmd: 'setspeedtesttopredir'; hnd: IrcSetSpeedtesttoPredir; minparams: 0; maxparams: 1; hlpgrp:'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),
     (cmd: 'timeout'; hnd: IrcTimeout; minparams: 3; maxparams: 3; hlpgrp: 'site'),
@@ -3479,8 +3479,7 @@ begin
   Result := True;
 end;
 
-function IrcMaxUpPerRip(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcMaxUpPerRip(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   s: TSite;
@@ -3490,9 +3489,9 @@ var
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
-  upperrip := StrToIntDef(SubString(params, ' ', 2), 0);
+  upperrip := StrToIntDef(SubString(params, ' ', 2), -1);
 
-  if (upperrip < 0) then
+  if (upperrip < -1) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
@@ -3502,13 +3501,15 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
-        then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if TSite(sites.Items[i]).PermDown then
         Continue;
 
-      TSite(sites.Items[i]).WCInteger('maxupperrip', upperrip);
+      if (upperrip = -1) then
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> max. up per rip value: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).MaxUpPerRip])
+      else
+        TSite(sites.Items[i]).MaxUpPerRip := upperrip;
     end;
   end
   else
@@ -3524,12 +3525,19 @@ begin
           irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
           Continue;
         end;
-        s.WCInteger('maxupperrip', upperrip);
+        if s.PermDown then
+        Continue;
+
+        if (upperrip = -1) then
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> max. up per rip value: %d', [s.Name, s.MaxUpPerRip])
+        else
+          s.MaxUpPerRip := upperrip;
       end;
     finally
       x.Free;
     end;
   end;
+
   Result := True;
 end;
 
