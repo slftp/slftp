@@ -405,26 +405,51 @@ begin
   end;
 
   s := '0';
-  (*  Get BOX/Business Infos  *)
-  businesssite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/business',
-    '');
-
-  rr.Expression := '\((USA|UK)\)[^\n]*?\(([\d\,\.]+)\s?Screens\)';
-
   imdb_screens := 0;
-  if rr.Exec(businesssite) then
+  (*  Get BOX/Business Infos  *)
+  if config.ReadBool(section, 'parse_boxofficemojo', False) then
   begin
-    repeat
-      s := Csere(rr.Match[2], ',', '');
-      s := Csere(s, '.', '');
+    businesssite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
 
-      Debug(dpSpam, section,
-        Format('TPazoHTTPImdbTask dbaddimdb_SaveImdb: match=%s',
-          [rr.Match[0]]));
+    rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
+    if rr.Exec(businesssite) then
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>';
+    else
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">([^<>]+' + imdb_year + ')</a>';
 
-      if StrToIntDef(s, 0) > imdb_screens then
-        imdb_screens := StrToIntDef(s, 0)
-    until not rr.ExecNext;
+    if rr2.Exec(businesssite) then
+    begin
+      businesssite := slUrlGet('http://www.boxofficemojo.com' + rr2.Match[1], '')
+
+      rr.Expression := '<td>Widest&nbsp;Release:<\/td>\s+<td>(<b>)?&nbsp;([0-9\,]+) theaters(</b>)?</td>';
+      if rr.Exec(businesssite) then begin
+        s := Csere(rr.Match[2], ',', '');
+        if StrToIntDef(s, 0) > imdb_screens then
+          imdb_screens := StrToIntDef(s, 0)
+      end;
+    end;
+
+  end
+  else
+  begin
+    businesssite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/business', '');
+
+    rr.Expression := '\((USA|UK)\)[^\n]*?\(([\d\,\.]+)\s?Screens\)';
+
+    if rr.Exec(businesssite) then
+    begin
+      repeat
+        s := Csere(rr.Match[2], ',', '');
+        s := Csere(s, '.', '');
+
+        Debug(dpSpam, section,
+          Format('TPazoHTTPImdbTask dbaddimdb_SaveImdb: match=%s',
+            [rr.Match[0]]));
+
+        if StrToIntDef(s, 0) > imdb_screens then
+          imdb_screens := StrToIntDef(s, 0)
+      until not rr.ExecNext;
+    end;
   end;
 
   imdbdata.imdb_screens := imdb_screens;
