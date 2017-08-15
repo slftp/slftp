@@ -420,7 +420,7 @@ begin
     end
     else
     begin
-      bom_date := '[^<>]+' + imdb_year;
+      bom_date := '[^<>]+' + IntToStr(imdb_year);
       if imdb_date <> '' then
       begin
         {$IFDEF MSWINDOWS}
