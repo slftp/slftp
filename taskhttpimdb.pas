@@ -413,7 +413,7 @@ begin
 
     rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
     if rr.Exec(businesssite) then
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>';
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>'
     else
       rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">([^<>]+' + imdb_year + ')</a>';
 
