@@ -435,7 +435,7 @@ begin
     rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
     if rr.Exec(businesssite) then
     begin
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>';
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)</font></td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">';
     end
     else
     begin
@@ -458,19 +458,14 @@ begin
           bom_date := bom_date + '|' + imdb_date;
       end;
 
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">(' + bom_date + ')</a>';
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)</font></td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">(' + bom_date + ')</a>';
     end;
 
     if rr2.Exec(businesssite) then
     begin
-      businesssite := slUrlGet('http://www.boxofficemojo.com' + rr2.Match[1], '');
-
-      rr.Expression := '<td>Widest&nbsp;Release:<\/td>\s+<td>(<b>)?&nbsp;([0-9\,]+) theaters(</b>)?</td>';
-      if rr.Exec(businesssite) then begin
-        s := Csere(rr.Match[2], ',', '');
-        if StrToIntDef(s, 0) > imdb_screens then
-          imdb_screens := StrToIntDef(s, 0)
-      end;
+      s := Csere(rr2.Match[3], ',', '');
+      if StrToIntDef(s, 0) > imdb_screens then
+        imdb_screens := StrToIntDef(s, 0)
     end;
   end;
 
