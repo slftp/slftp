@@ -6559,32 +6559,34 @@ var
   db, i: integer;
   ss: AnsiString;
   affil: AnsiString;
+  found: Boolean;
 begin
-  affil := SubString(params, ' ', 1);
+  Result := False;
+  affil := Uppercase(SubString(params, ' ', 1));
 
-  ss := '';
+  ss := 'Sites with Affilgroup <b>' + affil + '</b> are:';
   db := 0;
+  found := False;
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
 
     if s.IsAffil(affil) then
     begin
-      ss := ss + format('<b>%s</b> (%d %d) ', [s.Name, s.FreeTraderSlots,
-        s.FreeLeechSlots]);
+      found := True;
+      ss := ss + Format('%s', [s.Name]);
 
       Inc(db);
-      if db >= 5 then
+      if db >= 10 then
       begin
         irc_addtext(Netname, Channel, ss);
         db := 0;
         ss := '';
       end;
     end;
-
   end;
 
-  if ss <> '' then
+  if found then
     irc_addtext(Netname, Channel, ss);
 
   Result := True;
