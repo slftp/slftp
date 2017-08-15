@@ -417,6 +417,7 @@ begin
     if rr.Exec(businesssite) then
     begin
       rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>';
+    end
     else
     begin
       bom_date := '[^<>]+' + imdb_year;
