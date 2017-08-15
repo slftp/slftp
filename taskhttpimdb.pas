@@ -415,11 +415,11 @@ begin
     if rr.Exec(businesssite) then
       rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>'
     else
-      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">([^<>]+' + imdb_year + ')</a>';
+      rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(/movies/[^<>]*)">[^<>]*</a></font></b></td>(\s*<td[^<>]*>[^\n]*</td>)+\s*<td[^<>]*><font[^<>]*><a href="\/schedule[^\"]+">([^<>]+' + IntToStr(imdb_year) + ')</a>';
 
     if rr2.Exec(businesssite) then
     begin
-      businesssite := slUrlGet('http://www.boxofficemojo.com' + rr2.Match[1], '')
+      businesssite := slUrlGet('http://www.boxofficemojo.com' + rr2.Match[1], '');
 
       rr.Expression := '<td>Widest&nbsp;Release:<\/td>\s+<td>(<b>)?&nbsp;([0-9\,]+) theaters(</b>)?</td>';
       if rr.Exec(businesssite) then begin
