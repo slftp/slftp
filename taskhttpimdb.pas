@@ -367,7 +367,7 @@ begin
 
     if rr.Exec(rlsdatesite) then
     begin
-      imdb_date := Format('%s %s', [Trim(rr.Match[2]), Trim(rr.Match[3]]));
+      imdb_date := Format('%s %s', [Trim(rr.Match[2]), Trim(rr.Match[3])]);
       imdbdata.imdb_stvs := 'Cinedate: ' + imdb_date;
       imdbdata.imdb_stvm := False;
       imdb_stv := False;
