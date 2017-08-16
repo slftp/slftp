@@ -5893,13 +5893,13 @@ begin
     exit;
   end;
 
+// TODO: Rework this and improve helpfile
+
   x := TStringList.Create;
   try
-
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
-    irc_addtext(Netname, Channel, ' name/speed/location/size:B %s / %s / %s / %s',
-      [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
-    irc_addtext(Netname, Channel, ' sections:B %s', [s.sections]);
+    irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s', [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
+    irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
     x.Sort;
@@ -5913,11 +5913,9 @@ begin
     end;
 
     x.DelimitedText := s.leechers;
-    irc_addtext(Netname, Channel, ' leechers (%d/%d):B %s',
-      [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
+    irc_addtext(Netname, Channel, ' leechers (%d/%d):B %s', [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
     x.DelimitedText := s.traders;
-    irc_addtext(Netname, Channel, ' traders (%d/%d):B %s',
-      [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
+    irc_addtext(Netname, Channel, ' traders (%d/%d):B %s', [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
 
     if s.RCString('notes', '') <> '' then
       irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
@@ -6080,6 +6078,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(params);
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -6096,9 +6095,7 @@ begin
     if host = '' then
       break;
 
-    irc_addtext(Netname, Channel, ' bnc: %s:%d',
-      [host, s.RCInteger('bnc_port-' + IntToStr(i), 0)]);
-
+    irc_addtext(Netname, Channel, ' bnc: %s:%d', [host, s.RCInteger('bnc_port-' + IntToStr(i), 0)]);
     Inc(i);
   end;
 
@@ -6114,7 +6111,7 @@ begin
   end;
 end;
 function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;var
-  affils_new, affils_old, ss, sitename: AnsiString;
+  affils_new, affillist, sitename: AnsiString;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
   i: integer;
@@ -6167,10 +6164,10 @@ begin
     end;
   end;
 
-  ss := s.SiteAffils;
+  affillist := s.SiteAffils;
 
-  if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
+  if affillist <> '' then
+    IrcLineBreak(Netname, Channel, affillist, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
   else
     irc_addText(Netname, Channel, 'No affils available.');
 
@@ -6346,7 +6343,8 @@ end;
 
 function IrcLeechers(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  ss, sitename, users: AnsiString;
+  leecherlist, sitename, users: AnsiString;
+  i: Integer;
   s: TSite;
   x: TStringList;
 begin
@@ -6360,7 +6358,7 @@ begin
 
     for i := 0 to x.Count - 1 do
     begin
-      ss = '';
+      leecherlist = '';
 
       s := FindSiteByName(Netname, x.Strings[i]);
       if s = nil then
@@ -6369,10 +6367,10 @@ begin
         Continue;
       end;
 
-      ss := s.SetLeechers(users, True);
-      if ss <> '' then
+      leecherlist := s.SetLeechers(users, True);
+      if leecherlist <> '' then
       begin
-        irc_addText(Netname, Channel, 'Leecher list for <b>%s</b>: %s', [s.Name, ss]);
+        irc_addText(Netname, Channel, 'Leecher list for <b>%s</b>: %s', [s.Name, leecherlist]);
       end;
 
     end;
