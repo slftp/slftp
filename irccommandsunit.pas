@@ -662,15 +662,14 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo;
+  tasktvinfolookup, uLkJSON, TypInfo, globals;
 
 {$I common.inc}
 
 const
   section = 'irccommands';
 
-procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
-  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
+procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString; QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
 var
   xs: TStringList;
   i, ii: integer;
@@ -2211,25 +2210,6 @@ begin
             sdone := IntToStr(ps.dirlist.Done);
 
             dd := ps.dirlist.SizeRacedByMe;
-
-(*
-            ssss := 'byte';
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'KB';
-            end;
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'MB';
-            end;
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'GB';
-            end;
-*)
 
             RecalcSizeValueAndUnit(dd, ssss, 0);
 
@@ -5824,14 +5804,10 @@ begin
     sdn.Sort;
     suk.Sort;
 
-    IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
-      '<c3>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'),
-      '<c4>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
-      '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
-      '<c5>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'), '<' + globals.SiteColorOnline + '>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'), '<' + globals.SiteColorOffline + '>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'), '<' + globals.SiteColorUnknown + '>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'), '<' + globals.SiteColorPermdown + '>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
     sup.Free;
     spd.Free;
