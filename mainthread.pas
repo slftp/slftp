@@ -319,7 +319,14 @@ begin
   {$ENDIF}
 
   started := Now();
+
+  // Decrypt sites.dat
   MycryptoStart(passphrase);
+
+  // Run backup
+  if config.ReadBool('backup', 'run_backup_on_startup', True) then
+    BackupBackup;
+
   StartProxys;
   dbaddpreStart;
   dbaddnfoStart;

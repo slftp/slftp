@@ -40,7 +40,7 @@ implementation
 
 uses slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
      Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-     backupunit, kb, StrUtils, encinifile, dateutils, mrdohutils
+     kb, StrUtils, encinifile, dateutils, mrdohutils
      {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const section = 'console';
@@ -675,11 +675,8 @@ ujra:
 
   DebugInit;
 
-    slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-    vl.Caption := cmod_VersionString;
-
-  if config.ReadBool('backup', 'run_backup_on_startup', True) then
-    BackupBackup;
+  slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
+  vl.Caption := cmod_VersionString;
 
   if not ReadSites then
   begin
