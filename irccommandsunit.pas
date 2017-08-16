@@ -6562,14 +6562,14 @@ begin
 
       if s.PermDown then
       begin
-        ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorPermdown, s.Name]);
+        ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorPermdown, s.Name]);
       end
       else
       begin
         case s.working of
-          sstUp: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOnline, s.Name]);
-          sstDown: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOffline, s.Name]);
-          sstUnknown: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorUnknown, s.Name]);
+          sstUp: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOnline, s.Name]);
+          sstDown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOffline, s.Name]);
+          sstUnknown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorUnknown, s.Name]);
         end;
       end;
 
@@ -6666,7 +6666,7 @@ begin
   else
   begin
     if precatcher.precatcherauto then
-      irc_addtext(Netname, Channel, Format('Precatcher auto is: Enabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: Enabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]))
     else
       irc_addtext(Netname, Channel, Format('Precatcher auto is: Disabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
   end;
