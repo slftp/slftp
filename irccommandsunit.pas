@@ -6654,17 +6654,22 @@ begin
     if params = '0' then
     begin
       sitesdat.WriteBool('precatcher', 'auto', False);
-      irc_addtext(Netname, Channel, Format('Auto is disabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+      irc_addtext(Netname, Channel, Format('Auto is disabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
     end;
 
     if params = '1' then
     begin
       sitesdat.WriteBool('precatcher', 'auto', True);
-      irc_addtext(Netname, Channel, Format('Auto is enabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+      irc_addtext(Netname, Channel, Format('Auto is enabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
     end;
   end
   else
-    irc_addtext(Netname, Channel, Format('Precatcher auto is: %s [1 means enabled - 0 means disabled]', [IntToStr(integer(precatcherauto))]));
+  begin
+    if precatcher.precatcherauto then
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: Enabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
+    else
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: Disabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
+  end;
 
   Result := True;
 end;
