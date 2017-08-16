@@ -5573,16 +5573,6 @@ begin
   Result := True;
 end;
 
-function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  s: AnsiString;
-begin
-  s := ReplaceThemeMSG(format('<b>%s</b> is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]));
-  irc_addtext(Netname, Channel, s);
-  Result := True;
-end;
-
 procedure _readHelpTXTFile(const Netname, Channel: AnsiString; filename: AnsiString);
 var
   s, fn: AnsiString;
@@ -11296,14 +11286,37 @@ begin
   Result := True;
 end;
 
+function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  cpuversion: AnsiString;
+begin
+  {$IFDEF FPC}
+    {$IFDEF CPU32}
+      cpuversion := '32-Bit';
+    {$ENDIF}
+    {$IFDEF CPU64}
+      cpuversion := '64-Bit';
+    {$ENDIF}
+
+    {$IFDEF CPUARM}
+      cpuversion := cpuversion + ' on ARM';
+    {$ENDIF}
+  {$ELSE}
+    // delphi 2007 doesn't have support for 64 bit
+    cpuversion := '32-Bit';
+  {$ENDIF}
+
+  irc_addtext(Netname, Channel, '<b>%s</b> (%s) with OpenSSL %s is up for [%s] <c7><b>%s</b></c>', [Get_VersionString, cpuversion, OpenSSLShortVersion, DatetimetoStr(started), DateTimeAsString(started)]);
+
+  Result := True;
+end;
+
 function IrcShowAppStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   rx: TRegexpr;
   spd, sup, sdn, suk: TStringList;
 begin
-  irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started),
-    DateTimeAsString(started)]);
+  IrcUptime(Netname, Channel, '');
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
@@ -11314,22 +11327,22 @@ begin
   irc_addtext(Netname, Channel, 'Other Stats: %s <b>-</b> %s <b>-</b> %s', [dbaddurl_Status, dbaddimdb_Status, dbaddnfo_Status]);
 
   rx := TRegexpr.Create;
-  rx.ModifierI := True;
   sup := TStringList.Create;
   spd := TStringList.Create;
   sdn := TStringList.Create;
   suk := TStringList.Create;
   try
+    rx.ModifierI := True;
     SitesWorkingStatusToStringlist(Netname, Channel, sup, sdn, suk, spd);
 
     irc_addtext(Netname, Channel,
-      '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
-      [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
+      '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ', [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
+
     rx.Expression := 'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
     if rx.Exec(ReadAppQueueCaption) then
       irc_addtext(Netname, Channel,
-        '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s',
-        [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4], rx.Match[5]]);
+        '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4], rx.Match[5]]);
+
   finally
     rx.free;
     sup.Free;
