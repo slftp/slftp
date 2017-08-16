@@ -6559,7 +6559,7 @@ begin
   Result := False;
   affil := Uppercase(SubString(params, ' ', 1));
 
-  ss := 'Sites with Affilgroup <b>' + affil + '</b> are:';
+  ss := 'Sites with Affilgroup <b>' + affil + '</b> are: ';
   db := 0;
   found := False;
   for i := 0 to sites.Count - 1 do
@@ -6569,7 +6569,19 @@ begin
     if s.IsAffil(affil) then
     begin
       found := True;
-      ss := ss + Format('%s', [s.Name]);
+
+      if s.PermDown then
+      begin
+        ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorPermdown, s.Name]);
+      end
+      else
+      begin
+        case s.working of
+          sstUp: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOnline, s.Name]);
+          sstDown: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOffline, s.Name]);
+          sstUnknown: ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorUnknown, s.Name]);
+        end;
+      end;
 
       Inc(db);
       if db >= 10 then
