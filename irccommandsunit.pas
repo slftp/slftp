@@ -662,15 +662,14 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo;
+  tasktvinfolookup, uLkJSON, TypInfo, globals;
 
 {$I common.inc}
 
 const
   section = 'irccommands';
 
-procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
-  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
+procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString; QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
 var
   xs: TStringList;
   i, ii: integer;
@@ -2212,25 +2211,6 @@ begin
 
             dd := ps.dirlist.SizeRacedByMe;
 
-(*
-            ssss := 'byte';
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'KB';
-            end;
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'MB';
-            end;
-            if dd > 1024 then
-            begin
-              dd := dd / 1024;
-              ssss := 'GB';
-            end;
-*)
-
             RecalcSizeValueAndUnit(dd, ssss, 0);
 
             if sdone = si then
@@ -2539,20 +2519,24 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+
+        if method <> '' then
+          s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
+
+        irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
       end;
-
-      if method <> '' then
-        s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
-
-      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
+    finally
+      x.Free;
     end;
   end;
 
@@ -5589,16 +5573,6 @@ begin
   Result := True;
 end;
 
-function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  s: AnsiString;
-begin
-  s := ReplaceThemeMSG(format('<b>%s</b> is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, DatetimetoStr(started), DateTimeAsString(started)]));
-  irc_addtext(Netname, Channel, s);
-  Result := True;
-end;
-
 procedure _readHelpTXTFile(const Netname, Channel: AnsiString; filename: AnsiString);
 var
   s, fn: AnsiString;
@@ -5820,14 +5794,10 @@ begin
     sdn.Sort;
     suk.Sort;
 
-    IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'),
-      '<c3>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'),
-      '<c4>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'),
-      '<c14>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
-    IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'),
-      '<c5>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, sup.commatext, AnsiChar('"'), '<' + globals.SiteColorOnline + '>UP</c>(' + IntToStr(sup.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, sdn.commatext, AnsiChar('"'), '<' + globals.SiteColorOffline + '>DN</c>(' + IntToStr(sdn.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, suk.commatext, AnsiChar('"'), '<' + globals.SiteColorUnknown + '>??</c>(' + IntToStr(suk.Count) + '/' + IntToStr(scount) + '): ');
+    IrcLineBreak(Netname, Channel, spd.commatext, AnsiChar('"'), '<' + globals.SiteColorPermdown + '>PD</c>(' + IntToStr(spd.Count) + '/' + IntToStr(scount) + '): ');
   finally
     sup.Free;
     spd.Free;
@@ -5889,13 +5859,13 @@ begin
     exit;
   end;
 
+// TODO: Rework this and improve helpfile
+
   x := TStringList.Create;
   try
-
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
-    irc_addtext(Netname, Channel, ' name/speed/location/size:B %s / %s / %s / %s',
-      [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
-    irc_addtext(Netname, Channel, ' sections:B %s', [s.sections]);
+    irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s', [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
+    irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
     x.Sort;
@@ -5909,11 +5879,9 @@ begin
     end;
 
     x.DelimitedText := s.leechers;
-    irc_addtext(Netname, Channel, ' leechers (%d/%d):B %s',
-      [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
+    irc_addtext(Netname, Channel, ' leechers (%d/%d):B %s', [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
     x.DelimitedText := s.traders;
-    irc_addtext(Netname, Channel, ' traders (%d/%d):B %s',
-      [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
+    irc_addtext(Netname, Channel, ' traders (%d/%d):B %s', [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
 
     if s.RCString('notes', '') <> '' then
       irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
@@ -6076,6 +6044,7 @@ var
 begin
   Result := False;
   sitename := UpperCase(params);
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -6092,9 +6061,7 @@ begin
     if host = '' then
       break;
 
-    irc_addtext(Netname, Channel, ' bnc: %s:%d',
-      [host, s.RCInteger('bnc_port-' + IntToStr(i), 0)]);
-
+    irc_addtext(Netname, Channel, ' bnc: %s:%d', [host, s.RCInteger('bnc_port-' + IntToStr(i), 0)]);
     Inc(i);
   end;
 
@@ -6110,7 +6077,7 @@ begin
   end;
 end;
 function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;var
-  affils_new, affils_old, ss, sitename: AnsiString;
+  affils_new, affillist, sitename: AnsiString;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
   i: integer;
@@ -6163,10 +6130,10 @@ begin
     end;
   end;
 
-  ss := s.SiteAffils;
+  affillist := s.SiteAffils;
 
-  if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
+  if affillist <> '' then
+    IrcLineBreak(Netname, Channel, affillist, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
   else
     irc_addText(Netname, Channel, 'No affils available.');
 
@@ -6342,22 +6309,40 @@ end;
 
 function IrcLeechers(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  ss, sitename, users: AnsiString;
+  leecherlist, sitename, users: AnsiString;
+  i: Integer;
   s: TSite;
+  x: TStringList;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   users := mystrings.RightStr(params, length(sitename) + 1);
 
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-    exit;
+  x := TStringList.Create;
+  try
+    x.commatext := sitename;
+
+    for i := 0 to x.Count - 1 do
+    begin
+      leecherlist := '';
+
+      s := FindSiteByName(Netname, x.Strings[i]);
+      if s = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Site %s not found.', [x.Strings[i]]);
+        Continue;
+      end;
+
+      leecherlist := s.SetLeechers(users, True);
+      if leecherlist <> '' then
+      begin
+        irc_addText(Netname, Channel, 'Leecher list for <b>%s</b>: %s', [s.Name, leecherlist]);
+      end;
+
+    end;
+  finally
+    x.Free;
   end;
-  ss := s.SetLeechers(users, True);
-  if ss <> '' then
-    irc_addtext(Netname, Channel, ss);
 
   Result := True;
 end;
@@ -6564,7 +6549,7 @@ begin
   Result := False;
   affil := Uppercase(SubString(params, ' ', 1));
 
-  ss := 'Sites with Affilgroup <b>' + affil + '</b> are:';
+  ss := 'Sites with Affilgroup <b>' + affil + '</b> are: ';
   db := 0;
   found := False;
   for i := 0 to sites.Count - 1 do
@@ -6574,7 +6559,19 @@ begin
     if s.IsAffil(affil) then
     begin
       found := True;
-      ss := ss + Format('%s', [s.Name]);
+
+      if s.PermDown then
+      begin
+        ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorPermdown, s.Name]);
+      end
+      else
+      begin
+        case s.working of
+          sstUp: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOnline, s.Name]);
+          sstDown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOffline, s.Name]);
+          sstUnknown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorUnknown, s.Name]);
+        end;
+      end;
 
       Inc(db);
       if db >= 10 then
@@ -6651,32 +6648,33 @@ end;
 function IrcAuto(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   Result := False;
-  try
-    if params <> '' then
-    begin
-      if params = '0' then
-      begin
-        sitesdat.WriteBool('precatcher', 'auto', False);
-        irc_addtext(Netname, Channel, Format('Auto is disabled (%s) now!',
-          [IntToStr(integer(precatcherauto))]));
-      end;
 
-      if params = '1' then
-      begin
-        sitesdat.WriteBool('precatcher', 'auto', True);
-        irc_addtext(Netname, Channel, Format('Auto is enabled (%s) now!',
-          [IntToStr(integer(precatcherauto))]));
-      end;
-    end
+  if params <> '' then
+  begin
+    if params = '0' then
+    begin
+      sitesdat.WriteBool('precatcher', 'auto', False);
+      irc_addtext(Netname, Channel, Format('Auto is disabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
+    end;
+
+    if params = '1' then
+    begin
+      sitesdat.WriteBool('precatcher', 'auto', True);
+      irc_addtext(Netname, Channel, Format('Auto is enabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
+    end;
+  end
+  else
+  begin
+    if precatcher.precatcherauto then
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: Enabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]))
     else
-      irc_addtext(Netname, Channel,
-        Format('Precatcher auto is: %s [1 means enabled - 0 means disabled]',
-        [IntToStr(integer(precatcherauto))]));
-  finally
-    Result := True;
+      irc_addtext(Netname, Channel, Format('Precatcher auto is: Disabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
   end;
+
+  Result := True;
 end;
 (*
+TODO: Maybe remove this? Or for what is this??
 
 function IrcAutoCrawler(const Netname, Channel: AnsiString; params: AnsiString):
   boolean;
@@ -11293,14 +11291,37 @@ begin
   Result := True;
 end;
 
+function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  cpuversion: AnsiString;
+begin
+  {$IFDEF FPC}
+    {$IFDEF CPU32}
+      cpuversion := '32-Bit';
+    {$ENDIF}
+    {$IFDEF CPU64}
+      cpuversion := '64-Bit';
+    {$ENDIF}
+
+    {$IFDEF CPUARM}
+      cpuversion := cpuversion + ' on ARM';
+    {$ENDIF}
+  {$ELSE}
+    // delphi 2007 doesn't have support for 64 bit
+    cpuversion := '32-Bit';
+  {$ENDIF}
+
+  irc_addtext(Netname, Channel, '<b>%s</b> (%s) with OpenSSL %s is up for [%s] <c7><b>%s</b></c>', [Get_VersionString, cpuversion, OpenSSLShortVersion, DatetimetoStr(started), DateTimeAsString(started)]);
+
+  Result := True;
+end;
+
 function IrcShowAppStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   rx: TRegexpr;
   spd, sup, sdn, suk: TStringList;
 begin
-  irc_addtext(Netname, Channel, '<b>%s</b> with OpenSSL %s is up for [%s] <c7><b>%s</b></c>',
-    [Get_VersionString, OpenSSLShortVersion, DatetimetoStr(started),
-    DateTimeAsString(started)]);
+  IrcUptime(Netname, Channel, '');
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
@@ -11311,22 +11332,22 @@ begin
   irc_addtext(Netname, Channel, 'Other Stats: %s <b>-</b> %s <b>-</b> %s', [dbaddurl_Status, dbaddimdb_Status, dbaddnfo_Status]);
 
   rx := TRegexpr.Create;
-  rx.ModifierI := True;
   sup := TStringList.Create;
   spd := TStringList.Create;
   sdn := TStringList.Create;
   suk := TStringList.Create;
   try
+    rx.ModifierI := True;
     SitesWorkingStatusToStringlist(Netname, Channel, sup, sdn, suk, spd);
 
     irc_addtext(Netname, Channel,
-      '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ',
-      [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
+      '<b>Sites count</b>: %d | <b>Online</b> %d - <b>Offline</b> %d - <b>Unknown</b> %d - <b>Permanent offline</b> %d ', [sites.Count - 1, sup.Count, sdn.Count, suk.Count, spd.Count]);
+
     rx.Expression := 'QUEUE\:\s(\d+)\s\(Race\:(\d+)\sDir\:(\d+)\sAuto\:(\d+)\sOther\:(\d+)\)';
     if rx.Exec(ReadAppQueueCaption) then
       irc_addtext(Netname, Channel,
-        '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s',
-        [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4], rx.Match[5]]);
+        '<b>Complete queue count</b>: %s | <b>Racetasks</b> %s - <b>Dirlisttasks</b> %s - <b>Autotasks</b> %s - <b>Other</b> %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4], rx.Match[5]]);
+
   finally
     rx.free;
     sup.Free;
