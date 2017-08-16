@@ -467,7 +467,7 @@ begin
       exit;
 
     // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
-    i := ss2.RCInteger('maxupperrip', 0);
+    i := ss2.site.MaxUpPerRip;
     if ((i > 0) and (t.ps2.activeTransfers.Count >= i)) then
     begin
       Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
