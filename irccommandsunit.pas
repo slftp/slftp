@@ -6358,7 +6358,7 @@ begin
 
     for i := 0 to x.Count - 1 do
     begin
-      leecherlist = '';
+      leecherlist := '';
 
       s := FindSiteByName(Netname, x.Strings[i]);
       if s = nil then
