@@ -2539,20 +2539,24 @@ begin
   else
   begin
     x := TStringList.Create;
-    x.commatext := sitename;
-    for i := 0 to x.Count - 1 do
-    begin
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
+    try
+      x.commatext := sitename;
+      for i := 0 to x.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
-        Continue;
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+
+        if method <> '' then
+          s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
+
+        irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
       end;
-
-      if method <> '' then
-        s.sslmethod := TSSLMethods(StrToIntDef(method, integer(s.sslmethod)));
-
-      irc_addText(Netname, Channel, 'SSL method for <b>%s</b>: %s', [sitename, sslMethodToSTring(s)]);
+    finally
+      x.Free;
     end;
   end;
 
@@ -6344,20 +6348,37 @@ function IrcLeechers(const Netname, Channel: AnsiString; params: AnsiString): bo
 var
   ss, sitename, users: AnsiString;
   s: TSite;
+  x: TStringList;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   users := mystrings.RightStr(params, length(sitename) + 1);
 
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-    exit;
+  x := TStringList.Create;
+  try
+    x.commatext := sitename;
+
+    for i := 0 to x.Count - 1 do
+    begin
+      ss = '';
+
+      s := FindSiteByName(Netname, x.Strings[i]);
+      if s = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Site %s not found.', [x.Strings[i]]);
+        Continue;
+      end;
+
+      ss := s.SetLeechers(users, True);
+      if ss <> '' then
+      begin
+        irc_addText(Netname, Channel, 'Leecher list for <b>%s</b>: %s', [s.Name, ss]);
+      end;
+
+    end;
+  finally
+    x.Free;
   end;
-  ss := s.SetLeechers(users, True);
-  if ss <> '' then
-    irc_addtext(Netname, Channel, ss);
 
   Result := True;
 end;
@@ -6651,32 +6672,28 @@ end;
 function IrcAuto(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   Result := False;
-  try
-    if params <> '' then
-    begin
-      if params = '0' then
-      begin
-        sitesdat.WriteBool('precatcher', 'auto', False);
-        irc_addtext(Netname, Channel, Format('Auto is disabled (%s) now!',
-          [IntToStr(integer(precatcherauto))]));
-      end;
 
-      if params = '1' then
-      begin
-        sitesdat.WriteBool('precatcher', 'auto', True);
-        irc_addtext(Netname, Channel, Format('Auto is enabled (%s) now!',
-          [IntToStr(integer(precatcherauto))]));
-      end;
-    end
-    else
-      irc_addtext(Netname, Channel,
-        Format('Precatcher auto is: %s [1 means enabled - 0 means disabled]',
-        [IntToStr(integer(precatcherauto))]));
-  finally
-    Result := True;
-  end;
+  if params <> '' then
+  begin
+    if params = '0' then
+    begin
+      sitesdat.WriteBool('precatcher', 'auto', False);
+      irc_addtext(Netname, Channel, Format('Auto is disabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+    end;
+
+    if params = '1' then
+    begin
+      sitesdat.WriteBool('precatcher', 'auto', True);
+      irc_addtext(Netname, Channel, Format('Auto is enabled (%s) now!', [IntToStr(integer(precatcherauto))]));
+    end;
+  end
+  else
+    irc_addtext(Netname, Channel, Format('Precatcher auto is: %s [1 means enabled - 0 means disabled]', [IntToStr(integer(precatcherauto))]));
+
+  Result := True;
 end;
 (*
+TODO: Maybe remove this? Or for what is this??
 
 function IrcAutoCrawler(const Netname, Channel: AnsiString; params: AnsiString):
   boolean;
