@@ -375,7 +375,7 @@ implementation
 
 uses SysUtils, irc, DateUtils, configunit, queueunit, debugunit,
   socks5, console, knowngroups,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals;
 
 const
   section = 'sites';
@@ -2167,8 +2167,7 @@ begin
 
     if Value = sstUp then
     begin
-
-      irc_addadmin(Format('<c3>SITE <b>%s</b> IS UP</c>', [Name]));
+      irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
       markeddown := False;
 
       if RCInteger('autonuke', 0) <> 0 then
@@ -2185,7 +2184,7 @@ begin
     end
     else if Value = sstDown then
     begin
-      irc_addadmin(Format('<c4>SITE <b>%s</b> IS DOWN</c>', [Name]));
+      irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
       //removeing all tasks for the site...
       //    RemoveAutoIndex;
       //    RemoveAutoBnctest;
