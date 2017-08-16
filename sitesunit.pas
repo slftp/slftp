@@ -189,6 +189,9 @@ type
     function GetSiteCountry: AnsiString;
     procedure SetSiteCountry(Value: AnsiString);
 
+    function GetSiteMaxUpPerRip: integer;
+    procedure SetSiteMaxUpPerRip(const Value: integer);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
@@ -302,6 +305,7 @@ type
     property UserName: AnsiString read GetSiteUsername write SetSiteUsername;
     property PassWord: AnsiString read GetSitePassword write SetSitePassword;
     property Country: AnsiString read GetSiteCountry write SetSiteCountry;
+    property MaxUpPerRip: integer read GetSiteMaxUpPerRip write SetSiteMaxUpPerRip;
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -3416,14 +3420,24 @@ begin
   Result := RCString('password', 'CR4P_P4$$W0RD');
 end;
 
+function TSite.GetSiteCountry;
+begin
+  Result := RCString('country', '??');
+end;
+
 procedure TSite.SetSiteCountry(Value: AnsiString);
 begin
   WCString('country', Value);
 end;
 
-function TSite.GetSiteCountry;
+function TSite.GetSiteMaxUpPerRip: integer;
 begin
-  Result := RCString('country', '??');
+  Result := RCInteger('maxupperrip', 0);
+end;
+
+procedure TSite.SetSiteMaxUpPerRip(const Value: integer);
+begin
+  WCInteger('maxupperrip', Value);
 end;
 
 function TSite.GetNoLoginMSG: boolean;
