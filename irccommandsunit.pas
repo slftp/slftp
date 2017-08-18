@@ -6570,7 +6570,9 @@ begin
   end;
 
   if found then
-    irc_addtext(Netname, Channel, ss);
+    irc_addtext(Netname, Channel, ss)
+  else
+    irc_addtext(Netname, Channel, Format('No Site with %s as Affilgroup found!', [affil]));
 
   Result := True;
 end;
@@ -7291,7 +7293,7 @@ begin
     end;
   end
   else
-    irc_addtext(Netname, Channel, Format('Can"t find any knowledge base entry for %s %s', [section, rls]));
+    irc_addtext(Netname, Channel, Format('Can not find any knowledge base entry for %s %s', [section, rls]));
 
   Result := True;
 end;
@@ -10137,7 +10139,7 @@ begin
   begin
     if sitename = '*' then
     begin
-      irc_addtext(Netname, Channel, 'Not allowed input.', [sitename, sections]);
+      irc_addtext(Netname, Channel, 'You can not use the special sitename * as a wildcard for all sites to show all rules.', [sitename, sections]);
       Inc(count);
     end
     else
