@@ -36,6 +36,9 @@
 
 --=========================( NEW SETTINGS AND FILES )==============================-
 
+    NEW slftp.ini parameter(s):
+      only_use_routable_sites_on_reqfill=0
+
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
 
@@ -46,12 +49,17 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
-    {^} Requests can be filled from sites without checking the routes. New slftp.ini parameter 
-        only_use_routable_sites_on_reqfill=0 (#168)
-    {^} All irc commands should be in alphabetical order (#163)
-    {+} foo
-    {#} bar
-    {-} !
+    {+} New !affils command.
+    {+} !status and !uptime shows if you use 32/64-bit version of slftp.
+    {^} Requests can be filled from sites without checking the routes. (#168)
+    {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
+    {^} [MKDIR Denied] msg shows path with denied releasename.
+    {^} !autoinvite warns you if no IRCNick is specified for the site.
+    {^} !maxupperrip can show actual value now.
+    {^} !findaffil has improved irc output.
+    {^} backup on startup will only be executed after sites.dat has been successfully decrypted. (#169)
+    {^} !leechers code improved.
+    {-} foo bar
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
