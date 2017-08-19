@@ -53,9 +53,10 @@ const
   CompleteSourceDescription: string = 'Returns true, if the source site is complete. You can use this rule to fill some sites from complete source only.';
   YearDescription: string = 'Returns with the year tag of the release name. Returns with zero if year tag is not present.';
 
-  AutofollowDescription: string = 'Returns true, if there was already an irc announce on the site (mean: somebody started to send the rip there).' + #13#10;
-  NukeDescription: string = 'Returns true, if the rlz was nuked on the site.' + #13#10 + 'ex: !ruleadd * * if nuked then DROP';
-  PredDescription: string = 'Returns true, if there was a pre on any site.' + #13#10;
+  AutofollowDescription: string = 'Returns true, if there was already an irc announce on the site (mean: somebody started to send the release there).' + #13#10 +
+    'You have to add atleast one NEWDIR irc catchevent to use this rule.' + #13#10 + 'ex: !ruleadd * * if autofollow then ALLOW';
+  NukeDescription: string = 'Returns true, if the release was nuked on the site.' + #13#10 + 'ex: !ruleadd * * if nuked then DROP';
+  PredDescription: string = 'Returns true, if there was a pre for this release on any of your sites.' + #13#10;
 
   DisksDescription: string = 'Returns with the number of disks (for eg 3 for Foobar.2008.NTSC.3DiSC.MDVDR-GRP' + #13#10 + 'NOTE: this is NOT for MP3 rips.' + #13#10;
 
@@ -68,15 +69,20 @@ const
   TVDailyShowDescription: string = 'Returns true when the rip airs daily. Returns false when we have no value.';
   TVCurrentOnAirDescription: string = 'Returns true when the rip has the same season and episoden number as the database. Returns false when we have no value.';
   TVShowNameDescription: string = 'Returns with the tvshow''s name. This is the part before the S01E01 or 1x12 tag.';
-  TVPremierYearDescription: string = 'Returns with the year of premier (based on TVMaze). Returns zero if lookup is not ready yet.' + #10#13 +
-    'Scripted, Animation, Reality, Talk Show, Documentary, Game Show, News, Sports, Variety';
+  TVPremierYearDescription: string = 'Returns with the year of premier (based on TVMaze). Returns zero if lookup is not ready yet.';
   TVCountryDescription: string = 'Returns with the Country field parsed from TVMaze.';
-  TVClassificationDescription: string = 'Returns with the Classification field parsed from TVMaze. Vailed are:';
+  TVClassificationDescription: string = 'Returns with the Classification field parsed from TVMaze.';
   TVScriptedDescription: string = 'Returns with the Classification field parsed from TVMaze. Returns false if lookup is not ready yet.';
+
+  {*
+  * old one, deprecated since 1.5.5 dev
   TVGenresDescription: string = 'Returns with the Genres field parsed from TVMaze plus TheTVDb. vailed are: ' + #10#13 +
     'Action, Adult, Adventure, Animals, Anime, Animation, Children, Comedy, Cooking, Crime, DIY, Documentary, Drama, Espionage, Family, ' + #10#13 +
     'Fantasy, Food, Game Show, History, Horror, Home and Garden, News, Medical, Mini-Series, Music, Mystery, Reality, Romance, Science-Fiction, ' + #10#13 +
     'Special Interest, Soap, Sport, Suspense, Talk Show, Thriller, Travel, War, Western';
+  *}
+  TVGenresDescription: string = 'Returns with the Genres field parsed from TVMaze plus TheTVDb.';
+
   TVNetworkDescription: string = 'Returns with the Network field parsed from TVMaze.';
   TVRuntimeDescription: string = 'Returns with the Runtime field parsed from TVMaze. Returns 0 if lookup is not ready yet';
   TVEndedYearDescription: string = 'Returns with the end year field parsed from TVMaze. Returns 0 if lookup is not ready yet';
@@ -102,4 +108,4 @@ const
   {  MVID => TMP3Release  }
   {  n => TnRelease  }
   {  n => TnRelease  }
-  
+

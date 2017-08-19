@@ -4105,11 +4105,11 @@ begin
   end;
 end;
 
-{ TConditionAutofollow }
 
+{ TConditionAutofollow }
 class function TConditionAutofollow.Description: AnsiString;
 begin
-  Result :=AutofollowDescription;
+  Result := AutofollowDescription;
 end;
 
 class function TConditionAutofollow.Name: AnsiString;
@@ -4134,6 +4134,7 @@ begin
     Result := False;
   end;
 end;
+
 
 { TConditionNuked }
 class function TConditionNuked.Description: AnsiString;
