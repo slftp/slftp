@@ -83,7 +83,6 @@ begin
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   debug_lock.Enter;
-  OpenLogFile;
   try
     try
       WriteLn(f, Format('%s (%s) [%-12s] %s',
@@ -102,7 +101,6 @@ begin
       end;
     end;
   finally
-    CloseLogFile;
     debug_lock.Leave;
   end;
 end;
@@ -143,16 +141,18 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock    := TCriticalSection.Create();
+  debug_lock := TCriticalSection.Create();
   debug_verbose := debug_verbosity = dpSpam;
+  OpenLogFile;
 end;
 
 procedure DebugUninit;
 begin
+  CloseLogFile;
   debug_lock.Free;
 end;
 
-function ArchivOldBackup: boolean;
+function ArchiveOldBackup: boolean;
 var
   tar: TTarWriter;
 begin
@@ -191,15 +191,15 @@ begin
     if CheckLogFileSize = 1 then
     begin
       irc_addtext('CONSOLE', 'ADMIN', 'Backing up current logfile...');
-      if ArchivOldBackup then
+      CloseLogFile;
+      if ArchiveOldBackup then
       begin
         irc_addtext('CONSOLE', 'ADMIN', 'Logfile backed up successfully!');
-        ArchivOldBackup;
+        ArchiveOldBackup;
         irc_addtext('CONSOLE', 'ADMIN', 'Removing current logfile');
         DeleteFile('slftp.log');
         irc_addtext('CONSOLE', 'ADMIN', 'Creating a new fresh logfile...');
         OpenLogFile;
-        CloseLogFile;
         irc_addtext('CONSOLE', 'ADMIN', 'Ok!');
       end;
     end;
@@ -233,11 +233,11 @@ begin
     while (l <= lines) and (s.Position > 0) do
     begin
       s.Seek(-2, soCurrent);
-      s.Read(C, SizeOf(byte));
+      s.Read(c, SizeOf(byte));
       if c = #13 then Inc(l);
     end;
     s.Seek(1, soCurrent);
-    l := S.Size - s.Position;
+    l := s.Size - s.Position;
     SetLength(Result, l);
     s.Read(Result[1], l);
   finally
@@ -249,7 +249,6 @@ function Hide_plain_text: boolean;
 begin
   Result := config.ReadBool(section, 'hide_plain_text', True);
 end;
-
 
 function Debug_logfilename: AnsiString;
 begin
