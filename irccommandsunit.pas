@@ -321,7 +321,6 @@ function IrcSetAutoInvite(const netname, channel: AnsiString; params: AnsiString
 
 //function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
 
-function IrcDWherePred(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcDelPart(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcFakeReload(const netname, channel: AnsiString; params: AnsiString): boolean;
 
@@ -3660,7 +3659,6 @@ begin
   s.Stop;
 
   try
-
     try
       s.DeleteKey('autodirlist');
       s.DeleteKey('autodirlistsections');
@@ -3771,16 +3769,15 @@ begin
 
     try
       sites.Delete(sites.IndexOf(s));
-
     except
       on E: Exception do
         irc_addtext(Netname, Channel, 'Remove <b>TSite Object</b> failed : %s', [E.Message]);
     end;
-    Result := True;
-
   finally
     sitesdat.UpdateFile;
   end;
+
+  Result := True;
 end;
 
 function IrcSlotsShow(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -4282,6 +4279,7 @@ begin
     if x.Count > 0 then
     begin
       db := x.Count;
+
       for i := 0 to x.Count - 1 do
       begin
         s := FindSiteByName(Netname, x[i]);
@@ -4295,6 +4293,7 @@ begin
           Continue;
         end;
       end;
+
       tn := AddNotify;
       for i := 0 to x.Count - 1 do
       begin
@@ -4730,15 +4729,14 @@ begin
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>ERROR</c>:</b> Cant find network -> %s', [nn]);
+    irc_addtext(Netname, Channel, '<c4><b>ERROR</c>:</b> Cant find network %s', [nn]);
     exit;
   end;
 
   b := FindIrcBlowfish(nn, blowchannel, False);
-
   if b = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Channel -> %s', [blowchannel]);
+    irc_addtext(Netname, Channel, 'Cant find Channel %s', [blowchannel]);
     exit;
   end;
 
@@ -4763,11 +4761,9 @@ begin
     y.DelimitedText := Names;
 
     for i := 0 to y.Count - 1 do
-
       if not Check_For_Vailed_Chanrole(y.Strings[i]) then
       begin
-        irc_addtext(Netname, Channel,
-          '<c4><b>ERROR</c>:</b> %s is not a valid chanrole.', [y.Strings[i]]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c>:</b> %s is not a valid chanrole.', [y.Strings[i]]);
         Result := False;
         exit;
       end;
@@ -4777,8 +4773,7 @@ begin
     begin
       if Names = '' then
       begin
-        irc_addtext_b(Netname, Channel, format('Channel name(s): %s',
-          [trim(b.Names)]));
+        irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [trim(b.Names)]));
       end
       else if Names = '-' then
       begin
@@ -4792,8 +4787,7 @@ begin
       end;
     end
     else
-      irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
-        [blowchannel, nn]));
+      irc_addtext_b(Netname, Channel, format('Channel %s@%s not found.', [blowchannel, nn]));
 
   finally
     y.Free;
@@ -4828,8 +4822,7 @@ begin
     ircth.shouldjoin := True;
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
-      [blowchannel, nn]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
 
   Result := True;
 end;
@@ -4858,11 +4851,9 @@ begin
     chankeys.Remove(b);
     sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
     ircth.shouldjoin := True;
-    // console_delwindow(nn+' '+blowchannel);
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
-      [blowchannel, nn]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
 
   Result := True;
 end;
@@ -4975,6 +4966,7 @@ var
   s: TSite;
 begin
   Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   rule := params;
@@ -5412,6 +5404,7 @@ var
   sitename, nn, channelname, botnicks, event, words, section: AnsiString;
 begin
   Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   nn := UpperCase(SubString(params, ' ', 2));
   channelname := SubString(params, ' ', 3);
@@ -5419,14 +5412,8 @@ begin
   event := UpperCase(SubString(params, ' ', 5));
   words := SubString(params, ' ', 6);
   section := SubString(params, ' ', 7);
-  (*
-    if event = '-' then event:= '';
-    if words = '-' then words:= '';
-    if section = '-' then section:= '';
-  *)
 
-  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
-    (event <> 'NUKE') and (event <> 'REQUEST')) then
+  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and (event <> 'NUKE') and (event <> 'REQUEST')) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;
@@ -5434,19 +5421,19 @@ begin
 
   if nil = FindSiteByName(Netname, sitename) then
   begin
-    irc_addtext(Netname, Channel, 'Site not found');
+    irc_addtext(Netname, Channel, Format('Site %s not found', [sitename]));
     exit;
   end;
 
   if nil = FindIrcBlowfish(nn, channelname, False) then
   begin
-    irc_addtext(Netname, Channel, 'Channel not found.');
+    irc_addtext(Netname, Channel, Format('Channel %s not found or no blowfish set.', [channelname]));
     exit;
   end;
 
-  catcherFile.Add(format('%s;%s;%s;%s;%s;%s;%s', [nn, channelname,
-    botnicks, sitename, event, words, section]));
+  catcherFile.Add(format('%s;%s;%s;%s;%s;%s;%s', [nn, channelname, botnicks, sitename, event, words, section]));
   PrecatcherRebuild;
+
   Result := True;
 end;
 
@@ -5493,25 +5480,22 @@ begin
   Result := True;
 end;
 
-function IrcPreCatchDebug(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcPreCatchDebug(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
-  try
-    if params <> '' then
-    begin
-      if params = '0' then
-        precatcher_ircdebug := False;
-      if params = '1' then
-        precatcher_ircdebug := True;
-      irc_addtext(Netname, Channel, 'CatchDebug is: ' +
-        BoolToStr(precatcher_ircdebug));
-    end
-    else
-      irc_addtext(Netname, Channel, 'CatchDebug is: ' +
-        BoolToStr(precatcher_ircdebug));
-  finally
-    Result := True;
-  end;
+  if params <> '' then
+  begin
+    if params = '0' then
+      precatcher_ircdebug := False;
+
+    if params = '1' then
+      precatcher_ircdebug := True;
+
+    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug));
+  end
+  else
+    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug));
+
+  Result := True;
 end;
 
 function IrcPrelist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -6242,6 +6226,7 @@ var
   i: integer;
 begin
   Result := False;
+
   i := -1;
   section := UpperCase(SubString(params, ' ', 1));
 
@@ -6257,8 +6242,7 @@ begin
 
     if kb_sections.IndexOf(section) = -1 then
     begin
-      irc_addtext(Netname, Channel,
-        '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file at [sections] and/or [mappings].');
+      irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Section <b>%s</b> not found. Hint: Section <b>%s</b> must be in your <b>slftp.precatcher</b> file at [sections] and/or [mappings].');
       exit;
     end;
 
@@ -6275,9 +6259,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Skipped group found...');
 
   try
-    // i:= kb_add(netname, channel, '', section, '', 'NEWDIR', dir, '', True);
     i := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR', dir, '', True);
-
   except
     on E: Exception do
     begin
@@ -6514,6 +6496,7 @@ var
   db: integer;
   ss: AnsiString;
 begin
+  Result := False;
 
   db := 0;
   ss := '';
@@ -6521,9 +6504,12 @@ begin
   begin
     s := TSite(sites[i]);
 
-    ss := ss + format('<b>%s</b> (%d/%d) ', [s.Name, s.FreeTraderSlots,
-      s.FreeLeechSlots]);
+    if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      Continue;
+
+    ss := ss + format('<b>%s</b> (%d/%d) ', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
     Inc(db);
+
     if db >= 5 then
     begin
       irc_addtext(Netname, Channel, ss);
@@ -6584,7 +6570,9 @@ begin
   end;
 
   if found then
-    irc_addtext(Netname, Channel, ss);
+    irc_addtext(Netname, Channel, ss)
+  else
+    irc_addtext(Netname, Channel, Format('No Site with %s as Affilgroup found!', [affil]));
 
   Result := True;
 end;
@@ -6624,8 +6612,7 @@ begin
   Result := True;
 end;
 
-function IrcFindSection(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcFindSection(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   s: TSite;
   i: integer;
@@ -6637,9 +6624,11 @@ begin
   begin
     s := TSite(sites[i]);
 
+    if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      Continue;
+
     if s.IsSection(section) then
-      irc_addtext(Netname, Channel, '<b>%s</b>: %d %d',
-        [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
+      irc_addtext(Netname, Channel, '<b>%s</b>: Free trader and leech slots: %d %d', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
   end;
 
   Result := True;
@@ -6997,7 +6986,8 @@ var
   i: integer;
   x: TStringList;
 begin
-  //  Result   := True;
+  Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   status := StrToIntDef(SubString(params, ' ', 2), -1);
 
@@ -7005,11 +6995,11 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
+
       kell := False;
       if status > -1 then
       begin
@@ -7017,6 +7007,7 @@ begin
         begin
           if TSite(sites.Items[i]).RCInteger('autorules', 0) <= 0 then
             kell := True;
+
           TSite(sites.Items[i]).WCInteger('autorules', status);
         end
         else
@@ -7025,14 +7016,11 @@ begin
           TSite(sites.Items[i]).RemoveAutoRules;
         end;
       end;
-      irc_addtext(Netname, Channel, 'Autorules of %s is: %d',
-        [TSite(sites.Items[i]).Name, TSite(sites.Items[i])
-        .RCInteger('autorules', 0)]);
+      irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).RCInteger('autorules', 0)]);
 
       if kell then
         TSite(sites.Items[i]).AutoRules;
     end;
-    //    Result := True;
   end
   else
   begin
@@ -7045,14 +7033,12 @@ begin
         s := FindSiteByName(Netname, x.Strings[i]);
         if s = nil then
         begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-            [x.Strings[i]]);
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
           Continue;
         end;
         if s.PermDown then
         begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.',
-            [sitename]);
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> is set perm down.', [sitename]);
           continue;
         end;
 
@@ -7063,6 +7049,7 @@ begin
           begin
             if s.RCInteger('autorules', 0) <= 0 then
               kell := True;
+
             s.WCInteger('autorules', status);
           end
           else
@@ -7071,8 +7058,7 @@ begin
             s.RemoveAutoRules;
           end;
         end;
-        irc_addtext(Netname, Channel, 'Autorules of %s is: %d',
-          [sitename, s.RCInteger('autorules', 0)]);
+        irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [sitename, s.RCInteger('autorules', 0)]);
 
         if kell then
           s.AutoRules;
@@ -7081,6 +7067,7 @@ begin
       x.Free;
     end;
   end;
+
   Result := True;
 end;
 
@@ -7288,8 +7275,10 @@ var
   i: integer;
   s, ss: AnsiString;
 begin
+  Result := False;
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
+
   i := kb_list.IndexOf(section + '-' + rls);
   if i <> -1 then
   begin
@@ -7304,7 +7293,7 @@ begin
     end;
   end
   else
-    irc_addtext(Netname, Channel, 'Cant find');
+    irc_addtext(Netname, Channel, Format('Can not find any knowledge base entry for %s %s', [section, rls]));
 
   Result := True;
 end;
@@ -10114,13 +10103,14 @@ function IrcShowAllRules(const Netname, Channel: AnsiString; params: AnsiString)
 var
   sitename, sections: AnsiString;
   xs: TStringList;
-  ii, i: Integer;
+  ii, i, count: Integer;
   r: TRule;
 begin
   Result := False;
 
   sitename := UpperCase(SubString(params, ' ', 1));
   sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
+  count := 0;
 
   if sections <> '' then
   begin
@@ -10137,6 +10127,7 @@ begin
           if ((r.sitename = sitename) and (r.section = xs.Strings[i])) then
           begin
             irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
+            Inc(count);
           end;
         end;
       end;
@@ -10146,15 +10137,27 @@ begin
   end
   else
   begin
-    for ii := 0 to rules.Count - 1 do
+    if sitename = '*' then
     begin
-      r := TRule(rules[ii]);
-      if r.sitename = sitename then
+      irc_addtext(Netname, Channel, 'You can not use the special sitename * as a wildcard for all sites to show all rules.', [sitename, sections]);
+      Inc(count);
+    end
+    else
+    begin
+      for ii := 0 to rules.Count - 1 do
       begin
-        irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
+        r := TRule(rules[ii]);
+        if r.sitename = sitename then
+        begin
+          irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
+          Inc(count);
+        end;
       end;
     end;
   end;
+
+  if count = 0 then
+    irc_addtext(Netname, Channel, 'No matching rule for your input of %s %s found!', [sitename, sections]);
 
   Result := True;
 end;
@@ -10294,7 +10297,7 @@ begin
       ss := TSite(sites.Items[i]);
       if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
         Continue;
-      if TSite(sites.Items[i]).PermDown then
+      if ss.PermDown then
         Continue;
 
       if svalue = '' then
@@ -10305,8 +10308,7 @@ begin
         end
         else
         begin
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
-            SiteSoftWareToSTring(ss)]);
+          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
         end;
       end
       else if ((svalue = '1') or (svalue = '0')) then
@@ -10318,8 +10320,7 @@ begin
         end
         else
         begin
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
-            SiteSoftWareToSTring(ss)]);
+          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
         end;
       end
       else
@@ -10344,8 +10345,7 @@ begin
       end
       else
       begin
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
-          SiteSoftWareToSTring(ss)]);
+        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
       end;
     end
     else if ((svalue = '1') or (svalue = '0')) then
@@ -10357,8 +10357,7 @@ begin
       end
       else
       begin
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name,
-          SiteSoftWareToSTring(ss)]);
+        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
       end;
     end
     else
@@ -10776,6 +10775,7 @@ begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
+
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
   begin
@@ -10791,24 +10791,16 @@ begin
     ircth.shouldjoin := True;
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
-      [blowchannel, nn]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
+
   Result := True;
 end;
 
-function IrcDWherePred(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-begin
-  Result := False;
-end;
-
-function IrcReloadGlobalSkipGrouplist(const Netname, Channel: AnsiString;
-  params: AnsiString): boolean;
+function IrcReloadGlobalSkipGrouplist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   Result := Rehashglobalskiplist;
   if Result then
-    irc_addtext(Netname, Channel, '%d groups in list.',
-      [globalgroupskip.Count]);
-
+    irc_addtext(Netname, Channel, '%d groups in list.', [globalgroupskip.Count]);
 end;
 
 function IrcSetPretime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
