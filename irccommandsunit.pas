@@ -329,6 +329,7 @@ function IrcSetPretime(const netname, channel: AnsiString; params: AnsiString): 
 function IrcRebuildSlot(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcRecalcFreeslots(const netname, channel: AnsiString; params: AnsiString): boolean;
 
+function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 {        Sections                   }
@@ -351,7 +352,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..248] of TIrcCommand = (
+  irccommands: array[1..249] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -359,6 +360,7 @@ const
     (cmd: 'status'; hnd: IrcShowAppStatus; minparams: 0; maxparams: 0; hlpgrp: 'general'),
     (cmd: 'nhelp'; hnd: IrcHelpv2; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'queue'; hnd: IrcQueue; minparams: 0; maxparams: 2; hlpgrp: 'general'),
+    (cmd: 'lastlog'; hnd: IrcLastLog; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'logverbosity'; hnd: IrcSetDebugverbosity; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'backup'; hnd: IrcCreateBackup; minparams: 0; maxparams: 0; hlpgrp: 'general'),
     (cmd: 'auto'; hnd: IrcAuto; minparams: 0; maxparams: 1; hlpgrp: 'general'),
@@ -12079,6 +12081,37 @@ begin
       Exit;
 
     end;
+  end;
+
+  Result := True;
+end;
+
+function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  lines: integer;
+  lastlog: String;
+begin
+  Result := False;
+  lines := StrToIntDef(params, -1);
+
+  if lines >= 100 then
+  begin
+    irc_Addtext(Netname, Channel, 'Are you okay ? <b>%d</b> is too much lines. Do you want to break the internet ?!', [lines]);
+    exit;
+  end;
+
+  if lines = -1 then
+    lines := 5;
+
+  lastlog := LogTail(lines);
+  if lastlog <> '' then
+  begin
+    irc_Addtext(Netname, Channel, 'Displaying last <b>%d</b> log lines:', [lines]);
+    irc_Addtext(Netname, Channel, lastlog);
+  end
+  else
+  begin
+    irc_Addtext(Netname, Channel, 'No log entries to display.');
   end;
 
   Result := True;
