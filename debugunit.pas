@@ -121,6 +121,7 @@ end;
 procedure OpenLogFile;
 begin
   Assignfile(f, Debug_logfilename);
+  FileMode := fmShareDenyNone;
   try
     if FileExists(Debug_logfilename) then
       Append(f)
@@ -226,7 +227,7 @@ var
   c: char;
   l: integer;
 begin
-  s := TFileStream.Create(filename, fmOpenRead, fmShareDenyNone);
+  s := TFileStream.Create(filename, fmShareDenyNone);
   try
     s.Seek(0, soEnd);
     l := 0;
