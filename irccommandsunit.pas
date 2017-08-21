@@ -1484,7 +1484,6 @@ begin
   sectiondir := todaycsere(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(sectiondir) + dir);
-  d.dirlist_lock.Enter;
   try
     if d <> nil then
     begin
@@ -1499,7 +1498,6 @@ begin
       end;
     end;
   finally
-    d.dirlist_lock.Leave;
     d.Free;
   end;
 
@@ -1544,7 +1542,6 @@ begin
   sectiondir := todaycsere(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, sectiondir);
-  d.dirlist_lock.Enter;
   try
     if d <> nil then
     begin
@@ -1564,7 +1561,6 @@ begin
       end;
     end;
   finally
-    d.dirlist_lock.Leave;
     d.Free;
   end;
 
