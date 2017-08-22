@@ -69,7 +69,7 @@ implementation
 uses
   StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils;
+  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
 
 const
   c_section = 'taskrace';
