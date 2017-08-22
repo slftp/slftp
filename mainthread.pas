@@ -55,7 +55,7 @@ uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfis
 {$IFNDEF MSWINDOWS}
   , slconsole
 {$ENDIF}
-  , StrUtils;
+  , StrUtils, news;
 
 {$I slftp.inc}
 
@@ -183,6 +183,7 @@ begin
   TagsInit;
   //  EPrecatcherInit;
   NukeInit;
+  NewsInit;
   SpeedStatsInit;
   RanksInit;
   SpeedTestInit;

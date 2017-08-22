@@ -15,7 +15,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils;
+  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils, news;
 
 const
   section = 'taskrules';
@@ -41,8 +41,6 @@ var
   hash_new_rules, hash_old_rules : TList;
   rules_path, rules_file: AnsiString;
   Diff: TDiff;
-  news_file: AnsiString;
-  news_x: TEncStringList;
   numerrors: Integer;
 begin
   Result := False;
@@ -174,30 +172,25 @@ ujra:
       if ((modifies > 0) or (adds > 0) or (deletes > 0)) then
       begin
         try
-          news_file := ExtractFilePath(ParamStr(0))+'slftp.news';
-          news_x := TEncStringList.Create(passphrase);
-          try
-            news_x.LoadFromFile(news_file);
-            for i := 0 to Diff.Count - 1 do
+          for i := 0 to Diff.Count - 1 do
+          begin
+            with Diff.Compares[i] do
             begin
-              with Diff.Compares[i] do
+              if Kind = ckNone then
+                Continue;
+
+              if Kind <> ckAdd then
               begin
-                if Kind = ckNone then Continue;
-                if Kind <> ckAdd then
-                begin
-                  news_x.Insert(0, FormatDateTime('yyyy-mm-dd', Now)+' [RULES '+s.site.name+'] '+inttostr(oldIndex1+1)+' '+old_rules[oldIndex1]);
-                  irc_Addstats('<b>[RULES '+s.site.name+'] <c4>-</c></b>'+inttostr(oldIndex1+1)+' '+old_rules[oldIndex1]);
-                end;
-                if Kind <> ckDelete then
-                begin
-                  news_x.Insert(0, FormatDateTime('yyyy-mm-dd', Now)+' [RULES '+s.site.name+'] '+inttostr(oldIndex2+1)+' '+new_rules[oldIndex2]);
-                  irc_Addstats('<b>[RULES '+s.site.name+'] <c2>+</c></b>'+inttostr(oldIndex2+1)+' '+new_rules[oldIndex2]);
-                end;
+                news.SlftpNewsAdd(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                irc_Addstats(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
+              end;
+
+              if Kind <> ckDelete then
+              begin
+                news.SlftpNewsAdd(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                irc_Addstats(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
               end;
             end;
-            news_x.SaveToFile(news_file);
-          finally
-            news_x.Free;
           end;
         except
           on e: Exception do
@@ -206,15 +199,21 @@ ujra:
           end;
         end;
 
-        irc_Addstats('<b>[RULES '+s.site.name+']</b> Matches: ' + inttostr(matches));
-        irc_Addstats('<b>[RULES '+s.site.name+']</b> Modifies: ' + inttostr(modifies));
-        irc_Addstats('<b>[RULES '+s.site.name+']</b> Adds: ' + inttostr(adds));
-        irc_Addstats('<b>[RULES '+s.site.name+']</b> Deletes: ' + inttostr(deletes));
+        // for testing purpose -- don't know what it exactly shows...never used autorules feature
+        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
+        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
+        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
+        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
+
+        irc_Addstats(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
+        irc_Addstats(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
+        irc_Addstats(Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
+        irc_Addstats(Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
       end
       else
       begin
         if spamcfg.readbool('sites', 'rules_nochange', False) then
-          irc_Addstats('<b>[RULES '+s.site.name+']</b> No Changes ');
+          irc_Addstats(Format('<b>[AUTORULES %s]</b> No Changes.', [s.site.name]));
       end;
     end;
 
