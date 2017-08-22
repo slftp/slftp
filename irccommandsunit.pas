@@ -488,7 +488,7 @@ const
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
 
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
-    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 0; hlpgrp: 'news'),
+    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 1; hlpgrp: 'news'),
     (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 1; maxparams: - 1; hlpgrp: 'news'),
     (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: 'news'),
 
@@ -663,7 +663,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo, globals;
+  tasktvinfolookup, uLkJSON, TypInfo, globals, news;
 
 {$I common.inc}
 
@@ -7854,9 +7854,9 @@ end;
 function IrcOper(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   nn, userid, pass: AnsiString;
-
 begin
   Result := False;
+
   nn := UpperCase(SubString(params, ' ', 1));
   userid := SubString(params, ' ', 2);
   pass := SubString(params, ' ', 3);
@@ -7873,19 +7873,16 @@ begin
     userid := sitesdat.ReadString('ircnet-' + nn, 'oper_userid', '');
     pass := sitesdat.ReadString('ircnet-' + nn, 'oper_password', '');
     if userid <> '' then
-      irc_addtext(Netname, Channel, 'IRC oper settings for %s are: %s %s',
-        [nn, userid, pass])
+      irc_addtext(Netname, Channel, 'IRC oper settings for %s are: %s %s', [nn, userid, pass])
     else
-      irc_addtext(Netname, Channel,
-        'IRC oper settings for %s are turned off.', [nn]);
+      irc_addtext(Netname, Channel, 'IRC oper settings for %s are turned off.', [nn]);
   end
   else if userid = '-' then
   begin
     // delete mode
     sitesdat.DeleteKey('ircnet-' + nn, 'oper_userid');
     sitesdat.DeleteKey('ircnet-' + nn, 'oper_password');
-    irc_addtext(Netname, Channel,
-      'IRC oper settings for %s are now deleted.', [nn]);
+    irc_addtext(Netname, Channel, 'IRC oper settings for %s are now deleted.', [nn]);
   end
   else
   begin
@@ -7893,88 +7890,33 @@ begin
     sitesdat.WriteString('ircnet-' + nn, 'oper_userid', userid);
     sitesdat.WriteString('ircnet-' + nn, 'oper_password', pass);
   end;
+
   Result := True;
 end;
 
 function IrcNews(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  x: TEncStringList;
   i: integer;
 begin
-  x := TEncStringList.Create(passphrase);
-  try
-    x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.news');
-    for i := 0 to x.Count - 1 do
-      irc_addtext(Netname, Channel, '[%d:] %s', [i + 1, x[i]]);
-    Result := True;
-  finally
-    x.Free;
-  end;
+  i := StrToIntDef(params, 10);
+  Result := SlftpNewsShow(Netname, Channel, i);
 end;
 
 function IrcNewsAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  x: TEncStringList;
-  fn: AnsiString;
 begin
-  fn := ExtractFilePath(ParamStr(0)) + 'slftp.news';
-  x := TEncStringList.Create(passphrase);
-  try
-    x.LoadFromFile(fn);
-
-    x.Insert(0, FormatDateTime('yyyy-mm-dd', now) + ' ' + params);
-
-    x.SaveToFile(fn);
-    Result := True;
-  finally
-    x.Free;
-  end;
+  Result := SlftpNewsAdd(Netname, Channel, params);
 end;
 
 function IrcNewsDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  x: TEncStringList;
-  i: integer;
-  fn: AnsiString;
+  DeleteNumber: integer;
 begin
-  Result := False;
-
   if params = '*' then
-  begin
-    fn := ExtractFilePath(ParamStr(0)) + 'slftp.news';
-    x := TEncStringList.Create(passphrase);
-    try
-      x.LoadFromFile(fn);
-      x.Clear;
-      x.SaveToFile(fn);
-    finally
-      x.Free;
-    end;
-    Result := True;
-  end
+    DeleteNumber := -1
   else
-  begin
-    i := StrToIntDef(params, 0);
-    if i < 1 then
-    begin
-      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-      exit;
-    end;
+    DeleteNumber := StrToIntDef(params, 0);
 
-    fn := ExtractFilePath(ParamStr(0)) + 'slftp.news';
-    x := TEncStringList.Create(passphrase);
-    try
-      x.LoadFromFile(fn);
-      x.BeginUpdate;
-      if x.Count >= i then
-        x.Delete(i - 1);
-      x.EndUpdate;
-      x.SaveToFile(fn);
-    finally
-      x.Free;
-    end;
-    Result := True;
-  end;
+  Result := SlftpNewsDelete(Netname, Channel, DeleteNumber);
 end;
 
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -7983,6 +7925,7 @@ var
   s: TSite;
 begin
   Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
   rip := SubString(params, ' ', 3);
@@ -11312,6 +11255,8 @@ var
   spd, sup, sdn, suk: TStringList;
 begin
   IrcUptime(Netname, Channel, '');
+
+  irc_addtext(Netname, Channel, SlftpNewsStatus);
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
