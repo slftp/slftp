@@ -209,6 +209,7 @@ begin
     exit;
   end;
 
+  // fire queue scheduler
   if ((queue_fire > 0) and (MilliSecondsBetween(Now, queue_last_run) >= queue_fire)) then
   begin
     try
@@ -216,11 +217,12 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in QueueFire: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueFire): %s', [e.Message]);
       end;
     end;
   end;
 
+  // clean queue scheduler
   if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
   begin
     try
@@ -228,12 +230,13 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in QueueClean: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
         queueclean_last_run := Now;
       end;
     end;
   end;
 
+  // ranks save scheduler
   if ((ranks_save_interval > 0) and (SecondsBetween(Now, ranks_last_save) >= ranks_save_interval)) then
   begin
     try
@@ -241,12 +244,13 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in RanksSave: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(RanksSave): %s', [e.Message]);
         ranks_last_save := Now;
       end;
     end;
   end;
 
+  // ranks recalc scheduler
   if ((recalc_ranks_interval > 0) and (SecondsBetween(Now, ranks_last_process) >= recalc_ranks_interval)) then
   begin
     try
@@ -254,12 +258,13 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in RanksRecalc: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(RanksRecalc): %s', [e.Message]);
         ranks_last_process := Now;
       end;
     end;
   end;
 
+  // speedstats save scheduler
   if ((speedstats_save_interval > 0) and (SecondsBetween(Now, speedstats_last_save) >= speedstats_save_interval)) then
   begin
     try
@@ -267,12 +272,13 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in SpeedStatsSave: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(SpeedStatsSave): %s', [e.Message]);
         speedstats_last_save := Now;
       end;
     end;
   end;
 
+  // routes recalc scheduler
   if ((speedstats_recalc_routes_interval > 0) and (SecondsBetween(Now, speedstats_last_recalc) >= speedstats_recalc_routes_interval)) then
   begin
     try
@@ -280,12 +286,13 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in SpeedStatsRecalc: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(SpeedStatsRecalc): %s', [e.Message]);
         speedstats_last_recalc := Now;
       end;
     end;
   end;
 
+  // backup scheduler
   if ((backup_interval > 0) and (SecondsBetween(Now, backup_last_backup) >= backup_interval)) then
   begin
     try
@@ -293,20 +300,11 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in BackupBackup: %s', [e.Message]));
-        irc_Adderror(Format('<c4>[Exception]</c> in BackupBackup: %s', [e.Message]));
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(BackupBackup): %s', [e.Message]);
         backup_last_backup := Now;
       end;
     end;
   end;
-
-  //CustomBackup(s);
-
-  //    if s <> '' then Debug(dpError, section, 'backup create failed: %s ', [s]);
-
-  // Looks like a good spot to handle the rec. uptime ..
-  //if SecondsBetween(Now, last_max_uptime_check) >= 3 then CheckForNewMaxUpTime;// <- broken!
-
 end;
 
 procedure Main_Run;
@@ -326,7 +324,17 @@ begin
 
   // Run backup
   if config.ReadBool('backup', 'run_backup_on_startup', True) then
-    BackupBackup;
+  begin
+    try
+      BackupBackup;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] Main_Run(BackupBackup): %s', [e.Message]);
+        backup_last_backup := Now;
+      end;
+    end;
+  end;
 
   StartProxys;
   dbaddpreStart;
@@ -381,7 +389,7 @@ procedure Main_Uninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   (*
-    // ez a legutolsonak betoltott unit, kilepesnel varni fog a tobbi cucc befejezodesere
+    // Looks like this was an attempt to ensure a clean exit when everything is shut down
     while
       (myIdentserver <> nil)
       or
@@ -442,7 +450,9 @@ end;
 function Main_Restart: boolean;
 begin
   Result := False;
-  (*  broken anyway!
+  (*
+  // Looks like this was an attempt for a restart command but stopping without
+  // exception would be already a good begining.
   try
       Main_Stop;
       Main_Uninit;
@@ -450,7 +460,10 @@ begin
       Main_Init;
       Main_Stop;
       result:=True;
-  except on e: Exception do Debug(dpError, 'MainThread', '[EXCEPTION] MainThreadRestart: %s', [e.Message]);end;
+  except
+    on e: Exception do
+      Debug(dpError, section, '[EXCEPTION] MainThreadRestart: %s', [e.Message]);
+  end;
   *)
 end;
 
