@@ -25,8 +25,8 @@ function Debug_MaxFileSize: integer;
 function Debug_EncryptOldFiles: boolean;
 function Debug_CompressOldFiles: boolean;
 
-function LogTail(lines: Integer): String;
-function FileTail(lines: Integer; filename: String): String;
+function LogTail(lines: Integer): AnsiString;
+function FileTail(lines: Integer; filename: AnsiString): AnsiString;
 
 function Hide_plain_text: boolean;
 
@@ -209,25 +209,27 @@ begin
   end;
 end;
 
-function LogTail(lines: Integer): String;
+function LogTail(lines: Integer): AnsiString;
 begin
   Result := '';
 
   debug_lock.Enter;
+  CloseLogFile;
   try
     Result := FileTail(lines, Debug_logfilename);
   finally
     debug_lock.Leave;
+    OpenLogFile;
   end;
 end;
 
-function FileTail(lines: Integer; filename: String): String;
+function FileTail(lines: Integer; filename: AnsiString): AnsiString;
 var
   s: TStream;
   c: char;
   l: integer;
 begin
-  s := TFileStream.Create(filename, fmShareDenyNone);
+  s := TFileStream.Create(filename, fmOpenRead, fmShareDenyNone);
   try
     s.Seek(0, soEnd);
     l := 0;
@@ -235,7 +237,7 @@ begin
     begin
       s.Seek(-2, soCurrent);
       s.Read(c, SizeOf(byte));
-      if c = #13 then Inc(l);
+      if c = #10 then Inc(l);
     end;
     s.Seek(1, soCurrent);
     l := s.Size - s.Position;
