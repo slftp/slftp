@@ -15,7 +15,9 @@ implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
   statsunit, indexer, dbtvinfo, dbaddpre, slvision, StrUtils
-{$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  {$IFDEF MSWINDOWS}
+    , Windows
+  {$ENDIF};
 
 const
   section = 'backup';
@@ -68,7 +70,7 @@ begin
           if ( fileexists(generatedFiles[i]) and (skipfiles.IndexOf(generatedFiles[i]) = -1) ) then
             AddFile(generatedFiles[i]);
 
-        //adding databases
+        //adding indexer database (only at startup)
         if not IndexerAlive then
         begin
           fileName := Trim(config.ReadString('indexer', 'database', 'disabled'));
@@ -76,6 +78,7 @@ begin
             AddFile(fileName);
         end;
 
+        // adding stats database (only at startup)
         if not StatsAlive then
         begin
           fileName := Trim(config.ReadString('stats', 'database', 'disabled'));
@@ -83,6 +86,7 @@ begin
             AddFile(fileName);
         end;
 
+        // adding pretime database (only at startup)
         if not AddPreDbAlive then
         begin
           fileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
@@ -90,6 +94,7 @@ begin
             AddFile(fileName);
         end;
 
+        // adding tvinfo database (only at startup)
         if not TVInfoDbAlive then
         begin
           fileName := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
@@ -98,6 +103,7 @@ begin
         end;
 
         (*
+        // adding imdb database (soon) (only at startup)
         if not IMDbInfoDbAlive then
         begin
           fileName := Trim(config.ReadString('taskimdb', 'database', 'imdb.db'));
@@ -106,24 +112,20 @@ begin
         end;
         *)
 
-        //split_site_data folder
-        if config.ReadBool('sites', 'split_site_data', False) then
+        // adding rtpl dir
+        s := MyIncludeTrailingSlash('rtpl');
+        ForceDirectories(s);
+        if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
         begin
-          s := MyIncludeTrailingSlash('rtpl');
-          ForceDirectories(s);
-          if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
-          begin
-            repeat
-            AddFile(s + sr.Name, 'rtpl/' + sr.name);
-            until FindNext(sr) <> 0;
-  {$IFDEF MSWINDOWS}
+          repeat
+          AddFile(s + sr.Name, 'rtpl/' + sr.name);
+          until FindNext(sr) <> 0;
+          {$IFDEF MSWINDOWS}
             SysUtils.FindClose(sr);
-  {$ELSE}
+          {$ELSE}
             FindClose(sr);
-  {$ENDIF}
-          end;
+          {$ENDIF}
         end;
-
         Free;
       end;
 
@@ -148,7 +150,7 @@ var
   files: TStringList;
   ages: TIntList;
   i: integer;
-  oldest, oldesti: integer;
+  oldest_date, oldest_index: integer;
 begin
   files := TStringList.Create;
   ages := TIntList.Create;
@@ -156,59 +158,77 @@ begin
     s := MyIncludeTrailingSlash(s);
     ForceDirectories(s);
 
-    if FindFirst(s + '*.tar', faAnyFile, sr) = 0 then
+    if FindFirst(s + '*.tar', faAnyFile, sr) < 0 then
+    begin
+      // no old backups found
+      Debug(dpMessage, '<- BACKUP ->', 'No existing backup found');
+      exit;
+    end
+    else
     begin
       repeat
-        if (AnsiEndsStr(sr.Name, '.tar') or (not AnsiContainsStr(sr.Name, '-custom-'))) then
+        // enumerate existing backups
+        if (not AnsiContainsStr(sr.Name, '-custom-')) then
         begin
-          Debug(dpMessage, '<- BACKUP ->', 'adding: ' + sr.Name);
+          Debug(dpMessage, '<- BACKUP ->', 'found backup: ' + sr.Name);
           files.Add(sr.Name);
           ages.Add(sr.Time);
         end
         else
-          Debug(dpMessage, '<- BACKUP ->', 'skip: ' + sr.Name);
+        begin
+          Debug(dpMessage, '<- BACKUP ->', 'ignored: ' + sr.Name);
+        end;
       until FindNext(sr) <> 0;
-{$IFDEF MSWINDOWS}
-      SysUtils.FindClose(sr);
-{$ELSE}
-      FindClose(sr);
-{$ENDIF}
+      {$IFDEF MSWINDOWS}
+        SysUtils.FindClose(sr);
+      {$ELSE}
+        FindClose(sr);
+      {$ENDIF}
 
-      while (files.Count > config.ReadInteger(section, 'keep_backups', 30)) do
+      // remove oldest backups until we have reach the max backups  we want
+      while (files.Count > config.ReadInteger(section, 'keep_backups', 10)) do
       begin
-        //we search for the oldest
-        oldesti := -1;
-        oldest := 0;
+        oldest_index := -1;
+        oldest_date := 0;
         for i := 0 to ages.Count - 1 do
         begin
-          if ((oldest = 0) or (ages[i] < oldest)) then
+          if ((oldest_date = 0) or (ages[i] < oldest_date)) then
           begin
-            oldesti := i;
-            oldest := ages[i];
+            oldest_index := i;
+            oldest_date := ages[i];
           end;
         end;
 
-        if oldesti < 0 then
-          Break; // wtf?
+        // no backup left to delete
+        if oldest_index < 0 then
+          Break;
 
-{$IFDEF MSWINDOWS}
-        DeleteFile(PAnsiChar(s + files[oldesti]));
-{$ELSE}
-        DeleteFile(s + files[oldesti]);
-{$ENDIF}
+        // delete the file
+        try
+          {$IFDEF MSWINDOWS}
+            DeleteFile(PAnsiChar(s + files[oldest_index]));
+          {$ELSE}
+            DeleteFile(s + files[oldest_index]);
+          {$ENDIF}
+        except
+          on e: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] DeleteOldBackups: %s', [e.Message]));
+        end;
 
-        ages.Delete(oldesti);
+        // remove file from list
         files.BeginUpdate;
         try
-          files.Delete(oldesti);
+          try
+            files.Delete(oldest_index);
+          except
+            continue;
+          end;
         finally
           files.EndUpdate;
         end;
+        ages.Delete(oldest_index);
       end;
-    end
-    else
-      Debug(dpMessage, '<- BACKUP ->', ' !!! no files added !!! ');
-
+    end;
   finally
     ages.Free;
     files.Free;
@@ -223,17 +243,24 @@ begin
     debug(dpMessage, section, 'Backup process started.');
 
     s := config.ReadString(section, 'backup_dir', 'backup');
+
+    // create backup dir if it doesn't exists
     if not DirectoryExists(s) then
       Mkdir(s);
-    DeleteOldBackups(s);
 
+    // backup
     if createBackup(False) then
-      backup_last_backup := Now
+    begin
+      backup_last_backup := Now;
+      DeleteOldBackups(s);
+    end
     else
+    begin
       debug(dpMessage, section, 'Backup process Failed!');
-
-  except on E: Exception do
-    Debug(dpError, section, Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s', [e.Message]));
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] BackupBackup: %s', [e.Message]));
   end;
 end;
 
