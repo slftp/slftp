@@ -346,6 +346,13 @@ function IrcDelTheTVDbInfo(const Netname, Channel: AnsiString; params: AnsiStrin
 function IrcSetTheTVDbID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString): boolean;
 
+{$IFDEF MSWINDOWS}
+  function GetCurrentProcessId : Cardinal; stdcall; external 'kernel32.dll';
+{$ENDIF}
+{$IFDEF LINUX}
+  function GetCurrentProcessId : Cardinal;
+{$ENDIF}
+
 const
   helpCommands: array[0..22] of AnsiString = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'rip', 'stats', 'slots', 'misc', 'news', 'irc',
@@ -11244,7 +11251,7 @@ begin
     cpuversion := '32-Bit';
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> (%s) with OpenSSL %s is up for [%s] <c7><b>%s</b></c>', [Get_VersionString, cpuversion, OpenSSLShortVersion, DatetimetoStr(started), DateTimeAsString(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [Get_VersionString, cpuversion, IntToStr(GetCurrentProcessId), OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;
@@ -11256,7 +11263,8 @@ var
 begin
   IrcUptime(Netname, Channel, '');
 
-  irc_addtext(Netname, Channel, SlftpNewsStatus);
+  // Throws an ECompressionError ?!
+  //irc_addtext(Netname, Channel, SlftpNewsStatus);
 
   irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
@@ -12321,6 +12329,14 @@ function IrcNope(const Netname, Channel: AnsiString; params: AnsiString): boolea
 begin
   Result := False;
 end;
+
+{$IFDEF LINUX}
+  function GetCurrentProcessId : Cardinal;
+  begin
+    // TODO: do some shit to get pid on linux
+    Result := 666;
+  end;
+{$ENDIF}
 
 end.
 
