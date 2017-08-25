@@ -5,7 +5,7 @@ interface
 uses
   SysUtils;
 
-{ Just a helper function to set @value SlftpNewsFilename on startup }
+{ Just a helper function to set @value(SlftpNewsFilename) on startup }
 procedure NewsInit;
 { Add a new news entry
   @param(NewsMessage is a string with the message with should be stored (supports all mirc color stuff etc))
