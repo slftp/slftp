@@ -2,7 +2,12 @@ unit ircblowfish;
 
 interface
 
-uses Contnrs, delphiblowfish{$IFDEF MSWINDOWS},Windows{$ENDIF};
+uses
+  Contnrs, delphiblowfish
+  {$IFDEF MSWINDOWS}
+    ,Windows
+  {$ENDIF};
+
 type
   TIrcBlowkey = class
   private
@@ -24,17 +29,20 @@ type
 function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;
 function irc_decrypt(netname, channel, eText: AnsiString): AnsiString;
 function irc_RegisterChannel(netname, channel, blowkey: AnsiString; chankey: AnsiString = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
-function FindIrcBlowfish(netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
+function FindIrcBlowfish(const netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
 procedure IrcblowfishInit;
 procedure IrcblowfishUnInit;
 
-var chankeys: TObjectList;
+var
+  chankeys: TObjectList;
 
 implementation
 
-uses SysUtils, console, debugunit;
+uses
+  SysUtils, console, debugunit;
 
-const B64: AnsiString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const
+  B64: AnsiString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   section: AnsiString = 'ircblowfish';
 
 
@@ -161,26 +169,33 @@ begin
   end;
 end;
 
-function FindIrcBlowfish(netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
-var i: Integer;
-    bf: TIrcBlowkey;
+function FindIrcBlowfish(const netname, channel: AnsiString; acceptdefault: Boolean = True): TIrcBlowkey;
+var
+  i: Integer;
+  bf: TIrcBlowkey;
 begin
-  if ((acceptdefault) and (chankeys.Count = 0)) then
-    raise Exception.Create('No default chankey is registered');
+  Result := nil;
 
-  for i:= 0 to chankeys.Count -1 do
+  if ((acceptdefault) and (chankeys.Count = 0)) then
   begin
-    bf:= TIrcBlowkey(chankeys[i]);
+    Debug(dpMessage, section, Format('No default chankey for %s@%s registered.', [channel, netname]));
+    exit;
+  end;
+
+  for i := 0 to chankeys.Count - 1 do
+  begin
+    bf := TIrcBlowkey(chankeys[i]);
     if ((AnsiSameText(bf.channel, channel)) and (AnsiSameText(bf.netname, netname))) then
     begin
-      Result:= bf;
+      Result := bf;
       exit;
     end;
   end;
+
   if acceptdefault then
-    Result:= chankeys[0] as TIrcBlowkey
+    Result := chankeys[0] as TIrcBlowkey
   else
-    Result:= nil;
+    Result := nil;
 end;
 
 function irc_encrypt(netname, channel, dText: AnsiString; include_ok: Boolean = False): AnsiString;

@@ -100,7 +100,7 @@ type
     property flood: Integer read GetIrcFlood write SetIrcFlood;
     property ssl: Boolean read GetIrcSSL write SetIrcSSL;
 
-    property irc_nick: AnsiString read GetIrcNick write SetIrcNick;
+    property irc_nick: AnsiString read GetIrcNick write SetIrcNick; //< your nickname on this network
     property irc_anick: AnsiString read GetIrcANick write SetIrcANick;
     property irc_username: AnsiString read GetIrcUsername write SetIrcUsername;
     property irc_ident: AnsiString read GetIrcIdent write SetIrcIdent;
@@ -115,12 +115,6 @@ type
     //    property NickServNick:string read GetNickServNick write SetNickServNick;
     //    property NickServPassword:string read GetNickServPassw write SetNickServpassw;
   end;
-
-  //<!--- IRC Colors -----------------------------------------------------------!>
-
-  //function Bold(s: string): string; overload;
-  //function Bold(s: Integer): string; overload;
-
 
 procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
 procedure irc_Addtext(const netname, channel: AnsiString; msg: AnsiString); overload;
@@ -176,31 +170,6 @@ var
 
 const
   irc_chanroleindex = 21;
-  (*
-  ircchanroles: array [0..irc_chanroleindex] of TIRCChannroles = (
-  (Name:'ADMIN',Description:'Give an IRC Chanel Admin privilege'),
-  (Name:'KB',Description:'Allows u to send kb commands'),
-  (Name:'STATS',Description:'Announces new KB hits and status message'),
-  (Name:'ERROR',Description:'Send Error messages.'),
-  (Name:'INFO',Description:'Announces --'),
-  (Name:'INDEXER',Description:'Announces Autoindexer process'),
-  (Name:'GROUP',Description:'Give an IRC Chanel Group privilege, pre, spread, check and so on.'),
-  (Name:'NUKE',Description:'Give an IRC Chanel Nuke privilege, nuke and unnuke'),
-  (Name:'IRCEVENT',Description:'Give an IRC Chanel Nuke privilege, nuke and unnuke'),
-  (Name:'SPEEDSTATS',Description:'Announces --'),
-  (Name:'RACETATS',Description:'Announces --'),
-  (Name:'RANKSTATS',Description:'Announces --'),
-  (Name:'PRECATCHSTATS',Description:'Announces --'),
-  (Name:'ROUTEINFOS',Description:'Announces --'),
-  (Name:'SKIPLOG',Description:'Announces --'),
-  (Name:'ADDPRE',Description:'Give an IRC Chanel ADDPRE privilege, allows you to fill the internal dupedb.'),
-  (Name:'ADDNFO',Description:'Give an IRC Chanel ADDNFO privilege, -- gone?'),
-  (Name:'ADDURL',Description:'Give an IRC Chanel ADDURL privilege'),
-  (Name:'ADDIMDB',Description:''),
-  (Name:'ADDPREECHO',Description:''),
-  (Name:'ADDGN',Description:'')
-  );
-  *)
 
   irc_chanroles: array[0..irc_chanroleindex] of AnsiString = (
     'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
@@ -919,7 +888,7 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-        msg := '';
+        exit;
       end;
     end;
   end
@@ -932,26 +901,27 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-        msg := '';
+        exit;
       end;
     end;
-    //if not Hide_plain_text then Debug(dpSpam, section, 'PLAIN: '+msg);
   end;
 
+
+  // decrypting wasn't successful or failed somehow
   if ((1 = Pos('+OK ', msg)) or (1 = Pos('mcps ', msg))) then
   begin
     exit;
   end;
 
-  try
+  //try
     b := FindIrcBlowfish(netname, channel, False);
     if (b = nil) then
     begin
       exit;
     end;
-  except
-    exit;
-  end;
+  //except
+  //  exit;
+  //end;
 
   console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), nick, msg]));
 
@@ -988,7 +958,7 @@ begin
         end;
       end;
     end;
-             *)
+  *)
 
   if (b.HasKey('ADDTVMAZE')) then
   begin
@@ -1060,9 +1030,9 @@ begin
 
   if (is_crypted_msg) then
   begin
+    // commandhandler for slftp commands
     if (1 = Pos(irccmdprefix, msg)) then
     begin
-      // commandhandler begins
       try
         msg := Copy(msg, length(irccmdprefix) + 1, 1000);
         IrcProcessCommand(netname, channel, msg);
@@ -1077,6 +1047,7 @@ begin
     end;
   end;
 
+  // no case from above matched, let's check if we have a catchadd for it
   Debug(dpSpam, section, '--> ' + channel + ' ' + nick + ' ' + msg);
   try
     PrecatcherProcess(netname, channel, nick, msg);
@@ -1195,6 +1166,8 @@ begin
     end;
 
     s2 := SubString(s, ' ', 2);
+
+    // TODO: Add a case for requesting fishkey - if we want to support this!
 
     if (0 = Pos(':' + irc_nick + '!', s)) then
     begin
