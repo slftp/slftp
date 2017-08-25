@@ -814,7 +814,6 @@ var
   is_crypted_msg: Boolean;
   l: Integer;
   b: TIrcBlowkey;
-  adminnet: TMyIrcThread;
 begin
   {
   * full input string 's' looks like:
@@ -876,9 +875,13 @@ begin
       msg := Trim(msg);
       ctcp_event := Substring(msg, ' ', 1);
 
+      // somehow it starts spamming with no end -- good idea to implement ddos
+      if ( (Length(ctcp_event) <> Length(msg)) and (ctcp_event <> 'PING') ) then
+        exit;
+
       if ctcp_event = 'CLIENTINFO' then
       begin
-        IrcWrite(Format('PRIVMSG %s :%s%s PING VERSION TIME FINGER%s', [nick, #1, ctcp_event, #1]));
+        IrcWrite(Format('PRIVMSG %s :%sCLIENTINFO PING VERSION TIME FINGER%s', [nick, #1, #1]));
       end
       else if ctcp_event = 'PING' then
       begin
@@ -887,7 +890,7 @@ begin
       end
       else if ctcp_event = 'VERSION' then
       begin
-        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s', [nick, #1, Get_VersionOnlyString, #1]));
+        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s%s', [nick, #1, Get_VersionOnlyString, #1]));
       end
       else if ctcp_event = 'TIME' then
       begin
