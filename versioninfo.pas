@@ -2,9 +2,9 @@ unit versioninfo;
 
 interface
 
-function Get_VersionString(exename: AnsiString): AnsiString;overload;
-function Get_VersionString: AnsiString;overload;
-
+function Get_VersionString(const exename: AnsiString): AnsiString; overload;
+function Get_VersionString: AnsiString; overload;
+function Get_VersionOnlyString: AnsiString;
 function cmod_VersionString: AnsiString;
 
 
@@ -14,33 +14,45 @@ function cmod_VersionString: AnsiString;
 
 implementation
 
-uses configunit,sysutils;
+uses
+  configunit, SysUtils, mystrings;
 
-function ShowSLFTPVerison:AnsiString;
+function ShowSLFTPVerison: AnsiString;
 begin
-if sl_rev = '' then
-Result:=Format('slFtp v%s',[SL_VERSION]) else
-Result:=Format('slFtp v%s (git# %s)',[SL_VERSION,sl_rev]);
+  if sl_rev = '' then
+    Result := Format('slFtp v%s',[SL_VERSION])
+  else
+    Result := Format('slFtp v%s (git# %s)',[SL_VERSION, SL_REV]);
 end;
 
 
-function Get_VersionString(exename: AnsiString): AnsiString;
+function Get_VersionString(const exename: AnsiString): AnsiString;
 begin
-//  Result:= 'slftp-'+sl_version;
-  result:=ShowSLFTPVerison;
+  result := ShowSLFTPVerison;
 end;
 
 function Get_VersionString: AnsiString;
 begin
-  Result:= ShowSLFTPVerison;
+  Result := ShowSLFTPVerison;
 end;
 
+function Get_VersionOnlyString: AnsiString;
+var
+  src: AnsiString;
+begin
+  src := ShowSLFTPVerison;
+  Result := mystrings.RightStr(src, Pos('v', src));
+end;
 
 function cmod_VersionString: AnsiString;
-var s:AnsiString;
+var
+  s: AnsiString;
 begin
-s:=config.ReadString('console','customtitle','');
-if s <> '' then result:= Format('%s %s',[ShowSLFTPVerison,s]) else result:= ShowSLFTPVerison;
+  s := config.ReadString('console','customtitle','');
+  if s <> '' then
+    result := Format('%s %s',[ShowSLFTPVerison,s])
+  else
+    result := ShowSLFTPVerison;
 end;
 
 
