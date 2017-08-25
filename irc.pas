@@ -46,7 +46,7 @@ type
     function IrcProcessLine(s: AnsiString): Boolean;
     function IrcProcess: Boolean;
     function IrcPing(cumo: AnsiString): Boolean;
-    procedure IrcPrivMsg(s: AnsiString);
+    procedure IrcPrivMsg(const s: AnsiString);
     function ShouldJoinGame: Boolean;
     procedure ClearSiteInvited;
     function ChannelsList: AnsiString;
@@ -179,11 +179,14 @@ const
 
 implementation
 
-uses debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
+uses
+  debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
   socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
-  sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl, dbaddimdb,
-  dbaddgenre
-{$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl,
+  dbaddimdb, dbaddgenre, news
+  {$IFDEF MSWINDOWS}
+    , Windows
+  {$ENDIF}
   ;
 
 const
@@ -805,78 +808,109 @@ begin
   TIRCCommandThread.Create(irccommands[i].hnd, netname, channel, params, irccommands[i].cmd);
 end;
 
-procedure TMyIrcThread.IrcPrivMsg(s: AnsiString);
+procedure TMyIrcThread.IrcPrivMsg(const s: AnsiString);
 var
-  channel, msg, nick: AnsiString;
+  channel, msg, nick, ctcp_event: AnsiString;
   is_crypted_msg: Boolean;
   l: Integer;
   b: TIrcBlowkey;
   adminnet: TMyIrcThread;
 begin
+  {
+  * full input string 's' looks like:
+  :***!znc@znc.in PRIVMSG #channel :Buffer Playback... <-- znc
+  :Benti!~IDENT@91.x.x.256 PRIVMSG #sl-test :+OK OKm.j0tnE8Y0hLJOr.r90Sk.q829n/YneL6/IwZZI/.QW05.CrF9M.2L9Uw.mO3pZ1aJDry1TwKts.YDZKL01q1aH.BVbQe/9X/0/1JLntf/1Q5f90d8dea/ <-- a message on any chan
+  :SL!SiLLY-BiTCH@C404J4.284M2F.B26DIC.CPDBA5 PRIVMSG #adminchan :+OK 26S0X1DFeaf0W7PLv0RpNcU/0YfTK.v1HXb/zA9IQ0KA/OR/ <-- slftp bot
+  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG #adminchan :+OK 2DshD/5hHM1/ <-- command in admin chan
+  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG #adminchan :omg this shit!! <-- unencrypted msg
+  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :stupid idiot <-- private message to slftp bot [query] (unencrypted)
+  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :VERSION <- CTCP 'version'
+  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :PING 1503674480 <- CTCP 'ping'
+  }
+
+  // find channel name or username from your query partner (private message)
   channel := SubString(s, ' ', 3);
   if channel = '' then
+  begin
     exit;
+  end;
 
+  // find username who wrote the message
   nick := Copy(s, 2, Pos('!', s) - 2);
   if nick = irc_nick then
   begin
     exit;
   end;
 
-  if channel = irc_nick then // nickname az a sajat nickem amivel ircen vagyok
-  begin
-    try
-      //privat uzenet, ki kell hamozni a nikket
-      channel := nick;
-      msg := mystrings.RightStr(s, Pos(' ', s));
-      msg := mystrings.RightStr(msg, Pos(':', msg));
-      //irc_Addadmin('->PRIVMSG from: <b>'+nick+'</b>@'+netname+' : '+msg);
-      if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
-      begin
-        adminnet := FindIrcnetwork(config.ReadString(section, 'admin_net', 'SLFTP'));
-        if (adminnet <> NIL) then
-          begin
-             if (adminnet.status = 'online...') then
-             begin
-                adminnet.IrcWrite('PRIVMSG ' + config.ReadString(section, 'admin_nick', 'slftp') + ' :' + ReplaceThemeMSG('->PRIVMSG from: <b>' + nick + '</b>@' + netname + ' : ' + msg));
-             end
-             else
-             begin
-               Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: Adminnet not in Status Online');
-             end;
-          end
-          else
-          begin
-            Debug(dpError, section, '[EXCEPTION] in adminnet.IrcWrite: no IRC-Server found or NIL');
-          End;
-      end;
-      exit;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite: %s', [e.Message]));
-        Debug(dpError, section, Format('[EXCEPTION] in adminnet.IrcWrite msg: %s', [s]));
-      end;
-    end;
-  end;
 
+  // get the part of 's' starting with PRIVMSG
+  {
+    e.g.: PRIVMSG #adminchan :+OK 2DshD/5hHM1/
+    e.g.: PRIVMSG SL :stupid idiot
+  }
   msg := mystrings.RightStr(s, Pos(' ', s));
+
+  // get the msg text which was sent
+  {
+    e.g.: +OK 2DshD/5hHM1/
+    e.g.: stupid idiot
+  }
   msg := mystrings.RightStr(msg, Pos(':', msg));
 
-  l := length(msg);
+  l := Length(msg);
   if l = 0 then
     exit;
 
-  if ((msg[1] = #1) and (msg[l] = #1)) then
+  // check if PRIVMSG #CHANNEL argument is my irc nick
+  if channel = irc_nick then
   begin
-    // CTCP
-    msg := Trim(msg);
+    {
+    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :stupid idiot
+    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :VERSION
+    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :PING 1503674480
+    }
 
-    if Substring(msg, ' ', 1) = 'PING' then
-      IrcWrite('PRIVMSG ' + channel + ' :' + #1 + 'PING ' + IntToStr(DateTimeToUnix(now)) + #1);
+    if ((msg[1] = #1) and (msg[l] = #1)) then
+    begin
+      // CTCP (Client-To-Client-Protocol) which is a special type of communication between IRC Clients
+      msg := Trim(msg);
+      ctcp_event := Substring(msg, ' ', 1);
+
+      if ctcp_event = 'CLIENTINFO' then
+      begin
+        IrcWrite(Format('PRIVMSG %s :%s%s PING VERSION TIME FINGER%s', [nick, #1, ctcp_event, #1]));
+      end
+      else if ctcp_event = 'PING' then
+      begin
+        // PING requires a NOTICE and reply needs to contain exactly the same parameters as the original query
+        IrcWrite(Format('NOTICE %s :%s%s%s', [nick, #1, msg, #1]));
+      end
+      else if ctcp_event = 'VERSION' then
+      begin
+        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s', [nick, #1, Get_VersionOnlyString, #1]));
+      end
+      else if ctcp_event = 'TIME' then
+      begin
+        IrcWrite(Format('PRIVMSG %s :%sTIME: %s %s%s', [nick, #1, DateToStr(date), TimeToStr(Time), #1]));
+      end
+      else if ctcp_event = 'FINGER' then
+      begin
+        IrcWrite(Format('PRIVMSG %s :%sFINGER :%s (anonymous@ftp.net) Idle %d seconds%s', [nick, #1, config.ReadString(section, 'nickname', 'slftp'), DateTimeToUnix(now), #1]));
+      end;
+
+      exit;
+    end;
+
+    // we received a private message
+    irc_Addadmin(Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
+    if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
+    begin
+      news.SlftpNewsAdd(Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
+    end;
 
     exit;
   end;
+
 
   is_crypted_msg := False;
   if ((1 = Pos('+OK ', msg)) and (l > 5)) then

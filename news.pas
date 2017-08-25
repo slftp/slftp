@@ -54,8 +54,8 @@ begin
   try
     x.BeginUpdate;
     x.LoadFromFile(SlftpNewsFilename);
-
-    x.Insert(0, cUNREAD_IDENTIFIER + ' ' + FormatDateTime('dd-mmm-yyyy hh:nn', Now) + ' :: ' + NewsMessage);
+    // stored as: "!UNREAD! 24-8-17 15:44 :: MyMessage"
+    x.Insert(0, cUNREAD_IDENTIFIER + ' ' + FormatDateTime('dd-m-yy hh:nn', Now) + ' :: ' + NewsMessage);
 
     x.SaveToFile(SlftpNewsFilename);
     x.EndUpdate;
@@ -96,11 +96,13 @@ begin
     begin
       if ShowCount > j then
       begin
+        // showing count is higher than all entries -> show all!
         j := x.Count - 1;
         irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> entries:', [x.Count]));
       end
       else
       begin
+        // showing count is less than all entries -> show ShowCount
         j := ShowCount;
         irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> of %d entries:', [ShowCount, x.Count]));
       end;
@@ -110,10 +112,11 @@ begin
         ReadStatus := SubString(x[i], ' ', 1);
         if ReadStatus = cUNREAD_IDENTIFIER then
         begin
+          // change '!UNREAD!' to !READ!' status of shown entrie
           x[i] := cREAD_IDENTIFIER + ' ' + RightStr(x[i], Length(cUNREAD_IDENTIFIER) + 1);
         end;
 
-        // pad numbers on the left
+        // format output line -> pad numbers on the left
         case j of
           0..9: padding := 1;
           10..99: padding := 2;
@@ -139,7 +142,7 @@ end;
 function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer): boolean;
 var
   x: TEncStringList;
-  newsentry, unwanted: AnsiString;
+  newsentry, newsentrymsg: AnsiString;
   i: Integer;
 begin
   Result := False;
@@ -161,9 +164,10 @@ begin
       if x.Count >= DeleteNumber then
       begin
         newsentry := x[DeleteNumber - 1];
-        i := Pos('::', newsentry) + 3;
+        i := Pos('::', newsentry) + 3; // +3 because of whitespaces
+        newsentrymsg := Copy(newsentry, i, Length(newsentry));
         x.Delete(DeleteNumber - 1);
-        irc_addtext(Netname, Channel, Format('Entry ''%s'' deleted.', [Copy(newsentry, i, Length(newsentry))]));
+        irc_addtext(Netname, Channel, Format('Entry ''%s'' deleted.', [newsentrymsg]));
       end
       else
         irc_addtext(Netname, Channel, Format('No entry for given number <b>%d</b> found.', [DeleteNumber]));
@@ -182,11 +186,11 @@ end;
 function SlftpNewsStatus(): AnsiString;
 var
   x: TEncStringList;
-  i, read, unread: Integer;
+  i, ReadCount, UnreadCount: Integer;
   ReadStatus: AnsiString;
 begin
-  unread := 0;
-  read := 0;
+  UnreadCount := 0;
+  ReadCount := 0;
 
   x := TEncStringList.Create(passphrase);
   try
@@ -197,16 +201,15 @@ begin
       ReadStatus := SubString(x[i], ' ', 1);
 
       if ReadStatus = cUNREAD_IDENTIFIER then
-        Inc(unread)
+        Inc(UnreadCount)
       else
-        Inc(read);
+        Inc(ReadCount);
     end;
-
   finally
     x.Free;
   end;
 
-  Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages.', [unread, unread + read]);
+  Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages.', [UnreadCount, UnreadCount + ReadCount]);
 end;
 
 end.
