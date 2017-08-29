@@ -661,15 +661,15 @@ begin
 
   try
     gettvrage := tvinfodb.Open('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE rip LIKE "' + rls_showname + '";'); //so we can handle the aka's .
-  except on E: Exception do
+  except
+    on E: Exception do
       Debug(dpError, section, Format('[EXCEPTION] getTheTVDbByShowID.tvinfodb.Open: %s ', [e.Message]));
   end;
 
   if tvinfodb.Step(gettvrage) then
   begin
 
-    if (LowerCase(rls_showname) <> LowerCase(tvinfodb.column_text(gettvrage,
-      0))) then
+    if (LowerCase(rls_showname) <> LowerCase(tvinfodb.column_text(gettvrage, 0))) then
     begin
       Result := nil;
       Debug(dpError, section, 'fillTTVInfoFromDB LowerCase(rls_showname) <> LowerCase(tvinfodb.column_text(gettvrage,0)))');
