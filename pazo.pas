@@ -365,31 +365,33 @@ var
   p: TPazo;
 begin
   Result := nil;
+  kb_lock.Enter;
   try
-    for i := kb_list.Count - 1 downto 0 do
-    begin
-      if i < 0 then
-        Break;
-
-      p := nil;
-      p := TPazo(kb_list.Objects[i]);
-
-      if p = nil then
-        Continue;
-
-      // still crashes
-      if (p.rls.rlsname = rlsname) then
+    try
+      for i := kb_list.Count - 1 downto 0 do
       begin
-        Result := p;
-        exit;
+        if i < 0 then
+          Break;
+
+        p := TPazo(kb_list.Objects[i]);
+
+        if p = nil then
+          Continue;
+
+        if (p.rls.rlsname = rlsname) then
+        begin
+          Result := p;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
+        Result := nil;
       end;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
-      Result := nil;
-    end;
+  finally
+    kb_lock.Leave;
   end;
 end;
 
