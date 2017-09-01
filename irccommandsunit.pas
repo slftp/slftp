@@ -1332,13 +1332,16 @@ begin
           end
           else
           begin
-            // normal route
-            sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
-            sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
-            if back then
+            if not lock then
             begin
-              sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
-              sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
+              // normal route
+              sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
+              sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
+              if back then
+              begin
+                sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
+                sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
+              end;
             end;
 
             // locked route
