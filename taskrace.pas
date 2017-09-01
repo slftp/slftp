@@ -998,6 +998,7 @@ begin
     self.storfilename := lowercase(filename)
   else
     self.storfilename := filename;
+
   self.filesize := filesize;
 end;
 
@@ -2216,9 +2217,12 @@ begin
     exit;
   end;
 
+  ps2.ParseDirlist(netname, channel, dir, sdst.lastResponse);
   ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
   // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
-
+  
+  filesize := mainpazo.PFileSize(dir, filename);
+  
   if (FileSendByMe and (time_race > 0)) then
   begin
     try
