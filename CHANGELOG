@@ -41,6 +41,7 @@
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
+    3. delete your old slftp.news file (if existing)
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -49,8 +50,11 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
+    {#} Fixed !routelock so it doesn't remove normal route when removing lock
+    {+} News System to store important messages to encrypted file. (#173)                                       --- cmd named !news or rename to something else??
     {+} New !affils command.
     {+} !status and !uptime shows if you use 32/64-bit version of slftp.
+    {+} !lastlog command to show last log entries.
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.

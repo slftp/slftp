@@ -2,7 +2,8 @@ unit tasktvinfolookup;
 
 interface
 
-uses Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo,StrUtils;
+uses
+  Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo, StrUtils;
 
 //const apkikey:string = 'FFFFFFFFFFFFFFFF'; //   just a 64bit (16*4) hex string and you are vailed, no RESTful api :P
 
@@ -49,13 +50,13 @@ function findTVMazeIDByName(name: AnsiString; Netname: AnsiString = ''; Channel:
 
 implementation
 
-uses DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
-  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON;
+uses
+  DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
+  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news;
 
 const
   section = 'tasktvinfo';
 
-//{$I common.inc}
 
 function findTVMazeIDByName(name: AnsiString; Netname: AnsiString = ''; Channel: AnsiString = ''): AnsiString;
 var
@@ -681,8 +682,7 @@ end;
 
 { TPazoTheTVDbLookupTask }
 
-constructor TPazoTVInfoLookupTask.Create(const netname, channel: AnsiString;
-  site: AnsiString; pazo: TPazo; attempt: integer = 0);
+constructor TPazoTVInfoLookupTask.Create(const netname, channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: integer = 0);
 begin
   self.attempt := attempt;
   self.initial_site := site;
@@ -712,7 +712,6 @@ begin
   except
     on e: Exception do
     begin
-      //   db_tvrage := nil;
       Debug(dpError, section, Format('Exception in getTVInfoByShowName: %s', [e.Message])); // anpassen.
       ready := True;
       Result := True;
@@ -725,7 +724,6 @@ begin
   //Show is not found in the DB.
   if sid = 'FAILED' then
   begin
-
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
       debug(dpSpam, section, 'READD: retrying TVMaze lookup for %s later', [tr.showname]);
@@ -740,17 +738,17 @@ begin
           irc_Adderror(Format('<c4>[Exception]</c> in TPazoTVInfoLookupTask Search %s', [e.Message]));
           readyerror := True;
           Result := True;
-          //          x.Free;
           exit;
         end;
       end;
-
     end
     else
     begin
-      debug(dpSpam, section, 'READD: no more attempts...');
-      irc_addadmin('<c4><b>ERROR</c> No TVMaze ID found for %s</b>', [tr.showname]);
+      debug(dpSpam, section, 'READD: no more attempts for %s...', [tr.showname]);
+      irc_addadmin('<c4>ERROR</c> No TVMaze ID found for <b>%s</b>', [tr.showname]);
+      SlftpNewsAdd(Format('<c4>ERROR</c> No TVMaze ID found for <b>%s</b> (%s)', [tr.showname, tr.rlsname]));
     end;
+
     ready := True;
     Result := True;
     exit;
@@ -772,8 +770,8 @@ begin
 
   if tvmaz = '' then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> http respons is empty for ' + tr.showname);
-    Debug(dpSpam, section, 'ERROR http respons is empty for ' + tr.showname);
+    irc_addadmin('<c4><b>ERROR</c></b> http response is empty for ' + tr.showname);
+    Debug(dpSpam, section, 'ERROR http response is empty for ' + tr.showname);
     Result := True;
     readyerror := True;
     exit;
@@ -801,10 +799,7 @@ begin
   end;
 
   try
-    irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s',
-      [config.ReadString(section,
-        'addcmd', '!addtvmaze'), mainpazo.rls.rlsname,
-      db_tvinfo.tvmaze_id]));
+    irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
     db_tvinfo.Save;
     db_tvinfo.SetTVDbRelease(tr);
   except
@@ -829,6 +824,7 @@ begin
       Debug(dpError, section, Format('Exception in TPazoTVInfoLookupTask kb_add: %s', [e.Message]));
     end;
   end;
+
   db_tvinfo.free;
   ready := True;
   Result := True;

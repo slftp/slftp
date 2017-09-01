@@ -741,7 +741,6 @@ begin
           Debug(dpSpam, section, Format('--> %s', [Name]));
 
           try
-            // crash
             if todotask.Execute(self) then
               lastactivity := Now();
 
@@ -2308,20 +2307,12 @@ end;
 
 function TSite.Getlegacydirlist: boolean;
 begin
-  { OLD CODE!
-    if Software = sswGlftpd then
-      Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
-      Result:= RCBool('legacycwd', config.ReadBool(section, 'legacycwd', False))
-    else
-      Result:= True
-  }
   Result := RCBool('legacycwd', False);
 end;
 
 procedure TSite.Setlegacydirlist(const Value: boolean);
 begin
   WCBool('legacycwd', Value);
-
 end;
 
 procedure TSite.SetOutofSpace;

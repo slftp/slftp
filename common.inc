@@ -5,32 +5,20 @@ gFilecount = 12;
 iFileCount = 1;
 
 iniFiles: array[0..iFileCount] of AnsiString = (
-'slftp.ini','slftp.cini'
+'slftp.ini', 'slftp.cini'
 );
 
 commonFiles: array[0..cFilecount] of AnsiString = (
-'slftp.knowngroups','slftp.precatcher','slftp.spamconf','slftp.languages',
-'slftp.languagebase','slftp.skip','slftp.imdbcountries','slftp.skipgroups',
+'slftp.knowngroups', 'slftp.precatcher', 'slftp.spamconf', 'slftp.languages',
+'slftp.languagebase', 'slftp.skip', 'slftp.imdbcountries', 'slftp.skipgroups',
 'mirktrade.conf'
 );
 
 generatedFiles: array[0..gFilecount] of AnsiString =(
-'slftp.pem','slftp.ranks','slftp.chans','slftp.kb','slftp.speedstats',
-'slftp.history','slftp.renames','slftp.nukequeue','slftp.rules',
-'slftp.preurls','slftp.socks5','slftp.news','sites.dat'
+'slftp.pem', 'slftp.ranks', 'slftp.chans', 'slftp.kb', 'slftp.speedstats',
+'slftp.history', 'slftp.renames', 'slftp.nukequeue', 'slftp.rules',
+'slftp.preurls', 'slftp.socks5', 'slftp.news', 'sites.dat'
 );
-
-// Not used anymore - is it really worth it ?
-(*
-tvinfo_genreList: array[0..37] of AnsiString =(
-'Action','Adult','Adventure','Animals','Anime','Animation','Children','Comedy',
-'Cooking','Crime','DIY','Documentary','Drama','Espionage','Family','Fantasy',
-'Food','Game Show','History','Horror','Home and Garden','News','Medical',
-'Mini-Series','Music','Mystery','Reality','Romance','Science-Fiction',
-'Special Interest','Soap','Sport','Suspense','Talk Show','Thriller','Travel',
-'War','Western'
-);
-*)
 
 VideoFileExtensions: array[0..5] of AnsiString = (
   '.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'

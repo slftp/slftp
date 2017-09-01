@@ -69,7 +69,7 @@ implementation
 uses
   StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils;
+  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
 
 const
   c_section = 'taskrace';
@@ -883,7 +883,7 @@ begin
             begin
               if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) or (0 <> AnsiPos('This group is BANNED', s.lastResponse)) then
               begin
-                Debug(dpError, c_section, 'Adding rule to DROP group %s on %s', [mainpazo.rls.groupname, site1]);
+                SlftpNewsAdd(Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
                 r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
