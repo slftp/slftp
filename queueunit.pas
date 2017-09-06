@@ -2,7 +2,8 @@ unit queueunit;
 
 interface
 
-uses Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, regexpr, sitesunit;
+uses
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, regexpr, sitesunit;
 
 type
   TQueueThread = class(TThread)
@@ -48,12 +49,11 @@ var
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_debug_mode: boolean = False;
-  // config
-  max_tasks: integer;
 
 implementation
 
-uses SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
+uses
+  SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
   tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
 
 const
@@ -1518,7 +1518,6 @@ begin
   queueth.FreeOnTerminate := True;
 
   // config
-  max_tasks := config.ReadInteger(section, 'max_tasks', 0);
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
 end;
