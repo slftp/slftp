@@ -746,7 +746,7 @@ begin
     begin
       debug(dpSpam, section, 'READD: no more attempts for %s...', [tr.showname]);
       irc_addadmin('<c4>ERROR</c> No TVMaze ID found for <b>%s</b>', [tr.showname]);
-      SlftpNewsAdd(Format('<c4>ERROR</c> No TVMaze ID found for <b>%s</b> (%s)', [tr.showname, tr.rlsname]));
+      SlftpNewsAdd('TVMAZE', Format('<c4>ERROR</c> No TVMaze ID found for <b>%s</b> (%s)', [tr.showname, tr.rlsname]));
     end;
 
     ready := True;
