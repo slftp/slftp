@@ -498,7 +498,6 @@ end;
 function parseTVMazeInfos(jsonStr: AnsiString; Showname: AnsiString = ''; uurl: AnsiString = ''): TTVInfoDB;
 label
   TryToGetTheTVDBGenre;
-
 var
   tvr: TTVInfoDB;
   i: integer;
@@ -615,38 +614,42 @@ begin
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
-    TryToGetTheTVDBGenre:
-    TheTVDBGenreFailure := False;
-    try
-      inc(numerrors);
-
-      if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-      begin
-        gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
-
-        for I := 0 to gTVDB.Count - 1 do
-          tvr.tv_genres.Add(gTVDB.Strings[i]);
-      end;
-    except
-      on e: Exception do
-      begin
-        TheTVDBGenreFailure := True;
-        ExceptionMessage := e.Message;
-      end;
-    end;
-
-    if TheTVDBGenreFailure then
+    // just a hotfix to be ready when the API is down (October 1st, 2017)
+    if StrToDateTime('30-09-2017') < Now then
     begin
-      case numerrors of
-        0..2:
-          begin
-            goto TryToGetTheTVDBGenre;
-          end;
-        3:
-          begin
-            Debug(dpMessage, section, '[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
-            irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
-          end;
+      TryToGetTheTVDBGenre:
+      TheTVDBGenreFailure := False;
+      try
+        inc(numerrors);
+
+        if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
+        begin
+          gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
+
+          for I := 0 to gTVDB.Count - 1 do
+            tvr.tv_genres.Add(gTVDB.Strings[i]);
+        end;
+      except
+        on e: Exception do
+        begin
+          TheTVDBGenreFailure := True;
+          ExceptionMessage := e.Message;
+        end;
+      end;
+
+      if TheTVDBGenreFailure then
+      begin
+        case numerrors of
+          0..2:
+            begin
+              goto TryToGetTheTVDBGenre;
+            end;
+          3:
+            begin
+              Debug(dpMessage, section, '[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
+              irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
+            end;
+        end;
       end;
     end;
 
