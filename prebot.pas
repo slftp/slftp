@@ -7,8 +7,8 @@ uses
 
 function IrcLame(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcPretest(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPredir(const netname, channel, params: AnsiString): boolean;
-function IrcPrecmd(const netname, channel, params: AnsiString): boolean;
+function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCheck(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcBatchAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -344,7 +344,7 @@ begin
 
 end;
 
-function IrcPredir(const netname, channel, params: AnsiString): boolean;
+function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   predir: AnsiString;
@@ -355,7 +355,7 @@ begin
   Result := IrcSetDir(netname, channel, sitename + ' PRE ' + predir);
 end;
 
-function IrcPrecmd(const netname, channel, params: AnsiString): boolean;
+function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   s: TSite;
