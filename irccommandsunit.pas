@@ -5209,6 +5209,7 @@ var
   i: integer;
   s, ss: AnsiString;
 begin
+  Result := False;
 
   if FindConditionClassByName(params) = nil then
   begin
@@ -5230,8 +5231,7 @@ begin
       end;
 
       if conditions[i] <> TBooleanCondition then
-        irc_addtext(Netname, Channel, '<b>Accepted ops:</b> ' +
-          TConditionClass(conditions[i]).AcceptedOperatorsAsText);
+        irc_addtext(Netname, Channel, '<b>Accepted ops:</b> ' + TConditionClass(conditions[i]).AcceptedOperatorsAsText);
       break;
     end;
   end;
@@ -5246,6 +5246,7 @@ var
   s: TSite;
   sitename, section: AnsiString;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
 
@@ -5354,6 +5355,7 @@ begin
       end;
     end;
   end;
+
   Result := True;
 end;
 
@@ -5602,6 +5604,8 @@ var
   i: integer;
   ss, s: AnsiString;
 begin
+  result := False;
+
   if (params = '') then
   begin
     _readHelpTXTFile(Netname, Channel, 'nhelp');
@@ -5632,8 +5636,7 @@ begin
     end;
     if s <> '' then
       IrcLineBreak(Netname, Channel, s, ',', '', 9);
-    irc_addtext(Netname, Channel,
-      'Type <b>%shelp</b> command to get detailed info.', [irccmdprefix]);
+    irc_addtext(Netname, Channel, 'Type <b>%shelp</b> command to get detailed info.', [irccmdprefix]);
     result := True;
     Exit;
     //Show all commands End
@@ -5673,6 +5676,7 @@ begin
     result := True;
     Exit;
   end;
+
   //Display Textfile Start
   if params <> '' then
   begin
@@ -7667,6 +7671,7 @@ begin
   h := 0;
   sitename := UpperCase(SubString(params, ' ', 1));
 
+
   if nil <> FindSiteByName(Netname, sitename) then
   begin
     i := 3;
@@ -7910,20 +7915,20 @@ end;
 function IrcNews(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   i: integer;
-  categorie: AnsiString;
+  category: AnsiString;
 begin
   i := StrToIntDef(SubString(params, ' ', 1), 10);
-  categorie := UpperCase(SubString(params, ' ', 2));
-  Result := SlftpNewsShow(Netname, Channel, i, categorie);
+  category := UpperCase(SubString(params, ' ', 2));
+  Result := SlftpNewsShow(Netname, Channel, i, category);
 end;
 
 function IrcNewsAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  categorie: AnsiString;
+  category: AnsiString;
 begin
-  categorie := UpperCase(SubString(params, ' ', 1));
+  category := UpperCase(SubString(params, ' ', 1));
 
-  Result := SlftpNewsAdd(Netname, Channel, categorie, mystrings.RightStr(params, Length(categorie) + 1));
+  Result := SlftpNewsAdd(Netname, Channel, category, mystrings.RightStr(params, Length(category) + 1));
 end;
 
 function IrcNewsDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;

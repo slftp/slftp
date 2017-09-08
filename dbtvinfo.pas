@@ -884,6 +884,7 @@ begin
 
     // retrieve current db version
     user_version := tvinfodb.Open('PRAGMA user_version;');
+    uV := -1;
 
     if tvinfodb.Step(user_version) then
       uV := StrToIntDef(tvinfodb.column_text(user_version, 0), -1);

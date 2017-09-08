@@ -52,6 +52,7 @@ end;
 
 function GetPretimeURL(index: integer): AnsiString; overload;
 begin
+  Result := '';
   if index <= preurls.Count then
     Result := preurls.Strings[index];
 end;
