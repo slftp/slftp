@@ -883,7 +883,7 @@ begin
             begin
               if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) or (0 <> AnsiPos('This group is BANNED', s.lastResponse)) then
               begin
-                SlftpNewsAdd(Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
+                SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
                 r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
@@ -1013,7 +1013,6 @@ var
   FileSendByMe: boolean;
   numerrors: integer;
   started, ended: TDateTime;
-  fs: double;
   time_race: integer;
   todir1, todir2: AnsiString;
   rss, rsd: boolean;
@@ -2166,6 +2165,7 @@ begin
   FileSendByMe := False;
   if (ssrc.lastResponseCode = 226) and (sdst.lastResponseCode = 226) then
   begin
+    // file transfer was successful
     FileSendByMe := True;
   end;
 
@@ -2217,77 +2217,81 @@ begin
     exit;
   end;
 
-  if (fileSendByMe) Then
+  // needed to get the correct filesize of transfered file
+  ps2.ParseDirlist(netname, channel, dir, sdst.lastResponse);
+
+  // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- We used to say this as a ready race, but it was coined with parsedupe
+  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
+
+  if (fileSendByMe) then
   begin
-	  ps2.ParseDirlist(netname, channel, dir, sdst.lastResponse);
-	  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
-	  // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
+    filesize := mainpazo.PFileSize(dir, filename);
 
-	  filesize := mainpazo.PFileSize(dir, filename);
+    if (time_race > 0) then
+    begin
+      try
+        if (filesize > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
+        begin
+          SpeedStatAdd(site1, site2, filesize * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
+        end;
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s', [e.Message]);
+        end;
+      end;
+    end;
 
-	  if (time_race > 0) then
-	  begin
-		try
-			fs := filesize;
-			if (fs > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
-			begin
-				SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
-			end;
-		except
-		on E: Exception do
-		begin
-			Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s', [e.Message]);
-		end;
-	end;
+
+    // echo race info
+    try
+      rrgx := TRegExpr.Create;
+      try
+        rrgx.ModifierI := True;
+        rrgx.Expression := useful_skip;
+
+        if not rrgx.Exec(filename) then
+        begin
+          // to avoid announcing a speed_stat line without info what happend
+          speed_stat := 'ZERO FILESIZE!';
+          if (filesize > 0) and (time_race > 0) then
+          begin
+            racebw := filesize * 1000 / time_race / 1024;
+            fsize := filesize / 1024;
+
+            if (filesize > 1024) then
+            begin
+              if (racebw > 1024) then
+                speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
+              else
+                speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+            end
+            else
+            begin
+              if (racebw > 1024) then
+                speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
+              else
+                speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+            end;
+          end;
+          irc_SendRACESTATS(tname + ' ' + speed_stat);
+
+          // add stats to database
+          statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, filesize);
+        end;
+
+      finally
+        rrgx.Free;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
+      end;
+    end;
+
   end;
 
-  // echo race info
-  try
-    rrgx := TRegExpr.Create;
-	try
-	  rrgx.ModifierI := True;
-	  rrgx.Expression := useful_skip;
-	  if not rrgx.Exec(filename) then
-	  begin
-		speed_stat := '';
-		fs := filesize;
-		if (fs > 0) and (time_race > 0) then
-		begin
-		  racebw := fs * 1000 / time_race / 1024;
-		  fsize := fs / 1024;
-
-		  if (filesize > 1024) then
-		  begin
-			if (racebw > 1024) then
-			  speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
-			else
-			  speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
-		  end
-		  else
-		  begin
-			if (racebw > 1024) then
-			  speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
-			else
-			  speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
-		  end;
-
-	    end;
-		irc_SendRACESTATS(tname + ' ' + speed_stat);
-
-		// add stats
-		statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, IntToStr(filesize));
-		end;
-		finally
-		  rrgx.Free;
-		end;
-	  except
-		on e: Exception do
-		begin
-		  Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
-		end;
-	  end;
-	end;
-	  
   Debug(dpMessage, c_section, '<-- ' + tname);
 
   Result := True;
