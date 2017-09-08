@@ -1693,6 +1693,8 @@ end;
 
 function TDirList.GetCompleteInfo: AnsiString;
 begin
+  Result := 'UNKNOWN!';
+
   case TCompleteInfo(_completeInfo) of
     NotComplete:
       begin
