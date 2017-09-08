@@ -181,13 +181,13 @@ ujra:
 
               if Kind <> ckAdd then
               begin
-                news.SlftpNewsAdd(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
                 irc_Addstats(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
               end;
 
               if Kind <> ckDelete then
               begin
-                news.SlftpNewsAdd(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
                 irc_Addstats(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
               end;
             end;
@@ -200,10 +200,10 @@ ujra:
         end;
 
         // for testing purpose -- don't know what it exactly shows...never used autorules feature
-        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
-        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
-        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
-        news.SlftpNewsAdd(Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
+        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
+        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
+        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
+        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
 
         irc_Addstats(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
         irc_Addstats(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));

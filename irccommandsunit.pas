@@ -495,8 +495,8 @@ const
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
 
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
-    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 1; hlpgrp: 'news'),
-    (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 1; maxparams: - 1; hlpgrp: 'news'),
+    (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 2; hlpgrp: 'news'),
+    (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 2; maxparams: - 1; hlpgrp: 'news'),
     (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: 'news'),
 
     (cmd: 'WINDOWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$windows'),
@@ -7907,26 +7907,40 @@ end;
 function IrcNews(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   i: integer;
+  categorie: AnsiString;
 begin
-  i := StrToIntDef(params, 10);
-  Result := SlftpNewsShow(Netname, Channel, i);
+  i := StrToIntDef(SubString(params, ' ', 1), 10);
+  categorie := UpperCase(SubString(params, ' ', 2));
+  Result := SlftpNewsShow(Netname, Channel, i, categorie);
 end;
 
 function IrcNewsAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  categorie: AnsiString;
 begin
-  Result := SlftpNewsAdd(Netname, Channel, params);
+  categorie := UpperCase(SubString(params, ' ', 1));
+
+  Result := SlftpNewsAdd(Netname, Channel, categorie, mystrings.RightStr(params, Length(categorie) + 1));
 end;
 
 function IrcNewsDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   DeleteNumber: integer;
 begin
-  if params = '*' then
-    DeleteNumber := -1
+  // check if first char is alphabetical
+  if params[1] in ['A'..'Z', 'a'..'z'] then
+  begin
+    Result := SlftpNewsDelete(Netname, Channel, params);
+  end
   else
-    DeleteNumber := StrToIntDef(params, 0);
+  begin
+    if params = '*' then
+      DeleteNumber := -1
+    else
+      DeleteNumber := StrToIntDef(params, 0);
 
-  Result := SlftpNewsDelete(Netname, Channel, DeleteNumber);
+    Result := SlftpNewsDelete(Netname, Channel, DeleteNumber);
+  end;
 end;
 
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
