@@ -998,6 +998,7 @@ begin
     self.storfilename := lowercase(filename)
   else
     self.storfilename := filename;
+
   self.filesize := filesize;
 end;
 
@@ -2216,71 +2217,77 @@ begin
     exit;
   end;
 
-  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
-  // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
-
-  if (FileSendByMe and (time_race > 0)) then
+  if (fileSendByMe) Then
   begin
-    try
-      fs := mainpazo.PFileSize(dir, filename);
-      if (fs > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
-      begin
-        SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s', [e.Message]);
-      end;
-    end;
+	  ps2.ParseDirlist(netname, channel, dir, sdst.lastResponse);
+	  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
+	  // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- I called this readyracenek regen, but merged parse dupe-pal
+
+	  filesize := mainpazo.PFileSize(dir, filename);
+
+	  if (time_race > 0) then
+	  begin
+		try
+			fs := filesize;
+			if (fs > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
+			begin
+				SpeedStatAdd(site1, site2, fs * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
+			end;
+		except
+		on E: Exception do
+		begin
+			Debug(dpError, c_section, '[EXCEPTION] mainpazo.PFileSize/SpeedStatAdd: %s', [e.Message]);
+		end;
+	end;
   end;
 
   // echo race info
   try
     rrgx := TRegExpr.Create;
-    try
-      rrgx.ModifierI := True;
-      rrgx.Expression := useful_skip;
-      if not rrgx.Exec(filename) then
-      begin
-        speed_stat := '';
-        fs := mainpazo.PFileSize(dir, filename);
-        if (fs > 0) and (time_race > 0) then
-        begin
-          racebw := fs * 1000 / time_race / 1024;
-          fsize := fs / 1024;
+	try
+	  rrgx.ModifierI := True;
+	  rrgx.Expression := useful_skip;
+	  if not rrgx.Exec(filename) then
+	  begin
+		speed_stat := '';
+		fs := filesize;
+		if (fs > 0) and (time_race > 0) then
+		begin
+		  racebw := fs * 1000 / time_race / 1024;
+		  fsize := fs / 1024;
 
-          if (filesize > 1024) then
-          begin
-            if (racebw > 1024) then
-              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
-            else
-              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
-          end
-          else
-          begin
-            if (racebw > 1024) then
-              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
-            else
-              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
-          end;
+		  if (filesize > 1024) then
+		  begin
+			if (racebw > 1024) then
+			  speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
+			else
+			  speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+		  end
+		  else
+		  begin
+			if (racebw > 1024) then
+			  speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
+			else
+			  speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+		  end;
 
-        end;
-        irc_SendRACESTATS(tname + ' ' + speed_stat);
+	    end;
+		irc_SendRACESTATS(tname + ' ' + speed_stat);
 
-        // add stats
-        statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, IntToStr(filesize));
-      end;
-    finally
-      rrgx.Free;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
-    end;
-  end;
-
+		// add stats
+		statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, IntToStr(filesize));
+		end;
+		finally
+		  rrgx.Free;
+		end;
+	  except
+		on e: Exception do
+		begin
+		  Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
+		end;
+	  end;
+	end;
+	  
   Debug(dpMessage, c_section, '<-- ' + tname);
 
   Result := True;

@@ -2471,6 +2471,7 @@ begin
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
+	Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s', [name, affil, x.DelimitedText]);
     Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
