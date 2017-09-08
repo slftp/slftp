@@ -13,7 +13,7 @@ function statsQuery(const q: AnsiString): AnsiString;
 
 function StatsAlive: boolean;
 
-procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
+procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: AnsiString; filesize: Int64);
 
 procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
 
@@ -333,29 +333,33 @@ begin
   end;
 end;
 
-procedure statsProcessRace(sitesrc, sitedst, rls_section, rls, filename, filesize: AnsiString);
+procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: AnsiString; filesize: Int64);
 var
   s_src, s_dst: TSite;
 begin
-  if stats = nil then exit;
-  if statsRace = nil then exit;
-  if (StrToIntDef(filesize, 0) < config.ReadInteger(section, 'min_filesize', 5000000)) then 
+  if stats = nil then
+    exit;
+
+  if statsRace = nil then
+    exit;
+
+  if (filesize < config.ReadInteger(section, 'min_filesize', 5000000)) then
   begin
-	Debug(dpSpam, section, Format('[Filesize] statsProcessRace : Filesize %s to small for adding to stats', [filesize]));
-	exit;
+    Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s too small for adding to stats', [filesize, filename]));
+    exit;
   end;
-  
+
   s_src := FindSiteByName('', sitesrc);
   s_dst := FindSiteByName('', sitedst);
 
-  if ((s_src = nil) or (s_dst = nil)) then 
+  if ((s_src = nil) or (s_dst = nil)) then
   begin
-    Debug(dpSpam, section, '[SRC or DST NIL] statsProcessRace : SRC or DST Site is NIL');
-	exit;
+    Debug(dpSpam, section, '[statsProcessRace] SRC or DST site is not found!');
+    exit;
   end;
-  
+
   try
-    stats.ExecSQL( statsRace, [uppercase(s_src.name), uppercase(s_dst.name), uppercase(rls_section), rls, filename, StrToIntDef(filesize, 0), FormatDateTime('yyyy-mm-dd hh:nn:ss', Now)]);
+    stats.ExecSQL( statsRace, [uppercase(s_src.name), uppercase(s_dst.name), uppercase(rls_section), rls, filename, filesize, FormatDateTime('yyyy-mm-dd hh:nn:ss', Now)]);
   except
     on E: Exception do
     begin
