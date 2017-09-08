@@ -2,12 +2,13 @@ unit prebot;
 
 interface
 
-uses Classes, irc;
+uses
+  Classes, irc;
 
 function IrcLame(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcPretest(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPredir(const netname, channel, params: AnsiString): boolean;
+function IrcPrecmd(const netname, channel, params: AnsiString): boolean;
 function IrcPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcCheck(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcBatchAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -28,7 +29,8 @@ procedure PrebotUnInit;
 
 implementation
 
-uses DateUtils, debugunit, ircblowfish, SysUtils, kb, configunit, queueunit,
+uses
+  DateUtils, debugunit, ircblowfish, SysUtils, kb, configunit, queueunit,
   mystrings, sitesunit, pazo, notify, tasklame, taskdirlist, skiplists,
   taskraw, dirlist, irccommandsunit, statsunit;
 
@@ -342,7 +344,7 @@ begin
 
 end;
 
-function IrcPredir(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPredir(const netname, channel, params: AnsiString): boolean;
 var
   sitename: AnsiString;
   predir: AnsiString;
@@ -353,7 +355,7 @@ begin
   Result := IrcSetDir(netname, channel, sitename + ' PRE ' + predir);
 end;
 
-function IrcPrecmd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPrecmd(const netname, channel, params: AnsiString): boolean;
 var
   sitename: AnsiString;
   s: TSite;
