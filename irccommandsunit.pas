@@ -446,7 +446,7 @@ const
     (cmd: 'checkforrip'; hnd: IrcCheckForExistsRip; minparams: 1; maxparams: 1; hlpgrp: 'work'),
 
     (cmd: 'RIPS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$rip'),
-    (cmd: 'setprecmd'; hnd: IrcPrecmd; minparams: 3; maxparams: - 1; hlpgrp: 'rip'),
+    (cmd: 'setprecmd'; hnd: IrcPrecmd; minparams: 2; maxparams: - 1; hlpgrp: 'rip'),
     (cmd: 'setpredir'; hnd: IrcPredir; minparams: 2; maxparams: 2; hlpgrp: 'rip'),
     (cmd: 'check'; hnd: IrcCheck; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
     (cmd: 'pre'; hnd: IrcPre; minparams: 1; maxparams: 3; hlpgrp: 'rip'),
@@ -898,7 +898,8 @@ begin
     end;
   end;
 
-  if dir = '' then // It can be removed
+  // if empty, it can be removed
+  if dir = '' then
   begin
     s.SetSections(section, True);
     s.sectiondir[section] := '';
