@@ -7949,7 +7949,7 @@ end;
 function IrcNewsCategories(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 begin
   Result := False;
-  irc_addtext(Netname, Channel, 'Valid categories are: %s', [ValidCategoriesAsString])
+  irc_addtext(Netname, Channel, 'Valid categories are: %s', [ValidCategoriesAsString]);
   Result := True;
 end;
 
