@@ -339,13 +339,21 @@ var
 begin
   if stats = nil then exit;
   if statsRace = nil then exit;
-  if (StrToIntDef(filesize, 0) < config.ReadInteger(section, 'min_filesize', 1000000)) then exit;
-
+  if (StrToIntDef(filesize, 0) < config.ReadInteger(section, 'min_filesize', 5000000)) then 
+  begin
+	Debug(dpSpam, section, Format('[Filesize] statsProcessRace : Filesize %s to small for adding to stats', [filesize]));
+	exit;
+  end;
+  
   s_src := FindSiteByName('', sitesrc);
   s_dst := FindSiteByName('', sitedst);
 
-  if ((s_src = nil) or (s_dst = nil)) then exit;
-
+  if ((s_src = nil) or (s_dst = nil)) then 
+  begin
+    Debug(dpSpam, section, '[SRC or DST NIL] statsProcessRace : SRC or DST Site is NIL');
+	exit;
+  end;
+  
   try
     stats.ExecSQL( statsRace, [uppercase(s_src.name), uppercase(s_dst.name), uppercase(rls_section), rls, filename, StrToIntDef(filesize, 0), FormatDateTime('yyyy-mm-dd hh:nn:ss', Now)]);
   except
