@@ -358,7 +358,7 @@ var
   sitename: AnsiString;
   s: TSite;
   precmd: AnsiString;
-  section: AnsiString;
+  section, helper: AnsiString;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -384,7 +384,17 @@ begin
     exit;
   end;
 
-  s.sectionprecmd[section] := precmd;
+  if precmd = '' then
+  begin
+    helper := s.sectionprecmd[section];
+    s.sectionprecmd[section] := '';
+    irc_addtext(Netname, Channel, 'Pre command <b>%s</b> for section <b>%s</b> removed from site <b>%s</b>', [helper, section, s.Name]);
+  end
+  else
+  begin
+    s.sectionprecmd[section] := precmd;
+    irc_addtext(Netname, Channel, 'Pre command for section <b>%s</b> on site <b>%s</b> set to <b>%s</b>', [section, s.Name, precmd]);
+  end;
 
   Result := True;
 end;
