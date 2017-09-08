@@ -8,39 +8,39 @@ uses
 { Just a helper function to set @value(SlftpNewsFilename) on startup }
 procedure NewsInit;
 
-{ Check if categorie is in known MessageCategories array. If not found it returns -1, else index of matching element. }
-function CheckForValidCategorie(const categorie: AnsiString): Integer;
+{ Check if category is in known MessageCategories array. If not found it returns -1, else index of matching element. }
+function CheckForValidCategory(const category: AnsiString): Integer;
 
 { Returns the categories from MessageCategories array as String. }
 function ValidCategoriesAsString: AnsiString;
 
 { Adds a new message entry
-  @param(categorie is to sort messages into categories. See @link(TMessageCategories))
+  @param(category is to sort messages into categories. See @link(MessageCategories))
   @param(NewMessage is a string with the message which should be stored (supports all mirc codes stuff etc))
   @returns(@true on success, @false otherwise) }
-function SlftpNewsAdd(const categorie, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: AnsiString): boolean; overload;
 
 { Add a new news entry (calls @link(SlftpNewsAdd)) and returns a text with the msg which was added
   @param(Netname for output text)
   @param(Channel for output text)
-  @param(categorie is to sort messages into categories. See @link(TMessageCategories))
+  @param(category is to sort messages into categories. See @link(MessageCategories))
   @param(NewMessage is a string with the message with should be stored (supports all mirc color stuff etc))
   @returns(@true on success, @false otherwise) }
-function SlftpNewsAdd(const Netname, Channel, categorie, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const Netname, Channel, category, NewMessage: AnsiString): boolean; overload;
 
 { Shows newsfile entries.
   @param(ShowCount actual news count to show; -1 means all)
-  @param(categorie if not definied, all messages are shown. When given, it only shows messages which @link(TMessageCategories) matches categorie) }
-function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; categorie: AnsiString = ''): boolean;
+  @param(category if not definied, all messages are shown. When given, it only shows messages which matches category (see @link(MessageCategories))) }
+function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; category: AnsiString = ''): boolean;
 
 
-{ Deletes given newsfile entries.
+{ Deletes given newsfile entry.
   @param(DeleteNumber is the entry ID which should be deleted) }
 function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer): boolean; overload;
 
-{ Deletes given categorie entries.
-  @param(categorie is the categorie which should be deleted) }
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const categorie: AnsiString): boolean; overload;
+{ Deletes given category entries.
+  @param(category is the category which should be deleted) }
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString): boolean; overload;
 
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
 function SlftpNewsStatus(): AnsiString;
@@ -71,9 +71,9 @@ begin
   SlftpNewsFilename := ExtractFilePath(ParamStr(0)) + 'slftp.news';
 end;
 
-function CheckForValidCategorie(const categorie: AnsiString): Integer;
+function CheckForValidCategory(const category: AnsiString): Integer;
 begin
-  Result := AnsiIndexText(categorie, MessageCategories);
+  Result := AnsiIndexText(category, MessageCategories);
 end;
 
 function ValidCategoriesAsString: AnsiString;
@@ -88,7 +88,7 @@ begin
   Result := validcategories;
 end;
 
-function SlftpNewsAdd(const categorie, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: AnsiString): boolean; overload;
 var
   x: TEncStringList;
   msgformat: TStringList;
@@ -96,10 +96,10 @@ var
 begin
   Result := False;
 
-  i := CheckForValidCategorie(categorie);
+  i := CheckForValidCategory(category);
   if i = -1 then
   begin
-    debug(dpSpam, section, Format('Categorie %s not valid!', [categorie]));
+    debug(dpSpam, section, Format('Category %s not valid!', [category]));
     exit;
   end;
 
@@ -130,26 +130,26 @@ begin
   Result := True;
 end;
 
-function SlftpNewsAdd(const Netname, Channel, categorie, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const Netname, Channel, category, NewMessage: AnsiString): boolean; overload;
 var
   i: Integer;
 begin
   Result := False;
 
-  i := CheckForValidCategorie(categorie);
+  i := CheckForValidCategory(category);
   if i = -1 then
   begin
-    irc_addtext(Netname, Channel, Format('You need to use a valid message categorie! Use one of these: %s', [ValidCategoriesAsString()]));
+    irc_addtext(Netname, Channel, Format('You need to use a valid message category! Use one of these: %s', [ValidCategoriesAsString()]));
     exit;
   end;
 
-  Result := SlftpNewsAdd(categorie, NewMessage);
+  Result := SlftpNewsAdd(category, NewMessage);
 
   if Result then
-    irc_addtext(Netname, Channel, Format('New entry ''[%s] %s'' added.', [categorie, NewMessage]));
+    irc_addtext(Netname, Channel, Format('New entry ''[%s] %s'' added.', [category, NewMessage]));
 end;
 
-function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; categorie: AnsiString = ''): boolean;
+function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; category: AnsiString = ''): boolean;
 var
   x: TEncStringList;
   i, j, padding: integer;
@@ -160,9 +160,9 @@ begin
   Result := False;
   textshown := False;
 
-  if (categorie <> '') and (CheckForValidCategorie(categorie) = -1) then
+  if (category <> '') and (CheckForValidCategory(category) = -1) then
   begin
-    irc_addtext(Netname, Channel, Format('Given message categorie %s is unknown. Valid ones are: %s', [categorie, ValidCategoriesAsString()]));
+    irc_addtext(Netname, Channel, Format('Given message category %s is unknown. Valid ones are: %s', [category, ValidCategoriesAsString()]));
     exit;
   end;
 
@@ -208,15 +208,15 @@ begin
         begin
           actualmsg.DelimitedText := x[i];
 
-          if ( (categorie = '') or ((categorie <> '') and (categorie = actualmsg[2])) ) then
+          if ( (category = '') or ((category <> '') and (category = actualmsg[2])) ) then
           begin
 
             if not textshown then
             begin
-              if (categorie <> '') then
+              if (category <> '') then
               begin
-                // needed to avoid that it writes to IRC when a invalid categorie is given
-                irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> (or less) entries with categorie %s:', [ShowCount, actualmsg[2]]));
+                // needed to avoid that it writes to IRC when a invalid category is given
+                irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> (or less) entries with category %s:', [ShowCount, actualmsg[2]]));
               end
               else
                 irc_addtext(Netname, Channel, Format('%s', [IrcAnnounceText]));
@@ -255,7 +255,6 @@ end;
 function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer): boolean; overload;
 var
   x: TEncStringList;
-  i: Integer;
   msgtext: TStringList;
 begin
   Result := False;
@@ -300,7 +299,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const categorie: AnsiString): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString): boolean; overload;
 var
   x: TEncStringList;
   i, j: Integer;
@@ -309,9 +308,9 @@ begin
   Result := False;
   j := 0;
 
-  if (CheckForValidCategorie(categorie) = -1) then
+  if (CheckForValidCategory(category) = -1) then
   begin
-    irc_addtext(Netname, Channel, Format('Given message categorie %s is unknown. Valid ones are: %s', [UpperCase(categorie), ValidCategoriesAsString()]));
+    irc_addtext(Netname, Channel, Format('Given message category %s is unknown. Valid ones are: %s', [UpperCase(category), ValidCategoriesAsString()]));
     exit;
   end;
 
@@ -325,7 +324,7 @@ begin
       begin
         msgtext.CommaText := x[i];
 
-        if msgtext[2] = UpperCase(categorie) then
+        if msgtext[2] = UpperCase(category) then
         begin
           SlftpNewsDelete(Netname, Channel, i + 1 - j);
           Inc(j);

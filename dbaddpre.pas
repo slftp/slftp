@@ -105,6 +105,8 @@ end;
 
 function pretimeModeToString(mode: TPretimeLookupMOde): AnsiString;
 begin
+  Result := 'None';
+
   case mode of
     plmNone: Result := 'None';
     plmHTTP: Result := 'HTTP';
@@ -115,6 +117,8 @@ end;
 
 function addPreModeToString(mode: TAddPreMode): AnsiString;
 begin
+  Result := 'Memory';
+
   case mode of
     apmMem: Result := 'Memory';
     apmSQLITE: Result := 'SQLITE';

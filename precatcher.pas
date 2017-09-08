@@ -148,6 +148,7 @@ begin
 
   // detect longest entry with '-' --> our releasename
   maxi := 0;
+  maxs := '';
   for i := 0 to ts_data.Count - 1 do
   begin
     if ((Length(ts_data[i]) > maxi) and (0 <> Pos('-', ts_data[i]))) then
