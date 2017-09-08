@@ -2471,7 +2471,8 @@ begin
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-	Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s', [name, affil, x.DelimitedText]);
+    // for testing purpose, some ppl have problems that slftp tries to race affilgroups to site
+    Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
     Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
