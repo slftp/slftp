@@ -208,6 +208,7 @@ function IrcOper(const netname, channel: AnsiString; params: AnsiString): boolea
 function IrcNews(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcNewsAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcNewsDel(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNewsCategories(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcSpeedStats(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcSpeedRecalc(const netname, channel: AnsiString; params: AnsiString): boolean;
@@ -359,7 +360,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..249] of TIrcCommand = (
+  irccommands: array[1..250] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -498,6 +499,7 @@ const
     (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 2; hlpgrp: 'news'),
     (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 2; maxparams: - 1; hlpgrp: 'news'),
     (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: 'news'),
+    (cmd: 'newscategories'; hnd: IrcNewsCategories; minparams: 0; maxparams: 0; hlpgrp: 'news'),
 
     (cmd: 'WINDOWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$windows'),
     (cmd: 's'; hnd: IrcShowWindow; minparams: 1; maxparams: - 1; hlpgrp: 'windows'),
@@ -7942,6 +7944,13 @@ begin
 
     Result := SlftpNewsDelete(Netname, Channel, DeleteNumber);
   end;
+end;
+
+function IrcNewsCategories(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+begin
+  Result := False;
+  irc_addtext(Netname, Channel, 'Valid categories are: %s', [ValidCategoriesAsString])
+  Result := True;
 end;
 
 function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
