@@ -17,8 +17,9 @@ function ValidCategoriesAsString: AnsiString;
 { Adds a new message entry
   @param(category is to sort messages into categories. See @link(MessageCategories))
   @param(NewMessage is a string with the message which should be stored (supports all mirc codes stuff etc))
+  @param(dupecheck if @true, it checks if there is an identical entry as the new one and deletes old and add it again if it's older than 7 days)
   @returns(@true on success, @false otherwise) }
-function SlftpNewsAdd(const category, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: AnsiString; dupecheck: boolean = False): boolean; overload;
 
 { Add a new news entry (calls @link(SlftpNewsAdd)) and returns a text with the msg which was added
   @param(Netname for output text)
@@ -48,7 +49,7 @@ function SlftpNewsStatus(): AnsiString;
 implementation
 
 uses
-  Classes, StrUtils, encinifile, configunit, irc, mystrings, debugunit;
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit;
 
 const
   section = 'news';
@@ -88,13 +89,16 @@ begin
   Result := validcategories;
 end;
 
-function SlftpNewsAdd(const category, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: AnsiString; dupecheck: boolean = False): boolean; overload;
 var
   x: TEncStringList;
   msgformat: TStringList;
-  i: Integer;
+  i, j: Integer;
+  myDate: TDateTime;
+  dontadd: boolean;
 begin
   Result := False;
+  dontadd := False;
 
   i := CheckForValidCategory(category);
   if i = -1 then
@@ -110,13 +114,43 @@ begin
 
     msgformat := TStringList.Create;
     try
-      // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
-      msgformat.Add(cUNREAD_IDENTIFIER);
-      msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
-      msgformat.Add(MessageCategories[i]);
-      msgformat.Add(NewMessage);
 
-      x.Insert(0, msgformat.CommaText);
+      if dupecheck then
+      begin
+        for j := 0 to x.Count - 1 do
+        begin
+          msgformat.DelimitedText := x[j];
+
+          if (msgformat[2] = category) and (msgformat[3] = NewMessage) then
+          begin
+            myDate := IncDay(Now, -7);
+
+            if StrToDateTime(msgformat[1]) < myDate then
+            begin
+              x.Delete(j);
+            end
+            else
+            begin
+              dontadd := True;
+            end;
+
+            break;
+          end;
+        end;
+
+        msgformat.Clear;
+      end;
+
+      if not dontadd then
+      begin
+        // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
+        msgformat.Add(cUNREAD_IDENTIFIER);
+        msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
+        msgformat.Add(MessageCategories[i]);
+        msgformat.Add(NewMessage);
+
+        x.Insert(0, msgformat.CommaText);
+      end;
     finally
       msgformat.Free;
     end;
@@ -143,7 +177,7 @@ begin
     exit;
   end;
 
-  Result := SlftpNewsAdd(category, NewMessage);
+  Result := SlftpNewsAdd(category, NewMessage, False);
 
   if Result then
     irc_addtext(Netname, Channel, Format('New entry ''[%s] %s'' added.', [category, NewMessage]));
@@ -226,7 +260,7 @@ begin
 
             if actualmsg[0] = cUNREAD_IDENTIFIER then
             begin
-              // change '!UNREAD!' to !READ!' status of shown entry
+              // change '!UNREAD!' to '!READ!' status of shown entry
               actualmsg[0] := cREAD_IDENTIFIER;
 
               x[i] := actualmsg.CommaText;
