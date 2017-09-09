@@ -2465,15 +2465,25 @@ end;
 function TSite.IsAffil(affil: AnsiString): boolean;
 var
   x: TStringList;
+  i: integer;
 begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-    // for testing purpose, some ppl have problems that slftp tries to race affilgroups to site
-    Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
-    Result := x.IndexOf(RemoveINT(affil)) <> -1;
+
+
+    i := x.IndexOf(RemoveINT(affil));
+    if i <> -1 then
+    begin
+      // for testing purpose, some ppl have problems with slftp as it tries to race affilgroups to site
+      Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
+    end;
+    Result := i <> -1;
+
+
+    //Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
   end;
