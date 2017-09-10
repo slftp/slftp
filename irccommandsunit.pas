@@ -334,7 +334,6 @@ function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boo
 function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 {        Sections                   }
-function IrcInsSection(const Netname, Channel: string; params: string): boolean;
 function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
 {        Test functions             }
 function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -360,7 +359,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..250] of TIrcCommand = (
+  irccommands: array[1..249] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -635,7 +634,6 @@ const
 
     (cmd: 'SECTIONS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$section'),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: 'section'),
-    (cmd: 'sectionins'; hnd: IrcInsSection; minparams: 1; maxparams: - 1; hlpgrp: 'section'),
 
     (*
       // Disabled - probably need some refactoring
@@ -740,15 +738,13 @@ var
   s: TSite;
   i: integer;
 begin
-
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   secs := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
 
   if ((sitename = '') and (secs = '')) then
   begin
-    IrcLineBreak(Netname, Channel, kb_sections.commatext, AnsiChar('"'),
-      '<b>Global Sections</b>: ');
+    IrcLineBreak(Netname, Channel, kb_sections.commatext, AnsiChar('"'), '<b>Global Sections</b>: ');
     Result := True;
     exit;
   end;
@@ -767,7 +763,7 @@ begin
     delete(ss, length(ss), 1);
     Irc_AddText(Netname, channel, 'Sites with section %s', [sitename]);
     IrcLineBreak(Netname, Channel, ss, '"', '<b>' + sitename + '</b>: ', 9);
-    result := true;
+    Result := true;
     exit;
   end;
 
@@ -781,68 +777,8 @@ begin
   ss := s.SetSections(secs, True);
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), '<b>' + sitename + ' Sections</b>: ');
+
   Result := True;
-end;
-
-function IrcInsSection(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  section, toadd: AnsiString;
-  nsecs, osecs: TStringList;
-//  ini: TInifile;
-  x:TStringList;
-  i: integer;
-begin
-  section := UpperCase(SubString(params, ' ', 1));
-  toadd := mystrings.RightStr(params, length(section) + 1);
-  x:=TStringList.Create;
-  x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-//  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  osecs := TStringList.Create;
-  nsecs := TStringList.Create;
-  try
-    osecs.Delimiter := ',';
-    osecs.Sorted := True;
-    osecs.Duplicates := dupIgnore;
-    osecs.DelimitedText := x.Values[section];
-//    osecs.DelimitedText := ini.ReadString('sections', section, '');
-
-    if toadd = '' then
-    begin
-      IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
-      Result := True;
-      Exit;
-    end;
-
-    if AnsiContainsText(toadd, ',') then
-    begin
-      Irc_addText(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-      Result := True;
-      Exit;
-    end;
-
-    nsecs.Delimiter := ' ';
-    nsecs.DelimitedText := toadd;
-
-    //avoid dupes...
-    for i := 0 to nsecs.Count - 1 do
-      osecs.Add(nsecs.Strings[i]);
-
-    x.Values[section]:=osecs.DelimitedText;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  //  ini.WriteString('sections', section, osecs.DelimitedText);
-  //  ini.UpdateFile;
-    osecs.Clear;
-    osecs.DelimitedText := x.Values[section];
-    irc_addText(Netname, Channel, PrecatcherReload);
-    IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
-
-  finally
-  //  ini.free;
-    x.free;
-    osecs.free;
-    nsecs.free;
-  end;
-  result := True;
 end;
 
 function IrcSetdir(const Netname, Channel: AnsiString; params: AnsiString): boolean;
