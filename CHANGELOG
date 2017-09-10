@@ -66,6 +66,7 @@
     {^} backup on startup will only be executed after sites.dat has been successfully decrypted. (#169)
     {^} !leechers code improved.
     {-} TheTVDB support as API goes offline on October 1st, 2017 (#175)
+    {-} !sectionins command -> edit slftp.precatcher manually! (#157)
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
