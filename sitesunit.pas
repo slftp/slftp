@@ -213,6 +213,8 @@ type
     function GetUseAutoInvite: Boolean;
     procedure SetUseAutoInvite(Value: Boolean);
 
+    function GetIsUp: Boolean;
+
   public
     emptyQueue: boolean;
     markeddown: boolean;
@@ -332,6 +334,8 @@ type
     property SiteInfos: AnsiString read GetSiteInfos write SetSiteInfos;
     property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
     property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
+
+    property IsUp: Boolean read getIsUp;
 
   end;
 
@@ -3380,6 +3384,11 @@ end;
 procedure TSite.SetUseAutoInvite(value: Boolean);
 begin
   WCBool('useautoinvite', Value);
+end;
+
+function TSite.GetIsUp: boolean;
+begin
+  Result := working = sstUp;
 end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);
