@@ -1,0 +1,64 @@
+/*        {
+        "version": "0.1.0",
+        "windows": {
+            "command": "C:\\Program Files (x86)\\CodeGear\\RAD Studio\\5.0\\bin"
+        },
+        "isShellCommand": true,
+        "showOutput": "always",
+        "args": ["slftp.dpr"],
+        "problemMatcher": {
+            "owner": "external",
+            "pattern": {
+                "regexp": "^([\\w]+\\.(pas|dpr|dpk))\\((\\d+)\\)\\s(Fatal|Error|Warning|Hint):(.*)",
+                "file": 1,
+                "line": 3,
+                "message": 5
+            }
+        }
+    }
+    */
+
+{
+    "version": "0.1.0",
+    "windows": {
+        "command": "${workspaceRoot}/make.bat"
+        //"options": ["-slftp"]
+        //"args": ["slftp"]
+    },
+    "isShellCommand": true,
+    "showOutput": "always",
+    "tasks": [
+        {
+            "taskName": "build",
+            "isBuildCommand": true,
+            "problemMatcher": {
+                "owner": "external",
+                "fileLocation": ["relative", "${workspaceRoot}"],                        
+                "pattern": {
+                    "regexp": "((([A-Za-z]):\\\\(?:[^\\/:*?\\\"<>|\\r\\n]+\\\\)*)?[^\\/\\s\\(:*?\\\"<>|\\r\\n]*)\\((\\d+)\\):\\s.*(fatal|error|warning|hint)\\s(.*):\\s(.*)",
+                    "file": 1, 
+                    "line": 4,
+                    "severity": 5,
+                    "code": 6,
+                    "message": 7
+                }
+            }              
+        },
+        {
+            "taskName": "test",
+            "isTestCommand": true,
+            "problemMatcher": {
+                "owner": "external",
+                "fileLocation": ["relative", "${workspaceRoot}"],                        
+                "pattern": {
+                    "regexp": "((([A-Za-z]):\\\\(?:[^\\/:*?\\\"<>|\\r\\n]+\\\\)*)?[^\\/\\s\\(:*?\\\"<>|\\r\\n]*)\\((\\d+)\\):\\s.*(fatal|error|warning|hint)\\s(.*):\\s(.*)",
+                    "file": 1, 
+                    "line": 4,
+                    "severity": 5,
+                    "code": 6,
+                    "message": 7
+                }
+            }               
+        }                         
+    ]
+}   
