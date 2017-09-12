@@ -213,6 +213,8 @@ type
     function GetUseAutoInvite: Boolean;
     procedure SetUseAutoInvite(Value: Boolean);
 
+    function GetIsUp: Boolean;
+
   public
     emptyQueue: boolean;
     markeddown: boolean;
@@ -332,6 +334,8 @@ type
     property SiteInfos: AnsiString read GetSiteInfos write SetSiteInfos;
     property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
     property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
+
+    property IsUp: Boolean read GetIsUp;
 
   end;
 
@@ -2465,15 +2469,25 @@ end;
 function TSite.IsAffil(affil: AnsiString): boolean;
 var
   x: TStringList;
+  i: integer;
 begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-    // for testing purpose, some ppl have problems that slftp tries to race affilgroups to site
-    Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
-    Result := x.IndexOf(RemoveINT(affil)) <> -1;
+
+
+    i := x.IndexOf(RemoveINT(affil));
+    if i <> -1 then
+    begin
+      // for testing purpose, some ppl have problems with slftp as it tries to race affilgroups to site
+      Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
+    end;
+    Result := i <> -1;
+
+
+    //Result := x.IndexOf(RemoveINT(affil)) <> -1;
   finally
     x.Free;
   end;
@@ -3370,6 +3384,11 @@ end;
 procedure TSite.SetUseAutoInvite(value: Boolean);
 begin
   WCBool('useautoinvite', Value);
+end;
+
+function TSite.GetIsUp: boolean;
+begin
+  Result := working = sstUp;
 end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);

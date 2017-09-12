@@ -168,7 +168,7 @@ begin
     begin
       repeat
         // enumerate existing backups
-        if (not AnsiContainsStr(sr.Name, '-custom-')) then
+        if (not AnsiContainsText(sr.Name, '-custom-')) then
         begin
           Debug(dpMessage, '<- BACKUP ->', 'found backup: ' + sr.Name);
           files.Add(sr.Name);
