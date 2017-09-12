@@ -65,6 +65,7 @@ In the body it should say: ```This reverts commit <hash>.```, where the hash is 
 * <b>refactor</b>: A code change that neither fixes a bug nor adds a feature
 * <b>perf</b>: A code change that improves performance
 * <b>chore</b>: Changes to the build process or auxiliary tools and libraries such as documentation generation
+* <b>remove</b>: Removal of code duplicates, deprecated functions, unused files, etc
 
 ## Scope
 

@@ -50,7 +50,7 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
-    {+} News System to store important messages to encrypted file. (#173)                                       --- cmd named !news or rename to something else??
+    {+} News System to store important messages to encrypted file. (#173, #164)                                 --- cmd named !news or rename to something else??
     {+} New !affils command.
     {+} !status and !uptime shows if you use 32/64-bit version of slftp.
     {+} !lastlog command to show last log entries. (#160)
@@ -65,7 +65,8 @@
     {^} !findaffil has improved irc output.
     {^} backup on startup will only be executed after sites.dat has been successfully decrypted. (#169)
     {^} !leechers code improved.
-    {-} foo bar
+    {-} TheTVDB support as API goes offline on October 1st, 2017 (#175)
+    {-} !sectionins command -> edit slftp.precatcher manually! (#157)
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
