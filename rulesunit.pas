@@ -588,6 +588,7 @@ type
   end;
 
   TConditionIMDBLanguages = class(TMultiStringCondition)
+    constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: AnsiString; override;
     class function Description: AnsiString; override;
@@ -4760,6 +4761,13 @@ begin
       exit;
     end;
   end;
+end;
+
+constructor TConditionIMDBLanguages.Create(parent: TRuleNode);
+begin
+  inherited;  
+  acceptedOperators.Add(TMaskOperator);
+  acceptedOperators.Add(TNotMaskOperator);
 end;
 
 { TConditionIMDBCountries }
