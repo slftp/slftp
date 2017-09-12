@@ -11133,7 +11133,7 @@ begin
   if s <> nil then
     ShowCredits(Netname, channel, s)
   else 
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName])
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName]);
 end;
 
 procedure ShowCredits(const Netname, Channel: AnsiString; s : Tsite);
