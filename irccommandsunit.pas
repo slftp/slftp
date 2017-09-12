@@ -305,8 +305,8 @@ function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params
   boolean;
 
 function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
-procedure ShowCredits(const netname, channel, siteName: AnsiString); overload
-procedure ShowCredits(const netname, channel: AnsiString; s : Tsite); overload
+procedure ShowCredits(const netname, channel, siteName: AnsiString); overload;
+procedure ShowCredits(const netname, channel: AnsiString; s : Tsite); overload;
 
 function IrcShowAppStatus(const netname, channel: AnsiString; params: AnsiString): boolean;
 
