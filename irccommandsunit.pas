@@ -2,7 +2,7 @@ unit irccommandsunit;
 
 interface
 
-uses Classes, dirlist, irc, prebot;
+uses Classes, dirlist, irc, prebot, sitesunit;
 
 type
   TIrcCommandHandler = function(const netname, channel: AnsiString;
@@ -305,6 +305,8 @@ function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params
   boolean;
 
 function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
+procedure ShowCredits(const netname, channel, siteName: AnsiString); overload;
+procedure ShowCredits(const netname, channel: AnsiString; s : Tsite); overload;
 
 function IrcShowAppStatus(const netname, channel: AnsiString; params: AnsiString): boolean;
 
@@ -334,7 +336,6 @@ function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boo
 function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 {        Sections                   }
-function IrcInsSection(const Netname, Channel: string; params: string): boolean;
 function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
 {        Test functions             }
 function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -360,7 +361,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..250] of TIrcCommand = (
+  irccommands: array[1..249] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -635,7 +636,6 @@ const
 
     (cmd: 'SECTIONS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$section'),
     (cmd: 'sections'; hnd: IrcSections; minparams: 0; maxparams: - 1; hlpgrp: 'section'),
-    (cmd: 'sectionins'; hnd: IrcInsSection; minparams: 1; maxparams: - 1; hlpgrp: 'section'),
 
     (*
       // Disabled - probably need some refactoring
@@ -665,7 +665,7 @@ procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: Ansi
 implementation
 
 uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
-  debugunit, queueunit, tasksunit, mystrings, sitesunit, notify, taskraw, tasklogin,
+  debugunit, queueunit, tasksunit, mystrings, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
@@ -740,15 +740,13 @@ var
   s: TSite;
   i: integer;
 begin
-
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   secs := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
 
   if ((sitename = '') and (secs = '')) then
   begin
-    IrcLineBreak(Netname, Channel, kb_sections.commatext, AnsiChar('"'),
-      '<b>Global Sections</b>: ');
+    IrcLineBreak(Netname, Channel, kb_sections.commatext, AnsiChar('"'), '<b>Global Sections</b>: ');
     Result := True;
     exit;
   end;
@@ -767,7 +765,7 @@ begin
     delete(ss, length(ss), 1);
     Irc_AddText(Netname, channel, 'Sites with section %s', [sitename]);
     IrcLineBreak(Netname, Channel, ss, '"', '<b>' + sitename + '</b>: ', 9);
-    result := true;
+    Result := true;
     exit;
   end;
 
@@ -781,68 +779,8 @@ begin
   ss := s.SetSections(secs, True);
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), '<b>' + sitename + ' Sections</b>: ');
+
   Result := True;
-end;
-
-function IrcInsSection(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-var
-  section, toadd: AnsiString;
-  nsecs, osecs: TStringList;
-//  ini: TInifile;
-  x:TStringList;
-  i: integer;
-begin
-  section := UpperCase(SubString(params, ' ', 1));
-  toadd := mystrings.RightStr(params, length(section) + 1);
-  x:=TStringList.Create;
-  x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-//  ini := TInifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  osecs := TStringList.Create;
-  nsecs := TStringList.Create;
-  try
-    osecs.Delimiter := ',';
-    osecs.Sorted := True;
-    osecs.Duplicates := dupIgnore;
-    osecs.DelimitedText := x.Values[section];
-//    osecs.DelimitedText := ini.ReadString('sections', section, '');
-
-    if toadd = '' then
-    begin
-      IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
-      Result := True;
-      Exit;
-    end;
-
-    if AnsiContainsText(toadd, ',') then
-    begin
-      Irc_addText(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-      Result := True;
-      Exit;
-    end;
-
-    nsecs.Delimiter := ' ';
-    nsecs.DelimitedText := toadd;
-
-    //avoid dupes...
-    for i := 0 to nsecs.Count - 1 do
-      osecs.Add(nsecs.Strings[i]);
-
-    x.Values[section]:=osecs.DelimitedText;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  //  ini.WriteString('sections', section, osecs.DelimitedText);
-  //  ini.UpdateFile;
-    osecs.Clear;
-    osecs.DelimitedText := x.Values[section];
-    irc_addText(Netname, Channel, PrecatcherReload);
-    IrcLineBreak(Netname, Channel, osecs.DelimitedText, ',', section + ': ');
-
-  finally
-  //  ini.free;
-    x.free;
-    osecs.free;
-    nsecs.free;
-  end;
-  result := True;
 end;
 
 function IrcSetdir(const Netname, Channel: AnsiString; params: AnsiString): boolean;
@@ -1119,7 +1057,8 @@ begin
       rcmd.declareFlag('apply','Apply changes');
       rcmd.addAbbreviation('a', 'apply');
       rcmd.declareFlag('back','Also add back route');
-      rcmd.addAbbreviation('b', 'back');
+
+      rcmd.addAbbreviation('b', 'back');
       rcmd.parse(params);
 
     except
@@ -6075,7 +6014,9 @@ begin
     Result := slshutdown;
   end;
 end;
-function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;var
+
+function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
   affils_new, affillist, sitename: AnsiString;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
@@ -11162,43 +11103,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      s := TSite(sites.Items[i]);
-      if s = nil then
-        continue;
-      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        continue;
-      if (s.PermDown) then
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
-        continue;
-      end;
-      if (s.working <> sstUp) then
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
-        continue;
-      end;
-
-      tn := AddNotify;
-      try
-        try
-          r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-          tn.tasks.Add(r);
-          AddTask(r);
-          QueueFire;
-          tn.event.WaitFor($FFFFFFFF);
-        except on E: Exception do
-          begin
-            RemoveTN(tn);
-            irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-            continue;
-          end;
-        end;
-        irc_addtext(Netname, Channel, parseSTATLine(s.Name,
-          TSiteResponse(tn.responses[0]).response));
-      finally
-        RemoveTN(tn);
-      end;
-
+      ShowCredits(Netname, channel, TSite(sites.Items[i]));
     end;
   end
   else
@@ -11210,49 +11115,7 @@ begin
 
       for i := 0 to sitesList.Count - 1 do
       begin
-        s := FindSiteByName(Netname, sitesList[i]);
-
-        if s = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitesList[i]]);
-          continue;
-        end;
-
-        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-          continue;
-
-        if (s.PermDown) then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitesList[i]]);
-          continue;
-        end;
-
-        if (s.working <> sstUp) then
-        begin
-          irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
-          continue;
-        end;
-
-        tn := AddNotify;
-        try
-          try
-            r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-            tn.tasks.Add(r);
-            AddTask(r);
-            QueueFire;
-            tn.event.WaitFor($FFFFFFFF);
-          except on E: Exception do
-            begin
-              RemoveTN(tn);
-              irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-              continue;
-            end;
-          end;
-
-          irc_addtext(Netname, Channel, parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
-        finally
-          RemoveTN(tn);
-        end;
+        ShowCredits(Netname, channel, sitesList[i]);
       end;
 
     finally
@@ -11261,6 +11124,56 @@ begin
   end;
 
   Result := True;
+end;
+
+procedure ShowCredits(const Netname, Channel, siteName: AnsiString);
+var s : Tsite;
+begin
+  s := FindSiteByName(Netname, siteName);
+  if s <> nil then
+    ShowCredits(Netname, channel, s)
+  else 
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName])
+end;
+
+procedure ShowCredits(const Netname, Channel: AnsiString; s : Tsite);
+var 
+  r: TRawTask;
+  tn: TTaskNotify;
+begin
+  if ((s = nil) or (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))) then
+    exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
+    exit;
+  end;
+  if not s.IsUp then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
+    exit;
+  end;
+
+  tn := AddNotify;
+  try
+    try
+      r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
+      tn.tasks.Add(r);
+      AddTask(r);
+      QueueFire;
+      tn.event.WaitFor($FFFFFFFF);
+    except on E: Exception do
+      begin
+        RemoveTN(tn);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+        exit;
+      end;
+    end;
+    irc_addtext(Netname, Channel, parseSTATLine(s.Name,
+      TSiteResponse(tn.responses[0]).response));
+  finally
+    RemoveTN(tn);
+  end;
 end;
 
 function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;

@@ -50,8 +50,8 @@ type
     s_racetasks: TSafeInteger;
     s_mkdirtasks: TSafeInteger;
 
-    ircevent: boolean; // ez jelzi hogy ez a site ircen kapott mar valamit
-    error: boolean; // ha a site lement downba vagy mkd nem sikerult..
+    ircevent: boolean; //< returns @true if we got atleast one catchadd
+    error: boolean; //< returns @true if the site went down or mkd (make directory) failed
 
     ts: TDateTime;
     lookupforcedhere: boolean;
