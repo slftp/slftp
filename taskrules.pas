@@ -252,7 +252,7 @@ ujra:
   end;
 
   // re add
-  i := s.AutoRulesStatus;
+  i := s.site.AutoRulesStatus;
   if i > 0 then
   begin
     try
