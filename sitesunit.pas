@@ -335,7 +335,7 @@ type
     property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
     property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
 
-    property IsUp: Boolean read getIsUp;
+    property IsUp: Boolean read GetIsUp;
 
   end;
 
