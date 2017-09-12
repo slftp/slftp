@@ -26,6 +26,9 @@ bin/*
 Win32/*
 Win64/*
 
+# Visual Studio Code
+ .vscode/*
+
 #
 # Lazarus
 # Entries taken from http://wiki.freepascal.org/File_extensions
