@@ -301,7 +301,8 @@ var
 
 implementation
 
-uses debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
+uses
+  debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
@@ -320,7 +321,6 @@ const
   rsections = 'kb';
 
 var
-
   sectionhandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease);
 
   addpreechocmd: AnsiString;
@@ -353,12 +353,15 @@ var
   i: integer;
 begin
   Result := sectionhandlers[0];
+
   for i := 1 to High(sectionhandlers) do
+  begin
     if sectionhandlers[i].SectionAccepted(section) then
     begin
       Result := sectionhandlers[i];
       exit;
     end;
+  end;
 end;
 
 // TODO: as it does the same as GotGroupname, emrge both function and have a second parameter to say remove grpname or not
@@ -1456,7 +1459,9 @@ var
   x: TStringList;
 begin
   Result := False;
+
   try
+    // check if there is an entry for the TRelease descendent
     i := kb_sectionhandlers.IndexOf(Name);
     if i = -1 then
       exit;
@@ -1464,6 +1469,7 @@ begin
     x := TStringList(kb_sectionhandlers.Objects[i]);
     if (x.IndexOf(section) <> -1) then
       Result := True;
+
   except
     on e: Exception do
     begin
@@ -2599,8 +2605,7 @@ begin
     x := TStringList.Create;
     x.CaseSensitive := False;
     x.Delimiter := ',';
-    x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name,
-      sectionhandlers[i].DefaultSections);
+    x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name, sectionhandlers[i].DefaultSections);
     kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := x;
   end;
 
@@ -2749,6 +2754,7 @@ begin
   //sectionhelper.Free;
   tvtags.Free;
   kb_groupcheck_rls.Free;
+
   for i := 0 to kb_sectionhandlers.Count - 1 do
   begin
     if kb_sectionhandlers.Objects[i] <> nil then
