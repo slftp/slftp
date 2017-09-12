@@ -2,7 +2,7 @@ SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON
+CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr
 CDBFLAGS = -MDelphi -gl -gp -gs -gw3
 default: clean slftp
 
@@ -39,6 +39,7 @@ clean:
 	@rm -f libs/rcmdline/*.ppu libs/rcmdline/*.o
 	@rm -f libs/DFFLibV15_UIntList/*.ppu libs/DFFLibV15_UIntList/*.o
 	@rm -f libs/lkJSON/*.ppu libs/lkJSON/*.o
+	@rm -f libs/TRegExpr/*.ppu libs/TRegExpr/*.o
 	@rm -f *.ppu *.o slftp *.exe
 
 install:
