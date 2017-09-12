@@ -27,7 +27,7 @@ Win32/*
 Win64/*
 
 # Visual Studio Code
- .vscode/*
+.vscode/*
 
 #
 # Lazarus
