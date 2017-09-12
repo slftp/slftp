@@ -97,160 +97,162 @@ ujra:
   new_rules := TStringList.Create;
   old_rules := TStringList.Create;
   try
-
-  rules := s.lastResponse;
-  i := 1;
-  while(true) do
-  begin
-    ss := SubString(rules, #13#10, i);
-    if ss = '' then break;
-    new_rules.Add(ss);
-    inc(i);
-  end;
-
-
-  if (config.ReadBool('sites', 'split_site_data', True)) then
-  begin
-    rules_path := ExtractFilePath(ParamStr(0))+'rtpl';
-    rules_file := rules_path+PathDelim+s.site.name+'.siterules';
-  end
-  else
-  begin
-    rules_path := ExtractFilePath(ParamStr(0))+'rules';
-    rules_file := rules_path+PathDelim+s.site.name+'.rules';
-  end;
-
-
-  try
-    ForceDirectories(rules_path);
-  except
-    on e: Exception do
+    rules := s.lastResponse;
+    i := 1;
+    while(true) do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TaskRules ForceDirectories Exception : %s', [e.Message]));
-      readyerror := True;
-      exit;
-    end;
-  end;
-
-  f := TStringlist.Create();
-  try
-
-  if FileExists(rules_file) then
-  begin
-    f.LoadFromFile(rules_file);
-
-    hash_old_rules := TList.Create;
-    hash_new_rules := TList.Create;
-    try
-
-    for i := 0 to f.Count - 1 do
-    begin
-      old_rules.Add(f[i]);
-      hash_old_rules.Add(HashLine(f[i], True, True));
+      ss := SubString(rules, #13#10, i);
+      if ss = '' then break;
+      new_rules.Add(ss);
+      inc(i);
     end;
 
-    for i := 0 to new_rules.Count - 1 do
+    if (config.ReadBool('sites', 'split_site_data', True)) then
     begin
-      hash_new_rules.Add(HashLine(new_rules[i], True, True));
+      rules_path := ExtractFilePath(ParamStr(0))+'rtpl';
+      rules_file := rules_path+PathDelim+s.site.name+'.siterules';
+    end
+    else
+    begin
+      rules_path := ExtractFilePath(ParamStr(0))+'rules';
+      rules_file := rules_path+PathDelim+s.site.name+'.rules';
     end;
 
-    Diff := TDiff.Create;
+
     try
-    try
-      Diff.Execute(PInteger(hash_old_rules.list), PInteger(hash_new_rules.list), hash_old_rules.Count, hash_new_rules.Count);
+      ForceDirectories(rules_path);
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskRules Diff.Execute Exception : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TaskRules ForceDirectories Exception : %s', [e.Message]));
         readyerror := True;
         exit;
       end;
     end;
 
-    with Diff.DiffStats do
-    begin
-      if ((modifies > 0) or (adds > 0) or (deletes > 0)) then
+    f := TStringlist.Create();
+    try
+
+      if FileExists(rules_file) then
       begin
+        f.LoadFromFile(rules_file);
+
+        hash_old_rules := TList.Create;
+        hash_new_rules := TList.Create;
         try
-          for i := 0 to Diff.Count - 1 do
+
+          for i := 0 to f.Count - 1 do
           begin
-            with Diff.Compares[i] do
-            begin
-              if Kind = ckNone then
-                Continue;
+            old_rules.Add(f[i]);
+            hash_old_rules.Add(HashLine(f[i], True, True));
+          end;
 
-              if Kind <> ckAdd then
-              begin
-                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
-                irc_Addstats(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
-              end;
+          for i := 0 to new_rules.Count - 1 do
+          begin
+            hash_new_rules.Add(HashLine(new_rules[i], True, True));
+          end;
 
-              if Kind <> ckDelete then
+          Diff := TDiff.Create;
+          try
+            try
+              Diff.Execute(PInteger(hash_old_rules.list), PInteger(hash_new_rules.list), hash_old_rules.Count, hash_new_rules.Count);
+            except
+              on e: Exception do
               begin
-                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
-                irc_Addstats(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                Debug(dpError, section, Format('[EXCEPTION] TaskRules Diff.Execute Exception : %s', [e.Message]));
+                readyerror := True;
+                exit;
               end;
             end;
+
+            with Diff.DiffStats do
+            begin
+              if ((modifies > 0) or (adds > 0) or (deletes > 0)) then
+              begin
+                try
+                  for i := 0 to Diff.Count - 1 do
+                  begin
+                    with Diff.Compares[i] do
+                    begin
+                      if Kind = ckNone then
+                        Continue;
+
+                      if Kind <> ckAdd then
+                      begin
+                        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                        irc_Addstats(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',[s.site.name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                      end;
+
+                      if Kind <> ckDelete then
+                      begin
+                        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                        irc_Addstats(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',[s.site.name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                      end;
+                    end;
+                  end;
+                except
+                  on e: Exception do
+                  begin
+                    Debug(dpError, section, Format('[EXCEPTION] TaskRules %s Diff.DiffStats Exception : %s', [s.name, e.Message]));
+                  end;
+                end;
+
+                // for testing purpose -- don't know what it exactly shows...never used autorules feature
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
+
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
+              end
+              else
+              begin
+                if spamcfg.readbool('sites', 'rules_nochange', False) then
+                  irc_Addstats(Format('<b>[AUTORULES %s]</b> No Changes.', [s.site.name]));
+              end;
+            end;
+
+          finally
+            Diff.Free
           end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TaskRules %s Diff.DiffStats Exception : %s', [s.name, e.Message]));
-          end;
+
+        finally
+          hash_old_rules.Free;
+          hash_new_rules.Free;
         end;
 
-        // for testing purpose -- don't know what it exactly shows...never used autorules feature
-        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
-        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
-        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
-        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
-
-        irc_Addstats(Format('<b>[AUTORULES %s]</b> Matches: %d', [s.site.name, matches]));
-        irc_Addstats(Format('<b>[AUTORULES %s]</b> Modifies: %d', [s.site.name, modifies]));
-        irc_Addstats(Format('<b>[AUTORULES %s]</b> Adds: %d', [s.site.name, adds]));
-        irc_Addstats(Format('<b>[AUTORULES %s]</b> Deletes: %d', [s.site.name, deletes]));
-      end
-      else
-      begin
-        if spamcfg.readbool('sites', 'rules_nochange', False) then
-          irc_Addstats(Format('<b>[AUTORULES %s]</b> No Changes.', [s.site.name]));
       end;
-    end;
+
+      f.Clear;
+      for i := 0 to new_rules.Count - 1 do
+      begin
+        f.Add(new_rules[i]);
+      end;
+      try
+        f.SaveToFile(rules_file);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TaskRules SaveToFile Exception : %s', [e.Message]));
+          readyerror := True;
+          exit;
+        end;
+      end;
 
     finally
-      Diff.Free
+      f.Free
     end;
-
-    finally
-      hash_old_rules.Free;
-      hash_new_rules.Free;
-    end;
-
-  end;
-
-  f.Clear;
-  for i := 0 to new_rules.Count - 1 do
-  begin
-    f.Add(new_rules[i]);
-  end;
-  try
-    f.SaveToFile(rules_file);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TaskRules SaveToFile Exception : %s', [e.Message]));
-      readyerror := True;
-      exit;
-    end;
-  end;
 
   finally
-    f.Free
+    old_rules.Free;
+    new_rules.Free;
   end;
 
-
   // re add
-  i := s.RCInteger('autorules', 0);
+  i := s.AutoRulesStatus;
   if i > 0 then
   begin
     try
@@ -264,11 +266,6 @@ ujra:
         Debug(dpError, section, Format('[EXCEPTION] TRulesTask.Execute AddTask: %s', [e.Message]));
       end;
     end;
-  end;
-
-  finally
-    old_rules.Free;
-    new_rules.Free;
   end;
 
   Result := True;

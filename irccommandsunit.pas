@@ -2,11 +2,11 @@ unit irccommandsunit;
 
 interface
 
-uses Classes, dirlist, irc, prebot, sitesunit;
+uses
+  Classes, dirlist, irc, prebot, sitesunit;
 
 type
-  TIrcCommandHandler = function(const netname, channel: AnsiString;
-    params: AnsiString): boolean;
+  TIrcCommandHandler = function(const netname, channel: AnsiString; params: AnsiString): boolean;
   //TIrcCommandHandler = function (const netname, channel: string; params: string; nickname:string = ''): Boolean;
   TIrcCommand = record
     cmd: AnsiString;
@@ -20,8 +20,7 @@ type
     c: TIRCCommandHandler;
     th: TMyIrcThread;
     netname, channel, cmd, params: AnsiString;
-    constructor Create(c: TIRCCommandHandler; netname, channel, params: AnsiString;
-      cmd: AnsiString = '');
+    constructor Create(c: TIRCCommandHandler; netname, channel, params: AnsiString; cmd: AnsiString = '');
     //constructor Create(c: TIRCCommandHandler; netname, channel, params: string; nickname:string = '');
     procedure Execute; override;
   end;
@@ -4298,7 +4297,7 @@ begin
     s.AutoNuke;
   if s.RCInteger('autoindex', 0) <> 0 then
     s.AutoIndex;
-  if s.RCInteger('autorules', 0) <> 0 then
+  if s.AutoRulesStatus <> 0 then
     s.AutoRules;
   // if s.RCString('autologin','-1') <> '-1' then
   if s.RCInteger('autobnctest', 0) <> 0 then
@@ -6938,7 +6937,7 @@ var
   sitename: AnsiString;
   status: integer;
   s: TSite;
-  kell: boolean;
+  StartTask: boolean;
   i: integer;
   x: TStringList;
 begin
@@ -6956,15 +6955,15 @@ begin
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
 
-      kell := False;
+      StartTask := False;
       if status > -1 then
       begin
         if status <> 0 then
         begin
-          if TSite(sites.Items[i]).RCInteger('autorules', 0) <= 0 then
-            kell := True;
+          if TSite(sites.Items[i]).AutoRulesStatus <= 0 then
+            StartTask := True;
 
-          TSite(sites.Items[i]).WCInteger('autorules', status);
+          TSite(sites.Items[i]).AutoRulesStatus := status;
         end
         else
         begin
@@ -6972,9 +6971,9 @@ begin
           TSite(sites.Items[i]).RemoveAutoRules;
         end;
       end;
-      irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).RCInteger('autorules', 0)]);
+      irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).AutoRulesStatus]);
 
-      if kell then
+      if StartTask then
         TSite(sites.Items[i]).AutoRules;
     end;
   end
@@ -6998,15 +6997,15 @@ begin
           continue;
         end;
 
-        kell := False;
+        StartTask := False;
         if status > -1 then
         begin
           if status <> 0 then
           begin
-            if s.RCInteger('autorules', 0) <= 0 then
-              kell := True;
+            if s.AutoRulesStatus <= 0 then
+              StartTask := True;
 
-            s.WCInteger('autorules', status);
+            s.AutoRulesStatus := status;
           end
           else
           begin
@@ -7014,9 +7013,9 @@ begin
             s.RemoveAutoRules;
           end;
         end;
-        irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [sitename, s.RCInteger('autorules', 0)]);
+        irc_addtext(Netname, Channel, 'Autorules of %s is: %d', [sitename, s.AutoRulesStatus]);
 
-        if kell then
+        if StartTask then
           s.AutoRules;
       end;
     finally
@@ -10876,7 +10875,7 @@ begin
       s.WCInteger('disabled_autonuke', s.RCInteger('autonuke', 0));
       s.WCInteger('disabled_autoindex', s.RCInteger('autoindex', 0));
       s.WCInteger('disabled_autobnctest', s.RCInteger('autobnctest', 0));
-      s.WCInteger('disabled_autorules', s.RCInteger('autorules', 0));
+      s.WCInteger('disabled_autorules', s.AutoRulesStatus);
       s.WCInteger('disabled_autodirlist', s.RCInteger('autodirlist', 0));
       // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
     except
@@ -10907,7 +10906,7 @@ begin
       s.WCInteger('autonuke', s.RCInteger('disabled_autonuke', 0));
       s.WCInteger('autoindex', s.RCInteger('disabled_autoindex', 0));
       s.WCInteger('autobnctest', s.RCInteger('disabled_autobnctest', 0));
-      s.WCInteger('autorules', s.RCInteger('disabled_autorules', 0));
+      s.AutoRulesStatus := s.RCInteger('disabled_autorules', 0);
       s.WCInteger('autodirlist', s.RCInteger('disabled_autodirlist', 0));
       // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
     except
@@ -11132,12 +11131,12 @@ begin
   s := FindSiteByName(Netname, siteName);
   if s <> nil then
     ShowCredits(Netname, channel, s)
-  else 
+  else
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName]);
 end;
 
 procedure ShowCredits(const Netname, Channel: AnsiString; s : Tsite);
-var 
+var
   r: TRawTask;
   tn: TTaskNotify;
 begin
