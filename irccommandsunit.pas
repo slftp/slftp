@@ -2,7 +2,7 @@ unit irccommandsunit;
 
 interface
 
-uses Classes, dirlist, irc, prebot;
+uses Classes, dirlist, irc, prebot, sitesunit;
 
 type
   TIrcCommandHandler = function(const netname, channel: AnsiString;
@@ -305,6 +305,8 @@ function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params
   boolean;
 
 function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
+procedure ShowCredits(const netname, channel, siteName: AnsiString); overload
+procedure ShowCredits(const netname, channel: AnsiString; s : Tsite); overload
 
 function IrcShowAppStatus(const netname, channel: AnsiString; params: AnsiString): boolean;
 
@@ -663,7 +665,7 @@ procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: Ansi
 implementation
 
 uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
-  debugunit, queueunit, tasksunit, mystrings, sitesunit, notify, taskraw, tasklogin,
+  debugunit, queueunit, tasksunit, mystrings, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
@@ -1055,7 +1057,8 @@ begin
       rcmd.declareFlag('apply','Apply changes');
       rcmd.addAbbreviation('a', 'apply');
       rcmd.declareFlag('back','Also add back route');
-      rcmd.addAbbreviation('b', 'back');
+
+      rcmd.addAbbreviation('b', 'back');
       rcmd.parse(params);
 
     except
@@ -6011,7 +6014,9 @@ begin
     Result := slshutdown;
   end;
 end;
-function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;var
+
+function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
   affils_new, affillist, sitename: AnsiString;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
@@ -11098,43 +11103,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      s := TSite(sites.Items[i]);
-      if s = nil then
-        continue;
-      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-        continue;
-      if (s.PermDown) then
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
-        continue;
-      end;
-      if (s.working <> sstUp) then
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
-        continue;
-      end;
-
-      tn := AddNotify;
-      try
-        try
-          r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-          tn.tasks.Add(r);
-          AddTask(r);
-          QueueFire;
-          tn.event.WaitFor($FFFFFFFF);
-        except on E: Exception do
-          begin
-            RemoveTN(tn);
-            irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-            continue;
-          end;
-        end;
-        irc_addtext(Netname, Channel, parseSTATLine(s.Name,
-          TSiteResponse(tn.responses[0]).response));
-      finally
-        RemoveTN(tn);
-      end;
-
+      ShowCredits(Netname, channel, TSite(sites.Items[i]));
     end;
   end
   else
@@ -11146,49 +11115,7 @@ begin
 
       for i := 0 to sitesList.Count - 1 do
       begin
-        s := FindSiteByName(Netname, sitesList[i]);
-
-        if s = nil then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitesList[i]]);
-          continue;
-        end;
-
-        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
-          continue;
-
-        if (s.PermDown) then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [sitesList[i]]);
-          continue;
-        end;
-
-        if (s.working <> sstUp) then
-        begin
-          irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
-          continue;
-        end;
-
-        tn := AddNotify;
-        try
-          try
-            r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-            tn.tasks.Add(r);
-            AddTask(r);
-            QueueFire;
-            tn.event.WaitFor($FFFFFFFF);
-          except on E: Exception do
-            begin
-              RemoveTN(tn);
-              irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-              continue;
-            end;
-          end;
-
-          irc_addtext(Netname, Channel, parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
-        finally
-          RemoveTN(tn);
-        end;
+        ShowCredits(Netname, channel, sitesList[i]);
       end;
 
     finally
@@ -11197,6 +11124,56 @@ begin
   end;
 
   Result := True;
+end;
+
+procedure ShowCredits(const Netname, Channel, siteName: AnsiString);
+var s : Tsite;
+begin
+  s := FindSiteByName(Netname, siteName);
+  if s <> nil then
+    ShowCredits(Netname, channel, s)
+  else 
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName])
+end;
+
+procedure ShowCredits(const Netname, Channel: AnsiString; s : Tsite);
+var 
+  r: TRawTask;
+  tn: TTaskNotify;
+begin
+  if ((s = nil) or (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))) then
+    exit;
+  if (s.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Site %s is set permdown! </c></b>', [s.Name]);
+    exit;
+  end;
+  if not s.IsUp then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Site %s is temporarily offline! </c></b>', [s.Name]);
+    exit;
+  end;
+
+  tn := AddNotify;
+  try
+    try
+      r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
+      tn.tasks.Add(r);
+      AddTask(r);
+      QueueFire;
+      tn.event.WaitFor($FFFFFFFF);
+    except on E: Exception do
+      begin
+        RemoveTN(tn);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+        exit;
+      end;
+    end;
+    irc_addtext(Netname, Channel, parseSTATLine(s.Name,
+      TSiteResponse(tn.responses[0]).response));
+  finally
+    RemoveTN(tn);
+  end;
 end;
 
 function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
