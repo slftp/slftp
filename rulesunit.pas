@@ -267,9 +267,10 @@ type
     function SupplyValue(r: TPazo): AnsiString; virtual; abstract;
   end;
 
-  TMultiStringCondition = class(TCondition)
+  TMultiStringCondition = class(TStringCondition)
     constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); virtual; abstract;
+    function SupplyValue(r: TPazo): AnsiString; override;
   end;
 
   TIntCondition = class(TCondition)
@@ -3890,11 +3891,25 @@ end;
 constructor TMultiStringCondition.Create(parent: TRuleNode);
 begin
   inherited;
-
+  acceptedOperators.Clear;
   acceptedOperators.Add(TMultiStringEqualOperator);
   acceptedOperators.Add(TMultiStringNotEqualOperator);
   acceptedOperators.Add(TMultiInOperator);
   acceptedOperators.Add(TMultiNotInOperator);
+end;
+
+function TMultiStringCondition.SupplyValue(r: TPazo): AnsiString;
+var strList : TStringList;
+begin
+  strList := TStringList.Create;
+  try
+    SupplyValues(r, strList);
+    strList.Delimiter := ',';
+    strList.StrictDelimiter := true;
+    Result := strList.DelimitedText;
+  finally
+    strList.Free;
+  end;
 end;
 
 { TAtCondition }
