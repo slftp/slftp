@@ -392,6 +392,7 @@ destructor TDirList.Destroy;
 begin
   entries.Free;
   dirlist_lock.Free;
+  skipped.Free;
   inherited;
 end;
 
