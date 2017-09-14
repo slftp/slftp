@@ -1236,15 +1236,6 @@ begin
   try
     aktualizalva := False;
     PredOnAnySite := False;
-    languages := TStringList.Create;
-
-    tags := TStringList.Create;
-    tags.Delimiter := ' ';
-    tags.CaseSensitive := False;
-
-    words := TStringList.Create;
-    words.Delimiter := ' ';
-    words.CaseSensitive := False;
 
     Self.section := section;
     Self.rlsname := rlsname;
@@ -1269,6 +1260,17 @@ begin
       end;
     end;
 
+    languages := TStringList.Create;
+    languages.CaseSensitive := False;
+
+    tags := TStringList.Create;
+    tags.Delimiter := ' ';
+    tags.CaseSensitive := False;
+
+    words := TStringList.Create;
+    words.Delimiter := ' ';
+    words.CaseSensitive := False;
+
     s := Csere(rlsname, '(', '');
     s := Csere(s, ')', '');
     s := Csere(s, '.', ' ');
@@ -1284,13 +1286,13 @@ begin
     rrgx := TRegExpr.Create;
     try
       rrgx.ModifierI := True;
+
       rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
       if rrgx.Exec(rlsname) then
         Internal := True;
 
       //detect groupname
       groupname := '';
-      rrgx.ModifierI := True;
       rrgx.Expression := '\-([^\-]+)$';
       if rrgx.Exec(rlsname) then
       begin
@@ -2601,6 +2603,14 @@ begin
   kb_sectionhandlers := TStringList.Create;
   for i := 1 to High(sectionhandlers) do
   begin
+    {
+    * some examples for both variables
+    sectionhandlers: TMP3Release -- x: MP3,FLAC
+    sectionhandlers: T0dayRelease -- x: 0DAY,PDA
+    sectionhandlers: TNFORelease -- x: MDVDR,MV,MHD
+    sectionhandlers: TTVRelease -- x: TVSD*,TV720P-*,TV*BLURAY,TV1080P
+    }
+
     kb_sectionhandlers.Add(sectionhandlers[i].Name);
     x := TStringList.Create;
     x.CaseSensitive := False;
@@ -2681,10 +2691,7 @@ begin
 
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
-  kb_languages.DelimitedText :=
-    Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) +
-    'slftp.languages'),
-    #13, ','), #10, ',');
+  kb_languages.DelimitedText := Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ','), #10, ',');
 
   //sectionhelper:= THashedStringList.Create;
 
@@ -2694,18 +2701,17 @@ begin
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
-{$IFDEF MSWINDOWS}
-      DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
-{$ELSE}
-      DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
-{$ENDIF}
+      {$IFDEF MSWINDOWS}
+        DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+      {$ELSE}
+        DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
+      {$ENDIF}
     finally
       x.Free;
     end;
   end;
 
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) +
-    'slftp.imdbcountries');
+  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
@@ -2716,11 +2722,12 @@ begin
   renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
   //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
-  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base',
-    False);
+  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', False);
+
   // disabled until we look deeper into issues with it
   //enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
   enable_try_to_complete := False;
+
   try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 1100);
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
