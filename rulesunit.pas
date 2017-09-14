@@ -598,7 +598,7 @@ type
     class function Description: AnsiString; override;
   end;
 
-  TConditionIMDBLanguages = class(TMultiStringCondition)
+  TConditionIMDBLanguages = class(TListCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: AnsiString; override;
     class function Description: AnsiString; override;
