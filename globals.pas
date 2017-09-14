@@ -15,7 +15,7 @@ const
   SiteColorUnknown = 'c14'; //< Grey color for sstUnknown @link(sitesunit.TSiteStatus)
 
 var
-  formatSettings: TFormatSettings;
+  formatSettings: TFormatSettings; //< TFormatSettings for date/time handling (formatted as in official or technical documents)
 
 procedure InitGlobalValues;
 
@@ -28,7 +28,7 @@ begin
   {$ELSE}
     formatSettings := DefaultFormatSettings;
   {$ENDIF}
-  formatSettings.ShortDateFormat := 'yyyy-mm-dd';
+  formatSettings.ShortDateFormat := 'yyyy-mm-dd'; // Year-Month-Day order
   formatSettings.ShortTimeFormat := 'hh:mm';
   formatSettings.DateSeparator := '-';
   formatSettings.TimeSeparator := ':';
