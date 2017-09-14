@@ -55,7 +55,7 @@ uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfis
 {$IFNDEF MSWINDOWS}
   , slconsole
 {$ENDIF}
-  , StrUtils, news;
+  , StrUtils, news, globals;
 
 {$I slftp.inc}
 
@@ -141,6 +141,8 @@ begin
 
   sltcp_onwaitingforsocket := @kilepescsekker;
   //  AutoCrawlerInit;
+
+  InitGlobalValues;
 
   InitXMLWeapper;
 
