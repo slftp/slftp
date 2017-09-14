@@ -267,6 +267,18 @@ type
     function SupplyValue(r: TPazo): AnsiString; virtual; abstract;
   end;
 
+  { Use this if you have a list of values to check and want to use in/notin and mask/notmask
+  When using mask, values in list are then separated by a comma
+  For instance, values that are a list of languages, like English,Japanese
+  you can still use in/notin as in "if imdblanguages not in English then drop"
+  but then you can also use a regex : "if imdblanguages !~ /^(Engl|Swed)ish.*/i then DROP" (i only want movies with main language being either English or Swedish )
+  }
+  TListCondition = class(TStringCondition)
+    constructor Create(parent: TRuleNode); override;
+    procedure SupplyValues(r: TPazo; re: TStringList); virtual; abstract;
+    function SupplyValue(r: TPazo): AnsiString; override;
+  end;
+
   TMultiStringCondition = class(TCondition)
     constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); virtual; abstract;
@@ -3883,6 +3895,32 @@ begin
     conditionstr := 'not ( ' + conditionstr + ' )';
 
   conditions := ParseRule(conditionstr, error);
+end;
+
+{ TListCondition }
+
+constructor TListCondition.Create(parent: TRuleNode);
+begin
+  inherited;
+  
+  acceptedOperators.Add(TMultiStringEqualOperator);
+  acceptedOperators.Add(TMultiStringNotEqualOperator);
+  acceptedOperators.Add(TMultiInOperator);
+  acceptedOperators.Add(TMultiNotInOperator);
+end;
+
+function TListCondition.SupplyValue(r: TPazo): AnsiString;
+var strList : TStringList;
+begin
+  strList := TStringList.Create;
+  try
+    SupplyValues(r, strList);
+    strList.Delimiter := ',';
+    strList.StrictDelimiter := true;
+    Result := strList.DelimitedText;
+  finally
+    strList.Free;
+  end;
 end;
 
 { TMultiStringCondition }
