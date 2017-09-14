@@ -215,6 +215,9 @@ type
 
     function GetIsUp: Boolean;
 
+    function GetAutoRulesStatus: integer;
+    procedure SetAutoRulesStatus(const Value: integer);
+
   public
     emptyQueue: boolean;
     markeddown: boolean;
@@ -333,9 +336,10 @@ type
 
     property SiteInfos: AnsiString read GetSiteInfos write SetSiteInfos;
     property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
-    property UseAutoInvite: Boolean read getUseAutoInvite write setUseAutoInvite;
+    property UseAutoInvite: Boolean read GetUseAutoInvite write SetUseAutoInvite;
 
     property IsUp: Boolean read GetIsUp;
+    property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus;
 
   end;
 
@@ -2180,7 +2184,7 @@ begin
       //if s.RCString('autologin','-1') <> '-1' then
       if RCInteger('autobnctest', 0) <> 0 then
         AutoBnctest;
-      if RCInteger('autorules', 0) <> 0 then
+      if AutoRulesStatus <> 0 then
         AutoRules;
       if RCInteger('autodirlist', 0) <> 0 then
         AutoDirlist;
@@ -2822,8 +2826,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoRules AddTask: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoRules AddTask: %s', [e.Message]));
     end;
   end;
 end;
@@ -3118,7 +3121,7 @@ begin
   if RCInteger('autobnctest', 0) > 0 then
     AutoBnctest;
 
-  if RCInteger('autorules', 0) > 0 then
+  if AutoRulesStatus > 0 then
     AutoRules;
 
   if RCInteger('autodirlist', 0) > 0 then
@@ -3381,7 +3384,7 @@ begin
   Result := RCBool('useautoinvite', True);
 end;
 
-procedure TSite.SetUseAutoInvite(value: Boolean);
+procedure TSite.SetUseAutoInvite(Value: Boolean);
 begin
   WCBool('useautoinvite', Value);
 end;
@@ -3389,6 +3392,16 @@ end;
 function TSite.GetIsUp: boolean;
 begin
   Result := working = sstUp;
+end;
+
+function TSite.GetAutoRulesStatus: integer;
+begin
+  Result := RCInteger('autorules', 0);
+end;
+
+procedure TSite.SetAutoRulesStatus(const Value: integer);
+begin
+  WCInteger('autorules', Value);
 end;
 
 procedure TSite.SetIRCNick(Value: AnsiString);
