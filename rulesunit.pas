@@ -3902,11 +3902,13 @@ end;
 constructor TListCondition.Create(parent: TRuleNode);
 begin
   inherited;
-  
+  acceptedOperators.Clear;
   acceptedOperators.Add(TMultiStringEqualOperator);
   acceptedOperators.Add(TMultiStringNotEqualOperator);
   acceptedOperators.Add(TMultiInOperator);
   acceptedOperators.Add(TMultiNotInOperator);
+  acceptedOperators.Add(TMaskOperator);
+  acceptedOperators.Add(TNotMaskOperator);
 end;
 
 function TListCondition.SupplyValue(r: TPazo): AnsiString;
