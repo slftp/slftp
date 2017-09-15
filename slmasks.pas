@@ -8,9 +8,9 @@ uses
 type
   TslMask = class
   private
-    fMask: AnsiString;
-    dm: TMask;
-    rm: TRegExpr;
+    fMask: AnsiString; //< actual mask used for @link(dm) or @link(rm)
+    dm: TMask; //< simple mask
+    rm: TRegExpr; //< regex mask
   public
     function Matches(const s: AnsiString): Boolean;
     constructor Create(const mask: AnsiString);
@@ -33,7 +33,7 @@ var
   l: Integer;
 begin
   fMask := mask;
-  l := length(mask);
+  l := Length(mask);
 
   if l = 0 then
     exit;
@@ -56,16 +56,16 @@ end;
 
 destructor TslMask.Destroy;
 begin
-  if dm <> nil then
+  if Assigned(dm) then
   begin
-    dm.Free;
-    dm := nil;
+    FreeAndNil(dm);
   end;
-  if rm <> nil then
+
+  if Assigned(rm) then
   begin
-    rm.Free;
-    rm := nil;
+    FreeAndNil(rm);
   end;
+
   inherited;
 end;
 
@@ -73,14 +73,14 @@ function TslMask.Matches(const s: AnsiString): Boolean;
 begin
   Result := False;
 
-  if dm <> nil then
+  if Assigned(dm) then
     Result := dm.Matches(s)
-  else if rm <> nil then
+  else if Assigned(rm) then
   begin
     try
       Result := rm.Exec(s)
     except on e: Exception do
-      debug(dpError, ssection, 'RegExpr Exception in TslMask: %s %s',[fmask, e.Message]);
+      debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s',[mask, e.Message]);
     end;
   end;
 end;
