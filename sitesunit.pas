@@ -841,9 +841,10 @@ begin
   Debug(dpSpam, section, 'Slot %s destroy begin', [Name]);
   Stop;
   DestroySocket(True);
-  event.Free;
-  event := nil;
+
+  FreeAndNil(event);
   mdtmre.Free;
+
   inherited;
   Debug(dpSpam, section, 'Slot %s destroy end', [Name]);
 end;
