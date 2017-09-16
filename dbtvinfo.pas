@@ -81,7 +81,7 @@ function TVInfoDbAlive: boolean;
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
-  tasktvinfolookup, pazo, mrdohutils, uLkJSON;
+  tasktvinfolookup, pazo, mrdohutils, uLkJSON, globals;
 
 const
   section = 'tasktvinfo';
@@ -139,12 +139,12 @@ begin
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2]));
+        episode := DateTimeToUnix(StrToDateTime(rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4], formatSettings));
       end
       else
       begin
-        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
-        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no vailed date.');
+        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4] + ' is no valid date.');
+        Debug(dpError, section, 'ERROR: ' + rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4] + ' is no valid date.');
       end;
       exit;
     end;
