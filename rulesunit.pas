@@ -267,10 +267,9 @@ type
     function SupplyValue(r: TPazo): AnsiString; virtual; abstract;
   end;
 
-  TMultiStringCondition = class(TStringCondition)
+  TMultiStringCondition = class(TCondition)
     constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); virtual; abstract;
-    function SupplyValue(r: TPazo): AnsiString; override;
   end;
 
   TIntCondition = class(TCondition)
@@ -588,7 +587,6 @@ type
   end;
 
   TConditionIMDBLanguages = class(TMultiStringCondition)
-    constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: AnsiString; override;
     class function Description: AnsiString; override;
@@ -3892,25 +3890,11 @@ end;
 constructor TMultiStringCondition.Create(parent: TRuleNode);
 begin
   inherited;
-  acceptedOperators.Clear;
+
   acceptedOperators.Add(TMultiStringEqualOperator);
   acceptedOperators.Add(TMultiStringNotEqualOperator);
   acceptedOperators.Add(TMultiInOperator);
   acceptedOperators.Add(TMultiNotInOperator);
-end;
-
-function TMultiStringCondition.SupplyValue(r: TPazo): AnsiString;
-var strList : TStringList;
-begin
-  strList := TStringList.Create;
-  try
-    SupplyValues(r, strList);
-    strList.Delimiter := ',';
-    strList.StrictDelimiter := true;
-    Result := strList.DelimitedText;
-  finally
-    strList.Free;
-  end;
 end;
 
 { TAtCondition }
@@ -4761,13 +4745,6 @@ begin
       exit;
     end;
   end;
-end;
-
-constructor TConditionIMDBLanguages.Create(parent: TRuleNode);
-begin
-  inherited;  
-  acceptedOperators.Add(TMaskOperator);
-  acceptedOperators.Add(TNotMaskOperator);
 end;
 
 { TConditionIMDBCountries }
