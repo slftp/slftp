@@ -1729,7 +1729,9 @@ end;
 procedure TMultiStringOperator.GetSupplyValues(p: TPazo; re: TStringList);
 begin
   try
-    TMultiStringCondition(condition).SupplyValues(p, re);
+    if (condition is TListCondition) then
+     TListCondition(condition).SupplyValues(p, re)
+    else TMultiStringCondition(condition).SupplyValues(p, re);
   except
     on E: Exception do
     begin
