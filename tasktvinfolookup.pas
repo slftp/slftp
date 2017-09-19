@@ -52,7 +52,7 @@ implementation
 
 uses
   DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
-  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news, globals;
+  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news;
 
 const
   section = 'tasktvinfo';
@@ -368,12 +368,25 @@ var
   se_nextnum, se_prevnum: integer;
   nextdt, prevdt: TDateTime;
   airt: AnsiString;
+  formatSettings: TFormatSettings;
   hadPrev, hadNext: boolean;
 begin
+
   date := UnixToDateTime(3817); //1.1.1990 031337
+
+{$IFDEF MSWINDOWS}
+  GetLocaleFormatSettings(1033, formatSettings);
+{$ELSE}
+  formatSettings := DefaultFormatSettings;
+{$ENDIF}
+  formatSettings.ShortDateFormat := 'yyyy-mm-dd';
+  formatSettings.ShortTimeFormat := 'hh:mm';
+  formatSettings.DateSeparator := '-';
+  formatSettings.TimeSeparator := ':';
 
   hadPrev := False;
   hadNext := False;
+
   try
 
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['previousepisode'] <> nil)) then
@@ -602,7 +615,7 @@ begin
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
     // just a hotfix to be ready when the API is down (October 1st, 2017)
-    if StrToDateTime('30-09-2017', formatSettings) > Now then
+    if StrToDateTime('30-09-2017') > Now then
     begin
       TryToGetTheTVDBGenre:
       TheTVDBGenreFailure := False;
