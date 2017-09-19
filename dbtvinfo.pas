@@ -122,6 +122,7 @@ procedure getShowValues(rip: AnsiString; out showname: AnsiString; out season: i
 var
   rx: TRegexpr;
   ttags: TStringlist;
+  formatSettings: TFormatSettings;
 begin
   rx := TRegexpr.Create;
   showName := rip;
@@ -129,6 +130,12 @@ begin
     rx.ModifierI := True;
     rx.ModifierG := True;
 
+    {$IFDEF MSWINDOWS}
+      GetLocaleFormatSettings(1033, formatSettings);
+    {$ELSE}
+      formatSettings := DefaultFormatSettings;
+    {$ENDIF}
+    formatSettings.DateSeparator := '-';
 
     (* dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv *)
     (* YYYY/MM/DD *)
@@ -139,12 +146,12 @@ begin
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2]));
+        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2], formatSettings));
       end
       else
       begin
-        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no valid date.');
-        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[3] + {$IFDEF MSWINDOWS}DateSeparator{$ELSE}DefaultFormatSettings.DateSeparator{$ENDIF} + rx.Match[2] + ' is no valid date.');
+        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
+        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
       end;
       exit;
     end;
