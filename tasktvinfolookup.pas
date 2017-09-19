@@ -520,7 +520,6 @@ begin
   {$ELSE}
     formatSettings := DefaultFormatSettings;
   {$ENDIF}
-  formatSettings.ShortDateFormat := 'dd-mm-yyyy'; // Day-Month-Year order
   formatSettings.DateSeparator := '-';
 
   if Showname <> '' then
