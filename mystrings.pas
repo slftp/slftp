@@ -77,6 +77,7 @@ function MyTimeToStr(x: TDateTime): AnsiString;
 function MyStrToTime(x: AnsiString): TDateTime;
 function MyDateToStr(x: TDateTime): AnsiString;
 function MyStrToDate(x: AnsiString): TDateTime;
+function MyStrToDateTime(x: AnsiString): TDateTime;
 function NoToTime(x: integer): AnsiString; overload;
 function NoToTime(s: AnsiString): AnsiString; overload;
 function Szovegge(szam: integer): AnsiString; overload;
@@ -660,6 +661,19 @@ begin
   s  := StrToIntDef(Copy(x, 18, 2), 0);
   if not TryEncodeDateTime(y, m, d, h, mm, s, 0, Result) then
     Result := 0;
+end;
+
+function MyStrToDateTime(x: AnsiString): TDateTime;
+var
+  formatSettings : TFormatSettings;
+begin
+  {$IFDEF MSWINDOWS}
+  GetLocaleFormatSettings(1033, formatSettings);
+  Result := StrToDateTime(Csere(x, '-', formatSettings.DateSeparator));
+  {$ELSE}
+  formatSettings := DefaultFormatSettings;
+  Result := StrToDateTime(Csere(x, '/', formatSettings.DateSeparator));
+  {$ENDIF}  
 end;
 
 
