@@ -125,7 +125,7 @@ begin
           begin
             myDate := IncDay(Now, -7);
 
-            if MyStrToDateTime(msgformat[1]) < myDate then
+            if MyDateSeparatorToStrToDateTime(msgformat[1]) < myDate then
             begin
               x.Delete(j);
             end
