@@ -138,7 +138,7 @@ begin
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(MyStrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2]));
+        episode := DateTimeToUnix(MyDateSeparatorToStrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2]));
       end
       else
       begin

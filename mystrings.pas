@@ -77,7 +77,8 @@ function MyTimeToStr(x: TDateTime): AnsiString;
 function MyStrToTime(x: AnsiString): TDateTime;
 function MyDateToStr(x: TDateTime): AnsiString;
 function MyStrToDate(x: AnsiString): TDateTime;
-function MyStrToDateTime(x: AnsiString): TDateTime;
+{ Replace DateSeparator '-' in srccode with default one from OS }
+function MyDateSeparatorToStrToDateTime(const x: AnsiString): TDateTime;
 function NoToTime(x: integer): AnsiString; overload;
 function NoToTime(s: AnsiString): AnsiString; overload;
 function Szovegge(szam: integer): AnsiString; overload;
@@ -663,19 +664,18 @@ begin
     Result := 0;
 end;
 
-function MyStrToDateTime(x: AnsiString): TDateTime;
+function MyDateSeparatorToStrToDateTime(const x: AnsiString): TDateTime;
 var
-  formatSettings : TFormatSettings;
+  formatSettings: TFormatSettings;
 begin
   {$IFDEF MSWINDOWS}
-  GetLocaleFormatSettings(1033, formatSettings);
-  Result := StrToDateTime(Csere(x, '-', formatSettings.DateSeparator));
+    GetLocaleFormatSettings(1033, formatSettings);
+    Result := StrToDateTime(Csere(x, '-', formatSettings.DateSeparator));
   {$ELSE}
-  formatSettings := DefaultFormatSettings;
-  Result := StrToDateTime(Csere(x, '/', formatSettings.DateSeparator));
-  {$ENDIF}  
+    // default one for FPC is already '-'
+    Result := StrToDateTime(x);
+  {$ENDIF}
 end;
-
 
 function NoToTime(x: integer): AnsiString;
 begin
