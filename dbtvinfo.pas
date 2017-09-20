@@ -81,7 +81,7 @@ function TVInfoDbAlive: boolean;
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
-  tasktvinfolookup, pazo, mrdohutils, uLkJSON, globals;
+  tasktvinfolookup, pazo, mrdohutils, uLkJSON;
 
 const
   section = 'tasktvinfo';
@@ -129,7 +129,6 @@ begin
     rx.ModifierI := True;
     rx.ModifierG := True;
 
-
     (* dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv *)
     (* YYYY/MM/DD *)
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
@@ -139,12 +138,12 @@ begin
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(StrToDateTime(rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4], formatSettings));
+        episode := DateTimeToUnix(MyStrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2]));
       end
       else
       begin
-        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4] + ' is no valid date.');
-        Debug(dpError, section, 'ERROR: ' + rx.Match[2] + formatSettings.DateSeparator + rx.Match[3] + formatSettings.DateSeparator + rx.Match[4] + ' is no valid date.');
+        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
+        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
       end;
       exit;
     end;
