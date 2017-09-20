@@ -77,8 +77,8 @@ function MyTimeToStr(x: TDateTime): AnsiString;
 function MyStrToTime(x: AnsiString): TDateTime;
 function MyDateToStr(x: TDateTime): AnsiString;
 function MyStrToDate(x: AnsiString): TDateTime;
-{ Replace DateSeparator '-' in srccode with default one from OS }
-function MyDateSeparatorToStrToDateTime(const x: AnsiString): TDateTime;
+{ Replaces used DateSeparator '-' from srccode with default one from OS }
+function MyDateSeparatorStrToDateTime(const x: AnsiString): TDateTime;
 function NoToTime(x: integer): AnsiString; overload;
 function NoToTime(s: AnsiString): AnsiString; overload;
 function Szovegge(szam: integer): AnsiString; overload;
@@ -664,7 +664,7 @@ begin
     Result := 0;
 end;
 
-function MyDateSeparatorToStrToDateTime(const x: AnsiString): TDateTime;
+function MyDateSeparatorStrToDateTime(const x: AnsiString): TDateTime;
 var
   formatSettings: TFormatSettings;
 begin
