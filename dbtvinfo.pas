@@ -122,20 +122,12 @@ procedure getShowValues(rip: AnsiString; out showname: AnsiString; out season: i
 var
   rx: TRegexpr;
   ttags: TStringlist;
-  formatSettings: TFormatSettings;
 begin
   rx := TRegexpr.Create;
   showName := rip;
   try
     rx.ModifierI := True;
     rx.ModifierG := True;
-
-    {$IFDEF MSWINDOWS}
-      GetLocaleFormatSettings(1033, formatSettings);
-    {$ELSE}
-      formatSettings := DefaultFormatSettings;
-    {$ENDIF}
-    formatSettings.DateSeparator := '-';
 
     (* dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv *)
     (* YYYY/MM/DD *)
@@ -146,7 +138,7 @@ begin
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
       begin
         season := -99;
-        episode := DateTimeToUnix(StrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2], formatSettings));
+        episode := DateTimeToUnix(MyStrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2]));
       end
       else
       begin

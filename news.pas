@@ -96,17 +96,9 @@ var
   i, j: Integer;
   myDate: TDateTime;
   dontadd: boolean;
-  formatSettings: TFormatSettings;
 begin
   Result := False;
   dontadd := False;
-
-  {$IFDEF MSWINDOWS}
-    GetLocaleFormatSettings(1033, formatSettings);
-  {$ELSE}
-    formatSettings := DefaultFormatSettings;
-  {$ENDIF}
-  formatSettings.DateSeparator := '-';
 
   i := CheckForValidCategory(category);
   if i = -1 then
@@ -133,7 +125,7 @@ begin
           begin
             myDate := IncDay(Now, -7);
 
-            if StrToDateTime(msgformat[1]) < myDate then
+            if MyStrToDateTime(msgformat[1]) < myDate then
             begin
               x.Delete(j);
             end
@@ -153,7 +145,7 @@ begin
       begin
         // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
         msgformat.Add(cUNREAD_IDENTIFIER);
-        msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now, formatSettings));
+        msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
         msgformat.Add(MessageCategories[i]);
         msgformat.Add(NewMessage);
 
