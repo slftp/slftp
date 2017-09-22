@@ -125,7 +125,7 @@ begin
           begin
             myDate := IncDay(Now, -7);
 
-            if MyStrToDateTime(msgformat[1]) < myDate then
+            if MyDateSeparatorStrToDateTime(msgformat[1]) < myDate then
             begin
               x.Delete(j);
             end
@@ -227,10 +227,12 @@ begin
       end;
 
       // format output line -> pad numbers on the left
+      // as we increment actual entry index by one each time, we need to decrease padding by one
+      // e.g. j := 8 will be shown as 9, j := 9 will be shown as 10 (so padding need to be 2)
       case j of
-        0..9: padding := 1;
-        10..99: padding := 2;
-        100..999: padding := 3;
+        0..8: padding := 1;
+        9..98: padding := 2;
+        99..998: padding := 3;
         else
           padding := 4;
       end;
