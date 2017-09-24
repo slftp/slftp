@@ -581,10 +581,7 @@ begin
       if (skiprlses.IndexOf(rls) <> -1) then
       begin
         MyDebug('Release found in SkipRlses ...');
-        Debug(dpSpam, rsections, Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]])); // not sure if it works
-
-        // just to check if it's working...
-        irc_Adderror(Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]]));
+        Debug(dpSpam, rsections, Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]]));
         exit;
       end;
 
