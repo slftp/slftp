@@ -427,24 +427,26 @@ begin
       Result := '_MULTICDROOT_'
     else
       Result := '_ROOT_';
-  end else
+  end
+  else
     Result := parent.filename;
 end;
 
 function TDirList.MultiCD: Boolean;
-var i: Integer;
-    s: AnsiString;
-    de: TDirListEntry;
+var
+  i: Integer;
+  s: AnsiString;
+  de: TDirListEntry;
 begin
   if parent = nil then
   begin
-    biggestcd:= 0;
+    biggestcd := 0;
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
     dirlist_lock.Enter;
     try
-      for i:= entries.Count -1 downto 0 do
+      for i := entries.Count - 1 downto 0 do
       begin
         if i < 0 then Break;
         try
@@ -453,7 +455,7 @@ begin
           if de.cdno <> 0 then
           begin
             Result := True;
-            s:= s + IntToStr(de.cdno);
+            s := s + IntToStr(de.cdno);
 
             if de.cdno > biggestcd then
               biggestcd := de.cdno;
@@ -473,14 +475,15 @@ begin
     if biggestcd > 1 then
     begin
       allcdshere := True;
-      for i:= 1 to biggestcd do
+      for i := 1 to biggestcd do
         if (0 = Pos(IntToStr(i), s)) then
         begin
           allcdshere := False;
           Break;
         end;
     end;
-  end else
+  end
+  else
   begin
     Result := parent.dirlist.MultiCD;
   end;
@@ -492,13 +495,14 @@ begin
 end;
 
 function TDirList.No_Raceable: Integer;
-var i: Integer;
+var
+  i: Integer;
 begin
-  Result:= 0;
+  Result := 0;
 
   dirlist_lock.Enter;
   try
-    for i := entries.Count -1 downto 0 do
+    for i := entries.Count - 1 downto 0 do
     begin
       if i < 0 then Break;
       try
@@ -520,13 +524,14 @@ begin
 end;
 
 function TDirList.No_Skiplisted: Integer;
-var i: Integer;
+var
+  i: Integer;
 begin
   Result := 0;
 
   dirlist_lock.Enter;
   try
-    for i := entries.Count -1 downto 0 do
+    for i := entries.Count - 1 downto 0 do
     begin
       if i < 0 then Break;
       try
