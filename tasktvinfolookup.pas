@@ -509,6 +509,7 @@ var
   numerrors: Integer;
   TheTVDBGenreFailure: Boolean;
   ExceptionMessage: AnsiString;
+  endOftvdbAPIDate : TDateTime;
 begin
   Result := nil;
   js := nil;
@@ -614,8 +615,9 @@ begin
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
+    TryEncodeDateTime(2017,9,30,0,0,0,0,endOftvdbAPIDate);
     // just a hotfix to be ready when the API is down (October 1st, 2017)
-    if MyDateSeparatorStrToDateTime('30-09-2017') > Now then
+    if endOftvdbAPIDate > Now then
     begin
       TryToGetTheTVDBGenre:
       TheTVDBGenreFailure := False;
