@@ -49,7 +49,7 @@ function SlftpNewsStatus(): AnsiString;
 implementation
 
 uses
-  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit;
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit,regexpr;
 
 const
   section = 'news';
@@ -95,7 +95,9 @@ var
   msgformat: TStringList;
   i, j: Integer;
   myDate: TDateTime;
+  newsDate : TDateTime;
   dontadd: boolean;
+  rx: TRegexpr;
 begin
   Result := False;
   dontadd := False;
@@ -106,7 +108,7 @@ begin
     debug(dpSpam, section, Format('Category %s not valid!', [category]));
     exit;
   end;
-
+  rx.Expression := '(\d{1,2}).(\d{1,2}).(\d{2,4}) (\d{1,2})\:(\d{2})';
   x := TEncStringList.Create(passphrase);
   try
     x.BeginUpdate;
@@ -125,13 +127,17 @@ begin
           begin
             myDate := IncDay(Now, -7);
 
-            if MyDateSeparatorStrToDateTime(msgformat[1]) < myDate then
+            if rx.Exec(msgformat[1])
+             and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), StrToInt(rx.Match[6]), 0, 0, newsDate) then
             begin
-              x.Delete(j);
-            end
-            else
-            begin
-              dontadd := True;
+              if newsDate < myDate then
+              begin
+                x.Delete(j);
+              end
+              else
+              begin
+                dontadd := True;
+              end;
             end;
 
             break;
