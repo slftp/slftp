@@ -122,6 +122,7 @@ procedure getShowValues(rip: AnsiString; out showname: AnsiString; out season: i
 var
   rx: TRegexpr;
   ttags: TStringlist;
+  showDate : TDateTime;
 begin
   rx := TRegexpr.Create;
   showName := rip;
@@ -135,10 +136,11 @@ begin
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
-      if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4])) then
+      if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]))
+       and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), 0, 0 , 0, 0 , showDate) then
       begin
         season := -99;
-        episode := DateTimeToUnix(MyDateSeparatorStrToDateTime(rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2]));
+        episode := DateTimeToUnix(showDate);
       end
       else
       begin
