@@ -108,6 +108,7 @@ begin
     debug(dpSpam, section, Format('Category %s not valid!', [category]));
     exit;
   end;
+  rx := TRegexpr.Create;
   rx.Expression := '(\d{1,2}).(\d{1,2}).(\d{2,4}) (\d{1,2})\:(\d{2})';
   x := TEncStringList.Create(passphrase);
   try
@@ -164,6 +165,7 @@ begin
     x.SaveToFile(SlftpNewsFilename);
     x.EndUpdate;
   finally
+    rx.Free;
     x.Free;
   end;
 
