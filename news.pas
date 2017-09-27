@@ -108,65 +108,70 @@ begin
     debug(dpSpam, section, Format('Category %s not valid!', [category]));
     exit;
   end;
+
   rx := TRegexpr.Create;
-  rx.Expression := '(\d{1,2}).(\d{1,2}).(\d{2,4}) (\d{1,2})\:(\d{2})';
-  x := TEncStringList.Create(passphrase);
   try
-    x.BeginUpdate;
-    x.LoadFromFile(SlftpNewsFilename);
+    rx.Expression := '(\d{1,2}).(\d{1,2}).(\d{2,4}) (\d{1,2})\:(\d{2})';
 
-    msgformat := TStringList.Create;
+    x := TEncStringList.Create(passphrase);
     try
+      x.BeginUpdate;
+      x.LoadFromFile(SlftpNewsFilename);
 
-      if dupecheck then
-      begin
-        for j := 0 to x.Count - 1 do
+      msgformat := TStringList.Create;
+      try
+
+        if dupecheck then
         begin
-          msgformat.DelimitedText := x[j];
-
-          if (msgformat[2] = category) and (msgformat[3] = NewMessage) then
+          for j := 0 to x.Count - 1 do
           begin
-            myDate := IncDay(Now, -7);
+            msgformat.DelimitedText := x[j];
 
-            if rx.Exec(msgformat[1])
-             and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), StrToInt(rx.Match[6]), 0, 0, newsDate) then
+            if (msgformat[2] = category) and (msgformat[3] = NewMessage) then
             begin
-              if newsDate < myDate then
-              begin
-                x.Delete(j);
-              end
-              else
-              begin
-                dontadd := True;
-              end;
-            end;
+              myDate := IncDay(Now, -7); // get date from 7 days ago
 
-            break;
+              if rx.Exec(msgformat[1]) and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), StrToInt(rx.Match[6]), 0, 0, newsDate) then
+              begin
+                if newsDate < myDate then
+                begin
+                  x.Delete(j);
+                end
+                else
+                begin
+                  dontadd := True;
+                end;
+              end;
+
+              break;
+            end;
           end;
+
+          msgformat.Clear;
         end;
 
-        msgformat.Clear;
+        if not dontadd then
+        begin
+          // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
+          msgformat.Add(cUNREAD_IDENTIFIER);
+          msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
+          msgformat.Add(MessageCategories[i]);
+          msgformat.Add(NewMessage);
+
+          x.Insert(0, msgformat.CommaText);
+        end;
+      finally
+        msgformat.Free;
       end;
 
-      if not dontadd then
-      begin
-        // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
-        msgformat.Add(cUNREAD_IDENTIFIER);
-        msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
-        msgformat.Add(MessageCategories[i]);
-        msgformat.Add(NewMessage);
-
-        x.Insert(0, msgformat.CommaText);
-      end;
+      x.SaveToFile(SlftpNewsFilename);
+      x.EndUpdate;
     finally
-      msgformat.Free;
+      x.Free;
     end;
 
-    x.SaveToFile(SlftpNewsFilename);
-    x.EndUpdate;
   finally
     rx.Free;
-    x.Free;
   end;
 
   Result := True;
