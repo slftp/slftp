@@ -1003,25 +1003,30 @@ var
   ttp: TPazoRaceTask;
 begin
   try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
-      except
-        Break;
-      end;
-      try
-        if (tasks[i] is TPazoRaceTask) then
-        begin
-          ttp := TPazoRaceTask(tasks[i]);
-          if ((ttp.ready = False) and (ttp.readyerror = False) and
-            (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = sitename)) then
-            ttp.ready := True;
         end;
-      except
-        Continue;
+        try
+          if (tasks[i] is TPazoRaceTask) then
+          begin
+            ttp := TPazoRaceTask(tasks[i]);
+            if ((ttp.ready = False) and (ttp.readyerror = False) and
+              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = sitename)) then
+              ttp.ready := True;
+          end;
+        except
+          Continue;
+        end;
       end;
+    finally
+      queueth.main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1038,25 +1043,30 @@ var
   ttp: TPazoDirlistTask;
 begin
   try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
-      except
-        Break;
-      end;
-      try
-        if (tasks[i] is TPazoDirlistTask) then
-        begin
-          ttp := TPazoDirlistTask(tasks[i]);
-          if ((ttp.ready = False) and (ttp.readyerror = False) and
-            (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site1 = sitename)) then
-            ttp.ready := True;
         end;
-      except
-        Continue;
+        try
+          if (tasks[i] is TPazoDirlistTask) then
+          begin
+            ttp := TPazoDirlistTask(tasks[i]);
+            if ((ttp.ready = False) and (ttp.readyerror = False) and
+              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site1 = sitename)) then
+              ttp.ready := True;
+          end;
+        except
+          Continue;
+        end;
       end;
+    finally
+      queueth.main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1075,25 +1085,31 @@ var
 begin
   Result := False;
   try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
-      except
-        Break;
-      end;
-      try
-        if tasks[i] is TPazoTask then
-        begin
-          t := TPazoTask(tasks[i]);
-          if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
-            t.readyerror := True;
         end;
-      except
-        Continue;
-      end;
+        try
+          if tasks[i] is TPazoTask then
+          begin
+            t := TPazoTask(tasks[i]);
+            if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
+              t.readyerror := True;
+          end;
+        except
+          Continue;
+        end;
     end;
+    finally
+      queueth.main_lock.Leave;
+    end;
+
   except
     on E: Exception do
     begin
@@ -1111,28 +1127,33 @@ var
   ttp: TPazoMkdirTask;
 begin
   try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
-      except
-        Break;
-      end;
-      try
-        if (tasks[i] is TPazoMkdirTask) then
-        begin
-          ttp := TPazoMkdirTask(tasks[i]);
-          if ((ttp.ready = False) and (ttp.readyerror = False) and
-            (ttp.slot1 = nil) and (ttp.site1 = sitename) and (ttp.pazo_id = pazo_id) and
-            (ttp.dir = dir)) then
-          begin
-            ttp.ready := True;
-          end;
         end;
-      except
-        Continue;
+        try
+          if (tasks[i] is TPazoMkdirTask) then
+          begin
+            ttp := TPazoMkdirTask(tasks[i]);
+            if ((ttp.ready = False) and (ttp.readyerror = False) and
+              (ttp.slot1 = nil) and (ttp.site1 = sitename) and (ttp.pazo_id = pazo_id) and
+              (ttp.dir = dir)) then
+            begin
+              ttp.ready := True;
+            end;
+          end;
+        except
+          Continue;
+        end;
       end;
+    finally
+      queueth.main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1148,28 +1169,33 @@ var
   ttp: TPazoRaceTask;
 begin
   try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
-      except
-        Break;
-      end;
-      try
-        if (tasks[i] is TPazoRaceTask) then
-        begin
-          ttp := TPazoRaceTask(tasks[i]);
-          if ((ttp.ready = False) and (ttp.readyerror = False) and
-            (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = dstsite) and
-            (ttp.dir = dir) and (ttp.filename = filename)) then
-          begin
-            ttp.ready := True;
-          end;
         end;
-      except
-        Continue;
+        try
+          if (tasks[i] is TPazoRaceTask) then
+          begin
+            ttp := TPazoRaceTask(tasks[i]);
+            if ((ttp.ready = False) and (ttp.readyerror = False) and
+              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = dstsite) and
+              (ttp.dir = dir) and (ttp.filename = filename)) then
+            begin
+              ttp.ready := True;
+            end;
+          end;
+        except
+          Continue;
+        end;
       end;
+    finally
+      queueth.main_lock.Leave;
     end;
   except
     on E: Exception do
