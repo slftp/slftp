@@ -131,7 +131,7 @@ begin
             begin
               myDate := IncDay(Now, -7); // get date from 7 days ago
 
-              if rx.Exec(msgformat[1]) and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), StrToInt(rx.Match[6]), 0, 0, newsDate) then
+              if rx.Exec(msgformat[1]) and TryEncodeDateTime(StrToInt(rx.Match[1]), StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), 0, 0, newsDate) then
               begin
                 if newsDate < myDate then
                 begin
