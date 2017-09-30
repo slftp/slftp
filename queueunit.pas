@@ -965,10 +965,12 @@ begin
   try
     tname := t.Name;
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
+
     queueth.main_lock.Enter();
     try
       if TaskAlreadyInQueue(t) then
         t.ready := True;
+
       tasks.Add(t);
 
       try
@@ -979,8 +981,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s',
-            [e.Message]));
+          Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
         end;
       end;
     finally
@@ -1017,8 +1018,7 @@ begin
           if (tasks[i] is TPazoRaceTask) then
           begin
             ttp := TPazoRaceTask(tasks[i]);
-            if ((ttp.ready = False) and (ttp.readyerror = False) and
-              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = sitename)) then
+            if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = sitename)) then
               ttp.ready := True;
           end;
         except
@@ -1057,8 +1057,7 @@ begin
           if (tasks[i] is TPazoDirlistTask) then
           begin
             ttp := TPazoDirlistTask(tasks[i]);
-            if ((ttp.ready = False) and (ttp.readyerror = False) and
-              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site1 = sitename)) then
+            if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site1 = sitename)) then
               ttp.ready := True;
           end;
         except
@@ -1071,8 +1070,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] RemoveDirlistTasks : %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] RemoveDirlistTasks : %s', [e.Message]));
       exit;
     end;
   end;
@@ -1105,11 +1103,10 @@ begin
         except
           Continue;
         end;
-    end;
+      end;
     finally
       queueth.main_lock.Leave;
     end;
-
   except
     on E: Exception do
     begin
@@ -1208,7 +1205,7 @@ end;
 procedure RemoveDependencies(t: TTask);
 var
   i, j: integer;
-  tt:   TTask;
+  tt: TTask;
 begin
   try
     for i := tasks.Count - 1 downto 0 do
@@ -1229,7 +1226,7 @@ begin
         if tt = nil then
           Continue;
 
-        j  := tt.dependencies.IndexOf(t.UidText);
+        j := tt.dependencies.IndexOf(t.UidText);
         if j <> -1 then
         begin
           tt.dependencies.Delete(j);
