@@ -1147,7 +1147,7 @@ begin
               ps.DelaySetup;
               if s.IsAffil(rls.groupname) then
               begin
-                Debug(dpError, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
+                Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
                 ps.status := rssShouldPre;
               end;
               sites.Add(ps);
@@ -1165,10 +1165,10 @@ begin
           ps.status := rssNotAllowed;
           ps.DelaySetup;
           if s.IsAffil(rls.groupname) then
-            begin
-              Debug(dpError, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-              ps.status := rssShouldPre;
-            end;
+          begin
+            Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
+            ps.status := rssShouldPre;
+          end;
           sites.Add(ps);
         end;
       end;
@@ -1207,10 +1207,10 @@ begin
       ps := TPazoSite.Create(self, s.Name, sectiondir);
       ps.status := rssAllowed; //rssNotAllowed;
       if s.IsAffil(rls.groupname) then
-        begin
-          Debug(dpError, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-          ps.status := rssShouldPre;
-        end;
+      begin
+        Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
+        ps.status := rssShouldPre;
+      end;
       sites.Add(ps);
     end;
   end;
