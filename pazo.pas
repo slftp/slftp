@@ -1715,17 +1715,13 @@ begin
     // crashes
     while (True) do
     begin
-      try
-        s := Elsosor(resp);
-        if s = '' then
+      s := Elsosor(resp);
+      if s = '' then
         Break;
 
-        Inc(lines_read);
-        if (lines_read > 500) then
-          break;
-        finally
-
-      end;
+      Inc(lines_read);
+      if (lines_read > 500) then
+        break;
 
       //553- X-DUPE: 09-soulless-deadly_sins.mp3
       if (Pos('553- X-DUPE: ', s) = 1) then
@@ -1737,11 +1733,7 @@ begin
           pazo.cs.Leave;
         end;
 
-        try
-          RemovePazoRace(pazo.pazo_id, Name, dir, Copy(s, 14, 1000));
-        finally
-
-        end;
+        RemovePazoRace(pazo.pazo_id, Name, dir, Copy(s, 14, 1000));
       end;
     end;
   except
@@ -1785,7 +1777,7 @@ begin
 
       // TODO: Find out why it is negative sometimes + try to fix
       if fsize < 0 then
-        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s SizeRacedByMe(true) = %f, /1024 : %f, dirname : %s</b>', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
+        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %d for %s SizeRacedByMe(true) = %d, /1024 : %d, dirname : %s</b>', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
     end
     else
     begin
