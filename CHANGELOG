@@ -55,6 +55,7 @@
     {+} !status and !uptime shows if you use 32/64-bit version of slftp.
     {+} !lastlog command to show last log entries. (#160)
     {+} Support for CTCP Requests (might be useful for scripters)
+    {+} Masks support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {^} Requests can be filled from sites without checking the routes. (#168)

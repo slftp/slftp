@@ -307,7 +307,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo
+  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
@@ -1457,8 +1457,9 @@ end;
 
 class function TRelease.SectionAccepted(const section: AnsiString): boolean;
 var
-  i: integer;
-  x: TStringList;
+  i, j: integer;
+  sectionmask: TslMask;
+  sectionmasks: TObjectList;
 begin
   Result := False;
 
@@ -1468,10 +1469,18 @@ begin
     if i = -1 then
       exit;
 
-    x := TStringList(kb_sectionhandlers.Objects[i]);
-    if (x.IndexOf(section) <> -1) then
-      Result := True;
+    // use sectionmasks for found TRelease descendent
+    sectionmasks := TObjectList(kb_sectionhandlers.Objects[i]);
+    for j := 0 to sectionmasks.Count - 1 do
+    begin
+      sectionmask := TslMask(sectionmasks[j]);
 
+      if sectionmask.Matches(section) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
   except
     on e: Exception do
     begin
@@ -2586,10 +2595,12 @@ end;
 
 procedure kb_Init;
 var
-  i: integer;
-  x: TStringList;
+  i, j: integer;
   ss: AnsiString;
   //  xin: Tinifile;
+  x: TStringList;
+  sectionmasks: TObjectList;
+  sectionmask: AnsiString;
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
@@ -2612,12 +2623,31 @@ begin
     }
 
     kb_sectionhandlers.Add(sectionhandlers[i].Name);
+
+    sectionmasks := TObjectList.Create;
+
     x := TStringList.Create;
-    x.CaseSensitive := False;
-    x.Delimiter := ',';
-    x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name, sectionhandlers[i].DefaultSections);
-    kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := x;
+    try
+      x.CaseSensitive := False;
+      x.Delimiter := ',';
+      // ignore dupe entries for lower memory usage
+      x.Sorted := True;
+      x.Duplicates := dupIgnore;
+
+      x.DelimitedText := config.ReadString(rsections, sectionhandlers[i].Name, sectionhandlers[i].DefaultSections);
+
+      for j := 0 to x.Count - 1 do
+      begin
+        sectionmask := x[j];
+        sectionmasks.Add(TslMask.Create(sectionmask));
+      end;
+    finally
+      x.Free;
+    end;
+
+    kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := sectionmasks;
   end;
+
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -2764,10 +2794,9 @@ begin
 
   for i := 0 to kb_sectionhandlers.Count - 1 do
   begin
-    if kb_sectionhandlers.Objects[i] <> nil then
+    if Assigned(kb_sectionhandlers.Objects[i]) then
     begin
       kb_sectionhandlers.Objects[i].Free;
-      kb_sectionhandlers.Objects[i] := nil;
     end;
   end;
   kb_sectionhandlers.Free;
