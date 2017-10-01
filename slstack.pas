@@ -1123,43 +1123,45 @@ end;
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Integer;
 begin
   try
-    Result:= slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
+    Result := slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
     if Result <= 0 then
     begin
-      error:= 'sslread failed: '+slSSL_LastError(ssl, Result);
+      error := 'sslread failed: ' + slSSL_LastError(ssl, Result);
       if 0 < Pos('zero return', error) then
-        error:= 'Connection lost';
+        error := 'Connection lost';
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'slstack', Format('[EXCEPTION] slRecv: %s', [e.Message]));
-      Result:= -1;
+      Result := -1;
     end;
   end;
 end;
+
 function slSend(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Boolean;
-var rc: Integer;
+var
+  rc: Integer;
 begin
-  Result:= True;
+  Result := True;
   try
-    rc:= slSSL_write(ssl, PAnsiChar(@buffer), bufsize);
+    rc := slSSL_write(ssl, PAnsiChar(@buffer), bufsize);
     if rc <= 0 then
     begin
-      error:= 'sslwrite failed: '+slSSL_LastError(ssl, rc);
-      Result:= False;
+      error := 'sslwrite failed: ' + slSSL_LastError(ssl, rc);
+      Result := False;
     end
     else
     if rc < bufsize then
     begin
-      Result:= False;
-      error:= 'Couldnt send all the data';
+      Result := False;
+      error := 'Couldnt send all the data';
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'slstack', Format('[EXCEPTION] slSend: %s', [e.Message]));
-      Result:= False;
+      Result := False;
     end;
   end;
 end;
