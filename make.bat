@@ -9,6 +9,8 @@ set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
 set CINCLUDES=-Ulibs/FastMM4 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/DFFLibV15_UIntList -Ulibs/lkJSON -Ulibs/TRegExpr
 
+goto :slftp
+
 if /I "%~1" == "" goto :slftp
 if /I "%~1" == "slftp" goto :slftp
 if /I "%~1" == "slftp_debug" goto :slftp_debug

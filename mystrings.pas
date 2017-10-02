@@ -34,7 +34,7 @@ unit mystrings;
 
 interface
 
-uses Classes;
+uses Classes, RegExpr;
 
 function onlyEnglishAlpha(s: AnsiString): AnsiString;
 function ArrayTextContainesIndexText(const AText, AValues: array of ansistring): Boolean;
@@ -77,6 +77,7 @@ function MyTimeToStr(x: TDateTime): AnsiString;
 function MyStrToTime(x: AnsiString): TDateTime;
 function MyDateToStr(x: TDateTime): AnsiString;
 function MyStrToDate(x: AnsiString): TDateTime;
+function MyStrToDateTime(x: AnsiString): TDateTime;
 function NoToTime(x: integer): AnsiString; overload;
 function NoToTime(s: AnsiString): AnsiString; overload;
 function Szovegge(szam: integer): AnsiString; overload;
@@ -660,6 +661,20 @@ begin
   s  := StrToIntDef(Copy(x, 18, 2), 0);
   if not TryEncodeDateTime(y, m, d, h, mm, s, 0, Result) then
     Result := 0;
+end;
+
+function MyStrToDateTime(x: AnsiString): TDateTime;
+var
+  y, m, d, h, mm, s: integer;
+  rx: TRegexpr;
+begin
+  rx := TRegexpr.Create;
+  try
+  // is it YYYY MM DD
+
+  finally
+    rx.Free;
+  end;
 end;
 
 function NoToTime(x: integer): AnsiString;
