@@ -121,11 +121,12 @@ end;
 procedure getShowValues(rip: AnsiString; out showname: AnsiString; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
-  ttags: TStringlist;
+  ttags, ltags: TStringlist;
   showDate : TDateTime;
 begin
-  rx := TRegexpr.Create;
   showName := rip;
+
+  rx := TRegexpr.Create;
   try
     rx.ModifierI := True;
     rx.ModifierG := True;
@@ -203,15 +204,24 @@ begin
     end;
 
 
-    (* remove scene/tv tags from releasename *)
+    (* remove scene/language/tv tags from releasename *)
     ttags := TStringlist.Create;
     try
       ttags.Assign(tvtags);
       ttags.Delimiter := '|';
-      rx.Expression := '[._-\s]((19|20)\d{2}|720p|1080p|' + ttags.DelimitedText + ').*$';
-      season := 0;
-      episode := 0;
-      showName := rx.Replace(rip, '', False);
+
+      ltags := TStringlist.Create;
+      try
+        ltags.Assign(kb_languages);
+        ltags.Delimiter := '|';
+
+        rx.Expression := '[._-\s]((19|20)\d{2}|720p|1080p|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';
+        season := 0;
+        episode := 0;
+        showName := rx.Replace(rip, '', False);
+      finally
+        ltags.free;
+      end;
     finally
       ttags.free;
     end;
