@@ -2,7 +2,8 @@ unit fake;
 
 interface
 
-uses Classes, SysUtils, kb;
+uses
+  Classes, SysUtils, kb;
 
 procedure FakeStart;
 procedure FakeCheck(r: TRelease);
@@ -13,35 +14,39 @@ function FakesRehash: boolean;
 
 implementation
 
-uses configunit, mystrings, StrUtils, debugunit;
+uses
+  configunit, mystrings, StrUtils, debugunit;
 
 type
   TFakeSettings = class
-      enabled: Boolean;
-      fake_min_release_length: Integer;
-      fake_few_different_chars: Integer;
-      fake_many_different_chars: Integer;
-      fake_many_dots: Integer;
-      fake_many_short_words_length: Integer;
-      fake_many_short_words_count: Integer;
-      fake_banned_words: TStringList;
-      fake_many_vocal: Integer;
-      fake_groups: TStringList;
+    enabled: Boolean;
+    fake_min_release_length: Integer;
+    fake_few_different_chars: Integer;
+    fake_many_different_chars: Integer;
+    fake_many_dots: Integer;
+    fake_many_short_words_length: Integer;
+    fake_many_short_words_count: Integer;
+    fake_banned_words: TStringList;
+    fake_many_vocal: Integer;
+    fake_groups: TStringList;
 
-      constructor Create;
-      destructor Destroy; override;
-     end;
+    constructor Create;
+    destructor Destroy; override;
+  end;
 
-var fakes: TStringList;
+var
+  fakes: TStringList;
 
-const sFakeSection = 'fake';
+const
+  sFakeSection = 'fake';
 
 
-//we create fakes for all sections and insert on pos 0 a empty string for global settings.
+// we create fakes for all sections and insert on pos 0 a empty string for global settings.
 procedure ReadFakeSettings;
-var s: AnsiString;
-    i, j: integer;
-    f: TFakeSettings;
+var
+  s: AnsiString;
+  i, j: integer;
+  f: TFakeSettings;
 begin
   fakes.Text := kb_sections.Text;
   fakes.Insert(0, '');
@@ -164,16 +169,16 @@ end;
 
 function FakesRehash: boolean;
 begin
-    result := True;
-    fakes.Clear;
+  result := True;
 
-    try
-      ReadFakeSettings;
-    except
-      on E: Exception do
-        result := False;
-    end;
+  fakes.Clear;
 
+  try
+    ReadFakeSettings;
+  except
+    on E: Exception do
+      result := False;
+  end;
 end;
 
 procedure FakeStart;
@@ -188,15 +193,18 @@ begin
 end;
 
 procedure FakesUninit;
-var i: Integer;
+var
+  i: Integer;
 begin
   Debug(dpSpam, sFakeSection, 'Uninit1 at FakesUninit');
+
   for i := 0 to fakes.Count - 1 do
   begin
     fakes.Objects[i].Free;
     fakes.Objects[i] := nil;
   end;
   fakes.Free;
+
   Debug(dpSpam, sFakeSection, 'Uninit2 at FakesUninit');
 end;
 
