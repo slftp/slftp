@@ -2721,7 +2721,7 @@ begin
 
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
-  kb_languages.DelimitedText := Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ','), #10, ',');
+  kb_languages.DelimitedText := Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ''), #10, '');
 
   //sectionhelper:= THashedStringList.Create;
 
