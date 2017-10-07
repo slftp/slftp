@@ -36,12 +36,14 @@ function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Inte
 
 
 { Deletes given newsfile entry.
-  @param(DeleteNumber is the entry ID which should be deleted) }
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer): boolean; overload;
+  @param(DeleteNumber is the entry ID which should be deleted)
+  @param(AnnounceIt is to enable/disable IRC Announce of deleted entry) }
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
 
 { Deletes given category entries.
-  @param(category is the category which should be deleted) }
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString): boolean; overload;
+  @param(category is the category which should be deleted)
+  @param(AnnounceIt is to enable/disable IRC Announce of deleted entry) }
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString; AnnounceIt: boolean = False): boolean; overload;
 
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
 function SlftpNewsStatus(): AnsiString;
@@ -301,7 +303,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
 var
   x: TEncStringList;
   msgtext: TStringList;
@@ -330,7 +332,8 @@ begin
           msgtext.CommaText := x[DeleteNumber - 1];
 
           x.Delete(DeleteNumber - 1);
-          irc_addtext(Netname, Channel, Format('Entry ''[%s] %s'' deleted.', [msgtext[2], msgtext[3]]));
+          if AnnounceIt then
+            irc_addtext(Netname, Channel, Format('Entry ''[%s] %s'' deleted.', [msgtext[2], msgtext[3]]));
         finally
           msgtext.Free;
         end;
@@ -348,7 +351,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString; AnnounceIt: boolean = False): boolean; overload;
 var
   x: TEncStringList;
   i, j: Integer;
@@ -375,7 +378,7 @@ begin
 
         if msgtext[2] = UpperCase(category) then
         begin
-          SlftpNewsDelete(Netname, Channel, i + 1 - j);
+          SlftpNewsDelete(Netname, Channel, i + 1 - j, AnnounceIt);
           Inc(j);
         end;
       end;

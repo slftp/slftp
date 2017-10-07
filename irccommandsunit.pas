@@ -498,7 +498,7 @@ const
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
     (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 2; hlpgrp: 'news'),
     (cmd: 'newsadd'; hnd: IrcNewsAdd; minparams: 2; maxparams: - 1; hlpgrp: 'news'),
-    (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 1; hlpgrp: 'news'),
+    (cmd: 'newsdel'; hnd: IrcNewsDel; minparams: 1; maxparams: 2; hlpgrp: 'news'),
     (cmd: 'newscategories'; hnd: IrcNewsCategories; minparams: 0; maxparams: 0; hlpgrp: 'news'),
 
     (cmd: 'WINDOWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$windows'),
@@ -7874,18 +7874,27 @@ end;
 function IrcNewsDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   DeleteNumber: integer;
+  input, announce: AnsiString;
+  AnnounceIt: boolean;
 begin
-  // check if first char is alphabetical
-  if params[1] in ['A'..'Z', 'a'..'z'] then
+  AnnounceIt := False;
+  input := SubString(params, ' ', 1);
+  announce := SubString(params, ' ', 2);
+
+  // check if first char of first input is alphabetical
+  if input[1] in ['A'..'Z', 'a'..'z'] then
   begin
-    Result := SlftpNewsDelete(Netname, Channel, params);
+    if (announce = '-s') or (announce = '-show') then
+      AnnounceIt := True;
+
+    Result := SlftpNewsDelete(Netname, Channel, input, AnnounceIt);
   end
   else
   begin
-    if params = '*' then
+    if input = '*' then
       DeleteNumber := -1
     else
-      DeleteNumber := StrToIntDef(params, 0);
+      DeleteNumber := StrToIntDef(input, 0);
 
     Result := SlftpNewsDelete(Netname, Channel, DeleteNumber);
   end;
