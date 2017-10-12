@@ -48,6 +48,9 @@ function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: Ans
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
 function SlftpNewsStatus(): AnsiString;
 
+var
+  last_news_announce: TDateTime; //< time value when @link(SlftpNewsStatus) was triggered the last time
+
 implementation
 
 uses
@@ -72,6 +75,8 @@ var
 procedure NewsInit;
 begin
   SlftpNewsFilename := ExtractFilePath(ParamStr(0)) + 'slftp.news';
+  last_news_announce := Now;
+end;
 end;
 
 function CheckForValidCategory(const category: AnsiString): Integer;
@@ -419,6 +424,7 @@ begin
     x.Free;
   end;
 
+  last_news_announce := Now;
   Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages.', [UnreadCount, UnreadCount + ReadCount]);
 end;
 
