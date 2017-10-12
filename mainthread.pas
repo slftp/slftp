@@ -458,6 +458,7 @@ begin
   dbaddgenreUnInit;
   dbaddimdbUnInit;
   dbtvinfoUnInit;
+  NewsUnInit;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
