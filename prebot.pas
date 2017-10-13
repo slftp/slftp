@@ -431,6 +431,7 @@ var
     genre := '';
     if p.rls is TMP3Release then
       genre := TMP3Release(p.rls).mp3genre;
+
     group := p.rls.groupname;
   end;
 
@@ -678,15 +679,17 @@ begin
     for i := 0 to tn1.responses.Count - 1 do
     begin
       sr := TSiteResponse(tn1.responses[i]);
-      d  := TDirList.Create(sr.sitename, nil, nil, sr.response);
-      if nil = d.Find(dir) then
-      begin
-        irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find the rip on <c4><b>%s</b></c>!', [sr.sitename]);
-        RemoveTN(tn1);
+      d := TDirList.Create(sr.sitename, nil, nil, sr.response);
+      try
+        if d.Find(dir) = nil then
+        begin
+          irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find the rip on <c4><b>%s</b></c>!', [sr.sitename]);
+          RemoveTN(tn1);
+          exit;
+        end;
+      finally
         d.Free;
-        exit;
       end;
-      d.Free;
     end;
 
     if (SecondsBetween(Now, elozo) > 20) then
@@ -766,12 +769,9 @@ begin
       end;
     end;
 
-    irc_addtext(netname, channel,
-      'Ok. Fastest site was %s (%s), slowest %s (%s). Now sleeping some...', [mins,
-      FormatDateTime('hh:nn:ss.zzz', mind), maxs, FormatDateTime('hh:nn:ss.zzz', maxd)]);
+    irc_addtext(netname, channel, 'Ok. Fastest site was %s (%s), slowest %s (%s). Now sleeping some...', [mins, FormatDateTime('hh:nn:ss.zzz', mind), maxs, FormatDateTime('hh:nn:ss.zzz', maxd)]);
 
     sleep_value := config.ReadInteger(rrsection, 'predir_re_examine_time', 5);
-
 
     //  irc_addtext(netname, channel,'We will wait %dsec%ss and check the predirs over.. so hang %0:d sec%1:ss :)',[sleep_value,chr(39)]);
     irc_addtext(netname, channel, 'We will wait ' + IntToStr(sleep_value) +
@@ -819,13 +819,16 @@ begin
     for i := 0 to tn3.responses.Count - 1 do
     begin
       sr := TSiteResponse(tn3.responses[i]);
-      d  := TDirlist.Create(sr.sitename, nil, nil, sr.response);
-      if nil <> d.Find(dir) then
-      begin
-        added := False;
-        irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c> still has the rip in predir!', [sr.sitename]);
+      d := TDirlist.Create(sr.sitename, nil, nil, sr.response);
+      try
+        if d.Find(dir) <> nil then
+        begin
+          added := False;
+          irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c> still has the rip in predir!', [sr.sitename]);
+        end;
+      finally
+        d.Free;
       end;
-
     end;
     RemoveTN(tn3);
   finally

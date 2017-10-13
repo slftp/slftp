@@ -5,9 +5,9 @@ REM
 set CC=C:\Program Files (x86)\CodeGear\RAD Studio\5.0\bin\dcc32.exe
 set CC_ND_32=C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\dcc32.exe
 set CC_ND_64=C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\dcc64.exe
-set CFLAGS=-B -$O+,C+,D-,L- 
+set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Ulibs/FastMM4 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/DFFLibV15_UIntList -Ulibs/lkJSON -Ulibs/TRegExpr
+set CINCLUDES=-Ulibs/FastMM4 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/DFFLibV15_UIntList -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp
 
 if /I "%~1" == "" goto :slftp
 if /I "%~1" == "slftp" goto :slftp

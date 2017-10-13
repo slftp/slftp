@@ -756,7 +756,7 @@ begin
         de := Find(filename);
         if de = nil then
         begin
-          de:= TDirListEntry.Create(filename, self);
+          de := TDirListEntry.Create(filename, self);
 
           if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
           begin
