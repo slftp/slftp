@@ -51,11 +51,11 @@ implementation
 uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
   sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
   notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
-  dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, slhttp, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo
+  dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, slhttp, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
 {$IFNDEF MSWINDOWS}
-  , slconsole
+  slconsole,
 {$ENDIF}
-  , StrUtils, news;
+  StrUtils, news;
 
 {$I slftp.inc}
 
@@ -305,6 +305,23 @@ begin
       end;
     end;
   end;
+
+  // announce unread news count every 1h
+  if (SecondsBetween(Now, last_news_announce) >= 3600) then
+  begin
+    if (Pos('<b>0</b> unread', SlftpNewsStatus) = 0) then
+    begin
+      try
+        irc_AddAdmin(Format('%s', [SlftpNewsStatus]));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, '[EXCEPTION] Main_Iter(SlftpNewsStatus): %s', [e.Message]);
+          last_news_announce := Now;
+        end;
+      end;
+    end;
+  end;
 end;
 
 procedure Main_Run;
@@ -364,7 +381,6 @@ begin
   AutoCrawlerStart;
   slshutdown := False;
   QueueStart();
-
 end;
 
 procedure Main_Stop;
@@ -442,6 +458,7 @@ begin
   dbaddgenreUnInit;
   dbaddimdbUnInit;
   dbtvinfoUnInit;
+  NewsUnInit;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
