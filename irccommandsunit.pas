@@ -2269,7 +2269,7 @@ begin
   begin
     srcdir := UpperCase(srcdir);
     ftpsrcdir := srcsite.sectiondir[srcdir];
-    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section<.</c>', [srcdir]);
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section.</c>', [srcdir]);
   end;
 
   // Decide whether the supplied destination dir is a direct path or a section
