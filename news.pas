@@ -5,8 +5,11 @@ interface
 uses
   SysUtils;
 
-{ Just a helper function to set @value(SlftpNewsFilename) on startup }
+{ Just a helper function to set @value(SlftpNewsFilename) on startup and initialize @value(NewsMultiReadSingleWriteLock) }
 procedure NewsInit;
+
+{ Just a helper function to free @value(NewsMultiReadSingleWriteLock) }
+procedure NewsUnInit;
 
 { Check if category is in known MessageCategories array. If not found it returns -1, else index of matching element. }
 function CheckForValidCategory(const category: AnsiString): Integer;
@@ -48,10 +51,13 @@ function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: Ans
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
 function SlftpNewsStatus(): AnsiString;
 
+var
+  last_news_announce: TDateTime; //< time value when @link(SlftpNewsStatus) was triggered the last time
+
 implementation
 
 uses
-  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit,regexpr;
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, regexpr, PasMP;
 
 const
   section = 'news';
@@ -67,11 +73,20 @@ const
 
 var
   SlftpNewsFilename: AnsiString;
+  NewsMultiReadSingleWriteLock: TPasMPMultipleReaderSingleWriterLock;
 
 
 procedure NewsInit;
 begin
   SlftpNewsFilename := ExtractFilePath(ParamStr(0)) + 'slftp.news';
+  NewsMultiReadSingleWriteLock := TPasMPMultipleReaderSingleWriterLock.Create;
+  last_news_announce := Now;
+end;
+
+procedure NewsUnInit;
+begin
+  if Assigned(NewsMultiReadSingleWriteLock) then
+    NewsMultiReadSingleWriteLock.Free;
 end;
 
 function CheckForValidCategory(const category: AnsiString): Integer;
@@ -117,57 +132,62 @@ begin
 
     x := TEncStringList.Create(passphrase);
     try
-      x.BeginUpdate;
-      x.LoadFromFile(SlftpNewsFilename);
-
-      msgformat := TStringList.Create;
+      NewsMultiReadSingleWriteLock.AcquireWrite;
       try
+        //x.BeginUpdate;
+        x.LoadFromFile(SlftpNewsFilename);
 
-        if dupecheck then
-        begin
-          for j := 0 to x.Count - 1 do
+        msgformat := TStringList.Create;
+        try
+
+          if dupecheck then
           begin
-            msgformat.DelimitedText := x[j];
-
-            if (msgformat[2] = category) and (msgformat[3] = NewMessage) then
+            for j := 0 to x.Count - 1 do
             begin
-              myDate := IncDay(Now, -7); // get date from 7 days ago
+              msgformat.DelimitedText := x[j];
 
-              if rx.Exec(msgformat[1]) and TryEncodeDateTime(StrToInt(rx.Match[1]), StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), 0, 0, newsDate) then
+              if (msgformat[2] = category) and (msgformat[3] = NewMessage) then
               begin
-                if newsDate < myDate then
-                begin
-                  x.Delete(j);
-                end
-                else
-                begin
-                  dontadd := True;
-                end;
-              end;
+                myDate := IncDay(Now, -7); // get date from 7 days ago
 
-              break;
+                if rx.Exec(msgformat[1]) and TryEncodeDateTime(StrToInt(rx.Match[1]), StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), StrToInt(rx.Match[5]), 0, 0, newsDate) then
+                begin
+                  if newsDate < myDate then
+                  begin
+                    x.Delete(j);
+                  end
+                  else
+                  begin
+                    dontadd := True;
+                  end;
+                end;
+
+                break;
+              end;
             end;
+
+            msgformat.Clear;
           end;
 
-          msgformat.Clear;
+          if not dontadd then
+          begin
+            // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
+            msgformat.Add(cUNREAD_IDENTIFIER);
+            msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
+            msgformat.Add(MessageCategories[i]);
+            msgformat.Add(NewMessage);
+
+            x.Insert(0, msgformat.CommaText);
+          end;
+        finally
+          msgformat.Free;
         end;
 
-        if not dontadd then
-        begin
-          // stored as: !UNREAD!,"08-9-17 18:30",IRC,"This is just a message!"
-          msgformat.Add(cUNREAD_IDENTIFIER);
-          msgformat.Add(FormatDateTime('dd-m-yy hh:nn', Now));
-          msgformat.Add(MessageCategories[i]);
-          msgformat.Add(NewMessage);
-
-          x.Insert(0, msgformat.CommaText);
-        end;
+        x.SaveToFile(SlftpNewsFilename);
+        //x.EndUpdate;
       finally
-        msgformat.Free;
+        NewsMultiReadSingleWriteLock.ReleaseWrite;
       end;
-
-      x.SaveToFile(SlftpNewsFilename);
-      x.EndUpdate;
     finally
       x.Free;
     end;
@@ -217,85 +237,86 @@ begin
 
   x := TEncStringList.Create(passphrase);
   try
-    x.LoadFromFile(SlftpNewsFilename);
-    x.BeginUpdate;
+    NewsMultiReadSingleWriteLock.AcquireWrite;
+    try
+      x.LoadFromFile(SlftpNewsFilename);
+      //x.BeginUpdate;
 
-    j := x.Count - 1;
+      j := x.Count - 1;
 
-    if j < 0 then
-    begin
-      irc_addtext(Netname, Channel, '<b>No news are good news!</b>');
-    end
-    else
-    begin
-      if ShowCount > j then
+      if j < 0 then
       begin
-        // showing count is higher than all entries -> show all!
-        j := x.Count - 1;
-        IrcAnnounceText := Format('Showing the last <b>%d</b> entries:', [x.Count]);
+        irc_addtext(Netname, Channel, '<b>No news are good news!</b>');
       end
       else
       begin
-        // showing count is less than all entries -> show ShowCount
-        j := ShowCount - 1;
-        IrcAnnounceText := Format('Showing the last <b>%d</b> of %d entries:', [ShowCount, x.Count]);
-      end;
-
-      // format output line -> pad numbers on the left
-      // as we increment actual entry index by one each time, we need to decrease padding by one
-      // e.g. j := 8 will be shown as 9, j := 9 will be shown as 10 (so padding need to be 2)
-      case j of
-        0..8: padding := 1;
-        9..98: padding := 2;
-        99..998: padding := 3;
-        else
-          padding := 4;
-      end;
-
-      actualmsg := TStringList.Create;
-      try
-
-        for i := 0 to j do
+        if ShowCount > j then
         begin
-          actualmsg.DelimitedText := x[i];
-
-          if ( (category = '') or ((category <> '') and (category = actualmsg[2])) ) then
-          begin
-
-            if not textshown then
-            begin
-              if (category <> '') then
-              begin
-                // needed to avoid that it writes to IRC when a invalid category is given
-                irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> (or less) entries with category %s:', [ShowCount, actualmsg[2]]));
-              end
-              else
-                irc_addtext(Netname, Channel, Format('%s', [IrcAnnounceText]));
-
-              textshown := True;
-            end;
-
-            if actualmsg[0] = cUNREAD_IDENTIFIER then
-            begin
-              // change '!UNREAD!' to '!READ!' status of shown entry
-              actualmsg[0] := cREAD_IDENTIFIER;
-
-              x[i] := actualmsg.CommaText;
-            end;
-
-            irc_addtext(Netname, Channel, Format('[%*d:] %s :: [%s] :: %s', [padding, i + 1, actualmsg[1], actualmsg[2], actualmsg[3]]));
-          end;
-
+          // showing count is higher than all entries -> show all!
+          j := x.Count - 1;
+          IrcAnnounceText := Format('Showing the last <b>%d</b> entries:', [x.Count]);
+        end
+        else
+        begin
+          // showing count is less than all entries -> show ShowCount
+          j := ShowCount - 1;
+          IrcAnnounceText := Format('Showing the last <b>%d</b> of %d entries:', [ShowCount, x.Count]);
         end;
 
-      finally
-        actualmsg.Free;
+        // format output line -> pad numbers on the left
+        // as we increment actual entry index by one each time, we need to decrease padding by one
+        // e.g. j := 8 will be shown as 9, j := 9 will be shown as 10 (so padding need to be 2)
+        case j of
+          0..8: padding := 1;
+          9..98: padding := 2;
+          99..998: padding := 3;
+          else
+            padding := 4;
+        end;
+
+        actualmsg := TStringList.Create;
+        try
+          for i := 0 to j do
+          begin
+            actualmsg.DelimitedText := x[i];
+
+            if ( (category = '') or ((category <> '') and (category = actualmsg[2])) ) then
+            begin
+
+              if not textshown then
+              begin
+                if (category <> '') then
+                begin
+                  // needed to avoid that it writes to IRC when a invalid category is given
+                  irc_addtext(Netname, Channel, Format('Showing the last <b>%d</b> (or less) entries with category %s:', [ShowCount, actualmsg[2]]));
+                end
+                else
+                  irc_addtext(Netname, Channel, Format('%s', [IrcAnnounceText]));
+
+                textshown := True;
+              end;
+
+              if actualmsg[0] = cUNREAD_IDENTIFIER then
+              begin
+                // change '!UNREAD!' to '!READ!' status of shown entry
+                actualmsg[0] := cREAD_IDENTIFIER;
+
+                x[i] := actualmsg.CommaText;
+              end;
+
+              irc_addtext(Netname, Channel, Format('[%*d:] %s :: [%s] :: %s', [padding, i + 1, actualmsg[1], actualmsg[2], actualmsg[3]]));
+            end;
+          end;
+        finally
+          actualmsg.Free;
+        end;
       end;
 
+      //x.EndUpdate;
+      x.SaveToFile(SlftpNewsFilename);
+    finally
+      NewsMultiReadSingleWriteLock.ReleaseWrite;
     end;
-
-    x.EndUpdate;
-    x.SaveToFile(SlftpNewsFilename);
   finally
     x.Free;
   end;
@@ -312,38 +333,43 @@ begin
 
   x := TEncStringList.Create(passphrase);
   try
-    x.LoadFromFile(SlftpNewsFilename);
-    x.BeginUpdate;
+    NewsMultiReadSingleWriteLock.AcquireWrite;
+    try
+      x.LoadFromFile(SlftpNewsFilename);
+      //x.BeginUpdate;
 
-    if DeleteNumber = -1 then
-    begin
-      // delete all entries
-      x.Clear;
-      irc_addtext(Netname, Channel, '<b>All</b> entries deleted.');
-    end
-    else
-    begin
-      // only delete given entry by number
-      if x.Count >= DeleteNumber then
+      if DeleteNumber = -1 then
       begin
-        msgtext := TStringList.Create;
-        try
-          // - 1 because we show all entries with an offset of one
-          msgtext.CommaText := x[DeleteNumber - 1];
-
-          x.Delete(DeleteNumber - 1);
-          if AnnounceIt then
-            irc_addtext(Netname, Channel, Format('Entry ''[%s] %s'' deleted.', [msgtext[2], msgtext[3]]));
-        finally
-          msgtext.Free;
-        end;
+        // delete all entries
+        x.Clear;
+        irc_addtext(Netname, Channel, '<b>All</b> entries deleted.');
       end
       else
-        irc_addtext(Netname, Channel, Format('No entry for given number <b>%d</b> found.', [DeleteNumber]));
-    end;
+      begin
+        // only delete given entry by number
+        if x.Count >= DeleteNumber then
+        begin
+          msgtext := TStringList.Create;
+          try
+            // - 1 because we show all entries with an offset of one
+            msgtext.CommaText := x[DeleteNumber - 1];
 
-    x.EndUpdate;
-    x.SaveToFile(SlftpNewsFilename);
+            x.Delete(DeleteNumber - 1);
+            if AnnounceIt then
+              irc_addtext(Netname, Channel, Format('Entry ''[%s] %s'' deleted.', [msgtext[2], msgtext[3]]));
+          finally
+            msgtext.Free;
+          end;
+        end
+        else
+          irc_addtext(Netname, Channel, Format('No entry for given number <b>%d</b> found.', [DeleteNumber]));
+      end;
+
+      //x.EndUpdate;
+      x.SaveToFile(SlftpNewsFilename);
+    finally
+      NewsMultiReadSingleWriteLock.ReleaseWrite;
+    end;
   finally
     x.Free;
   end;
@@ -368,7 +394,12 @@ begin
 
   x := TEncStringList.Create(passphrase);
   try
-    x.LoadFromFile(SlftpNewsFilename);
+    NewsMultiReadSingleWriteLock.AcquireRead;
+    try
+      x.LoadFromFile(SlftpNewsFilename);
+    finally
+      NewsMultiReadSingleWriteLock.ReleaseRead;
+    end;
 
     msgtext := TStringList.Create;
     try
@@ -404,7 +435,12 @@ begin
 
   x := TEncStringList.Create(passphrase);
   try
-    x.LoadFromFile(SlftpNewsFilename);
+    NewsMultiReadSingleWriteLock.AcquireRead;
+    try
+      x.LoadFromFile(SlftpNewsFilename);
+    finally
+      NewsMultiReadSingleWriteLock.ReleaseRead;
+    end;
 
     for i := 0 to x.Count - 1 do
     begin
@@ -419,6 +455,7 @@ begin
     x.Free;
   end;
 
+  last_news_announce := Now;
   Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages.', [UnreadCount, UnreadCount + ReadCount]);
 end;
 

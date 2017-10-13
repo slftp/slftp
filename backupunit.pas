@@ -114,6 +114,9 @@ begin
 
         // adding rtpl dir
         s := MyIncludeTrailingSlash('rtpl');
+        if not DirectoryExists(s) then
+          Mkdir(s);
+
         ForceDirectories(s);
         if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
         begin
