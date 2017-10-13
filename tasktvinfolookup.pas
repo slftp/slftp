@@ -822,7 +822,11 @@ begin
     ps := FindMostCompleteSite(mainpazo);
     if ((ps = nil) and (mainpazo.sites.Count > 0)) then
       ps := TPazoSite(mainpazo.sites[0]);
-    kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+	// don't know why ps can be nil - have to check later
+      if ps <> nil then
+      begin
+        kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+      end;
   except
     on e: Exception do
     begin
