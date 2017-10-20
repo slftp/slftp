@@ -117,12 +117,19 @@ function BoolToStr(Value: boolean): AnsiString; overload;
 
 procedure splitString(const Source: AnsiString; const Delimiter: AnsiString; const Dest: TStringList);
 
+{$IFDEF FPC}
+  function GetCurrentProcessId : Cardinal;
+{$ELSE}
+  function GetCurrentProcessId : Cardinal; stdcall; external 'kernel32.dll';
+{$ENDIF}
+
 implementation
 
-uses SysUtils, Math
-{$IFDEF MSWINDOWS}
-  , registry, Windows
-{$ENDIF}
+uses
+  SysUtils, Math
+  {$IFDEF MSWINDOWS}
+    , registry, Windows
+  {$ENDIF}
   , DateUtils;
 
 procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: AnsiString);
@@ -1469,6 +1476,13 @@ begin
     end;
   end;
 end;
+
+{$IFDEF FPC}
+  function GetCurrentProcessId : Cardinal;
+  begin
+    Result := GetProcessID();
+  end;
+{$ENDIF}
 
 end.
 
