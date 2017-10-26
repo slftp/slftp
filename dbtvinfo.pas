@@ -215,7 +215,7 @@ begin
         ltags.Assign(kb_languages);
         ltags.Delimiter := '|';
 
-        rx.Expression := '[._-\s]((19|20)\d{2}|720p|1080p|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';
+        rx.Expression := '[._-\s]((19|20)\d{2}[._-\s]|720(p|i)|1080(p|i)|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';
         season := 0;
         episode := 0;
         showName := rx.Replace(rip, '', False);

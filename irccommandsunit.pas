@@ -347,13 +347,6 @@ function IrcDelTheTVDbInfo(const Netname, Channel: AnsiString; params: AnsiStrin
 function IrcSetTheTVDbID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-{$IFDEF MSWINDOWS}
-  function GetCurrentProcessId : Cardinal; stdcall; external 'kernel32.dll';
-{$ENDIF}
-{$IFDEF LINUX}
-  function GetCurrentProcessId : Cardinal;
-{$ENDIF}
-
 const
   helpCommands: array[0..22] of AnsiString = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'rip', 'stats', 'slots', 'misc', 'news', 'irc',
@@ -2269,7 +2262,7 @@ begin
   begin
     srcdir := UpperCase(srcdir);
     ftpsrcdir := srcsite.sectiondir[srcdir];
-    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section<.</c>', [srcdir]);
+    irc_addtext(Netname, Channel, '<c14><b>%s</b> is a slftp section.</c>', [srcdir]);
   end;
 
   // Decide whether the supplied destination dir is a direct path or a section
@@ -12281,14 +12274,6 @@ function IrcNope(const Netname, Channel: AnsiString; params: AnsiString): boolea
 begin
   Result := False;
 end;
-
-{$IFDEF LINUX}
-  function GetCurrentProcessId : Cardinal;
-  begin
-    // TODO: do some shit to get pid on linux
-    Result := 666;
-  end;
-{$ENDIF}
 
 end.
 

@@ -183,7 +183,7 @@ uses
   debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
   socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
   sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl,
-  dbaddimdb, dbaddgenre, news
+  dbaddimdb, dbaddgenre, news, StrUtils
   {$IFDEF MSWINDOWS}
     , Windows
   {$ENDIF}
@@ -814,6 +814,7 @@ var
   is_crypted_msg: Boolean;
   l: Integer;
   b: TIrcBlowkey;
+  {$I common.inc}
 begin
   {
   * full input string 's' looks like:
@@ -908,7 +909,10 @@ begin
     irc_Addadmin(Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
     if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
     begin
-      news.SlftpNewsAdd('IRC', Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
+      if AnsiMatchText(msg, NewsSystemSpamMessages) then
+        news.SlftpNewsAdd('IRC', Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg, True]))
+      else
+        news.SlftpNewsAdd('IRC', Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
     end;
 
     exit;
