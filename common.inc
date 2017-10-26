@@ -33,6 +33,10 @@ SpecialDirsTags: array[0..9] of AnsiString = (
   'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
 );
 
+NewsSystemSpamMessages: array[0..0] of AnsiString = (
+  'IRC connection timed out'
+);
+
 FileSizeUnitCount = 8;
 FileSizeUnits: array [0..FileSizeUnitCount] of AnsiString = ('Byte', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
 
