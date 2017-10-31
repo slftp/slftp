@@ -8,7 +8,7 @@ type
   TPazoPlainTask = class(TTask) // no announce
     pazo_id: integer;
     mainpazo: TPazo;
-    ps1, ps2: TPazoSite;
+    ps1, ps2: TPazoSite; //< ps1 is sourcesite, ps2 is dstsite for TPazoRaceTask
     constructor Create(const netname, channel: AnsiString; site1: AnsiString;
       site2: AnsiString; pazo: TPazo);
     destructor Destroy; override;
@@ -2189,18 +2189,18 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
-      Inc(ps1.badcrcevents);
+      Inc(ps2.badcrcevents);
     end;
 
     if 0 < AnsiPos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps1.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
-      Inc(ps1.badcrcevents);
+      Inc(ps2.badcrcevents);
     end;
 
     ready := True;
