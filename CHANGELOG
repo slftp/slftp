@@ -58,7 +58,8 @@
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
-    {#} Remove language tags before searching on TVmaze
+    {#} Remove language and 2160(p|i) tags before searching on TVmaze
+    {#} Correct counting and comparing of CRC errors in TPazoRaceTask
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
