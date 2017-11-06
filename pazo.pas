@@ -60,7 +60,7 @@ type
     reason: AnsiString;
     dirlistgaveup: boolean;
 
-    badcrcevents: integer;
+    badcrcevents: integer; //< total number of bad crc events
 
     firesourcesinstead: boolean;
 
