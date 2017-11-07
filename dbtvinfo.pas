@@ -518,7 +518,7 @@ var
   rls_name: AnsiString;
   respo: AnsiString;
 begin
-
+  Result := False;
   // Update asked from irc. Update and exit.
   if fromIRC then
   begin
