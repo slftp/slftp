@@ -5536,6 +5536,7 @@ var
   ss, s: AnsiString;
 begin
   result := False;
+  s := '';
 
   if (params = '') then
   begin
@@ -5546,7 +5547,6 @@ begin
   if ((params = '--all') or (params = '-all') or (params = '--a') or (params = '-a')) then
   begin
     irc_addtext(Netname, Channel, '<b><u>Available commands are</b>:</u>');
-    s := '';
     for i := Low(irccommands) to High(irccommands) do
     begin
 
@@ -8580,6 +8580,7 @@ var
   sitename, period: AnsiString;
   detailed: Boolean;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   period := UpperCase(SubString(params, ' ', 2));
   detailed := StrToBoolDef(SubString(params, ' ', 3), True);
@@ -9533,6 +9534,7 @@ var
   ss1, ss2, s1, s2, s3: AnsiString;
   x: TRegExpr;
 begin
+  Result := False;
   s1 := SubString(params, ' ', 1);
   s2 := lowercase(SubString(params, ' ', 2));
   s3 := mystrings.RightStr(params, length(s1) + 1 + length(s2) + 1);
@@ -11091,9 +11093,7 @@ end;
 function IrcShowCredits(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   i: integer;
-  s: TSite;
-  r: TRawTask;
-  tn: TTaskNotify;
+
   sitename: AnsiString;
   sitesList : TStringList;
 begin
