@@ -1885,6 +1885,7 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
+    bnccsere.Enter;
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
@@ -1896,6 +1897,7 @@ begin
       site.num_dn := site.num_dn - 1;
       Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
+    bnccsere.Leave;
   end;
 end;
 
@@ -1903,6 +1905,7 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
+    bnccsere.Enter;
     fUploadingTo := Value;
     if fUploadingTo then
       begin
@@ -1914,6 +1917,7 @@ begin
         site.num_up := site.num_up - 1;
         Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
+    bnccsere.Leave;
   end;
 end;
 
@@ -1921,6 +1925,7 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
+    bnccsere.Enter;
     fTodotask := Value;
     if fTodoTask <> nil then
       begin
@@ -1932,6 +1937,7 @@ begin
         site.freeslots := site.freeslots + 1;
         Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
+    bnccsere.Leave;
   end;
 end;
 
