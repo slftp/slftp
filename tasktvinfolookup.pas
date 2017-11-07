@@ -873,6 +873,7 @@ var
   response: AnsiString;
   ps: TPazoSite;
 begin
+  Result := False;
   showname := TTvRelease(mainpazo.rls).showname;
   tvmaze_id := TTvRelease(mainpazo.rls).showid;
 
