@@ -404,7 +404,7 @@ end;
 function IrcPre(const netname, channel: AnsiString; params: AnsiString): boolean;
 var
   s: TSite;
-  group, dir: AnsiString;
+  dir: AnsiString;
   rc: TDirlistTask;
   rl: TDirlistTask;
   rr: TRawTask;
@@ -420,8 +420,7 @@ var
   mind, maxd: TDateTime;
   mins, maxs: AnsiString;
   ripper: AnsiString;
-  genre, addcmd: AnsiString;
-  osszesmeretf: double;
+  genre: AnsiString;
   p: TPazo;
   ps: TPazoSite;
   sleep_value, pazo_id: integer;
@@ -431,8 +430,6 @@ var
     genre := '';
     if p.rls is TMP3Release then
       genre := TMP3Release(p.rls).mp3genre;
-
-    group := p.rls.groupname;
   end;
 
 begin
