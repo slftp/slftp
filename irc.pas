@@ -909,6 +909,7 @@ begin
     irc_Addadmin(Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
     if ((nick <> config.ReadString(section, 'nickname', 'slftp')) and config.ReadBool(section, 'admin_forward_msgs', True)) then
     begin
+      // seems not to work...
       if AnsiMatchText(msg, NewsSystemSpamMessages) then
         news.SlftpNewsAdd('IRC', Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg, True]))
       else
