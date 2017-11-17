@@ -56,6 +56,8 @@
     {+} !lastlog command to show last log entries. (#160)
     {+} Support for CTCP Requests (might be useful for scripters)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
+    {+} Show a warn message if important files not found on startup
+    {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
