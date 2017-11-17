@@ -15,6 +15,10 @@ function ReadMaxUptimeRecord: Integer;
 
 procedure CheckForNewMaxUpTime;
 
+{ Creates a TFileStream for @value(FileName) and returns the size of it
+  @param(FileName Name of the file from which you want to know the size)
+  @returns(filesize on success, else -1) }
+function GetLocalFileSize(const FileName: AnsiString): Int64;
 function CommonFileCheck: AnsiString;
 
 { # Path functions    #}
@@ -45,7 +49,7 @@ var
 implementation
 
 uses
-  mainthread, DateUtils, sitesunit, mystrings;
+  mainthread, DateUtils, sitesunit, mystrings, Classes, StrUtils;
 
 function RandomHEXString(strlength: integer = 16): AnsiString;
 var
@@ -69,9 +73,27 @@ procedure CheckForNewMaxUpTime;
 begin
   if SecondsBetween(now, started) > ReadMaxUptimeRecord then
     sitesdat.WriteInteger('default', 'maxuptime', SecondsBetween(now, started));
-  sitesdat.WriteString('default', 'MaxUptimeAsString',
-    DateTimeAsString(started));
+
+  sitesdat.WriteString('default', 'MaxUptimeAsString', DateTimeAsString(started));
+
   sitesdat.UpdateFile;
+end;
+
+
+function GetLocalFileSize(const FileName: AnsiString): Int64;
+var
+  FileStream: TFileStream;
+begin
+  FileStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyNone);
+  try
+    try
+      Result := FileStream.Size;
+    except
+      Result := -1; // file not found, better than 0 as 0 could mean empty file
+    end;
+  finally
+    FileStream.Free;
+  end;
 end;
 
 function CommonFileCheck: AnsiString;
