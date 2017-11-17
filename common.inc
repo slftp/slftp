@@ -1,8 +1,8 @@
 const
 
+iFileCount = 1;
 cFilecount = 8;
 gFilecount = 12;
-iFileCount = 1;
 
 iniFiles: array[0..iFileCount] of AnsiString = (
 'slftp.ini', 'slftp.cini'
