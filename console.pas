@@ -612,29 +612,30 @@ end;
 
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
-label ujra;
+label
+  ujra;
 var
   fs, p, p2: AnsiString;
   x: TEncStringList;
 begin
-
   fs := CommonFileCheck;
   if fs <> '' then
   begin
-    ShowMessagE(fs);
+    ShowMessage(fs);
     shouldquit := True;
     exit;
   end;
 
 ujra:
-  if not fileexists(dir+'sites.dat') then
+  if not fileexists(dir + 'sites.dat') then
   begin
-    if not InputQuery('1st time password','Enter your password:', p, True, dir+'masterpass.txt') then//
+    if not InputQuery('1st time password','Enter your password:', p, True, dir + 'masterpass.txt') then
     begin
       shouldquit := True;
       exit;
     end;
-    if not InputQuery('Password','Repeat:', p2, True, dir+'masterpass.txt') then//
+
+    if not InputQuery('Password','Repeat:', p2, True, dir + 'masterpass.txt') then
     begin
       shouldquit := True;
       exit;
@@ -642,15 +643,16 @@ ujra:
 
     if p <> p2 then
     begin
-      ShowMessagE('Passwords dont match!');
+      ShowMessage('Passwords dont match!');
       goto ujra;
     end;
 
     p2 := 'r89v234ur8weurw8ehjrusdhfiusehfr3489rhweiufhsdufhsdehr9384h5v239842v384h';
 
-  end else
+  end
+  else
   begin
-    if not InputQuery('Password','Enter your password:', p, True, dir+'masterpass.txt') then//
+    if not InputQuery('Password','Enter your password:', p, True, dir + 'masterpass.txt') then
     begin
       shouldquit := True;
       exit;
@@ -659,13 +661,12 @@ ujra:
 
   if p = '' then
   begin
-    ShowMessagE('Empty password!');
+    ShowMessage('Empty password!');
     goto ujra;
   end;
 
 
-  // most jon configinit meg a tobbi basic cucc...
-
+  // now you can configinit and the other basic stuff ...
   if not ConfigInit(p) then
   begin
     ShowMessage('Cant load config file, wrong password?');
@@ -697,16 +698,21 @@ ujra:
   begin
     slots := AddDummyWindow('Slots');
   end;
+
   if not no_console_queue then
   begin
     queue := AddDummyWindow('Queue');
   end;
+
   cw.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
   cw.commandedit.maxcommands := config.ReadInteger(section, 'history_maxlines', 100);
+
   irc_Addtext('', '', '%s started', [Get_VersionString(ParamStr(0))]);
+
   Main_Run;
   main_timer.Interval := 100;
   inited := True;
+
   try
     x := TEncStringList.Create(passphrase);
     try
@@ -724,6 +730,7 @@ ujra:
 
   if config.ReadBool('console', 'show_uptime', False) then
     timers.Add( TslUptimeTimer.Create(l_uptime) );
+
   if config.ReadBool('console', 'show_infos', False) then
     timers.Add( TslInfosTimer.Create(l_infos) );
 end;
