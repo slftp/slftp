@@ -19,6 +19,7 @@ procedure CheckForNewMaxUpTime;
   @param(FileName Name of the file from which you want to know the size)
   @returns(filesize on success, else -1) }
 function GetLocalFileSize(const FileName: AnsiString): Int64;
+{ Checks if each file from @link(common.inc) exist and does also some size checks }
 function CommonFileCheck: AnsiString;
 
 { # Path functions    #}
@@ -98,20 +99,68 @@ end;
 
 function CommonFileCheck: AnsiString;
 var
-  s: AnsiString;
-  I: Integer;
+  fPath: AnsiString;
+  i, fsize: Integer;
+  finiFound, fNeeded: boolean;
 begin
-  result := '';
-  s := ExtractFilePath(ParamStr(0));
+  Result := '';
+  finiFound := false;
+  fsize := 0;
+  fPath := ExtractFilePath(ParamStr(0));
 
-    if not ((FileExists(s+iniFiles[0])) or (FileExists(s+iniFiles[1])))  then
-    result:=Format('slFtp can not run without slftp.ini %s',[#10#13]);
-      Exit;
+  for i := 0 to iFileCount do
+  begin
+    if FileExists(fPath + iniFiles[i]) then
+    begin
+      fsize := GetLocalFileSize(fPath + iniFiles[i]);
+      if (fsize > 0) then
+      begin
+        finiFound := true;
+      end;
+    end;
+  end;
 
-  for I := 0 to cFilecount do
-    if not FileExists(s+commonFiles[i]) then
-      result := result + commonFiles[i]+#10#13;
-  if result <> '' then result:=Format('slFtp can not start with following files:%s%s',[#10#13,Result]);
+  if not finiFound then
+  begin
+    Result := Format('slftp inifile (missing or 0 byte) %s',[#10#13]);
+  end;
+
+  for i := 0 to cFilecount do
+  begin
+    if FileExists(fPath + commonFiles[i]) then
+    begin
+      fsize := GetLocalFileSize(fPath + commonFiles[i]);
+      if (fsize <= 0) then
+      begin
+        Result := Format('%s %s (0 byte) %s',[Result, commonFiles[i], #10#13]);
+      end;
+    end
+    else
+    begin
+      if commonFiles[i] = 'mirktrade.conf' then
+        continue;
+
+      Result := Format('%s %s (missing) %s',[Result, commonFiles[i], #10#13]);
+    end;
+  end;
+
+  // no special case for missing files as it will be created when needed
+  for i := 0 to gFilecount do
+  begin
+    if FileExists(fPath + generatedFiles[i]) then
+    begin
+      fsize := GetLocalFileSize(fPath + generatedFiles[i]);
+      if (fsize <= 0) then
+      begin
+        Result := Format('%s %s (0 byte) %s',[Result, generatedFiles[i], #10#13]);
+      end;
+    end;
+  end;
+
+  if Result <> '' then
+  begin
+    Result := Format('slFtp can not start with/without following files: %s%s',[#10#13, Result]);
+  end;
 end;
 
 (*
