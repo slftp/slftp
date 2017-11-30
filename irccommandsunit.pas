@@ -664,7 +664,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo, globals, news, process;
+  tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF};
 
 {$I common.inc}
 
