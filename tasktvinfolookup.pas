@@ -362,7 +362,7 @@ begin
   end;
 end;
 
-procedure findCurrentAirDate(json: TlkJSONobject; out season, episdoe: Integer; out date: TDateTime);
+procedure findCurrentAirDate(json: TlkJSONobject; out season, episode: Integer; out date: TDateTime);
 var
   ep_nextnum, ep_prevnum: integer;
   se_nextnum, se_prevnum: integer;
@@ -371,6 +371,10 @@ var
   formatSettings: TFormatSettings;
   hadPrev, hadNext: boolean;
 begin
+  se_prevnum := -1;
+  ep_prevnum := -1;
+  se_nextnum := -1;
+  ep_nextnum := -1;
 
   date := UnixToDateTime(3817); //1.1.1990 031337
 
@@ -388,7 +392,6 @@ begin
   hadNext := False;
 
   try
-
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['previousepisode'] <> nil)) then
     begin
       ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
@@ -433,7 +436,7 @@ begin
 
   if ((not hadNext) and (not hadPrev)) then
   begin
-    episdoe := -15;
+    episode := -15;
     season := -15;
     date := UnixToDateTime(3817); //1.1.1970 031337
     exit;
@@ -441,7 +444,7 @@ begin
 
   if not hadNext then
   begin
-    episdoe := ep_prevnum;
+    episode := ep_prevnum;
     season := se_prevnum;
     date := prevdt;
     exit;
@@ -449,7 +452,7 @@ begin
 
   if IsSameDay(prevdt, nextdt) then
   begin
-    episdoe := -5;
+    episode := -5;
     season := -5;
     date := nextdt;
     exit;
@@ -458,7 +461,7 @@ begin
   if (DateTimeToUnix(nextdt)) <= DateTimeToUnix(now()) then
   begin
     // next date is smaller|equal to now()..
-    episdoe := ep_nextnum;
+    episode := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
     Exit;
@@ -467,7 +470,7 @@ begin
   if (DateTimeToUnix(prevdt) + 86400) >= DateTimeToUnix(now()) then
   begin
     //previous date + 1Day is grater|equal to now()
-    episdoe := ep_prevnum;
+    episode := ep_prevnum;
     season := se_prevnum;
     date := prevdt;
     Exit;
@@ -479,7 +482,7 @@ begin
       //somehow the group catch the episode early, maybe a "pre-air-pilot"..
       if (AnsiString(json.Field['status'].Value) = 'In Development') then
       begin
-        episdoe := ep_nextnum;
+        episode := ep_nextnum;
         season := se_nextnum;
         date := nextdt;
       end;
@@ -489,7 +492,7 @@ begin
   if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
   begin
     // nothing before matched and next_date is grater then now, so we took this.
-    episdoe := ep_nextnum;
+    episode := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
   end;
@@ -504,7 +507,7 @@ var
   s: AnsiString;
   js: TlkJSONobject;
   gTVDB: TStringlist;
-  season, episdoe: Integer;
+  season, episode: Integer;
   date: TDateTime;
   numerrors: Integer;
   TheTVDBGenreFailure: Boolean;
@@ -668,9 +671,9 @@ begin
     //Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
     begin
-      findCurrentAirDate(js, season, episdoe, date);
+      findCurrentAirDate(js, season, episode, date);
       tvr.tv_next_season := season;
-      tvr.tv_next_ep := episdoe;
+      tvr.tv_next_ep := episode;
       tvr.tv_next_date := DateTimeToUnix(date);
     end
     else
@@ -822,7 +825,7 @@ begin
     ps := FindMostCompleteSite(mainpazo);
     if ((ps = nil) and (mainpazo.sites.Count > 0)) then
       ps := TPazoSite(mainpazo.sites[0]);
-	// don't know why ps can be nil - have to check later
+  // don't know why ps can be nil - have to check later
       if ps <> nil then
       begin
         kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
