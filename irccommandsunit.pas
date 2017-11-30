@@ -664,7 +664,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo, globals, news;
+  tasktvinfolookup, uLkJSON, TypInfo, globals, news, process;
 
 {$I common.inc}
 
@@ -11180,6 +11180,9 @@ end;
 function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   cpuversion: AnsiString;
+  fProcessID, fCmdLine, fUsageInfo, fUnit: AnsiString;
+  fMemUsage: double;
+  rr: TRegexpr;
 begin
   {$IFDEF FPC}
     {$IFDEF CPU32}
@@ -11197,7 +11200,35 @@ begin
     cpuversion := '32-Bit';
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [Get_VersionString, cpuversion, IntToStr(GetCurrentProcessId), OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
+  fProcessID := IntToStr(GetCurrentProcessId);
+
+  {$IFDEF MSWINDOWS}
+    // TODO: read memory usage on windows
+    fMemUsage := 'tba';
+  {$ELSE}
+    {$IFDEF UNIX}
+      fCmdLine := '/proc/' + fProcessID + '/status';
+
+      if RunCommand('cat', [fCmdLine], fUsageInfo) then
+      begin
+        rr := TRegexpr.Create;
+        try
+          rr.ModifierI := True;
+          rr.Expression := 'VmRSS\:\s*(\d+)\s*\w+';
+
+          if rr.Exec(fUsageInfo) then
+          begin
+            fMemUsage := StrToFloat(rr.Match[1]);
+            RecalcSizeValueAndUnit(fMemUsage, fUnit, 1);
+          end;
+        finally
+          rr.Free;
+        end;
+      end;
+    {$ENDIF}
+  {$ENDIF}
+
+  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [Get_VersionString, cpuversion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;
