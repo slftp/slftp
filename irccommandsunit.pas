@@ -11204,7 +11204,8 @@ begin
 
   {$IFDEF MSWINDOWS}
     // TODO: read memory usage on windows
-    fMemUsage := 'tba';
+    fMemUsage := 13.37;
+    fUnit := 'GB';
   {$ELSE}
     {$IFDEF UNIX}
       fCmdLine := '/proc/' + fProcessID + '/status';
