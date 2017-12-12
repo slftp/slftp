@@ -71,8 +71,8 @@ procedure TVInfoFireKbAdd(rls: AnsiString; msg: AnsiString = '<c3>[TVInfo]</c> %
 
 function dbTVInfo_Process(net, chan, nick, msg: AnsiString): boolean;
 
-procedure getShowValues(rip: AnsiString; out showName: AnsiString; out season: integer; out episode: int64); overload;
-procedure getShowValues(rip: AnsiString; out showName: AnsiString); overload;
+procedure getShowValues(const rip: AnsiString; out showName: AnsiString; out season: integer; out episode: int64); overload;
+procedure getShowValues(const rip: AnsiString; out showName: AnsiString); overload;
 
 function replaceTVShowChars(name: AnsiString; forWebFetch: boolean = false): AnsiString;
 
@@ -110,7 +110,7 @@ begin
   result := name;
 end;
 
-procedure getShowValues(rip: AnsiString; out showName: AnsiString);
+procedure getShowValues(const rip: AnsiString; out showName: AnsiString);
 var
   season: integer;
   episode: int64;
@@ -118,7 +118,7 @@ begin
   getShowValues(rip, showName, season, episode);
 end;
 
-procedure getShowValues(rip: AnsiString; out showname: AnsiString; out season: integer; out episode: int64);
+procedure getShowValues(const rip: AnsiString; out showname: AnsiString; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
   ttags, ltags: TStringlist;
