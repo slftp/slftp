@@ -58,6 +58,8 @@
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} Show a warn message if important files not found on startup
     {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
+    {+} Show PID & actual memory usage in !status command (atm linux only!) (#170)
+    {+} Experimental Box Office Mojo support
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -114,7 +116,7 @@
     {#} !dirlist works as expected and lists everything in dir (#135, #143)
     {#} No more stalling of slftp if languagebase file is missing (#111)
     {#} Year regex improvement for shows like "1066: A Year to Conquer England" or 2017.Flick.Electric.Co.Comedy.Gala.Part.2.720p.HDTV.x264-FiHTV
-    {#} Skip sites if your DL/UL Slots are 0 (#106)                                       ---- need to be tested ----
+    {#} Skip sites if your DL/UL Slots are 0 (#106)                                                                                     ---- need to be tested ----
     {#} sitename for !speedtestin and !speedtestout, no empty "Site '' has no suitable file for speedtesting" (#130)
     {#} !credits * does not show all other sites when a site is offline, support for multiple input of sitenames (#97)
     {#} No more blank lines removed from slftp.ini when file is rewritten (split_site_data only) (#145)
