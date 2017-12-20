@@ -118,9 +118,36 @@ begin
       '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)(\d{4})?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
     if rr.Exec(mainsite) then
     begin
+{
       imdb_year := StrToInt(rr.Match[4]);
       imdb_mtitle := rr.Match[2];
       imdb_extra := rr.Match[3];
+}
+      Debug(dpError, section, Format('old -> mtitle: %s -- year: %s -- extra: %s', [rr.Match[2], rr.Match[4], rr.Match[3]]));
+    end;
+
+    rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
+    if rr.Exec(mainsite) then
+    begin
+      imdb_mtitle := rr.Match[1];
+      imdb_extra := rr.Match[2];
+      imdb_year := StrToInt(rr.Match[3]);
+
+      {
+      * better use
+      * <meta property='og:title' content="War for the Planet of the Apes (2017)" />
+      * <meta property='og:title' content="The Hunger Games: Catching Fire (2013)" />
+      * <meta property='og:title' content="The King of Queens (TV Series 1998–2007)" />
+      * <meta property='og:title' content="The Da Vinci Code (2006)" />
+      *
+      * or as an alternative if other not available (but we must parse <title> as well as some infos missing)
+      * <div class="originalTitle">War for the Planet of the Apes<span class="description"> (original title)</span></div> vs. <title>Planet der Affen: Survival (2017) - IMDb</title>
+      * <div class="originalTitle">The Hunger Games: Catching Fire<span class="description"> (original title)</span></div> vs. <title>Die Tribute von Panem - Catching Fire (2013) - IMDb</title>
+      * <div class="originalTitle">The King of Queens<span class="description"> (original title)</span></div> vs. <title>King of Queens (TV Series 1998–2007) - IMDb</title>
+      * <div class="originalTitle">The Da Vinci Code<span class="description"> (original title)</span></div> vs. <title>The Da Vinci Code - Sakrileg (2006) - IMDb</title>
+      }
+
+      Debug(dpError, section, Format('new -> mtitle: %s -- year: %s -- extra: %s', [rr.Match[1], rr.Match[3], rr.Match[2]]));
     end;
 
     (*
@@ -426,6 +453,7 @@ begin
       getShowValues(rls, showname, season, episode);
       if (season = 0) and (episode = 0) then
       begin
+{
         (*  Get BOX/Business Infos  *)
         businesssite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/business', '');
 
@@ -445,6 +473,7 @@ begin
               imdb_screens := StrToIntDef(s, 0)
           until not rr.ExecNext;
         end;
+}
 
 
 
