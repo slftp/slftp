@@ -52,7 +52,7 @@
 --=============================( SLFTP v1.5.6 )===================================-
     {+} News System to store important messages to encrypted file. (#173, #164)
     {+} New !affils command.
-    {+} !status and !uptime shows if you use 32/64-bit version of slftp.
+    {+} !status and !uptime shows if you use 32/64-bit version of slftp and used compiler version
     {+} !lastlog command to show last log entries. (#160)
     {+} Support for CTCP Requests (might be useful for scripters)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)

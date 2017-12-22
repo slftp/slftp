@@ -664,7 +664,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF};
+  tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers;
 
 {$I common.inc}
 
@@ -11199,6 +11199,7 @@ begin
     // delphi 2007 doesn't have support for 64 bit
     cpuversion := '32-Bit';
   {$ENDIF}
+  cpuversion := cpuversion + ' [' + Compiler_Str + ']';
 
   fProcessID := IntToStr(GetCurrentProcessId);
 
