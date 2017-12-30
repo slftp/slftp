@@ -2,11 +2,16 @@ unit nuke;
 
 interface
 
-uses Contnrs;
+uses
+  Contnrs;
 
+{ Just a helper function to initialize @value(nukequeue) }
 procedure NukeInit;
+{ Just a helper function to free @value(nukequeue) }
 procedure NukeUnInit;
+{ Reads existing values from slftp.nukequeue on startup }
 procedure NukeStart;
+{ Saves existing values from memory to slftp.nukequeue when closing slftp. }
 procedure NukeSave;
 
 type
@@ -23,15 +28,16 @@ type
   end;
 
 var
-  nukequeue: TObjectList;
+  nukequeue: TObjectList; //< Queue of added nukes which need to be send to site
 
 implementation
 
-uses SysUtils, encinifile, configunit, mystrings;
+uses
+  SysUtils, encinifile, configunit, mystrings;
 
 procedure NukeInit;
 begin
-  nukequeue := TObjectList.Create(False);
+  nukequeue := TObjectList.Create(True);
 end;
 
 procedure NukeUnInit;
@@ -40,7 +46,6 @@ begin
     nukequeue.Free;
 end;
 
-// it reads existing values from slftp.nukequeue on startup
 procedure NukeStart;
 var
   x: TEncStringlist;
@@ -76,7 +81,6 @@ begin
   end;
 end;
 
-// it saves existing values from memory to slftp.nukequeue when closing slftp
 procedure NukeSave;
 var
   x: TEncStringlist;
