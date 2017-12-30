@@ -2872,7 +2872,7 @@ begin
   t := FetchAutoDirlist;
   if t <> nil then
     exit;
-  // nincs, addolni kell.
+
   t := TAutoDirlistTask.Create('', '', Name);
   t.startat := RcDateTime('nextautodirlist', 0);
   t.dontremove := True;
