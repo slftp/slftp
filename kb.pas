@@ -895,7 +895,7 @@ begin
           end;
         end;
 
-        if ((sitename <> config.ReadString('sites', 'admin_sitename', 'SLFTP')) and (not s.PermDown) and (not s.markeddown) and (s.working <> sstDown)) then
+        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not s.markeddown) and (s.working <> sstDown)) then
         begin
           irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
@@ -1951,7 +1951,7 @@ begin
     end;
   end;
   try
-    AddTask(TPazoTVInfoLookupTask.Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), pazo, 1));
+    AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
   except
     on e: Exception do
     begin
@@ -2847,7 +2847,7 @@ begin
     pdest := TPazoSite(p.sites[i]);
 
     // checking if we want to try to complete the destination site
-    if pdest.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+    if pdest.Name = getAdminSiteName then
       Continue;
     if pdest.Complete then
       Continue;
@@ -2876,7 +2876,7 @@ begin
 
       if psrc = nil then
         Continue;
-      if psrc.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      if psrc.Name = getAdminSiteName then
         Continue;
       if psrc.Name = pdest.Name then
         Continue;

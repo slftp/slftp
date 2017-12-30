@@ -20,7 +20,7 @@ type
 implementation
 
 uses SysUtils, irc, debugunit, dateutils, tags,
-     configunit, dirlist, dbaddnfo, slhttp;
+     configunit, dirlist, dbaddnfo, slhttp, sitesunit;
 
 const
   section = 'taskhttpnfo';
@@ -32,7 +32,7 @@ begin
   self.nfo_rls:= nfo_rls;
   self.nfo_url:= nfo_url;
   self.nfo_name:= nfo_name;
-  inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  inherited Create('', '', getAdminSiteName);
 end;
 
 function TPazoHTTPNfoTask.Execute(slot: Pointer): Boolean;
