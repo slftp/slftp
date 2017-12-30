@@ -7019,13 +7019,12 @@ begin
   Result := True;
 end;
 
-function IrcAutoDirlist(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcAutoDirlist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   sitename: AnsiString;
   status: integer;
   s: TSite;
-  kell: boolean;
+  fNeedTaskCreate: boolean;
   sections: AnsiString;
   ss: AnsiString;
   i: integer;
@@ -7051,7 +7050,6 @@ begin
 
   if ((status > -1) and (status <> 0)) then
   begin
-    // hitelesitjuk a szekciokat
     for i := 1 to 1000 do
     begin
       ss := SubString(sections, ' ', i);
@@ -7067,13 +7065,13 @@ begin
     end;
   end;
 
-  kell := False;
+  fNeedTaskCreate := False;
   if status > -1 then
   begin
     if status <> 0 then
     begin
       if s.RCInteger('autodirlist', 0) <= 0 then
-        kell := True;
+        fNeedTaskCreate := True;
       s.WCInteger('autodirlist', status);
       s.WCString('autodirlistsections', sections);
     end
@@ -7086,10 +7084,9 @@ begin
     end;
   end;
   irc_addtext(Netname, Channel, 'Autodirlist of %s is: %d (%s)',
-    [sitename, s.RCInteger('autodirlist', 0), s.RCString('autodirlistsections',
-      '')]);
+    [sitename, s.RCInteger('autodirlist', 0), s.RCString('autodirlistsections', '')]);
 
-  if kell then
+  if fNeedTaskCreate then
     s.AutoDirlist;
 
   Result := True;
@@ -7598,12 +7595,13 @@ var
   i, t, h, multiplier: integer;
   datestamp: AnsiString;
   reason, sitename, rip, section, yyyy, yy, mm, dd: AnsiString;
+  site: TSite;
   n: TNukeQueueItem;
 begin
   Result := False;
-  h := 0;
+  i := 0; //< position of date value in string
+  h := 0; //< position of first reason character
   sitename := UpperCase(SubString(params, ' ', 1));
-
 
   if nil <> FindSiteByName(Netname, sitename) then
   begin
@@ -7669,41 +7667,46 @@ begin
   Inc(h, length(SubString(params, ' ', i)) + 1);
   reason := Copy(params, h + 1, 1000);
 
-  try
-    for i := 0 to sites.Count - 1 do
+  for i := 0 to sites.Count - 1 do
+  begin
+    site := nil;
+    site := TSite(sites[i]);
+
+    if site = nil then
+      Continue;
+    if site.Name = getAdminSiteName then
+      Continue;
+
+    if site.IsAffil(GotGroupname(rip)) then
     begin
-      if TSite(sites[i]).IsAffil(GotGroupname(rip)) then
-      begin
-        irc_addtext(Netname, Channel,
-          '<b>%s</b> is affil on %s we dont nuke affil!',
-          [GotGroupname(rip), TSite(sites[i]).Name]);
-        Continue;
-      end;
-
-      if ((sitename = '') or (TSite(sites[i]).Name = sitename)) then
-      begin
-
-        n := TNukeQueueItem.Create;
-        n.site := TSite(sites[i]).Name;
-        n.section := section;
-        n.yyyy := yyyy;
-        n.yy := yy;
-        n.mm := mm;
-        n.dd := dd;
-        n.rip := rip;
-        n.multiplier := multiplier;
-        n.reason := reason;
-
-        nukequeue.Add(n);
-
-        if sitename <> '' then
-          break;
-
-      end;
+      irc_addtext(Netname, Channel,
+        '<b>%s</b> is affil on %s we dont nuke affil!',
+        [GotGroupname(rip), site.Name]);
+      Continue;
     end;
-    NukeSave;
-  finally
+
+    if ((sitename = '') or (site.Name = sitename)) then
+    begin
+      n := TNukeQueueItem.Create;
+      n.site := site.Name;
+      n.section := section;
+      n.yyyy := yyyy;
+      n.yy := yy;
+      n.mm := mm;
+      n.dd := dd;
+      n.rip := rip;
+      n.multiplier := multiplier;
+      n.reason := reason;
+
+      nukequeue.Add(n);
+
+      if sitename <> '' then
+        break;
+    end;
   end;
+
+  NukeSave;
+
   Result := True;
 end;
 
