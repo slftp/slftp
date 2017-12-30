@@ -894,6 +894,12 @@ begin
      SIZE
      REST STREAM
      SYST
+
+  * the three below added with glFTPd 2.08 *
+     EPRT
+     EPSV
+     CEPR
+
     211 End
   }
 
@@ -916,6 +922,25 @@ begin
     FEAT
     500 'FEAT': Command not understood
     * found on https://bugs.kde.org/show_bug.cgi?id=114100
+
+  * IOFTPD  7.7.3 *
+    211-Extensions supported:
+     AUTH SSL
+     AUTH TLS
+     CLNT
+     CPSV
+     LIST -1aAdflLRsTU
+     MDTM
+     MDTM YYYYMMDDHHMMSS filename
+     PBSZ
+     PROT
+     REST STREAM
+     SIZE
+     SSCN
+     STAT -1aAdflLRsTU
+     TVFS
+     XCRC filename;start;end
+    211 END
   }
   if (0 < Pos('PRET', lastResponse)) then
   begin
@@ -927,7 +952,7 @@ begin
     if site.sw <> sswGlftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
   end
-  else if (0 < Pos('Command not understood', lastResponse)) then
+  else if (0 < Pos('Command not understood', lastResponse)) or (0 < Pos('TVFS', lastResponse)) or (0 < Pos('XCRC', lastResponse)) then
   begin
     if site.sw <> sswIoftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
