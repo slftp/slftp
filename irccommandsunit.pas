@@ -1080,7 +1080,7 @@ begin
     rcmd.Free;
   end;
 
-  admin_site := AnsiUpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  admin_site := getAdminSiteName;
 
   // basic sanity check for first args
   if (source = admin_site) or (dest = admin_site) then
@@ -1568,7 +1568,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+      if (TSite(sites.Items[i]).Name = getAdminSiteName)
         then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
@@ -2138,7 +2138,7 @@ begin
 
           if ps.Name = ssite then
             Continue;
-          if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+          if ps.Name = getAdminSiteName then
             Continue;
 
           if ps.dirlist = nil then
@@ -2447,7 +2447,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites.Items[i]);
-      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (s.Name = getAdminSiteName) then
         Continue;
       if s.PermDown then
         Continue;
@@ -2503,7 +2503,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       site := TSite(sites.Items[i]);
-      if (site.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (site.Name = getAdminSiteName) then
         Continue;
       if s <> '' then
         site.sslfxp := sslfxp;
@@ -2562,8 +2562,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if TSite(sites.Items[i]).PermDown then
         Continue;
@@ -2942,7 +2941,7 @@ begin
   end;
 
   // not for admin site
-  if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+  if s.Name = getAdminSiteName then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Error</b></c>: This command is not allowed on internal site <b>%s</b>!', [sname]);
     exit;
@@ -2982,7 +2981,7 @@ begin
   end;
 
   // not for admin site
-  if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+  if s.Name = getAdminSiteName then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Error</b></c>: This command is not allowed on internal site <b>%s</b>!', [sname]);
     exit;
@@ -3369,7 +3368,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+      if (TSite(sites.Items[i]).Name = getAdminSiteName)
         then
         Continue;
       if TSite(sites.Items[i]).PermDown then
@@ -3426,7 +3425,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if TSite(sites.Items[i]).PermDown then
         Continue;
@@ -3489,7 +3488,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+      if (TSite(sites.Items[i]).Name = getAdminSiteName)
         then
         Continue;
       if TSite(sites.Items[i]).PermDown then
@@ -3547,7 +3546,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+      if (TSite(sites.Items[i]).Name = getAdminSiteName)
         then
         Continue;
       if TSite(sites.Items[i]).PermDown then
@@ -3801,7 +3800,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites.Items[i]);
-      if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (s.Name = getAdminSiteName) then
         Continue;
       if s.PermDown then
         Continue;
@@ -4065,8 +4064,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-        'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if TSite(sites.Items[i]).PermDown then
         Continue;
@@ -4165,8 +4163,7 @@ function Bnctest(const Netname, Channel: AnsiString; s: TSite; tn: TTaskNotify; 
 var
   l: TLoginTask;
 begin
-  if UpperCase(s.Name) <> uppercase(config.ReadString(
-    'sites', 'admin_sitename', 'SLFTP')) then
+  if s.Name <> getAdminSiteName then
   begin
     l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
     if tn <> nil then
@@ -4230,7 +4227,7 @@ begin
           irc_addtext(Netname, Channel, 'Site %s not found', [x[i]]);
           exit;
         end;
-        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        if (s.Name = getAdminSiteName) then
         begin
           Continue;
         end;
@@ -4252,7 +4249,7 @@ begin
       for i := 0 to sites.Count - 1 do
       begin
         s := TSite(sites[i]);
-        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        if (s.Name = getAdminSiteName) then
         begin
           Continue;
         end;
@@ -6452,7 +6449,7 @@ begin
   begin
     s := TSite(sites[i]);
 
-    if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+    if (TSite(sites.Items[i]).Name = getAdminSiteName) then
       Continue;
 
     ss := ss + format('<b>%s</b> (%d/%d) ', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
@@ -6572,7 +6569,7 @@ begin
   begin
     s := TSite(sites[i]);
 
-    if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+    if (TSite(sites.Items[i]).Name = getAdminSiteName) then
       Continue;
 
     if s.IsSection(section) then
@@ -6780,7 +6777,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
@@ -6847,7 +6844,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
@@ -6943,7 +6940,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       if (TSite(sites.Items[i]).PermDown) then
         Continue;
@@ -9271,8 +9268,7 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-          'admin_sitename', 'SLFTP')) then
+        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
           Continue;
         if TSite(sites.Items[i]).PermDown then
           Continue;
@@ -9289,8 +9285,7 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-          'admin_sitename', 'SLFTP')) then
+        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
           Continue;
         if TSite(sites.Items[i]).PermDown then
           Continue;
@@ -9312,8 +9307,7 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-            'admin_sitename', 'SLFTP')) then
+          if (TSite(sites.Items[i]).Name = getAdminSiteName) then
             Continue;
           if TSite(sites.Items[i]).PermDown then
             Continue;
@@ -9334,8 +9328,7 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-              'admin_sitename', 'SLFTP')) then
+            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
               Continue;
             if TSite(sites.Items[i]).PermDown then
               Continue;
@@ -9352,8 +9345,7 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-              'admin_sitename', 'SLFTP')) then
+            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
               Continue;
             if TSite(sites.Items[i]).PermDown then
               Continue;
@@ -9373,8 +9365,7 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-              'admin_sitename', 'SLFTP')) then
+            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
               Continue;
             if TSite(sites.Items[i]).PermDown then
               Continue;
@@ -9415,8 +9406,7 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-          'admin_sitename', 'SLFTP')) then
+        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
           Continue;
         if TSite(sites.Items[i]).PermDown then
           Continue;
@@ -9434,8 +9424,7 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-          'admin_sitename', 'SLFTP')) then
+        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
           Continue;
         if TSite(sites.Items[i]).PermDown then
           Continue;
@@ -9457,8 +9446,7 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-            'admin_sitename', 'SLFTP')) then
+          if (TSite(sites.Items[i]).Name = getAdminSiteName) then
             Continue;
           if TSite(sites.Items[i]).PermDown then
             Continue;
@@ -9479,8 +9467,7 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-              'admin_sitename', 'SLFTP')) then
+            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
               Continue;
             if TSite(sites.Items[i]).PermDown then
               Continue;
@@ -9497,8 +9484,7 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = config.ReadString('sites',
-              'admin_sitename', 'SLFTP')) then
+            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
               Continue;
             if TSite(sites.Items[i]).PermDown then
               Continue;
@@ -10110,7 +10096,7 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+          if (TSite(sites.Items[i]).Name = getAdminSiteName) then
             Continue;
           if TSite(sites.Items[i]).PermDown then
             Continue;
@@ -10222,7 +10208,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       ss := TSite(sites.Items[i]);
-      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (ss.Name = getAdminSiteName) then
         Continue;
       if ss.PermDown then
         Continue;
@@ -10310,7 +10296,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       ss := TSite(sites.Items[i]);
-      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (ss.Name = getAdminSiteName) then
         Continue;
       if TSite(sites.Items[i]).PermDown then
         Continue;
@@ -10369,7 +10355,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       ss := TSite(sites.Items[i]);
-      if (ss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+      if (ss.Name = getAdminSiteName) then
         Continue;
 
       if svalue = '' then
@@ -10755,7 +10741,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+      if (TSite(sites.Items[i]).Name = getAdminSiteName)
         then
         Continue;
       if ((pretime = -10) or (pretime >= 0)) then
@@ -10969,7 +10955,7 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
+        if (TSite(sites.Items[i]).Name = getAdminSiteName)
           then
           Continue;
         if (TSite(sites.Items[i]).PermDown) then
@@ -10998,7 +10984,7 @@ begin
           Continue;
         end;
 
-        if (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+        if (s.Name = getAdminSiteName) then
           Continue;
         if (s.PermDown) then
           Continue;
@@ -11145,7 +11131,7 @@ var
   r: TRawTask;
   tn: TTaskNotify;
 begin
-  if ((s = nil) or (s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))) then
+  if ((s = nil) or (s.Name = getAdminSiteName)) then
     exit;
   if (s.PermDown) then
   begin
@@ -12151,8 +12137,7 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = config.ReadString('sites', 'admin_sitename', 'SLFTP'))
-        then
+      if (TSite(sites.Items[i]).Name = getAdminSiteName) then
         Continue;
       TSite(sites.Items[i]).RecalcFreeslots;
     end;
