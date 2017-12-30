@@ -52,7 +52,7 @@ implementation
 
 uses
   DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
-  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news;
+  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
 
 const
   section = 'tasktvinfo';
@@ -857,7 +857,6 @@ constructor TPazoHTTPUpdateTVInfoTask.Create(const netname: AnsiString; const ch
 begin
 
   inherited Create(netname, channel, site, '', pazo);
-  //  inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 end;
 
 destructor TPazoHTTPUpdateTVInfoTask.Destroy;
@@ -922,12 +921,11 @@ end;
 
 { TPazoHTTPTVInfoTask }
 
-constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: AnsiString; rls: AnsiString =
-  '');
+constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: AnsiString; rls: AnsiString = '');
 begin
   self.tvmaze_id := tvmaze_id;
   self.rls := rls;
-  inherited Create('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  inherited Create('', '', getAdminSiteName);
 end;
 
 function TPazoHTTPTVInfoTask.Name: AnsiString;

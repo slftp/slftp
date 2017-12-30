@@ -354,9 +354,8 @@ procedure SitesStart;
 procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
+{ Returns the admin_sitename from slftp.ini as uppercase }
 function getAdminSiteName: AnsiString;
-
-//function
 
 function SiteSoftWareToString(sitename: AnsiString): AnsiString; overload;
 function SiteSoftWareToString(site: TSite): AnsiString; overload;
@@ -381,8 +380,8 @@ var
 
 implementation
 
-uses SysUtils, irc, DateUtils, configunit, queueunit, debugunit,
-  socks5, console, knowngroups,
+uses
+  SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals;
 
 const
@@ -394,14 +393,13 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
-  admin_sitename: AnsiString = 'SLFTP';
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
 
 function getAdminSiteName: AnsiString;
 begin
-  Result := config.ReadString('sites', 'admin_sitename', 'SLFTP');
+  Result := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 end;
 
 function SiteSoftWareToString(sitename: AnsiString): AnsiString;
@@ -464,7 +462,7 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-    if UpperCase(s.Name) = UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP')) then
+    if s.Name = getAdminSiteName then
       Continue;
     if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
       Continue;
@@ -580,14 +578,13 @@ begin
   debug(dpSpam, section, 'SitesStart begin');
 
   delay_between_connects := config.readInteger(section, 'delay_between_connects', 200);
-  admin_sitename := config.ReadString(section, 'admin_sitename', 'SLFTP');
   admin_siteslots := config.ReadInteger(section, 'admin_siteslots', 10);
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
 
   // Add admin site
-  sites.Add(TSite.Create(admin_sitename));
+  sites.Add(TSite.Create(getAdminSiteName));
 
   x := TStringList.Create;
   try
@@ -680,7 +677,7 @@ begin
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
-  if (self.site.Name <> admin_sitename) then
+  if (self.site.Name <> getAdminSiteName) then
   begin
     if not site.PermDown then
     begin
@@ -1973,7 +1970,7 @@ var
   i, j: integer;
   ss, affils: AnsiString;
 begin
-  if (Name = admin_sitename) then
+  if (Name = getAdminSiteName) then
   begin
     self.Name := Name;
     working := sstUp;
@@ -2168,7 +2165,7 @@ begin
   unknown := 0;
   for i := 0 to sites.Count - 1 do
   begin
-    if TSite(sites[i]).Name = admin_sitename then
+    if TSite(sites[i]).Name = getAdminSiteName then
       continue;
 
     case TSite(sites[i]).working of
@@ -2198,7 +2195,7 @@ begin
   begin
     fWorking := Value;
 
-    if Name = admin_sitename then
+    if Name = getAdminSiteName then
     begin
       markeddown := False;
       Exit;

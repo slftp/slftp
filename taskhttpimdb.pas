@@ -33,8 +33,7 @@ constructor TPazoHTTPImdbTask.Create(const imdb_id: AnsiString; const rls: AnsiS
 begin
   self.imdb_id := imdb_id;
   self.rls := rls;
-  inherited Create('', '', config.ReadString('sites', 'admin_sitename',
-    'SLFTP'));
+  inherited Create('', '', getAdminSiteName);
 end;
 
 function TPazoHTTPImdbTask.Execute(slot: Pointer): Boolean;

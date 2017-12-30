@@ -394,8 +394,7 @@ begin
     exit;
   end;
 
-  kb_Add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'),
-    rls_section, '', event, rls, '');
+  kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
 end;
 
 function dbaddpre_ADDPRE(netname, channel, nickname: AnsiString; params: AnsiString;

@@ -61,7 +61,7 @@ begin
       for ii := 0 to sites.Count - 1 do
       begin
         s := TSite(sites.Items[ii]);
-        if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        if s.Name = getAdminSiteName then
           Continue;
 
         irc_addtext(netname, Channel, 'SkipPre status for %s: %d', [s.Name, integer(s.SkipPre)]);
@@ -93,7 +93,7 @@ begin
     for ii := 0 to sites.Count - 1 do
     begin
       s := TSite(sites.Items[ii]);
-      if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      if s.Name = getAdminSiteName then
         Continue;
       s.skippre := boolean(i);
       irc_addtext(netname, Channel, 'SkipPre status for %s: %d', [s.Name, integer(s.SkipPre)]);
@@ -500,7 +500,7 @@ begin
         exit;
       end;
 
-      if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      if s.Name = getAdminSiteName then
         Continue;
 
       if s.SkipPre then
@@ -607,7 +607,7 @@ begin
         exit;
       end;
 
-      if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      if s.Name = getAdminSiteName then
         Continue;
 
       if s.SkipPre then
@@ -993,7 +993,7 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       site := TSite(sites[i]);
-      if site.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+      if site.Name = getAdminSiteName then
         Continue;
 
       if site.sectiondir[section] <> '' then
@@ -1219,7 +1219,7 @@ begin
   begin
     ps := TPazoSite(p.sites[i]);
     s  := FindSiteByName(netname, ps.Name);
-    if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+    if s.Name = getAdminSiteName then
       continue;
 
     if s.SkipPre then
@@ -1485,7 +1485,7 @@ begin
   begin
     s := TSite(sites.Items[i]);
 
-    if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+    if s.Name = getAdminSiteName then
       continue;
 
     if s.SkipPre then
@@ -1554,7 +1554,7 @@ begin
       for I := 0 to sites.Count - 1 do
       begin
         s := TSite(sites.Items[i]);
-        if s.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
+        if s.Name = getAdminSiteName then
           continue;
 
         if s.SkipPre then

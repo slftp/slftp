@@ -161,7 +161,7 @@ begin
       end;
       if (mp3genre <> '') then
       begin
-        kb_add('', '', config.ReadString('sites', 'admin_sitename', 'SLFTP'), p.rls.section, mp3genre, 'UPDATE', p.rls.rlsname, '');
+        kb_add('', '', getAdminSiteName, p.rls.section, mp3genre, 'UPDATE', p.rls.rlsname, '');
         irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, mp3genre]));
         Result:=True;
       end;
