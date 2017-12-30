@@ -53,6 +53,8 @@ var
   showname: AnsiString;
   season: integer;
   episode: int64;
+  fBOMSearchNeeded: boolean;
+  fBusinessInfoPart: AnsiString;
 begin
   Result := False;
 
@@ -114,41 +116,50 @@ begin
     end;
 
     (*  Fetch MovieTitle/Extra/Year from iMDB *)
-    rr.Expression :=
-      '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)(\d{4})?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
-    if rr.Exec(mainsite) then
-    begin
-{
-      imdb_year := StrToInt(rr.Match[4]);
-      imdb_mtitle := rr.Match[2];
-      imdb_extra := rr.Match[3];
-}
-      Debug(dpError, section, Format('old -> mtitle: %s -- year: %s -- extra: %s', [rr.Match[2], rr.Match[4], rr.Match[3]]));
-    end;
+//    rr.Expression :=
+//      '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)(\d{4})?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
+//    if rr.Exec(mainsite) then
+//    begin
+//     imdb_year := StrToInt(rr.Match[4]);
+//      imdb_mtitle := rr.Match[2];
+//      imdb_extra := rr.Match[3];
+//    end;
 
+    {
+    * Examples:
+    * <meta property='og:title' content="War for the Planet of the Apes (2017)" />
+    * <meta property='og:title' content="The Hunger Games: Catching Fire (2013)" />
+    * <meta property='og:title' content="The Da Vinci Code (2006)" />
+    }
     rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
     if rr.Exec(mainsite) then
     begin
       imdb_mtitle := rr.Match[1];
       imdb_extra := rr.Match[2];
       imdb_year := StrToInt(rr.Match[3]);
-
-      {
-      * better use
-      * <meta property='og:title' content="War for the Planet of the Apes (2017)" />
-      * <meta property='og:title' content="The Hunger Games: Catching Fire (2013)" />
-      * <meta property='og:title' content="The King of Queens (TV Series 1998–2007)" />
-      * <meta property='og:title' content="The Da Vinci Code (2006)" />
-      *
-      * or as an alternative if other not available (but we must parse <title> as well as some infos missing)
-      * <div class="originalTitle">War for the Planet of the Apes<span class="description"> (original title)</span></div> vs. <title>Planet der Affen: Survival (2017) - IMDb</title>
-      * <div class="originalTitle">The Hunger Games: Catching Fire<span class="description"> (original title)</span></div> vs. <title>Die Tribute von Panem - Catching Fire (2013) - IMDb</title>
-      * <div class="originalTitle">The King of Queens<span class="description"> (original title)</span></div> vs. <title>King of Queens (TV Series 1998–2007) - IMDb</title>
-      * <div class="originalTitle">The Da Vinci Code<span class="description"> (original title)</span></div> vs. <title>The Da Vinci Code - Sakrileg (2006) - IMDb</title>
-      }
-
-      Debug(dpError, section, Format('new -> mtitle: %s -- year: %s -- extra: %s', [rr.Match[1], rr.Match[3], rr.Match[2]]));
     end;
+
+    {
+    * examples
+    * old -> mtitle: Die glorreichen Sieben -- year: 2016 -- extra:
+    * new -> mtitle: The Magnificent Seven -- year: 2016 -- extra:
+    * old -> mtitle: Mrs. Parker und ihr lasterhafter Kreis -- year: 1994 -- extra:
+    * new -> mtitle: Mrs. Parker and the Vicious Circle -- year: 1994 -- extra:
+    * new -> mtitle: &quot;The Detour&quot; The Pilot -- year: 2016 -- extra: TV Episode
+    * new -> mtitle: &quot;The Detour&quot; The Hotel -- year: 2016 -- extra: TV Episode
+    * old -> mtitle: Sam &amp; Cat -- year: 2013 -- extra: TV Series
+    * new -> mtitle: Sam & Cat -- year: 2013 -- extra: TV Series
+    * old -> mtitle: Cars 3: Evolution -- year: 2017 -- extra:
+    * new -> mtitle: Cars 3 -- year: 2017 -- extra:
+    * old -> mtitle: Shameless - Nicht ganz nÃ¼chtern -- year: 2011 -- extra: TV Series
+    * new -> mtitle: Shameless -- year: 2011 -- extra: TV Series
+    * old -> mtitle: Hot Shots! Der 2. Versuch -- year: 1993 -- extra:
+    * new -> mtitle: Hot Shots! Part Deux -- year: 1993 -- extra:
+    * old -> mtitle: Tad Jones und das Geheimnis von KÃ¶ng Midas -- year: 2017 -- extra:
+    * new -> mtitle: Tad the Lost Explorer and the Secret of King Midas -- year: 2017 -- extra:
+    * old -> mtitle: The Da Vinci Code - Sakrileg -- year: 2006 -- extra:
+    * new -> mtitle: The Da Vinci Code -- year: 2006 -- extra:
+    }
 
     (*
     if imdb_year = 0 then begin
@@ -365,9 +376,6 @@ begin
       imdb_region := SubString(imdb_counline, ',', 1);
       imdb_country := SubString(imdb_counline, ',', 2);
 
-      (* Get STV Info through releaseinfo page from iMDB *)
-      rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/releaseinfo', '');
-
       (* Movie is actually a MiniSeries designed for Television *)
       if imdb_extra = 'TV mini-series' then
       begin
@@ -389,24 +397,25 @@ begin
 
       imdb_date := '';
 
+      (* Get STV Info through releaseinfo page from iMDB *)
+      rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/releaseinfo', '');
+
       if not imdb_stv then
       begin
         rr.ModifierI := True;
 
-        //New regex since rev.327 03.10.2013
+        // Example: <tr class="even"><td><a href="/calendar/?region=my&ref_=ttrel_rel_2">Malaysia</a></td><td class="release_date">28 September 2017</td><td></td></tr>
         rr.Expression :=
-          '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region
-          + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country +
-          '<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\w\s\d]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
-
+          '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country
+          + '<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
         if rr.Exec(rlsdatesite) then
         begin
-          imdb_date := Format('%s %s', [Trim(rr.Match[2]), Trim(rr.Match[3])]);
+          imdb_date := Trim(rr.Match[2]);
           imdbdata.imdb_stvs := 'Cinedate: ' + imdb_date;
           imdbdata.imdb_stvm := False;
           imdb_stv := False;
           (* Fetching Cinedate for imdb_country *)
-          imdbdata.imdb_cineyear := Strtointdef(rr.Match[3], -1);
+          imdbdata.imdb_cineyear :=  StrToIntDef(copy(imdb_date, Length(imdb_date) - 4, 4), -1);
         end
         else
         begin
@@ -415,7 +424,10 @@ begin
           imdb_stv := True;
         end;
       end;
-      //New regex since rev.327 03.10.2013
+
+      // Examples:
+      //  <tr class="odd"><td><a href="/calendar/?region=cn&ref_=ttrel_rel_1">China</a></td><td class="release_date">24 September 2017</td><td> (Beijing) (premiere)</td></tr>
+      //  <tr class="even"><td><a href="/calendar/?region=gb&ref_=ttrel_rel_32">UK</a></td><td class="release_date">18 December 2017</td><td> (internet)</td></tr>
       rr.Expression :=
         '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region
         + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country +
@@ -444,6 +456,7 @@ begin
 
       s := '0';
       imdb_screens := 0;
+      fBOMSearchNeeded := True;
 
       imdbdata.imdb_screens := imdb_screens;
       imdbdata.imdb_wide := False;
@@ -453,27 +466,55 @@ begin
       getShowValues(rls, showname, season, episode);
       if (season = 0) and (episode = 0) then
       begin
-{
-        (*  Get BOX/Business Infos  *)
-        businesssite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/business', '');
 
-        rr.Expression := '\((USA|UK)\)[^\n]*?\(([\d\,\.]+)\s?Screens\)';
-
-        if rr.Exec(businesssite) then
+        rr.Expression := '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
+        if rr.Exec(mainsite) then
         begin
-          repeat
-            s := Csere(rr.Match[2], ',', '');
-            s := Csere(s, '.', '');
+          fBusinessInfoPart := rr.Match[1];
 
-            Debug(dpSpam, section,
-              Format('TPazoHTTPImdbTask dbaddimdb_SaveImdb: match=%s',
-                [rr.Match[0]]));
-
-            if StrToIntDef(s, 0) > imdb_screens then
-              imdb_screens := StrToIntDef(s, 0)
-          until not rr.ExecNext;
+          // check what kind of Box Office info we have
+          if AnsiContainsStr(fBusinessInfoPart, 'Wide Release') then
+          begin
+            imdb_stv := False;
+            imdbdata.imdb_stvs := 'Wide Release';
+            imdbdata.imdb_wide := True;
+            imdbdata.imdb_ldt := False;
+            fBOMSearchNeeded := False;
+          end
+          else if AnsiContainsStr(fBusinessInfoPart, 'Limited') then
+          begin
+            imdb_stv := False;
+            imdbdata.imdb_stvs := 'Limited';
+            imdbdata.imdb_wide := False;
+            imdbdata.imdb_ldt := True;
+            fBOMSearchNeeded := False;
+          end
+          else if AnsiContainsStr(fBusinessInfoPart, 'Gross') then
+          begin
+            imdb_stv := False;
+            imdbdata.imdb_stvs := 'Gross weight found, so its not STV!';
+            imdbdata.imdb_wide := False;
+            imdbdata.imdb_ldt := False;
+            fBOMSearchNeeded := True; // better to a BOM check
+          end
+          else
+          begin
+            imdb_stv := True;
+            imdbdata.imdb_stvs := 'Box Office found, but not handled!';
+            imdbdata.imdb_wide := False;
+            imdbdata.imdb_ldt := False;
+            fBOMSearchNeeded := True; // BOM check needed!
+          end;
+        end
+        else
+        begin
+          imdb_stv := True;
+          imdbdata.imdb_stvs := 'No Box Office found, so its STV!';
+          imdbdata.imdb_wide := False;
+          imdbdata.imdb_ldt := False;
+          fBOMSearchNeeded := True;
         end;
-}
+
 
 
 
@@ -510,57 +551,82 @@ begin
 
         (* EXAMPLES BELOW ARE COLLECTED WITH parse_boxofficemojo_exact False *)
 
-        if ((config.ReadBool(section, 'parse_boxofficemojo', True)) and (imdb_screens = 0)) then
+        //Searching on Box Office Mojo with Warrior for Warrior.2011.COMPLETE.UHD.BLURAY-SUPERSIZE - Found more than one movie - Screens via BOM: 53 with 53
+
+        // uses country specific movie title
+        //Searching on Box Office Mojo with Die Tribute von Panem - Catching Fire for The.Hunger.Games.Catching.Fire.2013.2160p.UHD.BluRay.X265-IAMABLE - Found more than one movie
+        //Planet der Affen: Survival for Planet.der.Affen.Survival.GERMAN.2017.DL.PAL.DVDR-Pumuck - Found more than one movie
+
+        // didn't detect the Theaters stuff from webpage
+        //Dunkirk for Dunkirk.2017.DVDR-JRKDVD - Only one movie matched - Screens via BOM: 0 with
+        //Bigger Stronger Faster* for Bigger.Stronger.Faster.2008.LIMITED.DOCU.1080p.BluRay.x264-VETO - Only one movie matched - Screens via BOM: 0 with
+        //Brad's Status for Brads.Status.2017.LIMITED.BDRip.x264-GECKOS - Only one movie matched - Screens via BOM: 0 with
+        //Vincent N Roxxy for Vincent.N.Roxxy.2016.FRENCH.720p.BluRay.x264-LOST - Only one movie matched - Screens via BOM: 0 with      // case needed when website shows n/a
+
+        // detects the wrong movie with wrong year
+        //Heartbeats for Heartbeats.2017.1080p.BluRay.x264-CURSE - Found more than one movie - Screens via BOM: 1 with 1
+        //Attraction for Attraction.2017.MULTi.1080p.BluRay.x264-LOST - Found more than one movie - Screens via BOM: 4 with 4
+
+        //detects wrong movie
+        //The LEGO Movie for The.LEGO.Movie.2014.COMPLETE.UHD.BLURAY-COASTER - Found more than one movie - Screens via BOM: 4047 with 4047
+
+
+        if fBOMSearchNeeded then
         begin
-          bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
-
-          Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
-
-          rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
-          if rr.Exec(bomsite) then
+          if ((config.ReadBool(section, 'parse_boxofficemojo', True)) and (imdb_screens = 0)) then
           begin
-            Debug(dpError, section, 'Only one movie matched');
-            rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">';
-          end
-          else
-          begin
-            Debug(dpError, section, 'Found more than one movie');
+            bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
 
-            bom_date := '[^<>]+' + IntToStr(imdb_year);
+            Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
 
-            if imdb_date <> '' then
+            if not AnsiContainsStr(bomsite, 'No Movies or People found.') then
             begin
-              {$IFDEF MSWINDOWS}
-                GetLocaleFormatSettings(1033, formatSettings);
-              {$ELSE}
-                formatSettings := DefaultFormatSettings;
-              {$ENDIF}
-              formatSettings.ShortDateFormat := 'd mmmm yyyy';
-              release_date := StrToDate(imdb_date, formatSettings);
-              formatSettings.ShortDateFormat := 'mm/dd/yyyy';
-              imdb_date := DateToStr(release_date, formatSettings);
-
-              Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
-
-              if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
-                bom_date := imdb_date
+              rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
+              if rr.Exec(bomsite) then
+              begin
+                Debug(dpError, section, 'Only one movie matched');
+                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">';
+              end
               else
-                bom_date := bom_date + '|' + imdb_date;
+              begin
+                Debug(dpError, section, 'Found more than one movie');
+
+                bom_date := '[^<>]+' + IntToStr(imdb_year);
+
+                if imdb_date <> '' then
+                begin
+                  {$IFDEF MSWINDOWS}
+                    GetLocaleFormatSettings(1033, formatSettings);
+                  {$ELSE}
+                    formatSettings := DefaultFormatSettings;
+                  {$ENDIF}
+                  formatSettings.ShortDateFormat := 'd mmmm yyyy';
+                  release_date := StrToDate(imdb_date, formatSettings);
+                  formatSettings.ShortDateFormat := 'mm/dd/yyyy';
+                  imdb_date := DateToStr(release_date, formatSettings);
+
+                  Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
+
+                  if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
+                    bom_date := imdb_date
+                  else
+                    bom_date := bom_date + '|' + imdb_date;
+                end;
+
+                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">(' + bom_date + ')<\/a>';
+              end;
+
+              if rr2.Exec(bomsite) then
+              begin
+                s := Csere(rr2.Match[3], ',', '');
+                if StrToIntDef(s, 0) > imdb_screens then
+                  imdb_screens := StrToIntDef(s, 0);
+
+                Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
+              end;
             end;
-
-            rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">(' + bom_date + ')<\/a>';
-          end;
-
-          if rr2.Exec(bomsite) then
-          begin
-            s := Csere(rr2.Match[3], ',', '');
-            if StrToIntDef(s, 0) > imdb_screens then
-              imdb_screens := StrToIntDef(s, 0);
-
-            Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
           end;
         end;
-
 
         imdbdata.imdb_screens := imdb_screens;
 
@@ -599,11 +665,11 @@ begin
             end;
 
             rr.Expression :=
-              '<h\d[^>]>Box\s*Office<\/h\d>.*?<h\d class="inline">Gross\:<\/h\d>';
+              '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
             if not rr.Exec(mainsite) then
             begin
               imdb_stv := True;
-              imdbdata.imdb_stvs := 'No gross weight found, so its STV!';
+              imdbdata.imdb_stvs := 'No Box Office found, so its STV!';
               imdbdata.imdb_wide := False;
               imdbdata.imdb_ldt := False;
             end;
