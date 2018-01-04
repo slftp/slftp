@@ -618,8 +618,9 @@ begin
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
-    TryEncodeDateTime(2017,9,30,0,0,0,0,endOftvdbAPIDate);
+    TryEncodeDateTime(2018,5,30,0,0,0,0,endOftvdbAPIDate);
     // just a hotfix to be ready when the API is down (October 1st, 2017)
+    // update 01/2018: This version of the API will continue to function until at which time it will be discontinued.
     if endOftvdbAPIDate > Now then
     begin
       TryToGetTheTVDBGenre:
