@@ -1872,34 +1872,53 @@ begin
 
   if dirlist.skiplist = nil then exit;
 
-  ldepth := dirlist.Depth();
-
-    if ( not skiplisted ) then
+  if ( not skiplisted ) then
+  begin
+    if not directory then
     begin
-      if not directory then
+      s := dirlist.Dirname;
+
+      // first we look for ftprush screwed up files like (1).nfo
+      l := length(filename);
+      if l > length(Extension) + 6 then
       begin
-        s := dirlist.Dirname;
-        sf := dirlist.skiplist.AllowedFile(s, filename);
-
-        // first we look for ftprush screwed up files like (1).nfo
-        l := length(filename);
-        if l > length(Extension) + 6 then
+        // first one is for 3 chars in extension like .nfo, .rar, .mp3, .r02 and second one is for 4 chars like .flac
+        if ( (filename[l-6] = '(') and (filename[l-4] = ')') and (filename[l-5] in ['0'..'9']) ) or ( (filename[l-7] = '(') and (filename[l-5] = ')') and (filename[l-6] in ['0'..'9']) ) then
         begin
-          // first one is for 3 chars in extension like .nfo, .rar, .mp3, .r02 and second one is for 4 chars like .flac
-          if ( (filename[l-6] = '(') and (filename[l-4] = ')') and (filename[l-5] in ['0'..'9']) ) or ( (filename[l-7] = '(') and (filename[l-5] = ')') and (filename[l-6] in ['0'..'9']) )then
-          begin
-            skiplisted := True;
-            dirlist.skipped.Add(filename);
-            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
-            exit;
-          end;
+          skiplisted := True;
+          dirlist.skipped.Add(filename);
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
+          exit;
         end;
+      end;
 
+      sf := dirlist.skiplist.AllowedFile(s, filename);
+
+      if sf = nil then
+      begin
+        skiplisted := True;
+        dirlist.skipped.Add(filename);
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
+      end
+      else
+      begin
+        Result := True;
+      end;
+    end
+    else
+    begin
+      ldepth := dirlist.Depth();
+
+      if ldepth < dirlist.skiplist.dirdepth then
+      begin
+        // you have to go through the alloweddirs and check if it's allowed
+        s := dirlist.Dirname;
+        sf := dirlist.skiplist.AllowedDir(s, filename);
         if sf = nil then
         begin
           skiplisted := True;
           dirlist.skipped.Add(filename);
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
         end
         else
         begin
@@ -1908,30 +1927,11 @@ begin
       end
       else
       begin
-        if ldepth < dirlist.skiplist.dirdepth then
-        begin
-          // vegig kell menni az alloweddirs-en es megnezni hogy
-          //I need to go in and see that the en-alloweddirs
-          s := dirlist.Dirname;
-          sf := dirlist.skiplist.AllowedDir(s, filename);
-          if sf = nil then
-          begin
-            skiplisted := True;
-            dirlist.skipped.Add(filename);
-            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
-          end
-          else
-          begin
-            Result := True;
-          end;
-        end
-        else
-        begin
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
-          skiplisted := True;
-        end;
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
+        skiplisted := True;
       end;
     end;
+  end;
 end;
 
 
