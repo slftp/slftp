@@ -73,7 +73,7 @@
     {^} backup on startup will only be executed after sites.dat has been successfully decrypted. (#169)
     {^} !leechers code improved.
     {^} Support for regex in IMDb Language rule
-    {-} TheTVDB support as API goes offline on October 1st, 2017 (#175)
+    {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
 
 --=============================( SLFTP v1.5.5 )===================================-
