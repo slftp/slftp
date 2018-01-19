@@ -54,6 +54,7 @@ var
   episode: int64;
   fBOMSearchNeeded: boolean;
   fBusinessInfoPart: AnsiString;
+  fRlsdateExtraInfo: AnsiString;
 begin
   Result := False;
 
@@ -403,55 +404,43 @@ begin
       begin
         rr.ModifierI := True;
 
-        // Example: <tr class="even"><td><a href="/calendar/?region=my&ref_=ttrel_rel_2">Malaysia</a></td><td class="release_date">28 September 2017</td><td></td></tr>
+        // Examples:
+        //          <tr class="even"><td><a href="/calendar/?region=my&ref_=ttrel_rel_2">Malaysia</a></td><td class="release_date">28 September 2017</td><td></td></tr>
+        //          <tr class="odd"><td><a href="/calendar/?region=us&ref_=ttrel_rel_11">USA</a></td><td class="release_date">20 October 1983</td><td> (New York City, New York)</td></tr>
+        //          <tr class="even"><td><a href="/calendar/?region=us&ref_=ttrel_rel_12">USA</a></td><td class="release_date">1 December 1983</td><td></td></tr>
+        //          <tr class="odd"><td><a href="/calendar/?region=us&ref_=ttrel_rel_1">USA</a></td><td class="release_date">24 September 2017</td><td> (Beijing) (premiere)</td></tr>
+        //          <tr class="even"><td><a href="/calendar/?region=us&ref_=ttrel_rel_32">USA</a></td><td class="release_date">18 December 2017</td><td> (internet)</td></tr>
         rr.Expression :=
-          '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country
-          + '<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<\/td>[\s\n]*?<td><\/td>[\s\n]*?<\/tr>';
+        '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country
+          + '<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<\/td>[\s\n]*?<td>(.*?)<\/td><\/tr>';
         if rr.Exec(rlsdatesite) then
         begin
           imdb_date := Trim(rr.Match[2]);
+          fRlsdateExtraInfo := Trim(rr.Match[3]);
           imdbdata.imdb_stvs := 'Cinedate: ' + imdb_date;
           imdbdata.imdb_stvm := False;
           imdb_stv := False;
           (* Fetching Cinedate for imdb_country *)
           imdbdata.imdb_cineyear :=  StrToIntDef(copy(imdb_date, Length(imdb_date) - 4, 4), -1);
-        end
-        else
-        begin
-          imdbdata.imdb_stvs := 'No infos around for ' + imdb_country + ' so it is STV?!';
-          imdbdata.imdb_stvm := True;
-          imdb_stv := True;
-        end;
-      end;
 
-      // Examples:
-      //  <tr class="odd"><td><a href="/calendar/?region=cn&ref_=ttrel_rel_1">China</a></td><td class="release_date">24 September 2017</td><td> (Beijing) (premiere)</td></tr>
-      //  <tr class="even"><td><a href="/calendar/?region=gb&ref_=ttrel_rel_32">UK</a></td><td class="release_date">18 December 2017</td><td> (internet)</td></tr>
-      rr.Expression :=
-        '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region
-        + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country +
-        '<\/a><\/td>[\s\n]*?<td class="release_date">\s*([\d\s\w]+)\s*<a href="\/year\/(\d{4})\/\?ref\_=ttrel\_rel\_\d+"\s*>\d{4}<\/a><\/td>[\s\n]*?<td>(.*?)<\/td>[\s\n]*?<\/tr>';
-      if rr.Exec(rlsdatesite) then
-      begin
-        s := rr.Match[4];
-        if s <> '' then
-        begin
-          rr2.ModifierI := True;
-          rr2.Expression := '(DVD|video|TV)(\s|\.|\-)?premiere'; // 'TV' taken from Optimus Autotrader
-          if rr2.Exec(s) then
+          if fRlsdateExtraInfo <> '' then
           begin
-            imdbdata.imdb_stvs := Format('%s (%s %s)', [rr2.Match[0], rr.Match[2], rr.Match[3]]);
-            imdb_stv := True;
+            rr2.ModifierI := True;
+            rr2.Expression := '(DVD|video|TV)(\s|\.|\-)?premiere'; // 'TV' taken from Optimus Autotrader
+            if rr2.Exec(fRlsdateExtraInfo) then
+            begin
+              imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, imdb_date, fRlsdateExtraInfo]); // USA, 5 December 2005 [(New York City, New York) (premiere)]
+              imdb_stv := True;
+            end;
+            (*  Fetching Festival infos for imdb_country  *)
+            rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market)'; // 'Film Market' taken from Optimus Autotrader
+            if rr2.Exec(fRlsdateExtraInfo) then
+            begin
+              imdbdata.imdb_festival := True;
+            end;
           end;
-          (*  Fetching Festival infos for imdb_country  *)
-          rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market)'; // 'Film Market' taken from Optimus Autotrader
-          if rr2.Exec(s) then
-            imdbdata.imdb_festival := True;
         end;
-
       end;
-
-
 
       s := '0';
       imdb_screens := 0;
@@ -471,8 +460,12 @@ begin
         begin
           fBusinessInfoPart := rr.Match[1];
 
+          // maybe check first if it list: Opening Weekend USA or other relevant countries
+
+          //Debug(dpError, section, Format('IMDb Box Office: %s', [fBusinessInfoPart]));
+
           // check what kind of Box Office info we have
-          if AnsiContainsStr(fBusinessInfoPart, 'Wide Release') then
+          if AnsiContainsText(fBusinessInfoPart, 'Wide Release') then
           begin
             imdb_stv := False;
             imdbdata.imdb_stvs := 'Wide Release';
@@ -480,7 +473,7 @@ begin
             imdbdata.imdb_ldt := False;
             fBOMSearchNeeded := False;
           end
-          else if AnsiContainsStr(fBusinessInfoPart, 'Limited') then
+          else if AnsiContainsText(fBusinessInfoPart, 'Limited') then
           begin
             imdb_stv := False;
             imdbdata.imdb_stvs := 'Limited';
@@ -488,7 +481,7 @@ begin
             imdbdata.imdb_ldt := True;
             fBOMSearchNeeded := False;
           end
-          else if AnsiContainsStr(fBusinessInfoPart, 'Gross') then
+          else if AnsiContainsText(fBusinessInfoPart, 'Gross') then
           begin
             imdb_stv := False;
             imdbdata.imdb_stvs := 'Gross weight found, so its not STV!';
@@ -578,13 +571,12 @@ begin
 
             Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
 
-            if not AnsiContainsStr(bomsite, 'No Movies or People found.') then
+            if not AnsiContainsText(bomsite, 'No Movies or People found.') then
             begin
-              rr.Expression := '<br><b>1 Movie Matches:\s*</b>';
-              if rr.Exec(bomsite) then
+              if AnsiContainsText(bomsite, '1 Movie Matches:') then
               begin
                 Debug(dpError, section, 'Only one movie matched');
-                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">';
+                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font\s+';
               end
               else
               begin
@@ -594,14 +586,19 @@ begin
 
                 if imdb_date <> '' then
                 begin
+                  Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
+
+                  // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
                   {$IFDEF MSWINDOWS}
                     GetLocaleFormatSettings(1033, formatSettings);
                   {$ELSE}
                     formatSettings := DefaultFormatSettings;
                   {$ENDIF}
+                  // some imdb_date data could be like "January 1984" - http://www.imdb.com/title/tt0085346/releaseinfo?ref_=tt_dt_dt
+                  // so we need to handle it different
                   formatSettings.ShortDateFormat := 'd mmmm yyyy';
                   release_date := StrToDate(imdb_date, formatSettings);
-                  formatSettings.ShortDateFormat := 'mm/dd/yyyy';
+                  formatSettings.ShortDateFormat := 'mm/dd/yyyy'; // dd & mm could lead to problems, as date is shown as "7/22/1983" or "6/2/1989"
                   imdb_date := DateToStr(release_date, formatSettings);
 
                   Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
@@ -618,6 +615,7 @@ begin
               if rr2.Exec(bomsite) then
               begin
                 s := Csere(rr2.Match[3], ',', '');
+
                 if StrToIntDef(s, 0) > imdb_screens then
                   imdb_screens := StrToIntDef(s, 0);
 
@@ -625,59 +623,60 @@ begin
               end;
             end;
           end;
-        end;
 
-        imdbdata.imdb_screens := imdb_screens;
+          imdbdata.imdb_screens := imdb_screens;
 
-        imdbdata.imdb_wide := False;
-        imdbdata.imdb_ldt := False;
-
-        if (imdbdata.imdb_screens > 599) then
-        begin
-          imdbdata.imdb_wide := True;
-          imdbdata.imdb_ldt := False;
-        end
-        else
-        begin
           imdbdata.imdb_wide := False;
-          imdbdata.imdb_ldt := True;
-        end;
+          imdbdata.imdb_ldt := False;
 
-        if rlang = 'USA' then
-        begin
-          if imdbdata.imdb_screens = 0 then
+          if (imdbdata.imdb_screens > 599) then
           begin
-            imdb_stv := True;
-            imdbdata.imdb_stvs := 'USA and zero screens = STV!';
-            imdbdata.imdb_wide := False;
+            imdbdata.imdb_wide := True;
             imdbdata.imdb_ldt := False;
-
-            //Sometimes imdb box office has no screens for cine stuff, so we need to be tricky ;) yay i love that game :)
-            rr.Expression :=
-              '<a href="\/title\/tt\d+\/business\?ref_=.*?"[\r\n\s]+class=\"quicklink quicklinkGray\" >Box Office\/Business<\/a>';
-            if not rr.Exec(mainsite) then
-            begin
-              imdb_stv := True;
-              imdbdata.imdb_stvs := 'No Link to business found, so its STV!';
-              imdbdata.imdb_wide := False;
-              imdbdata.imdb_ldt := False;
-            end;
-
-            rr.Expression :=
-              '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
-            if not rr.Exec(mainsite) then
-            begin
-              imdb_stv := True;
-              imdbdata.imdb_stvs := 'No Box Office found, so its STV!';
-              imdbdata.imdb_wide := False;
-              imdbdata.imdb_ldt := False;
-            end;
           end
           else
           begin
-            imdb_stv := False;
-            imdbdata.imdb_stvs := 'USA with screens can''t be STV!';
+            imdbdata.imdb_wide := False;
+            imdbdata.imdb_ldt := True;
           end;
+
+          if rlang = 'USA' then
+          begin
+            if imdbdata.imdb_screens = 0 then
+            begin
+              imdb_stv := True;
+              imdbdata.imdb_stvs := 'USA and zero screens = STV!';
+              imdbdata.imdb_wide := False;
+              imdbdata.imdb_ldt := False;
+
+              //Sometimes imdb box office has no screens for cine stuff, so we need to be tricky ;) yay i love that game :)
+              rr.Expression :=
+                '<a href="\/title\/tt\d+\/business\?ref_=.*?"[\r\n\s]+class=\"quicklink quicklinkGray\" >Box Office\/Business<\/a>';
+              if not rr.Exec(mainsite) then
+              begin
+                imdb_stv := True;
+                imdbdata.imdb_stvs := 'No Link to business found, so its STV!';
+                imdbdata.imdb_wide := False;
+                imdbdata.imdb_ldt := False;
+              end;
+
+              rr.Expression :=
+                '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
+              if not rr.Exec(mainsite) then
+              begin
+                imdb_stv := True;
+                imdbdata.imdb_stvs := 'No Box Office found, so its STV!';
+                imdbdata.imdb_wide := False;
+                imdbdata.imdb_ldt := False;
+              end;
+            end
+            else
+            begin
+              imdb_stv := False;
+              imdbdata.imdb_stvs := 'USA with screens can''t be STV!';
+            end;
+          end;
+
         end;
 
       end;
