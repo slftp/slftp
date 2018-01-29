@@ -55,8 +55,10 @@ var
   fBOMSearchNeeded: boolean;
   fBusinessInfoPart: AnsiString;
   fRlsdateExtraInfo: AnsiString;
+  fPictureID: AnsiString;
 begin
   Result := False;
+  fPictureID := '';
 
   if (rls = '') then
   begin
@@ -139,6 +141,7 @@ begin
       imdb_year := StrToInt(rr.Match[3]);
     end;
 
+
     {
     * examples
     * old -> mtitle: Die glorreichen Sieben -- year: 2016 -- extra:
@@ -169,6 +172,8 @@ begin
     *)
 
     imdbdata := TDbImdbData.Create(imdb_id);
+
+    imdbdata.imdb_origtitle := imdb_mtitle;
 
     rr2 := TRegexpr.Create;
     try
@@ -426,14 +431,14 @@ begin
           if fRlsdateExtraInfo <> '' then
           begin
             rr2.ModifierI := True;
-            rr2.Expression := '(DVD|video|TV)(\s|\.|\-)?premiere'; // 'TV' taken from Optimus Autotrader
+            rr2.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
             if rr2.Exec(fRlsdateExtraInfo) then
             begin
               imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, imdb_date, fRlsdateExtraInfo]); // USA, 5 December 2005 [(New York City, New York) (premiere)]
               imdb_stv := True;
             end;
             (*  Fetching Festival infos for imdb_country  *)
-            rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market)'; // 'Film Market' taken from Optimus Autotrader
+            rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
             if rr2.Exec(fRlsdateExtraInfo) then
             begin
               imdbdata.imdb_festival := True;
@@ -565,62 +570,77 @@ begin
 
         if fBOMSearchNeeded then
         begin
-          if ((config.ReadBool(section, 'parse_boxofficemojo', True)) and (imdb_screens = 0)) then
+          bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
+
+          Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
+
+          if not AnsiContainsText(bomsite, 'No Movies or People found.') then
           begin
-            bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
 
-            Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
-
-            if not AnsiContainsText(bomsite, 'No Movies or People found.') then
+            // BOM uses the same picture as IMDB does, so we can use it do identify the correct movie
+            {
+            * Examples:
+            * IMDB: <meta property='og:image' content="https://images-na.ssl-images-amazon.com/images/M/MV5BMTkxMjgwMDM4Ml5BMl5BanBnXkFtZTgwMTk3NTIwNDE@._V1_UY1200_CR90,0,630,1200_AL_.jpg" />
+            * BOM:  <img src="https://images-na.ssl-images-amazon.com/images/M/MV5BMTkxMjgwMDM4Ml5BMl5BanBnXkFtZTgwMTk3NTIwNDE@._V1_UY119_CR0,0,80,119_AL.jpg" border="1"
+            }
+            rr.Expression := '<meta property=\''og:image\'' content=\"https:\/\/.*?images\/\w\/([\w@?]+)';
+            if rr.Exec(mainsite) then
             begin
-              if AnsiContainsText(bomsite, '1 Movie Matches:') then
+              fPictureID := rr.Match[1];
+            end;
+
+            if fPictureID <> '' then
+            begin
+              Debug(dpError, section, Format('Found movie by Picture Link: %s', [fPictureID]));
+              rr2.Expression := '<a href=\".*?\"https:\/\/.*?(images)\/\w\/' + fPictureID + '.*?td>\s*[^\n]*<td\s*[^\n]*\s*[^\n]*(.*?)\s*[^\n]*\">(.*?)<\/font>';
+            end
+            else if AnsiContainsText(bomsite, '1 Movie Matches:') then
+            begin
+              Debug(dpError, section, 'Only one movie matched');
+              rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font\s+';
+            end
+            else
+            begin
+              Debug(dpError, section, 'Found more than one movie');
+
+              bom_date := '[^<>]+' + IntToStr(imdb_year);
+
+              if imdb_date <> '' then
               begin
-                Debug(dpError, section, 'Only one movie matched');
-                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font\s+';
-              end
-              else
-              begin
-                Debug(dpError, section, 'Found more than one movie');
+                Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
 
-                bom_date := '[^<>]+' + IntToStr(imdb_year);
+                // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
+                {$IFDEF MSWINDOWS}
+                  GetLocaleFormatSettings(1033, formatSettings);
+                {$ELSE}
+                  formatSettings := DefaultFormatSettings;
+                {$ENDIF}
+                // some imdb_date data could be like "January 1984" - http://www.imdb.com/title/tt0085346/releaseinfo?ref_=tt_dt_dt
+                // so we need to handle it different
+                formatSettings.ShortDateFormat := 'd mmmm yyyy';
+                release_date := StrToDate(imdb_date, formatSettings);
+                formatSettings.ShortDateFormat := 'mm/dd/yyyy'; // dd & mm could lead to problems, as date is shown as "7/22/1983" or "6/2/1989"
+                imdb_date := DateToStr(release_date, formatSettings);
 
-                if imdb_date <> '' then
-                begin
-                  Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
+                Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
 
-                  // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
-                  {$IFDEF MSWINDOWS}
-                    GetLocaleFormatSettings(1033, formatSettings);
-                  {$ELSE}
-                    formatSettings := DefaultFormatSettings;
-                  {$ENDIF}
-                  // some imdb_date data could be like "January 1984" - http://www.imdb.com/title/tt0085346/releaseinfo?ref_=tt_dt_dt
-                  // so we need to handle it different
-                  formatSettings.ShortDateFormat := 'd mmmm yyyy';
-                  release_date := StrToDate(imdb_date, formatSettings);
-                  formatSettings.ShortDateFormat := 'mm/dd/yyyy'; // dd & mm could lead to problems, as date is shown as "7/22/1983" or "6/2/1989"
-                  imdb_date := DateToStr(release_date, formatSettings);
-
-                  Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
-
-                  if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
-                    bom_date := imdb_date
-                  else
-                    bom_date := bom_date + '|' + imdb_date;
-                end;
-
-                rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">(' + bom_date + ')<\/a>';
+                if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
+                  bom_date := imdb_date
+                else
+                  bom_date := bom_date + '|' + imdb_date;
               end;
 
-              if rr2.Exec(bomsite) then
-              begin
-                s := Csere(rr2.Match[3], ',', '');
+              rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font[^<>]*|<a href="\/schedule[^\"]+">(' + bom_date + ')<\/a>';
+            end;
 
-                if StrToIntDef(s, 0) > imdb_screens then
-                  imdb_screens := StrToIntDef(s, 0);
+            if rr2.Exec(bomsite) then
+            begin
+              s := Csere(rr2.Match[3], ',', '');
 
-                Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
-              end;
+              if StrToIntDef(s, 0) > imdb_screens then
+                imdb_screens := StrToIntDef(s, 0);
+
+              Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
             end;
           end;
 
