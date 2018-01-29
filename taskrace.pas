@@ -778,9 +778,21 @@ begin
 
       530:
         begin
-          if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then // 530 Make Directory Access denied - Due to Regexp configuration
+          //COMPLETE MSG: 530 Make Directory Access denied - Due to Regexp configuration
+          if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then
           begin
             failure := True;
+          end
+          //COMPLETE MSG: 530 Access denied (The string "/TV-SD/The.Price.Is.Right.S46E77.WEB.x264-W4F" not allowed in this directory name)
+          else if (0 <> Pos('not allowed in this directory name', s.lastResponse)) then
+          begin
+            failure := True;
+          end
+          else
+          begin
+            Debug(dpError, c_section, 'TPazoMkdirTask unhandled 530 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]);
+            irc_Addadmin(Format('TPazoMkdirTask unhandled 530 response, tell your developer about it! %s: %s --- dir: %s %s', [s.Name, s.lastResponse, aktdir, ps1.maindir]));
+            failure := True;  // we don't know if it's a really error or not, so we better say it's failed
           end;
         end;
 
