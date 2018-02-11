@@ -624,7 +624,7 @@ begin
 
                 Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
 
-                if config.ReadBool(section, 'parse_boxofficemojo_exact', False) then
+                if config.ReadBool('dbaddimdb', 'parse_boxofficemojo_exact', False) then
                   bom_date := imdb_date
                 else
                   bom_date := bom_date + '|' + imdb_date;
