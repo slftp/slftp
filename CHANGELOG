@@ -38,6 +38,7 @@
 
     NEW slftp.ini parameter(s):
       only_use_routable_sites_on_reqfill=0
+      parse_boxofficemojo_exact=0
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
@@ -50,16 +51,16 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
+    {+} Box Office Mojo support
     {+} News System to store important messages to encrypted file. (#173, #164)
+    {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} New !affils command.
+    {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
     {+} !status and !uptime shows if you use 32/64-bit version of slftp and used compiler version
     {+} !lastlog command to show last log entries. (#160)
     {+} Support for CTCP Requests (might be useful for scripters)
-    {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} Show a warn message if important files not found on startup
-    {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
     {+} Show PID & actual memory usage in !status command (atm linux only!) (#170)
-    {+} Experimental Box Office Mojo support
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -74,6 +75,7 @@
     {^} !leechers code improved.
     {^} Support for regex in IMDb Language rule
     {^} Detection for iOFTPD sites
+    {^} IMDb parsing code update due to recent website changes
     {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
 

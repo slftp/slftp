@@ -904,7 +904,7 @@ begin
     if skiplist <> nil then
     begin
       try
-        RegenerateSkiplist;
+        RegenerateSkiplist; // think it'll call RegenerateSkiplist several times for already existing files (which are already checked above when added)
       except
         on E: Exception do
         begin
