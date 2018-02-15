@@ -992,7 +992,7 @@ end;
 function TPazoMkdirTask.Name: AnsiString;
 begin
   try
-    Result := 'MKDIR <b>' + site1 + '</b> ' + mainpazo.rls.rlsname + ' ' + dir;
+    Result := 'MKDIR ' + IntToStr(pazo_id) + ' <b>' + site1 + '</b> ' + mainpazo.rls.rlsname + ' ' + dir;
   except
     Result := 'MKDIR';
   end;
