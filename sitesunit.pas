@@ -944,15 +944,15 @@ begin
     if site.sw <> sswDrftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswDrftpd));
   end
-  else if (0 < Pos('CPSV', lastResponse)) then
-  begin
-    if site.sw <> sswGlftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
-  end
   else if (0 < Pos('Command not understood', lastResponse)) or (0 < Pos('TVFS', lastResponse)) or (0 < Pos('XCRC', lastResponse)) then
   begin
     if site.sw <> sswIoftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
+  end
+  else if (0 < Pos('CPSV', lastResponse)) then
+  begin
+    if site.sw <> sswGlftpd then
+      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
   end;
 end;
 
