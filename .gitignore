@@ -51,6 +51,7 @@ Win64/*
 
 # Lazarus local files (user-specific info)
 *.lps
+*.lpi
 
 # Lazarus backups and unit output folders.
 backup/*
