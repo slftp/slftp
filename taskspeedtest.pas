@@ -2,7 +2,8 @@ unit taskspeedtest;
 
 interface
 
-uses tasksunit, sltcp;
+uses
+  tasksunit, sltcp;
 
 type
   TDelSpeedtestFileTask = class(TTask)
@@ -29,7 +30,8 @@ var speedtestfilename: AnsiString;
 
 implementation
 
-uses DateUtils, configunit, SysUtils, debugunit, irc, sitesunit, mystrings, helper;
+uses
+  DateUtils, configunit, SysUtils, debugunit, irc, sitesunit, mystrings;
 
 const section = 'speedtest';
 

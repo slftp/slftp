@@ -3,7 +3,8 @@ unit pazo;
 // EZTA Z UNITOT CSAK A QUEUE_LOCK ZARASA UTAN SZABAD HIVNI!
 interface
 
-uses Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals;
+uses
+  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -185,7 +186,7 @@ implementation
 
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
-  taskrace, mystrings, irc, sltcp, slhelper, Math, helper, taskpretime, configunit,
+  taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit;
 
 const
