@@ -2,7 +2,8 @@ unit irc;
 
 interface
 
-uses Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp;
+uses
+  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp;
 
 type
   TIRCChannroles = record
@@ -181,7 +182,7 @@ implementation
 
 uses
   debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
-  socks5, versioninfo, helper, mystrings, DateUtils, irccommandsunit,
+  socks5, versioninfo, mystrings, DateUtils, irccommandsunit,
   sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl,
   dbaddimdb, dbaddgenre, news, StrUtils
   {$IFDEF MSWINDOWS}

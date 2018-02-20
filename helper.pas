@@ -4,8 +4,6 @@ interface
 
 function MyGetPass(prompt: AnsiString): AnsiString;
 function MyGetUsername: AnsiString;
-procedure mySleep(sec: Integer; var slshutdown: Boolean);
-function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
 
 implementation
 
@@ -105,28 +103,5 @@ uses SysUtils, StrUtils,
     Result := StrPas(pwentry^.pw_name);
   end;
 {$ENDIF}
-
-procedure mySleep(sec: Integer; var slshutdown: Boolean);
-var
-  i: integer;
-begin
-  for i := 1 to sec * 2 do
-  begin
-    Sleep(500);
-    if slshutdown then Exit;
-  end;
-end;
-
-function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
-var
-  i, j: Integer;
-begin
-  Result := '';
-  i := Pos('226- | Genre  : ', s);
-  if i = 0 then
-    exit;
-  j := PosEx('|', s, i + 10);
-  Result := Trim(Copy(s, i+16, j-i-17));
-end;
 
 end.

@@ -15,12 +15,29 @@ type
     function Name: AnsiString; override;
   end;
 
+// TODO: Implement it similiar for other ftpd response as drftpd and glftpd output genre too
+//function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
+
 implementation
 
 uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
 
 const
   section = 'taskgenredirlist';
+
+{
+function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
+var
+  i, j: Integer;
+begin
+  Result := '';
+  i := Pos('226- | Genre  : ', s);
+  if i = 0 then
+    exit;
+  j := PosEx('|', s, i + 10);
+  Result := Trim(Copy(s, i+16, j-i-17));
+end;
+}
 
 { TPazoGenreDirlistTask }
 

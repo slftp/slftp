@@ -67,7 +67,7 @@ type
 implementation
 
 uses
-  StrUtils, kb, helper, sitesunit, configunit, taskdel, DateUtils,
+  StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
 
