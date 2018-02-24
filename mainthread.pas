@@ -82,7 +82,7 @@ begin
 
   if not sltcp_inited then
   begin
-    Result := 'Couldnt init TCP library!';
+    Result := 'Couldnt init TCP library! TCP Error: ' + sltcp_error;
     exit;
   end;
 
