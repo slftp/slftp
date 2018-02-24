@@ -1,0 +1,11 @@
+find * -name "*.tmpl" -type f -delete
+find * -name "*.dpk" -type f -delete
+find * -name "*.bdsproj" -type f -delete
+find * -name "*.proj" -type f -delete
+find * -name "*.rc" -type f -delete
+find * -name "*.dproj" -type f -delete
+find * -name "*.ico" -type f -delete
+find * -name "*.resources" -type f -delete
+find * -name "*.res" -type f -delete
+find * -name "*.bmp" -type f -delete
+find * -name "*.cfg*" -type f -delete
