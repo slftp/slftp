@@ -213,7 +213,7 @@ function sendfile64(__out_fd:longint; __in_fd:longint; offset:Pointer; __count:s
 var
   slDefaultSocks5: TslSocks5;
   sltcp_LocalAddresses: TStringList;
-  sltcp_error: AnsiString;
+  sltcp_error: AnsiString; //< Holds the last occured TCP Error
   sltcp_inited: Boolean = False;
   sltcp_onwaitingforsocket: TWaitingForSocket = nil;
 
