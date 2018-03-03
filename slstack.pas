@@ -15,7 +15,7 @@ uses
   {$ENDIF}
 {$ELSE}
   {$IFDEF MSWINDOWS}
-  Windows, IdWinsock2
+  Windows,  slWinSock2
   {$ELSE}
     Libc
   {$ENDIF}
@@ -91,24 +91,31 @@ implementation
 
 uses slhelper;
 
+{$IFDEF FPC}
 function slStackInit(var error: AnsiString): Boolean;
 begin
-{$IFDEF MSWINDOWS}
-  Result := False;
-
-  try
-    InitializeWinSock;
-  except
-    on e : Exception do
-    begin
-      error := e.FWin32ErrorMessage;
-      exit;
-    end;
-  end;
-{$ENDIF}
-
-  Result := True;
+  Result:= True;
 end;
+{$ELSE}
+function slStackInit(var error: AnsiString): Boolean;
+{$IFDEF MSWINDOWS}
+var
+  sData: TWSAData;
+{$ENDIF}
+begin
+{$IFDEF MSWINDOWS}
+  Result:= False;
+  if WSAStartup($202, sData) = SOCKET_ERROR then
+  begin
+    error:= slWinsock2error;
+    exit;
+  end;
+{$ELSE}
+  // nothing to do on linux
+{$ENDIF}
+  Result:= True;
+end;
+{$ENDIF}
 
 {$IFDEF MSWINDOWS}
 function slSetnonblocking(s: TslSocket; var error: AnsiString): Boolean;
