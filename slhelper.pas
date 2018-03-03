@@ -20,7 +20,7 @@ uses
   sockets
 {$ELSE}
   {$IFDEF MSWINDOWS}
-    IdWinsock2
+    slWinSock2
   {$ELSE}
     Libc
   {$ENDIF}
