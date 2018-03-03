@@ -762,8 +762,6 @@ begin
           end;
         end;
 
-
-
       450:
         begin
           //COMPLETE MSG: 450 No transfer-slave(s) available
@@ -774,17 +772,16 @@ begin
           end;
         end;
 
-
-
       530:
         begin
-          //COMPLETE MSG: 530 Make Directory Access denied - Due to Regexp configuration
-          if (0 <> AnsiPos('Make Directory Access denied', s.lastResponse)) then
+          //COMPLETE MSG: 530 Access denied (The string "/TV-SD/The.Price.Is.Right.S46E77.WEB.x264-W4F" not allowed in this directory name)
+          if (0 <> Pos('not allowed in this directory name', s.lastResponse)) then
           begin
             failure := True;
           end
-          //COMPLETE MSG: 530 Access denied (The string "/TV-SD/The.Price.Is.Right.S46E77.WEB.x264-W4F" not allowed in this directory name)
-          else if (0 <> Pos('not allowed in this directory name', s.lastResponse)) then
+          //COMPLETE MSG: 530 Make Directory Access denied - Due to Regexp configuration
+          //COMPLETE MSG: 530 Access denied
+          else if (0 <> AnsiPos('Access denied', s.lastResponse)) then
           begin
             failure := True;
           end
@@ -1414,6 +1411,17 @@ begin
           if (0 < AnsiPos('Connection refused', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]));
+            ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+        end;
+
+      426:
+        begin
+          if (0 < AnsiPos('Broken pipe', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]));
             ssrc.Quit;
             sdst.Quit;
             goto TryAgain;
