@@ -11024,20 +11024,20 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := config.ReadString('sites', 'ratio_regex', '\[?(R(atio)?|Shield|Health\s?)[\:\(]\s*(.*?)[)\]]');
+    x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)');
     if x.Exec(line) then
     begin
       if (AnsiContainsText(x.Match[3], 'Unlimited') or (x.Match[3] = '1:0.0')) then
         ratio := 'Unlimited'
       else
-        ratio := x.Match[3];
+        ratio := x.Match[2];
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex', '\[?(C(redits|reds)?|Damage|Ha\-ooh\!)[:(]?\s?([\-\d\.\,]+)((M|G|T)B|(E|Z)P)[\]\)]?');
+    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\s?([\-\d\.\,]+)\s?(MB|GB|TB|EP|ZP)\]?');
     if x.Exec(line) then
     begin
       minus := False;
-      ss := x.Match[3];
+      ss := x.Match[2];
       if AnsiContainsText(ss, '-') then
       begin
         minus := True;
@@ -11050,7 +11050,7 @@ begin
       ss := StringReplace(ss, '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
 {$ENDIF}
       c := strtofloat(ss);
-      ss := x.Match[4];
+      ss := x.Match[3];
       if AnsiUpperCase(ss) = 'MB' then
       begin
         ss := 'MB';
