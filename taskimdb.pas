@@ -57,7 +57,7 @@ end;
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, slhttp, regexpr,
+     configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr,
      tasksitenfo, Contnrs;
 
 const
@@ -101,7 +101,7 @@ begin
   begin
     // start leeching nfo
     AddTask(TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, 1));
-    
+
     if attempt < config.readInteger(section, 'readd_attempts', 5) then begin
       Debug(dpSpam, section, 'READD: do not have the nfo file!');
       r:= TPazoImdbTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);

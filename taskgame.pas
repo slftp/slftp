@@ -20,7 +20,7 @@ type
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, slhttp, regexpr,
+     configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr,
      sllanguagebase;
 
 const section = 'taskgame';

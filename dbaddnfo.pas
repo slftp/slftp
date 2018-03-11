@@ -31,7 +31,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit, taskhttpnfo,
+  sitesunit, queueunit, slmasks, regexpr, debugunit, taskhttpnfo,
   dbaddurl, dbaddimdb, pazo;
 
 const
