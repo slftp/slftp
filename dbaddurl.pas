@@ -29,7 +29,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, slhttp, debugunit, dbaddimdb;
+  sitesunit, queueunit, slmasks, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';
