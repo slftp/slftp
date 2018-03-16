@@ -39,7 +39,7 @@ implementation
 
 uses
   DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings,
-  sltcp, slhttp, RegExpr, irc, mrdohutils;
+  sltcp, http, RegExpr, irc, mrdohutils;
 
 const
   section = 'taskpretime';
@@ -103,11 +103,15 @@ begin
   Result := True;
 end;
 
+// TODO: Improve code and use different regex stuff, so that it could be used with a public predb (e.g. predb.ws)
+//        maybe it loops it if no result is given as ready value is only set to true if url is empty
 function TPazoPretimeLookupTask.FetchTimeFromPHP: boolean;
 var
   response: TStringList;
   prex: TRegexpr;
   i: integer;
+  fHttpGetErrMsg: String;
+  fStrHelper: String;
 begin
   Result := False;
 
@@ -122,7 +126,15 @@ begin
 
   response := TStringList.Create;
   try
-    response.Text := slUrlGet(Format(url, [mainpazo.rls.rlsname]));
+    if not HttpGetUrl(url + mainpazo.rls.rlsname, fStrHelper, fHttpGetErrMsg) then
+    begin
+      Debug(dpError, section, Format('[FAILED] Pretime fetch from HTTP for %s --> %s ', [mainpazo.rls.rlsname, fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> Pretime fetch from HTTP for %s --> %s', [mainpazo.rls.rlsname, fHttpGetErrMsg]));
+      exit;
+    end;
+
+    response.Text := fStrHelper;
+
     debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [mainpazo.rls.rlsname, response.Text]);
     prex := TRegexpr.Create;
     try

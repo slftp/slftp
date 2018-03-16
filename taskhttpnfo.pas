@@ -19,8 +19,8 @@ type
 
 implementation
 
-uses SysUtils, irc, debugunit, dateutils, tags,
-     configunit, dirlist, dbaddnfo, slhttp, sitesunit;
+uses
+  SysUtils, irc, debugunit, dateutils, configunit, dirlist, dbaddnfo, http, sitesunit;
 
 const
   section = 'taskhttpnfo';
@@ -36,20 +36,19 @@ begin
 end;
 
 function TPazoHTTPNfoTask.Execute(slot: Pointer): Boolean;
-var nfo_data: AnsiString;
+var
+  nfo_data: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   Result:= False;
 
-  try
-    nfo_data:= slUrlGet(nfo_url);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoHTTPNfoTask slUrlGet: Exception : %s', [e.Message]));
-      Result:= True;
-      ready:= True;
-      exit;
-    end;
+  if not HttpGetUrl(nfo_url, nfo_data, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, Format('[FAILED] TPazoHTTPNfoTask for %s --> %s ', [nfo_rls, fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPNfoTask for %s --> %s', [nfo_rls, fHttpGetErrMsg]));
+    Result := True;
+    ready := True;
+    exit;
   end;
 
   if (length(nfo_data) < 10) then

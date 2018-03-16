@@ -661,7 +661,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-  RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
+  RegExpr, mslproxys, http, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers;
@@ -9568,12 +9568,13 @@ begin
 end;
 
 /// dOH mODz
-
+// TODO: it's not used or? Remove or fix it? Emptry url? don't know...^e
 function Irctestoffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   voctime, vctime, vnow, cnow: int64;
   response, url, ss, s: AnsiString;
   x: TRegExpr;
+  fHttpGetErrMsg: String;
 begin
   //  Result := False;
 
@@ -9589,7 +9590,12 @@ begin
 
     if params <> '' then
     begin
-      response := slUrlGet(format(url, [params]));
+      if not HttpGetUrl(url + params, response, fHttpGetErrMsg) then
+      begin
+        irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> Offset TEST --> %s', [fHttpGetErrMsg]));
+        exit;
+      end;
+
       if x.Exec(response) then
       begin
         voctime := strtoint64(x.Match[2]);
@@ -11626,6 +11632,7 @@ function IrcUpdateTVMazeInfo(const Netname, Channel: AnsiString; params: AnsiStr
 var
   respo, tvmaze_id, tv_showname: AnsiString;
   otvr, newtvi: TTVInfoDB;
+  fHttpGetErrMsg: String;
 begin
   Result := false;
 
@@ -11656,15 +11663,19 @@ begin
     exit;
   end;
 
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-
-  if respo = '' then
+  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
   begin
     if tv_showname <> '' then
-      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for %s (ID :%s) was empty.', [tv_showname, tvmaze_id])
+      Irc_AddText(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze Update for %s (ID: %s) --> %s', [tv_showname, tvmaze_id, fHttpGetErrMsg]))
     else
-      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for ID %s was empty.', [tvmaze_id]);
+      Irc_AddText(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze Update for %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
     exit;
+  end;
+
+  if ((respo = '') or (respo = '[]')) then
+  begin
+    Irc_AddText(Netname, Channel, '<c4>IrcUpdateTVMazeInfo</c>: No Result from TVMaze API when updating %s', [tvmaze_id]);
+    Exit;
   end;
 
   try
@@ -11685,7 +11696,7 @@ begin
 
   except on e: Exception do
     begin
-      irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]);
+      Irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]);
       Exit;
     end;
   end;
@@ -11747,6 +11758,7 @@ var
   i, sresMAXi: integer;
   res: TStringlist;
   showname: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
@@ -11796,23 +11808,17 @@ begin
 
   if StrToIntDef(sid, -1) > -1 then
   begin
-    try
-      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid +
-        '?embed[]=nextepisode&embed[]=previousepisode');
-    except
-      on E: Exception do
-      begin
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.add.slurlget: %s',
-          [E.Message]));
-        result := True;
-        Exit;
-      end;
+    if not HttpGetUrl('https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode', resp, fHttpGetErrMsg) then
+    begin
+      // TODO: maybe not showing correct stuff when no info was found
+      irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze API search for %s --> %s', [ssname, fHttpGetErrMsg]));
+      Result := True;
+      exit;
     end;
 
     if ((resp = '') or (resp = '[]')) then
     begin
-      irc_addtext(Netname, Channel, 'No info found for ' + ssname);
+      irc_addtext(Netname, Channel, Format('<c4>IrcUpdateTVMazeInfo</c>: No info found for %s', [ssname]));
       Result := True;
       Exit;
     end;
@@ -11838,8 +11844,8 @@ begin
   else
     irc_Addtext(netname, channel,
       '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
-  Result := True;
 
+  Result := True;
 end;
 
 function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;

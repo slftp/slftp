@@ -55,9 +55,9 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slhttp, regexpr, debugunit, pazo, taskrace,
+  sitesunit, queueunit, regexpr, debugunit, pazo, taskrace,
   precatcher, SyncObjs, DateUnit, taskpretime,
-  slsqlite, mysqlutilunit, slmysql2;
+  slsqlite, mysqlutilunit, slmysql2, http;
 
 const
   section = 'dbaddpre';
@@ -152,6 +152,8 @@ var
   url: AnsiString;
   i: integer;
   read_count: integer;
+  fHttpGetErrMsg: String;
+  fStrHelper: String;
 begin
   Result := UnixToDateTime(0);
   if rls = '' then
@@ -165,53 +167,57 @@ begin
   end;
 
   response := TStringList.Create;
-  response.Text := slUrlGet(Format(url, [rls]));
-  debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response.Text]);
-
   prex := TRegexpr.Create;
   try
-  prex.ModifierM := True;
-  prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
-  read_count := 0;
+    prex.ModifierM := True;
+    prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
+    read_count := 0;
 
-  for i := 0 to response.Count - 1 do
-  begin
-    Inc(read_count);
-    if read_count > 500 then
+    if not HttpGetUrl(url + rls, fStrHelper, fHttpGetErrMsg) then
     begin
-      irc_addtext('CONSOLE', 'ADMIN', 'Read count higher then 500');
-      Result := UnixToDateTime(0);
-      break;
+      Debug(dpError, section, Format('[FAILED] HTTP Pretime for %s --> %s ', [rls, fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> HTTP Pretime for %s --> %s', [rls, fHttpGetErrMsg]));
+      exit;
     end;
-    if prex.Exec(response.strings[i]) then
-    begin
-      Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response.DelimitedText]);
 
-      if (StrToIntDef(prex.Match[2], 0) <> 0) and
-        (StrToIntDef(prex.Match[2], 0) <> 1295645417) then
+    response.Text := fStrHelper;
+
+    Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response.Text]);
+
+    for i := 0 to response.Count - 1 do
+    begin
+      Inc(read_count);
+      if read_count > 500 then
       begin
-        Result := UnixToDateTime(StrToIntDef(prex.Match[2], 0));
-        if ((DaysBetween(Now(), Result) > 30) and
-          config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
+        irc_addtext('CONSOLE', 'ADMIN', 'Read count higher then 500');
+        Result := UnixToDateTime(0);
+        break;
+      end;
+      if prex.Exec(response.strings[i]) then
+      begin
+        Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response.DelimitedText]);
+
+        if (StrToIntDef(prex.Match[2], 0) <> 0) and
+          (StrToIntDef(prex.Match[2], 0) <> 1295645417) then
         begin
-          //        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
+          Result := UnixToDateTime(StrToIntDef(prex.Match[2], 0));
+          if ((DaysBetween(Now(), Result) > 30) and
+            config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
+          begin
+            //        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
+            Result := UnixToDateTime(0);
+          end;
+        end
+        else
+        begin
+          //      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
           Result := UnixToDateTime(0);
         end;
-      end
-      else
-      begin
-        //      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
-        Result := UnixToDateTime(0);
       end;
     end;
-  end;
-
-
   finally
-    begin
     prex.Free;
     response.Free;
-    end;
   end;
 end;
 
