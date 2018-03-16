@@ -52,7 +52,7 @@ implementation
 
 uses
   DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
-  sltcp, slhttp, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
+  http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
 
 const
   section = 'tasktvinfo';
@@ -67,6 +67,7 @@ var
   fromIRC, hadYear, hadCountry: boolean;
   tv_country, showName, year, country: AnsiString;
   jl: TlkJSONlist;
+  fHttpGetErrMsg: String;
 begin
   result := 'FAILED';
   hadYear := False;
@@ -105,7 +106,13 @@ begin
     x.free;
   end;
 
-  resp := slUrlGet('https://api.tvmaze.com/search/shows', 'q=' + replaceTVShowChars(showName, true));
+  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(showName, True), resp, fHttpGetErrMsg) then
+  begin
+    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API search by Name for %s --> %s', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
+    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s ', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
+    exit;
+  end;
+
   if ((resp = '') or (resp = '[]')) then
   begin
     irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [Csere(showName, '.', ' '), replaceTVShowChars(showName, true)]);
@@ -224,8 +231,9 @@ end;
 
 function findTheTVDbIDByName(name: AnsiString): AnsiString;
 var
-  s, url, response: AnsiString;
+  s, response: AnsiString;
   js: TlkJSONobject;
+  fHttpGetErrMsg: String;
 begin
   result := 'FAILED';
   s := Csere(name, '.and.', '.&.');
@@ -236,15 +244,11 @@ begin
   s := Csere(s, ' ', '+');
   s := Csere(s, '.', '+');
 
-  url := 'https://api.tvmaze.com/singlesearch/shows?q=' + s;
-  try
-    response := slUrlGet(url);
-  except on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] findTheTVDbIDByName (httpGET): %s', [e.Message]);
-      irc_Adderror(format('<c4>[EXCEPTION]</c> findTheTVDbIDByName (httpGET): %s', [e.Message]));
-      Exit;
-    end;
+  if not HttpGetUrl('https://api.tvmaze.com/singlesearch/shows?q=' + s, response, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, '[FAILED] TVMAZE API singlesearch by Name for %s --> %s', [s, fHttpGetErrMsg]);
+    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API singlesearch by Name for %s --> %s', [s, fHttpGetErrMsg]));
+    exit;
   end;
 
   if ((response = '') or (response = '[]')) then
@@ -271,18 +275,16 @@ end;
 
 function getGenreFromTheTVDb(const id: AnsiString): AnsiString;
 var
-  s, url: AnsiString;
+  s: AnsiString;
   xml: TSLXMLDocument;
   gn, nn, n: TSLXMLNode;
   x: TStringList;
   rx: TRegExpr;
   ts: TStream;
+  fHttpGetErrMsg: String;
 begin
-
   Result := '';
 
-  url := 'https://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/';
-  s := slUrlGet(url);
   (*
     There can be 3 posible responses:
 
@@ -290,6 +292,12 @@ begin
       2: 404 page
       3: TVDb Lags.. could be done with an timeout.  maybe we retrun something like 0xBAADF00D
   *)
+  if not HttpGetUrl('https://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/', s, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, '[FAILED] TheTVDB API for ID %s --> %s', [id, fHttpGetErrMsg]);
+    irc_Adderror(Format('<c4>[FAILED]</c> TheTVDB API for ID %s --> %s', [id, fHttpGetErrMsg]));
+    exit;
+  end;
 
   if not AnsiStartsText('<?xml', s) then
   begin
@@ -354,8 +362,7 @@ begin
     end;
 
     Result := x.CommaText;
-    Debug(dpSpam, section, '[DEBUG] getGenreFromTheTVDb: TVDBId: %s Result: %s ', [id, Result, url]);
-
+    Debug(dpSpam, section, '[DEBUG] getGenreFromTheTVDb: TVDBId: %s Result: %s', [id, Result]);
   finally
     rx.Free;
     x.Free;
@@ -705,6 +712,7 @@ var
   showA, showB, tvmaz, sid, uurl: AnsiString;
   db_tvinfo: TTVInfoDB;
   ps: TPazoSite;
+  fHttpGetErrMsg: String;
 begin
   tr := TTVRelease(mainpazo.rls);
 
@@ -763,21 +771,18 @@ begin
     exit;
   end;
 
-  try
-    uurl := 'https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode';
-    tvmaz := slUrlGet(uurl);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoTVInfoLookupTask.execute httpGET(TVMaze): Exception : %s', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TPazoTVInfoLookupTask.execute httpGET(TVMaze): Exception : %s', [e.Message]));
-      Result := True;
-      ready := True;
-      exit;
-    end;
+  uurl := 'https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode';
+
+  if not HttpGetUrl(uurl, tvmaz, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, Format('[FAILED] TVMAZE API fetch for show ID %s --> %s', [sid, fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API fetch for show ID %s --> %s', [sid, fHttpGetErrMsg]));
+    Result := True;
+    ready := True;
+    exit;
   end;
 
-  if tvmaz = '' then
+  if ((tvmaz = '') or (tvmaz = '[]')) then
   begin
     irc_addadmin('<c4><b>ERROR</c></b> http response is empty for ' + tr.showname);
     Debug(dpSpam, section, 'ERROR http response is empty for ' + tr.showname);
@@ -875,20 +880,30 @@ var
   tvdb: TTVInfoDB;
   response: AnsiString;
   ps: TPazoSite;
+  fHttpGetErrMsg: String;
 begin
   Result := False;
   showname := TTvRelease(mainpazo.rls).showname;
   tvmaze_id := TTvRelease(mainpazo.rls).showid;
 
-  response := slUrlGet('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-  if response = '' then
+  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> TVInfo updated for ' + showname + ' failed, response for was empty');
-    Debug(dpSpam, section, 'ERROR TVInfo updated for ' + showname + ' failed, response for was empty');
+    Debug(dpMessage, section, Format('[FAILED] TVMAZE API for updating ID %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API for updating ID %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
     Result := True;
     readyerror := True;
     exit;
   end;
+
+  if ((response = '') or (response = '[]')) then
+  begin
+    irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s', [showname]));
+    Debug(dpSpam, section, 'ERROR HTTP Response is empty for ' + showname);
+    Result := True;
+    readyerror := True;
+    exit;
+  end;
+
   try
     tvdb := parseTVMazeInfos(response, showname);
   except on E: Exception do
@@ -947,8 +962,8 @@ function TPazoHTTPTVInfoTask.Execute(slot: Pointer): boolean;
 var
   tvdb: TTVInfoDB;
   rx: TRegExpr;
-  uurl, sname: AnsiString;
-
+  sname: AnsiString;
+  fHttpGetErrMsg: String;
 begin
 
   rx := TRegexpr.Create;
@@ -985,13 +1000,19 @@ begin
     rx.Free;
   end;
 
-  uurl := 'https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode';
-  response := slUrlGet(uurl);
-
-  if response = '' then
+  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> no infos found for ' + rls + '(' + sname + ')');
-    Debug(dpSpam, section, '<c4><b>ERROR</c></b> no infos found for ' + rls + '(' + sname + ')');
+    Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s) : %s', [rls, sname, fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s) : %s', [rls, sname, fHttpGetErrMsg]));
+    Result := True;
+    readyerror := True;
+    exit;
+  end;
+
+  if ((response = '') or (response = '[]')) then
+  begin
+    irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s', [sname]));
+    Debug(dpSpam, section, 'ERROR HTTP Response is empty for ' + sname);
     Result := True;
     readyerror := True;
     exit;

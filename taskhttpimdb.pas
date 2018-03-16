@@ -20,9 +20,8 @@ type
 implementation
 
 uses
-  SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-  configunit, dirlist, mystrings, sitesunit, console, slhttp, regexpr,
-  dbaddimdb, tasksitenfo, Contnrs, dbtvinfo;
+  SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, http,
+  sitesunit, regexpr, dbaddimdb, Contnrs, mystrings, dbtvinfo;
 
 const
   section = 'taskhttpimdb';
@@ -56,6 +55,7 @@ var
   fBusinessInfoPart: AnsiString;
   fRlsdateExtraInfo: AnsiString;
   fPictureID: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   Result := False;
   fPictureID := '';
@@ -93,27 +93,12 @@ begin
     imdb_year := 0;
 
     (*  Fetch MainInfoPage from iMDB *)
-    try
-
-      mainsite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/', '');
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section,
-          Format('[EXCEPTION] TPazoHTTPImdbTask slUrlGet: %s ', [e.Message]));
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> TPazoHTTPImdbTask slUrlGet: %s',
-          [e.Message]));
-        Result := True;
-        ready := True;
-        exit;
-      end;
-    end;
-
-    if (length(mainsite) < 10) then
+    if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', mainsite, fHttpGetErrMsg) then
     begin
+      Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask mainpage --> %s', [fHttpGetErrMsg]));
       Result := True;
       ready := True;
-      irc_Adderror(Format('<c4>[ERROR]</c> TPazoHTTPImdbTask Size (%d) not enought : http://www.imdb.com/title/%s/ ', [length(mainsite), imdb_id]));
       exit;
     end;
 
@@ -403,7 +388,14 @@ begin
       imdb_date := '';
 
       (* Get STV Info through releaseinfo page from iMDB *)
-      rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/releaseinfo', '');
+      if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/releaseinfo', rlsdatesite, fHttpGetErrMsg) then
+      begin
+        Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
+        irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
+        Result := True;
+        ready := True;
+        exit; // TODO: skip releaseinfo webpage crawl if failed instead of stoping complete imdb parsing task
+      end;
 
       if not imdb_stv then
       begin
@@ -570,7 +562,14 @@ begin
 
         if fBOMSearchNeeded then
         begin
-          bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
+          if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + imdb_mtitle, bomsite, fHttpGetErrMsg) then
+          begin
+            Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+            Result := True;
+            ready := True;
+            exit; // TODO: skip boxofficemojo webpage crawl if failed instead of stoping complete imdb parsing task
+          end;
 
           Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
 
