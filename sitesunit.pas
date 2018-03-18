@@ -2364,7 +2364,7 @@ begin
       markeddown := True;
       working := sstDown;
       RemoveAutoIndex;
-      RemoveAutoBnctest;
+      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
       RemoveAutoRules;
     end;
   end;
@@ -2382,7 +2382,7 @@ begin
       markeddown := True;
       working := sstDown;
       RemoveAutoIndex;
-      RemoveAutoBnctest;
+      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
       RemoveAutoRules;
     end;
   end;
