@@ -1,5 +1,12 @@
 program slftp;
 {$MODE Delphi}
+
+{$IFDEF FPC}
+  {$IFDEF VER1 or VER2}
+    {$stop Please upgrade your Free Pascal Compiler version to at least 3.0.0 }
+  {$ENDIF}
+{$ENDIF}
+
 {$IFDEF WINDOWS}
   {$APPTYPE CONSOLE}
 {$ENDIF}
