@@ -69,6 +69,9 @@ function MakeStringRight(mi, mivel: AnsiString; c: integer): AnsiString;
 function MakeFullPath(s: AnsiString): AnsiString;
 function GetByte(i, b: longword): byte;
 function GetInteger(b1, b2, b3, b4: byte): longword;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: boolean): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString; overload;
+function UrlDecode(const EncodedStr: AnsiString): AnsiString;
 function MyToday: AnsiString;
 function MyTimeToStr(x: TDateTime): AnsiString;
 function MyStrToTime(x: AnsiString): TDateTime;
@@ -521,6 +524,34 @@ begin
   Result := Result + b1;
 end;
 
+function UrlEncode(const DecodedStr: AnsiString; Pluses: boolean): AnsiString;
+var
+  I: integer;
+begin
+  Result := '';
+  if Length(DecodedStr) > 0 then
+    for I := 1 to Length(DecodedStr) do
+    begin
+      if not (DecodedStr[I] in ['0'..'9', 'a'..'z', 'A'..'Z', ' ']) then
+        Result := Result + '%' + IntToHex(Ord(DecodedStr[I]), 2)
+      else if not (DecodedStr[I] = ' ') then
+        Result := Result + DecodedStr[I]
+      else
+      begin
+        if not Pluses then
+          Result := Result + '%20'
+        else
+          Result := Result + '+';
+      end;
+    end;
+end;
+
+function UrlEncode(const DecodedStr: AnsiString): AnsiString;
+begin
+  Result := URLEncode(DecodedStr, True);
+end;
+
+
 function HexToInt(HexStr: AnsiString): int64;
 var
   RetVar: int64;
@@ -548,6 +579,35 @@ begin
 
   Result := RetVar;
 end;
+
+
+function UrlDecode(const EncodedStr: AnsiString): AnsiString;
+var
+  I: integer;
+begin
+  Result := '';
+  if Length(EncodedStr) > 0 then
+  begin
+    I := 1;
+    while I <= Length(EncodedStr) do
+    begin
+      if EncodedStr[I] = '%' then
+      begin
+        Result := Result + Chr(
+          HexToInt(EncodedStr[I + 1] + EncodedStr[I + 2]));
+        I      := Succ(Succ(I));
+      end
+      else if EncodedStr[I] = '+' then
+        Result := Result + ' '
+      else
+        Result := Result + EncodedStr[I];
+
+      I := Succ(I);
+    end;
+  end;
+end;
+
+
 
 {$IFDEF MSWINDOWS}
 function GetContentType(fname: AnsiString): AnsiString;
