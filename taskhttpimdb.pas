@@ -571,7 +571,7 @@ begin
             exit; // TODO: skip boxofficemojo webpage crawl if failed instead of stoping complete imdb parsing task
           end;
 
-          Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
+          //Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
 
           if not AnsiContainsText(bomsite, 'No Movies or People found.') then
           begin
@@ -590,23 +590,23 @@ begin
 
             if fPictureID <> '' then
             begin
-              Debug(dpError, section, Format('Found movie by Picture Link: %s', [fPictureID]));
+              //Debug(dpError, section, Format('Found movie by Picture Link: %s', [fPictureID]));
               rr2.Expression := '<a href=\".*?\"https:\/\/.*?(images)\/\w\/' + fPictureID + '.*?td>\s*[^\n]*<td\s*[^\n]*\s*[^\n]*(.*?)\s*[^\n]*\">(.*?)<\/font>';
             end
             else if AnsiContainsText(bomsite, '1 Movie Matches:') then
             begin
-              Debug(dpError, section, 'Only one movie matched');
+              //Debug(dpError, section, 'Only one movie matched');
               rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font\s+';
             end
             else
             begin
-              Debug(dpError, section, 'Found more than one movie');
+              //Debug(dpError, section, 'Found more than one movie');
 
               bom_date := '[^<>]+' + IntToStr(imdb_year);
 
               if imdb_date <> '' then
               begin
-                Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
+                //Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
 
                 // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
                 {$IFDEF MSWINDOWS}
@@ -621,7 +621,7 @@ begin
                 formatSettings.ShortDateFormat := 'mm/dd/yyyy'; // dd & mm could lead to problems, as date is shown as "7/22/1983" or "6/2/1989"
                 imdb_date := DateToStr(release_date, formatSettings);
 
-                Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
+                //Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
 
                 if config.ReadBool('dbaddimdb', 'parse_boxofficemojo_exact', False) then
                   bom_date := imdb_date
@@ -639,7 +639,7 @@ begin
               if StrToIntDef(s, 0) > imdb_screens then
                 imdb_screens := StrToIntDef(s, 0);
 
-              Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
+              //Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
             end;
           end;
 
