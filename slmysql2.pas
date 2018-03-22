@@ -2,7 +2,7 @@ unit slmysql2;
 
 interface
 
-uses Classes, slctypes, types;
+uses Classes, ctypes, types;
 
 {$IFDEF FPC}
 {$MACRO on}
@@ -111,7 +111,7 @@ type PMYSQL = Pointer;
 {$else}
        my_ulonglong = culonglong;
 {$ifend}
-         
+
        Pst_mysql_field = ^st_mysql_field;
        st_mysql_field = record
             name : PAnsiChar;             // Name of column
@@ -427,7 +427,7 @@ uses
   , debugunit
 ;
 
-var 
+var
   RefCount : integer;
 
 function slmysql_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
@@ -691,7 +691,7 @@ begin
     for i:= 0 to j -1 do
       res[i]:= StrPas(row[i]);
   end;
-  
+
   Pointer(row):= nil;
   Result:= True;
 end;
