@@ -70,6 +70,7 @@ var
   speedstats_save_interval: integer;
   speedstats_recalc_routes_interval: integer;
   backup_interval: integer;
+  new_news_announce_interval: integer;
 
 function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
@@ -199,6 +200,7 @@ begin
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
   speedstats_recalc_routes_interval := config.readInteger('speedstats', 'recalc_routes_interval', 3600);
   backup_interval := config.ReadInteger('backup', 'backup_interval', 0);
+  new_news_announce_interval := config.ReadInteger('news', 'new_news_announce_interval', 3);
 end;
 
 procedure Main_Iter;
@@ -307,7 +309,7 @@ begin
   end;
 
   // announce unread news count every 1h
-  if (SecondsBetween(Now, last_news_announce) >= 3600) then
+  if (HoursBetween(Now, last_news_announce) >= new_news_announce_interval) then
   begin
     if (Pos('<b>0</b> unread', SlftpNewsStatus) = 0) then
     begin
