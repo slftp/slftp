@@ -52,7 +52,7 @@
 
 --=============================( SLFTP v1.5.6 )===================================-
     {+} Box Office Mojo support
-    {+} New HTTP Library (Indy) (up to 50% faster)
+    {+} New HTTP Library (Indy) (up to 50% faster) with Socks5 support
     {+} News System to store important messages to encrypted file. (#173, #164)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} New !affils command.
