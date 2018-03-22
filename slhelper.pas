@@ -9,6 +9,8 @@ function TInAddrToString(var AInAddr): AnsiString;
 procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
 function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString; overload;
 function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString; Pluses: Boolean): AnsiString; overload;
+function UrlEncode(const DecodedStr: AnsiString): AnsiString; overload;
 
 implementation
 
@@ -187,5 +189,34 @@ begin
   Result:= True;
 end;
 *)
+
+
+function UrlEncode(const DecodedStr: AnsiString; Pluses: Boolean): AnsiString;
+var
+  I: Integer;
+begin
+  Result := '';
+  if Length(DecodedStr) > 0 then
+    for I := 1 to Length(DecodedStr) do
+    begin
+      if not (DecodedStr[I] in ['0'..'9', 'a'..'z','A'..'Z', ' ','+']) then
+        Result := Result + '%' + IntToHex(Ord(DecodedStr[I]), 2)
+      else if not (DecodedStr[I] = ' ') then
+        Result := Result + DecodedStr[I]
+      else
+        begin
+          if not Pluses then
+            Result := Result + '%20'
+          else
+            Result := Result + '+';
+        end;
+    end;
+end;
+
+function UrlEncode(const DecodedStr: AnsiString): AnsiString;
+begin
+  Result:= URLEncode(DecodedStr, True);
+end;
+
 
 end.
