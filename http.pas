@@ -12,7 +12,7 @@ function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: Strin
 implementation
 
 uses
-  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks;
+  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit, mslproxys, IdIOHandlerStack;
 
 const
   section = 'http';
@@ -28,8 +28,12 @@ var
   fIdSSLIOHandlerSocketOpenSSL: TIdSSLIOHandlerSocketOpenSSL;
   fIdSocksInfo: TIdSocksInfo;
   fEncodedUrl: String;
+  fProxyname: String;
+  fSocks5: TmSLSocks5;
+  fIdIOHandlerStack: TIdIOHandlerStack;
 begin
   Result := False;
+  fIdSocksInfo := nil;
 
   // encodes input URL with % and other defined characters for Uniform Resource Identifier as needed for TIdHTTP
   fEncodedUrl := TIdURI.URLEncode(aUrl);
@@ -59,47 +63,57 @@ begin
         Request.AcceptEncoding := 'gzip, deflate, identity, *;q=0';
       end;
 
-
-
-{
-      if $USEPROXY$ then
+      // socks5 configuration
+      if config.ReadInteger('http', 'enabled', 0) <> 0 then
       begin
-        fIdSocksInfo := TIdSocksInfo.Create(nil);
-        with fIdSocksInfo do
+        fProxyname := config.ReadString('http', 'proxyname', '');
+        if (fProxyname <> '') then
         begin
-          Host := 'Server';
-          Port := 8080;
-
-          if //SOCKS Version? then
-             Version := svSocks4
-           else
-             Version := svSocks5;
-
-          case // RequireAuthentication? of
-            True:
-              Authentication := saUsernamePassword;
-            False:
-              Authentication := saNoAuthentication;
-          end;
-
-          Username := 'AccountName';
-          Password := 'AccountPassword';
-
-          Enabled := True;
-        end;
-}
-
-{
-        else // we'll use normal http proxy
-          with ProxyParams do
+          fSocks5 := FindProxyByName(fProxyname);
+          if fSocks5 = nil then
           begin
-            ProxyServer := 'Server';
-            ProxyPort := 80;
-            BasicAuthentication := True; // RequireAuthentication?
-            ProxyUsername := 'AccountName';
-            ProxyPassword := 'AccountPassword';
+            Debug(dpError, section, Format('There is no Proxy with name %s for HTTP.', [fProxyname]));
+            aErrMsg := Format('There is no Proxy with name %s for HTTP. Check your settings.', [fProxyname]);
+            exit;
           end;
-}
+
+          if not fSocks5.Enabled then
+          begin
+            Debug(dpError, section, Format('Proxy %s for HTTP is disabled.', [fSocks5.Name]));
+            aErrMsg := Format('Proxy for HTTP is set to proxy %s but this one is disabled. Skipping HTTP.', [fSocks5.Name]);
+            exit;
+          end;
+
+          fIdSocksInfo := TIdSocksInfo.Create(nil);
+          with fIdSocksInfo do
+          begin
+            Host := fSocks5.Host;
+            Port := fSocks5.Port;
+            Version := svSocks5; // we only support socks5
+
+            if (fSocks5.Username <> '') or (fSocks5.Password <> '') then
+            begin
+              Authentication := saUsernamePassword;
+              Username := fSocks5.Username;
+              Password := fSocks5.Password;
+            end
+            else
+            begin
+              Authentication := saNoAuthentication;
+              Username := '';
+              Password := '';
+            end;
+
+            Enabled := True;
+          end;
+        end
+        else
+        begin
+          Debug(dpError, section, 'Proxy for HTTP is enabled but Proxyname is empty.');
+          aErrMsg := 'Proxy for HTTP is enabled but Proxyname is empty.';
+          exit;
+        end;
+      end;
 
       // TODO: Remove when new FPC is released and we're on unicode
       {$IFDEF FPC}
@@ -109,20 +123,25 @@ begin
       {$ENDIF}
       begin
         fIdSSLIOHandlerSocketOpenSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
-  {
-        with fIdSSLIOHandlerSocketOpenSSL.SSLOptions do
+
+        // set socks5 proxy if configured to use one
+        if fIdSocksInfo <> nil then
         begin
-          Method := sslvTLSv1_2;
-          SSLVersions := [sslvTLSv1_2];
+          fIdSSLIOHandlerSocketOpenSSL.TransparentProxy := fIdSocksInfo;
         end;
-  }
-        //if $USEPROXY$ then
-        //begin
-        //  fIdSSLIOHandlerSocketOpenSSL.TransparentProxy := fIdSocksInfo;
-        //end;
 
         // tell fIdHTTP that we want to use secure connection
         fIdHTTP.IOHandler := fIdSSLIOHandlerSocketOpenSSL;
+      end
+      else
+      begin
+        if fIdSocksInfo <> nil then
+        begin
+          fIdIOHandlerStack := TIdIOHandlerStack.Create(nil);
+          fIdIOHandlerStack.TransparentProxy := fIdSocksInfo;
+          // tell fIdHTTP that we want to use a socks5
+          fIdHTTP.IOHandler := fIdIOHandlerStack;
+        end;
       end;
 
       with fIdHTTP do
