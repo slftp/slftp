@@ -300,8 +300,7 @@ function IrcRehashSocks5(const netname, channel: AnsiString; params: AnsiString)
 
 function IrcDisplayMappings(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
 procedure ShowCredits(const netname, channel, siteName: AnsiString); overload;
@@ -605,7 +604,7 @@ const
     (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'socks5'),
     (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'socks5'),
     (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
-    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
+    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 2; maxparams: 3; hlpgrp: 'socks5'),
 
     (cmd: 'PRETIME'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$pretime'),
     (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
@@ -9799,19 +9798,36 @@ begin
   s5 := FindProxyByName(fname);
   if s5 = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [fname]);
+    irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [fname]);
     exit;
   end;
 
   try
     if ftrigger = 'host' then
-      s5.host := fvalue;
-    if ftrigger = 'port' then
-      s5.port := StrToInt(fvalue);
-    if ftrigger = 'user' then
-      s5.username := fvalue;
-    if ftrigger = 'password' then
-      s5.password := fvalue;
+    begin
+      s5.Host := fvalue;
+    end
+    else if ftrigger = 'port' then
+    begin
+      s5.Port := StrToInt(fvalue);
+    end
+    else if ftrigger = 'user' then
+    begin
+      s5.Username := fvalue;
+    end
+    else if ftrigger = 'password' then
+    begin
+      s5.Password := fvalue;
+    end
+    else if ftrigger = 'status' then
+    begin
+      s5.Enabled := StrToBool(fvalue);
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Unknown trigger: %s!', [ftrigger]);
+      exit;
+    end;
   except
     on e: Exception do
     begin
@@ -9828,15 +9844,16 @@ var
   fhostport, fhost, fuser, fpass, fname: AnsiString;
   fport, fstatus: integer;
 begin
-  //  Result := False;
+  Result := False;
   fname := UpperCase(SubString(params, ' ', 1));
+
   if FindProxyByName(fname) <> nil then
   begin
-    irc_addtext(Netname, Channel, 'Proxy with name %s already exists!',
-      [fname]);
+    irc_addtext(Netname, Channel, 'Proxy with name %s already exists!', [fname]);
     Result := True;
     exit;
   end;
+
   fhostport := SubString(params, ' ', 2);
   fhost := SubString(fhostport, ':', 1);
   fport := StrToIntDef(SubString(fhostport, ':', 2), 0);
@@ -9855,20 +9872,11 @@ begin
     fstatus := StrToIntDef(SubString(params, ' ', 3), 0);
   end;
 
-  socksini.WriteString(fname, 'Host', fhost);
-  socksini.WriteInteger(fname, 'Port', fport);
-  socksini.WriteString(fname, 'Username', fuser);
-  socksini.WriteString(fname, 'Password', fpass);
-  socksini.WriteBool(fname, 'Enabled', boolean(fstatus));
-  socksini.UpdateFile;
-  try
-    proxys.Add(TmSLSocks5.Create(fname));
-  except
-    on E: Exception do
-      Irc_AddText(Netname, Channel,
-        '<c4><b>ERROR</c></b>: IrcAddSocks5.proxys.Add: %s',
-        [e.Message]);
+  if not AddNewProxy(fname, fhost, fuser, fpass, fport, boolean(fstatus)) then
+  begin
+    Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: Adding a new Proxy failed.');
   end;
+
   Result := True;
 end;
 
@@ -9918,17 +9926,15 @@ begin
   Result := RehashProxys;
 end;
 
-function IrcDisplaySocks5(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcDisplaySocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  i: integer;
+  i, fProxyCount: integer;
 begin
-  irc_addtext(Netname, Channel, 'Listing all %d Proxys:', [proxys.Count]);
-  for i := 0 to proxys.Count - 1 do
+  fProxyCount := GetTotalProxyCount;
+  irc_addtext(Netname, Channel, 'Listing all %d Proxys:', [fProxyCount]);
+  for i := 0 to fProxyCount - 1 do
   begin
-    irc_addtext(Netname, Channel, '%d) %s  %s:%d %s',
-      [i, TmSLSocks5(proxys.Items[i]).Name, TmSLSocks5(proxys.Items[i]).host,
-      TmSLSocks5(proxys.Items[i]).port, TmSLSocks5(proxys.Items[i]).username]);
+    irc_addtext(Netname, Channel, GetFormattedProxyInfo(i));
   end;
   Result := True;
 end;
@@ -9941,17 +9947,31 @@ var
   vsocks: TmSLSocks5;
 begin
   Result := False;
-  vtrigger := UpperCase(SubString(params, ' ', 1));
-  vname := UpperCase(SubString(params, ' ', 2));
-  vvalue := UpperCase(SubString(params, ' ', 3));
   vsocks := nil;
+
+  vtrigger := UpperCase(SubString(params, ' ', 1));
+  if vtrigger = 'HTTP' then
+  begin
+    vvalue := UpperCase(SubString(params, ' ', 2));
+  end
+  else
+  begin
+    vname := UpperCase(SubString(params, ' ', 2));
+    vvalue := UpperCase(SubString(params, ' ', 3));
+
+    if (vname = '') or (vvalue = '') then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Wrong input parameters.');
+      exit;
+    end;
+  end;
 
   if vtrigger = 'SITE' then
   begin
     vsite := FindSiteByName('', vname);
     if vsite = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [vname]);
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Site with name %s!', [vname]);
       exit;
     end;
 
@@ -9966,7 +9986,7 @@ begin
       vsocks := FindProxyByName(vvalue);
       if vsocks = nil then
       begin
-        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
         exit;
       end;
       vsite.ProxyName := vvalue;
@@ -9977,7 +9997,7 @@ begin
     virc := FindIrcnetwork(vname);
     if virc = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find IRCNetwork with name %s!', [vname]);
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find IRCNetwork with name %s!', [vname]);
       exit;
     end;
 
@@ -9992,11 +10012,33 @@ begin
       vsocks := FindProxyByName(vvalue);
       if vsocks = nil then
       begin
-        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
         exit;
       end;
       virc.ProxyName := vvalue;
     end;
+  end
+  else if vtrigger = 'HTTP' then
+  begin
+    if vvalue = '-1' then
+    begin
+      config.WriteInteger('http', 'enabled', 0);
+      config.WriteString('http', 'proxyname', '');
+    end
+    else
+    begin
+      vsocks := FindProxyByName(vvalue);
+      if vsocks = nil then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
+        exit;
+      end;
+
+      config.WriteInteger('http', 'enabled', 1);
+      config.WriteString('http', 'proxyname', vvalue);
+    end;
+
+    config.UpdateFile;
   end;
 
   Result := True;
