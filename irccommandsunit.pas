@@ -255,6 +255,7 @@ function IrcInviteMyIRCNICK(const netname, channel: AnsiString; params: AnsiStri
 function IrcNoLoginMSG(const netname, channel: AnsiString; params: AnsiString): boolean;
 function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 function IrcSkipBeingUploadedFiles(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSiteUserFetch(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 
 //function IrcCustomDelrelease(const netname, channel: string;params: string): Boolean;
 
@@ -353,7 +354,7 @@ const
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
 
-  irccommands: array[1..249] of TIrcCommand = (
+  irccommands: array[1..250] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -390,6 +391,7 @@ const
     (cmd: 'legacycwd'; hnd: IrcLegacycwd; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'skipinc'; hnd: IrcSkipBeingUploadedFiles; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'fetchuser'; hnd: IrcSiteUserFetch; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'usefornfodownload'; hnd: IrcUseForNFOdownload; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autologin'; hnd: IrcAutoLogin; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'autobnctest'; hnd: IrcAutoBnctest; minparams: 1; maxparams: 2; hlpgrp: 'site'),
@@ -10393,6 +10395,110 @@ begin
   Result := True;
 end;
 
+function IrcSiteUserFetch(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+var
+  i: integer;
+  s: TSite;
+  r: TRawTask;
+  tn: TTaskNotify;
+  x: TRegExpr;
+  sitename, response, username: AnsiString;
+  logins, maxdn, maxup: AnsiString;
+begin
+  Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  username := SubString(params, ' ', 2);
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+    exit;
+  end;
+
+  if (s.Name = getAdminSiteName) then
+  begin
+    exit;
+  end;
+
+  // username can be omitted or you specify another name (e.g. if your a siteop)
+  if (username = '') then
+    username := s.username;
+
+  tn := AddNotify;
+  try
+    r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE USER ' + username);
+    tn.tasks.Add(r);
+    AddTask(r);
+    QueueFire;
+    tn.event.WaitFor($FFFFFFFF);
+  except
+  on E: Exception do
+    begin
+      RemoveTN(tn);
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
+      Exit;
+    end;
+  end;
+
+  for i := 0 to tn.responses.Count - 1 do
+  begin
+    response := TSiteResponse(tn.responses[i]).response;
+
+    if ((0 <> AnsiPos('You do not have access', response)) or (0 <> AnsiPos('Access denied', response))) then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: You do not have access to this command.');
+      break;
+    end;
+
+    if (0 <> AnsiPos('does not exist', response)) then
+    begin
+      irc_addtext(Netname, Channel, Format('<c4><b>ERROR</c></b>: User %s does not exist.', [username]));
+      break;
+    end;
+
+    x := TRegExpr.Create;
+    try
+      x.ModifierI := True;
+
+      x.Expression := 'Max Logins\: (\d+|Unlimited)';
+      if x.Exec(response) then
+      begin
+        //irc_addtext(Netname, Channel, 'Max Logins: %s', [x.Match[1]]);
+        logins := IfThen(x.Match[1] = 'Unlimited', '999', x.Match[1]);
+      end;
+
+      x.Expression := 'Max Sim Uploads\: (\d+|Unlimited)';
+      if x.Exec(response) then
+      begin
+        //irc_addtext(Netname, Channel, 'Max Sim Uploads: %s', [x.Match[1]]);
+        maxup := IfThen(x.Match[1] = 'Unlimited', '999', x.Match[1]);
+      end;
+
+      x.Expression := 'Max Sim Downloads\: (\d+|Unlimited)';
+      if x.Exec(response) then
+      begin
+        //irc_addtext(Netname, Channel, 'Max Sim Downloads: %s', [x.Match[1]]);
+        maxdn := IfThen(x.Match[1] = 'Unlimited', '999', x.Match[1]);
+      end;
+
+    finally
+      x.free;
+    end;
+  end;
+
+  RemoveTN(tn);
+
+  if (logins <> '') and (maxup <> '') and (maxdn <> '') then
+  begin
+    irc_addtext(Netname, Channel, 'Slots:');
+    irc_addtext(Netname, Channel, '!slots %s %s', [s.Name, logins]);
+    irc_addtext(Netname, Channel, 'Max. number of slots for uploading/downloading:');
+    irc_addtext(Netname, Channel, '!maxupdn %s %s %s', [s.Name, maxup, maxdn]);
+  end;
+
+  Result := True;
+end;
 
 (* PreURLs *)
 function IrcPreURLAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
