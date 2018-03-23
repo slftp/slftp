@@ -334,7 +334,6 @@ var
   trimmed_shit_checker: boolean;
   renamed_group_checker: boolean;
   renamed_release_checker: boolean;
-  //max_sectionhelper: Integer;
 
   use_new_language_base: boolean;
   enable_try_to_complete: boolean;
@@ -2750,7 +2749,6 @@ begin
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
   renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', False);
   renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
-  //max_sectionhelper:= config.ReadInteger(rsections, 'max_sectionhelper', 1000);
 
   use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', False);
 
