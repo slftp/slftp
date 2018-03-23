@@ -678,26 +678,24 @@ begin
       tmp := trim(Elsosor(s));
 
       if tmp = '' then break;
-      //Inc(lines_read);
-      //if (lines_read > 2000) then break;
 
       //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
       if (length(tmp) > 11) then
       begin
-        if((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
+        if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
           continue;
 
         dirmaszk := Fetch(tmp, ' '); // dir mask
         Fetch(tmp, ' '); // No. of something
-        username := Fetch(tmp, ' '); // dir mask
-        groupname := Fetch(tmp, ' '); // dir mask
-        filesize := StrToInt64Def(Fetch(tmp, ' '),-1); // dir mask
+        username := Fetch(tmp, ' '); // username
+        groupname := Fetch(tmp, ' '); // groupname
+        filesize := StrToInt64Def(Fetch(tmp, ' '),-1); // filesize
 
         if filesize < 0 then
           Continue;
 
-        datum:= Fetch(tmp, ' ')+' '+Fetch(tmp, ' ')+' '+Fetch(tmp, ' ');
-        filename:= Trim(tmp);
+        datum := Fetch(tmp, ' ') + ' ' + Fetch(tmp, ' ') + ' ' + Fetch(tmp, ' '); // datum
+        filename := Trim(tmp); // file or dirname
 
         if filename = '' then
           Continue;
@@ -725,9 +723,17 @@ begin
             end;
           end;
 
+          // entry is a dir with unwanted characters
+          if ((dirmaszk[1] = 'd') and (AnsiMatchText(filename, ['[', ']', ',', '=']))) then
+          begin
+            Continue;
+          end;
+
           // file is flagged as skipped
           if (skipped.IndexOf(filename) <> -1) then
+          begin
             Continue;
+          end;
 
           // entry is a file and is 0 byte
           if ((dirmaszk[1] <> 'd') and (filesize < 1)) then
