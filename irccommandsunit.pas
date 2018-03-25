@@ -301,8 +301,7 @@ function IrcRehashSocks5(const netname, channel: AnsiString; params: AnsiString)
 
 function IrcDisplayMappings(const netname, channel: AnsiString; params: AnsiString): boolean;
 
-function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params: AnsiString): boolean;
 
 function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
 procedure ShowCredits(const netname, channel, siteName: AnsiString); overload;
@@ -607,7 +606,7 @@ const
     (cmd: 'delsocks5'; hnd: IrcDelSocks5; minparams: 2; maxparams: 2; hlpgrp: 'socks5'),
     (cmd: 'listsocks5'; hnd: IrcDisplaySocks5; minparams: 0; maxparams: 0; hlpgrp: 'socks5'),
     (cmd: 'tweaksocks5'; hnd: IrcTweakSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
-    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 3; maxparams: 3; hlpgrp: 'socks5'),
+    (cmd: 'setsocks5'; hnd: IrcSetSocks5; minparams: 2; maxparams: 3; hlpgrp: 'socks5'),
 
     (cmd: 'PRETIME'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$pretime'),
     (cmd: 'pretimemode'; hnd: IrcSetupPretimeMode; minparams: 0; maxparams: 1; hlpgrp: 'pretime'),
@@ -663,7 +662,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-  RegExpr, mslproxys, slhttp, strUtils, inifiles, rcmdline,
+  RegExpr, mslproxys, http, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers;
@@ -9570,12 +9569,13 @@ begin
 end;
 
 /// dOH mODz
-
+// TODO: it's not used or? Remove or fix it? Emptry url? don't know...^e
 function Irctestoffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
   voctime, vctime, vnow, cnow: int64;
   response, url, ss, s: AnsiString;
   x: TRegExpr;
+  fHttpGetErrMsg: String;
 begin
   //  Result := False;
 
@@ -9591,7 +9591,12 @@ begin
 
     if params <> '' then
     begin
-      response := slUrlGet(format(url, [params]));
+      if not HttpGetUrl(url + params, response, fHttpGetErrMsg) then
+      begin
+        irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> Offset TEST --> %s', [fHttpGetErrMsg]));
+        exit;
+      end;
+
       if x.Exec(response) then
       begin
         voctime := strtoint64(x.Match[2]);
@@ -9795,19 +9800,36 @@ begin
   s5 := FindProxyByName(fname);
   if s5 = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [fname]);
+    irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [fname]);
     exit;
   end;
 
   try
     if ftrigger = 'host' then
-      s5.host := fvalue;
-    if ftrigger = 'port' then
-      s5.port := StrToInt(fvalue);
-    if ftrigger = 'user' then
-      s5.username := fvalue;
-    if ftrigger = 'password' then
-      s5.password := fvalue;
+    begin
+      s5.Host := fvalue;
+    end
+    else if ftrigger = 'port' then
+    begin
+      s5.Port := StrToInt(fvalue);
+    end
+    else if ftrigger = 'user' then
+    begin
+      s5.Username := fvalue;
+    end
+    else if ftrigger = 'password' then
+    begin
+      s5.Password := fvalue;
+    end
+    else if ftrigger = 'status' then
+    begin
+      s5.Enabled := StrToBool(fvalue);
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Unknown trigger: %s!', [ftrigger]);
+      exit;
+    end;
   except
     on e: Exception do
     begin
@@ -9824,15 +9846,16 @@ var
   fhostport, fhost, fuser, fpass, fname: AnsiString;
   fport, fstatus: integer;
 begin
-  //  Result := False;
+  Result := False;
   fname := UpperCase(SubString(params, ' ', 1));
+
   if FindProxyByName(fname) <> nil then
   begin
-    irc_addtext(Netname, Channel, 'Proxy with name %s already exists!',
-      [fname]);
+    irc_addtext(Netname, Channel, 'Proxy with name %s already exists!', [fname]);
     Result := True;
     exit;
   end;
+
   fhostport := SubString(params, ' ', 2);
   fhost := SubString(fhostport, ':', 1);
   fport := StrToIntDef(SubString(fhostport, ':', 2), 0);
@@ -9851,20 +9874,11 @@ begin
     fstatus := StrToIntDef(SubString(params, ' ', 3), 0);
   end;
 
-  socksini.WriteString(fname, 'Host', fhost);
-  socksini.WriteInteger(fname, 'Port', fport);
-  socksini.WriteString(fname, 'Username', fuser);
-  socksini.WriteString(fname, 'Password', fpass);
-  socksini.WriteBool(fname, 'Enabled', boolean(fstatus));
-  socksini.UpdateFile;
-  try
-    proxys.Add(TmSLSocks5.Create(fname));
-  except
-    on E: Exception do
-      Irc_AddText(Netname, Channel,
-        '<c4><b>ERROR</c></b>: IrcAddSocks5.proxys.Add: %s',
-        [e.Message]);
+  if not AddNewProxy(fname, fhost, fuser, fpass, fport, boolean(fstatus)) then
+  begin
+    Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: Adding a new Proxy failed.');
   end;
+
   Result := True;
 end;
 
@@ -9914,17 +9928,15 @@ begin
   Result := RehashProxys;
 end;
 
-function IrcDisplaySocks5(const Netname, Channel: AnsiString; params: AnsiString):
-  boolean;
+function IrcDisplaySocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
 var
-  i: integer;
+  i, fProxyCount: integer;
 begin
-  irc_addtext(Netname, Channel, 'Listing all %d Proxys:', [proxys.Count]);
-  for i := 0 to proxys.Count - 1 do
+  fProxyCount := GetTotalProxyCount;
+  irc_addtext(Netname, Channel, 'Listing all %d Proxys:', [fProxyCount]);
+  for i := 0 to fProxyCount - 1 do
   begin
-    irc_addtext(Netname, Channel, '%d) %s  %s:%d %s',
-      [i, TmSLSocks5(proxys.Items[i]).Name, TmSLSocks5(proxys.Items[i]).host,
-      TmSLSocks5(proxys.Items[i]).port, TmSLSocks5(proxys.Items[i]).username]);
+    irc_addtext(Netname, Channel, GetFormattedProxyInfo(i));
   end;
   Result := True;
 end;
@@ -9937,17 +9949,31 @@ var
   vsocks: TmSLSocks5;
 begin
   Result := False;
-  vtrigger := UpperCase(SubString(params, ' ', 1));
-  vname := UpperCase(SubString(params, ' ', 2));
-  vvalue := UpperCase(SubString(params, ' ', 3));
   vsocks := nil;
+
+  vtrigger := UpperCase(SubString(params, ' ', 1));
+  if vtrigger = 'HTTP' then
+  begin
+    vvalue := UpperCase(SubString(params, ' ', 2));
+  end
+  else
+  begin
+    vname := UpperCase(SubString(params, ' ', 2));
+    vvalue := UpperCase(SubString(params, ' ', 3));
+
+    if (vname = '') or (vvalue = '') then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Wrong input parameters.');
+      exit;
+    end;
+  end;
 
   if vtrigger = 'SITE' then
   begin
     vsite := FindSiteByName('', vname);
     if vsite = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find Site with name %s!', [vname]);
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Site with name %s!', [vname]);
       exit;
     end;
 
@@ -9962,7 +9988,7 @@ begin
       vsocks := FindProxyByName(vvalue);
       if vsocks = nil then
       begin
-        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
         exit;
       end;
       vsite.ProxyName := vvalue;
@@ -9973,7 +9999,7 @@ begin
     virc := FindIrcnetwork(vname);
     if virc = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find IRCNetwork with name %s!', [vname]);
+      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find IRCNetwork with name %s!', [vname]);
       exit;
     end;
 
@@ -9988,11 +10014,33 @@ begin
       vsocks := FindProxyByName(vvalue);
       if vsocks = nil then
       begin
-        irc_addtext(Netname, Channel, 'Cant find Proxy with name %s!', [vvalue]);
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
         exit;
       end;
       virc.ProxyName := vvalue;
     end;
+  end
+  else if vtrigger = 'HTTP' then
+  begin
+    if vvalue = '-1' then
+    begin
+      config.WriteInteger('http', 'enabled', 0);
+      config.WriteString('http', 'proxyname', '');
+    end
+    else
+    begin
+      vsocks := FindProxyByName(vvalue);
+      if vsocks = nil then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
+        exit;
+      end;
+
+      config.WriteInteger('http', 'enabled', 1);
+      config.WriteString('http', 'proxyname', vvalue);
+    end;
+
+    config.UpdateFile;
   end;
 
   Result := True;
@@ -11732,6 +11780,7 @@ function IrcUpdateTVMazeInfo(const Netname, Channel: AnsiString; params: AnsiStr
 var
   respo, tvmaze_id, tv_showname: AnsiString;
   otvr, newtvi: TTVInfoDB;
+  fHttpGetErrMsg: String;
 begin
   Result := false;
 
@@ -11762,15 +11811,19 @@ begin
     exit;
   end;
 
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
-
-  if respo = '' then
+  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
   begin
     if tv_showname <> '' then
-      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for %s (ID :%s) was empty.', [tv_showname, tvmaze_id])
+      Irc_AddText(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze Update for %s (ID: %s) --> %s', [tv_showname, tvmaze_id, fHttpGetErrMsg]))
     else
-      Irc_AddText(Netname, Channel, '<b><c4>Error</c></b>: HTTP response for ID %s was empty.', [tvmaze_id]);
+      Irc_AddText(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze Update for %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
     exit;
+  end;
+
+  if ((respo = '') or (respo = '[]')) then
+  begin
+    Irc_AddText(Netname, Channel, '<c4>IrcUpdateTVMazeInfo</c>: No Result from TVMaze API when updating %s', [tvmaze_id]);
+    Exit;
   end;
 
   try
@@ -11791,7 +11844,7 @@ begin
 
   except on e: Exception do
     begin
-      irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]);
+      Irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]);
       Exit;
     end;
   end;
@@ -11853,6 +11906,7 @@ var
   i, sresMAXi: integer;
   res: TStringlist;
   showname: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   result := False;
   sid := UpperCase(SubString(params, ' ', 1));
@@ -11902,23 +11956,17 @@ begin
 
   if StrToIntDef(sid, -1) > -1 then
   begin
-    try
-      resp := slUrlGet('http://api.tvmaze.com/shows/' + sid +
-        '?embed[]=nextepisode&embed[]=previousepisode');
-    except
-      on E: Exception do
-      begin
-        irc_AddText(Netname, Channel, format(
-          '<c4>[Exception]</c> in IrcAddTheTVDbToDb.add.slurlget: %s',
-          [E.Message]));
-        result := True;
-        Exit;
-      end;
+    if not HttpGetUrl('https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode', resp, fHttpGetErrMsg) then
+    begin
+      // TODO: maybe not showing correct stuff when no info was found
+      irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze API search for %s --> %s', [ssname, fHttpGetErrMsg]));
+      Result := True;
+      exit;
     end;
 
     if ((resp = '') or (resp = '[]')) then
     begin
-      irc_addtext(Netname, Channel, 'No info found for ' + ssname);
+      irc_addtext(Netname, Channel, Format('<c4>IrcUpdateTVMazeInfo</c>: No info found for %s', [ssname]));
       Result := True;
       Exit;
     end;
@@ -11944,8 +11992,8 @@ begin
   else
     irc_Addtext(netname, channel,
       '<c4><b>Syntax Error!</b></c> no id found to add, you may want to search? use -s');
-  Result := True;
 
+  Result := True;
 end;
 
 function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
