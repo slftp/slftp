@@ -10,20 +10,12 @@ unit mslproxys;
 interface
 
 uses
-  Classes, Contnrs, SyncObjs, encinifile, slstack, slssl
-{$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
-  , baseunix
-{$ENDIF}
-{$ENDIF}  ;
-
-const
-  slDefaultTimeout = 30000; // default timeout is 30 seconds
-  slDefaultBacklog = 30;
-  slBufferSize = 16384;
-  slLF  = #10;
-  slCR  = #13;
-  slEOL = slCR + slLF;
+  Classes, Contnrs, SyncObjs
+  {$IFDEF FPC}
+    {$IFNDEF MSWINDOWS}
+      , baseunix
+    {$ENDIF}
+  {$ENDIF};
 
 procedure InitProxys;
 procedure UninitProxys;
@@ -31,92 +23,166 @@ function StartProxys: boolean;
 function RehashProxys: boolean;
 
 type
-  //  TslSSLMethod = (slSSLv23, slTLSv1);
-
   TmSLSocks5 = class
     Name: AnsiString;
   private
+    // ini read/write functions
+    procedure WStr(const key, Value: AnsiString);
+    function RStr(const key, default: AnsiString): AnsiString;
+    procedure WInt(const key: AnsiString; const Value: integer);
+    function RInt(const key: AnsiString; const default: integer): integer;
+    procedure WBool(const key: AnsiString; Value: boolean);
+    function RBool(const key: AnsiString; default: boolean): boolean;
+    // property stuff
     function GetHost: AnsiString;
-    procedure SetHost(Value: AnsiString);
+    procedure SetHost(const Value: AnsiString);
     function GetPort: integer;
-    procedure SetPort(Value: integer);
+    procedure SetPort(const Value: integer);
     function GetUsername: AnsiString;
-    procedure SetUsername(Value: AnsiString);
+    procedure SetUsername(const Value: AnsiString);
     function GetPassword: AnsiString;
-    procedure SetPassword(Value: AnsiString);
+    procedure SetPassword(const Value: AnsiString);
     function GetStatus: boolean;
     procedure SetStatus(Value: boolean);
   public
-    constructor Create(bncname: AnsiString);
-    procedure WStr(key, Value: AnsiString);
-    function RStr(key, default: AnsiString): AnsiString;
-    procedure WInt(key: AnsiString; Value: integer);
-    function RInt(key: AnsiString; default: integer): integer;
-    procedure WBool(key: AnsiString; Value: boolean);
-    function RBool(key: AnsiString; default: boolean): boolean;
+    constructor Create(const bncname: AnsiString);
 
     property Host: AnsiString Read GetHost Write SetHost;
     property Port: integer Read GetPort Write SetPort;
     property Username: AnsiString Read GetUsername Write SetUsername;
     property Password: AnsiString Read GetPassword Write SetPassword;
-    property Enabled: boolean Read GetStatus Write SetStatus;
+    property Enabled: boolean Read GetStatus Write SetStatus; //! Usage status of proxy, for enabling/disabling proxy
   end;
 
+{ Adds a new proxy to list and writes settings to socksini
+  @param(aName proxyname)
+  @param(aHost socks hostadress)
+  @param(aUsername username to login)
+  @param(aPassword password for login)
+  @param(aPort socks port)
+  @param(aEnabled status of socks, if it should be used or not)
+  @returns(@true on success, @false otherwise) }
+function AddNewProxy(const aName, aHost, aUsername, aPassword: AnsiString; const aPort: Integer; aEnabled: boolean): boolean;
 
-var
-  proxys:   TObjectList = nil;
-  socksini: TEncinifile;
+{ Search proxy with given Name and return it's object
+  @param(Name Name of proxy)
+  @returns(TmSLSocks5 if found, nil otherwise) }
+function FindProxyByName(const Name: AnsiString): TmSLSocks5;
 
-function FindProxyByName(Name: AnsiString): TmSLSocks5;
-function RemoveProxy(index: integer): boolean; overload;
-function RemoveProxy(Name: AnsiString): boolean; overload;
+{ Remove proxy by ID
+  @param(index list entry of proxy) }
+function RemoveProxy(const index: integer): boolean; overload;
+
+{ Remove proxy by Name
+  @param(Name name of proxy) }
+function RemoveProxy(const Name: AnsiString): boolean; overload;
+
+{ Get the total amount of added proxys
+  @returns(Number of added Proxys) }
+function GetTotalProxyCount: Integer;
+
+{ Get the total amount of added proxys
+  @param(aIndex list entry of proxy)
+  @returns(Formatted string with some proxy infos) }
+function GetFormattedProxyInfo(const aIndex: integer): String;
 
 implementation
 
-uses debugunit, configunit, SysUtils;
+uses
+  debugunit, configunit, SysUtils, StrUtils, encinifile;
 
-{###    Socks5 Class... ###}
+var
+  proxys: TObjectList = nil;
+  socksini: TEncinifile;
 
-constructor TmSLSocks5.Create(bncname: AnsiString);
+{###   Init Jobs   ###}
+
+procedure InitProxys;
+begin
+  proxys   := TObjectList.Create;
+  socksini := TEncinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.socks5', passphrase);
+end;
+
+procedure UninitProxys;
+begin
+  Debug(dpSpam, 'Proxys', 'Uninit1');
+  if proxys <> nil then
+  begin
+    proxys.Clear;
+    FreeAndNil(proxys);
+  end;
+  Debug(dpSpam, 'Proxys', 'Uninit2');
+end;
+
+function StartProxys: boolean;
+var
+  I:  integer;
+  xs: TStringList;
+begin
+  Result := False;
+  Debug(dpSpam, 'Proxys', 'Loadlist');
+  xs := TStringList.Create;
+  try
+    socksini.ReadSections(xs);
+    Debug(dpSpam, 'Proxys', IntToStr(xs.Count) + ' proxys in list...');
+    for I := 0 to xs.Count - 1 do
+      proxys.Add(TmSLSocks5.Create(xs.Strings[i]));
+  finally
+    xs.Free;
+  end;
+  Debug(dpSpam, 'Proxys', 'Proxys added: ' + IntToStr(proxys.Count));
+  Result := True;
+end;
+
+function RehashProxys: boolean;
+begin
+  proxys.Clear;
+  socksini.Free;
+  socksini := TEncinifile.Create(ExtractFilePath(ParamStr(0)) +'slftp.socks5', passphrase);
+  Result := StartProxys;
+end;
+
+{###   Socks5 Class   ###}
+
+constructor TmSLSocks5.Create(const bncname: AnsiString);
 begin
   self.Name := bncname;
 end;
 
-procedure TmSLSocks5.WStr(key: AnsiString; Value: AnsiString);
+procedure TmSLSocks5.WStr(const key: AnsiString; const Value: AnsiString);
 begin
   socksini.WriteString(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-procedure TmSLSocks5.WInt(key: AnsiString; Value: integer);
+procedure TmSLSocks5.WInt(const key: AnsiString; const Value: integer);
 begin
   socksini.WriteInteger(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-procedure TmSLSocks5.WBool(key: AnsiString; Value: boolean);
+procedure TmSLSocks5.WBool(const key: AnsiString; Value: boolean);
 begin
   socksini.WriteBool(Name, key, Value);
   socksini.UpdateFile;
 end;
 
-function TmSLSocks5.RStr(key: AnsiString; default: AnsiString): AnsiString;
+function TmSLSocks5.RStr(const key: AnsiString; const default: AnsiString): AnsiString;
 begin
   Result := socksini.ReadString(Name, key, default);
 end;
 
-function TmSLSocks5.RInt(key: AnsiString; default: integer): integer;
+function TmSLSocks5.RInt(const key: AnsiString; const default: integer): integer;
 begin
   Result := socksini.ReadInteger(Name, key, default);
 end;
 
-
-function TmSLSocks5.RBool(key: AnsiString; default: boolean): boolean;
+function TmSLSocks5.RBool(const key: AnsiString; default: boolean): boolean;
 begin
   Result := socksini.ReadBool(Name, key, default);
 end;
 
-procedure TmSLSocks5.SetHost(Value: AnsiString);
+procedure TmSLSocks5.SetHost(const Value: AnsiString);
 begin
   WStr('Host', Value);
 end;
@@ -126,7 +192,7 @@ begin
   Result := RStr('Host', '');
 end;
 
-procedure TmSLSocks5.SetPort(Value: integer);
+procedure TmSLSocks5.SetPort(const Value: integer);
 begin
   WInt('Port', Value);
 end;
@@ -136,7 +202,7 @@ begin
   Result := RInt('Port', -1);
 end;
 
-procedure TmSLSocks5.SetUsername(Value: AnsiString);
+procedure TmSLSocks5.SetUsername(const Value: AnsiString);
 begin
   WStr('Username', Value);
 end;
@@ -146,7 +212,7 @@ begin
   Result := RStr('Username', '');
 end;
 
-procedure TmSLSocks5.SetPassword(Value: AnsiString);
+procedure TmSLSocks5.SetPassword(const Value: AnsiString);
 begin
   WStr('Password', Value);
 end;
@@ -155,7 +221,6 @@ function TmSLSocks5.GetPassword: AnsiString;
 begin
   Result := RStr('Password', '');
 end;
-
 
 procedure TmSLSocks5.SetStatus(Value: boolean);
 begin
@@ -167,72 +232,52 @@ begin
   Result := RBool('Enabled', False);
 end;
 
-{###    Controling Jobs... ###}
+{###   Controling Jobs   ###}
 
+function AddNewProxy(const aName, aHost, aUsername, aPassword: AnsiString; const aPort: Integer; aEnabled: boolean): boolean;
+var
+  fProxyObj: TmSLSocks5;
+begin
+  Result := False;
 
-function FindProxyByName(Name: AnsiString): TmSLSocks5;
+  // create new proxy
+  try
+    proxys.Add(TmSLSocks5.Create(aName));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'Proxys', Format('Exception in AddNewProxy: %s', [e.Message]));
+      exit;
+    end;
+  end;
+
+  fProxyObj := FindProxyByName(aName);
+  // set config values for proxy
+  fProxyObj.Host := aHost;
+  fProxyObj.Port := aPort;
+  fProxyObj.Username := aUsername;
+  fProxyObj.Password := aPassword;
+  fProxyObj.Enabled := aEnabled;
+
+  Result := True;
+end;
+
+function FindProxyByName(const Name: AnsiString): TmSLSocks5;
 var
   I: integer;
 begin
   Result := nil;
   for I := 0 to proxys.Count - 1 do
+  begin
     if TmSLSocks5(proxys.Items[i]).Name = Name then
     begin
       Result := TmSLSocks5(proxys.Items[i]);
       break;
     end;
-end;
-
-
-procedure InitProxys;
-begin
-  proxys   := TObjectList.Create;
-  socksini := TEncinifile.Create(ExtractFilePath(ParamStr(0)) +
-    'slftp.socks5', passphrase);
-end;
-
-procedure UninitProxys;
-begin
-  Debug(dpSpam, 'Proxys', 'Uninit1');
-  if proxys <> nil then
-  begin
-    proxys.Free;
-    proxys := nil;
   end;
-  Debug(dpSpam, 'Proxys', 'Uninit2');
 end;
 
-function StartProxys: boolean;
-var
-  I:  integer;
-  xs: TStringList;
-begin
-  Debug(dpSpam, 'Proxys', 'Loadlist');
-  xs     := TStringList.Create;
-  try
-    Result := False;
-    socksini.ReadSections(xs);
-    Debug(dpSpam, 'Proxys', IntToStr(xs.Count) + ' proxys in list...');
-    for I := 0 to xs.Count - 1 do
-      proxys.Add(TmSLSocks5.Create(xs.Strings[i]));
-    Result := True;
-  finally
-    xs.Free;
-  end;
-  Debug(dpSpam, 'Proxys', 'Proxys added: ' + IntToStr(proxys.Count));
-end;
-
-function RehashProxys: boolean;
-begin
-  proxys.Clear;
-  socksini.Free;
-  socksini := TEncinifile.Create(ExtractFilePath(ParamStr(0)) +'slftp.socks5', passphrase);
-  Result := StartProxys;
-end;
-
-
-
-function RemoveProxy(Name: AnsiString): boolean;
+function RemoveProxy(const Name: AnsiString): boolean;
 begin
   if proxys.Remove(FindProxyByName(Name)) > -1 then
   begin
@@ -244,7 +289,7 @@ begin
     Result := False;
 end;
 
-function RemoveProxy(index: integer): boolean;
+function RemoveProxy(const index: integer): boolean;
 var
   Name: AnsiString;
 begin
@@ -257,6 +302,21 @@ begin
   end
   else
     Result := False;
+end;
+
+function GetTotalProxyCount: Integer;
+begin
+  Result := proxys.Count;
+end;
+
+function GetFormattedProxyInfo(const aIndex: integer): String;
+var
+  fColorEnabled: String;
+begin
+  fColorEnabled := IfThen(TmSLSocks5(proxys.Items[aIndex]).Enabled, '<c3>enabled</c>', '<c4>disabled</c>');
+
+  Result := Format('%d) %s %s:%d %s (%s)',
+    [aIndex, TmSLSocks5(proxys.Items[aIndex]).Name, TmSLSocks5(proxys.Items[aIndex]).host, TmSLSocks5(proxys.Items[aIndex]).port, TmSLSocks5(proxys.Items[aIndex]).username, fColorEnabled]);
 end;
 
 end.

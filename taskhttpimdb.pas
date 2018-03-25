@@ -20,9 +20,8 @@ type
 implementation
 
 uses
-  SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-  configunit, dirlist, mystrings, sitesunit, console, slhttp, regexpr,
-  dbaddimdb, tasksitenfo, Contnrs, dbtvinfo;
+  SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, http,
+  sitesunit, regexpr, dbaddimdb, Contnrs, mystrings, dbtvinfo;
 
 const
   section = 'taskhttpimdb';
@@ -56,6 +55,7 @@ var
   fBusinessInfoPart: AnsiString;
   fRlsdateExtraInfo: AnsiString;
   fPictureID: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   Result := False;
   fPictureID := '';
@@ -93,27 +93,12 @@ begin
     imdb_year := 0;
 
     (*  Fetch MainInfoPage from iMDB *)
-    try
-
-      mainsite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/', '');
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section,
-          Format('[EXCEPTION] TPazoHTTPImdbTask slUrlGet: %s ', [e.Message]));
-        irc_Adderror(Format('<c4>[EXCEPTION]</c> TPazoHTTPImdbTask slUrlGet: %s',
-          [e.Message]));
-        Result := True;
-        ready := True;
-        exit;
-      end;
-    end;
-
-    if (length(mainsite) < 10) then
+    if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', mainsite, fHttpGetErrMsg) then
     begin
+      Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask mainpage --> %s', [fHttpGetErrMsg]));
       Result := True;
       ready := True;
-      irc_Adderror(Format('<c4>[ERROR]</c> TPazoHTTPImdbTask Size (%d) not enought : http://www.imdb.com/title/%s/ ', [length(mainsite), imdb_id]));
       exit;
     end;
 
@@ -403,7 +388,14 @@ begin
       imdb_date := '';
 
       (* Get STV Info through releaseinfo page from iMDB *)
-      rlsdatesite := slUrlGet('http://www.imdb.com/title/' + imdb_id + '/releaseinfo', '');
+      if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/releaseinfo', rlsdatesite, fHttpGetErrMsg) then
+      begin
+        Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
+        irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
+        Result := True;
+        ready := True;
+        exit; // TODO: skip releaseinfo webpage crawl if failed instead of stoping complete imdb parsing task
+      end;
 
       if not imdb_stv then
       begin
@@ -570,9 +562,16 @@ begin
 
         if fBOMSearchNeeded then
         begin
-          bomsite := slUrlGet('http://www.boxofficemojo.com/search/', 'q=' + imdb_mtitle);
+          if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + imdb_mtitle, bomsite, fHttpGetErrMsg) then
+          begin
+            Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+            Result := True;
+            ready := True;
+            exit; // TODO: skip boxofficemojo webpage crawl if failed instead of stoping complete imdb parsing task
+          end;
 
-          Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
+          //Debug(dpError, section, Format('Searching on Box Office Mojo with %s for %s', [imdb_mtitle, rls]));
 
           if not AnsiContainsText(bomsite, 'No Movies or People found.') then
           begin
@@ -591,23 +590,23 @@ begin
 
             if fPictureID <> '' then
             begin
-              Debug(dpError, section, Format('Found movie by Picture Link: %s', [fPictureID]));
+              //Debug(dpError, section, Format('Found movie by Picture Link: %s', [fPictureID]));
               rr2.Expression := '<a href=\".*?\"https:\/\/.*?(images)\/\w\/' + fPictureID + '.*?td>\s*[^\n]*<td\s*[^\n]*\s*[^\n]*(.*?)\s*[^\n]*\">(.*?)<\/font>';
             end
             else if AnsiContainsText(bomsite, '1 Movie Matches:') then
             begin
-              Debug(dpError, section, 'Only one movie matched');
+              //Debug(dpError, section, 'Only one movie matched');
               rr2.Expression := '<td>\s*[^\n]*<b><font[^<>]*><a href="(\/movies\/[^<>]*)">[^<>]*<\/a><\/font><\/b><\/td>\s*(<td[^<>]*>[^\n]+\s*)+>([0-9,]+)<\/font><\/td>\s*<td[^<>]*><font\s+';
             end
             else
             begin
-              Debug(dpError, section, 'Found more than one movie');
+              //Debug(dpError, section, 'Found more than one movie');
 
               bom_date := '[^<>]+' + IntToStr(imdb_year);
 
               if imdb_date <> '' then
               begin
-                Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
+                //Debug(dpError, section, Format('imdb_date: %s', [imdb_date]));
 
                 // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
                 {$IFDEF MSWINDOWS}
@@ -622,7 +621,7 @@ begin
                 formatSettings.ShortDateFormat := 'mm/dd/yyyy'; // dd & mm could lead to problems, as date is shown as "7/22/1983" or "6/2/1989"
                 imdb_date := DateToStr(release_date, formatSettings);
 
-                Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
+                //Debug(dpError, section, Format('exact date: %s -- non exact date: %s|%s', [bom_date, bom_date, imdb_date]));
 
                 if config.ReadBool('dbaddimdb', 'parse_boxofficemojo_exact', False) then
                   bom_date := imdb_date
@@ -640,7 +639,7 @@ begin
               if StrToIntDef(s, 0) > imdb_screens then
                 imdb_screens := StrToIntDef(s, 0);
 
-              Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
+              //Debug(dpError, section, Format('Screens via BOM: %s with %s', [IntToStr(imdb_screens), s]));
             end;
           end;
 

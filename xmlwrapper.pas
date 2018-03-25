@@ -66,7 +66,7 @@ procedure UninitXMLWeapper;
 
 implementation
 
-uses slhttp;
+uses http, debugunit;
 
 procedure InitXMLWeapper;
 begin
@@ -144,8 +144,14 @@ procedure TSLXMLDocument.LoadFromWeb(url: AnsiString);
 var
   st: TStream;
   res: AnsiString;
+  fHttpGetErrMsg: String;
 begin
-  res := slUrlGet(url);
+  if not HttpGetUrl(url, res, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, 'xmlwrapper', Format('[FAILED] TSLXMLDocument.LoadFromWeb: %s ', [fHttpGetErrMsg]));
+    exit;
+  end;
+
   (*
   if res = '' then begin
   //Trow excption
