@@ -80,7 +80,7 @@ function TVInfoDbAlive: boolean;
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, slhttp, regexpr, debugunit,
+uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks, http, regexpr, debugunit,
   tasktvinfolookup, pazo, mrdohutils, uLkJSON;
 
 const
@@ -517,6 +517,7 @@ function TTVInfoDB.Update(fromIRC: boolean = False): boolean;
 var
   rls_name: AnsiString;
   respo: AnsiString;
+  fHttpGetErrMsg: String;
 begin
   Result := False;
   // Update asked from irc. Update and exit.
@@ -534,20 +535,25 @@ begin
   // Note: variable will be overwriten by parseTVMazeInfos
   rls_name := self.ripname;
   Result := False;
-  respo := slUrlGet('http://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode');
 
-  if respo = '' then
+  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
   begin
-    irc_Adderror('<c4><b>Error</c></b>: TVMaze api response was empty.');
-    Debug(dpError, section, 'TVMaze api response was empty.');
+    Debug(dpError, section, Format('[FAILED] TVMaze API Update: --> %s ', [fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> TVMaze API Update --> %s', [fHttpGetErrMsg]));
     exit;
+  end;
+
+  if ((respo = '') or (respo = '[]')) then
+  begin
+    irc_Adderror(Format('<c4>TTVInfoDB</c>: No Result from TVMaze API when updating %s', [tvmaze_id]));
+    Exit;
   end;
 
   try
     self := parseTVMazeInfos(respo);
   except on e: Exception do
     begin
-      irc_AddError(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
       Debug(dpError, section, 'TTVInfoDB.Update: %s', [e.Message]);
       exit;
     end;
