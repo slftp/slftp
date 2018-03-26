@@ -8,10 +8,10 @@ type
   PSSL_METHOD     = Pointer;
 
 
-function OpenSSLVersion: AnsiString;
-function OpenSSLShortVersion: AnsiString;
-function slSSL_LastError(): AnsiString; overload;
-function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString; overload;
+function OpenSSLVersion: String;
+function OpenSSLShortVersion: String;
+function slSSL_LastError(): String; overload;
+function slSSL_LastError(ssl: PSSL; ec: Integer): String; overload;
 
 const
   OPENSSL_SSL_ERROR_NONE = 0;
@@ -107,7 +107,7 @@ const
   slssl_default_cipher_list = 'ALL:!EXP';
 
 var slssl_inited: Boolean = False;
-    slssl_error: AnsiString;
+    slssl_error: String;
     slssl_ctx_sslv23_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_2_client: PSSL_CTX = nil;
@@ -321,7 +321,7 @@ const
   fn_CRYPTO_set_dynlock_destroy_callback = 'CRYPTO_set_dynlock_destroy_callback';
 
 
-function OpenSSLVersion: AnsiString;
+function OpenSSLVersion: String;
 begin
   Result:= Format('%s %s %s %s',[
     slSSLeay_version(OPENSSL_SSLEAY_VERSION),
@@ -330,14 +330,14 @@ begin
     slSSLeay_version(OPENSSL_SSLEAY_PLATFORM)]);
 end;
 
-function OpenSSLShortVersion: AnsiString;
+function OpenSSLShortVersion: String;
 begin
   Result:= Copy(slSSLeay_version(OPENSSL_SSLEAY_VERSION), 9, 6);
 end;
 
 
-function slSsl_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
-var fceName: AnsiString;
+function slSsl_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
+var fceName: String;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -802,8 +802,8 @@ begin
   slssl_inited:= False;
 end;
 
-function slSSL_LastError(): AnsiString;
-var s: AnsiString;
+function slSSL_LastError(): String;
+var s: String;
     db: Integer;
     i: Cardinal;
 begin
@@ -822,7 +822,7 @@ begin
 
   if db = 0 then Result:= 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
-function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString;
+function slSSL_LastError(ssl: PSSL; ec: Integer): String;
 begin
     ec:= slSSL_get_error(ssl, ec);
     case ec of

@@ -21,13 +21,13 @@ type
     FMask: Pointer;
     FSize: Integer;
   public
-    constructor Create(const MaskValue: AnsiString);
+    constructor Create(const MaskValue: String);
     destructor Destroy; override;
-    function Matches(const Filename: AnsiString): Boolean;
+    function Matches(const Filename: String): Boolean;
   end;
 
 
-function MatchesMask(const Filename, Mask: AnsiString): Boolean;
+function MatchesMask(const Filename, Mask: String): Boolean;
 
 implementation
 
@@ -53,7 +53,7 @@ type
   PMaskStateArray = ^TMaskStateArray;
   TMaskStateArray = array[0..128] of TMaskState;
 
-function InitMaskStates(const Mask: AnsiString;
+function InitMaskStates(const Mask: String;
   var MaskStates: array of TMaskState): Integer;
 var
   I: Integer;
@@ -176,7 +176,7 @@ begin
   Result := I;
 end;
 
-function MatchesMaskStates(const Filename: AnsiString;
+function MatchesMaskStates(const Filename: String;
   const MaskStates: array of TMaskState): Boolean;
 type
   TStackRec = record
@@ -284,7 +284,7 @@ end;
 
 { TMask }
 
-constructor TMask.Create(const MaskValue: AnsiString);
+constructor TMask.Create(const MaskValue: String);
 var
   A: array[0..0] of TMaskState;
 begin
@@ -302,7 +302,7 @@ begin
   end;
 end;
 
-function TMask.Matches(const Filename: AnsiString): Boolean;
+function TMask.Matches(const Filename: String): Boolean;
 begin
   try
     Result := MatchesMaskStates(Filename, Slice(PMaskStateArray(FMask)^, FSize));
@@ -311,7 +311,7 @@ begin
   end;
 end;
 
-function MatchesMask(const Filename, Mask: AnsiString): Boolean;
+function MatchesMask(const Filename, Mask: String): Boolean;
 var
   CMask: TMask;
 begin

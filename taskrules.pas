@@ -7,9 +7,9 @@ uses
 
 type
   TRulesTask = class(TTask)
-    constructor Create(const netname, channel: AnsiString; site: AnsiString);
+    constructor Create(const netname, channel: String; site: String);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -22,7 +22,7 @@ const
 
 { TRulesTask }
 
-constructor TRulesTask.Create(const netname, channel: AnsiString; site: AnsiString);
+constructor TRulesTask.Create(const netname, channel: String; site: String);
 begin
   inherited Create(netname, channel, site);
 end;
@@ -32,14 +32,14 @@ label
   ujra;
 var
   s: TSiteSlot;
-  cmd : AnsiString;
+  cmd : String;
   t: TRulesTask;
   i: Integer;
-  rules, ss: AnsiString;
+  rules, ss: String;
   f: TStringlist;
   new_rules, old_rules: TStringList;
   hash_new_rules, hash_old_rules : TList;
-  rules_path, rules_file: AnsiString;
+  rules_path, rules_file: String;
   Diff: TDiff;
   numerrors: Integer;
 begin
@@ -272,7 +272,7 @@ ujra:
   ready := True;
 end;
 
-function TRulesTask.Name: AnsiString;
+function TRulesTask.Name: String;
 begin
   Result := 'AUTORULES ' + ScheduleText;
 end;

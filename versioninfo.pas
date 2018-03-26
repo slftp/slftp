@@ -2,10 +2,10 @@ unit versioninfo;
 
 interface
 
-function Get_VersionString(const exename: AnsiString): AnsiString; overload;
-function Get_VersionString: AnsiString; overload;
-function Get_VersionOnlyString: AnsiString;
-function cmod_VersionString: AnsiString;
+function Get_VersionString(const exename: String): String; overload;
+function Get_VersionString: String; overload;
+function Get_VersionOnlyString: String;
+function cmod_VersionString: String;
 
 
 //Change the inc file to mod the version
@@ -17,7 +17,7 @@ implementation
 uses
   configunit, SysUtils, mystrings;
 
-function ShowSLFTPVerison: AnsiString;
+function ShowSLFTPVerison: String;
 begin
   if sl_rev = '' then
     Result := Format('slFtp v%s',[SL_VERSION])
@@ -26,27 +26,27 @@ begin
 end;
 
 
-function Get_VersionString(const exename: AnsiString): AnsiString;
+function Get_VersionString(const exename: String): String;
 begin
   result := ShowSLFTPVerison;
 end;
 
-function Get_VersionString: AnsiString;
+function Get_VersionString: String;
 begin
   Result := ShowSLFTPVerison;
 end;
 
-function Get_VersionOnlyString: AnsiString;
+function Get_VersionOnlyString: String;
 var
-  src: AnsiString;
+  src: String;
 begin
   src := ShowSLFTPVerison;
   Result := mystrings.RightStr(src, Pos('v', src));
 end;
 
-function cmod_VersionString: AnsiString;
+function cmod_VersionString: String;
 var
-  s: AnsiString;
+  s: String;
 begin
   s := config.ReadString('console','customtitle','');
   if s <> '' then

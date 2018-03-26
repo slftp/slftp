@@ -9,12 +9,12 @@ type
   private
     ss: TStringStream;
     attempt: Integer;
-    function FetchGenre(text: AnsiString): AnsiString;
+    function FetchGenre(text: String): String;
   public
-    constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -27,7 +27,7 @@ const
 
 { TPazoGenreNfoTask }
 
-constructor TPazoGenreNfoTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+constructor TPazoGenreNfoTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
 begin
   ss := TStringStream.Create('');
   self.attempt := attempt;
@@ -35,10 +35,10 @@ begin
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-function TPazoGenreNfoTask.FetchGenre(text: AnsiString): AnsiString;
+function TPazoGenreNfoTask.FetchGenre(text: String): String;
 var
   i: Integer;
-  s: AnsiString;
+  s: String;
 begin
   Result := '';
   i := Pos('genre', LowerCase(text));
@@ -75,7 +75,7 @@ var
   de: TDirListEntry;
   r: TPazoGenreNfoTask;
   d: TDirList;
-  tname, nfofile, genre: AnsiString;
+  tname, nfofile, genre: String;
   numerrors: Integer;
 begin
   Result := False;
@@ -284,7 +284,7 @@ begin
   Debug(dpMessage, section, '<-- ' + tname);
 end;
 
-function TPazoGenreNfoTask.Name: AnsiString;
+function TPazoGenreNfoTask.Name: String;
 begin
   try
     Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);

@@ -2481,9 +2481,9 @@ type
   end;
 
 function slWinsock2Loaded : Boolean;
-function slWinsock2BuildError( const ATitle : AnsiString; AWin32Error : DWORD ): AnsiString;
+function slWinsock2BuildError( const ATitle : String; AWin32Error : DWORD ): String;
 
-var slWinsock2error: AnsiString = '';
+var slWinsock2error: String = '';
 
 //=============================================================
 implementation
@@ -2508,7 +2508,7 @@ begin
   Result := hWS2Dll <> 0;
 end;
 
-function slWinsock2BuildError( const ATitle : AnsiString; AWin32Error : DWORD ): AnsiString;
+function slWinsock2BuildError( const ATitle : String; AWin32Error : DWORD ): String;
 begin
   if AWin32Error=0 then
   begin

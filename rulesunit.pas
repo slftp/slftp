@@ -7,13 +7,13 @@ uses kb, slmasks, Classes, pazo, Contnrs;
 type
   TRuleNode = class
     parent: TRuleNode;
-    class function TakeThis(var s: AnsiString): boolean; virtual;
+    class function TakeThis(var s: String): boolean; virtual;
     procedure SetupChild(child: TRuleNode); virtual;
     constructor Create(parent: TRuleNode); virtual;
-    class function Name: AnsiString; virtual; abstract;
+    class function Name: String; virtual; abstract;
     function Match(p: TPazo): boolean; virtual; abstract;
-    function AsText: AnsiString; virtual; abstract;
-    function AtConditionName: AnsiString; virtual; abstract;
+    function AsText: String; virtual; abstract;
+    function AtConditionName: String; virtual; abstract;
   end;
 
   TCRuleNode = class of TRuleNode;
@@ -23,70 +23,70 @@ type
 
   TPrefixOperator = class(TOperator)
     child: TRuleNode;
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     destructor Destroy; override;
     procedure SetupChild(child: TRuleNode); override;
-    function AtConditionName: AnsiString; override;
+    function AtConditionName: String; override;
   end;
 
   TNotOperator = class(TPrefixOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TOpeningBracketOperator = class(TPrefixOperator)
-    class function Name: AnsiString; override;
-    function AsText: AnsiString; override;
+    class function Name: String; override;
+    function AsText: String; override;
     function Match(p: TPazo): boolean; override;
     destructor Destroy; override;
   end;
 
   TClosingBracketOperator = class(TOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
   end;
 
   TInfixOperator = class(TOperator)
     left: TRuleNode;
     right: TRuleNode;
 
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     destructor Destroy; override;
-    function AtConditionName: AnsiString; override;
+    function AtConditionName: String; override;
   end;
 
   TOrOperator = class(TInfixOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TAndOperator = class(TInfixOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TOperand = class(TRuleNode)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
-    function AtConditionName: AnsiString; override;
+    function AtConditionName: String; override;
   end;
 
   TStringOperand = class(TOperand)
   private
-    fValue: AnsiString;
+    fValue: String;
     nelegyenhitelesites: boolean;
   public
-    function AsText: AnsiString; override;
-    function Value: AnsiString;
-    function FeedOperand(const s: AnsiString): boolean; virtual;
+    function AsText: String; override;
+    function Value: String;
+    function FeedOperand(const s: String): boolean; virtual;
   end;
 
   TIntOperand = class(TOperand)
   private
     fValue: integer;
   public
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     function Value: integer;
-    function FeedOperand(const s: AnsiString): boolean;
+    function FeedOperand(const s: String): boolean;
   end;
 
   TMaskOperand = class(TStringOperand)
@@ -94,10 +94,10 @@ type
     maskValue: TslMask;
   public
     constructor Create(parent: TRuleNode); override;
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     function Value: TslMask;
     destructor Destroy; override;
-    function FeedOperand(const s: AnsiString): boolean; override;
+    function FeedOperand(const s: String): boolean; override;
   end;
 
   TListOperand = class(TStringOperand)
@@ -106,10 +106,10 @@ type
     procedure Reparse;
   public
     constructor Create(parent: TRuleNode); override;
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     function Value: TStringList;
     destructor Destroy; override;
-    function FeedOperand(const s: AnsiString): boolean; override;
+    function FeedOperand(const s: String): boolean; override;
   end;
 
   TCondition = class; //forward
@@ -117,25 +117,25 @@ type
   TConditionOperator = class(TOperator)
     condition: TCondition;
     operand: TOperand;
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     destructor Destroy; override;
-    function FeedOperand(var s: AnsiString): boolean; virtual; abstract;
-    function AtConditionName: AnsiString; override;
+    function FeedOperand(var s: String): boolean; virtual; abstract;
+    function AtConditionName: String; override;
   end;
 
   TBooleanOperator = class(TConditionOperator)
-    class function TakeThis(var s: AnsiString): boolean; override;
-    class function Name: AnsiString; override;
+    class function TakeThis(var s: String): boolean; override;
+    class function Name: String; override;
     function GetSupplyValue(p: TPazo): boolean;
-    function AsText: AnsiString; override;
+    function AsText: String; override;
     function Match(p: TPazo): boolean; override;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TStringOperator = class(TConditionOperator)
-    function GetOperandValue: AnsiString;
-    function GetSupplyValue(p: TPazo): AnsiString;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function GetOperandValue: String;
+    function GetSupplyValue(p: TPazo): String;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TMultiStringOperator = class(TConditionOperator)
@@ -144,105 +144,105 @@ type
   public
     constructor Create(parent: TRuleNode); override;
     destructor Destroy; override;
-    function GetOperandValue: AnsiString;
+    function GetOperandValue: String;
     procedure GetSupplyValues(p: TPazo; re: TStringList);
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TIntOperator = class(TConditionOperator)
     function GetOperandValue: integer;
     function GetSupplyValue(p: TPazo): integer;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TMaskOperator = class(TStringOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function GetOperandValue: TslMask;
     function Match(p: TPazo): boolean; override;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TNotMaskOperator = class(TMaskOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TInOperator = class(TStringOperator)
     function GetOperandValue: TStringList;
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TNotInOperator = class(TInOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TStringEqualOperator = class(TStringOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TStringNotEqualOperator = class(TStringEqualOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TMultiStringEqualOperator = class(TMultiStringOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TMultiStringNotEqualOperator = class(TMultiStringEqualOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TMultiInOperator = class(TMultiStringOperator)
     function GetOperandValue: TStringList;
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
-    function FeedOperand(var s: AnsiString): boolean; override;
+    function FeedOperand(var s: String): boolean; override;
   end;
 
   TMultiNotInOperator = class(TMultiInOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TAtOperator = class(TMultiStringEqualOperator)
-    class function Name: AnsiString; override;
-    function AtConditionName: AnsiString; override;
+    class function Name: String; override;
+    function AtConditionName: String; override;
   end;
 
   TIntEqualOperator = class(TIntOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TIntNotEqualOperator = class(TIntEqualOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TIntBiggerOrEqualThanOperator = class(TIntOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TIntBiggerThanOperator = class(TIntOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TIntLowerThanOperator = class(TIntOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
   TIntLowerOrEqualThanOperator = class(TIntOperator)
-    class function Name: AnsiString; override;
+    class function Name: String; override;
     function Match(p: TPazo): boolean; override;
   end;
 
@@ -251,12 +251,12 @@ type
   TCondition = class(TRuleNode)
     acceptedOperators: TClassList;
 
-    function Hitelesit(const s: AnsiString): boolean; virtual;
-    function AsText: AnsiString; override;
+    function Hitelesit(const s: String): boolean; virtual;
+    function AsText: String; override;
     function Match(p: TPazo): boolean; override;
-    class function Description: AnsiString; virtual; abstract;
-    class function AcceptedOperatorsAsText: AnsiString;
-    function TakesThisOperator(var op: AnsiString): TConditionOperatorClass;
+    class function Description: String; virtual; abstract;
+    class function AcceptedOperatorsAsText: String;
+    function TakesThisOperator(var op: String): TConditionOperatorClass;
     constructor Create(parent: TRuleNode); override;
     destructor Destroy; override;
   end;
@@ -264,7 +264,7 @@ type
   TStringCondition = class(TCondition)
   public
     constructor Create(parent: TRuleNode); override;
-    function SupplyValue(r: TPazo): AnsiString; virtual; abstract;
+    function SupplyValue(r: TPazo): String; virtual; abstract;
   end;
 
   { Use this if you have a list of values to check and want to use in/notin and mask/notmask
@@ -276,7 +276,7 @@ type
   TListCondition = class(TStringCondition)
     constructor Create(parent: TRuleNode); override;
     procedure SupplyValues(r: TPazo; re: TStringList); virtual; abstract;
-    function SupplyValue(r: TPazo): AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
   end;
 
   TMultiStringCondition = class(TCondition)
@@ -303,33 +303,33 @@ type
   TRuleAction = (raDrop, raAllow, raDontmatch);
 
   TRule = class
-    sitename: AnsiString;
-    section: AnsiString;
+    sitename: String;
+    section: String;
     conditions: TRuleNode;
     action: TRuleAction;
-    error: AnsiString;
+    error: String;
 
     function Execute(r: TPazo): TRuleAction;
 
-    function AsText(const includeSitesection: boolean): AnsiString;
-    procedure Reparse(rule: AnsiString);
-    constructor Create(const rule: AnsiString);
+    function AsText(const includeSitesection: boolean): String;
+    procedure Reparse(rule: String);
+    constructor Create(const rule: String);
     destructor Destroy; override;
   end;
 
-procedure RulesRemove(const sitename, section: AnsiString);
+procedure RulesRemove(const sitename, section: String);
 procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
-procedure RulesLoad(const action, filename: AnsiString);
-function AddRule(const rule: AnsiString; var error: AnsiString): TRule;
+procedure RulesLoad(const action, filename: String);
+function AddRule(const rule: String; var error: String): TRule;
 procedure RulesOrder(p: TPazo);
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
 procedure RulesUninit;
 
-function FindConditionClassByName(const Name: AnsiString): TConditionClass;
+function FindConditionClassByName(const Name: String): TConditionClass;
 
 var
   rules: TObjectList;
@@ -352,27 +352,27 @@ type
   TInfixOperatorClass = class of TInfixOperator;
 
   TConditionReleaseName = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionSection = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionInternal = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionAge = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   (*
@@ -389,436 +389,436 @@ type
   *)
   TConditionComplete = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionNotComplete = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionPre = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionAllowed = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionNotAllowed = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionGroup = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionFake = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionForeign = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionLanguage = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionKnownGroup = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionUnKnownGroup = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionSource = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionDestination = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionCompleteSource = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionNewdirSource = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionNuked = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TCondition0daySource = class(TStringCondition)
-    function Hitelesit(const s: AnsiString): boolean; override;
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function Hitelesit(const s: String): boolean; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTag = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionDisks = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionAutofollow = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionPred = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   (*###      MP3       ###*)
   TConditionMP3Genre = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Year = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Language = class(TStringCondition)
-    function Hitelesit(const s: AnsiString): boolean; override;
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function Hitelesit(const s: String): boolean; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Foreign = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Source = class(TStringCondition)
-    function Hitelesit(const s: AnsiString): boolean; override;
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function Hitelesit(const s: String): boolean; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Live = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Type = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3Bootleg = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3NumDisks = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMP3VA = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   (*###      NFO       ###*)
   TConditionNfoMGenre = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
     constructor Create(parent: TRuleNode); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   (*###      IMDB       ###*)
   TConditionIMDBYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBLanguages = class(TListCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBCountries = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBGenres = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBScreens = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBStv = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBRating = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBVotes = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBldt = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBWide = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBfestival = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionIMDBCineyear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVShowName = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVtag = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVPremierYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVCountry = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVLanguage = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVClassification = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVScripted = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVGenres = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVNetwork = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVRuntime = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVEndedYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVRunning = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVStatus = class(TStringCondition)
-    function SupplyValue(r: TPazo): AnsiString; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVCurrentSeason = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVCurrentEpisiode = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVCurrentOnAir = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionTVDailyShow = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   {###      MVID    ###}
   TConditionMVIDGenre = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDFiles = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDVA = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDPAL = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDNTSC = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDLive = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionMVIDLanguage = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
 
   TConditionDefault = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
-    class function Name: AnsiString; override;
-    class function Description: AnsiString; override;
+    class function Name: String; override;
+    class function Description: String; override;
   end;
   // NE FELEJTSD EL LENT ADDOLNI A LISTABA !!!
 
@@ -828,7 +828,7 @@ var
 
   { TInfixOperator }
 
-function TInfixOperator.AsText: AnsiString;
+function TInfixOperator.AsText: String;
 begin
   try
     Result := left.AsText + ' ' + Name + ' ' + right.AsText;
@@ -841,7 +841,7 @@ begin
   end;
 end;
 
-function TInfixOperator.AtConditionName: AnsiString;
+function TInfixOperator.AtConditionName: String;
 begin
   try
     Result := left.AtConditionName;
@@ -873,7 +873,7 @@ end;
 
 { TPrefixOperator }
 
-function TPrefixOperator.AsText: AnsiString;
+function TPrefixOperator.AsText: String;
 begin
   try
     Result := Name + ' ' + child.AsText;
@@ -886,7 +886,7 @@ begin
   end;
 end;
 
-function TPrefixOperator.AtConditionName: AnsiString;
+function TPrefixOperator.AtConditionName: String;
 begin
   try
     Result := child.AtConditionName;
@@ -916,7 +916,7 @@ end;
 
 { TBracketOperator }
 
-function TOpeningBracketOperator.AsText: AnsiString;
+function TOpeningBracketOperator.AsText: String;
 begin
   try
     Result := '( ' + child.AsText + ' )';
@@ -952,7 +952,7 @@ begin
   end;
 end;
 
-class function TOpeningBracketOperator.Name: AnsiString;
+class function TOpeningBracketOperator.Name: String;
 begin
   Result := '(';
 end;
@@ -972,7 +972,7 @@ begin
   end;
 end;
 
-class function TOrOperator.Name: AnsiString;
+class function TOrOperator.Name: String;
 begin
   Result := '||';
 end;
@@ -992,14 +992,14 @@ begin
   end;
 end;
 
-class function TAndOperator.Name: AnsiString;
+class function TAndOperator.Name: String;
 begin
   Result := '&&';
 end;
 
 { TNoOperator }
 
-function TBooleanOperator.AsText: AnsiString;
+function TBooleanOperator.AsText: String;
 begin
   try
     Result := condition.AsText;
@@ -1012,7 +1012,7 @@ begin
   end;
 end;
 
-function TBooleanOperator.FeedOperand(var s: AnsiString): boolean;
+function TBooleanOperator.FeedOperand(var s: String): boolean;
 begin
   Result := False; // ez specialis, nem kell neki semmilyen operandus
 end;
@@ -1043,14 +1043,14 @@ begin
   end;
 end;
 
-class function TBooleanOperator.Name: AnsiString;
+class function TBooleanOperator.Name: String;
 begin
   Result := '';
 end;
 
 { TInOperator }
 
-function TInOperator.FeedOperand(var s: AnsiString): boolean;
+function TInOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TListOperand.Create(self);
@@ -1086,7 +1086,7 @@ begin
   end;
 end;
 
-class function TInOperator.Name: AnsiString;
+class function TInOperator.Name: String;
 begin
   Result := 'in';
 end;
@@ -1106,7 +1106,7 @@ begin
   end;
 end;
 
-class function TNotInOperator.Name: AnsiString;
+class function TNotInOperator.Name: String;
 begin
   Result := 'notin';
 end;
@@ -1126,7 +1126,7 @@ begin
   end;
 end;
 
-class function TStringEqualOperator.Name: AnsiString;
+class function TStringEqualOperator.Name: String;
 begin
   Result := '=';
 end;
@@ -1146,7 +1146,7 @@ begin
   end;
 end;
 
-class function TStringNotEqualOperator.Name: AnsiString;
+class function TStringNotEqualOperator.Name: String;
 begin
   Result := '!=';
 end;
@@ -1172,7 +1172,7 @@ begin
   end;
 end;
 
-class function TIntEqualOperator.Name: AnsiString;
+class function TIntEqualOperator.Name: String;
 begin
   Result := '=';
 end;
@@ -1198,7 +1198,7 @@ begin
   end;
 end;
 
-class function TIntNotEqualOperator.Name: AnsiString;
+class function TIntNotEqualOperator.Name: String;
 begin
   Result := '!=';
 end;
@@ -1224,7 +1224,7 @@ begin
   end;
 end;
 
-class function TIntBiggerOrEqualThanOperator.Name: AnsiString;
+class function TIntBiggerOrEqualThanOperator.Name: String;
 begin
   Result := '>=';
 end;
@@ -1251,7 +1251,7 @@ begin
   end;
 end;
 
-class function TIntBiggerThanOperator.Name: AnsiString;
+class function TIntBiggerThanOperator.Name: String;
 begin
   Result := '>';
 end;
@@ -1277,7 +1277,7 @@ begin
   end;
 end;
 
-class function TIntLowerThanOperator.Name: AnsiString;
+class function TIntLowerThanOperator.Name: String;
 begin
   Result := '<';
 end;
@@ -1303,14 +1303,14 @@ begin
   end;
 end;
 
-class function TIntLowerOrEqualThanOperator.Name: AnsiString;
+class function TIntLowerOrEqualThanOperator.Name: String;
 begin
   Result := '<=';
 end;
 
 { TCondition }
 
-class function TCondition.AcceptedOperatorsAsText: AnsiString;
+class function TCondition.AcceptedOperatorsAsText: String;
 var
   i: integer;
   c: TCondition;
@@ -1328,7 +1328,7 @@ begin
   end;
 end;
 
-function TCondition.AsText: AnsiString;
+function TCondition.AsText: String;
 begin
   Result := Name;
 end;
@@ -1345,7 +1345,7 @@ begin
   inherited;
 end;
 
-function TCondition.Hitelesit(const s: AnsiString): boolean;
+function TCondition.Hitelesit(const s: String): boolean;
 begin
   Result := True;
 end;
@@ -1355,7 +1355,7 @@ begin
   Result := False; // exception
 end;
 
-function TCondition.TakesThisOperator(var op: AnsiString): TConditionOperatorClass;
+function TCondition.TakesThisOperator(var op: String): TConditionOperatorClass;
 var
   i: integer;
 begin
@@ -1370,7 +1370,7 @@ end;
 
 { TMaskOperator }
 
-function TMaskOperator.FeedOperand(var s: AnsiString): boolean;
+function TMaskOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TMaskOperand.Create(self);
@@ -1406,7 +1406,7 @@ begin
   end;
 end;
 
-class function TMaskOperator.Name: AnsiString;
+class function TMaskOperator.Name: String;
 begin
   Result := '=~';
 end;
@@ -1426,7 +1426,7 @@ begin
   end;
 end;
 
-class function TNotMaskOperator.Name: AnsiString;
+class function TNotMaskOperator.Name: String;
 begin
   Result := '!~';
 end;
@@ -1441,7 +1441,7 @@ begin
     parent.SetupChild(self);
 end;
 
-class function TRuleNode.TakeThis(var s: AnsiString): boolean;
+class function TRuleNode.TakeThis(var s: String): boolean;
 begin
   Result := False;
   if s = Name then
@@ -1460,12 +1460,12 @@ end;
 
 { TStringOperand }
 
-function TStringOperand.AsText: AnsiString;
+function TStringOperand.AsText: String;
 begin
   Result := Value;
 end;
 
-function TStringOperand.FeedOperand(const s: AnsiString): boolean;
+function TStringOperand.FeedOperand(const s: String): boolean;
 begin
   if s = '' then
   begin
@@ -1488,19 +1488,19 @@ begin
     fValue := s;
 end;
 
-function TStringOperand.Value: AnsiString;
+function TStringOperand.Value: String;
 begin
   Result := fValue;
 end;
 
 { TIntOperand }
 
-function TIntOperand.AsText: AnsiString;
+function TIntOperand.AsText: String;
 begin
   Result := IntToStr(Value);
 end;
 
-function TIntOperand.FeedOperand(const s: AnsiString): boolean;
+function TIntOperand.FeedOperand(const s: String): boolean;
 begin
   Result := False;
   fValue := StrToIntDef(s, -123717283);
@@ -1515,7 +1515,7 @@ end;
 
 { TListOperand }
 
-function TListOperand.AsText: AnsiString;
+function TListOperand.AsText: String;
 var
   i: integer;
 begin
@@ -1547,7 +1547,7 @@ begin
   inherited;
 end;
 
-function TListOperand.FeedOperand(const s: AnsiString): boolean;
+function TListOperand.FeedOperand(const s: String): boolean;
 var
   l: integer;
 begin
@@ -1578,7 +1578,7 @@ end;
 
 procedure TListOperand.Reparse;
 var
-  s, fs: AnsiString;
+  s, fs: String;
   operand_read: integer;
 begin
   listValue.Clear;
@@ -1617,7 +1617,7 @@ end;
 
 { TMaskOperand }
 
-function TMaskOperand.AsText: AnsiString;
+function TMaskOperand.AsText: String;
 begin
   Result := fValue;
 end;
@@ -1635,7 +1635,7 @@ begin
   inherited;
 end;
 
-function TMaskOperand.FeedOperand(const s: AnsiString): boolean;
+function TMaskOperand.FeedOperand(const s: String): boolean;
 begin
   Result := inherited FeedOperand(s);
   if maskValue <> nil then
@@ -1650,7 +1650,7 @@ end;
 
 { TStringOperator }
 
-function TStringOperator.FeedOperand(var s: AnsiString): boolean;
+function TStringOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TStringOperand.Create(self);
@@ -1660,7 +1660,7 @@ begin
     s := '';
 end;
 
-function TStringOperator.GetOperandValue: AnsiString;
+function TStringOperator.GetOperandValue: String;
 begin
   try
     Result := TStringOperand(operand).Value;
@@ -1673,7 +1673,7 @@ begin
   end;
 end;
 
-function TStringOperator.GetSupplyValue(p: TPazo): AnsiString;
+function TStringOperator.GetSupplyValue(p: TPazo): String;
 begin
   try
     Result := TStringCondition(condition).SupplyValue(p);
@@ -1703,7 +1703,7 @@ begin
   inherited;
 end;
 
-function TMultiStringOperator.FeedOperand(var s: AnsiString): boolean;
+function TMultiStringOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TStringOperand.Create(self);
@@ -1713,7 +1713,7 @@ begin
     s := '';
 end;
 
-function TMultiStringOperator.GetOperandValue: AnsiString;
+function TMultiStringOperator.GetOperandValue: String;
 begin
   try
     Result := TStringOperand(operand).Value;
@@ -1745,7 +1745,7 @@ end;
 
 { TIntOperator }
 
-function TIntOperator.FeedOperand(var s: AnsiString): boolean;
+function TIntOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TIntOperand.Create(self);
@@ -1821,12 +1821,12 @@ end;
 
 { TConditionOperator }
 
-function TConditionOperator.AsText: AnsiString;
+function TConditionOperator.AsText: String;
 begin
   Result := condition.AsText + ' ' + Name + ' ' + operand.AsText;
 end;
 
-function TConditionOperator.AtConditionName: AnsiString;
+function TConditionOperator.AtConditionName: String;
 begin
   Result := '';
 end;
@@ -1861,14 +1861,14 @@ begin
   end;
 end;
 
-class function TNotOperator.Name: AnsiString;
+class function TNotOperator.Name: String;
 begin
   Result := 'not';
 end;
 
 { TOperand }
 
-function TOperand.AtConditionName: AnsiString;
+function TOperand.AtConditionName: String;
 begin
   Result := '';
 end;
@@ -1878,12 +1878,12 @@ begin
   Result := False; // exception
 end;
 
-class function TOperand.Name: AnsiString;
+class function TOperand.Name: String;
 begin
   Result := 'operand';
 end;
 
-class function TBooleanOperator.TakeThis(var s: AnsiString): boolean;
+class function TBooleanOperator.TakeThis(var s: String): boolean;
 begin
   Result := True;
   // we are not resetting s, it needs further processing
@@ -1891,7 +1891,7 @@ end;
 
 { TSuffixOperator }
 
-class function TClosingBracketOperator.Name: AnsiString;
+class function TClosingBracketOperator.Name: String;
 begin
   Result := ')';
 end;
@@ -1908,7 +1908,7 @@ begin
 end;
 
 function FireRuleSetB(p: TPazo; ps: TPazoSite;
-  sitenametomatch, sectiontomatch: AnsiString): TRuleAction;
+  sitenametomatch, sectiontomatch: String): TRuleAction;
 var
   i: integer;
   ra: TRuleAction;
@@ -2199,7 +2199,7 @@ var
   x: TStringList;
   i, j: integer;
   r: TRule;
-  s: AnsiString;
+  s: String;
   fositeIndex, aktsiteIndex: integer;
 begin
   x := TStringList.Create;
@@ -2264,8 +2264,8 @@ var
   f: TEncStringlist;
   a_i: integer;
   a_j: integer;
-  a_sitename: AnsiString;
-  a_rules_path: AnsiString;
+  a_sitename: String;
+  a_rules_path: String;
   a_sites_done: TStringList;
   a_siterules: TStringList;
   a_r: TRule;
@@ -2318,7 +2318,7 @@ begin
   end;
 end;
 
-procedure RulesRemove(const sitename, section: AnsiString);
+procedure RulesRemove(const sitename, section: String);
 var
   i: integer;
   r: TRule;
@@ -2338,7 +2338,7 @@ begin
   end;
 end;
 
-function AddRule(const rule: AnsiString; var error: AnsiString): TRule;
+function AddRule(const rule: String; var error: String): TRule;
 var
   r: TRule;
 begin
@@ -2354,12 +2354,12 @@ begin
     Result := r;
 end;
 
-procedure RulesLoad(const action, filename: AnsiString);
+procedure RulesLoad(const action, filename: String);
 var
   fst: TStringList;
   i: integer;
   r: TRule;
-  error: AnsiString;
+  error: String;
 begin
   if (UpperCase(action) = 'REPLACE') then
   begin
@@ -2392,10 +2392,10 @@ var
   fst: TStringList;
   i: integer;
   r: TRule;
-  error: AnsiString;
+  error: String;
   intFound: integer;
   SearchRec: TSearchRec;
-  rule_line, rules_path: AnsiString;
+  rule_line, rules_path: String;
   split_site_data: boolean;
 begin
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
@@ -2460,8 +2460,8 @@ var
   f: TEncStringlist;
   i: integer;
   r: TRule;
-  error: AnsiString;
-  S: AnsiString;
+  error: String;
+  S: String;
 begin
   // load rules tpl
   RulesReload();
@@ -2606,12 +2606,12 @@ end;
 
 { TConditionReleaseName }
 
-class function TConditionReleaseName.Description: AnsiString;
+class function TConditionReleaseName.Description: String;
 begin
 result:=ReleaseNameDescription;
 end;
 
-function TConditionReleaseName.SupplyValue(r: TPazo): AnsiString;
+function TConditionReleaseName.SupplyValue(r: TPazo): String;
 begin
   try
     Result := r.rls.rlsname;
@@ -2620,19 +2620,19 @@ begin
   end;
 end;
 
-class function TConditionReleaseName.Name: AnsiString;
+class function TConditionReleaseName.Name: String;
 begin
   Result := 'releasename';
 end;
 
 { TConditionSection }
 
-class function TConditionSection.Description: AnsiString;
+class function TConditionSection.Description: String;
 begin
 result:=SectionDescription;
 end;
 
-function TConditionSection.SupplyValue(r: TPazo): AnsiString;
+function TConditionSection.SupplyValue(r: TPazo): String;
 begin
   try
     Result := r.rls.section;
@@ -2641,14 +2641,14 @@ begin
   end;
 end;
 
-class function TConditionSection.Name: AnsiString;
+class function TConditionSection.Name: String;
 begin
   Result := 'section';
 end;
 
 { TConditionNotComplete }
 
-class function TConditionNotComplete.Description: AnsiString;
+class function TConditionNotComplete.Description: String;
 begin
   Result := NotCompleteDescription;
 end;
@@ -2682,14 +2682,14 @@ begin
   end;
 end;
 
-class function TConditionNotComplete.Name: AnsiString;
+class function TConditionNotComplete.Name: String;
 begin
   Result := 'notcomplete';
 end;
 
 { TConditionComplete }
 
-class function TConditionComplete.Description: AnsiString;
+class function TConditionComplete.Description: String;
 begin
   Result := CompleteDescription;
 end;
@@ -2724,14 +2724,14 @@ begin
   end;
 end;
 
-class function TConditionComplete.Name: AnsiString;
+class function TConditionComplete.Name: String;
 begin
   Result := 'complete';
 end;
 
 { TConditionPre }
 
-class function TConditionPre.Description: AnsiString;
+class function TConditionPre.Description: String;
 begin
   Result := PreDescription;
 end;
@@ -2765,14 +2765,14 @@ begin
   end;
 end;
 
-class function TConditionPre.Name: AnsiString;
+class function TConditionPre.Name: String;
 begin
   Result := 'pre';
 end;
 
 { TConditionAt }
 
-function TAtOperator.AtConditionName: AnsiString;
+function TAtOperator.AtConditionName: String;
 begin
   try
     Result := GetOperandValue;
@@ -2785,14 +2785,14 @@ begin
   end;
 end;
 
-class function TAtOperator.Name: AnsiString;
+class function TAtOperator.Name: String;
 begin
   Result := '@';
 end;
 
 { TConditionNotAllowed }
 
-class function TConditionNotAllowed.Description: AnsiString;
+class function TConditionNotAllowed.Description: String;
 begin
   Result := NotAllowedDescription;
 end;
@@ -2826,14 +2826,14 @@ begin
   end;
 end;
 
-class function TConditionNotAllowed.Name: AnsiString;
+class function TConditionNotAllowed.Name: String;
 begin
   Result := 'notallowed';
 end;
 
 { TConditionAllowed }
 
-class function TConditionAllowed.Description: AnsiString;
+class function TConditionAllowed.Description: String;
 begin
   Result := AllowedDescription;
 end;
@@ -2867,19 +2867,19 @@ begin
   end;
 end;
 
-class function TConditionAllowed.Name: AnsiString;
+class function TConditionAllowed.Name: String;
 begin
   Result := 'allowed';
 end;
 
 { TConditionGroup }
 
-class function TConditionGroup.Description: AnsiString;
+class function TConditionGroup.Description: String;
 begin
   Result := GroupDescription;
 end;
 
-function TConditionGroup.SupplyValue(r: TPazo): AnsiString;
+function TConditionGroup.SupplyValue(r: TPazo): String;
 begin
   try
     Result := r.rls.groupname;
@@ -2888,14 +2888,14 @@ begin
   end;
 end;
 
-class function TConditionGroup.Name: AnsiString;
+class function TConditionGroup.Name: String;
 begin
   Result := 'group';
 end;
 
 { TConditionKnownGroup }
 
-class function TConditionKnownGroup.Description: AnsiString;
+class function TConditionKnownGroup.Description: String;
 begin
   Result := KnownGroupDescription;
 end;
@@ -2909,14 +2909,14 @@ begin
   end;
 end;
 
-class function TConditionKnownGroup.Name: AnsiString;
+class function TConditionKnownGroup.Name: String;
 begin
   Result := 'knowngroup';
 end;
 
 { TConditionUnKnownGroup }
 
-class function TConditionUnKnownGroup.Description: AnsiString;
+class function TConditionUnKnownGroup.Description: String;
 begin
   Result := UnKnownGroupDescription;
 end;
@@ -2930,48 +2930,48 @@ begin
   end;
 end;
 
-class function TConditionUnKnownGroup.Name: AnsiString;
+class function TConditionUnKnownGroup.Name: String;
 begin
   Result := 'unknowngroup';
 end;
 
 { TConditionSource }
 
-class function TConditionSource.Description: AnsiString;
+class function TConditionSource.Description: String;
 begin
   Result := SourceDescription;
 end;
 
-function TConditionSource.SupplyValue(r: TPazo): AnsiString;
+function TConditionSource.SupplyValue(r: TPazo): String;
 begin
   Result := r.srcsite;
 end;
 
-class function TConditionSource.Name: AnsiString;
+class function TConditionSource.Name: String;
 begin
   Result := 'source';
 end;
 
 { TConditionDestination }
 
-class function TConditionDestination.Description: AnsiString;
+class function TConditionDestination.Description: String;
 begin
   Result := DestinationDescription;
 end;
 
-function TConditionDestination.SupplyValue(r: TPazo): AnsiString;
+function TConditionDestination.SupplyValue(r: TPazo): String;
 begin
   Result := r.dstsite;
 end;
 
-class function TConditionDestination.Name: AnsiString;
+class function TConditionDestination.Name: String;
 begin
   Result := 'destination';
 end;
 
 { TConditionNewdir }
 
-class function TConditionNewdirSource.Description: AnsiString;
+class function TConditionNewdirSource.Description: String;
 begin
   Result := NewdirSourceDescription;
 end;
@@ -2990,20 +2990,20 @@ begin
   end;
 end;
 
-class function TConditionNewdirSource.Name: AnsiString;
+class function TConditionNewdirSource.Name: String;
 begin
   Result := 'newdirsource';
 end;
 
 { TConditionMP3Genre }
 
-class function TConditionMP3Genre.Description: AnsiString;
+class function TConditionMP3Genre.Description: String;
 begin
   Result := 'Returns with the mp3 genre.' + #13#10;
   Result := Result + 'Example: if mp3genre =~ *Metal* then ALLOW' + #13#10;
 end;
 
-function TConditionMP3Genre.SupplyValue(r: TPazo): AnsiString;
+function TConditionMP3Genre.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -3014,14 +3014,14 @@ begin
   end;
 end;
 
-class function TConditionMP3Genre.Name: AnsiString;
+class function TConditionMP3Genre.Name: String;
 begin
   Result := 'mp3genre';
 end;
 
 { TConditionMP3EYear }
 
-class function TConditionMP3Year.Description: AnsiString;
+class function TConditionMP3Year.Description: String;
 begin
   Result := 'Returns with the mp3 year' + #13#10;
   Result := Result + 'Example: if mp3year < 2009 then DROP' + #13#10;
@@ -3038,14 +3038,14 @@ begin
   end;
 end;
 
-class function TConditionMP3Year.Name: AnsiString;
+class function TConditionMP3Year.Name: String;
 begin
   Result := 'mp3year';
 end;
 
 { TConditionInternal }
 
-class function TConditionInternal.Description: AnsiString;
+class function TConditionInternal.Description: String;
 begin
   Result := 'Returns true, if the release is tagged as internal.' + #13#10;
   Result := Result +
@@ -3061,21 +3061,21 @@ begin
   end;
 end;
 
-class function TConditionInternal.Name: AnsiString;
+class function TConditionInternal.Name: String;
 begin
   Result := 'internal';
 end;
 
 { TConditionMP3Language }
 
-class function TConditionMP3Language.Description: AnsiString;
+class function TConditionMP3Language.Description: String;
 begin
   Result := 'Returns with mp3 rip''s language tag. Language is EN by default' +
     #13#10;
   Result := Result + 'Example: if mp3language != EN then DROP' + #13#10;
 end;
 
-function TConditionMP3Language.SupplyValue(r: TPazo): AnsiString;
+function TConditionMP3Language.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -3087,12 +3087,12 @@ begin
   end;
 end;
 
-class function TConditionMP3Language.Name: AnsiString;
+class function TConditionMP3Language.Name: String;
 begin
   Result := 'mp3language';
 end;
 
-function TConditionMP3Language.Hitelesit(const s: AnsiString): boolean;
+function TConditionMP3Language.Hitelesit(const s: String): boolean;
 begin
   try
     Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
@@ -3103,7 +3103,7 @@ end;
 
 { TConditionMP3Foreign }
 
-class function TConditionMP3Foreign.Description: AnsiString;
+class function TConditionMP3Foreign.Description: String;
 begin
   Result := 'Returns true, if the mp3 rip''s language is not EN.' + #13#10;
   Result := Result + 'Example: if mp3foreign then DROP' + #13#10;
@@ -3120,21 +3120,21 @@ begin
   end;
 end;
 
-class function TConditionMP3Foreign.Name: AnsiString;
+class function TConditionMP3Foreign.Name: String;
 begin
   Result := 'mp3foreign';
 end;
 
 { TConditionMP3Source }
 
-class function TConditionMP3Source.Description: AnsiString;
+class function TConditionMP3Source.Description: String;
 begin
   Result := 'Returns with the mp3 rip''s source.' + #13#10;
   Result := Result + 'Example: if not ( mp3source in CD, CDR, DVD, VINYL ) then DROP' +
     #13#10;
 end;
 
-function TConditionMP3Source.SupplyValue(r: TPazo): AnsiString;
+function TConditionMP3Source.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -3145,12 +3145,12 @@ begin
   end;
 end;
 
-class function TConditionMP3Source.Name: AnsiString;
+class function TConditionMP3Source.Name: String;
 begin
   Result := 'mp3source';
 end;
 
-function TConditionMP3Source.Hitelesit(const s: AnsiString): boolean;
+function TConditionMP3Source.Hitelesit(const s: String): boolean;
 begin
   try
     Result := mp3sources.IndexOfName(s) <> -1;
@@ -3161,7 +3161,7 @@ end;
 
 { TConditionMP3Live }
 
-class function TConditionMP3Live.Description: AnsiString;
+class function TConditionMP3Live.Description: String;
 begin
   Result :=
     'Returns true, if the mp3 rip''s source is a live source. (You can define live source tags in slftp.ini i think)'
@@ -3182,14 +3182,14 @@ begin
   end;
 end;
 
-class function TConditionMP3Live.Name: AnsiString;
+class function TConditionMP3Live.Name: String;
 begin
   Result := 'mp3live';
 end;
 
 { TConditionDefault }
 
-class function TConditionDefault.Description: AnsiString;
+class function TConditionDefault.Description: String;
 begin
   Result := 'This condition simple matches anything, you can use it for default policy.' +
     #13#10;
@@ -3205,14 +3205,14 @@ begin
   Result := True;
 end;
 
-class function TConditionDefault.Name: AnsiString;
+class function TConditionDefault.Name: String;
 begin
   Result := 'default';
 end;
 
 { TConditionMP3Type }
 
-class function TConditionMP3Type.Description: AnsiString;
+class function TConditionMP3Type.Description: String;
 begin
   Result := 'Returns with the mp3 rip''s types.' + #13#10;
   Result := Result + 'Example: if mp3type in Bootleg, Demo then DROP';
@@ -3244,14 +3244,14 @@ begin
   end;
 end;
 
-class function TConditionMP3Type.Name: AnsiString;
+class function TConditionMP3Type.Name: String;
 begin
   Result := 'mp3type';
 end;
 
 { TConditionMP3Bootleg }
 
-class function TConditionMP3Bootleg.Description: AnsiString;
+class function TConditionMP3Bootleg.Description: String;
 begin
   Result := 'Returns true if the mp3 rip is bootleg.';
 end;
@@ -3267,14 +3267,14 @@ begin
   end;
 end;
 
-class function TConditionMP3Bootleg.Name: AnsiString;
+class function TConditionMP3Bootleg.Name: String;
 begin
   Result := 'mp3bootleg';
 end;
 
 { TConditionMP3LtNumCDs }
 
-class function TConditionMP3NumDisks.Description: AnsiString;
+class function TConditionMP3NumDisks.Description: String;
 begin
   Result := 'Returns with the number of disks of an mp3 release' + #13#10;
   Result := Result +
@@ -3294,14 +3294,14 @@ begin
   end;
 end;
 
-class function TConditionMP3NumDisks.Name: AnsiString;
+class function TConditionMP3NumDisks.Name: String;
 begin
   Result := 'mp3numdisks';
 end;
 
 { TConditionMP3VA }
 
-class function TConditionMP3VA.Description: AnsiString;
+class function TConditionMP3VA.Description: String;
 begin
   Result := 'Returns true if the mp3 rip is a compilation. (VA)';
 end;
@@ -3317,14 +3317,14 @@ begin
   end;
 end;
 
-class function TConditionMP3VA.Name: AnsiString;
+class function TConditionMP3VA.Name: String;
 begin
   Result := 'mp3va';
 end;
 
 { TConditionAgeGt }
 
-class function TConditionAge.Description: AnsiString;
+class function TConditionAge.Description: String;
 begin
   Result :=
     'This is useful for filtering old stuffs scanned by autodirlist in a not dated directory.'
@@ -3343,14 +3343,14 @@ begin
   end;
 end;
 
-class function TConditionAge.Name: AnsiString;
+class function TConditionAge.Name: String;
 begin
   Result := 'age';
 end;
 
 { TConditionNfoMGenre }
 
-class function TConditionNfoMGenre.Description: AnsiString;
+class function TConditionNfoMGenre.Description: String;
 begin
   Result := 'Checks for genre parsed from the nfo file. As its a stupid textfile, use masks.'
     +
@@ -3364,7 +3364,7 @@ begin
   Result := Result + 'Example: if nfogenre =~ *Hip*Hop* then ALLOW' + #13#10;
 end;
 
-function TConditionNfoMGenre.SupplyValue(r: TPazo): AnsiString;
+function TConditionNfoMGenre.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -3375,7 +3375,7 @@ begin
   end;
 end;
 
-class function TConditionNfoMGenre.Name: AnsiString;
+class function TConditionNfoMGenre.Name: String;
 begin
   Result := 'nfogenre';
 end;
@@ -3389,7 +3389,7 @@ end;
 
 { TConditionFake }
 
-class function TConditionFake.Description: AnsiString;
+class function TConditionFake.Description: String;
 begin
   Result := FakeDescription;
 end;
@@ -3403,19 +3403,19 @@ begin
   end;
 end;
 
-class function TConditionFake.Name: AnsiString;
+class function TConditionFake.Name: String;
 begin
   Result := 'fake';
 end;
 
 { TConditionTVShowName }
 
-class function TConditionTVShowName.Description: AnsiString;
+class function TConditionTVShowName.Description: String;
 begin
   Result := TVShowNameDescription;
 end;
 
-function TConditionTVShowName.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVShowName.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -3426,14 +3426,14 @@ begin
   end;
 end;
 
-class function TConditionTVShowName.Name: AnsiString;
+class function TConditionTVShowName.Name: String;
 begin
   Result := 'tvshowname';
 end;
 
 { TConditionForeign }
 
-class function TConditionForeign.Description: AnsiString;
+class function TConditionForeign.Description: String;
 begin
   Result :=ForeignDescription;
 end;
@@ -3455,14 +3455,14 @@ begin
   end;
 end;
 
-class function TConditionForeign.Name: AnsiString;
+class function TConditionForeign.Name: String;
 begin
   Result := 'foreign';
 end;
 
 { TConditionLanguageA }
 
-class function TConditionLanguage.Description: AnsiString;
+class function TConditionLanguage.Description: String;
 begin
   Result := LanguageDescription;
 end;
@@ -3483,12 +3483,12 @@ begin
   end;
 end;
 
-class function TConditionLanguage.Name: AnsiString;
+class function TConditionLanguage.Name: String;
 begin
   Result := 'language';
 end;
 
-function InArray(var Name: AnsiString; elements: TClassList): TCRuleNode;
+function InArray(var Name: String; elements: TClassList): TCRuleNode;
 var
   i: integer;
 begin
@@ -3505,12 +3505,12 @@ begin
   end;
 end;
 
-function ParseRule(rule: AnsiString; var error: AnsiString): TRuleNode;
+function ParseRule(rule: String; var error: String): TRuleNode;
 type
   TMitVarunk = (mvFelteteltVagyPrefixet, mvOperatort, mvInfixOrSuffix,
     mvOperandus, mvOperandusOrInfixOrSuffix, mvInfix);
 var
-  s: AnsiString;
+  s: String;
   top: TRuleNode;
   mv: TMitVarunk;
   cr: TCRuleNode;
@@ -3765,7 +3765,7 @@ end;
 
 { TRule }
 
-function TRule.AsText(const includeSitesection: boolean): AnsiString;
+function TRule.AsText(const includeSitesection: boolean): String;
 begin
   Result := '';
 
@@ -3784,7 +3784,7 @@ begin
     Result := Result + 'ALLOW';
 end;
 
-constructor TRule.Create(const rule: AnsiString);
+constructor TRule.Create(const rule: String);
 begin
   error := '';
   reparse(rule);
@@ -3825,10 +3825,10 @@ begin
   end;
 end;
 
-procedure TRule.Reparse(rule: AnsiString);
+procedure TRule.Reparse(rule: String);
 var
   i: integer;
-  ifstr, thenstr, actionstr, conditionstr: AnsiString;
+  ifstr, thenstr, actionstr, conditionstr: String;
   isnot: boolean;
 begin
   sitename := UpperCase(SubString(rule, ' ', 1));
@@ -3913,7 +3913,7 @@ begin
   acceptedOperators.Add(TNotMaskOperator);
 end;
 
-function TListCondition.SupplyValue(r: TPazo): AnsiString;
+function TListCondition.SupplyValue(r: TPazo): String;
 var strList : TStringList;
 begin
   strList := TStringList.Create;
@@ -3966,7 +3966,7 @@ begin
   end;
 end;
 
-class function TMultiStringEqualOperator.Name: AnsiString;
+class function TMultiStringEqualOperator.Name: String;
 begin
   Result := '=';
 end;
@@ -3986,7 +3986,7 @@ begin
   end;
 end;
 
-class function TMultiStringNotEqualOperator.Name: AnsiString;
+class function TMultiStringNotEqualOperator.Name: String;
 begin
   Result := '!=';
 end;
@@ -4006,14 +4006,14 @@ begin
   end;
 end;
 
-class function TMultiNotInOperator.Name: AnsiString;
+class function TMultiNotInOperator.Name: String;
 begin
   Result := 'notin';
 end;
 
 { TMultiInOperator }
 
-function TMultiInOperator.FeedOperand(var s: AnsiString): boolean;
+function TMultiInOperator.FeedOperand(var s: String): boolean;
 begin
   if operand = nil then
     operand := TListOperand.Create(self);
@@ -4061,20 +4061,20 @@ begin
   end;
 end;
 
-class function TMultiInOperator.Name: AnsiString;
+class function TMultiInOperator.Name: String;
 begin
   Result := 'in';
 end;
 
 { TConditionCompleteSource }
 
-class function TConditionCompleteSource.Description: AnsiString;
+class function TConditionCompleteSource.Description: String;
 begin
   Result := CompleteSourceDescription;
 
 end;
 
-class function TConditionCompleteSource.Name: AnsiString;
+class function TConditionCompleteSource.Name: String;
 begin
   Result := 'completesource';
 end;
@@ -4095,13 +4095,13 @@ end;
 
 { TConditionYear }
 
-class function TConditionYear.Description: AnsiString;
+class function TConditionYear.Description: String;
 begin
   Result := YearDescription;
 
 end;
 
-class function TConditionYear.Name: AnsiString;
+class function TConditionYear.Name: String;
 begin
   Result := 'year';
 end;
@@ -4117,12 +4117,12 @@ end;
 
 { TCondition0daySource }
 
-class function TCondition0daySource.Description: AnsiString;
+class function TCondition0daySource.Description: String;
 begin
   Result := zerodaySourceDescription;
 end;
 
-function TCondition0daySource.Hitelesit(const s: AnsiString): boolean;
+function TCondition0daySource.Hitelesit(const s: String): boolean;
 begin
   try
     Result := nulldaysources.IndexOfName(s) <> -1;
@@ -4131,12 +4131,12 @@ begin
   end;
 end;
 
-class function TCondition0daySource.Name: AnsiString;
+class function TCondition0daySource.Name: String;
 begin
   Result := '0daysource';
 end;
 
-function TCondition0daySource.SupplyValue(r: TPazo): AnsiString;
+function TCondition0daySource.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4149,12 +4149,12 @@ end;
 
 
 { TConditionAutofollow }
-class function TConditionAutofollow.Description: AnsiString;
+class function TConditionAutofollow.Description: String;
 begin
   Result := AutofollowDescription;
 end;
 
-class function TConditionAutofollow.Name: AnsiString;
+class function TConditionAutofollow.Name: String;
 begin
   Result := 'autofollow';
 end;
@@ -4179,12 +4179,12 @@ end;
 
 
 { TConditionNuked }
-class function TConditionNuked.Description: AnsiString;
+class function TConditionNuked.Description: String;
 begin
   Result := NukeDescription;
 end;
 
-class function TConditionNuked.Name: AnsiString;
+class function TConditionNuked.Name: String;
 begin
   Result := 'nuked';
 end;
@@ -4207,12 +4207,12 @@ begin
 end;
 
 { TConditionPred }
-class function TConditionPred.Description: AnsiString;
+class function TConditionPred.Description: String;
 begin
   Result := PredDescription;
 end;
 
-class function TConditionPred.Name: AnsiString;
+class function TConditionPred.Name: String;
 begin
   Result := 'pred';
 end;
@@ -4227,12 +4227,12 @@ begin
 end;
 
 { TConditionDisks }
-class function TConditionDisks.Description: AnsiString;
+class function TConditionDisks.Description: String;
 begin
   Result := DisksDescription;
 end;
 
-class function TConditionDisks.Name: AnsiString;
+class function TConditionDisks.Name: String;
 begin
   Result := 'discs';
 end;
@@ -4288,12 +4288,12 @@ end;
 *)
 { TConditionTVPremierYear }
 
-class function TConditionTVPremierYear.Description: AnsiString;
+class function TConditionTVPremierYear.Description: String;
 begin
   Result :=  TVPremierYearDescription;
 end;
 
-class function TConditionTVPremierYear.Name: AnsiString;
+class function TConditionTVPremierYear.Name: String;
 begin
   Result := 'tvpremieryear';
 end;
@@ -4314,17 +4314,17 @@ end;
 
 { TConditionTVCountry }
 
-class function TConditionTVCountry.Description: AnsiString;
+class function TConditionTVCountry.Description: String;
 begin
   Result := TVCountryDescription;
 end;
 
-class function TConditionTVCountry.Name: AnsiString;
+class function TConditionTVCountry.Name: String;
 begin
   Result := 'tvcountry';
 end;
 
-function TConditionTVCountry.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVCountry.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4340,17 +4340,17 @@ end;
 
 { TConditionTVLanguage }
 
-class function TConditionTVLanguage.Description: AnsiString;
+class function TConditionTVLanguage.Description: String;
 begin
   Result := TVLanguageDescription;
 end;
 
-class function TConditionTVLanguage.Name: AnsiString;
+class function TConditionTVLanguage.Name: String;
 begin
   Result := 'tvlanguage';
 end;
 
-function TConditionTVLanguage.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVLanguage.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4367,17 +4367,17 @@ end;
 
 { TConditionTVClassication }
 
-class function TConditionTVClassification.Description: AnsiString;
+class function TConditionTVClassification.Description: String;
 begin
   Result := TVClassificationDescription;
 end;
 
-class function TConditionTVClassification.Name: AnsiString;
+class function TConditionTVClassification.Name: String;
 begin
   Result := 'tvclassification';
 end;
 
-function TConditionTVClassification.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVClassification.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4393,13 +4393,13 @@ end;
 
 { TConditionTVScripted }
 
-class function TConditionTVScripted.Description: AnsiString;
+class function TConditionTVScripted.Description: String;
 begin
   Result :=
     TVScriptedDescription;
 end;
 
-class function TConditionTVScripted.Name: AnsiString;
+class function TConditionTVScripted.Name: String;
 begin
   Result := 'tvscripted';
 end;
@@ -4420,12 +4420,12 @@ end;
 
 { TConditionTVGenres }
 
-class function TConditionTVGenres.Description: AnsiString;
+class function TConditionTVGenres.Description: String;
 begin
   Result := TVGenresDescription;
 end;
 
-class function TConditionTVGenres.Name: AnsiString;
+class function TConditionTVGenres.Name: String;
 begin
   Result := 'tvgenres';
 end;
@@ -4452,17 +4452,17 @@ end;
 
 { TConditionTVNetwork }
 
-class function TConditionTVNetwork.Description: AnsiString;
+class function TConditionTVNetwork.Description: String;
 begin
   Result := TVNetworkDescription;
 end;
 
-class function TConditionTVNetwork.Name: AnsiString;
+class function TConditionTVNetwork.Name: String;
 begin
   Result := 'tvnetwork';
 end;
 
-function TConditionTVNetwork.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVNetwork.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4478,12 +4478,12 @@ end;
 
 { TConditionTVRuntime }
 
-class function TConditionTVRuntime.Description: AnsiString;
+class function TConditionTVRuntime.Description: String;
 begin
   Result := TVRuntimeDescription;
 end;
 
-class function TConditionTVRuntime.Name: AnsiString;
+class function TConditionTVRuntime.Name: String;
 begin
   Result := 'tvruntime';
 end;
@@ -4504,12 +4504,12 @@ end;
 
 { TConditionTVEndedYear }
 
-class function TConditionTVEndedYear.Description: AnsiString;
+class function TConditionTVEndedYear.Description: String;
 begin
   Result :=  TVEndedYearDescription;
 end;
 
-class function TConditionTVEndedYear.Name: AnsiString;
+class function TConditionTVEndedYear.Name: String;
 begin
   Result := 'tvendedyear';
 end;
@@ -4530,17 +4530,17 @@ end;
 
 { TConditionTVStatus }
 
-class function TConditionTVStatus.Description: AnsiString;
+class function TConditionTVStatus.Description: String;
 begin
   Result := TVStatusDescription;
 end;
 
-class function TConditionTVStatus.Name: AnsiString;
+class function TConditionTVStatus.Name: String;
 begin
   Result := 'tvstatus';
 end;
 
-function TConditionTVStatus.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVStatus.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4556,12 +4556,12 @@ end;
 
 { TConditionTVRunning }
 
-class function TConditionTVRunning.Description: AnsiString;
+class function TConditionTVRunning.Description: String;
 begin
   Result := TVRunningDescription;
 end;
 
-class function TConditionTVRunning.Name: AnsiString;
+class function TConditionTVRunning.Name: String;
 begin
   Result := 'tvrunning';
 end;
@@ -4583,12 +4583,12 @@ end;
 
 { TConditionTVDailyShow }
 
-class function TConditionTVDailyShow.Description: AnsiString;
+class function TConditionTVDailyShow.Description: String;
 begin
   Result := TVDailyShowDescription;
 end;
 
-class function TConditionTVDailyShow.Name: AnsiString;
+class function TConditionTVDailyShow.Name: String;
 begin
   Result := 'tvdaily';
 end;
@@ -4609,12 +4609,12 @@ end;
 
 { TConditionTVCurrentEpisode }
 
-class function TConditionTVCurrentEpisiode.Description: AnsiString;
+class function TConditionTVCurrentEpisiode.Description: String;
 begin
   Result := TVCurrentEpisiodeDescription;
 end;
 
-class function TConditionTVCurrentEpisiode.Name: AnsiString;
+class function TConditionTVCurrentEpisiode.Name: String;
 begin
   Result := 'tvcurrentep';
 end;
@@ -4635,12 +4635,12 @@ end;
 
 { TConditionTVCurrent }
 
-class function TConditionTVCurrentOnAir.Description: AnsiString;
+class function TConditionTVCurrentOnAir.Description: String;
 begin
   Result := TVCurrentOnAirDescription;
 end;
 
-class function TConditionTVCurrentOnAir.Name: AnsiString;
+class function TConditionTVCurrentOnAir.Name: String;
 begin
   Result := 'tvcurrent';
 end;
@@ -4661,12 +4661,12 @@ end;
 
 { TConditionTVCurrentSeason }
 
-class function TConditionTVCurrentSeason.Description: AnsiString;
+class function TConditionTVCurrentSeason.Description: String;
 begin
   Result := TVCurrentSeasonDescription;
 end;
 
-class function TConditionTVCurrentSeason.Name: AnsiString;
+class function TConditionTVCurrentSeason.Name: String;
 begin
   Result := 'tvcurrentseason';
 end;
@@ -4686,12 +4686,12 @@ begin
 end;
 
 { TConditionTag }
-class function TConditionTag.Description: AnsiString;
+class function TConditionTag.Description: String;
 begin
   result := TagDescription;
 end;
 
-class function TConditionTag.Name: AnsiString;
+class function TConditionTag.Name: String;
 begin
   Result := 'tag';
 end;
@@ -4712,17 +4712,17 @@ begin
 end;
 
 { TConditionTVtag }
-class function TConditionTVtag.Description: AnsiString;
+class function TConditionTVtag.Description: String;
 begin
   Result := TVtagDescription;
 end;
 
-class function TConditionTVtag.Name: AnsiString;
+class function TConditionTVtag.Name: String;
 begin
   Result := 'tvtag';
 end;
 
-function TConditionTVtag.SupplyValue(r: TPazo): AnsiString;
+function TConditionTVtag.SupplyValue(r: TPazo): String;
 begin
   Result := '';
   try
@@ -4734,12 +4734,12 @@ begin
 end;
 
 { TConditionIMDBYear }
-class function TConditionIMDBYear.Description: AnsiString;
+class function TConditionIMDBYear.Description: String;
 begin
   Result := IMDBYearDescription;
 end;
 
-class function TConditionIMDBYear.Name: AnsiString;
+class function TConditionIMDBYear.Name: String;
 begin
   Result := 'imdbyear';
 end;
@@ -4760,12 +4760,12 @@ end;
 
 { TConditionIMDBLanguages }
 
-class function TConditionIMDBLanguages.Description: AnsiString;
+class function TConditionIMDBLanguages.Description: String;
 begin
   Result := 'Returns with the list of the movie''s languages.';
 end;
 
-class function TConditionIMDBLanguages.Name: AnsiString;
+class function TConditionIMDBLanguages.Name: String;
 begin
   Result := 'imdblanguages';
 end;
@@ -4791,12 +4791,12 @@ end;
 
 { TConditionIMDBCountries }
 
-class function TConditionIMDBCountries.Description: AnsiString;
+class function TConditionIMDBCountries.Description: String;
 begin
   Result := 'Returns with the list of the countries which cooperated in recording the movie.';
 end;
 
-class function TConditionIMDBCountries.Name: AnsiString;
+class function TConditionIMDBCountries.Name: String;
 begin
   Result := 'imdbcountries';
 end;
@@ -4822,12 +4822,12 @@ end;
 
 { TConditionIMDBGenres }
 
-class function TConditionIMDBGenres.Description: AnsiString;
+class function TConditionIMDBGenres.Description: String;
 begin
   Result := 'Returns with the list of the movie''s genres.';
 end;
 
-class function TConditionIMDBGenres.Name: AnsiString;
+class function TConditionIMDBGenres.Name: String;
 begin
   Result := 'imdbgenre';
 end;
@@ -4853,12 +4853,12 @@ end;
 
 { TConditionIMDBScreens }
 
-class function TConditionIMDBScreens.Description: AnsiString;
+class function TConditionIMDBScreens.Description: String;
 begin
   Result := IMDBScreensDescription;
 end;
 
-class function TConditionIMDBScreens.Name: AnsiString;
+class function TConditionIMDBScreens.Name: String;
 begin
   Result := 'imdbscreens';
 end;
@@ -4878,12 +4878,12 @@ begin
 end;
 
 { TConditionIMDBRating }
-class function TConditionIMDBRating.Description: AnsiString;
+class function TConditionIMDBRating.Description: String;
 begin
   Result := IMDBRatingDescription;
 end;
 
-class function TConditionIMDBRating.Name: AnsiString;
+class function TConditionIMDBRating.Name: String;
 begin
   Result := 'imdbrating';
 end;
@@ -4903,12 +4903,12 @@ begin
 end;
 
 { TConditionIMDBVotes }
-class function TConditionIMDBVotes.Description: AnsiString;
+class function TConditionIMDBVotes.Description: String;
 begin
   Result := IMDBVotesDescription;
 end;
 
-class function TConditionIMDBVotes.Name: AnsiString;
+class function TConditionIMDBVotes.Name: String;
 begin
   Result := 'imdbvotes';
 end;
@@ -4927,12 +4927,12 @@ begin
   end;
 end;
 
-class function TConditionIMDBWide.Description: AnsiString;
+class function TConditionIMDBWide.Description: String;
 begin
   Result := IMDBWideDescription;
 end;
 
-class function TConditionIMDBWide.Name: AnsiString;
+class function TConditionIMDBWide.Name: String;
 begin
   Result := 'imdbwide';
 end;
@@ -4951,12 +4951,12 @@ begin
   end;
 end;
 
-class function TConditionIMDBldt.Description: AnsiString;
+class function TConditionIMDBldt.Description: String;
 begin
   Result := IMDBLimitedDescription;
 end;
 
-class function TConditionIMDBldt.Name: AnsiString;
+class function TConditionIMDBldt.Name: String;
 begin
   Result := 'imdblimited';
 end;
@@ -4975,12 +4975,12 @@ begin
   end;
 end;
 
-class function TConditionIMDBFestival.Description: AnsiString;
+class function TConditionIMDBFestival.Description: String;
 begin
   Result := IMDBFestivalDescription;
 end;
 
-class function TConditionIMDBFestival.Name: AnsiString;
+class function TConditionIMDBFestival.Name: String;
 begin
   Result := 'imdbfestival';
 end;
@@ -5000,12 +5000,12 @@ begin
 end;
 
 { TConditionIMDBStv }
-class function TConditionIMDBStv.Description: AnsiString;
+class function TConditionIMDBStv.Description: String;
 begin
   Result := IMDBSTVDescription;
 end;
 
-class function TConditionIMDBStv.Name: AnsiString;
+class function TConditionIMDBStv.Name: String;
 begin
   Result := 'imdbstv';
 end;
@@ -5025,12 +5025,12 @@ begin
 end;
 
 { TConditionIMDBCineyear }
-class function TConditionIMDBCineyear.Description: AnsiString;
+class function TConditionIMDBCineyear.Description: String;
 begin
   Result := IMDBCineYearDescription;
 end;
 
-class function TConditionIMDBCineyear.Name: AnsiString;
+class function TConditionIMDBCineyear.Name: String;
 begin
   Result := 'imdbcineyear';
 end;
@@ -5072,13 +5072,13 @@ end;
 
 { TConditionMVIDGenre }
 
-class function TConditionMVIDGenre.Description: AnsiString;
+class function TConditionMVIDGenre.Description: String;
 begin
   Result := 'Returns the Genre parsed from nfo.' + #13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDGenre.Name: AnsiString;
+class function TConditionMVIDGenre.Name: String;
 begin
   Result := 'mvidgenre';
 end;
@@ -5101,13 +5101,13 @@ end;
 
 { TConditionMVIDLanguage }
 
-class function TConditionMVIDLanguage.Description: AnsiString;
+class function TConditionMVIDLanguage.Description: String;
 begin
   Result := 'Returns the Language parsed from nfo.' + #13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDLanguage.Name: AnsiString;
+class function TConditionMVIDLanguage.Name: String;
 begin
   Result := 'mvidlanguage';
 end;
@@ -5130,14 +5130,14 @@ end;
 
 { TConditionMVIDFiles }
 
-class function TConditionMVIDFiles.Description: AnsiString;
+class function TConditionMVIDFiles.Description: String;
 begin
   Result := 'Returns the number of files parsed from sfv. (yes ";" will not count)';
   //+#13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDFiles.Name: AnsiString;
+class function TConditionMVIDFiles.Name: String;
 begin
   Result := 'mvidfiles';
 end;
@@ -5151,7 +5151,7 @@ end;
 
 { TConditionMVIDYear }
 
-class function TConditionMVIDYear.Description: AnsiString;
+class function TConditionMVIDYear.Description: String;
 begin
   Result :=
     'Returns with the year of the MVID  release date. Returns zero if NFO lookup is not yet ready.';
@@ -5159,7 +5159,7 @@ begin
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDYear.Name: AnsiString;
+class function TConditionMVIDYear.Name: String;
 begin
   Result := 'mvidyear';
 end;
@@ -5173,13 +5173,13 @@ end;
 
 { TConditionMVIDVA }
 
-class function TConditionMVIDVA.Description: AnsiString;
+class function TConditionMVIDVA.Description: String;
 begin
   Result := 'Returns true if release is Various Artists (VA)'; //+#13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDVA.Name: AnsiString;
+class function TConditionMVIDVA.Name: String;
 begin
   Result := 'mvidva';
 end;
@@ -5193,13 +5193,13 @@ end;
 
 { TConditionMVIDPAL }
 
-class function TConditionMVIDPAL.Description: AnsiString;
+class function TConditionMVIDPAL.Description: String;
 begin
   Result := 'Returns with the a boolean for PAL region.'; //+#13#10;
   //  Result:= Result + '' +#13#10;
 end;
 
-class function TConditionMVIDPAL.Name: AnsiString;
+class function TConditionMVIDPAL.Name: String;
 begin
   Result := 'mvidpal';
 end;
@@ -5213,13 +5213,13 @@ end;
 
 { TConditionMVIDNTSC }
 
-class function TConditionMVIDNTSC.Description: AnsiString;
+class function TConditionMVIDNTSC.Description: String;
 begin
   Result := 'Returns with the a boolean for NTSC region.'; //+#13#10;
   //  Result:= Result + '' +#13#10;
 end;
 
-class function TConditionMVIDNTSC.Name: AnsiString;
+class function TConditionMVIDNTSC.Name: String;
 begin
   Result := 'mvidntsc';
 end;
@@ -5233,13 +5233,13 @@ end;
 
 { TConditionMVIDLIVE }
 
-class function TConditionMVIDLIVE.Description: AnsiString;
+class function TConditionMVIDLIVE.Description: String;
 begin
   Result := 'Returns with the a boolean for LIVE type.'; //+#13#10;
   //  Result:= Result + '' +#13#00;
 end;
 
-class function TConditionMVIDLIVE.Name: AnsiString;
+class function TConditionMVIDLIVE.Name: String;
 begin
   Result := 'mvidlive';
 end;
@@ -5251,7 +5251,7 @@ begin
     Result := TMVIDRelease(r.rls).mvid_live;
 end;
 
-function FindConditionClassByName(const Name: AnsiString): TConditionClass;
+function FindConditionClassByName(const Name: String): TConditionClass;
 var
   i: integer;
 begin

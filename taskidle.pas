@@ -5,10 +5,10 @@ interface
 uses tasksunit, Math;
 
 type TIdleTask = class(TTask)
-  idlecmd: AnsiString;
-  constructor Create(const netname, channel: AnsiString; const site: AnsiString);
+  idlecmd: String;
+  constructor Create(const netname, channel: String; const site: String);
   function Execute(slot: Pointer): Boolean; override;
-  function Name: AnsiString; override;
+  function Name: String; override;
 end;
 
 procedure TaskIdleInit;
@@ -25,7 +25,7 @@ var
   idlecommands: TStringList;
 
 { TIdleTask }
-constructor TIdleTask.Create(const netname, channel: AnsiString; const site: AnsiString);
+constructor TIdleTask.Create(const netname, channel: String; const site: String);
 begin
   idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);
@@ -36,7 +36,7 @@ label
   ujra;
 var
   s: TSiteSlot;
-  h: AnsiString;
+  h: String;
   p: Integer;
   numerrors: Integer;
 begin
@@ -83,7 +83,7 @@ ujra:
   ready := True;
 end;
 
-function TIdleTask.Name: AnsiString;
+function TIdleTask.Name: String;
 begin
   try
     Result := Format('IDLE <b>%s : %s</b>: %s',[site1, slot1name, idlecmd]);
@@ -94,7 +94,7 @@ end;
 
 procedure TaskIdleInit;
 var
-  s, ss: AnsiString;
+  s, ss: String;
   i: Integer;
 begin
   idlecommands := TStringList.Create;

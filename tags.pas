@@ -4,8 +4,8 @@ interface
 
 procedure TagsInit;
 procedure TagsUninit;
-function TagComplete(const filename: AnsiString): Integer;
-function CheckStandardPercentDir(const filename: AnsiString): Integer;
+function TagComplete(const filename: String): Integer;
+function CheckStandardPercentDir(const filename: String): Integer;
 
 implementation
 
@@ -18,7 +18,7 @@ var
   cs: TCriticalSection;
   crc, cri: TFLRE;
 
-function TagComplete(const filename: AnsiString): Integer;
+function TagComplete(const filename: String): Integer;
 begin
   (*
     Result:
@@ -70,7 +70,7 @@ begin
 
 end;
 
-function CheckStandardPercentDir(const filename: AnsiString): Integer;
+function CheckStandardPercentDir(const filename: String): Integer;
 var
   i, j: Integer;
   voltszam: Boolean;

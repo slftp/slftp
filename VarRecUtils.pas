@@ -5,8 +5,8 @@ interface
 type
   TConstArray = array of TVarRec;
 
-function CreateVarRecFromString(s: AnsiString): TVarRec;
-  
+function CreateVarRecFromString(s: String): TVarRec;
+
 // Copies a TVarRec and its contents. If the content is referenced
 // the value will be copied to a new location and the reference
 // updated.
@@ -54,9 +54,9 @@ begin
     vtPWideChar:
       begin
         W := Item.VPWideChar;
-        GetMem(Result.VPWideChar, 
+        GetMem(Result.VPWideChar,
                (Length(W) + 1) * SizeOf(WideChar));
-        Move(PWideChar(W)^, Result.VPWideChar^, 
+        Move(PWideChar(W)^, Result.VPWideChar^,
              (Length(W) + 1) * SizeOf(WideChar));
       end;
     // a little trickier: casting to AnsiString will ensure
@@ -100,10 +100,10 @@ begin
   end;
 end;
 
-function CreateVarRecFromString(s: AnsiString): TVarRec;
+function CreateVarRecFromString(s: String): TVarRec;
 begin
   FillChar(Result, Sizeof(TVarRec), 0);
-  Result.VType:= vtAnsiString;
+  Result.VType:= vtString;
   AnsiString(Result.VAnsiString) := s;
 end;
 

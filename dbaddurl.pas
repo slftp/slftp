@@ -6,18 +6,18 @@ uses Classes, IniFiles, irc, kb, Contnrs;
 
 type
   TDbUrl = class
-    rls: AnsiString;
-    url: AnsiString;
-    constructor Create(const rls, url: AnsiString);
+    rls: String;
+    url: String;
+    constructor Create(const rls, url: String);
     destructor Destroy; override;
   end;
 
-function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
-procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
-procedure dbaddurl_addurl(const params: AnsiString);
-procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
+function dbaddurl_Process(net, chan, nick, msg: String): Boolean;
+procedure dbaddurl_SaveUrl(const rls, url: String);
+procedure dbaddurl_addurl(const params: String);
+procedure dbaddurl_ParseUrl(const rls, url: String);
 
-function dbaddurl_Status: AnsiString;
+function dbaddurl_Status: String;
 
 procedure dbaddurlInit;
 procedure dbaddurlStart;
@@ -35,11 +35,11 @@ const
   section = 'dbaddurl';
 
 var
-  addurlcmd: AnsiString;
+  addurlcmd: String;
 
 { TDbUrl }
 
-constructor TDbUrl.Create(const rls, url: AnsiString);
+constructor TDbUrl.Create(const rls, url: String);
 begin
   self.rls := rls;
   self.url := url;
@@ -52,7 +52,7 @@ end;
 
 { Proc/Func }
 
-function dbaddurl_Process(net, chan, nick, msg: AnsiString): Boolean;
+function dbaddurl_Process(net, chan, nick, msg: String): Boolean;
 begin
   Result := False;
   if (1 = Pos(addurlcmd, msg)) then
@@ -63,10 +63,10 @@ begin
   end;
 end;
 
-procedure dbaddurl_addurl(const params: AnsiString);
+procedure dbaddurl_addurl(const params: String);
 var
-  rls: AnsiString;
-  url: AnsiString;
+  rls: String;
+  url: String;
   i: Integer;
 begin
   rls := '';
@@ -94,7 +94,7 @@ begin
   end;
 end;
 
-procedure dbaddurl_SaveUrl(const rls, url: AnsiString);
+procedure dbaddurl_SaveUrl(const rls, url: String);
 var
   i: Integer;
   db_url: TDbUrl;
@@ -129,9 +129,9 @@ begin
   end;
 end;
 
-procedure dbaddurl_ParseUrl(const rls, url: AnsiString);
+procedure dbaddurl_ParseUrl(const rls, url: String);
 var
-  imdbid: AnsiString;
+  imdbid: String;
 begin
   try
     if dbaddimdb_parseid(url, imdbid) then
@@ -145,7 +145,7 @@ begin
 end;
 
 { Status }
-function dbaddurl_Status: AnsiString;
+function dbaddurl_Status: String;
 begin
   Result := Format('<b>Url</b>: %d', [last_addurl.Count]);
 end;

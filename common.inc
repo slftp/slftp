@@ -4,44 +4,44 @@ iFileCount = 1;
 cFilecount = 8;
 gFilecount = 12;
 
-iniFiles: array[0..iFileCount] of AnsiString = (
+iniFiles: array[0..iFileCount] of String = (
 'slftp.ini', 'slftp.cini'
 );
 
-commonFiles: array[0..cFilecount] of AnsiString = (
+commonFiles: array[0..cFilecount] of String = (
 'slftp.knowngroups', 'slftp.precatcher', 'slftp.spamconf', 'slftp.languages',
 'slftp.languagebase', 'slftp.skip', 'slftp.imdbcountries', 'slftp.skipgroups',
 'mirktrade.conf'
 );
 
-generatedFiles: array[0..gFilecount] of AnsiString =(
+generatedFiles: array[0..gFilecount] of String =(
 'slftp.pem', 'slftp.ranks', 'slftp.chans', 'slftp.kb', 'slftp.speedstats',
 'slftp.history', 'slftp.renames', 'slftp.nukequeue', 'slftp.rules',
 'slftp.preurls', 'slftp.socks5', 'slftp.news', 'sites.dat'
 );
 
-VideoFileExtensions: array[0..5] of AnsiString = (
+VideoFileExtensions: array[0..5] of String = (
   '.mkv', '.mp4', '.avi', '.vob', '.m2ts', '.wmv'
 );
 
-ImageFileExtensions: array[0..2] of AnsiString = (
+ImageFileExtensions: array[0..2] of String = (
   '.jpg', '.jpeg', '.png'
 );
 
-SpecialDirsTags: array[0..9] of AnsiString = (
+SpecialDirsTags: array[0..9] of String = (
   'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX', 'COVERFiX',
   'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
 );
 
-NewsSystemSpamMessages: array[0..0] of AnsiString = (
+NewsSystemSpamMessages: array[0..0] of String = (
   'IRC connection timed out'
 );
 
 FileSizeUnitCount = 8;
-FileSizeUnits: array [0..FileSizeUnitCount] of AnsiString = ('Byte', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
+FileSizeUnits: array [0..FileSizeUnitCount] of String = ('Byte', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
 
 { arrays taken from https://github.com/silvioprog/mgeoip - THX silvioprog! }
-CountryCodes: array [0..249] of AnsiString = (
+CountryCodes: array [0..249] of String = (
 'AD','AE','AF','AG','AI','AL','AM','AN','AO','AQ','AR','AS','AT','AU','AW','AZ',
 'BA','BB','BD','BE','BF','BG','BH','BI','BJ','BM','BN','BO','BR','BS','BT','BV',
 'BW','BY','BZ','CA','CC','CD','CF','CG','CH','CI','CK','CL','CM','CN','CO','CR',
@@ -60,7 +60,7 @@ CountryCodes: array [0..249] of AnsiString = (
 'ZW','A1','A2','O1','AX','GG','IM','JE','BL','MF'
 );
 
-CountryNames: array [0..249] of AnsiString = (
+CountryNames: array [0..249] of String = (
 'Andorra','United Arab Emirates','Afghanistan','Antigua and Barbuda','Anguilla',
 'Albania','Armenia','Netherlands Antilles','Angola','Antarctica','Argentina',
 'American Samoa','Austria','Australia','Aruba','Azerbaijan',

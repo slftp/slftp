@@ -5,8 +5,8 @@ interface
 type
   TDebugPriority = (dpError, dpMessage, dpSpam, dpNone);
 
-procedure Debug(priority: TDebugPriority; section, msg: AnsiString); overload;
-procedure Debug(priority: TDebugPriority; const section, FormatStr: AnsiString;
+procedure Debug(priority: TDebugPriority; section, msg: String); overload;
+procedure Debug(priority: TDebugPriority; const section, FormatStr: String;
   const Args: array of const); overload;
 
 procedure DebugInit;
@@ -17,16 +17,16 @@ procedure CloseLogFile;
 
 procedure HandleDebugFile;
 
-function Debug_logfilename: AnsiString;
+function Debug_logfilename: String;
 function Debug_flushlines: integer;
-function Debug_categorystr: AnsiString;
+function Debug_categorystr: String;
 function Debug_verbosity: TDebugPriority;
 function Debug_MaxFileSize: integer;
 function Debug_EncryptOldFiles: boolean;
 function Debug_CompressOldFiles: boolean;
 
-function LogTail(lines: Integer): AnsiString;
-function FileTail(lines: Integer; filename: AnsiString): AnsiString;
+function LogTail(lines: Integer): String;
+function FileTail(lines: Integer; filename: String): String;
 
 function Hide_plain_text: boolean;
 
@@ -68,9 +68,9 @@ begin
 {$ENDIF}
 end;
 
-procedure Debug(priority: TDebugPriority; section, msg: AnsiString); overload;
+procedure Debug(priority: TDebugPriority; section, msg: String); overload;
 var
-  nowstr: AnsiString;
+  nowstr: String;
 begin
   //HandleDebugFile;
   if debug_verbosity = TDebugPriority(3) then
@@ -105,7 +105,7 @@ begin
   end;
 end;
 
-procedure Debug(priority: TDebugPriority; const section, FormatStr: AnsiString; const Args: array of const); overload;
+procedure Debug(priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
   try
     Debug(priority, section, Format(FormatStr, Args));
@@ -209,7 +209,7 @@ begin
   end;
 end;
 
-function LogTail(lines: Integer): AnsiString;
+function LogTail(lines: Integer): String;
 begin
   Result := '';
 
@@ -223,7 +223,7 @@ begin
   end;
 end;
 
-function FileTail(lines: Integer; filename: AnsiString): AnsiString;
+function FileTail(lines: Integer; filename: String): String;
 var
   s: TStream;
   c: char;
@@ -253,7 +253,7 @@ begin
   Result := config.ReadBool(section, 'hide_plain_text', True);
 end;
 
-function Debug_logfilename: AnsiString;
+function Debug_logfilename: String;
 begin
   Result := config.ReadString(section, 'debugfile',
     ExtractFilePath(ParamStr(0)) + 'slftp.log');
@@ -264,7 +264,7 @@ begin
   Result := config.ReadInteger(section, 'flushlines', 16);
 end;
 
-function Debug_categorystr: AnsiString;
+function Debug_categorystr: String;
 begin
   Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
 end;

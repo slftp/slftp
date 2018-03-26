@@ -11,7 +11,7 @@ type
   end;
   TslIdentServer = class(TslTCPServer)
   public
-    function Lookup(ip: AnsiString; localport, remoteport: Integer): AnsiString; virtual; abstract;
+    function Lookup(ip: String; localport, remoteport: Integer): String; virtual; abstract;
     constructor Create;
   end;
 
@@ -30,7 +30,7 @@ uses SysUtils;
 *)
 
 procedure TslIdentLookup.RealExecute;
-var s, ossz, username: AnsiString;
+var s, ossz, username: String;
     localport, remoteport: Integer;
     i: Integer;
 begin

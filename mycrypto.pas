@@ -4,11 +4,11 @@ interface
 
 uses Classes, slmd5;
 
-function GenPem(certpath: AnsiString; keylen: Integer; commonname: AnsiString): Boolean;
+function GenPem(certpath: String; keylen: Integer; commonname: String): Boolean;
 procedure MycryptoStart(pp: TslMD5Data);
 procedure MycryptoStop;
-function DecryptUDP(s: AnsiString): AnsiString;
-function EncryptUDP(s: AnsiString): AnsiString;
+function DecryptUDP(s: String): String;
+function EncryptUDP(s: String): String;
 procedure  MyCryptoInit;
 procedure MyCryptoUnInit;
 
@@ -25,7 +25,7 @@ const section = 'crypto';
 var KeyData: TBlowfishData;
 
 
-function GenPem(certpath: AnsiString; keylen: Integer; commonname: AnsiString): Boolean;
+function GenPem(certpath: String; keylen: Integer; commonname: String): Boolean;
 var b, r, xn, x, xr, xne, evp: Pointer;
 begin
   Result:= False;
@@ -142,7 +142,7 @@ end;
 
 procedure MycryptoStart(pp: TslMD5Data);
 const IV: array[0..7] of Byte = (0,0,0,0,0,0,0,0);
-var cert: AnsiString;
+var cert: String;
 begin
   cert:= config.ReadString(section, 'certificate', 'slftp.pem');
   if not FileExists(cert) then
@@ -162,7 +162,7 @@ begin
 end;
 
 
-function DecryptUDP(s: AnsiString): AnsiString;
+function DecryptUDP(s: String): String;
 var p: Byte;
     l: Integer;
 begin
@@ -180,7 +180,7 @@ begin
 end;
 
 
-function EncryptUDP(s: AnsiString): AnsiString;
+function EncryptUDP(s: String): String;
 var p: Byte;
     block: array[0..MAX_UDP_PACKET-1] of AnsiChar;
 begin

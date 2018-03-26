@@ -9,12 +9,12 @@ type
   private
     ss: TStringStream;
     attempt: Integer;
-    function Parse(text: AnsiString): Boolean;
+    function Parse(text: String): Boolean;
   public
-    constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -26,7 +26,7 @@ uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
 const section = 'taskgame';
 
 
-constructor TPazoGameTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+constructor TPazoGameTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
 begin
   ss:= TStringStream.Create('');
   self.attempt:= attempt;
@@ -40,7 +40,7 @@ begin
   inherited;
 end;
 
-function TPazoGameTask.Parse(text: AnsiString):boolean;
+function TPazoGameTask.Parse(text: String):boolean;
 //var pgrx2,pgrx1,pgrx,pgrg:TRegExpr;
 //ss,s:string;
 //rg:TGameRelease;
@@ -107,7 +107,7 @@ var s: TSiteSlot;
     de: TDirListEntry;
     r: TPazoGameTask;
     d: TDirList;
-    event, nfofile: AnsiString;
+    event, nfofile: String;
 begin
   Result:= False;
   s:= slot;
@@ -203,7 +203,7 @@ ujra:
   ready:= True;
 end;
 
-function TPazoGameTask.Name: AnsiString;
+function TPazoGameTask.Name: String;
 begin
 //Result:=Format('PGAME %d ROUND:%d',[pazo_id,attempt]);
 Result:=Format('PGAME (PazoID:%d) %s [Count:%d]',[pazo_id,mainpazo.rls.rlsname,attempt]);

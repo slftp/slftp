@@ -31,7 +31,7 @@ procedure MySQLUninit;
 procedure MySQLStart;
 
 function MySQLConnected: boolean;
-function MySQLInsertQuery(sql: AnsiString; args: array of const): boolean;
+function MySQLInsertQuery(sql: String; args: array of const): boolean;
 
 implementation
 
@@ -45,7 +45,7 @@ var
   mysqlth:    TMySQLThread;
   mysqlevent: TEvent = nil;
 
-  mysql_host, mysql_user, mysql_pass, mysql_dbname: AnsiString;
+  mysql_host, mysql_user, mysql_pass, mysql_dbname: String;
   mysql_port, mysql_ping: integer;
 
 procedure MySQLInit;
@@ -135,7 +135,7 @@ begin
   end;
 end;
 
-function MySQLInsertQuery(sql: AnsiString; args: array of const): boolean;
+function MySQLInsertQuery(sql: String; args: array of const): boolean;
 //var
 //  mysql_err: string;
 begin
