@@ -6,9 +6,9 @@ uses tasksunit;
 
 type
   TQuitTask = class(TTask)
-    constructor Create(const netname, channel, site: AnsiString);
+    constructor Create(const netname, channel, site: String);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -19,7 +19,7 @@ uses
 const
   section = 'quit';
 
-constructor TQuitTask.Create(const netname, channel, site: AnsiString);
+constructor TQuitTask.Create(const netname, channel, site: String);
 begin
   inherited Create(netname, channel, site);
 end;
@@ -41,7 +41,7 @@ begin
   Debug(dpSpam, section, Name);
 end;
 
-function TQuitTask.Name: AnsiString;
+function TQuitTask.Name: String;
 begin
   try
     Result := Format('QUIT <b>%s</b>',[site1]);

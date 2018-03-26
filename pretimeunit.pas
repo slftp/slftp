@@ -10,13 +10,13 @@ procedure DupeDBUninit;
 procedure dupedbBeginTransaction();
 procedure dupedbEndTransaction();
 
-procedure Addrlstodupedb(rls,section,event:AnsiString;pretime:longint;size:integer);
+procedure Addrlstodupedb(rls,section,event:String;pretime:longint;size:integer);
 
-procedure ReadDupeDB(const rls: AnsiString; out pretime: integer; out size: integer);
+procedure ReadDupeDB(const rls: String; out pretime: integer; out size: integer);
 
-function dupeDBQuery(const q: AnsiString): AnsiString;
+function dupeDBQuery(const q: String): String;
 
-function AllreadyInDataBase(rls:AnsiString):boolean;
+function AllreadyInDataBase(rls:String):boolean;
 
 var dupedb: TslSqliteDB;
     dupeInsert: Psqlite3_stmt;
@@ -27,8 +27,8 @@ uses DateUtils, debugunit, configunit, sitesunit, queueunit, dirlist, SysUtils,
      pazo, kb, ranksunit, regexpr, mystrings, irc;
 
 
-function AllreadyInDataBase(rls:AnsiString):boolean;
-var q:AnsiString;
+function AllreadyInDataBase(rls:String):boolean;
+var q:String;
 begin
 q:='SELECT COUNT(rlsname) as count FROM dupes WHERE rlsname = '+Chr(39)+rls+Chr(39)+';';
 q:= dupeDBQuery(q);
@@ -36,9 +36,9 @@ if q = '0' then result:=True else Result:=False;
 
 end;
 
-procedure ReadDupeDB(const rls: AnsiString; out pretime: integer; out size: integer);
+procedure ReadDupeDB(const rls: String; out pretime: integer; out size: integer);
 var
- q: AnsiString;
+ q: String;
  rx: Tregexpr;
 begin
 //  irc_addtext('','','TRY TO READ PRETIME');
@@ -65,7 +65,7 @@ begin
   end;
 end;
 
-procedure Addrlstodupedb(rls,section,event:AnsiString;pretime:longint;size:integer);
+procedure Addrlstodupedb(rls,section,event:String;pretime:longint;size:integer);
 begin
 //  irc_addtext('','','ADD PRETIME');
   if dupedb = nil then begin
@@ -77,7 +77,7 @@ begin
   dupedb.ExecSQL( dupeInsert,[rls,uppercase(section),pretime,size,uppercase(event)]);
 end;
 
-function dupeDBQuery(const q: AnsiString): AnsiString;
+function dupeDBQuery(const q: String): String;
 var
   s: Psqlite3_stmt;
 begin
@@ -89,7 +89,7 @@ end;
 
 procedure DupeDBInit;
 var
-  s: AnsiString;
+  s: String;
 begin
   s:= Trim('dupe.db');
   dupedb:= TslSqliteDB.Create(s,'');

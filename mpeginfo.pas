@@ -29,20 +29,20 @@ uses SysUtils, Classes;
 type
   TMpegInfo = record
     mpeg_present: Boolean;
-    mpeg_version: AnsiString;
-    mpeg_layer: AnsiString;
-    mpeg_stereomode: AnsiString;
+    mpeg_version: String;
+    mpeg_layer: String;
+    mpeg_stereomode: String;
     mpeg_vbr: Boolean;
     mpeg_bitrate: Integer;
-    mpeg_frequency: AnsiString;
+    mpeg_frequency: String;
     mpeg_size: Longword;
     mpeg_duration: LongWord;
     mpeg_frames: Longword;
   end;
 
 function Mpeg_Check(var buffer: array of Byte; filesize: Integer; var dest_info: TMpegInfo): Integer; overload;
-function Mpeg_Check(filename: AnsiString; var dest_info: TMpegInfo): Integer; overload;
-function MPEGInfoToString(const m: TMpegInfo): AnsiString;
+function Mpeg_Check(filename: String; var dest_info: TMpegInfo): Integer; overload;
+function MPEGInfoToString(const m: TMpegInfo): String;
 
 const
   MPEG_BUFFER = 16384*2;
@@ -101,7 +101,7 @@ const
   MPEG_VERSION_1 = 3;                                                { MPEG 1 }
 
   { MPEG version names }
-  MPEG_VERSION: array [0..3] of AnsiString =
+  MPEG_VERSION: array [0..3] of String =
     ('2.5', '?', '2', '1');
 
   { MPEG layer codes }
@@ -111,7 +111,7 @@ const
   MPEG_LAYER_I = 3;                                                 { Layer I }
 
   { MPEG layer names }
-  MPEG_LAYER: array [0..3] of AnsiString =
+  MPEG_LAYER: array [0..3] of String =
     ('?', '3', '2', '1');
 
   { Channel mode codes }
@@ -122,7 +122,7 @@ const
   MPEG_CM_UNKNOWN = 4;                                         { Unknown mode }
 
   { Channel mode names }
-  MPEG_CM_MODE: array [0..4] of AnsiString =
+  MPEG_CM_MODE: array [0..4] of String =
     ('Stereo', 'Joint', 'Dual', 'Single', '?');
 
   { Extension mode codes (for Joint Stereo) }
@@ -139,7 +139,7 @@ const
   MPEG_EMPHASIS_CCIT = 3;                                         { CCIT J.17 }
 
   { Emphasis names }
-  MPEG_EMPHASIS: array [0..3] of AnsiString =
+  MPEG_EMPHASIS: array [0..3] of String =
     ('None', '50/15 ms', 'Unknown', 'CCIT J.17');
 
   { Encoder codes }
@@ -152,7 +152,7 @@ const
   MPEG_ENCODER_SHINE = 6;                                             { Shine }
 
   { Encoder names }
-  MPEG_ENCODER: array [0..6] of AnsiString =
+  MPEG_ENCODER: array [0..6] of String =
     ('Unknown', 'Xing', 'FhG', 'LAME', 'Blade', 'GoGo', 'Shine');
 
 type
@@ -198,19 +198,19 @@ type
       fid3v2size: Integer;
       procedure FResetData;
       procedure ReadID3V2Size(var buffer: array of byte);
-      function FGetVersion: AnsiString;
-      function FGetLayer: AnsiString;
+      function FGetVersion: String;
+      function FGetLayer: String;
       function FGetBitRate: Word;
       function FGetSampleRate: Word;
-      function FGetChannelMode: AnsiString;
-      function FGetEmphasis: AnsiString;
+      function FGetChannelMode: String;
+      function FGetEmphasis: String;
       function FGetFrames: Integer;
       function FGetSize: Cardinal;
       function FGetDuration: Double;
       function FGetVBREncoderID: Byte;
       function FGetCBREncoderID: Byte;
       function FGetEncoderID: Byte;
-      function FGetEncoder: AnsiString;
+      function FGetEncoder: String;
       function FGetValid: Boolean;
     public
       { Public declarations }
@@ -218,21 +218,21 @@ type
       destructor Destroy; override;                          { Destroy object }
       function ReadFromStream(const s: TStream): Boolean;     { Load data }
       function ReadFromBuffer(var buffer: array of byte; filesize: Integer): Boolean;
-      function ReadFromFile(const FileName: AnsiString): Boolean;     { Load data }
+      function ReadFromFile(const FileName: String): Boolean;     { Load data }
       property FileLength: Integer read FFileLength;    { File length (bytes) }
       property VBR: VBRData read FVBR;                      { VBR header data }
       property Frame: FrameData read FFrame;              { Frame header data }
-      property Version: AnsiString read FGetVersion;          { MPEG version name }
-      property Layer: AnsiString read FGetLayer;                { MPEG layer name }
+      property Version: String read FGetVersion;          { MPEG version name }
+      property Layer: String read FGetLayer;                { MPEG layer name }
       property BitRate: Word read FGetBitRate;            { Bit rate (kbit/s) }
       property SampleRate: Word read FGetSampleRate;       { Sample rate (hz) }
-      property ChannelMode: AnsiString read FGetChannelMode;  { Channel mode name }
-      property Emphasis: AnsiString read FGetEmphasis;            { Emphasis name }
+      property ChannelMode: String read FGetChannelMode;  { Channel mode name }
+      property Emphasis: String read FGetEmphasis;            { Emphasis name }
       property Size: Cardinal read FGetSize;      { Total number of frames }
       property Frames: Integer read FGetFrames;      { Total number of frames }
       property Duration: Double read FGetDuration;      { Song duration (sec) }
       property EncoderID: Byte read FGetEncoderID;       { Guessed encoder ID }
-      property Encoder: AnsiString read FGetEncoder;       { Guessed encoder name }
+      property Encoder: String read FGetEncoder;       { Guessed encoder name }
       property Valid: Boolean read FGetValid;       { True if MPEG file valid }
   end;
 
@@ -523,7 +523,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.FGetVersion: AnsiString;
+function TMPEGaudio.FGetVersion: String;
 begin
   { Get MPEG version name }
   Result := MPEG_VERSION[FFrame.VersionID];
@@ -531,7 +531,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.FGetLayer: AnsiString;
+function TMPEGaudio.FGetLayer: String;
 begin
   { Get MPEG layer name }
   Result := MPEG_LAYER[FFrame.LayerID];
@@ -559,7 +559,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.FGetChannelMode: AnsiString;
+function TMPEGaudio.FGetChannelMode: String;
 begin
   { Get channel mode name }
   Result := MPEG_CM_MODE[FFrame.ModeID];
@@ -567,7 +567,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.FGetEmphasis: AnsiString;
+function TMPEGaudio.FGetEmphasis: String;
 begin
   { Get emphasis name }
   Result := MPEG_EMPHASIS[FFrame.EmphasisID];
@@ -666,7 +666,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.FGetEncoder: AnsiString;
+function TMPEGaudio.FGetEncoder: String;
 begin
   { Get guessed encoder name }
   Result := MPEG_ENCODER[FGetEncoderID];
@@ -715,7 +715,7 @@ end;
 
 { --------------------------------------------------------------------------- }
 
-function TMPEGaudio.ReadFromFile(const FileName: AnsiString): Boolean;
+function TMPEGaudio.ReadFromFile(const FileName: String): Boolean;
 var fs: TFileStream;
 begin
   fs:= TFileStream.Create(filename, fmOpenRead);
@@ -844,7 +844,7 @@ begin
     m.Free;
   end;
 end;
-function Mpeg_Check(filename: AnsiString; var dest_info: TMpegInfo): Integer; overload;
+function Mpeg_Check(filename: String; var dest_info: TMpegInfo): Integer; overload;
 var fs: TFileStream;
     buffer: array[0..MPEG_BUFFER-1] of Byte;
 begin
@@ -857,7 +857,7 @@ begin
   end;
 end;
 
-function MPEGInfoToString(const m: TMpegInfo): AnsiString;
+function MPEGInfoToString(const m: TMpegInfo): String;
 begin
   Result:= '';
   if m.mpeg_present then

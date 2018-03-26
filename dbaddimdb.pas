@@ -6,14 +6,14 @@ uses Classes, IniFiles, irc, kb, Contnrs, SyncObjs;
 
 type
   TDbImdb = class
-    rls: AnsiString;
-    imdb_id: AnsiString;
-    constructor Create(rls, imdb_id: AnsiString);
+    rls: String;
+    imdb_id: String;
+    constructor Create(rls, imdb_id: String);
     destructor Destroy; override;
   end;
 
   TDbImdbData = class
-    imdb_id: AnsiString;
+    imdb_id: String;
     imdb_year: Integer;
     imdb_languages: TStringList;
     imdb_countries: TStringList;
@@ -26,25 +26,25 @@ type
     imdb_wide:boolean;
     imdb_festival:boolean;
     imdb_stvm:boolean;
-    imdb_stvs:AnsiString;
+    imdb_stvs:String;
     // additional infos
-    imdb_origtitle: AnsiString; //< original imdb/movie title
-    constructor Create(imdb_id :AnsiString);
+    imdb_origtitle: String; //< original imdb/movie title
+    constructor Create(imdb_id :String);
     destructor Destroy; override;
-    procedure PostResults(rls : AnsiString = '');overload;
-    procedure PostResults(const netname, channel: AnsiString; rls : AnsiString = '');overload;
+    procedure PostResults(rls : String = '');overload;
+    procedure PostResults(const netname, channel: String; rls : String = '');overload;
   end;
 
-function dbaddimdb_Process(net, chan, nick, msg: AnsiString): Boolean;
-procedure dbaddimdb_SaveImdb(rls, imdb_id: AnsiString);
-procedure dbaddimdb_SaveImdbData(rls: AnsiString; imdbdata: TDbImdbData);
-procedure dbaddimdb_addimdb(params: AnsiString);
-procedure dbaddimdb_ParseImdb(rls, imdb_id: AnsiString);
-procedure dbaddimdb_FireKbAdd(rls : AnsiString);
+function dbaddimdb_Process(net, chan, nick, msg: String): Boolean;
+procedure dbaddimdb_SaveImdb(rls, imdb_id: String);
+procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
+procedure dbaddimdb_addimdb(params: String);
+procedure dbaddimdb_ParseImdb(rls, imdb_id: String);
+procedure dbaddimdb_FireKbAdd(rls : String);
 
-function dbaddimdb_Status: AnsiString;
-function dbaddimdb_checkid(const imdbid: AnsiString): Boolean;
-function dbaddimdb_parseid(const text: AnsiString; out imdbid: AnsiString): Boolean;
+function dbaddimdb_Status: String;
+function dbaddimdb_checkid(const imdbid: String): Boolean;
+function dbaddimdb_parseid(const text: String; out imdbid: String): Boolean;
 
 procedure dbaddimdbInit;
 procedure dbaddimdbStart;
@@ -66,10 +66,10 @@ const
 var
   rx_imdbid: TFLRE;
   rx_captures: TFLREMultiCaptures;
-  addimdbcmd: AnsiString;
+  addimdbcmd: String;
 
 { TDbImdb }
-constructor TDbImdb.Create(rls, imdb_id: AnsiString);
+constructor TDbImdb.Create(rls, imdb_id: String);
 begin
   self.rls := rls;
   self.imdb_id := imdb_id;
@@ -81,7 +81,7 @@ begin
 end;
 
 { TDbImdbData }
-constructor TDbImdbData.Create(imdb_id:AnsiString);
+constructor TDbImdbData.Create(imdb_id:String);
 begin
   self.imdb_id := imdb_id;
   imdb_languages:= TStringList.Create;
@@ -97,8 +97,8 @@ begin
   inherited;
 end;
 
-procedure TDbImdbData.PostResults(rls : AnsiString = '');
-var status:AnsiString;
+procedure TDbImdbData.PostResults(rls : String = '');
+var status:String;
 begin
 
   if imdb_stvm then status := 'STV'
@@ -114,8 +114,8 @@ begin
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s)',[imdb_rating,imdb_votes,imdb_screens,status]));
 end;
 
-procedure TDbImdbData.PostResults(const netname, channel: AnsiString; rls : AnsiString = '');
-var status:AnsiString;
+procedure TDbImdbData.PostResults(const netname, channel: String; rls : String = '');
+var status:String;
 begin
   if imdb_stvm then status := 'STV'
   else if imdb_festival then status := 'Festival'
@@ -132,7 +132,7 @@ end;
 
 { Proc/Func }
 
-function dbaddimdb_Process(net, chan, nick, msg: AnsiString): Boolean;
+function dbaddimdb_Process(net, chan, nick, msg: String): Boolean;
 begin
   Result := False;
   if (1 = Pos(addimdbcmd, msg)) then
@@ -143,10 +143,10 @@ begin
   end;
 end;
 
-procedure dbaddimdb_addimdb(params: AnsiString);
+procedure dbaddimdb_addimdb(params: String);
 var
-  rls: AnsiString;
-  imdb_id: AnsiString;
+  rls: String;
+  imdb_id: String;
   i: Integer;
 begin
   rls := '';
@@ -186,7 +186,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_SaveImdb(rls, imdb_id: AnsiString);
+procedure dbaddimdb_SaveImdb(rls, imdb_id: String);
 var
   i: Integer;
   db_imdb: TDbImdb;
@@ -251,7 +251,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_SaveImdbData(rls: AnsiString; imdbdata: TDbImdbData);
+procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
 var
   i: Integer;
 begin
@@ -317,7 +317,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_ParseImdb(rls, imdb_id: AnsiString);
+procedure dbaddimdb_ParseImdb(rls, imdb_id: String);
 begin
   try
     AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls));
@@ -330,7 +330,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_FireKbAdd(rls : AnsiString);
+procedure dbaddimdb_FireKbAdd(rls : String);
 var p : TPazo;
     ps: TPazoSite;
 begin
@@ -362,7 +362,7 @@ begin
 end;
 
 { Checkid }
-function dbaddimdb_checkid(const imdbid: AnsiString): Boolean;
+function dbaddimdb_checkid(const imdbid: String): Boolean;
 begin
   Result := False;
   dbaddimdb_cs.Enter;
@@ -383,7 +383,7 @@ begin
 end;
 
 { Parseid }
-function dbaddimdb_parseid(const text: AnsiString; out imdbid: AnsiString): Boolean;
+function dbaddimdb_parseid(const text: String; out imdbid: String): Boolean;
 begin
   imdbid := '';
   Result := False;
@@ -410,7 +410,7 @@ end;
 
 
 { Status }
-function dbaddimdb_Status: AnsiString;
+function dbaddimdb_Status: String;
 begin
   Result := Format('<b>iMDB</b>: %d, <b>iMDB data</b>: %d',[last_addimdb.Count, last_imdbdata.Count]);
 end;

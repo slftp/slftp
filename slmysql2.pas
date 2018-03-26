@@ -387,25 +387,25 @@ type PMYSQL = Pointer;
     {$ENDIF}
 
 
-function mqwo(m:PMYSQL; q: AnsiString): Boolean; overload;
-function mqwo(m:PMYSQL; q: AnsiString; args: array of const): Boolean; overload;
+function mqwo(m:PMYSQL; q: String): Boolean; overload;
+function mqwo(m:PMYSQL; q: String; args: array of const): Boolean; overload;
 function mygetrow(r: PMYSQL_RES; var res: TStringDynArray): Boolean;
-function myquery(m:PMYSQL; q: AnsiString): PMYSQL_RES; overload;
-function myquery(m:PMYSQL; q: AnsiString; args: array of const): PMYSQL_RES; overload;
-function gcaa(m:PMYSQL; q: AnsiString; args: array of const; var res: TStringDynArray): Boolean; overload;
-function gcaa(m:PMYSQL; q: AnsiString; args: array of const; res: TStringList): Boolean; overload;
-function gc(m:PMYSQL; q: AnsiString; args: array of const): AnsiString;
-function slmysql_info: AnsiString;
-function slmysql_error(m: PMYSQL): AnsiString;
+function myquery(m:PMYSQL; q: String): PMYSQL_RES; overload;
+function myquery(m:PMYSQL; q: String; args: array of const): PMYSQL_RES; overload;
+function gcaa(m:PMYSQL; q: String; args: array of const; var res: TStringDynArray): Boolean; overload;
+function gcaa(m:PMYSQL; q: String; args: array of const; res: TStringList): Boolean; overload;
+function gc(m:PMYSQL; q: String; args: array of const): String;
+function slmysql_info: String;
+function slmysql_error(m: PMYSQL): String;
 
-Function InitialiseMysql(Const LibraryName : AnsiString) : Boolean; overload;
+Function InitialiseMysql(Const LibraryName : String) : Boolean; overload;
 Function InitialiseMysql : Boolean; overload;
 Procedure ReleaseMysql;
 
 var
   MysqlLibraryHandle : Integer = 0;
-  slmysql_liberror : AnsiString = '';
-  slmysql_LoadedLibrary : AnsiString = '';
+  slmysql_liberror : String = '';
+  slmysql_LoadedLibrary : String = '';
 
 
 
@@ -430,8 +430,8 @@ uses
 var
   RefCount : integer;
 
-function slmysql_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
-var fceName: AnsiString;
+function slmysql_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
+var fceName: String;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -448,7 +448,7 @@ begin
     Result:= True;
 end;
 
-Function TryInitialiseMysql(Const LibraryName : AnsiString) : Integer;
+Function TryInitialiseMysql(Const LibraryName : String) : Integer;
 begin
   Result := 0;
 
@@ -563,7 +563,7 @@ begin
 end;
 
 
-Function InitialiseMysql(Const LibraryName : AnsiString) : Boolean;
+Function InitialiseMysql(Const LibraryName : String) : Boolean;
 begin
   Result := False;
   if (TryInitialiseMysql(LibraryName) <> 0) then
@@ -597,8 +597,8 @@ begin
 end;
 
 
-function mqwo(m:PMYSQL; q: AnsiString): Boolean; overload;
-var mysql_err: AnsiString;
+function mqwo(m:PMYSQL; q: String): Boolean; overload;
+var mysql_err: String;
 begin
   Result:= 0 = mysql_query(m, PAnsiChar(q));
   mysql_err:= mysql_error(m);
@@ -608,10 +608,10 @@ begin
   end;
 end;
 
-function mqwo(m:PMYSQL; q: AnsiString; args: array of const): Boolean; overload;
+function mqwo(m:PMYSQL; q: String; args: array of const): Boolean; overload;
 var newargs: TConstArray;
     i, j: Integer;
-    s2, s: AnsiString;
+    s2, s: String;
 begin
   SetLength(newargs, Length(args));
   try
@@ -659,11 +659,11 @@ begin
   end;
 end;
 
-function myquery(m:PMYSQL; q: AnsiString): PMYSQL_RES;
+function myquery(m:PMYSQL; q: String): PMYSQL_RES;
 begin
   Result:= myquery(m, q, []);
 end;
-function myquery(m:PMYSQL; q: AnsiString; args: array of const): PMYSQL_RES;
+function myquery(m:PMYSQL; q: String; args: array of const): PMYSQL_RES;
 begin
   Result:= nil;
   if not mqwo(m, q, args) then
@@ -695,7 +695,7 @@ begin
   Pointer(row):= nil;
   Result:= True;
 end;
-function gcaa(m:PMYSQL; q: AnsiString; args: array of const; var res: TStringDynArray): Boolean;
+function gcaa(m:PMYSQL; q: String; args: array of const; var res: TStringDynArray): Boolean;
 var r: PMYSQL_RES;
 begin
   Result:= False;
@@ -718,7 +718,7 @@ begin
   end;
 end;
 
-function gcaa(m:PMYSQL; q: AnsiString; args: array of const; res: TStringList): Boolean;
+function gcaa(m:PMYSQL; q: String; args: array of const; res: TStringList): Boolean;
 var r: PMYSQL_RES;
     re: TStringDynArray;
     mf: PMYSQL_FIELD;
@@ -753,7 +753,7 @@ begin
 end;
 
 
-function gc(m:PMYSQL; q: AnsiString; args: array of const): AnsiString;
+function gc(m:PMYSQL; q: String; args: array of const): String;
 var row: TStringDynArray;
 begin
   Result:= '';
@@ -770,11 +770,11 @@ begin
   end;
 end;
 
-function slmysql_info: AnsiString;
+function slmysql_info: String;
 begin
   Result:= StrPas(mysql_get_client_info);
 end;
-function slmysql_error(m: PMYSQL): AnsiString;
+function slmysql_error(m: PMYSQL): String;
 begin
   Result:= StrPas(mysql_error(m));
 end;

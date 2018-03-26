@@ -11,9 +11,9 @@ procedure UninitmRdOHConfigFiles;
 { Creates a TFileStream for @value(FileName) and returns the size of it
   @param(FileName Name of the file from which you want to know the size)
   @returns(filesize on success, else -1) }
-function GetLocalFileSize(const FileName: AnsiString): Int64;
+function GetLocalFileSize(const FileName: String): Int64;
 { Checks if each file from @link(common.inc) exist and does also some size checks }
-function CommonFileCheck: AnsiString;
+function CommonFileCheck: String;
 
 var
   preurls: TEncStringlist;
@@ -39,7 +39,7 @@ begin
   end;
 end;
 
-function GetLocalFileSize(const FileName: AnsiString): Int64;
+function GetLocalFileSize(const FileName: String): Int64;
 var
   FileStream: TFileStream;
 begin
@@ -55,9 +55,9 @@ begin
   end;
 end;
 
-function CommonFileCheck: AnsiString;
+function CommonFileCheck: String;
 var
-  fPath: AnsiString;
+  fPath: String;
   i, fsize: Integer;
   finiFound, fNeeded: boolean;
 begin

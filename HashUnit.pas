@@ -15,7 +15,7 @@ interface
 uses
   SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
-function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: String; IgnoreCase, IgnoreBlanks: boolean): pointer;
 
 implementation
 
@@ -105,10 +105,10 @@ begin
 end;
 //--------------------------------------------------------------------------
 
-function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: String; IgnoreCase, IgnoreBlanks: boolean): pointer;
 var
   i, j, len: integer;
-  s: AnsiString;
+  s: String;
 begin
   s := line;
   if IgnoreBlanks then
