@@ -6,14 +6,14 @@ uses  SyncObjs,SysUtils,tasksunit;
 
 type
     TDelReleaseTask = class(TTask)
-       dir: AnsiString;
+       dir: String;
        devent:TEvent;
-       constructor Create(const netname, channel: AnsiString; site: AnsiString; dir: AnsiString);
+       constructor Create(const netname, channel: String; site: String; dir: String);
        destructor Destroy;override;
        function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
+       function Name: String; override;
   private
-    function RemoveDir(slot: Pointer; dir: AnsiString): Boolean;
+    function RemoveDir(slot: Pointer; dir: String): Boolean;
     end;
 
 implementation
@@ -24,7 +24,7 @@ const section = 'del';
 
 { TLoginTask }
 
-constructor TDelReleaseTask.Create(const netname, channel: AnsiString; site: AnsiString; dir: AnsiString);
+constructor TDelReleaseTask.Create(const netname, channel: String; site: String; dir: String);
 begin
   self.dir:= dir;
   devent:=TEvent.Create(nil, true, false, 'DEL_'+site+'-'+dir);
@@ -37,7 +37,7 @@ inherited;
 devent.free;
 end;
 
-function TDelReleaseTask.RemoveDir(slot: Pointer; dir: AnsiString): Boolean;
+function TDelReleaseTask.RemoveDir(slot: Pointer; dir: String): Boolean;
 var s: TSiteSlot;
     d: TDirList;
     i: Integer;
@@ -115,7 +115,7 @@ ujra:
   devent.setevent;
 end;
 
-function TDelReleaseTask.Name: AnsiString;
+function TDelReleaseTask.Name: String;
 begin
   try
     Result:=format('DELETE %s - %s',[site1,dir]);

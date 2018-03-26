@@ -6,25 +6,25 @@ uses pazo, SyncObjs, Contnrs;
 
 type
   TRankStat = class
-    sitename, section: AnsiString;
+    sitename, section: String;
     score: Integer;
-    function ToString: AnsiString;
-    constructor Create(const sitename, section: AnsiString; const score: Integer); overload;
-    constructor Create(line: AnsiString); overload;
+    function ToString: String;
+    constructor Create(const sitename, section: String; const score: Integer); overload;
+    constructor Create(line: String); overload;
   end;
 
-procedure RankStatAdd(const sitename, section: AnsiString; const score: Integer); overload;
+procedure RankStatAdd(const sitename, section: String; const score: Integer); overload;
 procedure RankStatAdd(s: TRankStat); overload;
 
 procedure RanksInit;
 procedure RanksUnInit;
 procedure RanksSave;
 procedure RanksStart;
-procedure RanksRecalc(const netname, channel: AnsiString);
+procedure RanksRecalc(const netname, channel: String);
 procedure RanksProcess(p: TPazo);
 
-function RemoveRanks(sitename: AnsiString): boolean; overload;
-function RemoveRanks(sitename, section: AnsiString): boolean; overload;
+function RemoveRanks(sitename: String): boolean; overload;
+function RemoveRanks(sitename, section: String): boolean; overload;
 
 function RanksReload: boolean;
 
@@ -44,7 +44,7 @@ var
   rankslock: TCriticalSection;
 
 
-function RemoveRanks(sitename: AnsiString): boolean;
+function RemoveRanks(sitename: String): boolean;
 var
   i: Integer;
 begin
@@ -64,7 +64,7 @@ begin
   Result := True;
 end;
 
-function RemoveRanks(sitename, section: AnsiString): boolean;
+function RemoveRanks(sitename, section: String): boolean;
 var
   i: Integer;
   rank: TRankStat;
@@ -159,7 +159,7 @@ begin
 end;
 
 
-function FindSite(const s: AnsiString; const section: AnsiString): Boolean; overload;
+function FindSite(const s: String; const section: String): Boolean; overload;
 begin
   result := False;
   if sitesdat.ReadString('site-' + s, 'username', '') = '' then
@@ -169,7 +169,7 @@ begin
   Result := True;
 end;
 
-function FindSite(const s: AnsiString): Boolean; overload;
+function FindSite(const s: String): Boolean; overload;
 begin
   Result := False;
   if sitesdat.ReadString('site-' + s, 'username', '') = '' then
@@ -179,7 +179,7 @@ begin
   Result := True;
 end;
 
-function NewAverage(const sitename, section: AnsiString): Integer;
+function NewAverage(const sitename, section: String): Integer;
 var
   sumvalue, db, i: Integer;
   r: TRankStat;
@@ -274,10 +274,10 @@ begin
   end;
 end;
 
-procedure RanksRecalc(const netname, channel: AnsiString);
+procedure RanksRecalc(const netname, channel: String);
 var
   i, oa, na, rl: Integer;
-  s, sitename: AnsiString;
+  s, sitename: String;
   r: TRankStat;
 begin
   Debug(dpMessage, r_section, '--> Recalculating rank stats');
@@ -350,26 +350,26 @@ end;
 
 { TRankStat }
 
-constructor TRankStat.Create(line: AnsiString);
+constructor TRankStat.Create(line: String);
 begin
   sitename := Fetch(line, ' ');
   section := Fetch(line, ' ');
   score := StrToIntDef(Fetch(line, ' '), 0);
 end;
 
-constructor TRankStat.Create(const sitename, section: AnsiString; const score: Integer);
+constructor TRankStat.Create(const sitename, section: String; const score: Integer);
 begin
   self.sitename := sitename;
   self.section := section;
   self.score := score;
 end;
 
-function TRankStat.ToString: AnsiString;
+function TRankStat.ToString: String;
 begin
   Result := Format('%s %s %d', [sitename, section, score]);
 end;
 
-procedure RankStatAdd(const sitename, section: AnsiString; const score: Integer); overload;
+procedure RankStatAdd(const sitename, section: String; const score: Integer); overload;
 var
   s: TRankStat;
 begin

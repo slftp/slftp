@@ -147,7 +147,7 @@ begin
 
 end;
 
-procedure DeleteOldBackups(s: AnsiString);
+procedure DeleteOldBackups(s: String);
 var
   sr: TSearchRec;
   files: TStringList;
@@ -240,7 +240,7 @@ end;
 
 procedure BackupBackup;
 var
-  s: AnsiString;
+  s: String;
 begin
   try
     debug(dpMessage, section, 'Backup process started.');

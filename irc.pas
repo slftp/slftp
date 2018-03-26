@@ -7,8 +7,8 @@ uses
 
 type
   TIRCChannroles = record
-    Name: AnsiString;
-    Description: AnsiString;
+    Name: String;
+    Description: String;
   end;
 
   TMyIrcThread = class(TslTCPThread)
@@ -19,23 +19,23 @@ type
     irc_last_read: TDateTime;
     registered: Boolean;
     irc_last_written: tdatetime;
-    lastservername: AnsiString;
+    lastservername: String;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
 
     function GetIrcFlood: Integer;
     procedure SetIrcFlood(value: Integer);
-    function GetIrcNick: AnsiString;
-    procedure SetIrcNick(value: AnsiString);
-    function GetIrcANick: AnsiString;
-    procedure SetIrcANick(value: AnsiString);
-    function GetIrcUsername: AnsiString;
-    procedure SetIrcUsername(value: AnsiString);
-    function GetIrcIdent: AnsiString;
-    procedure SetIrcIdent(value: AnsiString);
-    function GetIrcPassword: AnsiString;
-    procedure SetIrcPassword(value: AnsiString);
+    function GetIrcNick: String;
+    procedure SetIrcNick(value: String);
+    function GetIrcANick: String;
+    procedure SetIrcANick(value: String);
+    function GetIrcUsername: String;
+    procedure SetIrcUsername(value: String);
+    function GetIrcIdent: String;
+    procedure SetIrcIdent(value: String);
+    function GetIrcPassword: String;
+    procedure SetIrcPassword(value: String);
 
     procedure Setmanglehost(value: boolean);
     function Getmanglehost: boolean;
@@ -44,31 +44,31 @@ type
     function Getinvisible: boolean;
 
     function IrcRegister: Boolean;
-    function IrcProcessLine(s: AnsiString): Boolean;
+    function IrcProcessLine(s: String): Boolean;
     function IrcProcess: Boolean;
-    function IrcPing(cumo: AnsiString): Boolean;
-    procedure IrcPrivMsg(const s: AnsiString);
+    function IrcPing(cumo: String): Boolean;
+    procedure IrcPrivMsg(const s: String);
     function ShouldJoinGame: Boolean;
     procedure ClearSiteInvited;
-    function ChannelsList: AnsiString;
+    function ChannelsList: String;
 
-    procedure chanjoin(chan, nick: AnsiString);
+    procedure chanjoin(chan, nick: String);
     procedure BncCsere;
 
-    function RCBool(name: AnsiString; def: Boolean): Boolean;
-    function RCString(name, def: AnsiString): AnsiString;
-    function RCInt(name: AnsiString; def: integer): integer;
+    function RCBool(name: String; def: Boolean): Boolean;
+    function RCString(name, def: String): String;
+    function RCInt(name: String; def: integer): integer;
 
-    //procedure WCInt(name: AnsiString; val: integer);
-    procedure WCString(name: AnsiString; val: AnsiString);
-    procedure WCBool(name: AnsiString; val: boolean);
+    //procedure WCInt(name: String; val: integer);
+    procedure WCString(name: String; val: String);
+    procedure WCBool(name: String; val: boolean);
 
     //BotNick Stuff
-    function GetBotIRCNick: AnsiString;
-    procedure SetBotIRCNick(value: AnsiString);
+    function GetBotIRCNick: String;
+    procedure SetBotIRCNick(value: String);
     //Proxy Stuff
-    function GetProxyName: AnsiString;
-    procedure SetProxyName(value: AnsiString);
+    function GetProxyName: String;
+    procedure SetProxyName(value: String);
     //NickServ Stuff
     //    function GetNickServNick:string;
     //    procedure SetNickServNick(value:string);
@@ -80,35 +80,35 @@ type
   public
     shouldrestart: Boolean;
     shouldjoin: Boolean;
-    netname: AnsiString;
-    status: AnsiString;
+    netname: String;
+    status: String;
     channels: TStringList;
 
-    procedure IrcSendPrivMessage(channel, plainmsgformat: AnsiString; const args: array of const); overload;
-    procedure IrcSendPrivMessage(channel, plainmsg: AnsiString); overload;
-    function IrcSendPrivMessage(oneliner: AnsiString): Boolean; overload;
+    procedure IrcSendPrivMessage(channel, plainmsgformat: String; const args: array of const); overload;
+    procedure IrcSendPrivMessage(channel, plainmsg: String); overload;
+    function IrcSendPrivMessage(oneliner: String): Boolean; overload;
     procedure IrcSetupSocket;
-    procedure chanpart(chan, nick: AnsiString);
+    procedure chanpart(chan, nick: String);
     function IrcConnect: Boolean;
     procedure IrcQuit;
-    function ChanNicks(chan: AnsiString): AnsiString;
-    constructor Create(netname: AnsiString);
+    function ChanNicks(chan: String): String;
+    constructor Create(netname: String);
     procedure Execute; override;
     destructor Destroy; override;
 
-    function IrcWrite(s: AnsiString; hide: boolean = False): Boolean;
+    function IrcWrite(s: String; hide: boolean = False): Boolean;
 
     property flood: Integer read GetIrcFlood write SetIrcFlood;
     property ssl: Boolean read GetIrcSSL write SetIrcSSL;
 
-    property irc_nick: AnsiString read GetIrcNick write SetIrcNick; //< your nickname on this network
-    property irc_anick: AnsiString read GetIrcANick write SetIrcANick;
-    property irc_username: AnsiString read GetIrcUsername write SetIrcUsername;
-    property irc_ident: AnsiString read GetIrcIdent write SetIrcIdent;
-    property ircpassword: AnsiString read GetIrcPassword write SetIrcPassword;
+    property irc_nick: String read GetIrcNick write SetIrcNick; //< your nickname on this network
+    property irc_anick: String read GetIrcANick write SetIrcANick;
+    property irc_username: String read GetIrcUsername write SetIrcUsername;
+    property irc_ident: String read GetIrcIdent write SetIrcIdent;
+    property ircpassword: String read GetIrcPassword write SetIrcPassword;
 
-    property BotNick: AnsiString read GetBotIRCNick write SetBotIRCNick;
-    property ProxyName: AnsiString read GetProxyName write SetProxyName;
+    property BotNick: String read GetBotIRCNick write SetBotIRCNick;
+    property ProxyName: String read GetProxyName write SetProxyName;
 
     property MangleHost: boolean read Getmanglehost write Setmanglehost;
     property Invisible: boolean read Getinvisible write Setinvisible;
@@ -117,41 +117,41 @@ type
     //    property NickServPassword:string read GetNickServPassw write SetNickServpassw;
   end;
 
-procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
-procedure irc_Addtext(const netname, channel: AnsiString; msg: AnsiString); overload;
-procedure irc_Addtext(const netname, channel: AnsiString; msgFormat: AnsiString; Args: array of const); overload;
-procedure irc_Addtext(task: TTask; msg: AnsiString); overload;
-procedure irc_Addtext(task: TTask; msgFormat: AnsiString; Args: array of const); overload;
-function irc_Addtext_by_key(key, msg: AnsiString): Integer;
-procedure IrcProcessCommand(const netname, channel: AnsiString; msg: AnsiString);
-procedure irc_Addadmin(msg: AnsiString); overload;
-procedure irc_AddAdmin(msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_Addtext_b(const netname, channel: String; msg: String); overload;
+procedure irc_Addtext(const netname, channel: String; msg: String); overload;
+procedure irc_Addtext(const netname, channel: String; msgFormat: String; Args: array of const); overload;
+procedure irc_Addtext(task: TTask; msg: String); overload;
+procedure irc_Addtext(task: TTask; msgFormat: String; Args: array of const); overload;
+function irc_Addtext_by_key(key, msg: String): Integer;
+procedure IrcProcessCommand(const netname, channel: String; msg: String);
+procedure irc_Addadmin(msg: String); overload;
+procedure irc_AddAdmin(msgFormat: String; Args: array of const); overload;
 
-procedure irc_AddConsole(msg: AnsiString); overload;
+procedure irc_AddConsole(msg: String); overload;
 
-procedure irc_Addstats(msgirc: AnsiString); overload;
-procedure irc_AddstatsB(msgirc: AnsiString); overload;
+procedure irc_Addstats(msgirc: String); overload;
+procedure irc_AddstatsB(msgirc: String); overload;
 
-procedure irc_Adderror(task: TTask; msg: AnsiString); overload;
-procedure irc_Adderror(msgirc: AnsiString); overload;
-procedure irc_Adderror(task: TTask; msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_Adderror(task: TTask; msg: String); overload;
+procedure irc_Adderror(msgirc: String); overload;
+procedure irc_Adderror(task: TTask; msgFormat: String; Args: array of const); overload;
 
-procedure irc_AddINFO(msgirc: AnsiString); overload;
-procedure irc_AddINFO(msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_AddINFO(msgirc: String); overload;
+procedure irc_AddINFO(msgFormat: String; Args: array of const); overload;
 
-function CommandAuthorized(const netname, channel, cmd: AnsiString): Boolean;
+function CommandAuthorized(const netname, channel, cmd: String): Boolean;
 
-procedure irc_SendAddPre(msgirc: AnsiString);
-procedure irc_SendSPEEDSTATS(msgirc: AnsiString);
-procedure irc_SendINDEXER(msgirc: AnsiString);
-procedure irc_SendRANKSTATS(msgirc: AnsiString);
-procedure irc_SendROUTEINFOS(msgirc: AnsiString);
-procedure irc_SendRACESTATS(msgirc: AnsiString);
-procedure irc_SendIRCEvent(msgirc: AnsiString);
+procedure irc_SendAddPre(msgirc: String);
+procedure irc_SendSPEEDSTATS(msgirc: String);
+procedure irc_SendINDEXER(msgirc: String);
+procedure irc_SendRANKSTATS(msgirc: String);
+procedure irc_SendROUTEINFOS(msgirc: String);
+procedure irc_SendRACESTATS(msgirc: String);
+procedure irc_SendIRCEvent(msgirc: String);
 
-procedure irc_SendUPDATE(msgirc: AnsiString);
+procedure irc_SendUPDATE(msgirc: String);
 
-function FindIrcnetwork(netname: AnsiString): TMyIrcThread;
+function FindIrcnetwork(netname: String): TMyIrcThread;
 
 procedure IrcInit;
 procedure IrcStart;
@@ -160,8 +160,8 @@ procedure ircStop;
 
 function IrcRestart: boolean;
 
-function mynickname: AnsiString;
-function irccmdprefix: AnsiString;
+function mynickname: String;
+function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
@@ -172,7 +172,7 @@ var
 const
   irc_chanroleindex = 21;
 
-  irc_chanroles: array[0..irc_chanroleindex] of AnsiString = (
+  irc_chanroles: array[0..irc_chanroleindex] of String = (
     'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
     'UPDATE',
     'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
@@ -193,17 +193,17 @@ uses
 const
   section = 'irc';
 
-function mynickname: AnsiString;
+function mynickname: String;
 begin
   result := config.ReadString(section, 'nickname', 'sl');
 end;
 
-function irccmdprefix: AnsiString;
+function irccmdprefix: String;
 begin
   result := config.ReadString(section, 'cmdprefix', '!');
 end;
 
-function FindIrcnetwork(netname: AnsiString): TMyIrcThread;
+function FindIrcnetwork(netname: String): TMyIrcThread;
 var
   i: Integer;
 begin
@@ -224,7 +224,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext_b(const netname, channel: AnsiString; msg: AnsiString); overload;
+procedure irc_Addtext_b(const netname, channel: String; msg: String); overload;
 var
   direct_echo: TMyIrcThread;
   msgs: TStringList;
@@ -282,7 +282,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(const netname, channel: AnsiString; msg: AnsiString); overload;
+procedure irc_Addtext(const netname, channel: String; msg: String); overload;
 begin
   try
     irc_addtext_b(netname, channel, ReplaceThemeMSG(msg));
@@ -294,7 +294,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(const netname, channel: AnsiString; msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_Addtext(const netname, channel: String; msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_Addtext(netname, channel, Format(msgFormat, Args));
@@ -306,7 +306,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(task: TTask; msg: AnsiString); overload;
+procedure irc_Addtext(task: TTask; msg: String); overload;
 begin
   if ((task <> nil) and (task.netname <> '') and (task.channel <> '')) then
     irc_Addtext(task.netname, task.channel, msg)
@@ -314,9 +314,9 @@ begin
     irc_Addadmin(msg);
 end;
 
-procedure irc_Addtext(task: TTask; msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_Addtext(task: TTask; msgFormat: String; Args: array of const); overload;
 var
-  s: AnsiString;
+  s: String;
 begin
   try
     s := Format(msgFormat, Args);
@@ -329,7 +329,7 @@ begin
   end;
 end;
 
-procedure irc_AddstatsB(msgirc: AnsiString); overload;
+procedure irc_AddstatsB(msgirc: String); overload;
 var
   b: TIrcBlowKey;
   i: Integer;
@@ -352,11 +352,11 @@ begin
   end;
 end;
 
-function irc_Addtext_by_key(key, msg: AnsiString): Integer;
+function irc_Addtext_by_key(key, msg: String): Integer;
 var
   b: TIrcBlowKey;
   i, j: Integer;
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   Result := 0;
 
@@ -388,7 +388,7 @@ begin
   end;
 end;
 
-procedure irc_AddAdmin(msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_AddAdmin(msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_AddAdmin(Format(msgFormat, args));
@@ -400,25 +400,25 @@ begin
   end;
 end;
 
-procedure irc_Addadmin(msg: AnsiString); overload;
+procedure irc_Addadmin(msg: String); overload;
 begin
   irc_addtext('CONSOLE', 'Admin', msg);
   irc_Addtext_by_key('ADMIN', msg);
 end;
 
-procedure irc_AddConsole(msg: AnsiString); overload;
+procedure irc_AddConsole(msg: String); overload;
 begin
   irc_addtext('CONSOLE', 'Admin', msg);
 end;
 
-procedure irc_Addstats(msgirc: AnsiString); overload;
+procedure irc_Addstats(msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('STATS', msgirc)
 end;
 
-procedure irc_Adderror(task: TTask; msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_Adderror(task: TTask; msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_Adderror(task, Format(msgFormat, Args));
@@ -430,26 +430,26 @@ begin
   end;
 end;
 
-procedure irc_Adderror(task: TTask; msg: AnsiString); overload;
+procedure irc_Adderror(task: TTask; msg: String); overload;
 begin
   irc_Addtext_by_key('ERROR', msg);
 end;
 
-procedure irc_Adderror(msgirc: AnsiString); overload;
+procedure irc_Adderror(msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ERROR', msgirc);
 end;
 
-procedure irc_AddINFO(msgirc: AnsiString); overload;
+procedure irc_AddINFO(msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('INFO', msgirc);
 end;
 
-procedure irc_AddINFO(msgFormat: AnsiString; Args: array of const); overload;
+procedure irc_AddINFO(msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_AddINFO(Format(msgformat, args));
@@ -461,56 +461,56 @@ begin
   end;
 end;
 
-procedure irc_SendIRCEvent(msgirc: AnsiString);
+procedure irc_SendIRCEvent(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('IRCEVENT', msgirc);
 end;
 
-procedure irc_SendAddPre(msgirc: AnsiString);
+procedure irc_SendAddPre(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ADDPREECHO', msgirc);
 end;
 
-procedure irc_SendSPEEDSTATS(msgirc: AnsiString);
+procedure irc_SendSPEEDSTATS(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('SPEEDSTATS', msgirc);
 end;
 
-procedure irc_SendINDEXER(msgirc: AnsiString);
+procedure irc_SendINDEXER(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('INDEXER', msgirc);
 end;
 
-procedure irc_SendRANKSTATS(msgirc: AnsiString);
+procedure irc_SendRANKSTATS(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('RANKSTATS', msgirc)
 end;
 
-procedure irc_SendROUTEINFOS(msgirc: AnsiString);
+procedure irc_SendROUTEINFOS(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ROUTEINFOS', msgirc)
 end;
 
-procedure irc_SendRACESTATS(msgirc: AnsiString);
+procedure irc_SendRACESTATS(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('RACESTATS', msgirc)
 end;
 
-procedure irc_SendUPDATE(msgirc: AnsiString);
+procedure irc_SendUPDATE(msgirc: String);
 begin
   if (msgirc = '') then
     exit;
@@ -522,7 +522,7 @@ procedure IrcStart;
 var
   x: TStringList;
   i: Integer;
-  channel, nn: AnsiString;
+  channel, nn: String;
   b: TIrcBlowKey;
 begin
   // register other sitechan keys
@@ -559,7 +559,7 @@ end;
 
 { TMyIrcThread }
 
-constructor TMyIrcThread.Create(netname: AnsiString);
+constructor TMyIrcThread.Create(netname: String);
 begin
   irc_lock := TCriticalSection.Create;
 
@@ -596,24 +596,24 @@ begin
   inherited;
 end;
 
-function TMyIrcThread.GetBotIRCNick: AnsiString;
+function TMyIrcThread.GetBotIRCNick: String;
 begin
   //result:=irc_nick ;
   result := sitesdat.ReadString('ircnet-' + netname, 'nick', irc_nick);
 end;
 
-procedure TMyIrcThread.SetBotIRCNick(value: AnsiString);
+procedure TMyIrcThread.SetBotIRCNick(value: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, 'nick', value);
   irc_nick := value;
 end;
 
-procedure TMyIrcThread.SetProxyName(value: AnsiString);
+procedure TMyIrcThread.SetProxyName(value: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, 'proxyname', Value);
 end;
 
-function TMyIrcThread.GetProxyName: AnsiString;
+function TMyIrcThread.GetProxyName: String;
 begin
   result := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
 end;
@@ -635,7 +635,7 @@ begin
 
 end;
 
-function TMyIrcThread.IrcWrite(s: AnsiString; hide: boolean = False): Boolean;
+function TMyIrcThread.IrcWrite(s: String; hide: boolean = False): Boolean;
 begin
   Result := False;
   irc_lock.Enter;
@@ -660,7 +660,7 @@ end;
 
 function TMyIrcThread.IrcConnect: Boolean;
 var
-  LOurAddr: AnsiString;
+  LOurAddr: String;
 begin
   Result := False;
   status := 'connecting...';
@@ -707,13 +707,13 @@ begin
   //  myIrcClient.Disconnect; // majd a free ugyis rendbetesz
 end;
 
-function TMyIrcThread.IrcPing(cumo: AnsiString): Boolean;
+function TMyIrcThread.IrcPing(cumo: String): Boolean;
 begin
   Result := IrcWrite('PONG ' + cumo);
   lastservername := cumo;
 end;
 
-function CommandAuthorized(const netname, channel, cmd: AnsiString): Boolean;
+function CommandAuthorized(const netname, channel, cmd: String): Boolean;
 var
   b: TIrcBlowkey;
 begin
@@ -768,11 +768,11 @@ begin
   end;
 end;
 
-procedure IrcProcessCommand(const netname, channel: AnsiString; msg: AnsiString);
+procedure IrcProcessCommand(const netname, channel: String; msg: String);
 var
-  cmd: AnsiString;
+  cmd: String;
   i, c: integer;
-  params: AnsiString;
+  params: String;
 begin
   cmd := SubString(msg, ' ', 1);
 
@@ -809,9 +809,9 @@ begin
   TIRCCommandThread.Create(irccommands[i].hnd, netname, channel, params, irccommands[i].cmd);
 end;
 
-procedure TMyIrcThread.IrcPrivMsg(const s: AnsiString);
+procedure TMyIrcThread.IrcPrivMsg(const s: String);
 var
-  channel, msg, nick, ctcp_event: AnsiString;
+  channel, msg, nick, ctcp_event: String;
   is_crypted_msg: Boolean;
   l: Integer;
   b: TIrcBlowkey;
@@ -1106,7 +1106,7 @@ begin
   Debug(dpSpam, section, '<-- ' + channel + ' ' + nick + ' ' + msg);
 end;
 
-function TMyIrcThread.ChannelsList: AnsiString;
+function TMyIrcThread.ChannelsList: String;
 var
   i: Integer;
 begin
@@ -1119,7 +1119,7 @@ begin
   end;
 end;
 
-procedure TMyIrcThread.chanpart(chan, nick: AnsiString);
+procedure TMyIrcThread.chanpart(chan, nick: String);
 var
   x: TStringList;
   i: Integer;
@@ -1160,7 +1160,7 @@ begin
   end;
 end;
 
-procedure TMyIrcThread.chanjoin(chan, nick: AnsiString);
+procedure TMyIrcThread.chanjoin(chan, nick: String);
 var
   x: TStringList;
   i: Integer;
@@ -1179,9 +1179,9 @@ begin
   end;
 end;
 
-function TMyIrcThread.IrcProcessLine(s: AnsiString): Boolean;
+function TMyIrcThread.IrcProcessLine(s: String): Boolean;
 var
-  msg, nick, snick, s1, s2, chan: AnsiString;
+  msg, nick, snick, s1, s2, chan: String;
   b: TIrcBlowkey;
   i: Integer;
   crypted: boolean;
@@ -1356,12 +1356,12 @@ begin
   Result := True;
 end;
 
-procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsgformat: AnsiString; const args: array of const);
+procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsgformat: String; const args: array of const);
 begin
   IrcSendPrivMessage(channel, FormaT(plainmsgformat, args));
 end;
 
-procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsg: AnsiString);
+procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsg: String);
 begin
   irc_message_lock.Enter;
   try
@@ -1375,9 +1375,9 @@ begin
 
 end;
 
-function TMyIrcThread.IrcSendPrivMessage(oneliner: AnsiString): Boolean;
+function TMyIrcThread.IrcSendPrivMessage(oneliner: String): Boolean;
 var
-  channel, msg: AnsiString;
+  channel, msg: String;
 begin
   Result := False;
   channel := SubString(oneliner, ' ', 1);
@@ -1474,7 +1474,7 @@ end;
 
 function TMyIrcThread.IrcProcess: Boolean;
 var
-  s, osszes: AnsiString;
+  s, osszes: String;
   //    s2: string;
   i: Integer;
 begin
@@ -1544,11 +1544,11 @@ end;
 
 function TMyIrcThread.IrcRegister: Boolean;
 var
-  s, osszes: AnsiString;
+  s, osszes: String;
   elotte: TDateTime;
-  userid, pass: AnsiString;
+  userid, pass: String;
   i: Integer;
-  perform: AnsiString;
+  perform: String;
 begin
   Result := False;
   registered := False;
@@ -1635,7 +1635,7 @@ procedure TMyIrcThread.BncCsere;
 var
   i: Integer;
   elsobncport, aktbncport: Integer;
-  elsobnchost, aktbnchost: AnsiString;
+  elsobnchost, aktbnchost: String;
 begin
   i := 0;
   elsobncport := 0;
@@ -1776,52 +1776,52 @@ begin
     myIrcThreads.Clear;
 end;
 
-function TMyIrcThread.GetIrcNick: AnsiString;
+function TMyIrcThread.GetIrcNick: String;
 begin
   result := RCString('nick', mynickname);
 end;
 
-function TMyIrcThread.GetIrcANick: AnsiString;
+function TMyIrcThread.GetIrcANick: String;
 begin
   result := RCString('anick', mynickname);
 end;
 
-function TMyIrcThread.GetIrcUsername: AnsiString;
+function TMyIrcThread.GetIrcUsername: String;
 begin
   result := RCString('username', mynickname);
 end;
 
-function TMyIrcThread.GetIrcIdent: AnsiString;
+function TMyIrcThread.GetIrcIdent: String;
 begin
   result := RCString('ident', mynickname);
 end;
 
-function TMyIrcThread.GetIrcPassword: AnsiString;
+function TMyIrcThread.GetIrcPassword: String;
 begin
   result := RCString('password', '');
 end;
 
-procedure TMyIrcThread.SetIrcNick(value: AnsiString);
+procedure TMyIrcThread.SetIrcNick(value: String);
 begin
   WCString('nick', value);
 end;
 
-procedure TMyIrcThread.SetIrcANick(value: AnsiString);
+procedure TMyIrcThread.SetIrcANick(value: String);
 begin
   WCString('anick', value);
 end;
 
-procedure TMyIrcThread.SetIrcUsername(value: AnsiString);
+procedure TMyIrcThread.SetIrcUsername(value: String);
 begin
   WCString('username', value);
 end;
 
-procedure TMyIrcThread.SetIrcIdent(value: AnsiString);
+procedure TMyIrcThread.SetIrcIdent(value: String);
 begin
   WCString('ident', value);
 end;
 
-procedure TMyIrcThread.SetIrcPassword(value: AnsiString);
+procedure TMyIrcThread.SetIrcPassword(value: String);
 begin
   WCString('password', value);
 end;
@@ -1846,7 +1846,7 @@ begin
   result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
-function TMyIrcThread.ChanNicks(chan: AnsiString): AnsiString;
+function TMyIrcThread.ChanNicks(chan: String): String;
 begin
   Result := channels.Values[chan];
 end;
@@ -1906,33 +1906,33 @@ end;
 
 //WCString('',value);
 
-function TMyIrcThread.RCString(name: AnsiString; def: AnsiString): AnsiString;
+function TMyIrcThread.RCString(name: String; def: String): String;
 begin
   Result := sitesdat.ReadString('ircnet-' + netname, name, def);
 end;
 
-function TMyIrcThread.RCBool(name: AnsiString; def: Boolean): Boolean;
+function TMyIrcThread.RCBool(name: String; def: Boolean): Boolean;
 begin
   Result := sitesdat.ReadBool('ircnet-' + netname, name, def);
 end;
 
-function TMyIrcThread.RCInt(name: AnsiString; def: Integer): integer;
+function TMyIrcThread.RCInt(name: String; def: Integer): integer;
 begin
   Result := sitesdat.ReadInteger('ircnet-' + netname, name, def);
 end;
 
-procedure TMyIrcThread.WCString(name: AnsiString; val: AnsiString);
+procedure TMyIrcThread.WCString(name: String; val: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, name, val);
 end;
 
-procedure TMyIrcThread.WCBool(name: AnsiString; val: boolean);
+procedure TMyIrcThread.WCBool(name: String; val: boolean);
 begin
   sitesdat.WriteBool('ircnet-' + netname, name, val);
 end;
 
 (*
-procedure TMyIrcThread.WCInt(name: AnsiString; val: integer);
+procedure TMyIrcThread.WCInt(name: String; val: integer);
 begin
   sitesdat.WriteInteger('ircnet-' + netname, name, val);
 end;

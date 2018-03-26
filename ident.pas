@@ -7,11 +7,11 @@ uses SysUtils, slidentserver;
 type
   TMyIdentServer = class(TslIdentServer)
   private
-    identresponse: AnsiString;
-    function FindIdent(PeerIP: AnsiString; PeerPort: Integer): AnsiString;
+    identresponse: String;
+    function FindIdent(PeerIP: String; PeerPort: Integer): String;
   public
     constructor Create;
-    function Lookup(ip: AnsiString; localport, remoteport: Integer): AnsiString; override;
+    function Lookup(ip: String; localport, remoteport: Integer): String; override;
   end;
 
 procedure IdentStart;
@@ -58,7 +58,7 @@ begin
 end;
 
 
-function TMyIdentServer.FindIdent(PeerIP: AnsiString; PeerPort: Integer): AnsiString;
+function TMyIdentServer.FindIdent(PeerIP: String; PeerPort: Integer): String;
 var i, j: Integer;
     s: TSite;
     ss: TSiteSlot;
@@ -79,7 +79,7 @@ begin
   end;
 end;
 
-function TMyIdentServer.Lookup(ip: AnsiString; localport, remoteport: Integer): AnsiString;
+function TMyIdentServer.Lookup(ip: String; localport, remoteport: Integer): String;
 begin
   Result:= FindIdent(ip, remoteport);
   //console_addline('', 'IDENT request from '+IP+':'+IntToStr(RemotePort)+' => '+Result);

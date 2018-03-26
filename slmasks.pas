@@ -8,13 +8,13 @@ uses
 type
   TslMask = class
   private
-    fMask: AnsiString; //< actual mask used for @link(dm) or @link(rm)
+    fMask: String; //< actual mask used for @link(dm) or @link(rm)
     dm: TMask; //< simple mask
     rm: TRegExpr; //< regex mask
   public
-    function Matches(const s: AnsiString): Boolean;
-    constructor Create(const mask: AnsiString);
-    property mask: AnsiString read fMask;
+    function Matches(const s: String): Boolean;
+    constructor Create(const mask: String);
+    property mask: String read fMask;
     destructor Destroy; override;
   end;
 
@@ -28,7 +28,7 @@ const
 
 
 { TslMask }
-constructor TslMask.Create(const mask: AnsiString);
+constructor TslMask.Create(const mask: String);
 var
   l: Integer;
 begin
@@ -69,7 +69,7 @@ begin
   inherited;
 end;
 
-function TslMask.Matches(const s: AnsiString): Boolean;
+function TslMask.Matches(const s: String): Boolean;
 begin
   Result := False;
 

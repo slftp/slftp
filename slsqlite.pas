@@ -38,16 +38,16 @@ type
     function Execute(stm: Psqlite3_stmt): boolean;
   public
     function column_count(stm: Psqlite3_stmt): Integer;
-    function column_name(stm: Psqlite3_stmt; index: Integer): AnsiString;
+    function column_name(stm: Psqlite3_stmt; index: Integer): String;
     function column_int(stm: Psqlite3_stmt; index: Integer): Integer;
     function column_int64(stm: Psqlite3_stmt; index: Integer): Int64;
     function column_double(stm: Psqlite3_stmt; index: Integer): Double;
-    function column_text(stm: Psqlite3_stmt; index: Integer): AnsiString;
+    function column_text(stm: Psqlite3_stmt; index: Integer): String;
 
     function Step(stm: Psqlite3_stmt): Boolean;
 
-    function Open(const sql: AnsiString): Psqlite3_stmt; overload;
-    function Open(const sql: AnsiString; const Args: array of const): Psqlite3_stmt; overload;
+    function Open(const sql: String): Psqlite3_stmt; overload;
+    function Open(const sql: String; const Args: array of const): Psqlite3_stmt; overload;
     function Open(stm: Psqlite3_stmt): Boolean; overload;
     function Open(stm: Psqlite3_stmt; const Args: array of const): Boolean; overload;
 
@@ -56,12 +56,12 @@ type
 
     function ExecSQL(stm: Psqlite3_stmt): Boolean; overload;
     function ExecSQL(stm: Psqlite3_stmt; const Args: array of const): Boolean; overload;
-    function ExecSQL(const sql: AnsiString): Boolean; overload;
-    function ExecSQL(const sql: AnsiString; const Args: array of const): Boolean; overload;
+    function ExecSQL(const sql: String): Boolean; overload;
+    function ExecSQL(const sql: String; const Args: array of const): Boolean; overload;
 
     function Close(var re: Psqlite3_stmt): Boolean;
 
-    constructor Create(const filename: AnsiString; pragma: AnsiString);
+    constructor Create(const filename: String; pragma: String);
     destructor Destroy; override;
   end;
 
@@ -181,10 +181,10 @@ Var
 //  sqlite3_expired : function (_para1:Psqlite3_stmt):longint;cdecl;
 //function sqlite3_global_recover:longint;cdecl;
 
-function slSqliteVersion: AnsiString;
+function slSqliteVersion: String;
 
 var slsqlite_inited: Boolean = False;
-    slsqlite_error: AnsiString = '';
+    slsqlite_error: String = '';
 
 implementation
 
@@ -282,8 +282,8 @@ var
   h_libsqlite    : Integer = 0;
 
 
-function slSqlite_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
-var fceName: AnsiString;
+function slSqlite_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
+var fceName: String;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -450,7 +450,7 @@ begin
   slsqlite_inited:= False;
 end;
 
-function slSqliteVersion: AnsiString;
+function slSqliteVersion: String;
 begin
   Result:= AnsiString(SQLite3_libVersion);
 end;
@@ -460,7 +460,7 @@ end;
 
 function TslSqliteDB.Bind(stm: Psqlite3_stmt; const Args: array of const): Boolean;
 var i: Integer;
-    s: AnsiString;
+    s: String;
     d: Double;
 begin
   Result:= False;
@@ -517,8 +517,8 @@ begin
   Result:= True;
 end;
 
-constructor TslSqliteDB.Create(const filename: AnsiString; pragma: AnsiString);
-var ss: AnsiString;
+constructor TslSqliteDB.Create(const filename: String; pragma: String);
+var ss: String;
 begin
  if 0 <> SQLite3_Open(PAnsiChar(filename), @fSQLite) then
    raise Exception.Create('Cant open sqlite');
@@ -559,12 +559,12 @@ begin
   Result:= ExecSQL(stm, []);
 end;
 
-function TslSqliteDB.ExecSQL(const sql: AnsiString): Boolean;
+function TslSqliteDB.ExecSQL(const sql: String): Boolean;
 begin
   Result:= ExecSQL(sql, []);
 end;
 
-function TslSqliteDB.ExecSQL(const sql: AnsiString;
+function TslSqliteDB.ExecSQL(const sql: String;
   const Args: array of const): Boolean;
 var re: Psqlite3_stmt;
 begin
@@ -605,7 +605,7 @@ end;
 
 
 
-function TslSqliteDB.Open(const sql: AnsiString;
+function TslSqliteDB.Open(const sql: String;
   const Args: array of const): Psqlite3_stmt;
 var re: Psqlite3_stmt;
 begin
@@ -622,7 +622,7 @@ begin
   Result:= re;
 end;
 
-function TslSqliteDB.Open(const sql: AnsiString): Psqlite3_stmt;
+function TslSqliteDB.Open(const sql: String): Psqlite3_stmt;
 begin
   Result:= Open(sql, []);
 end;
@@ -632,7 +632,7 @@ begin
   Result:= sqlite3_column_count(stm);
 end;
 
-function TslSqliteDB.column_name(stm: Psqlite3_stmt; index: Integer): AnsiString;
+function TslSqliteDB.column_name(stm: Psqlite3_stmt; index: Integer): String;
 var c: PAnsiChar;
 begin
   Result:= '';
@@ -655,7 +655,7 @@ begin
   Result:= sqlite3_column_double(stm, index);
 end;
 
-function TslSqliteDB.column_text(stm: Psqlite3_stmt; index: Integer): AnsiString;
+function TslSqliteDB.column_text(stm: Psqlite3_stmt; index: Integer): String;
 begin
   Result:= StrPas(sqlite3_column_text(stm, index));
 end;

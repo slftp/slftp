@@ -10,10 +10,10 @@ type
     ss: TStringStream;
     attempt: Integer;
   public
-    constructor Create(const netname, channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: String; site: String; pazo: TPazo; attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -24,10 +24,10 @@ uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console
 const
   section = 'tasksitenfo';
 
-procedure parseNFO(const rls, rls_section, nfo_data: AnsiString);
+procedure parseNFO(const rls, rls_section, nfo_data: String);
 var
   sec: TCRelease;
-  imdbid: AnsiString;
+  imdbid: String;
 begin
   sec := FindSectionHandler(rls_section);
 
@@ -40,7 +40,7 @@ begin
 end;
 
 { TPazoSiteNfoTask }
-constructor TPazoSiteNfoTask.Create(const netname, channel: AnsiString; site: AnsiString; pazo: TPazo; attempt: Integer);
+constructor TPazoSiteNfoTask.Create(const netname, channel: String; site: String; pazo: TPazo; attempt: Integer);
 begin
   ss := TStringStream.Create('');
   self.attempt := attempt;
@@ -58,7 +58,7 @@ var
   r: TPazoSiteNfoTask;
   d: TDirList;
   numerrors: Integer;
-  tname, nfofile: AnsiString;
+  tname, nfofile: String;
 begin
   Result := False;
   s := slot;
@@ -287,7 +287,7 @@ begin
   Debug(dpMessage, section, '<-- ' + tname);
 end;
 
-function TPazoSiteNfoTask.Name: AnsiString;
+function TPazoSiteNfoTask.Name: String;
 begin
   try
     Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);

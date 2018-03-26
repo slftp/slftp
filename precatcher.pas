@@ -6,8 +6,8 @@ uses Classes, Contnrs, slmasks, encinifile;
 
 type
   TSection = class
-    eventtype: AnsiString;
-    section: AnsiString;
+    eventtype: String;
+    section: String;
     words: TStringList;
 
     constructor Create;
@@ -15,7 +15,7 @@ type
   end;
 
   TSiteChan = class
-    sitename: AnsiString;
+    sitename: String;
     sections: TObjectList;
     constructor Create;
     destructor Destroy; override;
@@ -25,40 +25,40 @@ type
     mappings, channels, pretime);
 
   TMap = class
-    origsection: AnsiString;
-    newsection: AnsiString;
+    origsection: String;
+    newsection: String;
     mask: TslMask;
-    constructor Create(origsection, newsection, mask: AnsiString);
+    constructor Create(origsection, newsection, mask: String);
     destructor Destroy; override;
   end;
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(sitename: AnsiString): boolean;
-procedure Precatcher_DelSiteChans(sitename: AnsiString);
-function PrecatcherReload:AnsiString;
+function Precatcher_Sitehasachan(sitename: String): boolean;
+procedure Precatcher_DelSiteChans(sitename: String);
+function PrecatcherReload:String;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
-procedure PrecatcherProcessB(net, chan, nick, Data: AnsiString);
-procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
-function precatcher_logfilename: AnsiString;
+procedure PrecatcherProcessB(net, chan, nick, Data: String);
+procedure PrecatcherProcess(net, chan, nick, Data: String);
+function precatcher_logfilename: String;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
-function PrecatcherSectionMapping(const rls, section: AnsiString; x_count: integer = 0): AnsiString;
+function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
-function FindSection(const section: AnsiString): boolean;
-function ExtractReleasename(ts_data: TStringList): AnsiString;
+function FindSection(const section: String): boolean;
+function ExtractReleasename(ts_data: TStringList): String;
 
-function StripNoValidChars(aInput: AnsiString): AnsiString; // { removes all chars from string which are not in array ValidChars }
+function StripNoValidChars(aInput: String): String; // { removes all chars from string which are not in array ValidChars }
 
-function KibontasSection(const s, section: AnsiString): AnsiString;
-function ProcessDoReplace(const s: AnsiString): AnsiString;
+function KibontasSection(const s, section: String): String;
+function ProcessDoReplace(const s: String): String;
 
 var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
   precatcher_spamevents: TStringList;
-  precatcher_debug_netname, precatcher_debug_channel: AnsiString;
+  precatcher_debug_netname, precatcher_debug_channel: String;
   //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
@@ -77,7 +77,7 @@ const
   rsections = 'precatcher';
 
 var
-  catcherFilename, replacefromline: AnsiString;
+  catcherFilename, replacefromline: String;
   cd, skiprlses: THashedStringList;
   tagline, irclines_ignorewords, replacefrom, replaceto: TStringList;
   huntartunk: huntartunk_tipus;
@@ -90,9 +90,9 @@ var
     '/', ':', ';', ' '];
   StrippingChars: set of AnsiChar = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
-procedure mydebug(s: AnsiString); overload;
+procedure mydebug(s: String); overload;
 var
-  nowstr: AnsiString;
+  nowstr: String;
 begin
   Debug(dpSpam, rsections, s);
   if precatcher_ircdebug then
@@ -120,13 +120,13 @@ begin
   end;
 end;
 
-procedure mydebug(s: AnsiString; args: array of const); overload;
+procedure mydebug(s: String; args: array of const); overload;
 begin
   myDebug(Format(s, args));
 end;
 
 
-function FindSection(const section: AnsiString): boolean;
+function FindSection(const section: String): boolean;
 begin
   Result := False;
   if sectionlist.IndexOf(UpperCase(section)) = -1 then
@@ -134,11 +134,11 @@ begin
   Result := True;
 end;
 
-function ExtractReleasename(ts_data: TStringList): AnsiString;
+function ExtractReleasename(ts_data: TStringList): String;
 var
   k, i: integer;
   maxi: integer;
-  maxs: AnsiString;
+  maxs: String;
 begin
   Result := '';
 
@@ -174,7 +174,7 @@ begin
   Result := Trim(Result);
 end;
 
-function RemoveSpecialCharsAndBareIt(const s: AnsiString): AnsiString;
+function RemoveSpecialCharsAndBareIt(const s: String): String;
 var
   i: integer;
   skip: integer;
@@ -214,7 +214,7 @@ begin
       Dec(skip);
 end;
 
-function StripNoValidChars(aInput: AnsiString): AnsiString;
+function StripNoValidChars(aInput: String): String;
 var
   I: integer;
 begin
@@ -227,7 +227,7 @@ begin
   Result := aInput;
 end;
 
-function MainStripping(const idata: AnsiString): AnsiString;
+function MainStripping(const idata: String): String;
 begin
   Result := idata;
   try
@@ -259,7 +259,7 @@ begin
   end;
 end;
 
-function PrecatcherSectionMapping(const rls, section: AnsiString; x_count: integer = 0): AnsiString;
+function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 var
   i: integer;
   x: TMap;
@@ -311,7 +311,7 @@ begin
 
 end;
 
-function KibontasSection(const s, section: AnsiString): AnsiString;
+function KibontasSection(const s, section: String): String;
 var
   i: integer;
 begin
@@ -329,7 +329,7 @@ begin
   end;
 end;
 
-function _findMP3GenreOnAnnounce(const text: AnsiString; ts_data: TStringList): String;
+function _findMP3GenreOnAnnounce(const text: String; ts_data: TStringList): String;
 var
   //i, x: Integer;
   i: Integer;
@@ -361,10 +361,10 @@ begin
   end;
 end;
 
-function ProcessDoReplace(const s: AnsiString): AnsiString;
+function ProcessDoReplace(const s: String): String;
 var
   i: integer;
-  rep_s: AnsiString;
+  rep_s: String;
 begin
   rep_s := s;
 
@@ -382,9 +382,9 @@ begin
   Result := rep_s;
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: AnsiString; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: String; ts_data: TStringList);
 var
-  genre, s, oldsection: AnsiString;
+  genre, s, oldsection: String;
 begin
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
@@ -489,15 +489,15 @@ begin
   Debug(dpSpam, rsections, Format('<-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 end;
 
-procedure PrecatcherProcessB(net, chan, nick, Data: AnsiString);
+procedure PrecatcherProcessB(net, chan, nick, Data: String);
 var
   igindex, i, j: integer;
   sc: TSiteChan;
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  //rls, chno, s: AnsiString; // chno isn't used
-  rls, s: AnsiString;
+  //rls, chno, s: String; // chno isn't used
+  rls, s: String;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -678,7 +678,7 @@ begin
   end;
 end;
 
-procedure PrecatcherProcess(net, chan, nick, Data: AnsiString);
+procedure PrecatcherProcess(net, chan, nick, Data: String);
 begin
   if not precatcherauto then
     Exit;
@@ -703,15 +703,15 @@ begin
 
 end;
 
-function ProcessChannels(s: AnsiString): boolean;
+function ProcessChannels(s: String): boolean;
 var
-  network, chan, nick, sitename, words: AnsiString;
+  network, chan, nick, sitename, words: String;
   sci: integer;
   sc: TSiteChan;
   section: TSection;
   i, j: integer;
   nickc: integer;
-  nickt: AnsiString;
+  nickt: String;
 begin
   Result := False;
   if (length(s) = 0) then
@@ -779,7 +779,7 @@ end;
 procedure PrecatcherRebuild();
 var
   i: integer;
-  S: AnsiString;
+  S: String;
 var
   f: TextFile;
 begin
@@ -838,13 +838,13 @@ begin
   end;
 end;
 
-procedure ProcessRaceTool(s: AnsiString);
+procedure ProcessRaceTool(s: String);
 begin
   if (SubString(s, '=', 1) = 'minimum_rlsname') then
     minimum_rlsname := StrToIntDef(SubString(s, '=', 2), 10);
 end;
 
-procedure ProcessIgnoreList(s: AnsiString);
+procedure ProcessIgnoreList(s: String);
 begin
   if (SubString(s, '=', 1) = 'ignorewords') then
     irclines_ignorewords.DelimitedText := SubString(s, '=', 2)
@@ -853,10 +853,10 @@ begin
 
 end;
 
-procedure ProcessReplace(s: AnsiString);
+procedure ProcessReplace(s: String);
 var
   i, db: integer;
-  replacetoline: AnsiString;
+  replacetoline: String;
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
@@ -892,9 +892,9 @@ begin
 
 end;
 
-procedure ProcessSections(s: AnsiString);
+procedure ProcessSections(s: String);
 var
-  v, vv, section: AnsiString;
+  v, vv, section: String;
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
@@ -928,10 +928,10 @@ begin
 
 end;
 
-procedure ProcessMappings(s: AnsiString);
+procedure ProcessMappings(s: String);
 var
   db, i: integer;
-  ss: AnsiString;
+  ss: String;
   rx: TRegexpr;
 begin
   rx := TRegexpr.Create;
@@ -968,7 +968,7 @@ begin
   end;
 end;
 
-procedure ProcessConfigLine(s: AnsiString);
+procedure ProcessConfigLine(s: String);
 begin
   if s = '[racetool]' then
     huntartunk := racetool
@@ -994,7 +994,7 @@ begin
   end;
 end;
 
-function Precatcher_Sitehasachan(sitename: AnsiString): boolean;
+function Precatcher_Sitehasachan(sitename: String): boolean;
 var
   i: integer;
   sc: TSiteChan;
@@ -1011,10 +1011,10 @@ begin
   end;
 end;
 
-procedure Precatcher_DelSiteChans(sitename: AnsiString);
+procedure Precatcher_DelSiteChans(sitename: String);
 var
   i: integer;
-  s: AnsiString;
+  s: String;
 begin
   i := 0;
 
@@ -1033,7 +1033,7 @@ begin
   end;
 end;
 
-function precatcher_logfilename: AnsiString;
+function precatcher_logfilename: String;
 begin
   Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
 end;
@@ -1119,7 +1119,7 @@ end;
 
 { TMap }
 
-constructor TMap.Create(origsection, newsection, mask: AnsiString);
+constructor TMap.Create(origsection, newsection, mask: String);
 begin
   self.origsection := origsection;
   self.newsection := newsection;
@@ -1157,11 +1157,11 @@ end;
 procedure LoadSplitChanFiles;
 var
   fst: TStringList;
-  S: AnsiString;
+  S: String;
   i: Integer;
   intFound: Integer;
   SearchRec: TSearchRec;
-  rules_path: AnsiString;
+  rules_path: String;
 begin
   catcherFile.Clear;
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
@@ -1196,10 +1196,10 @@ begin
   PrecatcherReload;
 end;
 
-function PrecatcherReload:AnsiString;
+function PrecatcherReload:String;
 var
   f: TextFile;
-  s: AnsiString;
+  s: String;
 
 begin
   // clear in-memory data
