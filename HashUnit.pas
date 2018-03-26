@@ -129,7 +129,7 @@ begin
   end;
   if IgnoreCase then s := AnsiLowerCase(s);
   //return result as a pointer to save typecasting later...
-  result := pointer(CalcCRC32(pchar(s), length(s)));
+  result := pointer(CalcCRC32(PAnsiChar(s), length(s)));
 end;
 //---------------------------------------------------------------------
 

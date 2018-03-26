@@ -1025,7 +1025,7 @@ const
 
 
 {$IFDEF UNICODE}
-  service_type_value_sapid : PWideChar = 'SapId'; 
+  service_type_value_sapid : PWideChar = 'SapId';
   service_type_value_tcpport : PWideChar = 'TcpPort';
   service_type_value_udpport : PWideChar = 'UdpPort';
   service_type_value_objectid : PWideChar = 'ObjectId';
@@ -1334,7 +1334,7 @@ type
     lpcbBytesReturned : LPDWORD; lpOverlapped : LPwsaoverlapped; lpCompletionRoutine : LPwsaoverlapped_COMPLETION_ROUTINE ) : Integer; stdcall;
 
   lpfn_WSAJOINLEAF = function ( const s : TSocket; name : PSockAddr; namelen : Integer; lpCallerData,lpCalleeData : LPWSABUF;
-	  lpSQOS,lpGQOS : LPQOS; dwFlags : DWORD ) : TSocket; stdcall;
+    lpSQOS,lpGQOS : LPQOS; dwFlags : DWORD ) : TSocket; stdcall;
 
   lpfn_WSANTOHL = function ( const s : TSocket; netlong : u_long; var lphostlong : DWORD ): Integer; stdcall;
   lpfn_WSANTOHS = function ( const s : TSocket; netshort : u_short; var lphostshort : WORD ): Integer; stdcall;
@@ -1360,23 +1360,23 @@ type
   lpfn_WSASOCKET = function ( af, iType, protocol : Integer; lpProtocolInfo : LPWSAProtocol_Info; g : GROUP; dwFlags : DWORD ): TSocket; stdcall;
 
   lpfn_WSAWAITFORMULTIPLEEVENTS = function ( cEvents : DWORD; lphEvents : Pwsaevent; fWaitAll : LongBool;
-	  dwTimeout : DWORD; fAlertable : LongBool ): DWORD; stdcall;
+    dwTimeout : DWORD; fAlertable : LongBool ): DWORD; stdcall;
 
   lpfn_WSAADDRESSTOSTRINGA = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_InfoA;
-	  const lpszAddressString : PAnsiChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
+    const lpszAddressString : PAnsiChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
   lpfn_WSAADDRESSTOSTRINGW = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_InfoW;
-	  const lpszAddressString : PWideChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
+    const lpszAddressString : PWideChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
   lpfn_WSAADDRESSTOSTRING = function ( lpsaAddress : PSockAddr; const dwAddressLength : DWORD; const lpProtocolInfo : LPWSAProtocol_Info;
-	  const lpszAddressString : PMBChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
+    const lpszAddressString : PMBChar; var lpdwAddressStringLength : DWORD ): Integer; stdcall;
 
   lpfn_WSASTRINGTOADDRESSA = function ( const AddressString : PAnsiChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_InfoA;
-	  var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
+    var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
   lpfn_WSASTRINGTOADDRESSW = function ( const AddressString : PWideChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_InfoW;
-	  var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
+    var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
   lpfn_WSASTRINGTOADDRESS = function ( const AddressString : PMBChar; const AddressFamily: Integer; const lpProtocolInfo : LPWSAProtocol_Info;
-	  var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
+    var lpAddress : TSockAddr; var lpAddressLength : Integer ): Integer; stdcall;
 
-// Registration and Name Resolution API functions 
+// Registration and Name Resolution API functions
   lpfn_WSALOOKUPSERVICEBEGINA = function ( var qsRestrictions : TWSAQuerySetA; const dwControlFlags : DWORD; var hLookup : THANDLE ): Integer; stdcall;
   lpfn_WSALOOKUPSERVICEBEGINW = function ( var qsRestrictions : TWSAQuerySetW; const dwControlFlags : DWORD; var hLookup : THANDLE ): Integer; stdcall;
   lpfn_WSALOOKUPSERVICEBEGIN = function ( var qsRestrictions : TWSAQuerySet; const dwControlFlags : DWORD; var hLookup : THANDLE ): Integer; stdcall;
@@ -1394,11 +1394,11 @@ type
   lpfn_WSAREMOVESERVICECLASS = function ( const lpServiceClassId : PGUID ) : Integer; stdcall;
 
   lpfn_WSAGETSERVICECLASSINFOA = function ( const lpProviderId : PGUID; const lpServiceClassId : PGUID; var lpdwBufSize : DWORD;
-	  lpServiceClassInfo : LPWSAServiceClassInfoA ): Integer; stdcall;
+    lpServiceClassInfo : LPWSAServiceClassInfoA ): Integer; stdcall;
   lpfn_WSAGETSERVICECLASSINFOW = function ( const lpProviderId : PGUID; const lpServiceClassId : PGUID; var lpdwBufSize : DWORD;
-	  lpServiceClassInfo : LPWSAServiceClassInfoW ): Integer; stdcall;
+    lpServiceClassInfo : LPWSAServiceClassInfoW ): Integer; stdcall;
   lpfn_WSAGETSERVICECLASSINFO = function ( const lpProviderId : PGUID; const lpServiceClassId : PGUID; var lpdwBufSize : DWORD;
-	  lpServiceClassInfo : LPWSAServiceClassInfo ): Integer; stdcall;
+    lpServiceClassInfo : LPWSAServiceClassInfo ): Integer; stdcall;
 
   lpfn_WSAENUMNAMESPACEPROVIDERSA = function ( var lpdwBufferLength: DWORD; const lpnspBuffer: LPWSANameSpace_InfoA ): Integer; stdcall;
   lpfn_WSAENUMNAMESPACEPROVIDERSW = function ( var lpdwBufferLength: DWORD; const lpnspBuffer: LPWSANameSpace_InfoW ): Integer; stdcall;
@@ -1572,36 +1572,36 @@ procedure fd_zero(var FDSet: TFDSet);
 //=============================================================
 
 {
-	WS2TCPIP.H - WinSock2 Extension for TCP/IP protocols
+  WS2TCPIP.H - WinSock2 Extension for TCP/IP protocols
 
-	This file contains TCP/IP specific information for use
-	by WinSock2 compatible applications.
+  This file contains TCP/IP specific information for use
+  by WinSock2 compatible applications.
 
-	Copyright (c) 1995-1999  Microsoft Corporation
+  Copyright (c) 1995-1999  Microsoft Corporation
 
-	To provide the backward compatibility, all the TCP/IP
-	specific definitions that were included in the WINSOCK.H
-	file are now included in WINSOCK2.H file. WS2TCPIP.H
-	file includes only the definitions  introduced in the
-	"WinSock 2 Protocol-Specific Annex" document.
+  To provide the backward compatibility, all the TCP/IP
+  specific definitions that were included in the WINSOCK.H
+  file are now included in WINSOCK2.H file. WS2TCPIP.H
+  file includes only the definitions  introduced in the
+  "WinSock 2 Protocol-Specific Annex" document.
 
-	Rev 0.3	Nov 13, 1995
-	Rev 0.4	Dec 15, 1996
+  Rev 0.3 Nov 13, 1995
+  Rev 0.4 Dec 15, 1996
 }
 
 // Argument structure for IP_ADD_MEMBERSHIP and IP_DROP_MEMBERSHIP
 type
-	ip_mreq = packed record
-		imr_multiaddr : TInAddr; // IP multicast address of group
-		imr_interface : TInAddr; // local IP address of interface
+  ip_mreq = packed record
+    imr_multiaddr : TInAddr; // IP multicast address of group
+    imr_interface : TInAddr; // local IP address of interface
   end;
 
 // TCP/IP specific Ioctl codes
 const
 
-	SIO_GET_INTERFACE_LIST    = IOC_OUT or (SizeOf(Longint) shl 16) or (Ord('t') shl 8) or 127;    {Do not Localize}
+  SIO_GET_INTERFACE_LIST    = IOC_OUT or (SizeOf(Longint) shl 16) or (Ord('t') shl 8) or 127;    {Do not Localize}
 // New IOCTL with address size independent address array
-	SIO_GET_INTERFACE_LIST_EX = IOC_OUT or (SizeOf(Longint) shl 16) or (Ord('t') shl 8) or 126;    {Do not Localize}
+  SIO_GET_INTERFACE_LIST_EX = IOC_OUT or (SizeOf(Longint) shl 16) or (Ord('t') shl 8) or 126;    {Do not Localize}
 
 // Options for use with [gs]etsockopt at the IP level.
   ip_options         =  1; // set/get IP options
@@ -1620,7 +1620,7 @@ const
   ip_max_memberships         = 20;   // per socket; must fit in one mbuf
 
 // Option to use with [gs]etsockopt at the IPPROTO_UDP level
-	UDP_NOCHECKSUM     = 1;
+  UDP_NOCHECKSUM     = 1;
 
 // Option to use with [gs]etsockopt at the IPPROTO_TCP level
   TCP_EXPEDITED_1122 = $0002;
@@ -1628,9 +1628,9 @@ const
 
 // IPv6 definitions
 type
-	IN_ADDR6 = packed record
-		s6_addr : array[0..15] of u_char; // IPv6 address
-	end;
+  IN_ADDR6 = packed record
+    s6_addr : array[0..15] of u_char; // IPv6 address
+  end;
   TIn6Addr   = IN_ADDR6;
   PIn6Addr   = ^IN_ADDR6;
   IN6_ADDR   = IN_ADDR6;
@@ -1638,94 +1638,94 @@ type
   LPIN6_ADDR = ^IN_ADDR6;
 
 // Old IPv6 socket address structure (retained for sockaddr_gen definition below)
-	SOCKADDR_IN6_OLD = packed record
-		sin6_family   : Smallint;         // AF_INET6
-		sin6_port     : u_short;          // Transport level port number
-		sin6_flowinfo : u_long;           // IPv6 flow information
-		sin6_addr     : IN_ADDR6;         // IPv6 address
-	end;
+  SOCKADDR_IN6_OLD = packed record
+    sin6_family   : Smallint;         // AF_INET6
+    sin6_port     : u_short;          // Transport level port number
+    sin6_flowinfo : u_long;           // IPv6 flow information
+    sin6_addr     : IN_ADDR6;         // IPv6 address
+  end;
 
 // IPv6 socket address structure, RFC 2553
-	SOCKADDR_IN6 = packed record
-		sin6_family   : Smallint;         // AF_INET6
-		sin6_port     : u_short;          // Transport level port number
-		sin6_flowinfo : u_long;           // IPv6 flow information
-		sin6_addr     : IN_ADDR6;         // IPv6 address
-		sin6_scope_id : u_long;           // set of interfaces for a scope
-	end;
+  SOCKADDR_IN6 = packed record
+    sin6_family   : Smallint;         // AF_INET6
+    sin6_port     : u_short;          // Transport level port number
+    sin6_flowinfo : u_long;           // IPv6 flow information
+    sin6_addr     : IN_ADDR6;         // IPv6 address
+    sin6_scope_id : u_long;           // set of interfaces for a scope
+  end;
   TSockAddrIn6   = SOCKADDR_IN6;
   PSockAddrIn6   = ^SOCKADDR_IN6;
   PSOCKADDR_IN6  = ^SOCKADDR_IN6;
   LPSOCKADDR_IN6 = ^SOCKADDR_IN6;
 
-	sockaddr_gen = packed record
-		case Integer of
-		1 : ( Address : SOCKADDR; );
-		2 : ( AddressIn : SOCKADDR_IN; );
-		3 : ( AddressIn6 : SOCKADDR_IN6_OLD; );
-	end;
+  sockaddr_gen = packed record
+    case Integer of
+    1 : ( Address : SOCKADDR; );
+    2 : ( AddressIn : SOCKADDR_IN; );
+    3 : ( AddressIn6 : SOCKADDR_IN6_OLD; );
+  end;
 
 // Structure to keep interface specific information
-	INTERFACE_INFO = packed record
-		iiFlags            : u_long;       // Interface flags
-		iiAddress          : sockaddr_gen; // Interface address
-		iiBroadcastAddress : sockaddr_gen; // Broadcast address
-		iiNetmask          : sockaddr_gen; // Network mask
-	end;
-	TINTERFACE_INFO  = INTERFACE_INFO;
-	LPINTERFACE_INFO = ^INTERFACE_INFO;
+  INTERFACE_INFO = packed record
+    iiFlags            : u_long;       // Interface flags
+    iiAddress          : sockaddr_gen; // Interface address
+    iiBroadcastAddress : sockaddr_gen; // Broadcast address
+    iiNetmask          : sockaddr_gen; // Network mask
+  end;
+  TINTERFACE_INFO  = INTERFACE_INFO;
+  LPINTERFACE_INFO = ^INTERFACE_INFO;
 
 // New structure that does not have dependency on the address size
-	INTERFACE_INFO_EX = packed record
-		iiFlags            : u_long;         // Interface flags
-		iiAddress          : SOCKET_ADDRESS; // Interface address
-		iiBroadcastAddress : SOCKET_ADDRESS; // Broadcast address
-		iiNetmask : SOCKET_ADDRESS;          // Network mask
-	end;
-	TINTERFACE_INFO_EX  = INTERFACE_INFO_EX;
-	LPINTERFACE_INFO_EX = ^INTERFACE_INFO_EX;
+  INTERFACE_INFO_EX = packed record
+    iiFlags            : u_long;         // Interface flags
+    iiAddress          : SOCKET_ADDRESS; // Interface address
+    iiBroadcastAddress : SOCKET_ADDRESS; // Broadcast address
+    iiNetmask : SOCKET_ADDRESS;          // Network mask
+  end;
+  TINTERFACE_INFO_EX  = INTERFACE_INFO_EX;
+  LPINTERFACE_INFO_EX = ^INTERFACE_INFO_EX;
 
 // Possible flags for the  iiFlags - bitmask
 
 const
-	IFF_UP           = $00000001;  // Interface is up
-	IFF_BROADCAST    = $00000002;  // Broadcast is  supported
-	IFF_LOOPBACK     = $00000004;  // this is loopback interface
-	IFF_POINTTOPOINT = $00000008;  // this is point-to-point interface
-	IFF_MULTICAST    = $00000010;  // multicast is supported
+  IFF_UP           = $00000001;  // Interface is up
+  IFF_BROADCAST    = $00000002;  // Broadcast is  supported
+  IFF_LOOPBACK     = $00000004;  // this is loopback interface
+  IFF_POINTTOPOINT = $00000008;  // this is point-to-point interface
+  IFF_MULTICAST    = $00000010;  // multicast is supported
 
 
 //=============================================================
 
 {
-	wsipx.h
+  wsipx.h
 
-	Microsoft Windows
-	Copyright (C) Microsoft Corporation, 1992-1999.
+  Microsoft Windows
+  Copyright (C) Microsoft Corporation, 1992-1999.
 
-	Windows Sockets include file for IPX/SPX.  This file contains all
-	standardized IPX/SPX information.  Include this header file after
-	winsock.h.
+  Windows Sockets include file for IPX/SPX.  This file contains all
+  standardized IPX/SPX information.  Include this header file after
+  winsock.h.
 
-	To open an IPX socket, call socket() with an address family of
-	AF_IPX, a socket type of SOCK_DGRAM, and protocol NSPROTO_IPX.
-	Note that the protocol value must be specified, it cannot be 0.
-	All IPX packets are sent with the packet type field of the IPX
-	header set to 0.
+  To open an IPX socket, call socket() with an address family of
+  AF_IPX, a socket type of SOCK_DGRAM, and protocol NSPROTO_IPX.
+  Note that the protocol value must be specified, it cannot be 0.
+  All IPX packets are sent with the packet type field of the IPX
+  header set to 0.
 
-	To open an SPX or SPXII socket, call socket() with an address
-	family of AF_IPX, socket type of SOCK_SEQPACKET or SOCK_STREAM,
-	and protocol of NSPROTO_SPX or NSPROTO_SPXII.  If SOCK_SEQPACKET
-	is specified, then the end of message bit is respected, and
-	recv() calls are not completed until a packet is received with
-	the end of message bit set.  If SOCK_STREAM is specified, then
-	the end of message bit is not respected, and recv() completes
-	as soon as any data is received, regardless of the setting of the
-	end of message bit.  Send coalescing is never performed, and sends
-	smaller than a single packet are always sent with the end of
-	message bit set.  Sends larger than a single packet are packetized
-	with the end of message bit set on only the last packet of the
-	send.
+  To open an SPX or SPXII socket, call socket() with an address
+  family of AF_IPX, socket type of SOCK_SEQPACKET or SOCK_STREAM,
+  and protocol of NSPROTO_SPX or NSPROTO_SPXII.  If SOCK_SEQPACKET
+  is specified, then the end of message bit is respected, and
+  recv() calls are not completed until a packet is received with
+  the end of message bit set.  If SOCK_STREAM is specified, then
+  the end of message bit is not respected, and recv() completes
+  as soon as any data is received, regardless of the setting of the
+  end of message bit.  Send coalescing is never performed, and sends
+  smaller than a single packet are always sent with the end of
+  message bit set.  Sends larger than a single packet are packetized
+  with the end of message bit set on only the last packet of the
+  send.
 }
 
 
@@ -1733,48 +1733,48 @@ const
 
 type
 
-	SOCKADDR_IPX = packed record
-		sa_family : u_short;
-		sa_netnum : Array [0..3] of AnsiChar;
-		sa_nodenum : Array [0..5] of AnsiChar;
-		sa_socket : u_short;
-	end;
-	TSOCKADDR_IPX = SOCKADDR_IPX;
+  SOCKADDR_IPX = packed record
+    sa_family : u_short;
+    sa_netnum : Array [0..3] of AnsiChar;
+    sa_nodenum : Array [0..5] of AnsiChar;
+    sa_socket : u_short;
+  end;
+  TSOCKADDR_IPX = SOCKADDR_IPX;
   TSockAddrIPX = SOCKADDR_IPX;
-	PSOCKADDR_IPX = ^SOCKADDR_IPX;
+  PSOCKADDR_IPX = ^SOCKADDR_IPX;
   PSockAddrIPX = ^SOCKADDR_IPX;
-	LPSOCKADDR_IPX = ^SOCKADDR_IPX;
+  LPSOCKADDR_IPX = ^SOCKADDR_IPX;
 
 //  Protocol families used in the "protocol" parameter of the socket() API.
 
 const
-	NSPROTO_IPX   = 1000;
-	NSPROTO_SPX   = 1256;
-	NSPROTO_SPXII = 1257;
+  NSPROTO_IPX   = 1000;
+  NSPROTO_SPX   = 1256;
+  NSPROTO_SPXII = 1257;
 
 
 //=============================================================
 
 {
-	wsnwlink.h
+  wsnwlink.h
 
-	Microsoft Windows
-	Copyright (C) Microsoft Corporation, 1992-1999.
-		Microsoft-specific extensions to the Windows NT IPX/SPX Windows
-		Sockets interface.  These extensions are provided for use as
-		necessary for compatibility with existing applications.  They are
-		otherwise not recommended for use, as they are only guaranteed to
-		work     over the Microsoft IPX/SPX stack.  An application which
-		uses these     extensions may not work over other IPX/SPX
-		implementations.  Include this header file after winsock.h and
-		wsipx.h.
+  Microsoft Windows
+  Copyright (C) Microsoft Corporation, 1992-1999.
+    Microsoft-specific extensions to the Windows NT IPX/SPX Windows
+    Sockets interface.  These extensions are provided for use as
+    necessary for compatibility with existing applications.  They are
+    otherwise not recommended for use, as they are only guaranteed to
+    work     over the Microsoft IPX/SPX stack.  An application which
+    uses these     extensions may not work over other IPX/SPX
+    implementations.  Include this header file after winsock.h and
+    wsipx.h.
 
-		To open an IPX socket where a particular packet type is sent in
-		the IPX header, specify NSPROTO_IPX + n as the protocol parameter
-		of the socket() API.  For example, to open an IPX socket that
-		sets the packet type to 34, use the following socket() call:
+    To open an IPX socket where a particular packet type is sent in
+    the IPX header, specify NSPROTO_IPX + n as the protocol parameter
+    of the socket() API.  For example, to open an IPX socket that
+    sets the packet type to 34, use the following socket() call:
 
-    		s = socket(AF_IPX, SOCK_DGRAM, NSPROTO_IPX + 34);
+        s = socket(AF_IPX, SOCK_DGRAM, NSPROTO_IPX + 34);
 }
 
 // Below are socket option that may be set or retrieved by specifying
@@ -1783,217 +1783,217 @@ const
 // call.
 const
 
-//	Set/get the IPX packet type.  The value specified in the
-//	optval argument will be set as the packet type on every IPX
-//	packet sent from this socket.  The optval parameter of
-//	getsockopt()/setsockopt() points to an int.
-	IPX_PTYPE = $4000;
+//  Set/get the IPX packet type.  The value specified in the
+//  optval argument will be set as the packet type on every IPX
+//  packet sent from this socket.  The optval parameter of
+//  getsockopt()/setsockopt() points to an int.
+  IPX_PTYPE = $4000;
 
-//	Set/get the receive filter packet type.  Only IPX packets with
-//	a packet type equal to the value specified in the optval
-//	argument will be returned; packets with a packet type that
-//	does not match are discarded.  optval points to an int.
-	IPX_FILTERPTYPE = $4001;
+//  Set/get the receive filter packet type.  Only IPX packets with
+//  a packet type equal to the value specified in the optval
+//  argument will be returned; packets with a packet type that
+//  does not match are discarded.  optval points to an int.
+  IPX_FILTERPTYPE = $4001;
 
-//	Stop filtering on packet type set with IPX_FILTERPTYPE.
-	IPX_STOPFILTERPTYPE = $4003;
+//  Stop filtering on packet type set with IPX_FILTERPTYPE.
+  IPX_STOPFILTERPTYPE = $4003;
 
-//	Set/get the value of the datastream field in the SPX header on
-//	every packet sent.  optval points to an int.
-	IPX_DSTYPE = $4002;
+//  Set/get the value of the datastream field in the SPX header on
+//  every packet sent.  optval points to an int.
+  IPX_DSTYPE = $4002;
 
-//	Enable extended addressing.  On sends, adds the element
-//	"unsigned char sa_ptype" to the SOCKADDR_IPX structure,
-//	making the total length 15 bytes.  On receives, add both
-//	the sa_ptype and "unsigned char sa_flags" to the SOCKADDR_IPX
-//	structure, making the total length 16 bytes.  The current
-//	bits defined in sa_flags are:
-//		0x01 - the received frame was sent as a broadcast
-//		0x02 - the received frame was sent from this machine
-//	optval points to a BOOL.
-	IPX_EXTENDED_ADDRESS = $4004;
+//  Enable extended addressing.  On sends, adds the element
+//  "unsigned char sa_ptype" to the SOCKADDR_IPX structure,
+//  making the total length 15 bytes.  On receives, add both
+//  the sa_ptype and "unsigned char sa_flags" to the SOCKADDR_IPX
+//  structure, making the total length 16 bytes.  The current
+//  bits defined in sa_flags are:
+//    0x01 - the received frame was sent as a broadcast
+//    0x02 - the received frame was sent from this machine
+//  optval points to a BOOL.
+  IPX_EXTENDED_ADDRESS = $4004;
 
-//	Send protocol header up on all receive packets.  optval points
-//	to a BOOL.
-	IPX_RECVHDR = $4005;
+//  Send protocol header up on all receive packets.  optval points
+//  to a BOOL.
+  IPX_RECVHDR = $4005;
 
-//	Get the maximum data size that can be sent.  Not valid with
-//	setsockopt().  optval points to an int where the value is
-//	returned.
-	IPX_MAXSIZE = $4006;
+//  Get the maximum data size that can be sent.  Not valid with
+//  setsockopt().  optval points to an int where the value is
+//  returned.
+  IPX_MAXSIZE = $4006;
 
-//	Query information about a specific adapter that IPX is bound
-//	to.  In a system with n adapters they are numbered 0 through n-1.
-//	Callers can issue the IPX_MAX_ADAPTER_NUM getsockopt() to find
-//	out the number of adapters present, or call IPX_ADDRESS with
-//	increasing values of adapternum until it fails.  Not valid
-//	with setsockopt().  optval points to an instance of the
-//	IPX_ADDRESS_DATA structure with the adapternum filled in.
-	IPX_ADDRESS = $4007;
+//  Query information about a specific adapter that IPX is bound
+//  to.  In a system with n adapters they are numbered 0 through n-1.
+//  Callers can issue the IPX_MAX_ADAPTER_NUM getsockopt() to find
+//  out the number of adapters present, or call IPX_ADDRESS with
+//  increasing values of adapternum until it fails.  Not valid
+//  with setsockopt().  optval points to an instance of the
+//  IPX_ADDRESS_DATA structure with the adapternum filled in.
+  IPX_ADDRESS = $4007;
 type
-	IPX_ADDRESS_DATA = packed record
-		adapternum : Integer;                 // input: 0-based adapter number
-		netnum     : Array [0..3] of Byte;    // output: IPX network number
-		nodenum    : Array [0..5] of Byte;    // output: IPX node address
-		wan        : Boolean;                 // output: TRUE = adapter is on a wan link
-		status     : Boolean;                 // output: TRUE = wan link is up (or adapter is not wan)
-		maxpkt     : Integer;                 // output: max packet size, not including IPX header
-		linkspeed  : ULONG;                   // output: link speed in 100 bytes/sec (i.e. 96 == 9600 bps)
-	end;
-	PIPX_ADDRESS_DATA = ^IPX_ADDRESS_DATA;
+  IPX_ADDRESS_DATA = packed record
+    adapternum : Integer;                 // input: 0-based adapter number
+    netnum     : Array [0..3] of Byte;    // output: IPX network number
+    nodenum    : Array [0..5] of Byte;    // output: IPX node address
+    wan        : Boolean;                 // output: TRUE = adapter is on a wan link
+    status     : Boolean;                 // output: TRUE = wan link is up (or adapter is not wan)
+    maxpkt     : Integer;                 // output: max packet size, not including IPX header
+    linkspeed  : ULONG;                   // output: link speed in 100 bytes/sec (i.e. 96 == 9600 bps)
+  end;
+  PIPX_ADDRESS_DATA = ^IPX_ADDRESS_DATA;
 
 const
-//	Query information about a specific IPX network number.  If the
-//	network is in IPX's cache it will return the information directly,    {Do not Localize}
-//	otherwise it will issue RIP requests to find it.  Not valid with
-//	setsockopt().  optval points to an instance of the IPX_NETNUM_DATA
-//	structure with the netnum filled in.
-	IPX_GETNETINFO = $4008;
+//  Query information about a specific IPX network number.  If the
+//  network is in IPX's cache it will return the information directly,    {Do not Localize}
+//  otherwise it will issue RIP requests to find it.  Not valid with
+//  setsockopt().  optval points to an instance of the IPX_NETNUM_DATA
+//  structure with the netnum filled in.
+  IPX_GETNETINFO = $4008;
 type
-	IPX_NETNUM_DATA = packed record
-		netnum   : Array [0..3] of Byte;  // input: IPX network number
-		hopcount : Word;                  // output: hop count to this network, in machine order
-		netdelay : Word;                  // output: tick count to this network, in machine order
-		cardnum  : Integer;               // output: 0-based adapter number used to route to this net;
-		                                  // can be used as adapternum input to IPX_ADDRESS
-		router   : Array [0..5] of Byte;  // output: MAC address of the next hop router, zeroed if
-																			// the network is directly attached
-	end;
-	PIPX_NETNUM_DATA = ^IPX_NETNUM_DATA;
+  IPX_NETNUM_DATA = packed record
+    netnum   : Array [0..3] of Byte;  // input: IPX network number
+    hopcount : Word;                  // output: hop count to this network, in machine order
+    netdelay : Word;                  // output: tick count to this network, in machine order
+    cardnum  : Integer;               // output: 0-based adapter number used to route to this net;
+                                      // can be used as adapternum input to IPX_ADDRESS
+    router   : Array [0..5] of Byte;  // output: MAC address of the next hop router, zeroed if
+                                      // the network is directly attached
+  end;
+  PIPX_NETNUM_DATA = ^IPX_NETNUM_DATA;
 
 const
-//	Like IPX_GETNETINFO except it  does not  issue RIP requests. If the
-//	network is in IPX's cache it will return the information, otherwise    {Do not Localize}
-//	it will fail (see also IPX_RERIPNETNUMBER which  always  forces a
-//	re-RIP). Not valid with setsockopt().  optval points to an instance of
-//	the IPX_NETNUM_DATA structure with the netnum filled in.
-	IPX_GETNETINFO_NORIP = $4009;
+//  Like IPX_GETNETINFO except it  does not  issue RIP requests. If the
+//  network is in IPX's cache it will return the information, otherwise    {Do not Localize}
+//  it will fail (see also IPX_RERIPNETNUMBER which  always  forces a
+//  re-RIP). Not valid with setsockopt().  optval points to an instance of
+//  the IPX_NETNUM_DATA structure with the netnum filled in.
+  IPX_GETNETINFO_NORIP = $4009;
 
-//	Get information on a connected SPX socket.  optval points
-//	to an instance of the IPX_SPXCONNSTATUS_DATA structure.
+//  Get information on a connected SPX socket.  optval points
+//  to an instance of the IPX_SPXCONNSTATUS_DATA structure.
 //  *** All numbers are in Novell (high-low) order. ***
-	IPX_SPXGETCONNECTIONSTATUS = $400B;
+  IPX_SPXGETCONNECTIONSTATUS = $400B;
 type
-	IPX_SPXCONNSTATUS_DATA = packed record
-		ConnectionState         : Byte;
-		WatchDogActive          : Byte;
-		LocalConnectionId       : Word;
-		RemoteConnectionId      : Word;
-		LocalSequenceNumber     : Word;
-		LocalAckNumber          : Word;
-		LocalAllocNumber        : Word;
-		RemoteAckNumber         : Word;
-		RemoteAllocNumber       : Word;
-		LocalSocket             : Word;
-		ImmediateAddress        : Array [0..5] of Byte;
-		RemoteNetwork           : Array [0..3] of Byte;
-		RemoteNode              : Array [0..5] of Byte;
-		RemoteSocket            : Word;
-		RetransmissionCount     : Word;
-		EstimatedRoundTripDelay : Word;                 // In milliseconds
-		RetransmittedPackets    : Word;
-		SuppressedPacket        : Word;
-	end;
-	PIPX_SPXCONNSTATUS_DATA = ^IPX_SPXCONNSTATUS_DATA;
+  IPX_SPXCONNSTATUS_DATA = packed record
+    ConnectionState         : Byte;
+    WatchDogActive          : Byte;
+    LocalConnectionId       : Word;
+    RemoteConnectionId      : Word;
+    LocalSequenceNumber     : Word;
+    LocalAckNumber          : Word;
+    LocalAllocNumber        : Word;
+    RemoteAckNumber         : Word;
+    RemoteAllocNumber       : Word;
+    LocalSocket             : Word;
+    ImmediateAddress        : Array [0..5] of Byte;
+    RemoteNetwork           : Array [0..3] of Byte;
+    RemoteNode              : Array [0..5] of Byte;
+    RemoteSocket            : Word;
+    RetransmissionCount     : Word;
+    EstimatedRoundTripDelay : Word;                 // In milliseconds
+    RetransmittedPackets    : Word;
+    SuppressedPacket        : Word;
+  end;
+  PIPX_SPXCONNSTATUS_DATA = ^IPX_SPXCONNSTATUS_DATA;
 
 const
-//	Get notification when the status of an adapter that IPX is
-//	bound to changes.  Typically this will happen when a wan line
-//	goes up or down.  Not valid with setsockopt().  optval points
-//	to a buffer which contains an IPX_ADDRESS_DATA structure
-//	followed immediately by a HANDLE to an unsignaled event.
+//  Get notification when the status of an adapter that IPX is
+//  bound to changes.  Typically this will happen when a wan line
+//  goes up or down.  Not valid with setsockopt().  optval points
+//  to a buffer which contains an IPX_ADDRESS_DATA structure
+//  followed immediately by a HANDLE to an unsignaled event.
 //
-//	When the getsockopt() query is submitted, it will complete
-//	successfully.  However, the IPX_ADDRESS_DATA pointed to by
-//	optval will not be updated at that point.  Instead the
-//	request is queued internally inside the transport.
+//  When the getsockopt() query is submitted, it will complete
+//  successfully.  However, the IPX_ADDRESS_DATA pointed to by
+//  optval will not be updated at that point.  Instead the
+//  request is queued internally inside the transport.
 //
-//	When the status of an adapter changes, IPX will locate a
-//	queued getsockopt() query and fill in all the fields in the
-//	IPX_ADDRESS_DATA structure.  It will then signal the event
-//	pointed to by the HANDLE in the optval buffer.  This handle
-//	should be obtained before calling getsockopt() by calling
-//	CreateEvent().  If multiple getsockopts() are submitted at
-//	once, different events must be used.
+//  When the status of an adapter changes, IPX will locate a
+//  queued getsockopt() query and fill in all the fields in the
+//  IPX_ADDRESS_DATA structure.  It will then signal the event
+//  pointed to by the HANDLE in the optval buffer.  This handle
+//  should be obtained before calling getsockopt() by calling
+//  CreateEvent().  If multiple getsockopts() are submitted at
+//  once, different events must be used.
 //
-//	The event is used because the call needs to be asynchronous
-//	but currently getsockopt() does not support this.
+//  The event is used because the call needs to be asynchronous
+//  but currently getsockopt() does not support this.
 //
-//	WARNING: In the current implementation, the transport will
-//	only signal one queued query for each status change.  Therefore
-//	only one service which uses this query should be running at
-//	once.
-	IPX_ADDRESS_NOTIFY = $400C;
+//  WARNING: In the current implementation, the transport will
+//  only signal one queued query for each status change.  Therefore
+//  only one service which uses this query should be running at
+//  once.
+  IPX_ADDRESS_NOTIFY = $400C;
 
-//	Get the maximum number of adapters present.  If this call returns
-//	n then the adapters are numbered 0 through n-1.  Not valid
-//	with setsockopt().  optval points to an int where the value
-//	is returned.
-	IPX_MAX_ADAPTER_NUM = $400D;
+//  Get the maximum number of adapters present.  If this call returns
+//  n then the adapters are numbered 0 through n-1.  Not valid
+//  with setsockopt().  optval points to an int where the value
+//  is returned.
+  IPX_MAX_ADAPTER_NUM = $400D;
 
-//	Like IPX_GETNETINFO except it forces IPX to re-RIP even if the
-//	network is in its cache (but not if it is directly attached to).
-//	Not valid with setsockopt().  optval points to an instance of
-//	the IPX_NETNUM_DATA structure with the netnum filled in.
-	IPX_RERIPNETNUMBER = $400E;
+//  Like IPX_GETNETINFO except it forces IPX to re-RIP even if the
+//  network is in its cache (but not if it is directly attached to).
+//  Not valid with setsockopt().  optval points to an instance of
+//  the IPX_NETNUM_DATA structure with the netnum filled in.
+  IPX_RERIPNETNUMBER = $400E;
 
-//	A hint that broadcast packets may be received.  The default is
-//	TRUE.  Applications that do not need to receive broadcast packets
-//	should set this sockopt to FALSE which may cause better system
-//	performance (note that it does not necessarily cause broadcasts
-//	to be filtered for the application).  Not valid with getsockopt().
-//	optval points to a BOOL.
-	IPX_RECEIVE_BROADCAST = $400F;
+//  A hint that broadcast packets may be received.  The default is
+//  TRUE.  Applications that do not need to receive broadcast packets
+//  should set this sockopt to FALSE which may cause better system
+//  performance (note that it does not necessarily cause broadcasts
+//  to be filtered for the application).  Not valid with getsockopt().
+//  optval points to a BOOL.
+  IPX_RECEIVE_BROADCAST = $400F;
 
 
-//	On SPX connections, don't delay before sending ack.  Applications    {Do not Localize}
-//	that do not tend to have back-and-forth traffic over SPX should
-//	set this; it will increase the number of acks sent but will remove
-//	delays in sending acks.  optval points to a BOOL.
-	IPX_IMMEDIATESPXACK = $4010;
+//  On SPX connections, don't delay before sending ack.  Applications    {Do not Localize}
+//  that do not tend to have back-and-forth traffic over SPX should
+//  set this; it will increase the number of acks sent but will remove
+//  delays in sending acks.  optval points to a BOOL.
+  IPX_IMMEDIATESPXACK = $4010;
 
 
 //=============================================================
 
-//	wsnetbs.h
-//	Copyright (c) 1994-1999, Microsoft Corp. All rights reserved.
+//  wsnetbs.h
+//  Copyright (c) 1994-1999, Microsoft Corp. All rights reserved.
 //
-//	Windows Sockets include file for NETBIOS.  This file contains all
-//	standardized NETBIOS information.  Include this header file after
-//	winsock.h.
+//  Windows Sockets include file for NETBIOS.  This file contains all
+//  standardized NETBIOS information.  Include this header file after
+//  winsock.h.
 
-//	To open a NetBIOS socket, call the socket() function as follows:
+//  To open a NetBIOS socket, call the socket() function as follows:
 //
-//		s = socket( AF_NETBIOS, {SOCK_SEQPACKET|SOCK_DGRAM}, -Lana );
+//    s = socket( AF_NETBIOS, {SOCK_SEQPACKET|SOCK_DGRAM}, -Lana );
 //
-//	where Lana is the NetBIOS Lana number of interest.  For example, to
-//	open a socket for Lana 2, specify -2 as the "protocol" parameter
-//	to the socket() function.
+//  where Lana is the NetBIOS Lana number of interest.  For example, to
+//  open a socket for Lana 2, specify -2 as the "protocol" parameter
+//  to the socket() function.
 
 
-//	This is the structure of the SOCKADDR structure for NETBIOS.
+//  This is the structure of the SOCKADDR structure for NETBIOS.
 
 const
  NETBIOS_NAME_LENGTH = 16;
 
 type
-	SOCKADDR_NB = packed record
-		snb_family : Smallint;
-		snb_type   : u_short;
-		snb_name   : array[0..NETBIOS_NAME_LENGTH-1] of AnsiChar;
-	end;
+  SOCKADDR_NB = packed record
+    snb_family : Smallint;
+    snb_type   : u_short;
+    snb_name   : array[0..NETBIOS_NAME_LENGTH-1] of AnsiChar;
+  end;
   TSockAddrNB  = SOCKADDR_NB;
   PSockAddrNB  = ^SOCKADDR_NB;
   LPSOCKADDR_NB = ^SOCKADDR_NB;
 
-//	Bit values for the snb_type field of SOCKADDR_NB.
+//  Bit values for the snb_type field of SOCKADDR_NB.
 const
-	NETBIOS_UNIQUE_NAME       = $0000;
-	NETBIOS_GROUP_NAME        = $0001;
-	NETBIOS_TYPE_QUICK_UNIQUE = $0002;
-	NETBIOS_TYPE_QUICK_GROUP  = $0003;
+  NETBIOS_UNIQUE_NAME       = $0000;
+  NETBIOS_GROUP_NAME        = $0001;
+  NETBIOS_TYPE_QUICK_UNIQUE = $0002;
+  NETBIOS_TYPE_QUICK_GROUP  = $0003;
 
-//	A macro convenient for setting up NETBIOS SOCKADDRs.
+//  A macro convenient for setting up NETBIOS SOCKADDRs.
 procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const Name : PAnsiChar; const Port : AnsiChar );
 
 
@@ -2004,289 +2004,289 @@ procedure SET_NETBIOS_SOCKADDR( snb : PSockAddrNB; const SnbType : Word; const N
 //
 //  Module Name:
 //
-//  	ws2atm.h
+//    ws2atm.h
 //
 //  Abstract:
 //
-//  	Winsock 2 ATM Annex definitions.
-																						
-																						
+//    Winsock 2 ATM Annex definitions.
+
+
 const
-	ATMPROTO_AALUSER = $00; // User-defined AAL
-	ATMPROTO_AAL1    = $01; // AAL 1
-	ATMPROTO_AAL2    = $02; // AAL 2
-	ATMPROTO_AAL34   = $03; // AAL 3/4
-	ATMPROTO_AAL5    = $05; // AAL 5
-		
-	SAP_FIELD_ABSENT        = $FFFFFFFE;
-	SAP_FIELD_ANY           = $FFFFFFFF;
-	SAP_FIELD_ANY_AESA_SEL  = $FFFFFFFA;
-	SAP_FIELD_ANY_AESA_REST = $FFFFFFFB;
-	
+  ATMPROTO_AALUSER = $00; // User-defined AAL
+  ATMPROTO_AAL1    = $01; // AAL 1
+  ATMPROTO_AAL2    = $02; // AAL 2
+  ATMPROTO_AAL34   = $03; // AAL 3/4
+  ATMPROTO_AAL5    = $05; // AAL 5
+
+  SAP_FIELD_ABSENT        = $FFFFFFFE;
+  SAP_FIELD_ANY           = $FFFFFFFF;
+  SAP_FIELD_ANY_AESA_SEL  = $FFFFFFFA;
+  SAP_FIELD_ANY_AESA_REST = $FFFFFFFB;
+
 // values used for AddressType in struct ATM_ADDRESS
-	ATM_E164 = $01; // E.164 addressing scheme
-	ATM_NSAP = $02; // NSAP-style ATM Endsystem Address scheme
-	ATM_AESA = $02; // NSAP-style ATM Endsystem Address scheme
-	
-	ATM_ADDR_SIZE = 20;
+  ATM_E164 = $01; // E.164 addressing scheme
+  ATM_NSAP = $02; // NSAP-style ATM Endsystem Address scheme
+  ATM_AESA = $02; // NSAP-style ATM Endsystem Address scheme
+
+  ATM_ADDR_SIZE = 20;
 type
-	ATM_ADDRESS = packed record
-		AddressType : DWORD;                        // E.164 or NSAP-style ATM Endsystem Address
-		NumofDigits : DWORD;                        // number of digits;
-		Addr : Array[0..(ATM_ADDR_SIZE)-1] of Byte; // IA5 digits for E164, BCD encoding for NSAP
-																								// format as defined in the ATM Forum UNI 3.1
-	end;
-	
+  ATM_ADDRESS = packed record
+    AddressType : DWORD;                        // E.164 or NSAP-style ATM Endsystem Address
+    NumofDigits : DWORD;                        // number of digits;
+    Addr : Array[0..(ATM_ADDR_SIZE)-1] of Byte; // IA5 digits for E164, BCD encoding for NSAP
+                                                // format as defined in the ATM Forum UNI 3.1
+  end;
+
 //-------------------------------------------------------------
 // values used for Layer2Protocol in B-LLI
 const
-	BLLI_L2_ISO_1745       = $01; // Basic mode ISO 1745
-	BLLI_L2_Q921           = $02; // CCITT Rec. Q.921
-	BLLI_L2_X25L           = $06; // CCITT Rec. X.25, link layer
-	BLLI_L2_X25M           = $07; // CCITT Rec. X.25, multilink
-	BLLI_L2_ELAPB          = $08; // Extended LAPB; for half duplex operation
-	BLLI_L2_HDLC_NRM       = $09; // HDLC NRM (ISO 4335)
-	BLLI_L2_HDLC_ABM       = $0A; // HDLC ABM (ISO 4335)
-	BLLI_L2_HDLC_ARM       = $0B; // HDLC ARM (ISO 4335)
-	BLLI_L2_LLC            = $0C; // LAN logical link control (ISO 8802/2)
-	BLLI_L2_X75            = $0D; // CCITT Rec. X.75, single link procedure
-	BLLI_L2_Q922           = $0E; // CCITT Rec. Q.922
-	BLLI_L2_USER_SPECIFIED = $10; // User Specified
-	BLLI_L2_ISO_7776       = $11; // ISO 7776 DTE-DTE operation
+  BLLI_L2_ISO_1745       = $01; // Basic mode ISO 1745
+  BLLI_L2_Q921           = $02; // CCITT Rec. Q.921
+  BLLI_L2_X25L           = $06; // CCITT Rec. X.25, link layer
+  BLLI_L2_X25M           = $07; // CCITT Rec. X.25, multilink
+  BLLI_L2_ELAPB          = $08; // Extended LAPB; for half duplex operation
+  BLLI_L2_HDLC_NRM       = $09; // HDLC NRM (ISO 4335)
+  BLLI_L2_HDLC_ABM       = $0A; // HDLC ABM (ISO 4335)
+  BLLI_L2_HDLC_ARM       = $0B; // HDLC ARM (ISO 4335)
+  BLLI_L2_LLC            = $0C; // LAN logical link control (ISO 8802/2)
+  BLLI_L2_X75            = $0D; // CCITT Rec. X.75, single link procedure
+  BLLI_L2_Q922           = $0E; // CCITT Rec. Q.922
+  BLLI_L2_USER_SPECIFIED = $10; // User Specified
+  BLLI_L2_ISO_7776       = $11; // ISO 7776 DTE-DTE operation
 
 //-------------------------------------------------------------
 // values used for Layer3Protocol in B-LLI
-	BLLI_L3_X25            = $06; // CCITT Rec. X.25, packet layer
-	BLLI_L3_ISO_8208       = $07; // ISO/IEC 8208 (X.25 packet layer for DTE
-	BLLI_L3_X223           = $08; // X.223/ISO 8878
-	BLLI_L3_SIO_8473       = $09; // ISO/IEC 8473 (OSI connectionless)
-	BLLI_L3_T70            = $0A; // CCITT Rec. T.70 min. network layer
-	BLLI_L3_ISO_TR9577     = $0B; // ISO/IEC TR 9577 Network Layer Protocol ID
-	BLLI_L3_USER_SPECIFIED = $10; // User Specified
-	
+  BLLI_L3_X25            = $06; // CCITT Rec. X.25, packet layer
+  BLLI_L3_ISO_8208       = $07; // ISO/IEC 8208 (X.25 packet layer for DTE
+  BLLI_L3_X223           = $08; // X.223/ISO 8878
+  BLLI_L3_SIO_8473       = $09; // ISO/IEC 8473 (OSI connectionless)
+  BLLI_L3_T70            = $0A; // CCITT Rec. T.70 min. network layer
+  BLLI_L3_ISO_TR9577     = $0B; // ISO/IEC TR 9577 Network Layer Protocol ID
+  BLLI_L3_USER_SPECIFIED = $10; // User Specified
+
 //-------------------------------------------------------------
 // values used for Layer3IPI in B-LLI
-	BLLI_L3_IPI_SNAP = $80; // IEEE 802.1 SNAP identifier
-	BLLI_L3_IPI_IP   = $CC; // Internet Protocol (IP) identifier
+  BLLI_L3_IPI_SNAP = $80; // IEEE 802.1 SNAP identifier
+  BLLI_L3_IPI_IP   = $CC; // Internet Protocol (IP) identifier
 
 type
-	ATM_BLLI = packed record
-		// Identifies the layer-two protocol.
-		// Corresponds to the User information layer 2 protocol field in the B-LLI information element.
-		// A value of SAP_FIELD_ABSENT indicates that this field is not used, and a value of SAP_FIELD_ANY means wildcard.		
-		Layer2Protocol              : DWORD; // User information layer 2 protocol
-		// Identifies the user-specified layer-two protocol.
-		// Only used if the Layer2Protocol parameter is set to BLLI_L2_USER_SPECIFIED.
-		// The valid values range from zero127.
-		// Corresponds to the User specified layer 2 protocol information field in the B-LLI information element. 		
-		Layer2UserSpecifiedProtocol : DWORD; // User specified layer 2 protocol information
-		// Identifies the layer-three protocol.
-		// Corresponds to the User information layer 3 protocol field in the B-LLI information element.
-		// A value of SAP_FIELD_ABSENT indicates that this field is not used, and a value of SAP_FIELD_ANY means wildcard.
-		Layer3Protocol              : DWORD; // User information layer 3 protocol
-		// Identifies the user-specified layer-three protocol.
-		// Only used if the Layer3Protocol parameter is set to BLLI_L3_USER_SPECIFIED.
-		// The valid values range from zero127.
-		// Corresponds to the User specified layer 3 protocol information field in the B-LLI information element.
-		Layer3UserSpecifiedProtocol : DWORD; // User specified layer 3 protocol information
-		// Identifies the layer-three Initial Protocol Identifier.
-		// Only used if the Layer3Protocol parameter is set to BLLI_L3_ISO_TR9577.
-		// Corresponds to the ISO/IEC TR 9577 Initial Protocol Identifier field in the B-LLI information element. 		
-		Layer3IPI                   : DWORD; // ISO/IEC TR 9577 Initial Protocol Identifier
-		// Identifies the 802.1 SNAP identifier.
-		// Only used if the Layer3Protocol parameter is set to BLLI_L3_ISO_TR9577 and Layer3IPI is set to BLLI_L3_IPI_SNAP,
-		// indicating an IEEE 802.1 SNAP identifier. Corresponds to the OUI and PID fields in the B-LLI information element. 		
-		SnapID                      : Array[0..4] of Byte; // SNAP ID consisting of OUI and PID
-	end;
-	
+  ATM_BLLI = packed record
+    // Identifies the layer-two protocol.
+    // Corresponds to the User information layer 2 protocol field in the B-LLI information element.
+    // A value of SAP_FIELD_ABSENT indicates that this field is not used, and a value of SAP_FIELD_ANY means wildcard.
+    Layer2Protocol              : DWORD; // User information layer 2 protocol
+    // Identifies the user-specified layer-two protocol.
+    // Only used if the Layer2Protocol parameter is set to BLLI_L2_USER_SPECIFIED.
+    // The valid values range from zero127.
+    // Corresponds to the User specified layer 2 protocol information field in the B-LLI information element.
+    Layer2UserSpecifiedProtocol : DWORD; // User specified layer 2 protocol information
+    // Identifies the layer-three protocol.
+    // Corresponds to the User information layer 3 protocol field in the B-LLI information element.
+    // A value of SAP_FIELD_ABSENT indicates that this field is not used, and a value of SAP_FIELD_ANY means wildcard.
+    Layer3Protocol              : DWORD; // User information layer 3 protocol
+    // Identifies the user-specified layer-three protocol.
+    // Only used if the Layer3Protocol parameter is set to BLLI_L3_USER_SPECIFIED.
+    // The valid values range from zero127.
+    // Corresponds to the User specified layer 3 protocol information field in the B-LLI information element.
+    Layer3UserSpecifiedProtocol : DWORD; // User specified layer 3 protocol information
+    // Identifies the layer-three Initial Protocol Identifier.
+    // Only used if the Layer3Protocol parameter is set to BLLI_L3_ISO_TR9577.
+    // Corresponds to the ISO/IEC TR 9577 Initial Protocol Identifier field in the B-LLI information element.
+    Layer3IPI                   : DWORD; // ISO/IEC TR 9577 Initial Protocol Identifier
+    // Identifies the 802.1 SNAP identifier.
+    // Only used if the Layer3Protocol parameter is set to BLLI_L3_ISO_TR9577 and Layer3IPI is set to BLLI_L3_IPI_SNAP,
+    // indicating an IEEE 802.1 SNAP identifier. Corresponds to the OUI and PID fields in the B-LLI information element.
+    SnapID                      : Array[0..4] of Byte; // SNAP ID consisting of OUI and PID
+  end;
+
 //-------------------------------------------------------------
 // values used for the HighLayerInfoType field in ATM_BHLI
 const
-	BHLI_ISO                 = $00; // ISO
-	BHLI_UserSpecific        = $01; // User Specific
-	BHLI_HighLayerProfile    = $02; // High layer profile (only in UNI3.0)
-	BHLI_VendorSpecificAppId = $03; // Vendor-Specific Application ID
+  BHLI_ISO                 = $00; // ISO
+  BHLI_UserSpecific        = $01; // User Specific
+  BHLI_HighLayerProfile    = $02; // High layer profile (only in UNI3.0)
+  BHLI_VendorSpecificAppId = $03; // Vendor-Specific Application ID
 
 type
-	ATM_BHLI = packed record
-		// Identifies the high layer information type field in the B-LLI information element.
-		// Note that the type BHLI_HighLayerProfile has been eliminated in UNI 3.1.
-		// A value of SAP_FIELD_ABSENT indicates that B-HLI is not present, and a value of SAP_FIELD_ANY means wildcard.
-		HighLayerInfoType   : DWORD; // High Layer Information Type
-		// Identifies the number of bytes from one to eight in the HighLayerInfo array.
-		// Valid values include eight for the cases of BHLI_ISO and BHLI_UserSpecific,
-		// four for BHLI_HighLayerProfile, and seven for BHLI_VendorSpecificAppId. 		
-		HighLayerInfoLength : DWORD; // number of bytes in HighLayerInfo
-		// Identifies the high layer information field in the B-LLI information element.
-		// In the case of HighLayerInfoType being BHLI_VendorSpecificAppId,
-		// the first 3 bytes consist of a globally-administered Organizationally Unique Identifier (OUI)
-		// (as per IEEE standard 802-1990), followed by a 4-byte application identifier,
-		// which is administered by the vendor identified by the OUI.
-		// Value for the case of BHLI_UserSpecific is user defined and requires bilateral agreement between two end users. 		
-		HighLayerInfo       : Array[0..7] of Byte; // the value dependent on the HighLayerInfoType field
-	end;
+  ATM_BHLI = packed record
+    // Identifies the high layer information type field in the B-LLI information element.
+    // Note that the type BHLI_HighLayerProfile has been eliminated in UNI 3.1.
+    // A value of SAP_FIELD_ABSENT indicates that B-HLI is not present, and a value of SAP_FIELD_ANY means wildcard.
+    HighLayerInfoType   : DWORD; // High Layer Information Type
+    // Identifies the number of bytes from one to eight in the HighLayerInfo array.
+    // Valid values include eight for the cases of BHLI_ISO and BHLI_UserSpecific,
+    // four for BHLI_HighLayerProfile, and seven for BHLI_VendorSpecificAppId.
+    HighLayerInfoLength : DWORD; // number of bytes in HighLayerInfo
+    // Identifies the high layer information field in the B-LLI information element.
+    // In the case of HighLayerInfoType being BHLI_VendorSpecificAppId,
+    // the first 3 bytes consist of a globally-administered Organizationally Unique Identifier (OUI)
+    // (as per IEEE standard 802-1990), followed by a 4-byte application identifier,
+    // which is administered by the vendor identified by the OUI.
+    // Value for the case of BHLI_UserSpecific is user defined and requires bilateral agreement between two end users.
+    HighLayerInfo       : Array[0..7] of Byte; // the value dependent on the HighLayerInfoType field
+  end;
 
 //-------------------------------------------------------------
 // A new address family, AF_ATM, is introduced for native ATM services,
 // and the corresponding SOCKADDR structure, sockaddr_atm, is defined in the following.
 // To open a socket for native ATM services, parameters in socket should contain
-// AF_ATM, SOCK_RAW, and ATMPROTO_AAL5 or ATMPROTO_AALUSER, respectively.	
-	sockaddr_atm = packed record
-		// Identifies the address family, which is AF_ATM in this case.
-		satm_family : u_short;
-		// Identifies the ATM address that could be either in E.164 or NSAP-style ATM End Systems Address format.
-		// This field will be mapped to the Called Party Number IE (Information Element)
-		// if it is specified in bind and WSPBind for a listening socket, or in connect, WSAConnect, WSPConnect,
-		// WSAJoinLeaf, or WSPJoinLeaf for a connecting socket.
-		// It will be mapped to the Calling Party Number IE if specified in bind and WSPBind for a connecting socket.
-		satm_number : ATM_ADDRESS;
-		// Identifies the fields in the B-LLI Information Element that are used along with satm_bhli to identify an application.
-		// Note that the B-LLI layer two information is treated as not present
-		// if its Layer2Protocol field contains SAP_FIELD_ABSENT, or as a wildcard if it contains SAP_FIELD_ANY.
-		// Similarly, the B-LLI layer three information is treated as not present
-		// if its Layer3Protocol field contains SAP_FIELD_ABSENT, or as a wildcard if it contains SAP_FIELD_ANY.
-		satm_blli   : ATM_BLLI;    // B-LLI
-		// Identifies the fields in the B-HLI Information Element that are used along with satm_blli to identify an application.
-		satm_bhli   : ATM_BHLI;    // B-HLI
-	end;
-	TSockAddrATM = sockaddr_atm;
-	PSockAddrATM = ^TSockAddrATM;
-	LPSockAddrATM = ^TSockAddrATM;
-	PSOCKADDR_ATM = ^sockaddr_atm;
-	LPSOCKADDR_ATM = ^sockaddr_atm;
+// AF_ATM, SOCK_RAW, and ATMPROTO_AAL5 or ATMPROTO_AALUSER, respectively.
+  sockaddr_atm = packed record
+    // Identifies the address family, which is AF_ATM in this case.
+    satm_family : u_short;
+    // Identifies the ATM address that could be either in E.164 or NSAP-style ATM End Systems Address format.
+    // This field will be mapped to the Called Party Number IE (Information Element)
+    // if it is specified in bind and WSPBind for a listening socket, or in connect, WSAConnect, WSPConnect,
+    // WSAJoinLeaf, or WSPJoinLeaf for a connecting socket.
+    // It will be mapped to the Calling Party Number IE if specified in bind and WSPBind for a connecting socket.
+    satm_number : ATM_ADDRESS;
+    // Identifies the fields in the B-LLI Information Element that are used along with satm_bhli to identify an application.
+    // Note that the B-LLI layer two information is treated as not present
+    // if its Layer2Protocol field contains SAP_FIELD_ABSENT, or as a wildcard if it contains SAP_FIELD_ANY.
+    // Similarly, the B-LLI layer three information is treated as not present
+    // if its Layer3Protocol field contains SAP_FIELD_ABSENT, or as a wildcard if it contains SAP_FIELD_ANY.
+    satm_blli   : ATM_BLLI;    // B-LLI
+    // Identifies the fields in the B-HLI Information Element that are used along with satm_blli to identify an application.
+    satm_bhli   : ATM_BHLI;    // B-HLI
+  end;
+  TSockAddrATM = sockaddr_atm;
+  PSockAddrATM = ^TSockAddrATM;
+  LPSockAddrATM = ^TSockAddrATM;
+  PSOCKADDR_ATM = ^sockaddr_atm;
+  LPSOCKADDR_ATM = ^sockaddr_atm;
 
 //-------------------------------------------------------------
-	Q2931_IE_TYPE = ( IE_AALParameters, IE_TrafficDescriptor,
-		IE_BroadbandBearerCapability, IE_BHLI, IE_BLLI,IE_CalledPartyNumber,
-		IE_CalledPartySubaddress, IE_CallingPartyNumber, IE_CallingPartySubaddress,
-		IE_Cause, IE_QOSClass, IE_TransitNetworkSelection
-	);
+  Q2931_IE_TYPE = ( IE_AALParameters, IE_TrafficDescriptor,
+    IE_BroadbandBearerCapability, IE_BHLI, IE_BLLI,IE_CalledPartyNumber,
+    IE_CalledPartySubaddress, IE_CallingPartyNumber, IE_CallingPartySubaddress,
+    IE_Cause, IE_QOSClass, IE_TransitNetworkSelection
+  );
 
-	Q2931_IE = record
-		IEType   : Q2931_IE_TYPE;
-		IELength : ULONG;
-		IE       : Array[0..0] of Byte;
-	end;
-			
+  Q2931_IE = record
+    IEType   : Q2931_IE_TYPE;
+    IELength : ULONG;
+    IE       : Array[0..0] of Byte;
+  end;
+
 //-------------------------------------------------------------
 // manifest constants for the AALType field in struct AAL_PARAMETERS_IE
-	AAL_TYPE = LongInt;
-const	
-	AALTYPE_5    =  5; // AAL 5
-	AALTYPE_USER = 16; // user-defined AAL
-	
+  AAL_TYPE = LongInt;
+const
+  AALTYPE_5    =  5; // AAL 5
+  AALTYPE_USER = 16; // user-defined AAL
+
 //-------------------------------------------------------------
 // values used for the Mode field in struct AAL5_PARAMETERS
-	AAL5_MODE_MESSAGE   = $01;
-	AAL5_MODE_STREAMING = $02;
+  AAL5_MODE_MESSAGE   = $01;
+  AAL5_MODE_STREAMING = $02;
 
 //-------------------------------------------------------------
 // values used for the SSCSType field in struct AAL5_PARAMETERS
-	AAL5_SSCS_NULL              = $00;
-	AAL5_SSCS_SSCOP_ASSURED     = $01;
-	AAL5_SSCS_SSCOP_NON_ASSURED = $02;
-	AAL5_SSCS_FRAME_RELAY       = $04;
+  AAL5_SSCS_NULL              = $00;
+  AAL5_SSCS_SSCOP_ASSURED     = $01;
+  AAL5_SSCS_SSCOP_NON_ASSURED = $02;
+  AAL5_SSCS_FRAME_RELAY       = $04;
 
 type
-	AAL5_PARAMETERS = packed record
-		ForwardMaxCPCSSDUSize  : ULONG;
-		BackwardMaxCPCSSDUSize : ULONG;
-		Mode     : Byte; // only available in UNI 3.0
-		SSCSType : Byte;
-	end;
+  AAL5_PARAMETERS = packed record
+    ForwardMaxCPCSSDUSize  : ULONG;
+    BackwardMaxCPCSSDUSize : ULONG;
+    Mode     : Byte; // only available in UNI 3.0
+    SSCSType : Byte;
+  end;
 
-	AALUSER_PARAMETERS = packed record
-		UserDefined : ULONG;
-	end;
+  AALUSER_PARAMETERS = packed record
+    UserDefined : ULONG;
+  end;
 
-	AAL_PARAMETERS_IE = packed record
-		AALType : AAL_TYPE;
-		AALSpecificParameters : packed record
-		case Byte of
-			 0 : ( AAL5Parameters    : AAL5_PARAMETERS );
-			 1 : ( AALUserParameters : AALUSER_PARAMETERS );
-		end;
-	end;
+  AAL_PARAMETERS_IE = packed record
+    AALType : AAL_TYPE;
+    AALSpecificParameters : packed record
+    case Byte of
+       0 : ( AAL5Parameters    : AAL5_PARAMETERS );
+       1 : ( AALUserParameters : AALUSER_PARAMETERS );
+    end;
+  end;
 
-	ATM_TD = packed record
-		PeakCellRate_CLP0         : ULONG;
-		PeakCellRate_CLP01        : ULONG;
-		SustainableCellRate_CLP0  : ULONG;
-		SustainableCellRate_CLP01 : ULONG;
-		MaxBurstSize_CLP0         : ULONG;
-		MaxBurstSize_CLP01        : ULONG;
-		Tagging                   : LongBool;
-	end;
+  ATM_TD = packed record
+    PeakCellRate_CLP0         : ULONG;
+    PeakCellRate_CLP01        : ULONG;
+    SustainableCellRate_CLP0  : ULONG;
+    SustainableCellRate_CLP01 : ULONG;
+    MaxBurstSize_CLP0         : ULONG;
+    MaxBurstSize_CLP01        : ULONG;
+    Tagging                   : LongBool;
+  end;
 
-	ATM_TRAFFIC_DESCRIPTOR_IE = packed record
-		Forward    : ATM_TD;
-		Backward   : ATM_TD;
-		BestEffort : LongBool;
-	end;
-	
+  ATM_TRAFFIC_DESCRIPTOR_IE = packed record
+    Forward    : ATM_TD;
+    Backward   : ATM_TD;
+    BestEffort : LongBool;
+  end;
+
 //-------------------------------------------------------------
 // values used for the BearerClass field in struct ATM_BROADBAND_BEARER_CAPABILITY_IE
 const
-	BCOB_A = $01; // Bearer class A
-	BCOB_C = $03; // Bearer class C
-	BCOB_X = $10; // Bearer class X
-	
+  BCOB_A = $01; // Bearer class A
+  BCOB_C = $03; // Bearer class C
+  BCOB_X = $10; // Bearer class X
+
 //-------------------------------------------------------------
 // values used for the TrafficType field in struct ATM_BROADBAND_BEARER_CAPABILITY_IE
 
-	TT_NOIND = $00; // No indication of traffic type
-	TT_CBR   = $04; // Constant bit rate
-	TT_VBR   = $06; // Variable bit rate
+  TT_NOIND = $00; // No indication of traffic type
+  TT_CBR   = $04; // Constant bit rate
+  TT_VBR   = $06; // Variable bit rate
 
 //-------------------------------------------------------------
 // values used for the TimingRequirements field in struct ATM_BROADBAND_BEARER_CAPABILITY_IE
-	TR_NOIND         = $00; // No timing requirement indication
-	TR_END_TO_END    = $01; // End-to-end timing required
-	TR_NO_END_TO_END = $02; // End-to-end timing not required
-	
+  TR_NOIND         = $00; // No timing requirement indication
+  TR_END_TO_END    = $01; // End-to-end timing required
+  TR_NO_END_TO_END = $02; // End-to-end timing not required
+
 //-------------------------------------------------------------
 // values used for the ClippingSusceptability field in struct ATM_BROADBAND_BEARER_CAPABILITY_IE
-	CLIP_NOT = $00; // Not susceptible to clipping
-	CLIP_SUS = $20; // Susceptible to clipping
+  CLIP_NOT = $00; // Not susceptible to clipping
+  CLIP_SUS = $20; // Susceptible to clipping
 
 //-------------------------------------------------------------
 // values used for the UserPlaneConnectionConfig field in struct ATM_BROADBAND_BEARER_CAPABILITY_IE
-	UP_P2P  = $00; // Point-to-point connection
-	UP_P2MP = $01; // Point-to-multipoint connection
+  UP_P2P  = $00; // Point-to-point connection
+  UP_P2MP = $01; // Point-to-multipoint connection
 
 type
-	ATM_BROADBAND_BEARER_CAPABILITY_IE = packed record
-		BearerClass : Byte;
-		TrafficType : Byte;
-		TimingRequirements        : Byte;
-		ClippingSusceptability    : Byte;
-		UserPlaneConnectionConfig : Byte;
-	end;
-	ATM_BHLI_IE = ATM_BHLI;
+  ATM_BROADBAND_BEARER_CAPABILITY_IE = packed record
+    BearerClass : Byte;
+    TrafficType : Byte;
+    TimingRequirements        : Byte;
+    ClippingSusceptability    : Byte;
+    UserPlaneConnectionConfig : Byte;
+  end;
+  ATM_BHLI_IE = ATM_BHLI;
 
 //-------------------------------------------------------------
 // values used for the Layer2Mode field in struct ATM_BLLI_IE
 const
-	BLLI_L2_MODE_NORMAL = $40;
-	BLLI_L2_MODE_EXT    = $80;
+  BLLI_L2_MODE_NORMAL = $40;
+  BLLI_L2_MODE_EXT    = $80;
 
 //-------------------------------------------------------------
 // values used for the Layer3Mode field in struct ATM_BLLI_IE
-	BLLI_L3_MODE_NORMAL = $40;
-	BLLI_L3_MODE_EXT    = $80;
+  BLLI_L3_MODE_NORMAL = $40;
+  BLLI_L3_MODE_EXT    = $80;
 
 //-------------------------------------------------------------
 // values used for the Layer3DefaultPacketSize field in struct ATM_BLLI_IE
-	BLLI_L3_PACKET_16   = $04;
-	BLLI_L3_PACKET_32   = $05;
-	BLLI_L3_PACKET_64   = $06;
-	BLLI_L3_PACKET_128  = $07;
-	BLLI_L3_PACKET_256  = $08;
-	BLLI_L3_PACKET_512  = $09;
-	BLLI_L3_PACKET_1024 = $0A;
-	BLLI_L3_PACKET_2048 = $0B;
-	BLLI_L3_PACKET_4096 = $0C;
-	
+  BLLI_L3_PACKET_16   = $04;
+  BLLI_L3_PACKET_32   = $05;
+  BLLI_L3_PACKET_64   = $06;
+  BLLI_L3_PACKET_128  = $07;
+  BLLI_L3_PACKET_256  = $08;
+  BLLI_L3_PACKET_512  = $09;
+  BLLI_L3_PACKET_1024 = $0A;
+  BLLI_L3_PACKET_2048 = $0B;
+  BLLI_L3_PACKET_4096 = $0C;
+
   // User information layer 2 protocol
   // User specified layer 2 protocol information
   // User information layer 3 protocol
@@ -2295,190 +2295,190 @@ const
   // SNAP ID consisting of OUI and PID
 
 type
-	
-	ATM_BLLI_IE = record
-		Layer2Protocol              : DWORD;
-		Layer2Mode                  : Byte;
-		Layer2WindowSize            : Byte;
-		Layer2UserSpecifiedProtocol : DWORD;
-		Layer3Protocol              : DWORD;
-		Layer3Mode                  : Byte;
-		Layer3DefaultPacketSize     : Byte;
-		Layer3PacketWindowSize      : Byte;
-		Layer3UserSpecifiedProtocol : DWORD;
-		Layer3IPI                   : DWORD;
-		SnapID       : Array[0..4] of Byte;
-	end;
-	ATM_CALLED_PARTY_NUMBER_IE = ATM_ADDRESS;
-	ATM_CALLED_PARTY_SUBADDRESS_IE = ATM_ADDRESS;
+
+  ATM_BLLI_IE = record
+    Layer2Protocol              : DWORD;
+    Layer2Mode                  : Byte;
+    Layer2WindowSize            : Byte;
+    Layer2UserSpecifiedProtocol : DWORD;
+    Layer3Protocol              : DWORD;
+    Layer3Mode                  : Byte;
+    Layer3DefaultPacketSize     : Byte;
+    Layer3PacketWindowSize      : Byte;
+    Layer3UserSpecifiedProtocol : DWORD;
+    Layer3IPI                   : DWORD;
+    SnapID       : Array[0..4] of Byte;
+  end;
+  ATM_CALLED_PARTY_NUMBER_IE = ATM_ADDRESS;
+  ATM_CALLED_PARTY_SUBADDRESS_IE = ATM_ADDRESS;
 
 //-------------------------------------------------------------
 // values used for the Presentation_Indication field in struct ATM_CALLING_PARTY_NUMBER_IE
 const
-	PI_ALLOWED              = $00;
-	PI_RESTRICTED           = $40;
-	PI_NUMBER_NOT_AVAILABLE = $80;
+  PI_ALLOWED              = $00;
+  PI_RESTRICTED           = $40;
+  PI_NUMBER_NOT_AVAILABLE = $80;
 
 //-------------------------------------------------------------
 // values used for the Screening_Indicator field in struct ATM_CALLING_PARTY_NUMBER_IE
-	SI_USER_NOT_SCREENED = $00;
-	SI_USER_PASSED       = $01;
-	SI_USER_FAILED       = $02;
-	SI_NETWORK           = $03;
+  SI_USER_NOT_SCREENED = $00;
+  SI_USER_PASSED       = $01;
+  SI_USER_FAILED       = $02;
+  SI_NETWORK           = $03;
 
 type
-	ATM_CALLING_PARTY_NUMBER_IE = record
-		ATM_Number              : ATM_ADDRESS;
-		Presentation_Indication : Byte;
-		Screening_Indicator     : Byte;
-	end;
-	ATM_CALLING_PARTY_SUBADDRESS_IE = ATM_ADDRESS;
+  ATM_CALLING_PARTY_NUMBER_IE = record
+    ATM_Number              : ATM_ADDRESS;
+    Presentation_Indication : Byte;
+    Screening_Indicator     : Byte;
+  end;
+  ATM_CALLING_PARTY_SUBADDRESS_IE = ATM_ADDRESS;
 
 //-------------------------------------------------------------
 // values used for the Location field in struct ATM_CAUSE_IE
 const
-	CAUSE_LOC_USER                  = $00;
-	CAUSE_LOC_PRIVATE_LOCAL         = $01;
-	CAUSE_LOC_PUBLIC_LOCAL          = $02;
-	CAUSE_LOC_TRANSIT_NETWORK       = $03;
-	CAUSE_LOC_PUBLIC_REMOTE         = $04;
-	CAUSE_LOC_PRIVATE_REMOTE        = $05;
-	CAUSE_LOC_INTERNATIONAL_NETWORK = $06;
-	CAUSE_LOC_BEYOND_INTERWORKING   = $0A;
+  CAUSE_LOC_USER                  = $00;
+  CAUSE_LOC_PRIVATE_LOCAL         = $01;
+  CAUSE_LOC_PUBLIC_LOCAL          = $02;
+  CAUSE_LOC_TRANSIT_NETWORK       = $03;
+  CAUSE_LOC_PUBLIC_REMOTE         = $04;
+  CAUSE_LOC_PRIVATE_REMOTE        = $05;
+  CAUSE_LOC_INTERNATIONAL_NETWORK = $06;
+  CAUSE_LOC_BEYOND_INTERWORKING   = $0A;
 
 //-------------------------------------------------------------
 // values used for the Cause field in struct ATM_CAUSE_IE
-	CAUSE_UNALLOCATED_NUMBER                = $01;
-	CAUSE_NO_ROUTE_TO_TRANSIT_NETWORK       = $02;
-	CAUSE_NO_ROUTE_TO_DESTINATION           = $03;
-	CAUSE_VPI_VCI_UNACCEPTABLE              = $0A;
-	CAUSE_NORMAL_CALL_CLEARING              = $10;
-	CAUSE_USER_BUSY                         = $11;
-	CAUSE_NO_USER_RESPONDING                = $12;
-	CAUSE_CALL_REJECTED                     = $15;
-	CAUSE_NUMBER_CHANGED                    = $16;
-	CAUSE_USER_REJECTS_CLIR                 = $17;
-	CAUSE_DESTINATION_OUT_OF_ORDER          = $1B;
-	CAUSE_INVALID_NUMBER_FORMAT             = $1C;
-	CAUSE_STATUS_ENQUIRY_RESPONSE           = $1E;
-	CAUSE_NORMAL_UNSPECIFIED                = $1F;
-	CAUSE_VPI_VCI_UNAVAILABLE               = $23;
-	CAUSE_NETWORK_OUT_OF_ORDER              = $26;
-	CAUSE_TEMPORARY_FAILURE                 = $29;
-	CAUSE_ACCESS_INFORMAION_DISCARDED       = $2B;
-	CAUSE_NO_VPI_VCI_AVAILABLE              = $2D;
-	CAUSE_RESOURCE_UNAVAILABLE              = $2F;
-	CAUSE_QOS_UNAVAILABLE                   = $31;
-	CAUSE_USER_CELL_RATE_UNAVAILABLE        = $33;
-	CAUSE_BEARER_CAPABILITY_UNAUTHORIZED    = $39;
-	CAUSE_BEARER_CAPABILITY_UNAVAILABLE     = $3A;
-	CAUSE_OPTION_UNAVAILABLE                = $3F;
-	CAUSE_BEARER_CAPABILITY_UNIMPLEMENTED   = $41;
-	CAUSE_UNSUPPORTED_TRAFFIC_PARAMETERS    = $49;
-	CAUSE_INVALID_CALL_REFERENCE            = $51;
-	CAUSE_CHANNEL_NONEXISTENT               = $52;
-	CAUSE_INCOMPATIBLE_DESTINATION          = $58;
-	CAUSE_INVALID_ENDPOINT_REFERENCE        = $59;
-	CAUSE_INVALID_TRANSIT_NETWORK_SELECTION = $5B;
-	CAUSE_TOO_MANY_PENDING_ADD_PARTY        = $5C;
-	CAUSE_AAL_PARAMETERS_UNSUPPORTED        = $5D;
-	CAUSE_MANDATORY_IE_MISSING              = $60;
-	CAUSE_UNIMPLEMENTED_MESSAGE_TYPE        = $61;
-	CAUSE_UNIMPLEMENTED_IE                  = $63;
-	CAUSE_INVALID_IE_CONTENTS               = $64;
-	CAUSE_INVALID_STATE_FOR_MESSAGE         = $65;
-	CAUSE_RECOVERY_ON_TIMEOUT               = $66;
-	CAUSE_INCORRECT_MESSAGE_LENGTH          = $68;
-	CAUSE_PROTOCOL_ERROR                    = $6F;
-	
+  CAUSE_UNALLOCATED_NUMBER                = $01;
+  CAUSE_NO_ROUTE_TO_TRANSIT_NETWORK       = $02;
+  CAUSE_NO_ROUTE_TO_DESTINATION           = $03;
+  CAUSE_VPI_VCI_UNACCEPTABLE              = $0A;
+  CAUSE_NORMAL_CALL_CLEARING              = $10;
+  CAUSE_USER_BUSY                         = $11;
+  CAUSE_NO_USER_RESPONDING                = $12;
+  CAUSE_CALL_REJECTED                     = $15;
+  CAUSE_NUMBER_CHANGED                    = $16;
+  CAUSE_USER_REJECTS_CLIR                 = $17;
+  CAUSE_DESTINATION_OUT_OF_ORDER          = $1B;
+  CAUSE_INVALID_NUMBER_FORMAT             = $1C;
+  CAUSE_STATUS_ENQUIRY_RESPONSE           = $1E;
+  CAUSE_NORMAL_UNSPECIFIED                = $1F;
+  CAUSE_VPI_VCI_UNAVAILABLE               = $23;
+  CAUSE_NETWORK_OUT_OF_ORDER              = $26;
+  CAUSE_TEMPORARY_FAILURE                 = $29;
+  CAUSE_ACCESS_INFORMAION_DISCARDED       = $2B;
+  CAUSE_NO_VPI_VCI_AVAILABLE              = $2D;
+  CAUSE_RESOURCE_UNAVAILABLE              = $2F;
+  CAUSE_QOS_UNAVAILABLE                   = $31;
+  CAUSE_USER_CELL_RATE_UNAVAILABLE        = $33;
+  CAUSE_BEARER_CAPABILITY_UNAUTHORIZED    = $39;
+  CAUSE_BEARER_CAPABILITY_UNAVAILABLE     = $3A;
+  CAUSE_OPTION_UNAVAILABLE                = $3F;
+  CAUSE_BEARER_CAPABILITY_UNIMPLEMENTED   = $41;
+  CAUSE_UNSUPPORTED_TRAFFIC_PARAMETERS    = $49;
+  CAUSE_INVALID_CALL_REFERENCE            = $51;
+  CAUSE_CHANNEL_NONEXISTENT               = $52;
+  CAUSE_INCOMPATIBLE_DESTINATION          = $58;
+  CAUSE_INVALID_ENDPOINT_REFERENCE        = $59;
+  CAUSE_INVALID_TRANSIT_NETWORK_SELECTION = $5B;
+  CAUSE_TOO_MANY_PENDING_ADD_PARTY        = $5C;
+  CAUSE_AAL_PARAMETERS_UNSUPPORTED        = $5D;
+  CAUSE_MANDATORY_IE_MISSING              = $60;
+  CAUSE_UNIMPLEMENTED_MESSAGE_TYPE        = $61;
+  CAUSE_UNIMPLEMENTED_IE                  = $63;
+  CAUSE_INVALID_IE_CONTENTS               = $64;
+  CAUSE_INVALID_STATE_FOR_MESSAGE         = $65;
+  CAUSE_RECOVERY_ON_TIMEOUT               = $66;
+  CAUSE_INCORRECT_MESSAGE_LENGTH          = $68;
+  CAUSE_PROTOCOL_ERROR                    = $6F;
+
 //-------------------------------------------------------------
 // values used for the Condition portion of the Diagnostics field
 // in struct ATM_CAUSE_IE, for certain Cause values
-	CAUSE_COND_UNKNOWN   = $00;
-	CAUSE_COND_PERMANENT = $01;
-	CAUSE_COND_TRANSIENT = $02;
-	
+  CAUSE_COND_UNKNOWN   = $00;
+  CAUSE_COND_PERMANENT = $01;
+  CAUSE_COND_TRANSIENT = $02;
+
 //-------------------------------------------------------------
 // values used for the Rejection Reason portion of the Diagnostics field
 // in struct ATM_CAUSE_IE, for certain Cause values
 
-	CAUSE_REASON_USER            = $00;
-	CAUSE_REASON_IE_MISSING      = $04;
-	CAUSE_REASON_IE_INSUFFICIENT = $08;
-	
+  CAUSE_REASON_USER            = $00;
+  CAUSE_REASON_IE_MISSING      = $04;
+  CAUSE_REASON_IE_INSUFFICIENT = $08;
+
 //-------------------------------------------------------------
 // values used for the P-U flag of the Diagnostics field
 // in struct ATM_CAUSE_IE, for certain Cause values
-	CAUSE_PU_PROVIDER = $00;
-	CAUSE_PU_USER     = $08;
+  CAUSE_PU_PROVIDER = $00;
+  CAUSE_PU_USER     = $08;
 
 //-------------------------------------------------------------
 // values used for the N-A flag of the Diagnostics field
 // in struct ATM_CAUSE_IE, for certain Cause values
-	CAUSE_NA_NORMAL = $00;
-	CAUSE_NA_ABNORMAL = $04;
+  CAUSE_NA_NORMAL = $00;
+  CAUSE_NA_ABNORMAL = $04;
 
 type
-	ATM_CAUSE_IE = record
-		Location          : Byte;
-		Cause             : Byte;
-		DiagnosticsLength : Byte;
-		Diagnostics       : Array[0..3] of Byte;
-	end;
-	
+  ATM_CAUSE_IE = record
+    Location          : Byte;
+    Cause             : Byte;
+    DiagnosticsLength : Byte;
+    Diagnostics       : Array[0..3] of Byte;
+  end;
+
 //-------------------------------------------------------------
 // values used for the QOSClassForward and QOSClassBackward
 // field in struct ATM_QOS_CLASS_IE
 const
-	QOS_CLASS0 = $00;
-	QOS_CLASS1 = $01;
-	QOS_CLASS2 = $02;
-	QOS_CLASS3 = $03;
-	QOS_CLASS4 = $04;
+  QOS_CLASS0 = $00;
+  QOS_CLASS1 = $01;
+  QOS_CLASS2 = $02;
+  QOS_CLASS3 = $03;
+  QOS_CLASS4 = $04;
 
 type
-	ATM_QOS_CLASS_IE = packed record
-		QOSClassForward  : Byte;
-		QOSClassBackward : Byte;
-	end;
-	
+  ATM_QOS_CLASS_IE = packed record
+    QOSClassForward  : Byte;
+    QOSClassBackward : Byte;
+  end;
+
 //-------------------------------------------------------------
 // values used for the TypeOfNetworkId field in struct ATM_TRANSIT_NETWORK_SELECTION_IE
 const
-	TNS_TYPE_NATIONAL = $40;
+  TNS_TYPE_NATIONAL = $40;
 
 //-------------------------------------------------------------
 // values used for the NetworkIdPlan field in struct ATM_TRANSIT_NETWORK_SELECTION_IE
-	TNS_PLAN_CARRIER_ID_CODE = $01;
+  TNS_PLAN_CARRIER_ID_CODE = $01;
 
 type
-	ATM_TRANSIT_NETWORK_SELECTION_IE = record
-		TypeOfNetworkId : Byte;
-		NetworkIdPlan   : Byte;
-		NetworkIdLength : Byte;
-		NetworkId : Array[0..0] of Byte;
-	end;
-	
+  ATM_TRANSIT_NETWORK_SELECTION_IE = record
+    TypeOfNetworkId : Byte;
+    NetworkIdPlan   : Byte;
+    NetworkIdLength : Byte;
+    NetworkId : Array[0..0] of Byte;
+  end;
+
 //-------------------------------------------------------------
 // ATM specific Ioctl codes
 const
-	SIO_GET_NUMBER_OF_ATM_DEVICES = $50160001;
-	SIO_GET_ATM_ADDRESS           = $d0160002;
-	SIO_ASSOCIATE_PVC             = $90160003;
-	SIO_GET_ATM_CONNECTION_ID     = $50160004; // ATM Connection Identifier
+  SIO_GET_NUMBER_OF_ATM_DEVICES = $50160001;
+  SIO_GET_ATM_ADDRESS           = $d0160002;
+  SIO_ASSOCIATE_PVC             = $90160003;
+  SIO_GET_ATM_CONNECTION_ID     = $50160004; // ATM Connection Identifier
 
 type
-	ATM_CONNECTION_ID = packed record
-		DeviceNumber : DWORD;
-		VPI          : DWORD;
-		VCI          : DWORD;
-	end;
+  ATM_CONNECTION_ID = packed record
+    DeviceNumber : DWORD;
+    VPI          : DWORD;
+    VCI          : DWORD;
+  end;
 
 // Input buffer format for SIO_ASSOCIATE_PVC
-	ATM_PVC_PARAMS = packed record
-		PvcConnectionId : ATM_CONNECTION_ID;
-		PvcQos          : QOS;
-	end;
+  ATM_PVC_PARAMS = packed record
+    PvcConnectionId : ATM_CONNECTION_ID;
+    PvcQos          : QOS;
+  end;
 
 function slWinsock2Loaded : Boolean;
 function slWinsock2BuildError( const ATitle : AnsiString; AWin32Error : DWORD ): AnsiString;
@@ -2518,7 +2518,7 @@ begin
   begin
     Result := SysUtils.SysErrorMessage(AWin32Error);
     if ATitle <> '' then
-	  Result:= ATitle+': '+ Result;
+    Result:= ATitle+': '+ Result;
   end;
 end;
 
@@ -2662,128 +2662,128 @@ procedure WS2Stub_WSARecvEx;                        asm  mov eax,111; call WS2Ca
 const
   WS2StubEntryCount = 112;
   WS2StubTable : Array [0..WS2StubEntryCount-1] of WS2StubEntry = (
-  	(StubProc: @WS2Stub_WSACleanup; ProcVar: @@WSACleanup; Name: 'WSACleanup'),
-  	(StubProc: @WS2Stub_accept; ProcVar: @@accept; Name: 'accept'),
-  	(StubProc: @WS2Stub_bind; ProcVar: @@bind; Name: 'bind'),
-  	(StubProc: @WS2Stub_closesocket; ProcVar: @@closesocket; Name: 'closesocket'),
-  	(StubProc: @WS2Stub_connect; ProcVar: @@connect; Name: 'connect'),
-  	(StubProc: @WS2Stub_ioctlsocket; ProcVar: @@ioctlsocket; Name: 'ioctlsocket'),
-  	(StubProc: @WS2Stub_getpeername; ProcVar: @@getpeername; Name: 'getpeername'),
-  	(StubProc: @WS2Stub_getsockname; ProcVar: @@getsockname; Name: 'getsockname'),
-  	(StubProc: @WS2Stub_getsockopt; ProcVar: @@getsockopt; Name: 'getsockopt'),
-  	(StubProc: @WS2Stub_htonl; ProcVar: @@htonl; Name: 'htonl'),
-  	(StubProc: @WS2Stub_htons; ProcVar: @@htons; Name: 'htons'),
-  	(StubProc: @WS2Stub_inet_addr; ProcVar: @@inet_addr; Name: 'inet_addr'),
-  	(StubProc: @WS2Stub_inet_ntoa; ProcVar: @@inet_ntoa; Name: 'inet_ntoa'),
-  	(StubProc: @WS2Stub_listen; ProcVar: @@listen; Name: 'listen'),
-  	(StubProc: @WS2Stub_ntohl; ProcVar: @@ntohl; Name: 'ntohl'),
-  	(StubProc: @WS2Stub_ntohs; ProcVar: @@ntohs; Name: 'ntohs'),
-  	(StubProc: @WS2Stub_recv; ProcVar: @@recv; Name: 'recv'),
-  	(StubProc: @WS2Stub_recvfrom; ProcVar: @@recvfrom; Name: 'recvfrom'),
-  	(StubProc: @WS2Stub_select; ProcVar: @@select; Name: 'select'),
-  	(StubProc: @WS2Stub_send; ProcVar: @@send; Name: 'send'),
-  	(StubProc: @WS2Stub_sendto; ProcVar: @@sendto; Name: 'sendto'),
-  	(StubProc: @WS2Stub_setsockopt; ProcVar: @@setsockopt; Name: 'setsockopt'),
-  	(StubProc: @WS2Stub_shutdown; ProcVar: @@shutdown; Name: 'shutdown'),
-  	(StubProc: @WS2Stub_socket; ProcVar: @@socket; Name: 'socket'),
-  	(StubProc: @WS2Stub_gethostbyaddr; ProcVar: @@gethostbyaddr; Name: 'gethostbyaddr'),
-  	(StubProc: @WS2Stub_gethostbyname; ProcVar: @@gethostbyname; Name: 'gethostbyname'),
-  	(StubProc: @WS2Stub_gethostname; ProcVar: @@gethostname; Name: 'gethostname'),
-  	(StubProc: @WS2Stub_getservbyport; ProcVar: @@getservbyport; Name: 'getservbyport'),
-  	(StubProc: @WS2Stub_getservbyname; ProcVar: @@getservbyname; Name: 'getservbyname'),
-  	(StubProc: @WS2Stub_getprotobynumber; ProcVar: @@getprotobynumber; Name: 'getprotobynumber'),
-  	(StubProc: @WS2Stub_getprotobyname; ProcVar: @@getprotobyname; Name: 'getprotobyname'),
-  	(StubProc: @WS2Stub_WSASetLastError; ProcVar: @@WSASetLastError; Name: 'WSASetLastError'),
-  	(StubProc: @WS2Stub_WSAGetLastError; ProcVar: @@WSAGetLastError; Name: 'WSAGetLastError'),
-  	(StubProc: @WS2Stub_WSAIsBlocking; ProcVar: @@WSAIsBlocking; Name: 'WSAIsBlocking'),
-  	(StubProc: @WS2Stub_WSAUnhookBlockingHook; ProcVar: @@WSAUnhookBlockingHook; Name: 'WSAUnhookBlockingHook'),
-  	(StubProc: @WS2Stub_WSASetBlockingHook; ProcVar: @@WSASetBlockingHook; Name: 'WSASetBlockingHook'),
-  	(StubProc: @WS2Stub_WSACancelBlockingCall; ProcVar: @@WSACancelBlockingCall; Name: 'WSACancelBlockingCall'),
-  	(StubProc: @WS2Stub_WSAAsyncGetServByName; ProcVar: @@WSAAsyncGetServByName; Name: 'WSAAsyncGetServByName'),
-  	(StubProc: @WS2Stub_WSAAsyncGetServByPort; ProcVar: @@WSAAsyncGetServByPort; Name: 'WSAAsyncGetServByPort'),
-  	(StubProc: @WS2Stub_WSAAsyncGetProtoByName; ProcVar: @@WSAAsyncGetProtoByName; Name: 'WSAAsyncGetProtoByName'),
-  	(StubProc: @WS2Stub_WSAAsyncGetProtoByNumber; ProcVar: @@WSAAsyncGetProtoByNumber; Name: 'WSAAsyncGetProtoByNumber'),
-  	(StubProc: @WS2Stub_WSAAsyncGetHostByName; ProcVar: @@WSAAsyncGetHostByName; Name: 'WSAAsyncGetHostByName'),
-  	(StubProc: @WS2Stub_WSAAsyncGetHostByAddr; ProcVar: @@WSAAsyncGetHostByAddr; Name: 'WSAAsyncGetHostByAddr'),
-  	(StubProc: @WS2Stub_WSACancelAsyncRequest; ProcVar: @@WSACancelAsyncRequest; Name: 'WSACancelAsyncRequest'),
-  	(StubProc: @WS2Stub_WSAAsyncSelect; ProcVar: @@WSAAsyncSelect; Name: 'WSAAsyncSelect'),
-  	(StubProc: @WS2Stub___WSAFDIsSet; ProcVar: @@__WSAFDIsSet; Name: '__WSAFDIsSet'),
-  	(StubProc: @WS2Stub_WSAAccept; ProcVar: @@WSAAccept; Name: 'WSAAccept'),
-  	(StubProc: @WS2Stub_WSACloseEvent; ProcVar: @@WSACloseEvent; Name: 'WSACloseEvent'),
-  	(StubProc: @WS2Stub_WSAConnect; ProcVar: @@WSAConnect; Name: 'WSAConnect'),
-  	(StubProc: @WS2Stub_WSACreateEvent ; ProcVar: @@WSACreateEvent ; Name: 'WSACreateEvent '),
-  	(StubProc: @WS2Stub_WSADuplicateSocketA; ProcVar: @@WSADuplicateSocketA; Name: 'WSADuplicateSocketA'),
-  	(StubProc: @WS2Stub_WSADuplicateSocketW; ProcVar: @@WSADuplicateSocketW; Name: 'WSADuplicateSocketW'),
-  	(StubProc: @WS2Stub_WSAEnumNetworkEvents; ProcVar: @@WSAEnumNetworkEvents; Name: 'WSAEnumNetworkEvents'),
-  	(StubProc: @WS2Stub_WSAEnumProtocolsA; ProcVar: @@WSAEnumProtocolsA; Name: 'WSAEnumProtocolsA'),
-  	(StubProc: @WS2Stub_WSAEnumProtocolsW; ProcVar: @@WSAEnumProtocolsW; Name: 'WSAEnumProtocolsW'),
-  	(StubProc: @WS2Stub_WSAEventSelect; ProcVar: @@WSAEventSelect; Name: 'WSAEventSelect'),
-  	(StubProc: @WS2Stub_WSAGetOverlappedResult; ProcVar: @@WSAGetOverlappedResult; Name: 'WSAGetOverlappedResult'),
-  	(StubProc: @WS2Stub_WSAGetQosByName; ProcVar: @@WSAGetQosByName; Name: 'WSAGetQosByName'),
-  	(StubProc: @WS2Stub_WSAHtonl; ProcVar: @@WSAHtonl; Name: 'WSAHtonl'),
-  	(StubProc: @WS2Stub_WSAHtons; ProcVar: @@WSAHtons; Name: 'WSAHtons'),
-  	(StubProc: @WS2Stub_WSAIoctl; ProcVar: @@WSAIoctl; Name: 'WSAIoctl'),
-  	(StubProc: @WS2Stub_WSAJoinLeaf; ProcVar: @@WSAJoinLeaf; Name: 'WSAJoinLeaf'),
-  	(StubProc: @WS2Stub_WSANtohl; ProcVar: @@WSANtohl; Name: 'WSANtohl'),
-  	(StubProc: @WS2Stub_WSANtohs; ProcVar: @@WSANtohs; Name: 'WSANtohs'),
-  	(StubProc: @WS2Stub_WSARecv; ProcVar: @@WSARecv; Name: 'WSARecv'),
-  	(StubProc: @WS2Stub_WSARecvDisconnect; ProcVar: @@WSARecvDisconnect; Name: 'WSARecvDisconnect'),
-  	(StubProc: @WS2Stub_WSARecvFrom; ProcVar: @@WSARecvFrom; Name: 'WSARecvFrom'),
-  	(StubProc: @WS2Stub_WSAResetEvent; ProcVar: @@WSAResetEvent; Name: 'WSAResetEvent'),
-  	(StubProc: @WS2Stub_WSASend; ProcVar: @@WSASend; Name: 'WSASend'),
-  	(StubProc: @WS2Stub_WSASendDisconnect; ProcVar: @@WSASendDisconnect; Name: 'WSASendDisconnect'),
-  	(StubProc: @WS2Stub_WSASendTo; ProcVar: @@WSASendTo; Name: 'WSASendTo'),
-  	(StubProc: @WS2Stub_WSASetEvent; ProcVar: @@WSASetEvent; Name: 'WSASetEvent'),
-  	(StubProc: @WS2Stub_WSASocketA; ProcVar: @@WSASocketA; Name: 'WSASocketA'),
-  	(StubProc: @WS2Stub_WSASocketW; ProcVar: @@WSASocketW; Name: 'WSASocketW'),
-  	(StubProc: @WS2Stub_WSAWaitForMultipleEvents; ProcVar: @@WSAWaitForMultipleEvents; Name: 'WSAWaitForMultipleEvents'),
-  	(StubProc: @WS2Stub_WSAAddressToStringA; ProcVar: @@WSAAddressToStringA; Name: 'WSAAddressToStringA'),
-  	(StubProc: @WS2Stub_WSAAddressToStringW; ProcVar: @@WSAAddressToStringW; Name: 'WSAAddressToStringW'),
-  	(StubProc: @WS2Stub_WSAStringToAddressA; ProcVar: @@WSAStringToAddressA; Name: 'WSAStringToAddressA'),
-  	(StubProc: @WS2Stub_WSAStringToAddressW; ProcVar: @@WSAStringToAddressW; Name: 'WSAStringToAddressW'),
-  	(StubProc: @WS2Stub_WSALookupServiceBeginA; ProcVar: @@WSALookupServiceBeginA; Name: 'WSALookupServiceBeginA'),
-  	(StubProc: @WS2Stub_WSALookupServiceBeginW; ProcVar: @@WSALookupServiceBeginW; Name: 'WSALookupServiceBeginW'),
-  	(StubProc: @WS2Stub_WSALookupServiceNextA; ProcVar: @@WSALookupServiceNextA; Name: 'WSALookupServiceNextA'),
-  	(StubProc: @WS2Stub_WSALookupServiceNextW; ProcVar: @@WSALookupServiceNextW; Name: 'WSALookupServiceNextW'),
-  	(StubProc: @WS2Stub_WSALookupServiceEnd; ProcVar: @@WSALookupServiceEnd; Name: 'WSALookupServiceEnd'),
-  	(StubProc: @WS2Stub_WSAInstallServiceClassA; ProcVar: @@WSAInstallServiceClassA; Name: 'WSAInstallServiceClassA'),
-  	(StubProc: @WS2Stub_WSAInstallServiceClassW; ProcVar: @@WSAInstallServiceClassW; Name: 'WSAInstallServiceClassW'),
-  	(StubProc: @WS2Stub_WSARemoveServiceClass; ProcVar: @@WSARemoveServiceClass; Name: 'WSARemoveServiceClass'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassInfoA; ProcVar: @@WSAGetServiceClassInfoA; Name: 'WSAGetServiceClassInfoA'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassInfoW; ProcVar: @@WSAGetServiceClassInfoW; Name: 'WSAGetServiceClassInfoW'),
-  	(StubProc: @WS2Stub_WSAEnumNameSpaceProvidersA; ProcVar: @@WSAEnumNameSpaceProvidersA; Name: 'WSAEnumNameSpaceProvidersA'),
-  	(StubProc: @WS2Stub_WSAEnumNameSpaceProvidersW; ProcVar: @@WSAEnumNameSpaceProvidersW; Name: 'WSAEnumNameSpaceProvidersW'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassNameByClassIdA; ProcVar: @@WSAGetServiceClassNameByClassIdA; Name: 'WSAGetServiceClassNameByClassIdA'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassNameByClassIdW; ProcVar: @@WSAGetServiceClassNameByClassIdW; Name: 'WSAGetServiceClassNameByClassIdW'),
-  	(StubProc: @WS2Stub_WSASetServiceA; ProcVar: @@WSASetServiceA; Name: 'WSASetServiceA'),
-  	(StubProc: @WS2Stub_WSASetServiceW; ProcVar: @@WSASetServiceW; Name: 'WSASetServiceW'),
-  	(StubProc: @WS2Stub_WSAProviderConfigChange; ProcVar: @@WSAProviderConfigChange; Name: 'WSAProviderConfigChange'),
+    (StubProc: @WS2Stub_WSACleanup; ProcVar: @@WSACleanup; Name: 'WSACleanup'),
+    (StubProc: @WS2Stub_accept; ProcVar: @@accept; Name: 'accept'),
+    (StubProc: @WS2Stub_bind; ProcVar: @@bind; Name: 'bind'),
+    (StubProc: @WS2Stub_closesocket; ProcVar: @@closesocket; Name: 'closesocket'),
+    (StubProc: @WS2Stub_connect; ProcVar: @@connect; Name: 'connect'),
+    (StubProc: @WS2Stub_ioctlsocket; ProcVar: @@ioctlsocket; Name: 'ioctlsocket'),
+    (StubProc: @WS2Stub_getpeername; ProcVar: @@getpeername; Name: 'getpeername'),
+    (StubProc: @WS2Stub_getsockname; ProcVar: @@getsockname; Name: 'getsockname'),
+    (StubProc: @WS2Stub_getsockopt; ProcVar: @@getsockopt; Name: 'getsockopt'),
+    (StubProc: @WS2Stub_htonl; ProcVar: @@htonl; Name: 'htonl'),
+    (StubProc: @WS2Stub_htons; ProcVar: @@htons; Name: 'htons'),
+    (StubProc: @WS2Stub_inet_addr; ProcVar: @@inet_addr; Name: 'inet_addr'),
+    (StubProc: @WS2Stub_inet_ntoa; ProcVar: @@inet_ntoa; Name: 'inet_ntoa'),
+    (StubProc: @WS2Stub_listen; ProcVar: @@listen; Name: 'listen'),
+    (StubProc: @WS2Stub_ntohl; ProcVar: @@ntohl; Name: 'ntohl'),
+    (StubProc: @WS2Stub_ntohs; ProcVar: @@ntohs; Name: 'ntohs'),
+    (StubProc: @WS2Stub_recv; ProcVar: @@recv; Name: 'recv'),
+    (StubProc: @WS2Stub_recvfrom; ProcVar: @@recvfrom; Name: 'recvfrom'),
+    (StubProc: @WS2Stub_select; ProcVar: @@select; Name: 'select'),
+    (StubProc: @WS2Stub_send; ProcVar: @@send; Name: 'send'),
+    (StubProc: @WS2Stub_sendto; ProcVar: @@sendto; Name: 'sendto'),
+    (StubProc: @WS2Stub_setsockopt; ProcVar: @@setsockopt; Name: 'setsockopt'),
+    (StubProc: @WS2Stub_shutdown; ProcVar: @@shutdown; Name: 'shutdown'),
+    (StubProc: @WS2Stub_socket; ProcVar: @@socket; Name: 'socket'),
+    (StubProc: @WS2Stub_gethostbyaddr; ProcVar: @@gethostbyaddr; Name: 'gethostbyaddr'),
+    (StubProc: @WS2Stub_gethostbyname; ProcVar: @@gethostbyname; Name: 'gethostbyname'),
+    (StubProc: @WS2Stub_gethostname; ProcVar: @@gethostname; Name: 'gethostname'),
+    (StubProc: @WS2Stub_getservbyport; ProcVar: @@getservbyport; Name: 'getservbyport'),
+    (StubProc: @WS2Stub_getservbyname; ProcVar: @@getservbyname; Name: 'getservbyname'),
+    (StubProc: @WS2Stub_getprotobynumber; ProcVar: @@getprotobynumber; Name: 'getprotobynumber'),
+    (StubProc: @WS2Stub_getprotobyname; ProcVar: @@getprotobyname; Name: 'getprotobyname'),
+    (StubProc: @WS2Stub_WSASetLastError; ProcVar: @@WSASetLastError; Name: 'WSASetLastError'),
+    (StubProc: @WS2Stub_WSAGetLastError; ProcVar: @@WSAGetLastError; Name: 'WSAGetLastError'),
+    (StubProc: @WS2Stub_WSAIsBlocking; ProcVar: @@WSAIsBlocking; Name: 'WSAIsBlocking'),
+    (StubProc: @WS2Stub_WSAUnhookBlockingHook; ProcVar: @@WSAUnhookBlockingHook; Name: 'WSAUnhookBlockingHook'),
+    (StubProc: @WS2Stub_WSASetBlockingHook; ProcVar: @@WSASetBlockingHook; Name: 'WSASetBlockingHook'),
+    (StubProc: @WS2Stub_WSACancelBlockingCall; ProcVar: @@WSACancelBlockingCall; Name: 'WSACancelBlockingCall'),
+    (StubProc: @WS2Stub_WSAAsyncGetServByName; ProcVar: @@WSAAsyncGetServByName; Name: 'WSAAsyncGetServByName'),
+    (StubProc: @WS2Stub_WSAAsyncGetServByPort; ProcVar: @@WSAAsyncGetServByPort; Name: 'WSAAsyncGetServByPort'),
+    (StubProc: @WS2Stub_WSAAsyncGetProtoByName; ProcVar: @@WSAAsyncGetProtoByName; Name: 'WSAAsyncGetProtoByName'),
+    (StubProc: @WS2Stub_WSAAsyncGetProtoByNumber; ProcVar: @@WSAAsyncGetProtoByNumber; Name: 'WSAAsyncGetProtoByNumber'),
+    (StubProc: @WS2Stub_WSAAsyncGetHostByName; ProcVar: @@WSAAsyncGetHostByName; Name: 'WSAAsyncGetHostByName'),
+    (StubProc: @WS2Stub_WSAAsyncGetHostByAddr; ProcVar: @@WSAAsyncGetHostByAddr; Name: 'WSAAsyncGetHostByAddr'),
+    (StubProc: @WS2Stub_WSACancelAsyncRequest; ProcVar: @@WSACancelAsyncRequest; Name: 'WSACancelAsyncRequest'),
+    (StubProc: @WS2Stub_WSAAsyncSelect; ProcVar: @@WSAAsyncSelect; Name: 'WSAAsyncSelect'),
+    (StubProc: @WS2Stub___WSAFDIsSet; ProcVar: @@__WSAFDIsSet; Name: '__WSAFDIsSet'),
+    (StubProc: @WS2Stub_WSAAccept; ProcVar: @@WSAAccept; Name: 'WSAAccept'),
+    (StubProc: @WS2Stub_WSACloseEvent; ProcVar: @@WSACloseEvent; Name: 'WSACloseEvent'),
+    (StubProc: @WS2Stub_WSAConnect; ProcVar: @@WSAConnect; Name: 'WSAConnect'),
+    (StubProc: @WS2Stub_WSACreateEvent ; ProcVar: @@WSACreateEvent ; Name: 'WSACreateEvent '),
+    (StubProc: @WS2Stub_WSADuplicateSocketA; ProcVar: @@WSADuplicateSocketA; Name: 'WSADuplicateSocketA'),
+    (StubProc: @WS2Stub_WSADuplicateSocketW; ProcVar: @@WSADuplicateSocketW; Name: 'WSADuplicateSocketW'),
+    (StubProc: @WS2Stub_WSAEnumNetworkEvents; ProcVar: @@WSAEnumNetworkEvents; Name: 'WSAEnumNetworkEvents'),
+    (StubProc: @WS2Stub_WSAEnumProtocolsA; ProcVar: @@WSAEnumProtocolsA; Name: 'WSAEnumProtocolsA'),
+    (StubProc: @WS2Stub_WSAEnumProtocolsW; ProcVar: @@WSAEnumProtocolsW; Name: 'WSAEnumProtocolsW'),
+    (StubProc: @WS2Stub_WSAEventSelect; ProcVar: @@WSAEventSelect; Name: 'WSAEventSelect'),
+    (StubProc: @WS2Stub_WSAGetOverlappedResult; ProcVar: @@WSAGetOverlappedResult; Name: 'WSAGetOverlappedResult'),
+    (StubProc: @WS2Stub_WSAGetQosByName; ProcVar: @@WSAGetQosByName; Name: 'WSAGetQosByName'),
+    (StubProc: @WS2Stub_WSAHtonl; ProcVar: @@WSAHtonl; Name: 'WSAHtonl'),
+    (StubProc: @WS2Stub_WSAHtons; ProcVar: @@WSAHtons; Name: 'WSAHtons'),
+    (StubProc: @WS2Stub_WSAIoctl; ProcVar: @@WSAIoctl; Name: 'WSAIoctl'),
+    (StubProc: @WS2Stub_WSAJoinLeaf; ProcVar: @@WSAJoinLeaf; Name: 'WSAJoinLeaf'),
+    (StubProc: @WS2Stub_WSANtohl; ProcVar: @@WSANtohl; Name: 'WSANtohl'),
+    (StubProc: @WS2Stub_WSANtohs; ProcVar: @@WSANtohs; Name: 'WSANtohs'),
+    (StubProc: @WS2Stub_WSARecv; ProcVar: @@WSARecv; Name: 'WSARecv'),
+    (StubProc: @WS2Stub_WSARecvDisconnect; ProcVar: @@WSARecvDisconnect; Name: 'WSARecvDisconnect'),
+    (StubProc: @WS2Stub_WSARecvFrom; ProcVar: @@WSARecvFrom; Name: 'WSARecvFrom'),
+    (StubProc: @WS2Stub_WSAResetEvent; ProcVar: @@WSAResetEvent; Name: 'WSAResetEvent'),
+    (StubProc: @WS2Stub_WSASend; ProcVar: @@WSASend; Name: 'WSASend'),
+    (StubProc: @WS2Stub_WSASendDisconnect; ProcVar: @@WSASendDisconnect; Name: 'WSASendDisconnect'),
+    (StubProc: @WS2Stub_WSASendTo; ProcVar: @@WSASendTo; Name: 'WSASendTo'),
+    (StubProc: @WS2Stub_WSASetEvent; ProcVar: @@WSASetEvent; Name: 'WSASetEvent'),
+    (StubProc: @WS2Stub_WSASocketA; ProcVar: @@WSASocketA; Name: 'WSASocketA'),
+    (StubProc: @WS2Stub_WSASocketW; ProcVar: @@WSASocketW; Name: 'WSASocketW'),
+    (StubProc: @WS2Stub_WSAWaitForMultipleEvents; ProcVar: @@WSAWaitForMultipleEvents; Name: 'WSAWaitForMultipleEvents'),
+    (StubProc: @WS2Stub_WSAAddressToStringA; ProcVar: @@WSAAddressToStringA; Name: 'WSAAddressToStringA'),
+    (StubProc: @WS2Stub_WSAAddressToStringW; ProcVar: @@WSAAddressToStringW; Name: 'WSAAddressToStringW'),
+    (StubProc: @WS2Stub_WSAStringToAddressA; ProcVar: @@WSAStringToAddressA; Name: 'WSAStringToAddressA'),
+    (StubProc: @WS2Stub_WSAStringToAddressW; ProcVar: @@WSAStringToAddressW; Name: 'WSAStringToAddressW'),
+    (StubProc: @WS2Stub_WSALookupServiceBeginA; ProcVar: @@WSALookupServiceBeginA; Name: 'WSALookupServiceBeginA'),
+    (StubProc: @WS2Stub_WSALookupServiceBeginW; ProcVar: @@WSALookupServiceBeginW; Name: 'WSALookupServiceBeginW'),
+    (StubProc: @WS2Stub_WSALookupServiceNextA; ProcVar: @@WSALookupServiceNextA; Name: 'WSALookupServiceNextA'),
+    (StubProc: @WS2Stub_WSALookupServiceNextW; ProcVar: @@WSALookupServiceNextW; Name: 'WSALookupServiceNextW'),
+    (StubProc: @WS2Stub_WSALookupServiceEnd; ProcVar: @@WSALookupServiceEnd; Name: 'WSALookupServiceEnd'),
+    (StubProc: @WS2Stub_WSAInstallServiceClassA; ProcVar: @@WSAInstallServiceClassA; Name: 'WSAInstallServiceClassA'),
+    (StubProc: @WS2Stub_WSAInstallServiceClassW; ProcVar: @@WSAInstallServiceClassW; Name: 'WSAInstallServiceClassW'),
+    (StubProc: @WS2Stub_WSARemoveServiceClass; ProcVar: @@WSARemoveServiceClass; Name: 'WSARemoveServiceClass'),
+    (StubProc: @WS2Stub_WSAGetServiceClassInfoA; ProcVar: @@WSAGetServiceClassInfoA; Name: 'WSAGetServiceClassInfoA'),
+    (StubProc: @WS2Stub_WSAGetServiceClassInfoW; ProcVar: @@WSAGetServiceClassInfoW; Name: 'WSAGetServiceClassInfoW'),
+    (StubProc: @WS2Stub_WSAEnumNameSpaceProvidersA; ProcVar: @@WSAEnumNameSpaceProvidersA; Name: 'WSAEnumNameSpaceProvidersA'),
+    (StubProc: @WS2Stub_WSAEnumNameSpaceProvidersW; ProcVar: @@WSAEnumNameSpaceProvidersW; Name: 'WSAEnumNameSpaceProvidersW'),
+    (StubProc: @WS2Stub_WSAGetServiceClassNameByClassIdA; ProcVar: @@WSAGetServiceClassNameByClassIdA; Name: 'WSAGetServiceClassNameByClassIdA'),
+    (StubProc: @WS2Stub_WSAGetServiceClassNameByClassIdW; ProcVar: @@WSAGetServiceClassNameByClassIdW; Name: 'WSAGetServiceClassNameByClassIdW'),
+    (StubProc: @WS2Stub_WSASetServiceA; ProcVar: @@WSASetServiceA; Name: 'WSASetServiceA'),
+    (StubProc: @WS2Stub_WSASetServiceW; ProcVar: @@WSASetServiceW; Name: 'WSASetServiceW'),
+    (StubProc: @WS2Stub_WSAProviderConfigChange; ProcVar: @@WSAProviderConfigChange; Name: 'WSAProviderConfigChange'),
 {$IFDEF UNICODE}
-  	(StubProc: @WS2Stub_WSADuplicateSocket; ProcVar: @@WSADuplicateSocket; Name: 'WSADuplicateSocketW'),
-  	(StubProc: @WS2Stub_WSAEnumProtocols; ProcVar: @@WSAEnumProtocols; Name: 'WSAEnumProtocolsW'),
-  	(StubProc: @WS2Stub_WSASocket; ProcVar: @@WSASocket; Name: 'WSASocketW'),
-  	(StubProc: @WS2Stub_WSAAddressToString; ProcVar: @@WSAAddressToString; Name: 'WSAAddressToStringW'),
-  	(StubProc: @WS2Stub_WSAStringToAddress; ProcVar: @@WSAStringToAddress; Name: 'WSAStringToAddressW'),
-  	(StubProc: @WS2Stub_WSALookupServiceBegin; ProcVar: @@WSALookupServiceBegin; Name: 'WSALookupServiceBeginW'),
-  	(StubProc: @WS2Stub_WSALookupServiceNext; ProcVar: @@WSALookupServiceNext; Name: 'WSALookupServiceNextW'),
-  	(StubProc: @WS2Stub_WSAInstallServiceClass; ProcVar: @@WSAInstallServiceClass; Name: 'WSAInstallServiceClassW'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassInfo; ProcVar: @@WSAGetServiceClassInfo; Name: 'WSAGetServiceClassInfoW'),
-  	(StubProc: @WS2Stub_WSAEnumNameSpaceProviders; ProcVar: @@WSAEnumNameSpaceProviders; Name: 'WSAEnumNameSpaceProvidersW'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassNameByClassId; ProcVar: @@WSAGetServiceClassNameByClassId; Name: 'WSAGetServiceClassNameByClassIdW'),
-  	(StubProc: @WS2Stub_WSASetService; ProcVar: @@WSASetService; Name: 'WSASetServiceW'),
+    (StubProc: @WS2Stub_WSADuplicateSocket; ProcVar: @@WSADuplicateSocket; Name: 'WSADuplicateSocketW'),
+    (StubProc: @WS2Stub_WSAEnumProtocols; ProcVar: @@WSAEnumProtocols; Name: 'WSAEnumProtocolsW'),
+    (StubProc: @WS2Stub_WSASocket; ProcVar: @@WSASocket; Name: 'WSASocketW'),
+    (StubProc: @WS2Stub_WSAAddressToString; ProcVar: @@WSAAddressToString; Name: 'WSAAddressToStringW'),
+    (StubProc: @WS2Stub_WSAStringToAddress; ProcVar: @@WSAStringToAddress; Name: 'WSAStringToAddressW'),
+    (StubProc: @WS2Stub_WSALookupServiceBegin; ProcVar: @@WSALookupServiceBegin; Name: 'WSALookupServiceBeginW'),
+    (StubProc: @WS2Stub_WSALookupServiceNext; ProcVar: @@WSALookupServiceNext; Name: 'WSALookupServiceNextW'),
+    (StubProc: @WS2Stub_WSAInstallServiceClass; ProcVar: @@WSAInstallServiceClass; Name: 'WSAInstallServiceClassW'),
+    (StubProc: @WS2Stub_WSAGetServiceClassInfo; ProcVar: @@WSAGetServiceClassInfo; Name: 'WSAGetServiceClassInfoW'),
+    (StubProc: @WS2Stub_WSAEnumNameSpaceProviders; ProcVar: @@WSAEnumNameSpaceProviders; Name: 'WSAEnumNameSpaceProvidersW'),
+    (StubProc: @WS2Stub_WSAGetServiceClassNameByClassId; ProcVar: @@WSAGetServiceClassNameByClassId; Name: 'WSAGetServiceClassNameByClassIdW'),
+    (StubProc: @WS2Stub_WSASetService; ProcVar: @@WSASetService; Name: 'WSASetServiceW'),
 {$ELSE}
-  	(StubProc: @WS2Stub_WSADuplicateSocket; ProcVar: @@WSADuplicateSocket; Name: 'WSADuplicateSocketA'),
-  	(StubProc: @WS2Stub_WSAEnumProtocols; ProcVar: @@WSAEnumProtocols; Name: 'WSAEnumProtocolsA'),
-  	(StubProc: @WS2Stub_WSASocket; ProcVar: @@WSASocket; Name: 'WSASocketA'),
-  	(StubProc: @WS2Stub_WSAAddressToString; ProcVar: @@WSAAddressToString; Name: 'WSAAddressToStringA'),
-  	(StubProc: @WS2Stub_WSAStringToAddress; ProcVar: @@WSAStringToAddress; Name: 'WSAStringToAddressA'),
-  	(StubProc: @WS2Stub_WSALookupServiceBegin; ProcVar: @@WSALookupServiceBegin; Name: 'WSALookupServiceBeginA'),
-  	(StubProc: @WS2Stub_WSALookupServiceNext; ProcVar: @@WSALookupServiceNext; Name: 'WSALookupServiceNextA'),
-  	(StubProc: @WS2Stub_WSAInstallServiceClass; ProcVar: @@WSAInstallServiceClass; Name: 'WSAInstallServiceClassA'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassInfo; ProcVar: @@WSAGetServiceClassInfo; Name: 'WSAGetServiceClassInfoA'),
-  	(StubProc: @WS2Stub_WSAEnumNameSpaceProviders; ProcVar: @@WSAEnumNameSpaceProviders; Name: 'WSAEnumNameSpaceProvidersA'),
-  	(StubProc: @WS2Stub_WSAGetServiceClassNameByClassId; ProcVar: @@WSAGetServiceClassNameByClassId; Name: 'WSAGetServiceClassNameByClassIdA'),
-  	(StubProc: @WS2Stub_WSASetService; ProcVar: @@WSASetService; Name: 'WSASetServiceA'),
+    (StubProc: @WS2Stub_WSADuplicateSocket; ProcVar: @@WSADuplicateSocket; Name: 'WSADuplicateSocketA'),
+    (StubProc: @WS2Stub_WSAEnumProtocols; ProcVar: @@WSAEnumProtocols; Name: 'WSAEnumProtocolsA'),
+    (StubProc: @WS2Stub_WSASocket; ProcVar: @@WSASocket; Name: 'WSASocketA'),
+    (StubProc: @WS2Stub_WSAAddressToString; ProcVar: @@WSAAddressToString; Name: 'WSAAddressToStringA'),
+    (StubProc: @WS2Stub_WSAStringToAddress; ProcVar: @@WSAStringToAddress; Name: 'WSAStringToAddressA'),
+    (StubProc: @WS2Stub_WSALookupServiceBegin; ProcVar: @@WSALookupServiceBegin; Name: 'WSALookupServiceBeginA'),
+    (StubProc: @WS2Stub_WSALookupServiceNext; ProcVar: @@WSALookupServiceNext; Name: 'WSALookupServiceNextA'),
+    (StubProc: @WS2Stub_WSAInstallServiceClass; ProcVar: @@WSAInstallServiceClass; Name: 'WSAInstallServiceClassA'),
+    (StubProc: @WS2Stub_WSAGetServiceClassInfo; ProcVar: @@WSAGetServiceClassInfo; Name: 'WSAGetServiceClassInfoA'),
+    (StubProc: @WS2Stub_WSAEnumNameSpaceProviders; ProcVar: @@WSAEnumNameSpaceProviders; Name: 'WSAEnumNameSpaceProvidersA'),
+    (StubProc: @WS2Stub_WSAGetServiceClassNameByClassId; ProcVar: @@WSAGetServiceClassNameByClassId; Name: 'WSAGetServiceClassNameByClassIdA'),
+    (StubProc: @WS2Stub_WSASetService; ProcVar: @@WSASetService; Name: 'WSASetServiceA'),
 {$ENDIF}
         (StubProc: @WS2Stub_TransmitFile; ProcVar: @@TransmitFile; Name: 'TransmitFile'),
         (StubProc: @WS2Stub_AcceptEx; ProcVar: @@AcceptEx; Name: 'AcceptEx'),
@@ -2791,7 +2791,7 @@ const
         (StubProc: @WS2Stub_WSARecvEx; ProcVar: @@WSARecvEx; Name: 'WSARecvEx')
 
 
-       	);
+        );
 
 
 function WS2Call( AStubEntryIndex : DWORD ) : Pointer;
@@ -2929,7 +2929,7 @@ begin
       begin
         System.Move(Name^,snb_name,len);
       end;
-      System.FillChar( (PChar(@snb_name)+len)^, NETBIOS_NAME_LENGTH-1-len, ' ' );    {Do not Localize}
+      System.FillChar( (PAnsiChar(@snb_name)+len)^, NETBIOS_NAME_LENGTH-1-len, ' ' );    {Do not Localize}
     end;
     snb_name[NETBIOS_NAME_LENGTH-1] := Port;
   end;

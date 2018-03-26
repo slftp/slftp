@@ -254,27 +254,26 @@ end;
 
 
 {$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
+  {$IFNDEF MSWINDOWS}
+  const
+    { Net type }
+    socklib = 'c';
 
-const
-  { Net type }
-  socklib = 'c';
+  Type
 
-Type
+    { THostEnt Object }
+    THostEnt = record
+      H_Name     : PAnsiChar;   { Official name }
+      H_Aliases  : ppansichar;  { Null-terminated list of aliases}
+      H_Addrtype : longint;   { Host address type }
+      H_length  : longint;   { Length of address }
+      H_Addr_list : ppansichar;    { null-terminated list of adresses }
+    end;
+    PHostEntry = ^THostEnt;
+    PHostEnt = PHostEntry;
 
-  { THostEnt Object }
-  THostEnt = record
-    H_Name     : PAnsiChar;   { Official name }
-    H_Aliases  : ppchar;  { Null-terminated list of aliases}
-    H_Addrtype : longint;   { Host address type }
-    H_length  : longint;   { Length of address }
-    H_Addr_list : ppchar;    { null-terminated list of adresses }
-  end;
-  PHostEntry = ^THostEnt;
-  PHostEnt = PHostEntry;
-
-function gethostbyname ( Name : PAnsiChar) : PHostEntry; cdecl; external socklib;
-{$ENDIF}
+  function gethostbyname ( Name : PAnsiChar) : PHostEntry; cdecl; external socklib;
+  {$ENDIF}
 {$ENDIF}
 
 
@@ -288,7 +287,7 @@ var
 begin
   Result:= '';
 
-  Host := GetHostByName(PChar(AHostName));
+  Host := GetHostByName(PAnsiChar(AHostName));
   if Host <> nil then
   begin
   {$IFDEF MSWINDOWS}
@@ -352,18 +351,12 @@ end;
 
 function slGetHostName: AnsiString;
 begin
-{$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
-  Result:= GetHostName;
-{$ELSE}
+{$IFDEF MSWINDOWS}
   SetLength(result, 250);
-  GetHostName(PChar(result), Length(result));
+  GetHostName(PAnsiChar(result), Length(result));
   Result := AnsiString(PAnsiChar(result));
-{$ENDIF}
 {$ELSE}
-  SetLength(result, 250);
-  GetHostName(PChar(result), Length(result));
-  Result := AnsiString(PAnsiChar(result));
+  Result := GetHostName;
 {$ENDIF}
 end;
 
@@ -379,7 +372,7 @@ var
 begin
   Result := True; //TODO: shouldn't this be false? And what about returning an error?
   l.Clear ;
-  AHost := GetHostByName(PChar(slGetHostName));
+  AHost := GetHostByName(PAnsiChar(slGetHostName));
   if AHost <> nil then
   begin
     {$IFDEF FPC}
@@ -534,7 +527,7 @@ begin
 (*
       setlength(Result, 255);
       strerror_r(err, @Result[1], 255);
-      Result:= string(PChar(Result));
+      Result:= string(PAnsiChar(Result));
 *)
 {$ENDIF}
 end;
