@@ -65,9 +65,9 @@ uses SysUtils, StrUtils,
   function MyGetPass(prompt: AnsiString): AnsiString;
   begin
     {$IFDEF FPC}
-      Result := 'blabla'; //StrPas(GetPass(PChar(prompt)));
+      Result := 'blabla'; //StrPas(GetPass(PAnsiChar(prompt)));
     {$ELSE}
-      Result:= StrPas(GetPass(PChar(prompt)));
+      Result:= StrPas(GetPass(PAnsiChar(prompt)));
     {$ENDIF}
   end;
 {$ENDIF}

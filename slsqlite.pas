@@ -6,7 +6,7 @@ interface
 type
 
   sqlite_int64 = int64;
-  PPPChar = ^PPChar;
+  PPPChar = ^PPAnsiChar;
   Psqlite3  = Pointer;
   PPSqlite3 = ^PSqlite3;
   Psqlite3_context  = Pointer;
@@ -64,7 +64,7 @@ type
     constructor Create(const filename: AnsiString; pragma: AnsiString);
     destructor Destroy; override;
   end;
-  
+
 Var
   sqlite3_close : function (_para1:Psqlite3):longint;cdecl;
   sqlite3_exec : function (_para1:Psqlite3; sql:PAnsiChar; _para3:sqlite3_callback; _para4:pointer; errmsg:PPchar):longint;cdecl;
@@ -79,11 +79,11 @@ Var
   sqlite3_get_table : function (_para1:Psqlite3; sql:PAnsiChar; resultp:PPPchar; nrow:Plongint; ncolumn:Plongint; errmsg:PPchar):longint;cdecl;
   sqlite3_free_table : procedure (result:PPchar);cdecl;
 // Todo: see how translate sqlite3_mprintf, sqlite3_vmprintf, sqlite3_snprintf
-//   sqlite3_mprintf : function (_para1:Pchar; args:array of const):Pchar;cdecl;
+//   sqlite3_mprintf : function (_para1:Pansichar; args:array of const):Pansichar;cdecl;
   sqlite3_mprintf : function (_para1:PAnsiChar):PAnsiChar;cdecl;
-//  sqlite3_vmprintf : function (_para1:Pchar; _para2:va_list):Pchar;cdecl;
+//  sqlite3_vmprintf : function (_para1:Pansichar; _para2:va_list):Pansichar;cdecl;
   sqlite3_free : procedure (z:PAnsiChar);cdecl;
-//  sqlite3_snprintf : function (_para1:longint; _para2:Pchar; _para3:Pchar; args:array of const):Pchar;cdecl;
+//  sqlite3_snprintf : function (_para1:longint; _para2:Pansichar; _para3:Pansichar; args:array of const):Pansichar;cdecl;
   sqlite3_snprintf : function (_para1:longint; _para2:PAnsiChar; _para3:PAnsiChar):PAnsiChar;cdecl;
   sqlite3_set_authorizer : function (_para1:Psqlite3; xAuth:sqlite3_set_authorizer_func; pUserData:pointer):longint;cdecl;
   sqlite3_trace : function (_para1:Psqlite3; xTrace:sqlite3_trace_func; _para3:pointer):pointer;cdecl;
@@ -164,7 +164,7 @@ Var
   sqlite3_result_text16 : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_text16le : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
   sqlite3_result_text16be : procedure (_para1:Psqlite3_context; _para2:pointer; _para3:longint; _para4:sqlite3_result_func);cdecl;
-  sqlite3_result_value : procedure (_para1:Psqlite3_context; _para2:Psqlite3_value);cdecl;     
+  sqlite3_result_value : procedure (_para1:Psqlite3_context; _para2:Psqlite3_value);cdecl;
   sqlite3_create_collation : function (_para1:Psqlite3; zName:PAnsiChar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
   sqlite3_create_collation16 : function (_para1:Psqlite3; zName:PAnsiChar; eTextRep:longint; _para4:pointer; xCompare:sqlite3_create_collation_func):longint;cdecl;
   sqlite3_collation_needed : function (_para1:Psqlite3; _para2:pointer; _para3:sqlite3_collation_needed_func):longint;cdecl;
@@ -266,7 +266,7 @@ const
   SQLITE_SELECT              = 21;
   SQLITE_TRANSACTION         = 22;
   SQLITE_UPDATE              =  23;
-  
+
   //Return values of the authorizer function
   SQLITE_DENY                = 1;
   SQLITE_IGNORE              = 2;
@@ -317,7 +317,7 @@ begin
 {$ELSE}
   {$IFDEF LINUX}
   // Workaround that is requered under Linux
-  if h_libsqlite = 0 then h_libsqlite := HMODULE(dlopen(PChar(ExtractFilePath(ParamStr(0))+slSqlite_libsqlite_name), RTLD_GLOBAL));
+  if h_libsqlite = 0 then h_libsqlite := HMODULE(dlopen(PAnsiChar(ExtractFilePath(ParamStr(0))+slSqlite_libsqlite_name), RTLD_GLOBAL));
   if h_libsqlite = 0 then h_libsqlite := HMODULE(dlopen(slSqlite_libsqlite_name, RTLD_GLOBAL));
   if h_libsqlite = 0 then
   begin
@@ -520,7 +520,7 @@ end;
 constructor TslSqliteDB.Create(const filename: AnsiString; pragma: AnsiString);
 var ss: AnsiString;
 begin
- if 0 <> SQLite3_Open(PChar(filename), @fSQLite) then
+ if 0 <> SQLite3_Open(PAnsiChar(filename), @fSQLite) then
    raise Exception.Create('Cant open sqlite');
 
  pragma:= Trim(pragma);

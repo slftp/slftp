@@ -30,7 +30,7 @@ var b, r, xn, x, xr, xne, evp: Pointer;
 begin
   Result:= False;
 
-  b:= slBIO_new_file(PChar(certpath), 'w');
+  b:= slBIO_new_file(PAnsiChar(certpath), 'w');
   if( b = nil) then exit;
 
   r:= slRSA_generate_key(keylen, 65537, nil, nil);
@@ -124,7 +124,7 @@ begin
     exit;
   end;
 
-  
+
   slPEM_write_bio_RSAPrivateKey(b, r, nil, nil, 0, nil, nil);
   slPEM_write_bio_X509(b, x);
 

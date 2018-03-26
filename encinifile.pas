@@ -13,7 +13,7 @@ type
     constructor Create(pass: TslMD5Data); overload;
     procedure LoadFromFile(const FileName: AnsiString); override;
     procedure LoadFromStream(Stream: TStream); override;
-    procedure SaveToStream(Stream: TStream); override; 
+    procedure SaveToStream(Stream: TStream); override;
   end;
 
   { TStringHash - used internally by TMemIniFile to optimize searches. }
@@ -128,7 +128,7 @@ type
     property CaseSensitive: Boolean read GetCaseSensitive write SetCaseSensitive;
   end;
 
-  
+
 implementation
 
 uses SysUtils, slblowfish, configunit;
@@ -412,7 +412,7 @@ begin
     try
       Pos := Stream.Position;
       Stream.SetSize(Stream.Size + Length(Text) div 2);
-      HexToBin(PChar(Text), PAnsiChar(Integer(Stream.Memory) + Stream.Position), Length(Text) div 2);
+      HexToBin(PAnsiChar(Text), PAnsiChar(Integer(Stream.Memory) + Stream.Position), Length(Text) div 2);
       Stream.Position := Pos;
       if Value <> Stream then
         Value.CopyFrom(Stream, Length(Text) div 2);
@@ -446,7 +446,7 @@ begin
         Stream.CopyFrom(Value, Value.Size - Value.Position);
         Stream.Position := 0;
       end;
-      BinToHex(PChar(Integer(Stream.Memory) + Stream.Position), PAnsiChar(Text),
+      BinToHex(PAnsiChar(Integer(Stream.Memory) + Stream.Position), PAnsiChar(Text),
         Stream.Size - Stream.Position);
     finally
       if Value <> Stream then
@@ -499,7 +499,7 @@ var
   Key: AnsiString;
 begin
   if FNameHashValid then Exit;
-  
+
   if FNameHash = nil then
     FNameHash := TStringHash.Create
   else
@@ -525,7 +525,7 @@ var
   I: Integer;
 begin
   if FValueHashValid then Exit;
-  
+
   if FValueHash = nil then
     FValueHash := TStringHash.Create
   else
@@ -564,7 +564,7 @@ destructor TEncIniFile.Destroy;
 begin
   if AutoUpdate then
     UpdateFile;
-    
+
   if FSections <> nil then
     Clear;
   FSections.Free;
@@ -612,8 +612,8 @@ begin
 
   if self.AutoUpdate then
     UpdateFile;
-  
-  il.Leave;  
+
+  il.Leave;
 end;
 
 procedure TEncIniFile.EraseSection(const Section: AnsiString);
@@ -630,7 +630,7 @@ begin
 
   if self.AutoUpdate then
     UpdateFile;
-  
+
   il.Leave;
 end;
 
@@ -638,7 +638,7 @@ function TEncIniFile.GetCaseSensitive: Boolean;
 begin
   il.Enter;
   Result := FSections.CaseSensitive;
-  il.Leave;  
+  il.Leave;
 end;
 
 procedure TEncIniFile.GetStrings(List: TStrings);
@@ -665,40 +665,40 @@ begin
       begin
         if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then
         begin
-  			  ListSplitFile := TStringList.Create;
-    			for J := 0 to Strings.Count - 1 do
+          ListSplitFile := TStringList.Create;
+          for J := 0 to Strings.Count - 1 do
           begin
-    			  S := Strings.Names[J];
-	    		  Found := False;
-		    	  for K := 1 to Length(splitredirectkeys) do
+            S := Strings.Names[J];
+            Found := False;
+            for K := 1 to Length(splitredirectkeys) do
             begin
-    		  		if S = splitredirectkeys[K] then
+              if S = splitredirectkeys[K] then
               begin
-    			  	  Found := True;
-		    		    break;
+                Found := True;
+                break;
               end;
-     			  end;
-	    		  if not Found then
-		      		if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+            end;
+            if not Found then
+              if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
                 Found := True;
 
             if Found then
-	      			List.Add(Strings[J])
+              List.Add(Strings[J])
 
           else
-	      	  ListSplitFile.Add(Strings[J])
-		      end;
+            ListSplitFile.Add(Strings[J])
+          end;
 
           S := FSections[I];
-	  	  	S := Copy(S, 6, Length(S)-5);
-  	  		S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
-  		  	ListSplitFile.SaveToFile(S);
-  			  ListSplitFile.Free;
-  		  end
+          S := Copy(S, 6, Length(S)-5);
+          S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
+          ListSplitFile.SaveToFile(S);
+          ListSplitFile.Free;
+        end
         else
         begin
-  			  for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
-  		  end;
+          for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
+        end;
 
       end
       else
