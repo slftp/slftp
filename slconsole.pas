@@ -1030,12 +1030,12 @@ Begin
    nClrScr(w,TextAttr);
 End;
 
-// TODO: use Pchar instead of variable ps + check if it works with fpc/delphi and shows all correctly
+// TODO: use PAnsiChar instead of variable ps + check if it works with fpc/delphi and shows all correctly
 { write a string to a window at the current cursor position }
 Procedure TslUnixScreen.nWrite(win: pWindow; s: AnsiString);
 var
-  ps : array [0..255] of AnsiChar;       { for use with pchars }
-  //p: Pchar;
+  ps : array [0..255] of AnsiChar;       { for use with PAnsiChar's }
+  //p: PAnsiChar;
 Begin
   //p := StrAlloc(Length(s) + 1);
 
