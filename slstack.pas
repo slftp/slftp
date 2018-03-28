@@ -25,9 +25,9 @@ uses
 type
   TslSocket = record
     socket: TSocket;
-    peerip: AnsiString;
+    peerip: String;
     peerport: Integer;
-    localip: AnsiString;
+    localip: String;
     localport: Integer;
   end;
 
@@ -53,51 +53,51 @@ const
   {$ENDIF}
 {$ENDIF}
 
-function slStackInit(var error: AnsiString): Boolean;
+function slStackInit(var error: String): Boolean;
 procedure slStackUninit;
 function slShutDown( var s: TslSocket ): Integer;
 function slClose( var s: TslSocket ): Integer;
-function slSetnonblocking(s: TslSocket; var error: AnsiString): Boolean;
-function slSetblocking(s: TslSocket; var error: AnsiString): Boolean;
-function slGetHostByName(AHostName: AnsiString; var error: AnsiString): AnsiString; overload;
-function slResolve(host: AnsiString; var error: AnsiString): AnsiString;
-function slConvertIp(host: AnsiString): AnsiString;
-function slBind(var slSocket: TslSocket; ip: AnsiString; port: Word; var error: AnsiString): Boolean;
-function PopulateLocalAddresses(l: TStringList; var error: AnsiString): Boolean;
-function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: AnsiString): Boolean;
-function slConnect(socket: TslSocket; host: AnsiString; port: Integer; var error: AnsiString): Integer;
-function slGetSockopt(slSocket: TslSocket; i2: Integer; var ret: Integer; var error: AnsiString): Boolean;
-function slSoError(slSocket: TslSocket; var error: AnsiString): AnsiString;
-function slSetSockOpt(slSocket: TslSocket; i: Integer; rc: Integer; var error: AnsiString): Boolean;
-function slSetKeepalive(slSocket: TslSocket; alive: Boolean; var error: AnsiString): Boolean;
-function slGetKeepalive(slSocket: TslSocket; var alive: Boolean;var error: AnsiString): Boolean;
-function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Boolean; overload;
-function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Integer; overload;
-function slLastError: AnsiString; overload;
-function slLastError(err: Integer): AnsiString; overload;
+function slSetnonblocking(s: TslSocket; var error: String): Boolean;
+function slSetblocking(s: TslSocket; var error: String): Boolean;
+function slGetHostByName(AHostName: String; var error: String): String; overload;
+function slResolve(host: String; var error: String): String;
+function slConvertIp(host: String): String;
+function slBind(var slSocket: TslSocket; ip: String; port: Word; var error: String): Boolean;
+function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
+function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: String): Boolean;
+function slConnect(socket: TslSocket; host: String; port: Integer; var error: String): Integer;
+function slGetSockopt(slSocket: TslSocket; i2: Integer; var ret: Integer; var error: String): Boolean;
+function slSoError(slSocket: TslSocket; var error: String): String;
+function slSetSockOpt(slSocket: TslSocket; i: Integer; rc: Integer; var error: String): Boolean;
+function slSetKeepalive(slSocket: TslSocket; alive: Boolean; var error: String): Boolean;
+function slGetKeepalive(slSocket: TslSocket; var alive: Boolean;var error: String): Boolean;
+function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Boolean; overload;
+function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Integer; overload;
+function slLastError: String; overload;
+function slLastError(err: Integer): String; overload;
 function slLastErrno: Integer;
-function slRecv(slSocket: TslSocket; var buffer; bufsize: Integer; var error: AnsiString): Integer; overload;
-function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Integer; overload;
-function slSend(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Boolean; overload;
+function slRecv(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Integer; overload;
+function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer; overload;
+function slSend(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Boolean; overload;
 
-function slSend(slSocket: TslSocket; var buffer; bufsize: Integer; var error: AnsiString): Boolean; overload;
-function slListen(slSocket: TslSocket; backlog: Integer; var error: AnsiString): Boolean;
-function slAccept(var listenSocket, newSocket: TslSocket; var error: AnsiString): Boolean;
+function slSend(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Boolean; overload;
+function slListen(slSocket: TslSocket; backlog: Integer; var error: String): Boolean;
+function slAccept(var listenSocket, newSocket: TslSocket; var error: String): Boolean;
 function slHToNs(port: Integer): Integer;
 function slGetSockName(var socket: TslSocket): Boolean;
-procedure slDebug(s: AnsiString);
+procedure slDebug(s: String);
 
 implementation
 
 uses slhelper;
 
 {$IFDEF FPC}
-function slStackInit(var error: AnsiString): Boolean;
+function slStackInit(var error: String): Boolean;
 begin
   Result:= True;
 end;
 {$ELSE}
-function slStackInit(var error: AnsiString): Boolean;
+function slStackInit(var error: String): Boolean;
 {$IFDEF MSWINDOWS}
 var
   sData: TWSAData;
@@ -118,7 +118,7 @@ end;
 {$ENDIF}
 
 {$IFDEF MSWINDOWS}
-function slSetnonblocking(s: TslSocket; var error: AnsiString): Boolean;
+function slSetnonblocking(s: TslSocket; var error: String): Boolean;
 var iMode: Cardinal;
     r: Integer;
 begin
@@ -139,7 +139,7 @@ begin
   Result:= True;
 end;
 
-function slSetblocking(s: TslSocket; var error: AnsiString): Boolean;
+function slSetblocking(s: TslSocket; var error: String): Boolean;
 var iMode: Cardinal;
     r: Integer;
 begin
@@ -161,7 +161,7 @@ begin
   Result:= True;
 end;
 {$ELSE}
-function slSetnonblocking(s: TslSocket; var error: AnsiString): Boolean;
+function slSetnonblocking(s: TslSocket; var error: String): Boolean;
 var flags: Integer;
 begin
   Result:= False;
@@ -189,7 +189,7 @@ begin
 
   Result:= True;
 end;
-function slSetblocking(s: TslSocket; var error: AnsiString): Boolean;
+function slSetblocking(s: TslSocket; var error: String): Boolean;
 var flags: Integer;
 begin
   Result:= False;
@@ -254,33 +254,32 @@ end;
 
 
 {$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
+  {$IFNDEF MSWINDOWS}
+  const
+    { Net type }
+    socklib = 'c';
 
-const
-  { Net type }
-  socklib = 'c';
+  Type
 
-Type
+    { THostEnt Object }
+    THostEnt = record
+      H_Name     : PAnsiChar;   { Official name }
+      H_Aliases  : ppansichar;  { Null-terminated list of aliases}
+      H_Addrtype : longint;   { Host address type }
+      H_length  : longint;   { Length of address }
+      H_Addr_list : ppansichar;    { null-terminated list of adresses }
+    end;
+    PHostEntry = ^THostEnt;
+    PHostEnt = PHostEntry;
 
-  { THostEnt Object }
-  THostEnt = record
-    H_Name     : PAnsiChar;   { Official name }
-    H_Aliases  : ppchar;  { Null-terminated list of aliases}
-    H_Addrtype : longint;   { Host address type }
-    H_length  : longint;   { Length of address }
-    H_Addr_list : ppchar;    { null-terminated list of adresses }
-  end;
-  PHostEntry = ^THostEnt;
-  PHostEnt = PHostEntry;
-
-function gethostbyname ( Name : PAnsiChar) : PHostEntry; cdecl; external socklib;
-{$ENDIF}
+  function gethostbyname ( Name : PAnsiChar) : PHostEntry; cdecl; external socklib;
+  {$ENDIF}
 {$ENDIF}
 
 
 
 // Delphi/Kylix
-function slGetHostByName(AHostName: AnsiString; var error: AnsiString): AnsiString; overload;
+function slGetHostByName(AHostName: String; var error: String): String; overload;
 var
   pa: PAnsiChar;
   sa: TInAddr;
@@ -288,7 +287,7 @@ var
 begin
   Result:= '';
 
-  Host := GetHostByName(PChar(AHostName));
+  Host := GetHostByName(PAnsiChar(AHostName));
   if Host <> nil then
   begin
   {$IFDEF MSWINDOWS}
@@ -325,7 +324,7 @@ begin
 end;
 
 
-function slResolve(host: AnsiString; var error: AnsiString): AnsiString;
+function slResolve(host: String; var error: String): String;
 begin
   // Sometimes 95 forgets who localhost is
   if AnsiSameText(host, 'LOCALHOST') then begin    {Do not Localize}
@@ -341,7 +340,7 @@ begin
   end;
 end;
 
-function slConvertIp(host: AnsiString): AnsiString;
+function slConvertIp(host: String): String;
 var lip:LongWord;
 begin
   host:=Csere(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
@@ -350,25 +349,19 @@ begin
 end;
 
 
-function slGetHostName: AnsiString;
+function slGetHostName: String;
 begin
-{$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
-  Result:= GetHostName;
-{$ELSE}
+{$IFDEF MSWINDOWS}
   SetLength(result, 250);
-  GetHostName(PChar(result), Length(result));
+  GetHostName(PAnsiChar(result), Length(result));
   Result := AnsiString(PAnsiChar(result));
-{$ENDIF}
 {$ELSE}
-  SetLength(result, 250);
-  GetHostName(PChar(result), Length(result));
-  Result := AnsiString(PAnsiChar(result));
+  Result := GetHostName;
 {$ENDIF}
 end;
 
 
-function PopulateLocalAddresses(l: TStringList; var error: AnsiString): Boolean;
+function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 type
   TaPInAddr = Array[0..250] of PInAddr;
   PaPInAddr = ^TaPInAddr;
@@ -379,7 +372,7 @@ var
 begin
   Result := True; //TODO: shouldn't this be false? And what about returning an error?
   l.Clear ;
-  AHost := GetHostByName(PChar(slGetHostName));
+  AHost := GetHostByName(PAnsiChar(slGetHostName));
   if AHost <> nil then
   begin
     {$IFDEF FPC}
@@ -407,7 +400,7 @@ end;
 
 
 
-function slBind(var slSocket: TslSocket; ip: AnsiString; port: Word; var error: AnsiString): Boolean;
+function slBind(var slSocket: TslSocket; ip: String; port: Word; var error: String): Boolean;
 var i: Integer;
     Addr: SockAddr;
 begin
@@ -439,7 +432,7 @@ begin
   Result:= True;
 end;
 
-function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: AnsiString): Boolean;
+function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: String): Boolean;
 begin
   Result:= False;
 
@@ -471,7 +464,7 @@ const EINPROGRESS = ESYSEINPROGRESS;
 {$ENDIF}
 {$ENDIF}
 
-function slConnect(socket: TslSocket; host: AnsiString; port: Integer; var error: AnsiString): Integer;
+function slConnect(socket: TslSocket; host: String; port: Integer; var error: String): Integer;
 var
 {$IFDEF MSWINDOWS}
   Addr: TSockAddrIn;
@@ -521,25 +514,20 @@ begin
 
 end;
 
-function slLastError(err: Integer): AnsiString;
+function slLastError(err: Integer): String;
 begin
 {$IFDEF MSWINDOWS}
-      Result:= SysUtils.SysErrorMessage(err);
+  Result:= SysUtils.SysErrorMessage(err);
 {$ELSE}
-{$IFDEF FPC}
-  Result:= SysErrorMessage(err);
-{$ELSE}
-  Result:= StrPas(strerror(err));
-{$ENDIF}
-(*
-      setlength(Result, 255);
-      strerror_r(err, @Result[1], 255);
-      Result:= string(PChar(Result));
-*)
+  {$IFDEF FPC}
+    Result:= SysErrorMessage(err);
+  {$ELSE}
+    Result:= StrPas(strerror(err));
+  {$ENDIF}
 {$ENDIF}
 end;
 
-function slLastError: AnsiString;
+function slLastError: String;
 begin
   Result:= slLastError(slLastErrno);
 end;
@@ -553,7 +541,7 @@ begin
 end;
 
 
-function slGetSockopt(slSocket: TslSocket; i2: Integer; var ret: Integer; var error: AnsiString): Boolean;
+function slGetSockopt(slSocket: TslSocket; i2: Integer; var ret: Integer; var error: String): Boolean;
 var
 {$IFDEF MSWINDOWS}
 l: Integer;
@@ -578,7 +566,7 @@ begin
   Result:= True;
 end;
 
-function slSoError(slSocket: TslSocket; var error: AnsiString): AnsiString;
+function slSoError(slSocket: TslSocket; var error: String): String;
 var rc: Integer;
 begin
   error:= '';
@@ -588,7 +576,7 @@ begin
   Result:= error;
 end;
 
-function slSetSockOpt(slSocket: TslSocket; i: Integer; rc: Integer; var error: AnsiString): Boolean;
+function slSetSockOpt(slSocket: TslSocket; i: Integer; rc: Integer; var error: String): Boolean;
 begin
   Result:= False;
 
@@ -608,12 +596,12 @@ begin
   Result:= True;
 end;
 
-function slSetKeepalive(slSocket: TslSocket; alive: Boolean;var error: AnsiString): Boolean;
+function slSetKeepalive(slSocket: TslSocket; alive: Boolean;var error: String): Boolean;
 begin
   Result:= slSetSockOpt(slSocket, so_keepalive, Integer(alive), error);
 end;
 
-function slGetKeepalive(slSocket: TslSocket; var alive: Boolean;var error: AnsiString): Boolean;
+function slGetKeepalive(slSocket: TslSocket; var alive: Boolean;var error: String): Boolean;
 var ret: Integer;
 begin
   Result:= slGetSockOpt(slSocket, so_keepalive, ret, error);
@@ -622,7 +610,7 @@ end;
 
 {$IFDEF FPC}
 {$IFNDEF MSWINDOWS}
-function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Boolean;
+function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Boolean;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -686,7 +674,7 @@ begin
   end;
 end;
 
-function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Integer;
+function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Integer;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -778,7 +766,7 @@ begin
 end;
 
 {$ELSE}
-function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Boolean;
+function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Boolean;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -842,7 +830,7 @@ begin
   end;
 end;
 
-function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Integer;
+function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Integer;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -935,7 +923,7 @@ end;
 
 {$ENDIF}
 {$ELSE}
-function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Boolean;
+function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Boolean;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -1000,7 +988,7 @@ begin
   end;
 end;
 
-function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: AnsiString): Integer;
+function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Integer;
 var writefds,readfds,exceptfds: TFDSet;
     tv: TTimeVal;
     rc: Integer;
@@ -1093,7 +1081,7 @@ end;
 
 {$ENDIF}
 
-function slRecv(slSocket: TslSocket; var buffer; bufsize: Integer; var error: AnsiString): Integer;
+function slRecv(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Integer;
 begin
   Result:= -1;
   try
@@ -1120,7 +1108,7 @@ begin
 end;
 
 
-function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Integer;
+function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
 begin
   try
     Result := slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
@@ -1139,7 +1127,7 @@ begin
   end;
 end;
 
-function slSend(ssl: PSSL; var buffer; bufsize: Integer; var error: AnsiString): Boolean;
+function slSend(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Boolean;
 var
   rc: Integer;
 begin
@@ -1166,7 +1154,7 @@ begin
   end;
 end;
 
-function slSend(slSocket: TslSocket; var buffer; bufsize: Integer; var error: AnsiString): Boolean;
+function slSend(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Boolean;
 var rc: Integer;
 begin
   Result:= False;
@@ -1200,7 +1188,7 @@ begin
 end;
 
 
-function slListen(slSocket: TslSocket; backlog: Integer; var error: AnsiString): Boolean;
+function slListen(slSocket: TslSocket; backlog: Integer; var error: String): Boolean;
 begin
   Result:= False;
 {$IFDEF FPC}
@@ -1215,7 +1203,7 @@ begin
   Result:= True;
 end;
 
-function slAccept(var listenSocket, newSocket: TslSocket; var error: AnsiString): Boolean;
+function slAccept(var listenSocket, newSocket: TslSocket; var error: String): Boolean;
 var
   i: Integer;
   Addr: TSockAddr;
@@ -1270,7 +1258,7 @@ begin
   socket.localport := Ntohs(LAddr.sin_port);
 end;
 
-procedure slDebug(s: AnsiString);
+procedure slDebug(s: String);
 begin
 //   WriteLn(s);
 end;

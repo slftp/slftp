@@ -2,9 +2,9 @@ program slftp;
 {$MODE Delphi}
 
 {$IFDEF FPC}
-  {$IFDEF VER1 or VER2}
-    {$stop Please upgrade your Free Pascal Compiler version to at least 3.0.0 }
-  {$ENDIF}
+  {$if FPC_FULlVERSION < 30004}
+    {$stop Please upgrade your Free Pascal Compiler version to at least 3.0.4 }
+  {$endif}
 {$ENDIF}
 
 {$IFDEF WINDOWS}
@@ -57,7 +57,7 @@ uses
       {$ENDIF}
         cthreads,
         cmem,
-    {$ENDIF}  
+    {$ENDIF}
   {$ENDIF}
   console;
 

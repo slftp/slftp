@@ -6,20 +6,20 @@ uses Classes, IniFiles, irc, kb, Contnrs, encinifile;
 
 type
   TDbNfo = class
-    rls:      AnsiString;
-    nfo_name: AnsiString;
-    constructor Create(rls, nfo_name: AnsiString);
+    rls:      String;
+    nfo_name: String;
+    constructor Create(rls, nfo_name: String);
     destructor Destroy; override;
   end;
 
-function dbaddnfo_Process(net, chan, nick, msg: AnsiString): boolean;
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: AnsiString); overload;
-procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: AnsiString); overload;
-procedure dbaddnfo_addnfo(params: AnsiString);
-procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
-procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
+function dbaddnfo_Process(net, chan, nick, msg: String): boolean;
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_addnfo(params: String);
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: String); overload;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: String); overload;
 
-function dbaddnfo_Status: AnsiString;
+function dbaddnfo_Status: String;
 
 procedure dbaddnfoInit;
 procedure dbaddnfoStart;
@@ -38,11 +38,11 @@ const
   section = 'dbaddnfo';
 
 var
-  addnfocmd: AnsiString;
-  oldnfocmd: AnsiString;
+  addnfocmd: String;
+  oldnfocmd: String;
 
 { TDbNfo }
-constructor TDbNfo.Create(rls, nfo_name: AnsiString);
+constructor TDbNfo.Create(rls, nfo_name: String);
 begin
   self.rls      := rls;
   self.nfo_name := nfo_name;
@@ -55,7 +55,7 @@ end;
 
 { Proc/Func }
 
-function dbaddnfo_Process(net, chan, nick, msg: AnsiString): boolean;
+function dbaddnfo_Process(net, chan, nick, msg: String): boolean;
 begin
   Result := False;
   if (1 = Pos(addnfocmd, msg)) then
@@ -72,11 +72,11 @@ begin
   end;
 end;
 
-procedure dbaddnfo_addnfo(params: AnsiString);
+procedure dbaddnfo_addnfo(params: String);
 var
-  rls: AnsiString;
-  nfo_url: AnsiString;
-  nfo_name: AnsiString;
+  rls: String;
+  nfo_url: String;
+  nfo_name: String;
   i: integer;
 begin
   rls      := '';
@@ -108,7 +108,7 @@ begin
 end;
 
 
-procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: AnsiString); overload;
+procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: String); overload;
 var
   i:      integer;
   db_nfo: TDbNfo;
@@ -142,7 +142,7 @@ begin
   end;
 end;
 
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: AnsiString); overload;
+procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: String); overload;
 var
   i:      integer;
   db_nfo: TDbNfo;
@@ -175,10 +175,10 @@ begin
 end;
 
 
-procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: String); overload;
 var
   sec: TCRelease;
-  imdbid: AnsiString;
+  imdbid: String;
 begin
   sec := FindSectionHandler(section);
 
@@ -193,10 +193,10 @@ begin
   dbaddnfo_ParseNfo(rls, nfo_data);
 end;
 
-procedure dbaddnfo_ParseNfo(const rls, nfo_data: AnsiString); overload;
+procedure dbaddnfo_ParseNfo(const rls, nfo_data: String); overload;
 var
-  URLTemplate: AnsiString;
-  url: AnsiString;
+  URLTemplate: String;
+  url: String;
 begin
   // Search URL
   URLTemplate :=
@@ -232,7 +232,7 @@ begin
 end;
 
 { Status }
-function dbaddnfo_Status: AnsiString;
+function dbaddnfo_Status: String;
 begin
   Result := Format('<b>Nfo</b>: %d', [last_addnfo.Count]);
 end;

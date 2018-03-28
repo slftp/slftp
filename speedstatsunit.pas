@@ -7,28 +7,28 @@ uses
 
 type
   TSpeedStat = class
-    section, rlsname, src, dst: AnsiString;
+    section, rlsname, src, dst: String;
     speed: Double;
-    function ToString: AnsiString;
-    function ToStringEx: AnsiString;
-    constructor Create(src, dst: AnsiString; speed: Double); overload;
-    constructor Create(src, dst: AnsiString; speed: Double; rip, section: AnsiString); overload;
-    constructor Create(line: AnsiString); overload;
+    function ToString: String;
+    function ToStringEx: String;
+    constructor Create(src, dst: String; speed: Double); overload;
+    constructor Create(src, dst: String; speed: Double; rip, section: String); overload;
+    constructor Create(line: String); overload;
   end;
 
-procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip: AnsiString); overload;
+procedure SpeedStatAdd(src, dst: String; speed: Double; section, rip: String); overload;
 procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
 
 procedure SpeedStatsInit;
 procedure SpeedStatsUnInit;
 procedure SpeedStatsSave;
 procedure SpeedStatsStart;
-procedure SpeedStatsRecalc(const netname, channel: AnsiString);
+procedure SpeedStatsRecalc(const netname, channel: String);
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
-procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: String);
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: String; sitesList: TStringList);
 
-procedure RemoveSpeedStats(const sitename, section: AnsiString);
+procedure RemoveSpeedStats(const sitename, section: String);
 function SpeedStatsScale(const toscale: Double): Integer;
 
 var
@@ -105,7 +105,7 @@ begin
   debug(dpMessage, r_section, '<-- Saving speedstats');
 end;
 
-function AvgSpeedByReleasename(const rip: AnsiString): Double;
+function AvgSpeedByReleasename(const rip: String): Double;
 var
   i, db: Integer;
   sum: Double;
@@ -135,7 +135,7 @@ begin
 
 end;
 
-function AvgSpeedBySection(const section: AnsiString): Double;
+function AvgSpeedBySection(const section: String): Double;
 var
   i, db: Integer;
   sum: Double;
@@ -165,7 +165,7 @@ begin
 
 end;
 
-function AvgSpeed(const src, dst: AnsiString): Double; overload;
+function AvgSpeed(const src, dst: String): Double; overload;
 var
   i, db: Integer;
   sum: Double;
@@ -196,7 +196,7 @@ begin
 
 end;
 
-function AvgSpeed(const src, dst, section: AnsiString): Double; overload;
+function AvgSpeed(const src, dst, section: String): Double; overload;
 var
   i, db: Integer;
   sum: Double;
@@ -227,7 +227,7 @@ begin
 
 end;
 
-function AvgSpeed(const src, dst, section, rip: AnsiString): Double; overload;
+function AvgSpeed(const src, dst, section, rip: String): Double; overload;
 var
   i, db: Integer;
   sum: Double;
@@ -258,7 +258,7 @@ begin
 end;
 
 
-procedure AddSites(const src, dst: AnsiString; x: TStringList);
+procedure AddSites(const src, dst: String; x: TStringList);
 var
   i: Integer;
   s: TSpeedStat;
@@ -293,7 +293,7 @@ begin
 end;
 
 
-function FindSite(const s: AnsiString): Boolean;
+function FindSite(const s: String): Boolean;
 begin
   Result := False;
 
@@ -303,14 +303,14 @@ begin
   Result := True;
 end;
 
-procedure SpeedStatsRecalc(const netname, channel: AnsiString);
+procedure SpeedStatsRecalc(const netname, channel: String);
 var
   i, j, speed_old, speed_new: Integer;
   min_speed, max_speed: Double;
   x, y: TStringList;
   d, diff: Double;
-  minr: AnsiString;
-  maxr: AnsiString;
+  minr: String;
+  maxr: String;
 begin
   speedstats_last_recalc := Now();
 
@@ -410,7 +410,7 @@ begin
 end;
 
 
-function GetSpeed(const stri: AnsiString): Double;
+function GetSpeed(const stri: String): Double;
 var
   splitted: TStringList;
 begin
@@ -445,7 +445,7 @@ begin
   Result := CompareValue(speed1, speed2);
 end;
 
-function GetSiteName(const stri: AnsiString): AnsiString;
+function GetSiteName(const stri: String): String;
 var
   splitted: TStringList;
 begin
@@ -462,10 +462,10 @@ begin
   end;
 end;
 
-procedure ShowSpeeds(const netname, channel, sitename, delimiter: AnsiString; sitesList: TStringList);
+procedure ShowSpeeds(const netname, channel, sitename, delimiter: String; sitesList: TStringList);
 var
   i, db: Integer;
-  ss, otherSite: AnsiString;
+  ss, otherSite: String;
   d: Double;
 begin
   db := 0;
@@ -502,7 +502,7 @@ begin
     irc_addtext(netname, channel, '%s %s %s', [sitename, delimiter, ss]);
 end;
 
-procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: AnsiString);
+procedure SpeedStatsShowStats(const netname, channel, sitename, section, rlsname: String);
 var
   listSites, listSitesSpeeds: TStringList;
   i: Integer;
@@ -587,7 +587,7 @@ begin
 end;
 
 { TSpeedStat }
-constructor TSpeedStat.Create(line: AnsiString);
+constructor TSpeedStat.Create(line: String);
 begin
   src := Fetch(line, ' ');
   dst := Fetch(line, ' ');
@@ -596,14 +596,14 @@ begin
   section := Fetch(line, ' ');
 end;
 
-constructor TSpeedStat.Create(src, dst: AnsiString; speed: Double);
+constructor TSpeedStat.Create(src, dst: String; speed: Double);
 begin
   self.src := src;
   self.dst := dst;
   self.speed := speed;
 end;
 
-constructor TSpeedStat.Create(src: AnsiString; dst: AnsiString; speed: Double; rip: AnsiString; section: AnsiString);
+constructor TSpeedStat.Create(src: String; dst: String; speed: Double; rip: String; section: String);
 begin
   self.src := src;
   self.dst := dst;
@@ -612,7 +612,7 @@ begin
   self.rlsname :=rip;
 end;
 
-function TSpeedStat.ToString: AnsiString;
+function TSpeedStat.ToString: String;
 begin
   try
     Result := FormaT('%s %s %f', [src, dst, speed]);
@@ -621,7 +621,7 @@ begin
   end;
 end;
 
-function TSpeedStat.ToStringEx:AnsiString;
+function TSpeedStat.ToStringEx:String;
 begin
   try
     Result := FormaT('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
@@ -630,7 +630,7 @@ begin
   end;
 end;
 
-procedure SpeedStatAdd(const src, dst: AnsiString; const speed: Double); overload;
+procedure SpeedStatAdd(const src, dst: String; const speed: Double); overload;
 var
   s: TSpeedStat;
 begin
@@ -651,7 +651,7 @@ begin
   end;
 end;
 
-procedure SpeedStatAdd(src, dst: AnsiString; speed: Double; section, rip: AnsiString); overload;
+procedure SpeedStatAdd(src, dst: String; speed: Double; section, rip: String); overload;
 var
   s: TSpeedStat;
 begin
@@ -702,7 +702,7 @@ begin
   end;
 end;
 
-procedure RemoveSpeedStats(const sitename, section: AnsiString);
+procedure RemoveSpeedStats(const sitename, section: String);
 var
   i: integer;
 begin

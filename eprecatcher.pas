@@ -61,8 +61,8 @@ begin
 end;
 
 procedure TEPrecatcherThread.Execute;
-var ss: AnsiString;
-    sitename, section, genre, event, rls, cdno: AnsiString;
+var ss: String;
+    sitename, section, genre, event, rls, cdno: String;
 begin
 
   while(true) do

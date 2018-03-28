@@ -4,17 +4,17 @@ interface
 uses sitesunit , lame, ID3v2, tasksunit, Classes, sltcp, mpeginfo;
 
 type TLameTask = class(TTask)
-       filename: AnsiString;
-       dir: AnsiString;
+       filename: String;
+       dir: String;
        genremode: Boolean;
        filesize: Int64;
-       constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Int64; genremode: Boolean);
+       constructor Create(const netname, channel: String;site: String; dir: String; filename: String; filesize: Int64; genremode: Boolean);
        destructor Destroy; override;
        function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
+       function Name: String; override;
   end;
 
-function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo):  Integer;
+function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: String; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo):  Integer;
 
 implementation
 
@@ -26,7 +26,7 @@ const section = 'lame';
 
 
 
-constructor TLameTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; filename: AnsiString; filesize: Int64; genremode: Boolean);
+constructor TLameTask.Create(const netname, channel: String;site: String; dir: String; filename: String; filesize: Int64; genremode: Boolean);
 begin
   self.filename:= filename;
   self.filesize:= filesize;
@@ -41,7 +41,7 @@ begin
   inherited;
 end;
 
-function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: AnsiString; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo): Integer;
+function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; const dir, filename: String; var id3v1: TID3v1Info; var id3v2: TID3v2Info; var lame: TLameInfo; var mpeg: TMpegInfo): Integer;
 type TTartas = (ttid3v1, ttid3v2, ttlame, ttmpeg);
 var i, restFrom, mennyitolvass: Integer;
     tartas: TTartas;
@@ -193,7 +193,7 @@ ujra:
   ready:= True;
 end;
 
-function TLameTask.Name: AnsiString;
+function TLameTask.Name: String;
 begin
   Result:= '::LAMECHK:: '+site1+' -> '+filename;
 end;

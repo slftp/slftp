@@ -12,17 +12,17 @@ procedure NewsInit;
 procedure NewsUnInit;
 
 { Check if category is in known MessageCategories array. If not found it returns -1, else index of matching element. }
-function CheckForValidCategory(const category: AnsiString): Integer;
+function CheckForValidCategory(const category: String): Integer;
 
 { Returns the categories from MessageCategories array as String. }
-function ValidCategoriesAsString: AnsiString;
+function ValidCategoriesAsString: String;
 
 { Adds a new message entry
   @param(category is to sort messages into categories. See @link(MessageCategories))
   @param(NewMessage is a string with the message which should be stored (supports all mirc codes stuff etc))
   @param(dupecheck if @true, it checks if there is an identical entry as the new one and deletes old and add it again if it's older than 7 days)
   @returns(@true on success, @false otherwise) }
-function SlftpNewsAdd(const category, NewMessage: AnsiString; dupecheck: boolean = False): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: String; dupecheck: boolean = False): boolean; overload;
 
 { Add a new news entry (calls @link(SlftpNewsAdd)) and returns a text with the msg which was added
   @param(Netname for output text)
@@ -30,26 +30,26 @@ function SlftpNewsAdd(const category, NewMessage: AnsiString; dupecheck: boolean
   @param(category is to sort messages into categories. See @link(MessageCategories))
   @param(NewMessage is a string with the message with should be stored (supports all mirc color stuff etc))
   @returns(@true on success, @false otherwise) }
-function SlftpNewsAdd(const Netname, Channel, category, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const Netname, Channel, category, NewMessage: String): boolean; overload;
 
 { Shows newsfile entries.
   @param(ShowCount actual news count to show; -1 means all)
   @param(category if not definied, all messages are shown. When given, it only shows messages which matches category (see @link(MessageCategories))) }
-function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; category: AnsiString = ''): boolean;
+function SlftpNewsShow(const Netname, Channel: String; const ShowCount: Integer; category: String = ''): boolean;
 
 
 { Deletes given newsfile entry.
   @param(DeleteNumber is the entry ID which should be deleted)
   @param(AnnounceIt is to enable/disable IRC Announce of deleted entry) }
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: String; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
 
 { Deletes given category entries.
   @param(category is the category which should be deleted)
   @param(AnnounceIt is to enable/disable IRC Announce of deleted entry) }
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString; AnnounceIt: boolean = False): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: String; const category: String; AnnounceIt: boolean = False): boolean; overload;
 
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
-function SlftpNewsStatus(): AnsiString;
+function SlftpNewsStatus(): String;
 
 var
   last_news_announce: TDateTime; //< time value when @link(SlftpNewsStatus) was triggered the last time
@@ -67,12 +67,12 @@ const
   cUNREAD_IDENTIFIER = '!UNREAD!';
   { All possible categories to sort a message. Try to avoid using UNSORTED!
     Only for use via sourcecode. }
-  MessageCategories: array[0..8] of AnsiString = (
+  MessageCategories: array[0..8] of String = (
     'AUTORULES', 'FTP', 'GROUPS', 'IRC', 'NUKES', 'RULES', 'SITES', 'TVMAZE', 'UNSORTED'
   );
 
 var
-  SlftpNewsFilename: AnsiString;
+  SlftpNewsFilename: String;
   NewsMultiReadSingleWriteLock: TPasMPMultipleReaderSingleWriterLock;
 
 
@@ -89,15 +89,15 @@ begin
     NewsMultiReadSingleWriteLock.Free;
 end;
 
-function CheckForValidCategory(const category: AnsiString): Integer;
+function CheckForValidCategory(const category: String): Integer;
 begin
   Result := AnsiIndexText(category, MessageCategories);
 end;
 
-function ValidCategoriesAsString: AnsiString;
+function ValidCategoriesAsString: String;
 var
   i: Integer;
-  validcategories: AnsiString;
+  validcategories: String;
 begin
   validcategories := '';
   for i := Low(MessageCategories) to High(MessageCategories) do
@@ -106,7 +106,7 @@ begin
   Result := validcategories;
 end;
 
-function SlftpNewsAdd(const category, NewMessage: AnsiString; dupecheck: boolean = False): boolean; overload;
+function SlftpNewsAdd(const category, NewMessage: String; dupecheck: boolean = False): boolean; overload;
 var
   x: TEncStringList;
   msgformat: TStringList;
@@ -199,7 +199,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsAdd(const Netname, Channel, category, NewMessage: AnsiString): boolean; overload;
+function SlftpNewsAdd(const Netname, Channel, category, NewMessage: String): boolean; overload;
 var
   i: Integer;
 begin
@@ -218,11 +218,11 @@ begin
     irc_addtext(Netname, Channel, Format('New entry ''[%s] %s'' added.', [category, NewMessage]));
 end;
 
-function SlftpNewsShow(const Netname, Channel: AnsiString; const ShowCount: Integer; category: AnsiString = ''): boolean;
+function SlftpNewsShow(const Netname, Channel: String; const ShowCount: Integer; category: String = ''): boolean;
 var
   x: TEncStringList;
   i, j, padding: integer;
-  IrcAnnounceText: AnsiString;
+  IrcAnnounceText: String;
   actualmsg: TStringList;
   textshown: boolean;
 begin
@@ -324,7 +324,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: String; const DeleteNumber: Integer; AnnounceIt: boolean = True): boolean; overload;
 var
   x: TEncStringList;
   msgtext: TStringList;
@@ -377,7 +377,7 @@ begin
   Result := True;
 end;
 
-function SlftpNewsDelete(const Netname, Channel: AnsiString; const category: AnsiString; AnnounceIt: boolean = False): boolean; overload;
+function SlftpNewsDelete(const Netname, Channel: String; const category: String; AnnounceIt: boolean = False): boolean; overload;
 var
   x: TEncStringList;
   i, j: Integer;
@@ -424,11 +424,11 @@ begin
   Result := True;
 end;
 
-function SlftpNewsStatus(): AnsiString;
+function SlftpNewsStatus(): String;
 var
   x: TEncStringList;
   i, ReadCount, UnreadCount: Integer;
-  ReadStatus: AnsiString;
+  ReadStatus: String;
 begin
   UnreadCount := 0;
   ReadCount := 0;

@@ -23,14 +23,14 @@ type
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
-procedure QueueEmpty(sitename: AnsiString);
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: AnsiString);
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: AnsiString);
+procedure QueueEmpty(sitename: String);
+procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
+procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
 
 function RemovePazo(pazo_id: integer): boolean;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: AnsiString);
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: AnsiString);
+procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
+procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
 procedure QueueInit;
 procedure QueueUninit;
 
@@ -502,7 +502,7 @@ var
   s:   TSite;
   i:   integer;
   ss:  TSiteSlot;
-  bnc: AnsiString;
+  bnc: String;
 begin
   ss := nil;
   try
@@ -782,7 +782,7 @@ begin
 end;
 
 // EZT IS CSAK ZAROLVA SZABAD HIVNI
-procedure QueueEmpty(sitename: AnsiString);
+procedure QueueEmpty(sitename: String);
 var
   i: integer;
   t: TTask;
@@ -960,7 +960,7 @@ end;
 
 procedure AddTask(t: TTask);
 var
-  tname: AnsiString;
+  tname: String;
 begin
   try
     tname := t.Name;
@@ -998,7 +998,7 @@ begin
   Console_QueueAdd(t.UidText, Format('%s', [tname]));
 end;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: AnsiString);
+procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
@@ -1037,7 +1037,7 @@ begin
   end;
 end;
 
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: AnsiString);
+procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
 var
   i:   integer;
   ttp: TPazoDirlistTask;
@@ -1118,7 +1118,7 @@ begin
 end;
 
 
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: AnsiString);
+procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
 var
   i:   integer;
   ttp: TPazoMkdirTask;
@@ -1160,7 +1160,7 @@ begin
   end;
 end;
 
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: AnsiString);
+procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
@@ -1268,7 +1268,7 @@ var
   i, j: integer;
   t:    TTask;
   s:    TSiteSlot;
-  ss:   AnsiString;
+  ss:   String;
   ts:   TSite;
 begin
   while ((not slshutdown) and (not Terminated)) do
@@ -1559,7 +1559,7 @@ end;
 procedure QueueClean(run_now: boolean = False);
 var
   i, tkill_unassigne, tkill_race, tkill_other: integer;
-  ss: AnsiString;
+  ss: String;
   t:  TTask;
 begin
 
