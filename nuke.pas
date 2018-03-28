@@ -16,15 +16,15 @@ procedure NukeSave;
 
 type
   TNukeQueueItem = class
-    site: AnsiString;
-    section: AnsiString;
-    yyyy: AnsiString;
-    yy: AnsiString;
-    mm: AnsiString;
-    dd: AnsiString;
-    rip: AnsiString;
+    site: String;
+    section: String;
+    yyyy: String;
+    yy: String;
+    mm: String;
+    dd: String;
+    rip: String;
     multiplier: Integer;
-    reason: AnsiString;
+    reason: String;
   end;
 
 var
@@ -51,7 +51,7 @@ var
   x: TEncStringlist;
   i: Integer;
   n: TNukeQueueItem;
-  fn: AnsiString;
+  fn: String;
 begin
   fn := ExtractfilePath(ParamStr(0)) + 'slftp.nukequeue';
   if not fileExists(fn) then
@@ -86,7 +86,7 @@ var
   x: TEncStringlist;
   i: Integer;
   n: TNukeQueueItem;
-  s: AnsiString;
+  s: String;
 begin
   x := TEncStringlist.Create(passphrase);
   try

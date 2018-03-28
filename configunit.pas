@@ -5,7 +5,7 @@ interface
 uses encinifile, slmd5;
 
 procedure ReadPass;
-function ConfigInit(var p: AnsiString): Boolean;
+function ConfigInit(var p: String): Boolean;
 procedure ConfigUninit;
 //function ConfigRehash:boolean;
 
@@ -27,14 +27,14 @@ var cfgloaded:boolean = False;
 
 
 procedure ReadPass;
-var pw: AnsiString;
+var pw: String;
 begin
   pw:= MyGetPass('Password: ');
   if pw = '' then halt;
   passphrase:= slMD5String(pw);
 end;
 
-procedure WipePass(var p: AnsiString);
+procedure WipePass(var p: String);
 var i: Integer;
 begin
   SetLength(p, 100);
@@ -53,7 +53,7 @@ if not cfgloaded then result:=20 else
 result:=config.ReadInteger(timeout, 'io', 20);
 end;
 
-function ConfigInit(var p: AnsiString): Boolean;
+function ConfigInit(var p: String): Boolean;
 begin
   Result:= True;
   passphrase:= slMD5String(p);

@@ -8,15 +8,15 @@ type
   TPazoGenreDirlistTask = class(TPazoPlainTask)
   private
     attempt: Integer;
-    function FetchGenre(filename: AnsiString): AnsiString;
+    function FetchGenre(filename: String): String;
   public
-    constructor Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 // TODO: Implement it similiar for other ftpd response as drftpd and glftpd output genre too
-//function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
+//function ParsePZSOutputForGenre(const s: String): String;
 
 implementation
 
@@ -26,7 +26,7 @@ const
   section = 'taskgenredirlist';
 
 {
-function ParsePZSOutputForGenre(const s: AnsiString): AnsiString;
+function ParsePZSOutputForGenre(const s: String): String;
 var
   i, j: Integer;
 begin
@@ -41,13 +41,13 @@ end;
 
 { TPazoGenreDirlistTask }
 
-constructor TPazoGenreDirlistTask.Create(const netname, channel: AnsiString;site: AnsiString; pazo: TPazo; attempt: Integer);
+constructor TPazoGenreDirlistTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
 begin
   self.attempt:= attempt;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-function TPazoGenreDirlistTask.FetchGenre(filename: AnsiString): AnsiString;
+function TPazoGenreDirlistTask.FetchGenre(filename: String): String;
 var
   i: Integer;
 begin
@@ -73,7 +73,7 @@ var s: TSiteSlot;
     j: Integer;
     r: TPazoGenreDirlistTask;
     d: TDirList;
-    tagfile, genre: AnsiString;
+    tagfile, genre: String;
 begin
   Result:= False;
   s:= slot;
@@ -194,7 +194,7 @@ ujra:
   ready:= True;
 end;
 
-function TPazoGenreDirlistTask.Name: AnsiString;
+function TPazoGenreDirlistTask.Name: String;
 begin
   try
     Result:= Format('GENREDIRLIST: %s (Count:%d)',[mainpazo.rls.rlsname,attempt]);

@@ -7,10 +7,10 @@ uses tasksunit;
 type
   TAutoDirlistTask = class(TTask)
   private
-    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
+    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
   public
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -26,28 +26,28 @@ type
   TReqFillerThread = class(TThread)
   private
     p: TPazo;
-    secdir: AnsiString;
-    rlsname: AnsiString;
+    secdir: String;
+    rlsname: String;
   public
-    constructor Create(p: Tpazo; secdir, rlsname: AnsiString);
+    constructor Create(p: Tpazo; secdir, rlsname: String);
     procedure Execute; override;
   end;
 
 { TAutoSectionTask }
-procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: AnsiString);
+procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
 var
   x: TStringList;
   i, db: Integer;
-  sitename: AnsiString;
+  sitename: String;
   p: TPazo;
   ps: TPazoSite;
   rc: TCRelease;
   rls: TRelease;
   s: TSiteSlot;
-  ss: AnsiString;
-  datum: AnsiString;
-  maindir: AnsiString;
-  releasenametofind: AnsiString;
+  ss: String;
+  datum: String;
+  maindir: String;
+  releasenametofind: String;
   notdown: Boolean;
   site: TSite;
   pdt: TPazoDirlistTask;
@@ -159,7 +159,7 @@ var
   s: TSiteSlot;
   i, j: Integer;
   l: TAutoDirlistTask;
-  asection, ss, section, sectiondir: AnsiString;
+  asection, ss, section, sectiondir: String;
   dl: TDirList;
   de: TDirListEntry;
   reqrgx: TRegExpr;
@@ -289,9 +289,9 @@ begin
   ready := True;
 end;
 
-function TAutoDirlistTask.Name: AnsiString;
+function TAutoDirlistTask.Name: String;
 var
-  cstr: AnsiString;
+  cstr: String;
 begin
   if ScheduleText <> '' then
     cstr := format('(%s)', [ScheduleText])
@@ -302,7 +302,7 @@ end;
 
 { TReqFillerThread }
 
-constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: AnsiString);
+constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: String);
 begin
   self.p := p;
   self.secdir := secdir;

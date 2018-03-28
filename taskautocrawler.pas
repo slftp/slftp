@@ -6,8 +6,8 @@ uses tasksunit;
 
 type
   TAutoCrawlerTask = class(TTask)
-    constructor Create(const netname, channel: AnsiString; site1: AnsiString); overload;
-    constructor Create(const netname, channel: AnsiString; site1, section: AnsiString; datum: TDateTime); overload;
+    constructor Create(const netname, channel: String; site1: String); overload;
+    constructor Create(const netname, channel: String; site1, section: String; datum: TDateTime); overload;
   end;
 
 procedure AutoCrawlerInit;
@@ -20,12 +20,12 @@ var crawler_enabled: Boolean = False;
   
 implementation
 
-constructor TAutoCrawlerTask.Create(const netname, channel: AnsiString;
-  site1: AnsiString);
+constructor TAutoCrawlerTask.Create(const netname, channel: String;
+  site1: String);
 begin
 end;
-constructor TAutoCrawlerTask.Create(const netname, channel: AnsiString; site1,
-  section: AnsiString; datum: TDateTime);
+constructor TAutoCrawlerTask.Create(const netname, channel: String; site1,
+  section: String; datum: TDateTime);
 begin
 end;
 procedure AutoCrawlerInit;

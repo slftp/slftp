@@ -6,11 +6,11 @@ uses tasksunit;
 
 type
   TRawTask = class(TTask)
-   cmd: AnsiString;
-   dir: AnsiString;
-   constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; cmd: AnsiString);
+   cmd: String;
+   dir: String;
+   constructor Create(const netname, channel: String;site: String; dir: String; cmd: String);
    function Execute(slot: Pointer): Boolean; override;
-   function Name: AnsiString; override;
+   function Name: String; override;
   end;
 
 implementation
@@ -20,7 +20,7 @@ uses sitesunit, SysUtils, mystrings, DebugUnit;
 const
   section = 'raw';
 
-constructor TRawTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; cmd: AnsiString);
+constructor TRawTask.Create(const netname, channel: String;site: String; dir: String; cmd: String);
 begin
   self.cmd := cmd;
   self.dir := dir;
@@ -59,7 +59,7 @@ ujra:
   ready := True;
 end;
 
-function TRawTask.Name: AnsiString;
+function TRawTask.Name: String;
 begin
   try
     Result := 'RAW ' + site1 + ' -> ' + cmd;
