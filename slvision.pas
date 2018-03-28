@@ -75,9 +75,9 @@ type
     function KeyEvent(c: AnsiChar; extended: boolean): boolean; virtual;
 
     procedure LostFocus(); virtual;
-    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString; hossz: integer = 0);
+    procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0);
       overload; virtual;
-    procedure Write(const x, y: integer; s: AnsiString; hossz: integer = 0); overload;
+    procedure Write(const x, y: integer; s: String; hossz: integer = 0); overload;
     procedure Write(const x, y: integer; c: AnsiChar); overload;
     function BackgroundCharacter: AnsiChar; virtual;
   public
@@ -89,8 +89,8 @@ type
     procedure AddControl(control: TslControl); virtual;
     property Parent: TslControl Read fParent;
     procedure Repaint; virtual;
-    function Name: AnsiString;
-    procedure Dump(prefix: AnsiString = '');
+    function Name: String;
+    procedure Dump(prefix: String = '');
     function FocusedControl: TslControl;
     function app: TslControl;
     procedure GotoXy(ca: TslRect; x, y: integer); overload; virtual;
@@ -146,12 +146,12 @@ type
 
   TslEdit = class(TslAlignedControl)
   private
-    fText:      AnsiString;
+    fText:      String;
     fcursor:    integer;
     fwindow:    integer;
     fOnKeyDown: TslOnKeyDown;
     lastcharonly: boolean;
-    procedure SetText(Value: AnsiString);
+    procedure SetText(Value: String);
     procedure SetCursor(Value: integer);
   public
     maxwidth:     integer;
@@ -161,13 +161,13 @@ type
     procedure Repaint; override;
     function TakesInputFocus: TslControl; override;
     function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
-    property Text: AnsiString Read fText Write SetText;
+    property Text: String Read fText Write SetText;
     property Cursor: integer Read fCursor Write SetCursor;
     property Window: integer Read fWindow;
     property OnKeyDown: TslOnKeyDown Read fOnKeyDown Write fOnKeyDown;
   end;
 
-  TslCommandEvent = procedure(Sender: TslEdit; const command: AnsiString) of object;
+  TslCommandEvent = procedure(Sender: TslEdit; const command: String) of object;
 
   TslCommandEdit = class(TslEdit)
   private
@@ -187,13 +187,13 @@ type
   TslLabel = class(TslAlignedControl)
   protected
     fCaption: TStringList;
-    function GetCaption(): AnsiString;
-    procedure SetCaption(Value: AnsiString);
+    function GetCaption(): String;
+    procedure SetCaption(Value: String);
   public
     Alignment: TslTextAlignment;
-    constructor Create(Caption: AnsiString; parent: TslControl); overload;
+    constructor Create(Caption: String; parent: TslControl); overload;
     destructor Destroy; override;
-    property Caption: AnsiString Read GetCaption Write SetCaption;
+    property Caption: String Read GetCaption Write SetCaption;
     procedure Repaint; override;
   end;
 
@@ -212,22 +212,22 @@ type
 
   TslTextBox = class(TslAlignedControl)
   private
-    function GetText: AnsiString;
-    procedure SetText(const Value: AnsiString);
+    function GetText: String;
+    procedure SetText(const Value: String);
   public
     updateing: boolean;
     fText:     TStringList;
     maxlines:  integer;
-    procedure AddLine(const s: AnsiString);
+    procedure AddLine(const s: String);
     procedure BeginUpdate;
     procedure EndUpdate;
-    procedure LoadFromFile(filename: AnsiString);
+    procedure LoadFromFile(filename: String);
     constructor Create(Width, Height: integer; parent: TslControl); overload;
     destructor Destroy; override;
     procedure Repaint; override;
     function MaxWidth: integer; override;
     function MaxHeight: integer; override;
-    property Text: AnsiString Read GetText Write SetText;
+    property Text: String Read GetText Write SetText;
   end;
 
 
@@ -244,7 +244,7 @@ type
     hScrollBar: TslHorizontalScrollbar;
     vScrollBar: TslVerticalScrollbar;
     procedure GotoXy(ca: TslRect; x, y: integer); override;
-    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString;
+    procedure Write(ca: TslRect; const x, y: integer; s: String;
       hossz: integer = 0); override;
     function MaxWidth: integer;
     function MaxHeight: integer;
@@ -303,17 +303,17 @@ type
   TslWindow = class(TslScrollControl)
   private
     fTitle: TslLabel;
-    function GetTitle: AnsiString;
-    procedure SetTitle(const Value: AnsiString);
+    function GetTitle: String;
+    procedure SetTitle(const Value: String);
   public
     modal: boolean;
     modalResult: TslModalResult;
     function TakesInputFocus(): TslControl; override;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     procedure SetColors; override;
-    constructor Create(Width, Height: integer; title: AnsiString; parent: TslControl);
+    constructor Create(Width, Height: integer; title: String; parent: TslControl);
     function ShowModal: TslModalResult;
-    property Title: AnsiString Read GetTitle Write SetTitle;
+    property Title: String Read GetTitle Write SetTitle;
   end;
 
   TslCommandWindow = class(TslWindow)
@@ -324,7 +324,7 @@ type
     commandedit: TslCommandEdit;
 
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
-    constructor Create(Width, Height: integer; title, Caption: AnsiString;
+    constructor Create(Width, Height: integer; title, Caption: String;
       parent: TslControl);
   end;
 
@@ -389,9 +389,9 @@ type
     fConsoleToUpdate: TStringList;
     procedure slOnResize;
     procedure slOnCtrlC;
-    procedure ShowMessage(const s: AnsiString);
+    procedure ShowMessage(const s: String);
     procedure CopyConsoleTasks;
-    function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
+    function InputQuery(const title, Caption: String; var reply: String;
       password: boolean = False): boolean;
   protected
     procedure SetColors; override;
@@ -404,7 +404,7 @@ type
     timers:     TObjectList;
     menubartop: TslMenubar;
     menubarbottom: TslMenubar;
-    procedure Write(ca: TslRect; const x, y: integer; s: AnsiString;
+    procedure Write(ca: TslRect; const x, y: integer; s: String;
       hossz: integer = 0); override;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     destructor Destroy; override;
@@ -431,8 +431,8 @@ type
   public
     remove:      boolean;
     textbox:     TslTextBox;
-    windowTitle: AnsiString;
-    constructor Create(windowTitle: AnsiString; textbox: TslTextBox);
+    windowTitle: String;
+    constructor Create(windowTitle: String; textbox: TslTextBox);
   end;
 
   TslClockTimer = class(TslTimer)
@@ -460,9 +460,9 @@ type
   end;
 
 
-procedure ShowMessage(const s: AnsiString);
-function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
-  password: boolean = False; replyfile: AnsiString = ''): boolean;
+procedure ShowMessage(const s: String);
+function InputQuery(const title, Caption: String; var reply: String;
+  password: boolean = False; replyfile: String = ''): boolean;
 procedure SetFocus(control: TslControl);
 
 var
@@ -484,16 +484,16 @@ var
   slig, lvtf: integer;
 
 
-procedure ShowMessage(const s: AnsiString);
+procedure ShowMessage(const s: String);
 begin
   if slApp <> nil then
     slApp.ShowMessage(s);
 end;
 
-function ReadFile(const filename: AnsiString): AnsiString;
+function ReadFile(const filename: String): String;
 var
   f: TextFile;
-  s: AnsiString;
+  s: String;
 begin
   Result := '';
   AssignFile(f, filename);
@@ -506,8 +506,8 @@ begin
   CloseFile(f);
 end;
 
-function InputQuery(const title, Caption: AnsiString; var reply: AnsiString;
-  password: boolean = False; replyfile: AnsiString = ''): boolean;
+function InputQuery(const title, Caption: String; var reply: String;
+  password: boolean = False; replyfile: String = ''): boolean;
 begin
   Result := False;
 
@@ -764,7 +764,7 @@ begin
 end;
 
 procedure TslApplication.Write(ca: TslRect; const x, y: integer;
-  s: AnsiString; hossz: integer);
+  s: String; hossz: integer);
 var
   mx, vx: integer;
 begin
@@ -811,7 +811,7 @@ begin
   {$ENDIF}
 end;
 
-procedure TslApplication.ShowMessage(const s: AnsiString);
+procedure TslApplication.ShowMessage(const s: String);
 var
   l: TslLabel;
   w: TslWindow;
@@ -842,7 +842,7 @@ begin
   slScreen.GotoXY(ca.Left + x - 1, ca.Top + y - 1);
 end;
 
-function TslApplication.InputQuery(const title, Caption: AnsiString; var reply: AnsiString; password: boolean): boolean;
+function TslApplication.InputQuery(const title, Caption: String; var reply: String; password: boolean): boolean;
 var
   w: TslWindow;
   m: integer;
@@ -1210,7 +1210,7 @@ begin
   Repaint;
 end;
 
-function TslControl.Name: AnsiString;
+function TslControl.Name: String;
 begin
   Result := ClassName;
   if focused then
@@ -1219,7 +1219,7 @@ begin
     Result := Result + ' (#' + IntToStr(focus.sli) + ')';
 end;
 
-procedure TslControl.Dump(prefix: AnsiString);
+procedure TslControl.Dump(prefix: String);
 var
   i: integer;
   c: TslControl;
@@ -1232,14 +1232,14 @@ begin
   end;
 end;
 
-procedure TslControl.Write(ca: TslRect; const x, y: integer; s: AnsiString;
+procedure TslControl.Write(ca: TslRect; const x, y: integer; s: String;
   hossz: integer = 0);
 begin
   if parent <> nil then
     parent.Write(ca, x, y, s, hossz);
 end;
 
-procedure TslControl.Write(const x, y: integer; s: AnsiString; hossz: integer = 0);
+procedure TslControl.Write(const x, y: integer; s: String; hossz: integer = 0);
 begin
   Write(ca, x, y, s, hossz);
 end;
@@ -1363,7 +1363,7 @@ end;
 procedure TslMenubar.Repaint;
 var
   i: integer;
-  s: AnsiString;
+  s: String;
 begin
   if Visible <> slvVisible then
     exit;
@@ -1470,7 +1470,7 @@ end;
 
 { TslLabel }
 
-constructor TslLabel.Create(Caption: AnsiString; parent: TslControl);
+constructor TslLabel.Create(Caption: String; parent: TslControl);
 begin
   fCaption := TStringList.Create;
   inherited Create(Length(Caption), 1, parent);
@@ -1484,7 +1484,7 @@ begin
   inherited;
 end;
 
-function TslLabel.GetCaption: AnsiString;
+function TslLabel.GetCaption: String;
 begin
   Result := fCaption.Text;
 end;
@@ -1514,7 +1514,7 @@ begin
 
 end;
 
-procedure TslLabel.SetCaption(Value: AnsiString);
+procedure TslLabel.SetCaption(Value: String);
 var
   lx, ly, i: integer;
 begin
@@ -1626,7 +1626,7 @@ end;
 
 procedure TslBackground.Repaint;
 var
-  s: AnsiString;
+  s: String;
   i: integer;
   c: AnsiChar;
 begin
@@ -1725,7 +1725,7 @@ procedure TslInfosTimer.OnTimer;
 var
   x, y:    integer;
   i, i_chans: integer;
-  s_rules: AnsiString;
+  s_rules: String;
 begin
   slScreen.GetCursorPos(x, y);
   try
@@ -1762,7 +1762,7 @@ end;
 { TslWindow }
 
 
-constructor TslWindow.Create(Width, Height: integer; title: AnsiString; parent: TslControl);
+constructor TslWindow.Create(Width, Height: integer; title: String; parent: TslControl);
 var
   tmp: TslScrollArea;
 begin
@@ -1796,7 +1796,7 @@ begin
   end;
 end;
 
-function TslWindow.GetTitle: AnsiString;
+function TslWindow.GetTitle: String;
 begin
   Result := Trim(fTitle.Caption);
 end;
@@ -1817,7 +1817,7 @@ const frameChars : array[false..true, 1..6] of AnsiChar = (
 
 var
   i: integer;
-  s: AnsiString;
+  s: String;
   focused: boolean;
 begin
   if Visible <> slvVisible then
@@ -1899,7 +1899,7 @@ begin
     Result := ca.Width;
 end;
 
-procedure TslWindow.SetTitle(const Value: AnsiString);
+procedure TslWindow.SetTitle(const Value: String);
 begin
   fTitle.Caption := ' ' + Value + ' ';
 end;
@@ -2014,7 +2014,7 @@ end;
 
 procedure TslHorizontalScrollbar.Repaint;
 var
-  s:    AnsiString;
+  s:    String;
   i:    integer;
   m, c: integer;
   a, x: integer;
@@ -2370,7 +2370,7 @@ begin
 end;
 
 procedure TslScrollArea.Write(ca: TslRect; const x, y: integer;
-  s: AnsiString; hossz: integer);
+  s: String; hossz: integer);
 var
   nx, ny: integer;
 begin
@@ -2476,7 +2476,7 @@ end;
 
 { TslTextBox }
 
-procedure TslTextBox.AddLine(const s: AnsiString);
+procedure TslTextBox.AddLine(const s: String);
 begin
   fText.Add(s);
   if not updateing then
@@ -2515,15 +2515,15 @@ begin
   Repaint;
 end;
 
-function TslTextBox.GetText: AnsiString;
+function TslTextBox.GetText: String;
 begin
   Result := fText.Text;
 end;
 
-procedure TslTextBox.LoadFromFile(filename: AnsiString);
+procedure TslTextBox.LoadFromFile(filename: String);
 var
   f: TextFile;
-  s: AnsiString;
+  s: String;
 begin
   if not FileExists(filename) then
     exit;
@@ -2572,7 +2572,7 @@ begin
 
 end;
 
-procedure TslTextBox.SetText(const Value: AnsiString);
+procedure TslTextBox.SetText(const Value: String);
 begin
   fText.Text := Value;
   EndUpdate;
@@ -2582,7 +2582,7 @@ end;
 
 constructor TslButton.Create(modalResult: TslModalResult; parent: TslControl);
 const
-  ModalCaptions: array[0..3] of AnsiString = ('', 'Ok', 'Cancel', '-');
+  ModalCaptions: array[0..3] of String = ('', 'Ok', 'Cancel', '-');
 begin
   self.modalResult := modalResult;
   inherited Create(ModalCaptions[integer(modalResult)], parent);
@@ -2848,7 +2848,7 @@ begin
   Repaint;
 end;
 
-procedure TslEdit.SetText(Value: AnsiString);
+procedure TslEdit.SetText(Value: String);
 begin
   fText := Value;
   if maxwidth > 0 then
@@ -2934,7 +2934,7 @@ end;
 { TslCommandWindow }
 
 constructor TslCommandWindow.Create(Width, Height: integer;
-  title, Caption: AnsiString; parent: TslControl);
+  title, Caption: String; parent: TslControl);
 var
   cp:  TslFixHeightPanel;
   fw:  TslFixWidthPanel;
@@ -3024,7 +3024,7 @@ end;
 
 { TslTextBoxTask }
 
-constructor TslTextBoxTask.Create(windowTitle: AnsiString; textbox: TslTextBox);
+constructor TslTextBoxTask.Create(windowTitle: String; textbox: TslTextBox);
 begin
   self.windowTitle := windowTitle;
   self.textbox     := textbox;

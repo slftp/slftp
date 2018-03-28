@@ -2,8 +2,8 @@ unit helper;
 
 interface
 
-function MyGetPass(prompt: AnsiString): AnsiString;
-function MyGetUsername: AnsiString;
+function MyGetPass(prompt: String): String;
+function MyGetUsername: String;
 
 implementation
 
@@ -20,7 +20,7 @@ uses SysUtils, StrUtils,
 
 
 {$IFDEF MSWINDOWS}
-  function MyGetPass(prompt: AnsiString) : AnsiString;
+  function MyGetPass(prompt: String) : String;
   var
     OldConsInMode, NewConsInMode: DWORD;
     hConsIn: THANDLE;
@@ -62,18 +62,18 @@ uses SysUtils, StrUtils,
   //CloseHandle (hConsIn); //commented because otherwhise it'll except
   end;
 {$ELSE}
-  function MyGetPass(prompt: AnsiString): AnsiString;
+  function MyGetPass(prompt: String): String;
   begin
     {$IFDEF FPC}
-      Result := 'blabla'; //StrPas(GetPass(PChar(prompt)));
+      Result := 'blabla'; //StrPas(GetPass(PAnsiChar(prompt)));
     {$ELSE}
-      Result:= StrPas(GetPass(PChar(prompt)));
+      Result:= StrPas(GetPass(PAnsiChar(prompt)));
     {$ENDIF}
   end;
 {$ENDIF}
 
 {$IFDEF MSWINDOWS}
-  function MyGetUsername: AnsiString;
+  function MyGetUsername: String;
   var
     buf: array[1..256] of AnsiChar;
     n: Cardinal;
@@ -84,7 +84,7 @@ uses SysUtils, StrUtils,
       Result := Copy(buf, 1, n-1);
   end;
 {$ELSE}
-  function MyGetUsername: AnsiString;
+  function MyGetUsername: String;
   var
     pwentry: PPasswordRecord;
   begin

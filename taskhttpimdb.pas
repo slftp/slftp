@@ -8,13 +8,13 @@ uses
 type
   TPazoHTTPImdbTask = class(TTask)
   private
-    rls: AnsiString;
-    imdb_id: AnsiString;
+    rls: String;
+    imdb_id: String;
   public
-    constructor Create(const imdb_id: AnsiString; const rls: AnsiString);
+    constructor Create(const imdb_id: String; const rls: String);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -28,7 +28,7 @@ const
 
   { TPazoHTTPImdbTask }
 
-constructor TPazoHTTPImdbTask.Create(const imdb_id: AnsiString; const rls: AnsiString);
+constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
 begin
   self.imdb_id := imdb_id;
   self.rls := rls;
@@ -42,19 +42,19 @@ var
   imdbdata: TDbImdbData;
   rr, rr2: TRegexpr;
   imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang,
-    imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date: AnsiString;
+    imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date: String;
   ir: TImdbRelease;
 
-  mainsite, rlsdatesite, businesssite, bomsite: AnsiString;
+  mainsite, rlsdatesite, businesssite, bomsite: String;
   release_date: TDateTime;
   formatSettings: TFormatSettings;
-  showname: AnsiString;
+  showname: String;
   season: integer;
   episode: int64;
   fBOMSearchNeeded: boolean;
-  fBusinessInfoPart: AnsiString;
-  fRlsdateExtraInfo: AnsiString;
-  fPictureID: AnsiString;
+  fBusinessInfoPart: String;
+  fRlsdateExtraInfo: String;
+  fPictureID: String;
   fHttpGetErrMsg: String;
 begin
   Result := False;
@@ -733,7 +733,7 @@ begin
   Result := True;
 end;
 
-function TPazoHTTPImdbTask.Name: AnsiString;
+function TPazoHTTPImdbTask.Name: String;
 begin
   try
     Result := Format('HTTPImdb %s : %s', [rls, imdb_id]);

@@ -9,20 +9,20 @@ procedure statsInit;
 procedure statsUninit;
 procedure statsBeginTransaction();
 procedure statsEndTransaction();
-function statsQuery(const q: AnsiString): AnsiString;
+function statsQuery(const q: String): String;
 
 function StatsAlive: boolean;
 
-procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: AnsiString; filesize: Int64);
+procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: String; filesize: Int64);
 
-procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
+procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: String);
 
-procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
+procedure StatRaces(netname, channel, sitename, period: String; detailed: Boolean);
 
-procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
 
-procedure RemoveStats(const sitename: AnsiString); overload;
-procedure RemoveStats(const sitename, section: AnsiString); overload;
+procedure RemoveStats(const sitename: String); overload;
+procedure RemoveStats(const sitename, section: String); overload;
 
 
 implementation
@@ -46,12 +46,12 @@ begin
     Result := true;
 end;
 
-function statsQuery(const q: AnsiString): AnsiString;
+function statsQuery(const q: String): String;
 var
   s: Psqlite3_stmt;
   i: Integer;
   size: Double;
-  s_unit: AnsiString;
+  s_unit: String;
 begin
   s := stats.Open(q);
   i := 1;
@@ -71,7 +71,7 @@ begin
   end;
 end;
 
-procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: AnsiString; StartFromSizeUnit: Integer = 0);
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
 {$I common.inc}
 begin
   if ((StartFromSizeUnit > FileSizeUnitCount) or (StartFromSizeUnit < 0)) then
@@ -95,7 +95,7 @@ begin
   sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
 
-procedure RemoveStats(const sitename: AnsiString); overload;
+procedure RemoveStats(const sitename: String); overload;
 begin
   if stats = nil then
     Exit;
@@ -103,7 +103,7 @@ begin
   stats.ExecSQL('DELETE FROM race WHERE ( sitedst = ' + chr(39) + sitename + chr(39) + ' OR sitedst = ' + chr(39) + sitename + chr(39) + ' );');
 end;
 
-procedure RemoveStats(const sitename, section: AnsiString); overload;
+procedure RemoveStats(const sitename, section: String); overload;
 begin
   if stats = nil then
     Exit;
@@ -112,11 +112,11 @@ begin
 end;
 
 
-procedure StatRaces(netname, channel, sitename, period: AnsiString; detailed: Boolean);
+procedure StatRaces(netname, channel, sitename, period: String; detailed: Boolean);
 var
-  q, sql_period: AnsiString;
+  q, sql_period: String;
   s: Psqlite3_stmt;
-  s_size, s_unit: AnsiString;
+  s_size, s_unit: String;
   size, size_all_out, size_all_in: Double;
   i, files_per_site_in, files_per_site_out, files_all_in, files_all_out: Integer;
 begin
@@ -268,7 +268,7 @@ end;
 
 procedure statsStart;
 var
-  s: AnsiString;
+  s: String;
 begin
   if slsqlite_inited then
   begin
@@ -333,7 +333,7 @@ begin
   end;
 end;
 
-procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: AnsiString; filesize: Int64);
+procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: String; filesize: Int64);
 var
   s_src, s_dst: TSite;
 begin
@@ -369,11 +369,11 @@ begin
   end;
 end;
 
-procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: AnsiString);
+procedure statsProcessDirlist(d: TDirlist; sitename, rls_section, username: String);
 var
   i: Integer;
   de: TDirlistEntry;
-  u: AnsiString;
+  u: String;
 begin
   if d = nil then
     exit;

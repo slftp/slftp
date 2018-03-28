@@ -9,10 +9,10 @@ procedure KnowngroupsInit;
 procedure KnowngroupsUnInit;
 procedure KnowngroupsStart;
 
-function IsKnownGroup(section, groupname: AnsiString): TKnownGroup;
+function IsKnownGroup(section, groupname: String): TKnownGroup;
 
-function RemoveINT(const grp: AnsiString): AnsiString;
-function RemoveWEB(const grp: AnsiString): AnsiString;
+function RemoveINT(const grp: String): String;
+function RemoveWEB(const grp: String): String;
 
 implementation
 
@@ -35,7 +35,7 @@ end;
 procedure KnowngroupsStart;
 var
   f: TextFile;
-  s, section: AnsiString;
+  s, section: String;
   i: Integer;
 begin
   kg.clear;
@@ -84,7 +84,7 @@ begin
 end;
 
 
-function RemoveINT(const grp: AnsiString): AnsiString;
+function RemoveINT(const grp: String): String;
 var
   r: TRegexpr;
 begin
@@ -103,7 +103,7 @@ begin
   end;
 end;
 
-function RemoveWEB(const grp: AnsiString): AnsiString;
+function RemoveWEB(const grp: String): String;
 var
   r: TRegexpr;
 begin
@@ -122,9 +122,9 @@ begin
   end;
 end;
 
-function IsKnownGroup(section, groupname: AnsiString): TKnownGroup;
+function IsKnownGroup(section, groupname: String): TKnownGroup;
 var
-  s: AnsiString;
+  s: String;
 begin
   Result := grp_notconfigured;
   try

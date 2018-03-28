@@ -7,21 +7,21 @@ uses Classes, IniFiles, irc, slsqlite, kb, Contnrs;
 type
   TTVInfoDB = class
   public
-    ripname: AnsiString;
-    rls_showname: AnsiString;
-    tvmaze_id: AnsiString;
-    thetvdb_id: AnsiString;
-    tvrage_id: AnsiString;
+    ripname: String;
+    rls_showname: String;
+    tvmaze_id: String;
+    thetvdb_id: String;
+    tvrage_id: String;
 
-    tv_showname: AnsiString;
-    tv_country: AnsiString;
-    tv_url: AnsiString;
-    tv_status: AnsiString;
-    tv_classification: AnsiString;
+    tv_showname: String;
+    tv_country: String;
+    tv_url: String;
+    tv_status: String;
+    tv_classification: String;
     tv_genres: TStringList;
     tv_days: TStringList;
-    tv_network: AnsiString;
-    tv_language: AnsiString;
+    tv_network: String;
+    tv_language: String;
     tv_premiered_year: integer;
     tv_endedyear: integer;
     tv_running: boolean;
@@ -31,12 +31,12 @@ type
     tv_next_date: integer;
     last_updated: integer;
     tv_daily: boolean;
-    constructor Create(rls_showname: AnsiString); //overload;
+    constructor Create(rls_showname: String); //overload;
     destructor Destroy; override;
-    function Name: AnsiString;
+    function Name: String;
     procedure Save;
 
-    procedure PostResults(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
+    procedure PostResults(rls: String = ''; netname: String = ''; channel: String = '');
     procedure SetTVDbRelease(tr: TTVRelease);
     function Update(fromIRC:Boolean = False): boolean;
 
@@ -49,32 +49,32 @@ type
 function getTVInfoCount: integer;
 function getTVInfoSeriesCount: integer;
 
-function TheTVDbStatus: AnsiString;
+function TheTVDbStatus: String;
 
 procedure dbTVInfoInit;
 procedure dbTVInfoStart;
 procedure dbTVInfoUnInit;
 
-function getTVInfoByShowName(rls_showname: AnsiString): TTVInfoDB;
-function getTVInfoByReleaseName(rls: AnsiString): TTVInfoDB;
+function getTVInfoByShowName(rls_showname: String): TTVInfoDB;
+function getTVInfoByReleaseName(rls: String): TTVInfoDB;
 
-function getTVInfoByShowID(tvmaze_id: AnsiString): TTVInfoDB;
+function getTVInfoByShowID(tvmaze_id: String): TTVInfoDB;
 
-procedure saveTVInfos(tvmaze_id: AnsiString; tvrage: TTVInfoDB; rls: AnsiString = ''; fireKb: boolean = True);
+procedure saveTVInfos(tvmaze_id: String; tvrage: TTVInfoDB; rls: String = ''; fireKb: boolean = True);
 
-function deleteTVInfoByID(id: AnsiString): Integer;
-function deleteTVInfoByRipName(Name: AnsiString): Integer;
+function deleteTVInfoByID(id: String): Integer;
+function deleteTVInfoByRipName(Name: String): Integer;
 
-procedure addTVInfos(params: AnsiString);
+procedure addTVInfos(params: String);
 
-procedure TVInfoFireKbAdd(rls: AnsiString; msg: AnsiString = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
+procedure TVInfoFireKbAdd(rls: String; msg: String = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
 
-function dbTVInfo_Process(net, chan, nick, msg: AnsiString): boolean;
+function dbTVInfo_Process(net, chan, nick, msg: String): boolean;
 
-procedure getShowValues(const rip: AnsiString; out showName: AnsiString; out season: integer; out episode: int64); overload;
-procedure getShowValues(const rip: AnsiString; out showName: AnsiString); overload;
+procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
+procedure getShowValues(const rip: String; out showName: String); overload;
 
-function replaceTVShowChars(name: AnsiString; forWebFetch: boolean = false): AnsiString;
+function replaceTVShowChars(name: String; forWebFetch: boolean = false): String;
 
 function TVInfoDbAlive: boolean;
 
@@ -88,9 +88,9 @@ const
 
 var
   tvinfodb: TslSqliteDB = nil;
-  addtinfodbcmd: AnsiString;
+  addtinfodbcmd: String;
 
-function replaceTVShowChars(name: AnsiString; forWebFetch: boolean = false): AnsiString;
+function replaceTVShowChars(name: String; forWebFetch: boolean = false): String;
 begin
   //this is a protction!!!!  Dispatches will not end up in Disp@ches
   name := Csere(name, ' ', '.');
@@ -110,7 +110,7 @@ begin
   result := name;
 end;
 
-procedure getShowValues(const rip: AnsiString; out showName: AnsiString);
+procedure getShowValues(const rip: String; out showName: String);
 var
   season: integer;
   episode: int64;
@@ -118,7 +118,7 @@ begin
   getShowValues(rip, showName, season, episode);
 end;
 
-procedure getShowValues(const rip: AnsiString; out showname: AnsiString; out season: integer; out episode: int64);
+procedure getShowValues(const rip: String; out showname: String; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
   ttags, ltags: TStringlist;
@@ -368,7 +368,7 @@ begin
 
 end;
 
-constructor TTVInfoDB.Create(rls_showname: AnsiString);
+constructor TTVInfoDB.Create(rls_showname: String);
 begin
   self.rls_showname := rls_showname;
   self.tv_genres := TStringList.Create;
@@ -387,7 +387,7 @@ begin
   inherited;
 end;
 
-function TTVInfoDB.Name: AnsiString;
+function TTVInfoDB.Name: String;
 begin
   try
     Result := 'TVInfo :' + rls_showname + ' : ';
@@ -396,7 +396,7 @@ begin
   end;
 end;
 
-procedure TTVInfoDB.PostResults(rls: AnsiString = ''; netname: AnsiString = ''; channel: AnsiString = '');
+procedure TTVInfoDB.PostResults(rls: String = ''; netname: String = ''; channel: String = '');
 var
   toAnnounce: TStringlist;
   toStats: boolean;
@@ -515,8 +515,8 @@ end;
 
 function TTVInfoDB.Update(fromIRC: boolean = False): boolean;
 var
-  rls_name: AnsiString;
-  respo: AnsiString;
+  rls_name: String;
+  respo: String;
   fHttpGetErrMsg: String;
 begin
   Result := False;
@@ -600,12 +600,12 @@ begin
     result := 0;
 end;
 
-function TheTVDbStatus: AnsiString;
+function TheTVDbStatus: String;
 begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
 
-function deleteTVInfoByID(id: AnsiString): Integer;
+function deleteTVInfoByID(id: String): Integer;
 begin
   if not tvinfodb.ExecSQL(Format('DELETE FROM infos WHERE tvmaze_id = %s;', [id])) then
   begin
@@ -620,7 +620,7 @@ begin
   result := 1;
 end;
 
-function deleteTVInfoByRipName(Name: AnsiString): Integer;
+function deleteTVInfoByRipName(Name: String): Integer;
 var
   count: integer;
   cinfo: Psqlite3_stmt;
@@ -657,7 +657,7 @@ begin
   end;
 end;
 
-function getTVInfoByShowName(rls_showname: AnsiString): TTVInfoDB;
+function getTVInfoByShowName(rls_showname: String): TTVInfoDB;
 var
   tvi: TTVInfoDB;
   gettvrage: Psqlite3_stmt;
@@ -727,9 +727,9 @@ begin
   end;
 end;
 
-function getTVInfoByReleaseName(rls: AnsiString): TTVInfoDB;
+function getTVInfoByReleaseName(rls: String): TTVInfoDB;
 var
-  showname: AnsiString;
+  showname: String;
 begin
   Result := nil;
   showname := rls;
@@ -743,7 +743,7 @@ begin
   end;
 end;
 
-function getTVInfoByShowID(tvmaze_id: AnsiString): TTVInfoDB;
+function getTVInfoByShowID(tvmaze_id: String): TTVInfoDB;
 var
   tvi: TTVInfoDB;
   gettvrage: Psqlite3_stmt;
@@ -790,10 +790,10 @@ begin
   end;
 end;
 
-procedure addTVInfos(params: AnsiString);
+procedure addTVInfos(params: String);
 var
-  rls: AnsiString;
-  tv_showid: AnsiString;
+  rls: String;
+  tv_showid: String;
 begin
   rls := '';
   rls := SubString(params, ' ', 1);
@@ -812,7 +812,7 @@ begin
   end;
 end;
 
-procedure saveTVInfos(tvmaze_id: AnsiString; tvrage: TTVInfoDB; rls: AnsiString = ''; fireKb: boolean = True);
+procedure saveTVInfos(tvmaze_id: String; tvrage: TTVInfoDB; rls: String = ''; fireKb: boolean = True);
 var
   save_tvrage: TTVInfoDB;
 begin
@@ -849,7 +849,7 @@ begin
   end;
 end;
 
-procedure TVInfoFireKbAdd(rls: AnsiString; msg: AnsiString = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
+procedure TVInfoFireKbAdd(rls: String; msg: String = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
 var
   p: TPazo;
   ps: TPazoSite;
@@ -889,7 +889,7 @@ end;
 procedure dbTVInfoStart;
 const currentDbVersion: integer = 3;
 var
-  db_name, db_params: AnsiString;
+  db_name, db_params: String;
   user_version: Psqlite3_stmt;
   uV: integer;
 begin
@@ -977,7 +977,7 @@ begin
   end;
 end;
 
-function dbTVInfo_Process(net, chan, nick, msg: AnsiString): boolean;
+function dbTVInfo_Process(net, chan, nick, msg: String): boolean;
 begin
   Result := False;
   if (1 = Pos(addtinfodbcmd, msg)) then

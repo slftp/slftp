@@ -9,7 +9,7 @@ procedure Uninitglobalskiplist;
 
 function Rehashglobalskiplist: boolean;
 
-function CheckForBadAssGroup(const rls: AnsiString): boolean;
+function CheckForBadAssGroup(const rls: String): boolean;
 
 var
   globalgroupskip: TStringlist;
@@ -59,7 +59,7 @@ begin
   end;
 end;
 
-function CheckForBadAssGroup(const rls: AnsiString): boolean;
+function CheckForBadAssGroup(const rls: String): boolean;
 var
   r: TRegexpr;
 begin

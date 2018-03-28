@@ -44,7 +44,7 @@ const
 // we create fakes for all sections and insert on pos 0 a empty string for global settings.
 procedure ReadFakeSettings;
 var
-  s: AnsiString;
+  s: String;
   i, j: integer;
   f: TFakeSettings;
 begin
@@ -246,7 +246,7 @@ end;
 *)
 procedure FakeCheckI(r: TRelease; f: TFakeSettings);
 var
-  s,s2: AnsiString;
+  s,s2: String;
   ii, i, j: Integer;
   short: Integer;
 begin
@@ -368,7 +368,7 @@ procedure FakeCheckMP3(r: TMP3Release; f: TFakeSettings);
 var
   i, j, k: Integer;
   johetbetu, johetszam: Boolean;
-  s: AnsiString;
+  s: String;
 begin
   r.fake := True;
 

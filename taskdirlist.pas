@@ -5,10 +5,10 @@ uses tasksunit;
 
 type TDirlistTask = class(TTask)
        forcecwd: Boolean;
-       dir: AnsiString;
-       constructor Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; forcecwd: Boolean = False);
+       dir: String;
+       constructor Create(const netname, channel: String;site: String; dir: String; forcecwd: Boolean = False);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
+       function Name: String; override;
      end;
 
 implementation
@@ -19,7 +19,7 @@ const section = 'dirlist';
 
 { TDirlistTask }
 
-constructor TDirlistTask.Create(const netname, channel: AnsiString;site: AnsiString; dir: AnsiString; forcecwd: Boolean = False);
+constructor TDirlistTask.Create(const netname, channel: String;site: String; dir: String; forcecwd: Boolean = False);
 begin
   self.dir:= dir;
   self.forcecwd:= forcecwd;
@@ -69,7 +69,7 @@ ujra:
   ready:= True;
 end;
 
-function TDirlistTask.Name: AnsiString;
+function TDirlistTask.Name: String;
 begin
   try
     Result:= Format('<b>DIRLIST:</b> %s @ %s',[dir,site1]);

@@ -6,21 +6,21 @@ uses
   Classes, dirlist, irc, prebot, sitesunit;
 
 type
-  TIrcCommandHandler = function(const netname, channel: AnsiString; params: AnsiString): boolean;
+  TIrcCommandHandler = function(const netname, channel: String; params: String): boolean;
   //TIrcCommandHandler = function (const netname, channel: string; params: string; nickname:string = ''): Boolean;
   TIrcCommand = record
-    cmd: AnsiString;
+    cmd: String;
     hnd: TIrcCommandHandler;
     minparams: integer;
     maxparams: integer;
-    hlpgrp: AnsiString;
+    hlpgrp: String;
   end;
 
   TIRCCommandThread = class(TThread)
     c: TIRCCommandHandler;
     th: TMyIrcThread;
-    netname, channel, cmd, params: AnsiString;
-    constructor Create(c: TIRCCommandHandler; netname, channel, params: AnsiString; cmd: AnsiString = '');
+    netname, channel, cmd, params: String;
+    constructor Create(c: TIRCCommandHandler; netname, channel, params: String; cmd: String = '');
     //constructor Create(c: TIRCCommandHandler; netname, channel, params: string; nickname:string = '');
     procedure Execute; override;
   end;
@@ -28,327 +28,327 @@ type
 procedure IrcCommandInit;
 procedure IrcCommandUninit;
 
-function IrcNope(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcHelpHeader(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcHelpSeperator(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNope(const netname, channel: String; params: String): boolean;
+function IrcHelpHeader(const netname, channel: String; params: String): boolean;
+function IrcHelpSeperator(const netname, channel: String; params: String): boolean;
 
-function IrcHelpv2(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpv2(const Netname, Channel: String; params: String): boolean;
 
-function FindIrcCommand(cmd: AnsiString): integer; // overload;
+function FindIrcCommand(cmd: String): integer; // overload;
 //function FindIrcCommand(cmd: string): boolean; overload;
-function IrcDie(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcHelp(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUptime(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRaw(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcManageUser(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcInvite(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcBnctest(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKill(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSites(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSite(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcBnc(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetdown(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDie(const netname, channel: String; params: String): boolean;
+function IrcHelp(const netname, channel: String; params: String): boolean;
+function IrcUptime(const netname, channel: String; params: String): boolean;
+function IrcRaw(const netname, channel: String; params: String): boolean;
+function IrcManageUser(const netname, channel: String; params: String): boolean;
+function IrcInvite(const netname, channel: String; params: String): boolean;
+function IrcBnctest(const netname, channel: String; params: String): boolean;
+function IrcKill(const netname, channel: String; params: String): boolean;
+function IrcSites(const netname, channel: String; params: String): boolean;
+function IrcSite(const netname, channel: String; params: String): boolean;
+function IrcBnc(const netname, channel: String; params: String): boolean;
+function IrcSetdown(const netname, channel: String; params: String): boolean;
 //function IrcNope(const netname, channel: string;params: string; nickname:string = ''): Boolean;
 
-function IrcQueue(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcQueue(const netname, channel: String; params: String): boolean;
 
-function IrcMaxUpDn(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcMaxUpPerRip(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcMaxIdle(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcTimeout(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelsite(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSlots(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSlotsShow(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcMaxUpDn(const netname, channel: String; params: String): boolean;
+function IrcMaxUpPerRip(const netname, channel: String; params: String): boolean;
+function IrcMaxIdle(const netname, channel: String; params: String): boolean;
+function IrcTimeout(const netname, channel: String; params: String): boolean;
+function IrcDelsite(const netname, channel: String; params: String): boolean;
+function IrcSlots(const netname, channel: String; params: String): boolean;
+function IrcSlotsShow(const netname, channel: String; params: String): boolean;
 
-function IrcAddSite(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAddSite(const netname, channel: String; params: String): boolean;
 
-function IrcAddSiteInfos(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAddSiteInfos(const netname, channel: String; params: String): boolean;
 
-function IrcAddBnc(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelBnc(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAddBnc(const netname, channel: String; params: String): boolean;
+function IrcDelBnc(const netname, channel: String; params: String): boolean;
 
-function IrcSiteUser(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSitePass(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSiteUser(const netname, channel: String; params: String): boolean;
+function IrcSitePass(const netname, channel: String; params: String): boolean;
 
-function IrcNetAddServer(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNetDelServer(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNetAddServer(const netname, channel: String; params: String): boolean;
+function IrcNetDelServer(const netname, channel: String; params: String): boolean;
 
-function IrcNetAddPerform(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNetDelPerform(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNetListPerform(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNetDoPerform(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNetAddPerform(const netname, channel: String; params: String): boolean;
+function IrcNetDelPerform(const netname, channel: String; params: String): boolean;
+function IrcNetListPerform(const netname, channel: String; params: String): boolean;
+function IrcNetDoPerform(const netname, channel: String; params: String): boolean;
 
-function IrcSetdir(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSslmethod(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSslfxp(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcLegacyCwd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetdir(const netname, channel: String; params: String): boolean;
+function IrcSslmethod(const netname, channel: String; params: String): boolean;
+function IrcSslfxp(const netname, channel: String; params: String): boolean;
+function IrcLegacyCwd(const netname, channel: String; params: String): boolean;
 
-function IrcRankLock(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRanks(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRank(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRankRecalc(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcRankLock(const netname, channel: String; params: String): boolean;
+function IrcRanks(const netname, channel: String; params: String): boolean;
+function IrcRank(const netname, channel: String; params: String): boolean;
+function IrcRankRecalc(const netname, channel: String; params: String): boolean;
 
-function IrcNoannouncesite(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNoannouncesite(const netname, channel: String; params: String): boolean;
 
-function IrcSpeeds(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetSpeed(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcLockSpeed(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetRoute(const netname, channel: AnsiString; params: AnsiString; lock: boolean = False): boolean;
-function IrcInroutes(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcOutroutes(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeeds(const netname, channel: String; params: String): boolean;
+function IrcSetSpeed(const netname, channel: String; params: String): boolean;
+function IrcLockSpeed(const netname, channel: String; params: String): boolean;
+function IrcSetRoute(const netname, channel: String; params: String; lock: boolean = False): boolean;
+function IrcInroutes(const netname, channel: String; params: String): boolean;
+function IrcOutroutes(const netname, channel: String; params: String): boolean;
 
-function IrcDirlist(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcLatest(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDirlist(const netname, channel: String; params: String): boolean;
+function IrcLatest(const netname, channel: String; params: String): boolean;
 
-function IrcDelrelease(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelAllrelease(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDelrelease(const netname, channel: String; params: String): boolean;
+function IrcDelAllrelease(const netname, channel: String; params: String): boolean;
 
-function IrcSpread(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcCStop(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSpread(const netname, channel: String; params: String): boolean;
+function IrcCStop(const netname, channel: String; params: String): boolean;
 
-function IrcTransfer(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcTransfer(const netname, channel: String; params: String): boolean;
 
-function IrcStatus(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcChannels(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcChanAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetBlowkey(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetChankey(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetChanName(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcStatus(const netname, channel: String; params: String): boolean;
+function IrcChannels(const netname, channel: String; params: String): boolean;
+function IrcChanAdd(const netname, channel: String; params: String): boolean;
+function IrcSetBlowkey(const netname, channel: String; params: String): boolean;
+function IrcSetChankey(const netname, channel: String; params: String): boolean;
+function IrcSetChanName(const netname, channel: String; params: String): boolean;
 //function IrcSetChanInvite(const netname, channel: string;params: string): Boolean;
-function IrcShowNet(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAddnet(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcModnet(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcModesNet(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelnet(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelchan(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcJump(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSay(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowNet(const netname, channel: String; params: String): boolean;
+function IrcAddnet(const netname, channel: String; params: String): boolean;
+function IrcModnet(const netname, channel: String; params: String): boolean;
+function IrcModesNet(const netname, channel: String; params: String): boolean;
+function IrcDelnet(const netname, channel: String; params: String): boolean;
+function IrcDelchan(const netname, channel: String; params: String): boolean;
+function IrcJump(const netname, channel: String; params: String): boolean;
+function IrcSay(const netname, channel: String; params: String): boolean;
 
-function IrcSitechan(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPrereload(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPrelist(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreadd(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPredel(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreCatchtest(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreCatchDebug(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSitechan(const netname, channel: String; params: String): boolean;
+function IrcPrereload(const netname, channel: String; params: String): boolean;
+function IrcPrelist(const netname, channel: String; params: String): boolean;
+function IrcPreadd(const netname, channel: String; params: String): boolean;
+function IrcPredel(const netname, channel: String; params: String): boolean;
+function IrcPreCatchtest(const netname, channel: String; params: String): boolean;
+function IrcPreCatchDebug(const netname, channel: String; params: String): boolean;
 
-function IrcRuleAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRuleIns(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRuleMod(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRuleDel(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAllRuleDel(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRuleHelp(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRuleList(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRules(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRulesLoad(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRulesReload(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleAdd(const netname, channel: String; params: String): boolean;
+function IrcRuleIns(const netname, channel: String; params: String): boolean;
+function IrcRuleMod(const netname, channel: String; params: String): boolean;
+function IrcRuleDel(const netname, channel: String; params: String): boolean;
+function IrcAllRuleDel(const netname, channel: String; params: String): boolean;
+function IrcRuleHelp(const netname, channel: String; params: String): boolean;
+function IrcRuleList(const netname, channel: String; params: String): boolean;
+function IrcRules(const netname, channel: String; params: String): boolean;
+function IrcRulesLoad(const netname, channel: String; params: String): boolean;
+function IrcRulesReload(const netname, channel: String; params: String): boolean;
 
-function IrcAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetAffils(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcInfo(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcName(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSize(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcLink(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNotes(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcLeechers(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcTraders(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUserslots(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFreeslots(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFindAffil(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFindCountry(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFindSection(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFindUser(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAuto(const netname, channel: AnsiString; params: AnsiString): boolean;
-//function IrcCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
-//function IrcConfirmerAnnounce(const netname, channel: AnsiString; params: AnsiString): boolean;
-//function IrcCrawl(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoLogin(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoBncTest(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoRules(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoNuke(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoDirlist(const netname, channel: AnsiString; params: AnsiString): boolean;
-//function IrcAutoCrawler(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAutoIndex(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKbShow(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKbList(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKbExtra(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKbAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAffils(const netname, channel: String; params: String): boolean;
+function IrcSetAffils(const netname, channel: String; params: String): boolean;
+function IrcUsers(const netname, channel: String; params: String): boolean;
+function IrcCountry(const netname, channel: String; params: String): boolean;
+function IrcInfo(const netname, channel: String; params: String): boolean;
+function IrcName(const netname, channel: String; params: String): boolean;
+function IrcSize(const netname, channel: String; params: String): boolean;
+function IrcLink(const netname, channel: String; params: String): boolean;
+function IrcNotes(const netname, channel: String; params: String): boolean;
+function IrcLeechers(const netname, channel: String; params: String): boolean;
+function IrcTraders(const netname, channel: String; params: String): boolean;
+function IrcUserslots(const netname, channel: String; params: String): boolean;
+function IrcFreeslots(const netname, channel: String; params: String): boolean;
+function IrcFindAffil(const netname, channel: String; params: String): boolean;
+function IrcFindCountry(const netname, channel: String; params: String): boolean;
+function IrcFindSection(const netname, channel: String; params: String): boolean;
+function IrcFindUser(const netname, channel: String; params: String): boolean;
+function IrcAuto(const netname, channel: String; params: String): boolean;
+//function IrcCrawler(const netname, channel: String; params: String): boolean;
+//function IrcConfirmerAnnounce(const netname, channel: String; params: String): boolean;
+//function IrcCrawl(const netname, channel: String; params: String): boolean;
+function IrcAutoLogin(const netname, channel: String; params: String): boolean;
+function IrcAutoBncTest(const netname, channel: String; params: String): boolean;
+function IrcAutoRules(const netname, channel: String; params: String): boolean;
+function IrcAutoNuke(const netname, channel: String; params: String): boolean;
+function IrcAutoDirlist(const netname, channel: String; params: String): boolean;
+//function IrcAutoCrawler(const netname, channel: String; params: String): boolean;
+function IrcAutoIndex(const netname, channel: String; params: String): boolean;
+function IrcKbShow(const netname, channel: String; params: String): boolean;
+function IrcKbList(const netname, channel: String; params: String): boolean;
+function IrcKbExtra(const netname, channel: String; params: String): boolean;
+function IrcKbAdd(const netname, channel: String; params: String): boolean;
 
-function IrcSkipReload(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSkipReload(const netname, channel: String; params: String): boolean;
 
-function IrcNoHelp(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcIdent(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNoSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNoHelp(const netname, channel: String; params: String): boolean;
+function IrcIdent(const netname, channel: String; params: String): boolean;
+function IrcNoSocks5(const netname, channel: String; params: String): boolean;
 
-function IrcLookup(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcLookup(const netname, channel: String; params: String): boolean;
 
-function IrcKnowngroups(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcKnowngroups(const netname, channel: String; params: String): boolean;
 
-function IrcShowWindow(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcShowWindows(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelWindow(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRepaint(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcIrcNames(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowWindow(const netname, channel: String; params: String): boolean;
+function IrcShowWindows(const netname, channel: String; params: String): boolean;
+function IrcDelWindow(const netname, channel: String; params: String): boolean;
+function IrcRepaint(const netname, channel: String; params: String): boolean;
+function IrcIrcNames(const netname, channel: String; params: String): boolean;
 
-function DirlistB(const netname, channel: AnsiString; sitename, dir: AnsiString; SpeedTest:
+function DirlistB(const netname, channel: String; sitename, dir: String; SpeedTest:
   boolean = False): TDirList;
-procedure RawB(const netname, channel: AnsiString; sitename, dir, command: AnsiString;
+procedure RawB(const netname, channel: String; sitename, dir, command: String;
   AnnounceSitename: boolean = False);
-function RawC(const Netname, Channel: AnsiString; sitename, dir, command: AnsiString;
-  AnnounceSitename: boolean = False): AnsiString;
+function RawC(const Netname, Channel: String; sitename, dir, command: String;
+  AnnounceSitename: boolean = False): String;
 
-function IrcNuke(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUnnuke(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNuke(const netname, channel: String; params: String): boolean;
+function IrcUnnuke(const netname, channel: String; params: String): boolean;
 
-function IrcOper(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcOper(const netname, channel: String; params: String): boolean;
 
-function IrcNews(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNewsAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNewsDel(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNewsCategories(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcNews(const netname, channel: String; params: String): boolean;
+function IrcNewsAdd(const netname, channel: String; params: String): boolean;
+function IrcNewsDel(const netname, channel: String; params: String): boolean;
+function IrcNewsCategories(const netname, channel: String; params: String): boolean;
 
-function IrcSpeedStats(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSpeedRecalc(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedStats(const netname, channel: String; params: String): boolean;
+function IrcSpeedRecalc(const netname, channel: String; params: String): boolean;
 
-function IrcSpeedTestLocal(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSpeedTestCleanup(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSpeedTestIn(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSpeedTestOut(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedTestLocal(const netname, channel: String; params: String): boolean;
+function IrcSpeedTestCleanup(const netname, channel: String; params: String): boolean;
+function IrcSpeedTestIn(const netname, channel: String; params: String): boolean;
+function IrcSpeedTestOut(const netname, channel: String; params: String): boolean;
 
-function IrcIndexStat(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcIndexQuery(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcIndexDropSection(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcIndexStat(const netname, channel: String; params: String): boolean;
+function IrcIndexQuery(const netname, channel: String; params: String): boolean;
+function IrcIndexDropSection(const netname, channel: String; params: String): boolean;
 
 //function IrcSetSpeedtestToPredir(const netname, channel: string;params: string): Boolean;
 
-function IrcStatSites(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatSitesByGroup(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatSitesByUser(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatRaces(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcStatSites(const netname, channel: String; params: String): boolean;
+function IrcStatSitesByGroup(const netname, channel: String; params: String): boolean;
+function IrcStatSitesByUser(const netname, channel: String; params: String): boolean;
+function IrcStatRaces(const netname, channel: String; params: String): boolean;
 
-function IrcStatGroups(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatGroupsBySite(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcStatGroups(const netname, channel: String; params: String): boolean;
+function IrcStatGroupsBySite(const netname, channel: String; params: String): boolean;
 
-function IrcStatUsers(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatUsersByGroup(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatUsersBySite(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcStatUsersByGroupBySite(const netname, channel: AnsiString; params: AnsiString):
+function IrcStatUsers(const netname, channel: String; params: String): boolean;
+function IrcStatUsersByGroup(const netname, channel: String; params: String): boolean;
+function IrcStatUsersBySite(const netname, channel: String; params: String): boolean;
+function IrcStatUsersByGroupBySite(const netname, channel: String; params: String):
   boolean;
 
-function IrcDelayLeech(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelayUpload(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDelayLeech(const netname, channel: String; params: String): boolean;
+function IrcDelayUpload(const netname, channel: String; params: String): boolean;
 
-function IrcTweak(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcTweak(const netname, channel: String; params: String): boolean;
 
-function IrcCatchMod(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcCatchMod(const netname, channel: String; params: String): boolean;
 
-function IrcShowAllRules(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcKillAll(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcNetNoSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetMYIrcNick(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcInviteMyIRCNICK(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowAllRules(const netname, channel: String; params: String): boolean;
+function IrcKillAll(const netname, channel: String; params: String): boolean;
+function IrcNetNoSocks5(const netname, channel: String; params: String): boolean;
+function IrcSetMYIrcNick(const netname, channel: String; params: String): boolean;
+function IrcInviteMyIRCNICK(const netname, channel: String; params: String): boolean;
 //function IrcNetBotNick(const netname, channel: string;params: string): Boolean;
 
 //Site_stuff
-function IrcNoLoginMSG(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcSkipBeingUploadedFiles(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcSiteUserFetch(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNoLoginMSG(const netname, channel: String; params: String): boolean;
+function IrcUseForNFOdownload(const Netname, Channel: String; params: String): boolean;
+function IrcSkipBeingUploadedFiles(const Netname, Channel: String; params: String): boolean;
+function IrcSiteUserFetch(const Netname, Channel: String; params: String): boolean;
 
 //function IrcCustomDelrelease(const netname, channel: string;params: string): Boolean;
 
-function IrcCreateBackup(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcCreateBackup(const netname, channel: String; params: String): boolean;
 
-function IrcLanguageBaseReload(const netname, channel: AnsiString; params: AnsiString):
+function IrcLanguageBaseReload(const netname, channel: String; params: String):
   boolean;
-function IrcTestLanguageBase(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcTestLanguageBase(const netname, channel: String; params: String): boolean;
 
-function IrcSpamConfig(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSpamConfig(const netname, channel: String; params: String): boolean;
 
-function IrcSLFTPConfig(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSLFTPConfig(const netname, channel: String; params: String): boolean;
 
-function IrcRuleCopy(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleCopy(const netname, channel: String; params: String): boolean;
 
 (* PreURLs *)
-function IrcPreURLAdd(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreURLDel(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreURLMod(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcPreURLList(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcPreURLAdd(const netname, channel: String; params: String): boolean;
+function IrcPreURLDel(const netname, channel: String; params: String): boolean;
+function IrcPreURLMod(const netname, channel: String; params: String): boolean;
+function IrcPreURLList(const netname, channel: String; params: String): boolean;
 
-function IrcSetupOffset(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetupPretimeMode(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetupPretimeMode2(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetupADDPreMode(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetupOffset(const netname, channel: String; params: String): boolean;
+function IrcSetupPretimeMode(const netname, channel: String; params: String): boolean;
+function IrcSetupPretimeMode2(const netname, channel: String; params: String): boolean;
+function IrcSetupADDPreMode(const netname, channel: String; params: String): boolean;
 
-function IrcFindPretime(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcFindPretime(const netname, channel: String; params: String): boolean;
 
 //function IrcReloadoffset(const netname, channel: string;params: string): Boolean;
-function Irctestoffset(const netname, channel: AnsiString; params: AnsiString): boolean;
+function Irctestoffset(const netname, channel: String; params: String): boolean;
 
 //function IrcSetMYSQLData(const netname, channel: string;params: string): Boolean;
 //function IrcViewMYSQLValue(const netname, channel: string;params: string): Boolean;
 //function IrcTweakMYSQL(const netname, channel: string;params: string): Boolean;
 //function IrcMYSQLStatus(const netname, channel: string;params: string): Boolean;
 (* SOCKS5 *)
-function IrcAddSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDelSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcDisplaySocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcTweakSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcSetSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRehashSocks5(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAddSocks5(const netname, channel: String; params: String): boolean;
+function IrcDelSocks5(const netname, channel: String; params: String): boolean;
+function IrcDisplaySocks5(const netname, channel: String; params: String): boolean;
+function IrcTweakSocks5(const netname, channel: String; params: String): boolean;
+function IrcSetSocks5(const netname, channel: String; params: String): boolean;
+function IrcRehashSocks5(const netname, channel: String; params: String): boolean;
 
-function IrcDisplayMappings(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDisplayMappings(const netname, channel: String; params: String): boolean;
 
-function IrcReloadGlobalSkipGrouplist(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcReloadGlobalSkipGrouplist(const netname, channel: String; params: String): boolean;
 
-function IrcShowCredits(const netname, channel: AnsiString; params: AnsiString): boolean;
-procedure ShowCredits(const netname, channel, siteName: AnsiString); overload;
-procedure ShowCredits(const netname, channel: AnsiString; s : Tsite); overload;
+function IrcShowCredits(const netname, channel: String; params: String): boolean;
+procedure ShowCredits(const netname, channel, siteName: String); overload;
+procedure ShowCredits(const netname, channel: String; s : Tsite); overload;
 
-function IrcShowAppStatus(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowAppStatus(const netname, channel: String; params: String): boolean;
 
-function Ircaddknowngroup(const netname, channel: AnsiString; params: AnsiString): boolean;
+function Ircaddknowngroup(const netname, channel: String; params: String): boolean;
 
-function IrcChanSetSitename(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcChanSetSitename(const netname, channel: String; params: String): boolean;
 
-function IrcSetSitePermdown(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetSitePermdown(const netname, channel: String; params: String): boolean;
 
-function IrcAnnounceIMDBInfo(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAnnounceIMDBInfo(const netname, channel: String; params: String): boolean;
 
-function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowSiteNukes(const netname, channel: String; params: String): boolean;
 
-function IrcSetAutoInvite(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetAutoInvite(const netname, channel: String; params: String): boolean;
 
 //function IrcMain_Restart(const netname, channel: string;params: string): Boolean;
 
-function IrcDelPart(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcFakeReload(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcDelPart(const netname, channel: String; params: String): boolean;
+function IrcFakeReload(const netname, channel: String; params: String): boolean;
 
-function IrcSetPretime(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetPretime(const netname, channel: String; params: String): boolean;
 
-function IrcRebuildSlot(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcRecalcFreeslots(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcRebuildSlot(const netname, channel: String; params: String): boolean;
+function IrcRecalcFreeslots(const netname, channel: String; params: String): boolean;
 
-function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLastLog(const Netname, Channel: String; params: String): boolean;
+function IrcSetDebugverbosity(const Netname, Channel: String; params: String): boolean;
 
 {        Sections                   }
-function IrcSections(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSections(const netname, channel: String; params: String): boolean;
 {        Test functions             }
-function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTestColors(const Netname, Channel: String; params: String): boolean;
 
 { TVInfo aka TTVRelease aka TVMaze  }
-function IrcAnnounceTVInfo(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcAddTVMazeToDb(const netname, channel: AnsiString; params: AnsiString): boolean;
-function IrcUpdateTVMazeInfo(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcDelTheTVDbInfo(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcSetTheTVDbID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
-function IrcSetTVRageID(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAnnounceTVInfo(const netname, channel: String; params: String): boolean;
+function IrcAddTVMazeToDb(const netname, channel: String; params: String): boolean;
+function IrcUpdateTVMazeInfo(const Netname, Channel: String; params: String): boolean;
+function IrcDelTheTVDbInfo(const Netname, Channel: String; params: String): boolean;
+function IrcSetTheTVDbID(const Netname, Channel: String; params: String): boolean;
+function IrcSetTVRageID(const netname, channel: String; params: String): boolean;
 
 const
-  helpCommands: array[0..22] of AnsiString = ('general', 'site', 'auto', 'route',
+  helpCommands: array[0..22] of String = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'rip', 'stats', 'slots', 'misc', 'news', 'irc',
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section');
@@ -652,8 +652,8 @@ const
     (cmd: 'irccolors'; hnd: IrcTestColors; minparams: 0; maxparams: 0; hlpgrp: 'test')
   );
 
-procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString;
-  QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
+procedure IrcLineBreak(const Netname, Channel: String; const commatext: String;
+  QuoteChar: AnsiChar = '"'; fronttext: String = ''; breakafter: integer = 16);
 
 implementation
 
@@ -672,11 +672,11 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
 const
   section = 'irccommands';
 
-procedure IrcLineBreak(const Netname, Channel: AnsiString; const commatext: AnsiString; QuoteChar: AnsiChar = '"'; fronttext: AnsiString = ''; breakafter: integer = 16);
+procedure IrcLineBreak(const Netname, Channel: String; const commatext: String; QuoteChar: AnsiChar = '"'; fronttext: String = ''; breakafter: integer = 16);
 var
   xs: TStringList;
   i, ii: integer;
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   xs := TStringList.Create;
   xs.QuoteChar := QuoteChar;
@@ -711,7 +711,7 @@ begin
   end;
 end;
 
-function FindIrcCommand(cmd: AnsiString): integer;
+function FindIrcCommand(cmd: String): integer;
 var
   i: integer;
 begin
@@ -727,9 +727,9 @@ begin
     end;
 end;
 
-function IrcSections(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSections(const Netname, Channel: String; params: String): boolean;
 var
-  ss, sitename, secs: AnsiString;
+  ss, sitename, secs: String;
   s: TSite;
   i: integer;
 begin
@@ -776,11 +776,11 @@ begin
   Result := True;
 end;
 
-function IrcSetdir(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetdir(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, section: AnsiString;
+  sitename, section: String;
   s: TSite;
-  dir: AnsiString;
+  dir: String;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -854,11 +854,11 @@ begin
   Result := True;
 end;
 
-procedure Outroutes(const sitename, Netname, Channel: AnsiString);
+procedure Outroutes(const sitename, Netname, Channel: String);
 var
   x: TStringList;
   ii, i: integer;
-  ss: AnsiString;
+  ss: String;
 begin
   x := TStringList.Create;
   try
@@ -881,11 +881,11 @@ begin
 end;
 
 
-procedure OutroutesB(const Netname, Channel: AnsiString; const sitename: AnsiString);
+procedure OutroutesB(const Netname, Channel: String; const sitename: String);
 var
   x: TStringList;
   ii, i: integer;
-  ss: AnsiString;
+  ss: String;
 begin
   x := TStringList.Create;
   try
@@ -918,11 +918,11 @@ begin
   // irc_addtext(netname, channel, '<b>%s (%d)</b> -> <b>%s</b>', [sitename, ii, ss]);
 end;
 
-procedure Inroutes(const sitename, Netname, Channel: AnsiString);
+procedure Inroutes(const sitename, Netname, Channel: String);
 var
   x: TStringList;
   i: integer;
-  ss: AnsiString;
+  ss: String;
 begin
   x := TStringList.Create;
   try
@@ -945,11 +945,11 @@ begin
 
 end;
 
-procedure InroutesB(const Netname, Channel: AnsiString; const sitename: AnsiString);
+procedure InroutesB(const Netname, Channel: String; const sitename: String);
 var
   x: TStringList;
   ii, i: integer;
-  ss: AnsiString;
+  ss: String;
 begin
   x := TStringList.Create;
   try
@@ -982,9 +982,9 @@ begin
   // irc_addtext(netname, channel, '<b>%s (%d)</b> -> <b>%s</b>', [sitename, ii, ss]);
 end;
 
-function IrcSpeeds(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeeds(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
 begin
   Result := False;
@@ -1003,7 +1003,7 @@ begin
   Result := True;
 end;
 
-function IrcSetSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetSpeed(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 
@@ -1012,7 +1012,7 @@ begin
 end;
 
 
-function IrcLockSpeed(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLockSpeed(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 
@@ -1020,14 +1020,14 @@ begin
     Result := True;
 end;
 
-function IrcSetRoute(const Netname, Channel: AnsiString; params: AnsiString; lock: boolean = False): boolean;
+function IrcSetRoute(const Netname, Channel: String; params: String; lock: boolean = False): boolean;
 var
-  source, dest, admin_site: AnsiString;
+  source, dest, admin_site: String;
   rcmd: TCommandLineReader;
-  c1, c2, sw1, sw2: AnsiString;
+  c1, c2, sw1, sw2: String;
   i,j: integer;
   DoIt: Boolean;
-  backtext: AnsiString;
+  backtext: String;
   apply, back: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
@@ -1306,7 +1306,7 @@ begin
   Result := True;
 end;
 
-function IrcInroutes(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcInroutes(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
@@ -1331,7 +1331,7 @@ begin
   Result := True;
 end;
 
-function IrcOutroutes(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcOutroutes(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
@@ -1360,12 +1360,12 @@ begin
   Result := True;
 end;
 
-function DirlistB(const Netname, Channel: AnsiString; sitename, dir: AnsiString;
+function DirlistB(const Netname, Channel: String; sitename, dir: String;
   SpeedTest: boolean = False): TDirList;
 var
   r: TDirlistTask;
   tn: TTaskNotify;
-  s: AnsiString;
+  s: String;
 begin
   Result := nil;
 
@@ -1391,11 +1391,11 @@ begin
   end;
 end;
 
-function IrcDirlist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDirlist(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
-  sitename, section, sectiondir, dir: AnsiString;
+  sitename, section, sectiondir, dir: String;
   d: TDirList;
   de: TDirListEntry;
 begin
@@ -1449,11 +1449,11 @@ begin
   Result := True;
 end;
 
-function IrcLatest(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLatest(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
-  sitename, section, sectiondir: AnsiString;
+  sitename, section, sectiondir: String;
   d: TDirList;
   de: TDirListEntry;
   amount: integer;
@@ -1512,10 +1512,10 @@ begin
   Result := True;
 end;
 
-function IrcDelrelease(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelrelease(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
-  rlsname, sitename, section, predir, dir: AnsiString;
+  rlsname, sitename, section, predir, dir: String;
   r: TDelreleaseTask;
   tn: TTaskNotify;
   i: integer;
@@ -1675,10 +1675,10 @@ begin
   Result := True;
 end;
 
-function IrcDelallrelease(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelallrelease(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
-  predir, section, sitename, dir: AnsiString;
+  predir, section, sitename, dir: String;
   r: TDelreleaseTask;
   tn: TTaskNotify;
   added: boolean;
@@ -1791,7 +1791,7 @@ end;
 
 // y-ba belepakolja az osszes olyan siteot amibe el lehet jutni honnanbol...   -- y into it packs all of the site into which you can reach honnanbol ...
 
-procedure Routeable(honnan: AnsiString; y: TStringList);
+procedure Routeable(honnan: String; y: TStringList);
 var
   x: TStringList;
   i: integer;
@@ -1820,17 +1820,17 @@ begin
   Result := CompareValue(StrToIntDef(List.ValueFromIndex[Index2], 0), StrToIntDef(List.ValueFromIndex[Index1], 0));
 end;
 
-function IrcSpread(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpread(const Netname, Channel: String; params: String): boolean;
 var
   sp, s: TSite;
   ps: TPazoSite;
-  ssite, predir, sitename, section, dir: AnsiString;
+  ssite, predir, sitename, section, dir: String;
   lastAnn: TDateTime;
   ann: integer;
   pazo_id: integer;
   p: TPazo;
   y: TStringList;
-  sdone, ssss, ss, si, sj, sss: AnsiString;
+  sdone, ssss, ss, si, sj, sss: String;
   added: boolean;
   ii, i, addednumber: integer;
   dd: double;
@@ -2198,9 +2198,9 @@ begin
   end;
 end;
 
-function IrcTransfer(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTransfer(const Netname, Channel: String; params: String): boolean;
 var
-  srcsitename, dstsitename, srcdir, dstdir, rlsname, ftpsrcdir, ftpdstdir: AnsiString;
+  srcsitename, dstsitename, srcdir, dstdir, rlsname, ftpsrcdir, ftpdstdir: String;
   srcsite, dstsite: TSite;
   p: TPazo;
   ps_src, ps_dst: TPazoSite;
@@ -2211,7 +2211,7 @@ var
   lastAnn: TDateTime;
 
   ann: integer;
-  i, j, k: AnsiString;
+  i, j, k: String;
 begin
   Result := False;
 
@@ -2399,7 +2399,7 @@ begin
   Result := True;
 end;
 
-function IrcCStop(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcCStop(const Netname, Channel: String; params: String): boolean;
 var
   p: TPazo;
   pazo_id: integer;
@@ -2425,9 +2425,9 @@ begin
   end;
 end;
 
-function IrcSslmethod(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSslmethod(const Netname, Channel: String; params: String): boolean;
 var
-  method, sitename: AnsiString;
+  method, sitename: String;
   s: TSite;
   i: integer;
   x: TStringList;
@@ -2485,10 +2485,10 @@ begin
   Result := True;
 end;
 
-function IrcSslfxp(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSslfxp(const Netname, Channel: String; params: String): boolean;
 var
-  s: AnsiString;
-  sname: AnsiString;
+  s: String;
+  sname: String;
   site: TSite;
   sslfxp: TSSLReq;
   i: integer;
@@ -2547,9 +2547,9 @@ begin
   Result := True;
 end;
 
-function IrcLegacycwd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLegacycwd(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   cwd: integer;
   i: integer;
@@ -2606,9 +2606,9 @@ begin
   Result := True;
 end;
 
-function IrcRank(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRank(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, section: AnsiString;
+  sitename, section: String;
   rank: integer;
   s: TSite;
 begin
@@ -2659,13 +2659,13 @@ begin
   Result := True;
 end;
 
-function IrcRanks(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRanks(const Netname, Channel: String; params: String): boolean;
 var
-  section: AnsiString;
+  section: String;
   i, j: integer;
   s: TSite;
   x: TStringList;
-  ss: AnsiString;
+  ss: String;
   //  outs: TStringList;
 begin
   section := UpperCase(params);
@@ -2719,9 +2719,9 @@ begin
   Result := True;
 end;
 
-function IrcRankLock(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRankLock(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, section: AnsiString;
+  sitename, section: String;
   rank: integer;
   s: TSite;
 begin
@@ -2773,10 +2773,10 @@ begin
   Result := True;
 end;
 
-function IrcNoannouncesite(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNoannouncesite(const Netname, Channel: String; params: String):
   boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   cwd: integer;
 begin
@@ -2802,12 +2802,12 @@ begin
   Result := True;
 end;
 
-function IrcAddSite(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAddSite(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, username, password: AnsiString;
+  sitename, username, password: String;
   s: TSite;
-  bnc: AnsiString;
-  bnchost: AnsiString;
+  bnc: String;
+  bnchost: String;
   bncport: integer;
   i: integer;
 begin
@@ -2880,12 +2880,12 @@ begin
   Result := True;
 end;
 
-function IrcAddBnc(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAddBnc(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
-  aktbnc, bnc: AnsiString;
-  bnchost: AnsiString;
+  aktbnc, bnc: String;
+  bnchost: String;
   bncport: integer;
   i: integer;
 begin
@@ -2922,9 +2922,9 @@ begin
   Result := True;
 end;
 
-function IrcSiteUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSiteUser(const Netname, Channel: String; params: String): boolean;
 var
-  username, sname: AnsiString;
+  username, sname: String;
   s: TSite;
 begin
   Result := False;
@@ -2962,9 +2962,9 @@ begin
    Result := True;
 end;
 
-function IrcSitePass(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSitePass(const Netname, Channel: String; params: String): boolean;
 var
-  password, sname: AnsiString;
+  password, sname: String;
   s: TSite;
 begin
   Result := False;
@@ -3001,12 +3001,12 @@ begin
   Result := True;
 end;
 
-function IrcNetAddServer(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetAddServer(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
-  aktbnc, bnc: AnsiString;
-  bnchost: AnsiString;
+  nn: String;
+  aktbnc, bnc: String;
+  bnchost: String;
   bncport: integer;
   i: integer;
 begin
@@ -3043,12 +3043,12 @@ begin
   Result := True;
 end;
 
-function IrcNetDelServer(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetDelServer(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
-  bnc: AnsiString;
-  aktbnchost, bnchost: AnsiString;
+  nn: String;
+  bnc: String;
+  aktbnchost, bnchost: String;
   aktbncport, bncport: integer;
   i: integer;
   megvan: boolean;
@@ -3112,11 +3112,11 @@ begin
   Result := True;
 end;
 
-function IrcNetAddPerform(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetAddPerform(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
-  aktperform, Perform: AnsiString;
+  nn: String;
+  aktperform, Perform: String;
   i: integer;
 begin
   Result := False;
@@ -3143,12 +3143,12 @@ begin
   Result := True;
 end;
 
-function IrcNetDelPerform(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetDelPerform(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
+  nn: String;
   aktperform: integer;
-  Perform: AnsiString;
+  Perform: String;
   i: integer;
   megvan: boolean;
 begin
@@ -3203,11 +3203,11 @@ begin
   Result := True;
 end;
 
-function IrcNetListPerform(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetListPerform(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
-  aktperform: AnsiString;
+  nn: String;
+  aktperform: String;
   i: integer;
 begin
   Result := False;
@@ -3234,12 +3234,12 @@ begin
   Result := True;
 end;
 
-function IrcNetDoPerform(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcNetDoPerform(const Netname, Channel: String; params: String):
   boolean;
 var
-  nn: AnsiString;
+  nn: String;
   nnth: TMyIrcThread;
-  aktperform: AnsiString;
+  aktperform: String;
   i: integer;
 begin
   Result := False;
@@ -3276,12 +3276,12 @@ begin
   Result := True;
 end;
 
-function IrcDelBnc(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelBnc(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
-  bnc: AnsiString;
-  aktbnchost, bnchost: AnsiString;
+  bnc: String;
+  aktbnchost, bnchost: String;
   aktbncport, bncport: integer;
   i: integer;
   megvan: boolean;
@@ -3341,9 +3341,9 @@ begin
   Result := True;
 end;
 
-function IrcMaxUpDn(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcMaxUpDn(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   x: TStringList;
   s: TSite;
   up, dn, pre_dn: integer;
@@ -3404,9 +3404,9 @@ begin
   Result := True;
 end;
 
-function IrcMaxUpPerRip(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcMaxUpPerRip(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   upperrip: integer;
   i: integer;
@@ -3466,9 +3466,9 @@ begin
   Result := True;
 end;
 
-function IrcMaxIdle(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcMaxIdle(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   maxidle, idleinterval: integer;
   i: integer;
@@ -3524,9 +3524,9 @@ begin
   Result := True;
 end;
 
-function IrcTimeout(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTimeout(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   iotimeout, connnecttimeout: integer;
   i: integer;
@@ -3581,9 +3581,9 @@ begin
   Result := True;
 end;
 
-function IrcDelsite(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelsite(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   i: integer;
   x: TStringList;
@@ -3722,9 +3722,9 @@ begin
   Result := True;
 end;
 
-function IrcSlotsShow(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSlotsShow(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   ss: TSiteSlot;
   i: integer;
@@ -3777,9 +3777,9 @@ begin
   exit;
 end;
 
-function IrcSlots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSlots(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   ss: TStringList;
   s: TSite;
   oldslots, newslots: integer;
@@ -3876,7 +3876,7 @@ begin
   Result := True;
 end;
 
-function IrcQueue(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcQueue(const Netname, Channel: String; params: String): boolean;
 var
   i, ii: integer;
   show_tasks: integer;
@@ -3942,13 +3942,13 @@ begin
   Result := True;
 end;
 
-function RawC(const Netname, Channel: AnsiString; sitename, dir, command: AnsiString;
-  AnnounceSitename: boolean = False): AnsiString;
+function RawC(const Netname, Channel: String; sitename, dir, command: String;
+  AnnounceSitename: boolean = False): String;
 var
   r: TRawTask;
   tn: TTaskNotify;
   i: integer;
-  ss: AnsiString;
+  ss: String;
 
 begin
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
@@ -3979,13 +3979,13 @@ begin
 
 end;
 
-procedure RawB(const Netname, Channel: AnsiString; sitename, dir, command: AnsiString;
+procedure RawB(const Netname, Channel: String; sitename, dir, command: String;
   AnnounceSitename: boolean = False);
 var
   r: TRawTask;
   tn: TTaskNotify;
   i: integer;
-  ss: AnsiString;
+  ss: String;
 
 begin
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
@@ -4016,9 +4016,9 @@ begin
 
 end;
 
-function IrcInvite(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcInvite(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   xl: TStringList;
   i: integer;
@@ -4051,9 +4051,9 @@ begin
   Result := True;
 end;
 
-function IrcRaw(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRaw(const Netname, Channel: String; params: String): boolean;
 var
-  command, sitename: AnsiString;
+  command, sitename: String;
   s: TSite;
   i: integer;
 begin
@@ -4099,9 +4099,9 @@ begin
   end;
 end;
 
-function IrcManageUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcManageUser(const Netname, Channel: String; params: String): boolean;
 var
-  command, username: AnsiString;
+  command, username: String;
   s: TSite;
   i, j: integer;
   x, y: TStringList;
@@ -4160,7 +4160,7 @@ begin
   Result := True;
 end;
 
-function Bnctest(const Netname, Channel: AnsiString; s: TSite; tn: TTaskNotify; kill: boolean = False): boolean;
+function Bnctest(const Netname, Channel: String; s: TSite; tn: TTaskNotify; kill: boolean = False): boolean;
 var
   l: TLoginTask;
 begin
@@ -4177,9 +4177,9 @@ begin
   Result := True;
 end;
 
-function IrcKill(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKill(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
 begin
   Result := False;
@@ -4198,7 +4198,7 @@ begin
   Result := True;
 end;
 
-function IrcBnctest(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcBnctest(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   x: TStringList;
@@ -4299,12 +4299,12 @@ begin
   Result := True;
 end;
 
-function IrcShownet(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcShownet(const Netname, Channel: String; params: String): boolean;
 var
-  nn, host: AnsiString;
+  nn, host: String;
   x: TStringList;
   i: integer;
-  trigger: AnsiString;
+  trigger: String;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
@@ -4347,9 +4347,9 @@ begin
   Result := True;
 end;
 
-function IrcAddnet(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAddnet(const Netname, Channel: String; params: String): boolean;
 var
-  nn, host, password, user, ident, nick: AnsiString;
+  nn, host, password, user, ident, nick: String;
   port: integer;
   ssl: integer;
 begin
@@ -4415,9 +4415,9 @@ begin
 
 end;
 
-function IrcModesNet(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcModesNet(const netname, channel: String; params: String): boolean;
 var
-  mode, n_modes, nn: AnsiString;
+  mode, n_modes, nn: String;
   mlist: TStringlist;
   I: Integer;
   ircn: TMyIrcThread;
@@ -4466,9 +4466,9 @@ begin
   result := True;
 end;
 
-function IrcModnet(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcModnet(const Netname, Channel: String; params: String): boolean;
 var
-  nn, password: AnsiString;
+  nn, password: String;
   ssl: integer;
 begin
   Result := False;
@@ -4503,7 +4503,7 @@ begin
 
 end;
 
-function IrcDelnet(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelnet(const Netname, Channel: String; params: String): boolean;
 var
   i, ii: integer;
   s: TSite;
@@ -4569,7 +4569,7 @@ begin
   Result := True;
 end;
 
-function IrcJump(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcJump(const Netname, Channel: String; params: String): boolean;
 var
   ircth: TMyIrcThread;
 begin
@@ -4587,7 +4587,7 @@ begin
 
 end;
 
-function IrcStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatus(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   th: TMyIrcThread;
@@ -4602,11 +4602,11 @@ begin
   Result := True;
 end;
 
-function IrcChannels(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcChannels(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   b: TIrcBlowkey;
-  nn: AnsiString;
+  nn: String;
 begin
   nn := UpperCase(trim(params));
   for i := 0 to chankeys.Count - 1 do
@@ -4622,9 +4622,9 @@ begin
   Result := True;
 end;
 
-function IrcSay(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSay(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel, tosay: AnsiString;
+  nn, blowchannel, tosay: String;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
@@ -4640,7 +4640,7 @@ begin
   Result := True;
 end;
 
-function Check_For_Vailed_Chanrole(Name: AnsiString): boolean;
+function Check_For_Vailed_Chanrole(Name: String): boolean;
 var
   i: integer;
 begin
@@ -4653,9 +4653,9 @@ begin
     end;
 end;
 
-function IrcSetChanName(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetChanName(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel, Names: AnsiString;
+  nn, blowchannel, Names: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
   y: TStringList;
@@ -4736,9 +4736,9 @@ begin
   Result := True;
 end;
 
-function IrcSetChankey(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetChankey(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel, key: AnsiString;
+  nn, blowchannel, key: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
 begin
@@ -4767,9 +4767,9 @@ begin
   Result := True;
 end;
 
-function IrcDelchan(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelchan(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel: AnsiString;
+  nn, blowchannel: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
 begin
@@ -4798,9 +4798,9 @@ begin
   Result := True;
 end;
 
-function IrcSetBlowkey(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetBlowkey(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel, key: AnsiString;
+  nn, blowchannel, key: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
   cbc:boolean;
@@ -4837,9 +4837,9 @@ begin
   Result := True;
 end;
 
-function IrcChanAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcChanAdd(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel: AnsiString;
+  nn, blowchannel: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
 begin
@@ -4868,9 +4868,9 @@ begin
   Result := True;
 end;
 
-function IrcSitechan(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSitechan(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, nn: AnsiString;
+  sitename, nn: String;
   s: TSite;
 begin
   Result := False;
@@ -4899,10 +4899,10 @@ begin
   Result := True;
 end;
 
-function IrcRuleAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleAdd(const Netname, Channel: String; params: String): boolean;
 var
   r: TRule;
-  sitename, rule, section, error: AnsiString;
+  sitename, rule, section, error: String;
   s: TSite;
 begin
   Result := False;
@@ -4945,11 +4945,11 @@ begin
   Result := True;
 end;
 
-function IrcRuleIns(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleIns(const Netname, Channel: String; params: String): boolean;
 var
   id: integer;
   r: TRule;
-  sitename, rule, section, error: AnsiString;
+  sitename, rule, section, error: String;
   s: TSite;
 begin
   Result := False;
@@ -4998,11 +4998,11 @@ begin
   Result := True;
 end;
 
-function IrcRuleMod(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleMod(const Netname, Channel: String; params: String): boolean;
 var
   id: integer;
   r: TRule;
-  sitename, rule, section, error: AnsiString;
+  sitename, rule, section, error: String;
   s: TSite;
 begin
   Result := False;
@@ -5053,7 +5053,7 @@ begin
   Result := True;
 end;
 
-function IrcRuleDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleDel(const Netname, Channel: String; params: String): boolean;
 var
   id: integer;
 begin
@@ -5075,10 +5075,10 @@ begin
   Result := True;
 end;
 
-function IrcRuleCopy(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleCopy(const Netname, Channel: String; params: String): boolean;
 var
   rr, r: TRule;
-  rule, error, src_s, dst_s, src_section: AnsiString;
+  rule, error, src_s, dst_s, src_section: String;
   ss: TSite;
   i: integer;
 begin
@@ -5133,10 +5133,10 @@ begin
   Result := True;
 end;
 
-function IrcRuleHelp(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleHelp(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   Result := False;
 
@@ -5168,12 +5168,12 @@ begin
   Result := True;
 end;
 
-function IrcRules(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRules(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   r: TRule;
   s: TSite;
-  sitename, section: AnsiString;
+  sitename, section: String;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -5288,7 +5288,7 @@ begin
   Result := True;
 end;
 
-function IrcRuleList(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRuleList(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   r: TRegExpr;
@@ -5331,9 +5331,9 @@ begin
   Result := True;
 end;
 
-function IrcPrereload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPrereload(const Netname, Channel: String; params: String): boolean;
 var
-  vs: AnsiString;
+  vs: String;
 begin
   vs := PrecatcherReload;
   if vs <> '' then
@@ -5341,9 +5341,9 @@ begin
   Result := True;
 end;
 
-function IrcPreadd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreadd(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, nn, channelname, botnicks, event, words, section: AnsiString;
+  sitename, nn, channelname, botnicks, event, words, section: String;
 begin
   Result := False;
 
@@ -5379,7 +5379,7 @@ begin
   Result := True;
 end;
 
-function IrcPredel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPredel(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
 begin
@@ -5396,10 +5396,10 @@ begin
   Result := True;
 end;
 
-function IrcPrecatchtest(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcPrecatchtest(const Netname, Channel: String; params: String):
   boolean;
 var
-  net, chan, nick, rest: AnsiString;
+  net, chan, nick, rest: String;
 begin
   Result := False;
 
@@ -5422,7 +5422,7 @@ begin
   Result := True;
 end;
 
-function IrcPreCatchDebug(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreCatchDebug(const Netname, Channel: String; params: String): boolean;
 begin
   if params <> '' then
   begin
@@ -5440,12 +5440,12 @@ begin
   Result := True;
 end;
 
-function IrcPrelist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPrelist(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
-  s1, s2: AnsiString;
+  s1, s2: String;
   mehetki: boolean;
-  nn, aktchannel, sitename, nick, event, words, section: AnsiString;
+  nn, aktchannel, sitename, nick, event, words, section: String;
 begin
   Result := False;
   s1 := UpperCase(SubString(params, ' ', 1));
@@ -5499,9 +5499,9 @@ begin
   Result := True;
 end;
 
-procedure _readHelpTXTFile(const Netname, Channel: AnsiString; filename: AnsiString);
+procedure _readHelpTXTFile(const Netname, Channel: String; filename: String);
 var
-  s, fn: AnsiString;
+  s, fn: String;
   f: TextFile;
 begin
   fn := 'help' + PathDelim + filename + '.txt';
@@ -5528,10 +5528,10 @@ begin
   end;
 end;
 
-function IrcHelpv2(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpv2(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
-  ss, s: AnsiString;
+  ss, s: String;
 begin
   result := False;
   s := '';
@@ -5629,12 +5629,12 @@ begin
   end;
 end;
 
-function IrcHelp(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcHelp(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
-  s: AnsiString;
+  s: String;
   f: TextFile;
-  fn: AnsiString;
+  fn: String;
 begin
   if params <> '' then
   begin
@@ -5702,7 +5702,7 @@ begin
   Result := True;
 end;
 
-function IrcSites(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSites(const Netname, Channel: String; params: String): boolean;
 var
   spd, sup, sdn, suk: TStringList;
   scount: integer;
@@ -5736,11 +5736,11 @@ begin
   Result := True;
 end;
 
-function IrcAddSiteInfos(const netname, channel: AnsiString; params: AnsiString):
+function IrcAddSiteInfos(const netname, channel: String; params: String):
   boolean;
 var
   s: TSite;
-  Text, sitename: AnsiString;
+  Text, sitename: String;
 begin
   sitename := SubString(params, ' ', 1);
   Text := mystrings.RightStr(params, length(sitename) + 2);
@@ -5770,11 +5770,11 @@ begin
   Result := True;
 end;
 
-function IrcInfo(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcInfo(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   s: TSite;
-  sitename: AnsiString;
+  sitename: String;
   x: TStringList;
 begin
   Result := False;
@@ -5821,13 +5821,13 @@ begin
   Result := True;
 end;
 
-function IrcSite(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSite(const Netname, Channel: String; params: String): boolean;
 var
   i, i_sec, j_sec: integer;
   s: TSite;
-  host, sitename: AnsiString;
+  host, sitename: String;
   x: TStringList;
-  s_section, s_sections: AnsiString;
+  s_section, s_sections: String;
 begin
   Result := False;
   sitename := UpperCase(params);
@@ -5964,11 +5964,11 @@ begin
   Result := True;
 end;
 
-function IrcBnc(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcBnc(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   s: TSite;
-  host, sitename: AnsiString;
+  host, sitename: String;
 begin
   Result := False;
   sitename := UpperCase(params);
@@ -5996,7 +5996,7 @@ begin
   Result := True;
 end;
 
-function IrcDie(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDie(const Netname, Channel: String; params: String): boolean;
 begin
   try
     slshutdown := IrcSetdown(Netname, Channel, '!ALL!');
@@ -6005,9 +6005,9 @@ begin
   end;
 end;
 
-function IrcAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAffils(const Netname, Channel: String; params: String): boolean;
 var
-  affils_new, affillist, sitename: AnsiString;
+  affils_new, affillist, sitename: String;
   s: TSite;
   TStringList_affils_new, TStringList_affils_old: TStringList;
   i: integer;
@@ -6070,9 +6070,9 @@ begin
   Result := True;
 end;
 
-function IrcSetAffils(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetAffils(const Netname, Channel: String; params: String): boolean;
 var
-  affils, ss, sitename: AnsiString;
+  affils, ss, sitename: String;
   s: TSite;
 begin
   Result := False;
@@ -6101,11 +6101,11 @@ begin
   Result := True;
 end;
 
-function IrcIdent(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcIdent(const Netname, Channel: String; params: String): boolean;
 var
-  ss, sitename: AnsiString;
+  ss, sitename: String;
   s: TSite;
-  ident: AnsiString;
+  ident: String;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -6128,19 +6128,19 @@ begin
   Result := True;
 end;
 
-function IrcKnowngroups(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcKnowngroups(const Netname, Channel: String; params: String):
   boolean;
 begin
   KnownGroupsStart();
   Result := True;
 end;
 
-function IrcNoSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNoSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   q: integer;
-  s2: AnsiString;
+  s2: String;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -6164,9 +6164,9 @@ begin
   Result := True;
 end;
 
-function IrcLookup(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLookup(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, section, dir: AnsiString;
+  sitename, section, dir: String;
   p: TPazo;
   ps: TPazoSite;
   i: integer;
@@ -6235,9 +6235,9 @@ begin
   Result := True;
 end;
 
-function IrcLeechers(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLeechers(const Netname, Channel: String; params: String): boolean;
 var
-  leecherlist, sitename, users: AnsiString;
+  leecherlist, sitename, users: String;
   i: Integer;
   s: TSite;
   x: TStringList;
@@ -6275,9 +6275,9 @@ begin
   Result := True;
 end;
 
-function IrcCountry(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcCountry(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, country: AnsiString;
+  sitename, country: String;
   i: Integer;
   s: TSite;
 begin
@@ -6305,9 +6305,9 @@ begin
   Result := True;
 end;
 
-function IrcLink(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLink(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, link: AnsiString;
+  sitename, link: String;
   s: TSite;
 begin
   Result := False;
@@ -6326,9 +6326,9 @@ begin
   Result := True;
 end;
 
-function IrcNotes(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNotes(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, notes: AnsiString;
+  sitename, notes: String;
   s: TSite;
 begin
   Result := False;
@@ -6347,9 +6347,9 @@ begin
   Result := True;
 end;
 
-function IrcSize(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSize(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, size: AnsiString;
+  sitename, size: String;
   s: TSite;
 begin
   Result := False;
@@ -6368,9 +6368,9 @@ begin
   Result := True;
 end;
 
-function IrcName(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcName(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, Name: AnsiString;
+  sitename, Name: String;
   s: TSite;
 begin
   Result := False;
@@ -6389,9 +6389,9 @@ begin
   Result := True;
 end;
 
-function IrcTraders(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTraders(const Netname, Channel: String; params: String): boolean;
 var
-  ss, sitename, users: AnsiString;
+  ss, sitename, users: String;
   s: TSite;
 begin
   Result := False;
@@ -6411,9 +6411,9 @@ begin
   Result := True;
 end;
 
-function IrcUserslots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUserslots(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
   leechslots, ratioslots: integer;
 begin
@@ -6435,12 +6435,12 @@ begin
   Result := True;
 end;
 
-function IrcFreeslots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFreeslots(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
   db: integer;
-  ss: AnsiString;
+  ss: String;
 begin
   Result := False;
 
@@ -6470,12 +6470,12 @@ begin
   Result := True;
 end;
 
-function IrcFindAffil(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFindAffil(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   db, i: integer;
-  ss: AnsiString;
-  affil: AnsiString;
+  ss: String;
+  affil: String;
   found: Boolean;
 begin
   Result := False;
@@ -6523,12 +6523,12 @@ begin
   Result := True;
 end;
 
-function IrcFindCountry(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFindCountry(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
   site_found: boolean;
-  country, ss: AnsiString;
+  country, ss: String;
 begin
   country := AnsiUpperCase(stringreplace(SubString(params, ' ', 1), '.', '', [rfReplaceAll]));
   site_found := False;
@@ -6558,11 +6558,11 @@ begin
   Result := True;
 end;
 
-function IrcFindSection(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFindSection(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
-  section: AnsiString;
+  section: String;
 begin
   section := UpperCase(SubString(params, ' ', 1));
 
@@ -6580,7 +6580,7 @@ begin
   Result := True;
 end;
 
-function IrcAuto(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAuto(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 
@@ -6611,15 +6611,15 @@ end;
 (*
 TODO: Maybe remove this? Or for what is this??
 
-function IrcAutoCrawler(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcAutoCrawler(const Netname, Channel: String; params: String):
   boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   kell: boolean;
-  sections: AnsiString;
-  ss: AnsiString;
+  sections: String;
+  ss: String;
   i: integer;
 begin
   Result := False;
@@ -6685,7 +6685,7 @@ begin
   Result := True;
 end;
 
-function IrcCrawler(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcCrawler(const Netname, Channel: String; params: String): boolean;
 begin
   if params <> '' then
   begin
@@ -6698,7 +6698,7 @@ begin
   Result := True;
 end;
 
-function IrcConfirmerAnnounce(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcConfirmerAnnounce(const Netname, Channel: String; params: String):
   boolean;
 begin
   if params <> '' then
@@ -6712,14 +6712,14 @@ begin
   Result := True;
 end;
 
-function IrcCrawl(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcCrawl(const Netname, Channel: String; params: String): boolean;
 var
   y, m, d: integer;
   dd: TDateTime;
-  sitename, section: AnsiString;
+  sitename, section: String;
   i: integer;
   s: TSite;
-  asc, sc: AnsiString;
+  asc, sc: String;
 begin
   Result := False;
 
@@ -6762,9 +6762,9 @@ begin
 end;
 *)
 
-function IrcAutoLogin(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoLogin(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   i: integer;
@@ -6828,9 +6828,9 @@ begin
 end;
 
 // TODO: add a property in TSite for autobnctest
-function IrcAutoBnctest(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoBnctest(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   enableAutobnctest: boolean;
@@ -6923,9 +6923,9 @@ begin
   Result := True;
 end;
 
-function IrcAutoRules(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoRules(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   StartTask: boolean;
@@ -7017,14 +7017,14 @@ begin
   Result := True;
 end;
 
-function IrcAutoDirlist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoDirlist(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   fNeedTaskCreate: boolean;
-  sections: AnsiString;
-  ss: AnsiString;
+  sections: String;
+  ss: String;
   i: integer;
 begin
   Result := False;
@@ -7090,14 +7090,14 @@ begin
   Result := True;
 end;
 
-function IrcAutoIndex(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoIndex(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   kell: boolean;
-  sections: AnsiString;
-  ss: AnsiString;
+  sections: String;
+  ss: String;
   i: integer;
 begin
   Result := False;
@@ -7163,9 +7163,9 @@ begin
   Result := True;
 end;
 
-function IrcAutoNuke(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAutoNuke(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   status: integer;
   s: TSite;
   kell: boolean;
@@ -7211,12 +7211,12 @@ begin
   Result := True;
 end;
 
-function IrcKbShow(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKbShow(const Netname, Channel: String; params: String): boolean;
 var
-  section, rls: AnsiString;
+  section, rls: String;
   p: TPazo;
   i: integer;
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   Result := False;
   section := UpperCase(SubString(params, ' ', 1));
@@ -7241,11 +7241,11 @@ begin
   Result := True;
 end;
 
-function IrcKbList(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKbList(const Netname, Channel: String; params: String): boolean;
 var
   p: TPazo;
   i, db: integer;
-  section: AnsiString;
+  section: String;
   hits: integer;
 
 begin
@@ -7301,9 +7301,9 @@ begin
   Result := True;
 end;
 
-function IrcKbExtra(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKbExtra(const Netname, Channel: String; params: String): boolean;
 var
-  section, rls, extra: AnsiString;
+  section, rls, extra: String;
 begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
@@ -7313,9 +7313,9 @@ begin
   Result := True;
 end;
 
-function IrcKbAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKbAdd(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, event, section, rls_section, rls: AnsiString;
+  sitename, event, section, rls_section, rls: String;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
   event := UpperCase(SubString(params, ' ', 2));
@@ -7355,7 +7355,7 @@ begin
   Result := True;
 end;
 
-function IrcSkipReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSkipReload(const Netname, Channel: String; params: String): boolean;
 begin
   try
     Result := SkiplistRehash;
@@ -7364,7 +7364,7 @@ begin
   end;
 end;
 
-function IrcNoHelp(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNoHelp(const Netname, Channel: String; params: String): boolean;
 var
   Count, i: integer;
 begin
@@ -7384,15 +7384,15 @@ begin
   Result := True;
 end;
 
-function IrcFindUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFindUser(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
-  user: AnsiString;
-  leech_up: AnsiString;
-  leech_dn: AnsiString;
-  ratio_up: AnsiString;
-  ratio_dn: AnsiString;
+  user: String;
+  leech_up: String;
+  leech_dn: String;
+  ratio_up: String;
+  ratio_dn: String;
 begin
   user := SubString(params, ' ', 1);
 
@@ -7438,9 +7438,9 @@ begin
   Result := True;
 end;
 
-function IrcUsers(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUsers(const Netname, Channel: String; params: String): boolean;
 var
-  ss, sitename: AnsiString;
+  ss, sitename: String;
   s: TSite;
   x, y: TStringList;
   i, j: integer;
@@ -7505,15 +7505,15 @@ begin
   Result := True;
 end;
 
-function IrcShowWindow(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcShowWindow(const Netname, Channel: String; params: String): boolean;
 begin
   Result := console_showwindow(params);
 end;
 
-function IrcShowWindows(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcShowWindows(const Netname, Channel: String; params: String):
   boolean;
 var
-  Windows, s: AnsiString;
+  Windows, s: String;
 begin
   Windows := console_windows;
   while (True) do
@@ -7527,7 +7527,7 @@ begin
   Result := True;
 end;
 
-function IrcDelWindow(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelWindow(const Netname, Channel: String; params: String): boolean;
 begin
   if uppercase(params) = uppercase('ADMIN') then
   begin
@@ -7539,12 +7539,12 @@ begin
   Result := True;
 end;
 
-function IrcIrcNames(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcIrcNames(const Netname, Channel: String; params: String): boolean;
 var
   th: TMyIrcThread;
-  nn, ch: AnsiString;
+  nn, ch: String;
   i: integer;
-  s: AnsiString;
+  s: String;
   x: TStringList;
 begin
   Result := False;
@@ -7582,17 +7582,17 @@ begin
   Result := True;
 end;
 
-function IrcRepaint(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRepaint(const Netname, Channel: String; params: String): boolean;
 begin
   console_repaint;
   Result := True;
 end;
 
-function IrcNuke(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNuke(const Netname, Channel: String; params: String): boolean;
 var
   i, t, h, multiplier: integer;
-  datestamp: AnsiString;
-  reason, sitename, rip, section, yyyy, yy, mm, dd: AnsiString;
+  datestamp: String;
+  reason, sitename, rip, section, yyyy, yy, mm, dd: String;
   site: TSite;
   n: TNukeQueueItem;
 begin
@@ -7708,11 +7708,11 @@ begin
   Result := True;
 end;
 
-function IrcUnnuke(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUnnuke(const Netname, Channel: String; params: String): boolean;
 var
   i, t, h: integer;
-  datestamp: AnsiString;
-  reason, sitename, rip, section, yyyy, yy, mm, dd: AnsiString;
+  datestamp: String;
+  reason, sitename, rip, section, yyyy, yy, mm, dd: String;
   n: TNukeQueueItem;
 begin
   Result := False;
@@ -7803,9 +7803,9 @@ begin
   Result := True;
 end;
 
-function IrcOper(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcOper(const Netname, Channel: String; params: String): boolean;
 var
-  nn, userid, pass: AnsiString;
+  nn, userid, pass: String;
 begin
   Result := False;
 
@@ -7846,29 +7846,29 @@ begin
   Result := True;
 end;
 
-function IrcNews(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNews(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
-  category: AnsiString;
+  category: String;
 begin
   i := StrToIntDef(SubString(params, ' ', 1), 10);
   category := UpperCase(SubString(params, ' ', 2));
   Result := SlftpNewsShow(Netname, Channel, i, category);
 end;
 
-function IrcNewsAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNewsAdd(const Netname, Channel: String; params: String): boolean;
 var
-  category: AnsiString;
+  category: String;
 begin
   category := UpperCase(SubString(params, ' ', 1));
 
   Result := SlftpNewsAdd(Netname, Channel, category, mystrings.RightStr(params, Length(category) + 1));
 end;
 
-function IrcNewsDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNewsDel(const Netname, Channel: String; params: String): boolean;
 var
   DeleteNumber: integer;
-  input, announce: AnsiString;
+  input, announce: String;
   AnnounceIt: boolean;
 begin
   AnnounceIt := False;
@@ -7894,16 +7894,16 @@ begin
   end;
 end;
 
-function IrcNewsCategories(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNewsCategories(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
   irc_addtext(Netname, Channel, 'Valid categories are: %s', [ValidCategoriesAsString]);
   Result := True;
 end;
 
-function IrcSpeedStats(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedStats(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, section, rip: AnsiString;
+  sitename, section, rip: String;
   s: TSite;
 begin
   Result := False;
@@ -7924,7 +7924,7 @@ begin
   Result := True;
 end;
 
-function IrcSpeedRecalc(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcSpeedRecalc(const Netname, Channel: String; params: String):
   boolean;
 begin
   // SpeedStatsRecalc(netname, channel);
@@ -7932,18 +7932,18 @@ begin
   Result := True;
 end;
 
-function IrcRankRecalc(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRankRecalc(const Netname, Channel: String; params: String): boolean;
 begin
   RanksRecalc(Netname, Channel);
   Result := True;
 end;
 
-function IrcSpeedTestLocal(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcSpeedTestLocal(const Netname, Channel: String; params: String):
   boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   s: TSite;
-  dir: AnsiString;
+  dir: String;
   t: TUploadSpeedtestFileTask;
   tn: TTaskNotify;
 begin
@@ -7974,10 +7974,10 @@ begin
   Result := True;
 end;
 
-function IrcSpeedTestCleanup(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcSpeedTestCleanup(const Netname, Channel: String; params: String):
   boolean;
 var
-  ss: AnsiString;
+  ss: String;
   s: TSite;
   tn: TTaskNotify;
   t: TDelSpeedtestFileTask;
@@ -8047,7 +8047,7 @@ begin
   Result := True;
 end;
 
-procedure PickupSpeedtestFile(d: TDirList; var fsfilename: AnsiString;
+procedure PickupSpeedtestFile(d: TDirList; var fsfilename: String;
   var fsfilesize: Int64);
 var
   de: TDirListEntry;
@@ -8074,9 +8074,9 @@ begin
   end;
 end;
 
-function IrcSpeedTestIn(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedTestIn(const Netname, Channel: String; params: String): boolean;
 var
-  oparams, ss: AnsiString;
+  oparams, ss: String;
   s: TSite;
   tn: TTaskNotify;
   p: TPazo;
@@ -8086,11 +8086,11 @@ var
   sr: TSiteResponse;
   j: integer;
   ds: TDirlistTask;
-  fssitename: AnsiString;
+  fssitename: String;
   d1, d2: double;
   added: integer;
   d: TDirList;
-  fsfilename: AnsiString;
+  fsfilename: String;
   fsfilesize: Int64;
   fsfilesizemb: double;
   speedtestsites: TStringList;
@@ -8306,9 +8306,9 @@ begin
   Result := True;
 end;
 
-function IrcSpeedTestOut(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpeedTestOut(const Netname, Channel: String; params: String): boolean;
 var
-  oparams, ss: AnsiString;
+  oparams, ss: String;
   s: TSite;
   tn: TTaskNotify;
   p: TPazo;
@@ -8318,10 +8318,10 @@ var
   sr: TSiteResponse;
   j: integer;
   fs: TFileSizeTask;
-  fssitename, fsfilename: AnsiString;
+  fssitename, fsfilename: String;
   fsfilesize: Int64;
   fsfilesizemb: double;
-  todel: AnsiString;
+  todel: String;
   d1, d2: double;
   d: TDirList;
 begin
@@ -8527,9 +8527,9 @@ begin
   Result := True;
 end;
 
-function IrcIndexQuery(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcIndexQuery(const Netname, Channel: String; params: String): boolean;
 var
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   s := indexerQueryPartially(params);
 
@@ -8549,7 +8549,7 @@ begin
   Result := True;
 end;
 
-function IrcIndexDropSection(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcIndexDropSection(const Netname, Channel: String; params: String):
   boolean;
 begin
   params := UpperCase(params);
@@ -8560,9 +8560,9 @@ begin
   Result := True;
 end;
 
-function IrcIndexStat(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcIndexStat(const Netname, Channel: String; params: String): boolean;
 var
-  s, ss: AnsiString;
+  s, ss: String;
 begin
   s := indexerStat;
 
@@ -8576,9 +8576,9 @@ begin
   Result := True;
 end;
 
-function IrcStatRaces(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatRaces(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, period: AnsiString;
+  sitename, period: String;
   detailed: Boolean;
 begin
   Result := False;
@@ -8605,10 +8605,10 @@ begin
   Result := True;
 end;
 
-function IrcStatSites(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatSites(const Netname, Channel: String; params: String): boolean;
 var
-  q, ss: AnsiString;
-  sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8663,11 +8663,11 @@ begin
   Result := True;
 end;
 
-function IrcStatSitesByGroup(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcStatSitesByGroup(const Netname, Channel: String; params: String):
   boolean;
 var
-  sss, q, ss: AnsiString;
-  groupname, groupfilter, sectionname, sectionfilter: AnsiString;
+  sss, q, ss: String;
+  groupname, groupfilter, sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8726,10 +8726,10 @@ begin
   Result := True;
 end;
 
-function IrcStatSitesByUser(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatSitesByUser(const Netname, Channel: String; params: String): boolean;
 var
-  q, ss: AnsiString;
-  username, userfilter, sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  username, userfilter, sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8790,10 +8790,10 @@ begin
   Result := True;
 end;
 
-function IrcStatGroups(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatGroups(const Netname, Channel: String; params: String): boolean;
 var
-  q, ss: AnsiString;
-  sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8848,11 +8848,11 @@ begin
   Result := True;
 end;
 
-function IrcStatGroupsBySite(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcStatGroupsBySite(const Netname, Channel: String; params: String):
   boolean;
 var
-  q, ss: AnsiString;
-  sitename, sitefilter, sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  sitename, sitefilter, sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8912,10 +8912,10 @@ begin
   Result := True;
 end;
 
-function IrcStatUsers(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcStatUsers(const Netname, Channel: String; params: String): boolean;
 var
-  q, ss: AnsiString;
-  sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -8970,11 +8970,11 @@ begin
   Result := True;
 end;
 
-function IrcStatUsersBySite(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcStatUsersBySite(const Netname, Channel: String; params: String):
   boolean;
 var
-  q, ss: AnsiString;
-  sitename, sitefilter, sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  sitename, sitefilter, sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -9034,11 +9034,11 @@ begin
   Result := True;
 end;
 
-function IrcStatUsersByGroup(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcStatUsersByGroup(const Netname, Channel: String; params: String):
   boolean;
 var
-  q, ss: AnsiString;
-  groupname, groupfilter, sectionname, sectionfilter: AnsiString;
+  q, ss: String;
+  groupname, groupfilter, sectionname, sectionfilter: String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -9098,12 +9098,12 @@ begin
   Result := True;
 end;
 
-function IrcStatUsersByGroupBySite(const Netname, Channel: AnsiString;
-  params: AnsiString): boolean;
+function IrcStatUsersByGroupBySite(const Netname, Channel: String;
+  params: String): boolean;
 var
-  q, ss: AnsiString;
+  q, ss: String;
   groupname, groupfilter, sitename, sitefilter, sectionname, sectionfilter:
-    AnsiString;
+    String;
   d: integer;
 begin
   // stupid and safe anti sql injection
@@ -9167,7 +9167,7 @@ begin
   Result := True;
 end;
 
-procedure DisplayDelay(Netname, Channel, s1, s2, s3: AnsiString);
+procedure DisplayDelay(Netname, Channel, s1, s2, s3: String);
 var
   minv, maxv: integer;
 begin
@@ -9185,12 +9185,12 @@ begin
 
 end;
 
-procedure DisplayAllDelay(Netname, Channel, s1, s2: AnsiString);
+procedure DisplayAllDelay(Netname, Channel, s1, s2: String);
 var
   x: TStringList;
   minv, maxv: integer;
   i: integer;
-  s, s3: AnsiString;
+  s, s3: String;
 begin
   x := TStringList.Create;
   try
@@ -9219,7 +9219,7 @@ begin
   end;
 end;
 
-procedure DeleteDelay(Netname, Channel, s1, s2, s3: AnsiString);
+procedure DeleteDelay(Netname, Channel, s1, s2, s3: String);
 begin
   sitesdat.DeleteKey('site-' + s1, 'delay' + s2 + '-' + s3 + '-min');
   sitesdat.DeleteKey('site-' + s1, 'delay' + s2 + '-' + s3 + '-max');
@@ -9227,7 +9227,7 @@ begin
     ' delay is deleted on site ' + s1 + '.');
 end;
 
-procedure SpecifyDelay(Netname, Channel, s1, s2, s3: AnsiString; minv, maxv:
+procedure SpecifyDelay(Netname, Channel, s1, s2, s3: String; minv, maxv:
   integer);
 begin
   if minv < 0 then
@@ -9245,11 +9245,11 @@ begin
   sitesdat.WriteInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max', maxv);
 end;
 
-function IrcDelayLeech(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelayLeech(const Netname, Channel: String; params: String): boolean;
 const
   tipus = 'leech';
 var
-  sitename, section, s: AnsiString;
+  sitename, section, s: String;
   minv, maxv: integer;
   i: integer;
 begin
@@ -9382,12 +9382,12 @@ begin
   Result := True;
 end;
 
-function IrcDelayUpload(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcDelayUpload(const Netname, Channel: String; params: String):
   boolean;
 const
   tipus = 'upload';
 var
-  sitename, section, s: AnsiString;
+  sitename, section, s: String;
   minv, maxv: integer;
   i: integer;
 begin
@@ -9519,9 +9519,9 @@ begin
   Result := True;
 end;
 
-function IrcTweak(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTweak(const Netname, Channel: String; params: String): boolean;
 var
-  ss1, ss2, s1, s2, s3: AnsiString;
+  ss1, ss2, s1, s2, s3: String;
   x: TRegExpr;
 begin
   Result := False;
@@ -9570,10 +9570,10 @@ end;
 
 /// dOH mODz
 // TODO: it's not used or? Remove or fix it? Emptry url? don't know...^e
-function Irctestoffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function Irctestoffset(const Netname, Channel: String; params: String): boolean;
 var
   voctime, vctime, vnow, cnow: int64;
-  response, url, ss, s: AnsiString;
+  response, url, ss, s: String;
   x: TRegExpr;
   fHttpGetErrMsg: String;
 begin
@@ -9644,7 +9644,7 @@ end;
 
 { IrcKillAll }
 
-function IrcKillAll(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcKillAll(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   rx: TRegExpr;
@@ -9677,9 +9677,9 @@ begin
   Result := True;
 end;
 
-function IrcSetMYIrcNick(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetMYIrcNick(const Netname, Channel: String; params: String): boolean;
 var
-  ircnick, sname: AnsiString;
+  ircnick, sname: String;
   s: TSite;
 begin
   Result := False;
@@ -9697,7 +9697,7 @@ begin
   Result := True;
 end;
 
-function IrcInviteMyIRCNICK(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcInviteMyIRCNICK(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   x: TStringList;
@@ -9774,9 +9774,9 @@ begin
   end;
 end;
 
-function IrcNetNoSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNetNoSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  nname, Value: AnsiString;
+  nname, Value: String;
   status: boolean;
 begin
   nname := SubString(params, ' ', 1);
@@ -9786,9 +9786,9 @@ begin
   Result := True;
 end;
 
-function IrcTweakSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTweakSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  fname, ftrigger, fvalue: AnsiString;
+  fname, ftrigger, fvalue: String;
   s5: TmSLSocks5;
 begin
   Result := False;
@@ -9841,9 +9841,9 @@ begin
   Result := True;
 end;
 
-function IrcAddSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAddSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  fhostport, fhost, fuser, fpass, fname: AnsiString;
+  fhostport, fhost, fuser, fpass, fname: String;
   fport, fstatus: integer;
 begin
   Result := False;
@@ -9882,9 +9882,9 @@ begin
   Result := True;
 end;
 
-function IrcDelSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  trigger, Value: AnsiString;
+  trigger, Value: String;
   rx: TRegExpr;
 begin
   Result := False;
@@ -9922,13 +9922,13 @@ begin
   Result := True;
 end;
 
-function IrcRehashSocks5(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcRehashSocks5(const Netname, Channel: String; params: String):
   boolean;
 begin
   Result := RehashProxys;
 end;
 
-function IrcDisplaySocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDisplaySocks5(const Netname, Channel: String; params: String): boolean;
 var
   i, fProxyCount: integer;
 begin
@@ -9941,9 +9941,9 @@ begin
   Result := True;
 end;
 
-function IrcSetSocks5(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetSocks5(const Netname, Channel: String; params: String): boolean;
 var
-  vname, vvalue, vtrigger: AnsiString;
+  vname, vvalue, vtrigger: String;
   virc: TMyIrcThread;
   vsite: TSite;
   vsocks: TmSLSocks5;
@@ -10046,7 +10046,7 @@ begin
   Result := True;
 end;
 
-function IrcTestLanguageBase(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTestLanguageBase(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
   irc_addtext(Netname, Channel, 'Read language for: ' + params + ' (only new languagebase supported right now...)');
@@ -10056,15 +10056,15 @@ begin
   Result := True;
 end;
 
-function IrcLanguageBaseReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLanguageBaseReload(const Netname, Channel: String; params: String): boolean;
 begin
   irc_addtext(Netname, Channel, SLLanguagesReload);
   Result := True;
 end;
 
-function IrcShowAllRules(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcShowAllRules(const Netname, Channel: String; params: String): boolean;
 var
-  sitename, sections: AnsiString;
+  sitename, sections: String;
   xs: TStringList;
   ii, i, count: Integer;
   r: TRule;
@@ -10126,11 +10126,11 @@ begin
 end;
 
 // TODO: rewrite it, it's not working as in helpfile declared
-function IrcAllRuleDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcAllRuleDel(const Netname, Channel: String; params: String): boolean;
 var
   sitess, sectionss: TStringList;
   // s: TSite;
-  sitename, section: AnsiString;
+  sitename, section: String;
   ii, i: integer;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -10193,9 +10193,9 @@ begin
   Result := True;
 end;
 
-function IrcSetMYSQLData(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetMYSQLData(const Netname, Channel: String; params: String): boolean;
 var
-  fhostport, fhost, fport, fuser, fpassw, fdbname, ftable: AnsiString;
+  fhostport, fhost, fport, fuser, fpassw, fdbname, ftable: String;
 begin
   Result := False;
   try
@@ -10219,33 +10219,33 @@ begin
   Result := True;
 end;
 
-function IrcViewMYSQLValue(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcViewMYSQLValue(const Netname, Channel: String; params: String): boolean;
 begin
   Result := True;
 end;
 
-function IrcTweakMYSQL(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTweakMYSQL(const Netname, Channel: String; params: String): boolean;
 begin
   Result := True;
 end;
 
-function IrcMYSQLStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcMYSQLStatus(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 end;
 
-function IrcCreateBackup(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcCreateBackup(const Netname, Channel: String; params: String): boolean;
 var
-  error: AnsiString;
+  error: String;
 begin
   Result := ircBackup(error);
   if error <> '' then
     irc_addtext(Netname, Channel, '<b><c4>%s</b></c>', [error]);
 end;
 
-function IrcNoLoginMSG(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNoLoginMSG(const Netname, Channel: String; params: String): boolean;
 var
-  svalue, sname: AnsiString;
+  svalue, sname: String;
   ss: TSite;
   i: integer;
 begin
@@ -10330,9 +10330,9 @@ begin
   Result := True;
 end;
 
-function IrcUseForNFOdownload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUseForNFOdownload(const Netname, Channel: String; params: String): boolean;
 var
-  sname: AnsiString;
+  sname: String;
   svalue: integer;
   ss: TSite;
   i: integer;
@@ -10390,9 +10390,9 @@ begin
   Result := True;
 end;
 
-function IrcSkipBeingUploadedFiles(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSkipBeingUploadedFiles(const Netname, Channel: String; params: String): boolean;
 var
-  svalue, sname: AnsiString;
+  svalue, sname: String;
   ss: TSite;
   i: integer;
 begin
@@ -10443,15 +10443,15 @@ begin
   Result := True;
 end;
 
-function IrcSiteUserFetch(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSiteUserFetch(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
   s: TSite;
   r: TRawTask;
   tn: TTaskNotify;
   x: TRegExpr;
-  sitename, response, username: AnsiString;
-  logins, maxdn, maxup: AnsiString;
+  sitename, response, username: String;
+  logins, maxdn, maxup: String;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -10549,9 +10549,9 @@ begin
 end;
 
 (* PreURLs *)
-function IrcPreURLAdd(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreURLAdd(const Netname, Channel: String; params: String): boolean;
 var
-  url, offset: AnsiString;
+  url, offset: String;
 begin
   //Result := False;
   url := SubString(params, ' ', 1);
@@ -10566,9 +10566,9 @@ begin
   Result := True;
 end;
 
-function IrcPreURLDel(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreURLDel(const Netname, Channel: String; params: String): boolean;
 var
-  s: AnsiString;
+  s: String;
   index: integer;
 begin
   //  Result := False;
@@ -10584,9 +10584,9 @@ begin
 
 end;
 
-function IrcPreURLMod(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreURLMod(const Netname, Channel: String; params: String): boolean;
 var
-  s, url, offset: AnsiString;
+  s, url, offset: String;
   index: integer;
 begin
   //Result := False;
@@ -10603,9 +10603,9 @@ begin
   end;
 end;
 
-function IrcPreURLList(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcPreURLList(const Netname, Channel: String; params: String): boolean;
 var
-  url, offset: AnsiString;
+  url, offset: String;
   i: integer;
 begin
   //Result := False;
@@ -10619,16 +10619,16 @@ begin
   Result := True;
 end;
 
-function IrcFakeReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcFakeReload(const Netname, Channel: String; params: String): boolean;
 begin
   Result := FakesRehash;
 end;
 
-function IrcSpamConfig(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSpamConfig(const Netname, Channel: String; params: String): boolean;
 var
   vsecs, vsval: TStringList;
   i: integer;
-  csec, ckey, cvalue: AnsiString;
+  csec, ckey, cvalue: String;
 begin
   Result := False;
   vsecs := TStringList.Create;
@@ -10691,7 +10691,7 @@ begin
 end;
 
 
-function IrcSetupOffset(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetupOffset(const Netname, Channel: String; params: String): boolean;
 var
   r: TRegexpr;
 begin
@@ -10727,7 +10727,7 @@ begin
   Result := True;
 end;
 
-function IrcSetupPretimeMode(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetupPretimeMode(const Netname, Channel: String; params: String): boolean;
 var
   pmode: integer;
 begin
@@ -10747,7 +10747,7 @@ begin
   Result := True;
 end;
 
-function IrcSetupPretimeMode2(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetupPretimeMode2(const netname, channel: String; params: String): boolean;
 var
   pmode: integer;
 begin
@@ -10767,7 +10767,7 @@ begin
   Result := True;
 end;
 
-function IrcSetupADDPreMode(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetupADDPreMode(const netname, channel: String; params: String): boolean;
 var
   pmode: integer;
 begin
@@ -10788,7 +10788,7 @@ begin
 end;
 
 
-function IrcFindPretime(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcFindPretime(const Netname, Channel: String; params: String):
   boolean;
 var
   pt: TDateTime;
@@ -10815,7 +10815,7 @@ begin
   Result := True;
 end;
 
-function IrcDisplayMappings(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcDisplayMappings(const Netname, Channel: String; params: String):
   boolean;
 var
   i: integer;
@@ -10833,9 +10833,9 @@ begin
   Result := True;
 end;
 
-function IrcDelPart(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcDelPart(const Netname, Channel: String; params: String): boolean;
 var
-  nn, blowchannel: AnsiString;
+  nn, blowchannel: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
 begin
@@ -10863,18 +10863,18 @@ begin
   Result := True;
 end;
 
-function IrcReloadGlobalSkipGrouplist(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcReloadGlobalSkipGrouplist(const Netname, Channel: String; params: String): boolean;
 begin
   Result := Rehashglobalskiplist;
   if Result then
     irc_addtext(Netname, Channel, '%d groups in list.', [globalgroupskip.Count]);
 end;
 
-function IrcSetPretime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetPretime(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
-  section: AnsiString;
-  s_pretime: AnsiString;
+  sitename: String;
+  section: String;
+  s_pretime: String;
   pretime: integer;
   site: TSite;
   i: integer;
@@ -10950,17 +10950,17 @@ begin
   Result := True;
 end;
 
-function IrcRulesLoad(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRulesLoad(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 end;
 
-function IrcSetSitePermdown(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcSetSitePermdown(const Netname, Channel: String; params: String):
   boolean;
 var
   s: TSite;
-  sname: AnsiString;
-  svalue: AnsiString;
+  sname: String;
+  svalue: String;
   ivalue: integer;
 begin
   Result := False;
@@ -11094,7 +11094,7 @@ begin
   Result := True;
 end;
 
-function IrcSetdown(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetdown(const Netname, Channel: String; params: String): boolean;
 var
   s: TSite;
   i: integer;
@@ -11161,16 +11161,16 @@ begin
   Result := True;
 end;
 
-function IrcRulesReload(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRulesReload(const Netname, Channel: String; params: String): boolean;
 begin
   RulesReload;
   Result := True;
 end;
 
-function parseSTATLine(sitename, line: AnsiString; includeLastCredits: boolean = false): AnsiString;
+function parseSTATLine(sitename, line: String; includeLastCredits: boolean = false): String;
 var
   x: TRegExpr;
-  ss, creds, ratio: AnsiString;
+  ss, creds, ratio: String;
   minus: boolean;
   c: double;
 begin
@@ -11233,11 +11233,11 @@ begin
 
 end;
 
-function IrcShowCredits(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcShowCredits(const Netname, Channel: String; params: String): boolean;
 var
   i: integer;
 
-  sitename: AnsiString;
+  sitename: String;
   sitesList : TStringList;
 begin
   Result := False;
@@ -11270,7 +11270,7 @@ begin
   Result := True;
 end;
 
-procedure ShowCredits(const Netname, Channel, siteName: AnsiString);
+procedure ShowCredits(const Netname, Channel, siteName: String);
 var s : Tsite;
 begin
   s := FindSiteByName(Netname, siteName);
@@ -11280,7 +11280,7 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [siteName]);
 end;
 
-procedure ShowCredits(const Netname, Channel: AnsiString; s : Tsite);
+procedure ShowCredits(const Netname, Channel: String; s : Tsite);
 var
   r: TRawTask;
   tn: TTaskNotify;
@@ -11320,10 +11320,10 @@ begin
   end;
 end;
 
-function IrcUptime(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUptime(const Netname, Channel: String; params: String): boolean;
 var
-  cpuversion: AnsiString;
-  fProcessID, fCmdLine, fUsageInfo, fUnit: AnsiString;
+  cpuversion: String;
+  fProcessID, fCmdLine, fUsageInfo, fUnit: String;
   fMemUsage: double;
   rr: TRegexpr;
 begin
@@ -11378,7 +11378,7 @@ begin
   Result := True;
 end;
 
-function IrcShowAppStatus(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcShowAppStatus(const Netname, Channel: String; params: String): boolean;
 var
   rx: TRegexpr;
   spd, sup, sdn, suk: TStringList;
@@ -11423,9 +11423,9 @@ begin
   Result := True;
 end;
 
-function Ircaddknowngroup(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function Ircaddknowngroup(const Netname, Channel: String; params: String): boolean;
 var
-  section, glist: AnsiString;
+  section, glist: String;
   y, x: TStringList;
   i: integer;
 begin
@@ -11462,10 +11462,10 @@ begin
   Result := True;
 end;
 
-function IrcSLFTPConfig(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSLFTPConfig(const Netname, Channel: String; params: String): boolean;
 var
   x, y: TStringList;
-  csec, ckey, cvalue, s: AnsiString;
+  csec, ckey, cvalue, s: String;
   i, ii: integer;
 begin
   Result := False;
@@ -11576,9 +11576,9 @@ begin
   Result := True;
 end;
 
-function IrcChanSetSitename(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcChanSetSitename(const Netname, Channel: String; params: String): boolean;
 var
-  sname, nname, chans: AnsiString;
+  sname, nname, chans: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
   y, x: TStringList;
@@ -11628,7 +11628,7 @@ begin
   Result := True;
 end;
 
-function IrcAnnounceIMDBInfo(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcAnnounceIMDBInfo(const Netname, Channel: String; params: String):
   boolean;
 var
   //  rlzname: string;
@@ -11667,7 +11667,7 @@ end;
 
 { The TV dB Function              }
 
-function IrcAnnounceTVInfo(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcAnnounceTVInfo(const Netname, Channel: String; params: String):
   boolean;
 var
   db_tvrage: TTVInfoDB;
@@ -11729,7 +11729,7 @@ begin
   end;
 end;
 
-function IrcDelTheTVDbInfo(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcDelTheTVDbInfo(const Netname, Channel: String; params: String):
   boolean;
 var
   return: Integer;
@@ -11776,9 +11776,9 @@ begin
   //we dont set result to true, to check if something went wrong...
 end;
 
-function IrcUpdateTVMazeInfo(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcUpdateTVMazeInfo(const Netname, Channel: String; params: String): boolean;
 var
-  respo, tvmaze_id, tv_showname: AnsiString;
+  respo, tvmaze_id, tv_showname: String;
   otvr, newtvi: TTVInfoDB;
   fHttpGetErrMsg: String;
 begin
@@ -11850,7 +11850,7 @@ begin
   end;
 end;
 
-function IrcSetTVRageID(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcSetTVRageID(const Netname, Channel: String; params: String): boolean;
 var
   mazeid, tvrageid: integer;
   tvi: TTVInfoDB;
@@ -11874,7 +11874,7 @@ begin
   result := True;
 end;
 
-function IrcSetTheTVDBID(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetTheTVDBID(const netname, channel: String; params: String): boolean;
 var
   mazeid, thetvdbid: integer;
   tvi: TTVInfoDB;
@@ -11898,14 +11898,14 @@ begin
   result := True;
 end;
 
-function IrcAddTVMazeToDb(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcAddTVMazeToDb(const netname, channel: String; params: String): boolean;
 var
-  resp, ssname, sid: AnsiString;
+  resp, ssname, sid: String;
   tvr: TTVInfoDB;
   x: TRegExpr;
   i, sresMAXi: integer;
   res: TStringlist;
-  showname: AnsiString;
+  showname: String;
   fHttpGetErrMsg: String;
 begin
   result := False;
@@ -11996,9 +11996,9 @@ begin
   Result := True;
 end;
 
-function IrcShowSiteNukes(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcShowSiteNukes(const netname, channel: String; params: String): boolean;
 var
-  sitename, ss: AnsiString;
+  sitename, ss: String;
   Count: integer;
   r: TRegexpr;
   site: TSite;
@@ -12080,9 +12080,9 @@ begin
 
 end;
 
-function IrcCatchMod(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcCatchMod(const netname, channel: String; params: String): boolean;
 var
-  index, sitename, nn, channelname, botnicks, event, words, section: AnsiString;
+  index, sitename, nn, channelname, botnicks, event, words, section: String;
 begin
   Result := False;
   index := UpperCase(SubString(params, ' ', 1));
@@ -12156,7 +12156,7 @@ begin
   Result := True;
 end;
 
-function IrcLastLog(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcLastLog(const Netname, Channel: String; params: String): boolean;
 var
   lines: integer;
   lastlog: String;
@@ -12187,7 +12187,7 @@ begin
   Result := True;
 end;
 
-function IrcSetDebugverbosity(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcSetDebugverbosity(const Netname, Channel: String; params: String):
   boolean;
 var
   val: integer;
@@ -12231,11 +12231,11 @@ end;
 
 /// dOH mODz  eNDz
 
-function IrcRebuildSlot(const Netname, Channel: AnsiString; params: AnsiString):
+function IrcRebuildSlot(const Netname, Channel: String; params: String):
   boolean;
 var
-  sitename: AnsiString;
-  s_slot: AnsiString;
+  sitename: String;
+  s_slot: String;
   slot: integer;
   site: TSite;
 begin
@@ -12277,9 +12277,9 @@ begin
   Result := True;
 end;
 
-function IrcRecalcFreeslots(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcRecalcFreeslots(const Netname, Channel: String; params: String): boolean;
 var
-  sitename: AnsiString;
+  sitename: String;
   site: TSite;
   i: integer;
   x: TStringList;
@@ -12320,9 +12320,9 @@ begin
   Result := True;
 end;
 
-function IrcSetAutoInvite(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcSetAutoInvite(const netname, channel: String; params: String): boolean;
 var
-  sitename, value: AnsiString;
+  sitename, value: String;
   site: TSite;
 begin
   Result := False;
@@ -12365,10 +12365,10 @@ begin
 end;
 
 
-function IrcTestColors(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcTestColors(const Netname, Channel: String; params: String): boolean;
 var
   i, colorscount: integer;
-  colors: AnsiString;
+  colors: String;
 begin
   colorscount := 15;
   colors := '';
@@ -12385,7 +12385,7 @@ end;
 { TIRCCommandThread }
 
 constructor TIRCCommandThread.Create(c: TIRCCommandHandler;
-  Netname, Channel, params: AnsiString; cmd: AnsiString = '');
+  Netname, Channel, params: String; cmd: String = '');
 begin
   self.c := c;
   self.Netname := Netname;
@@ -12435,17 +12435,17 @@ end;
 
 {   Help section Handler    }
 
-function IrcHelpHeader(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpHeader(const netname, channel: String; params: String): boolean;
 begin
   Result := False;
 end;
 
-function IrcHelpSeperator(const netname, channel: AnsiString; params: AnsiString): boolean;
+function IrcHelpSeperator(const netname, channel: String; params: String): boolean;
 begin
   Result := False;
 end;
 
-function IrcNope(const Netname, Channel: AnsiString; params: AnsiString): boolean;
+function IrcNope(const Netname, Channel: String; params: String): boolean;
 begin
   Result := False;
 end;

@@ -15,7 +15,7 @@ interface
 uses
   SysUtils {$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
-function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: String; IgnoreCase, IgnoreBlanks: boolean): pointer;
 
 implementation
 
@@ -105,10 +105,10 @@ begin
 end;
 //--------------------------------------------------------------------------
 
-function HashLine(const line: AnsiString; IgnoreCase, IgnoreBlanks: boolean): pointer;
+function HashLine(const line: String; IgnoreCase, IgnoreBlanks: boolean): pointer;
 var
   i, j, len: integer;
-  s: AnsiString;
+  s: String;
 begin
   s := line;
   if IgnoreBlanks then
@@ -129,7 +129,7 @@ begin
   end;
   if IgnoreCase then s := AnsiLowerCase(s);
   //return result as a pointer to save typecasting later...
-  result := pointer(CalcCRC32(pchar(s), length(s)));
+  result := pointer(CalcCRC32(PAnsiChar(s), length(s)));
 end;
 //---------------------------------------------------------------------
 

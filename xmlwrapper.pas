@@ -30,35 +30,35 @@ type
   TSLXMLDocument = class
   private
     xmlFile: TSLXMLDoc;
-    FFilename: AnsiString;
+    FFilename: String;
   public
     constructor Create; overload;
-    constructor Create(Filename: AnsiString); overload;
+    constructor Create(Filename: String); overload;
     constructor Create(stream: TStream); overload;
     destructor Destroy; override;
-    function FindNode(NodeName: AnsiString): TSLXMLNode;
+    function FindNode(NodeName: String): TSLXMLNode;
     function NextSibling(InNode: TSLXMLNode): TSLXMLNode;
-    function NextSiblingEx(InNode: TSLXMLNode; NodeName: AnsiString): TSLXMLNode;
+    function NextSiblingEx(InNode: TSLXMLNode; NodeName: String): TSLXMLNode;
     function GetDocumentElement: TSLXMLNode;
-    function GetNodeName(InNode: TSLXMLNode): AnsiString;
+    function GetNodeName(InNode: TSLXMLNode): String;
     function GetFirstChild(InNode: TSLXMLNode): TSLXMLNode;
-    function GetAttributeNode(InNode: TSLXMLNode; AttrName: AnsiString): TSLXMLNode;
-    function GetNodeValue(InNode: TSLXMLNode): AnsiString;
-    procedure SetNodeValue(InNode: TSLXMLNode; Value: AnsiString);
-    function FindChildNode(InNode: TSLXMLNode; NodeName: AnsiString): TSLXMLNode;
+    function GetAttributeNode(InNode: TSLXMLNode; AttrName: String): TSLXMLNode;
+    function GetNodeValue(InNode: TSLXMLNode): String;
+    procedure SetNodeValue(InNode: TSLXMLNode; Value: String);
+    function FindChildNode(InNode: TSLXMLNode; NodeName: String): TSLXMLNode;
     function GetChildNodeCount(InNode: TSLXMLNode): integer;
     function GetChildNodeItem(InNode: TSLXMLNode; Index: integer): TSLXMLNode;
     function GetAttributesCount(InNode: TSLXMLNode): integer;
     function GetAttributeNodeByIndex(InNode: TSLXMLNode;
       Index: integer): TSLXMLNode;
-    function AddChild(InNode: TSLXMLNode; Name: AnsiString): TSLXMLNode;
+    function AddChild(InNode: TSLXMLNode; Name: String): TSLXMLNode;
 
-    procedure LoadFromFile(XMLFileName: AnsiString);
+    procedure LoadFromFile(XMLFileName: String);
     procedure LoadFromStream(XMLFile: TStream);
-    procedure LoadFromWeb(url: AnsiString);
+    procedure LoadFromWeb(url: String);
     //    procedure LoadFromEncrpytedFile(XMLFileName: String);
     //    procedure SaveToEncryptedFile(XMLFileName: String);
-    procedure SaveToFile(XMLFileName: AnsiString);
+    procedure SaveToFile(XMLFileName: String);
   end;
 
 procedure InitXMLWeapper;
@@ -97,7 +97,7 @@ begin
 {$ENDIF}
 end;
 
-constructor TSLXMLDocument.Create(Filename: AnsiString);
+constructor TSLXMLDocument.Create(Filename: String);
 begin
   Create;
   LoadFromFile(filename);
@@ -109,7 +109,7 @@ begin
   LoadFromStream(stream);
 end;
 
-procedure TSLXMLDocument.LoadFromFile(XMLFileName: AnsiString);
+procedure TSLXMLDocument.LoadFromFile(XMLFileName: String);
 begin
   FFilename := XMLFileName;
 {$IFDEF FPC}
@@ -121,7 +121,7 @@ begin
 {$ENDIF}
 end;
 
-procedure TSLXMLDocument.SaveToFile(XMLFileName: AnsiString);
+procedure TSLXMLDocument.SaveToFile(XMLFileName: String);
 begin
 {$IFDEF FPC}
   writeXMLFile(xmlFile, XMLFileName);
@@ -140,10 +140,10 @@ begin
 {$ENDIF}
 end;
 
-procedure TSLXMLDocument.LoadFromWeb(url: AnsiString);
+procedure TSLXMLDocument.LoadFromWeb(url: String);
 var
   st: TStream;
-  res: AnsiString;
+  res: String;
   fHttpGetErrMsg: String;
 begin
   if not HttpGetUrl(url, res, fHttpGetErrMsg) then
@@ -187,7 +187,7 @@ begin
   Result := xmlfile.DocumentElement;
 end;
 
-function TSLXMLDocument.FindNode(NodeName: AnsiString): TSLXMLNode;
+function TSLXMLDocument.FindNode(NodeName: String): TSLXMLNode;
 begin
 {$IFDEF FPC}
   Result := xmlFile.FindNode(NodeName);
@@ -207,7 +207,7 @@ begin
 {$ENDIF}
 end;
 
-function TSLXMLDocument.GetNodeName(InNode: TSLXMLNode): AnsiString;
+function TSLXMLDocument.GetNodeName(InNode: TSLXMLNode): String;
 begin
 {$IFDEF FPC}
   Result := InNode.NodeName
@@ -217,9 +217,9 @@ begin
 end;
 
 function TSLXMLDocument.NextSiblingEx(InNode: TSLXMLNode;
-  NodeName: AnsiString): TSLXMLNode;
+  NodeName: String): TSLXMLNode;
 var
-  tmpStr: AnsiString;
+  tmpStr: String;
 begin
   Result := NextSibling(InNode);
   if (not Assigned(Result)) then
@@ -243,7 +243,7 @@ begin
 end;
 
 function TSLXMLDocument.GetAttributeNode(InNode: TSLXMLNode;
-  AttrName: AnsiString): TSLXMLNode;
+  AttrName: String): TSLXMLNode;
 begin
 {$IFDEF FPC}
   Result := InNode.Attributes.GetNamedItem(AttrName);
@@ -252,7 +252,7 @@ begin
 {$ENDIF}
 end;
 
-function TSLXMLDocument.GetNodeValue(InNode: TSLXMLNode): AnsiString;
+function TSLXMLDocument.GetNodeValue(InNode: TSLXMLNode): String;
 begin
 {$IFDEF FPC}
   Result := InNode.TextContent;
@@ -262,7 +262,7 @@ begin
   Result := Trim(Result);
 end;
 
-procedure TSLXMLDocument.SetNodeValue(InNode: TSLXMLNode; Value: AnsiString);
+procedure TSLXMLDocument.SetNodeValue(InNode: TSLXMLNode; Value: String);
 begin
 {$IFDEF FPC}
   InNode.TextContent := Value;
@@ -272,7 +272,7 @@ begin
 end;
 
 function TSLXMLDocument.FindChildNode(InNode: TSLXMLNode;
-  NodeName: AnsiString): TSLXMLNode;
+  NodeName: String): TSLXMLNode;
 begin
 {$IFDEF FPC}
   Result := InNode.FindNode(NodeName);
@@ -315,7 +315,7 @@ begin
 {$ENDIF}
 end;
 
-function TSLXMLDocument.AddChild(InNode: TSLXMLNode; Name: AnsiString): TSLXMLNode;
+function TSLXMLDocument.AddChild(InNode: TSLXMLNode; Name: String): TSLXMLNode;
 begin
 {$IFDEF FPC}
   Result := xmlFile.CreateElement(Name);

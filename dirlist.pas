@@ -17,16 +17,16 @@ type
     justadded: Boolean;
     error: Boolean; //< { @true if file cannot be send, will be skipped then, @false otherwise. }
 
-    username: AnsiString;
-    groupname: AnsiString;
+    username: String;
+    groupname: String;
 
     fDirectory: Boolean; //< current dir is a directory
     fDirType: TDirType; //< Indicates what kind of Directory the current dir is
 
     subdirlist: TDirList;
 
-    filename: AnsiString; //< filename
-    filenamelc: AnsiString; //< lowercase filename
+    filename: String; //< filename
+    filenamelc: String; //< lowercase filename
     filesize: Int64;
 
     skiplisted: Boolean;
@@ -44,9 +44,9 @@ type
     addedfrom: TStringList;
 
     procedure CalcCDNumber;
-    function Extension: AnsiString;
+    function Extension: String;
 
-    constructor Create(const filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False); overload;
+    constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
 
@@ -70,12 +70,12 @@ type
     allcdshere: Boolean;
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
-    s: AnsiString;
+    s: String;
     _completeInfo: TCompleteInfo;
 
     procedure SetSkiplists;
     procedure SetLastChanged(value: TDateTime);
-    class function Timestamp(ts: AnsiString): TDateTime;
+    class function Timestamp(ts: String): TDateTime;
 
     procedure SetCompleteInfo(info : TCompleteInfo);
     procedure SetCompleteInfoFromFtpd;
@@ -85,8 +85,8 @@ type
     dirlistadded: Boolean;
     mindenmehetujra: Boolean;
 
-    site_name: AnsiString;
-    full_path: AnsiString;
+    site_name: String;
+    full_path: String;
 
     error: Boolean;
 
@@ -99,7 +99,7 @@ type
     entries: TObjectList;
     skipped: TStringList;
 
-    complete_tag: AnsiString;
+    complete_tag: String;
 
     cache_completed: Boolean;
     cache_hasnfo: Boolean;
@@ -109,7 +109,7 @@ type
     date_started: TDateTime;
     date_completed: TDateTime;
 
-    dependency_mkdir: AnsiString;
+    dependency_mkdir: String;
 
     isSpeedTest: Boolean;
     isFromIrc: Boolean;
@@ -122,38 +122,38 @@ type
     function No_NotSkiplisted: Integer;
     function firstfile: TDateTime;
     function lastfile: TDateTime;
-    constructor Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
-    constructor Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; const s: AnsiString; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
-    function Dirname: AnsiString;
+    function Dirname: String;
 
     procedure Sort;
     procedure SortByModify;
 
-    procedure SetFullPath(const value: AnsiString);
+    procedure SetFullPath(const value: String);
 
     function RegenerateSkiplist: Boolean;
 
     function Directories: Integer;
 
-    procedure ParseDirlist(s: AnsiString);
+    procedure ParseDirlist(s: String);
     function Complete: Boolean;
     function CompleteByTag: Boolean;
 
     procedure Usefulfiles(out files: Integer; out size: Int64);
 
     function FindNfo: TDirListEntry;
-    function Find(const filename: AnsiString): TDirListEntry;
+    function Find(const filename: String): TDirListEntry;
 
-    function FindDirlist(const dirname: AnsiString; createit: Boolean = False): TDirList;
+    function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
     function Done: Integer;
     function RacedByMe(only_useful: boolean = False): Integer;
     function SizeRacedByMe(only_useful: boolean = False): Int64;
 
     procedure SetCompleteInfoFromIrc();
-    function GetCompleteInfo: AnsiString;
+    function GetCompleteInfo: String;
   published
     property LastChanged: TDateTime read fLastChanged write SetLastChanged;
   end;
@@ -163,8 +163,8 @@ procedure  DirlistUninit;
 
 // make it global to use it in other units with those variables
 var
-  global_skip: AnsiString;
-  useful_skip: AnsiString;
+  global_skip: String;
+  useful_skip: String;
 
 implementation
 
@@ -183,8 +183,8 @@ var
   d: TDirlistEntry;
   files: Integer;
   size: Int64;
-  tag: AnsiString;
-  ResultType: AnsiString;
+  tag: String;
+  ResultType: String;
 begin
   Result := False;
   ResultType := 'Unknown';
@@ -332,12 +332,12 @@ begin
   cache_completed := Result;
 end;
 
-constructor TDirList.Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
   Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
 end;
 
-constructor TDirList.Create(const site_name: AnsiString; parentdir: TDirListEntry; skiplist: TSkipList; const s: AnsiString; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False);
 var
   sf: TSkipListFilter;
 begin
@@ -397,7 +397,7 @@ begin
 end;
 
 procedure TDirList.SetSkiplists;
-var s: AnsiString;
+var s: String;
 begin
   s:= Dirname;
   if skiplist <> nil then
@@ -419,7 +419,7 @@ begin
     Result := 1;
 end;
 
-function TDirList.Dirname: AnsiString;
+function TDirList.Dirname: String;
 begin
   if parent = nil then
   begin
@@ -435,7 +435,7 @@ end;
 function TDirList.MultiCD: Boolean;
 var
   i: Integer;
-  s: AnsiString;
+  s: String;
   de: TDirListEntry;
 begin
   if parent = nil then
@@ -552,11 +552,11 @@ begin
   end;
 end;
 
-class function TDirlist.Timestamp(ts: AnsiString): TDateTime;
+class function TDirlist.Timestamp(ts: String): TDateTime;
 const
-  Months: array[1..12] of AnsiString = ('Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+  Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
 var
-  s1,s2,s3: AnsiString;
+  s1,s2,s3: String;
   l, ev, ora,perc, honap, nap, i: Integer;
   evnelkul: Boolean;
 begin
@@ -615,15 +615,15 @@ begin
 end;
 
 
-procedure TDirList.ParseDirlist(s: AnsiString);
+procedure TDirList.ParseDirlist(s: String);
 var
-  tmp: AnsiString;
+  tmp: String;
   akttimestamp: TDateTime;
   site: TSite;
   skip_being_uploaded_files: boolean;
   de: TDirListEntry;
   added: Boolean;
-  dirmaszk, username, groupname, datum, filename: AnsiString;
+  dirmaszk, username, groupname, datum, filename: String;
   filesize: Int64;
   i, j: Integer;
   rrgx, splx: TRegExpr;
@@ -1208,7 +1208,7 @@ begin
   end;
 end;
 
-function TDirList.Find(const filename: AnsiString): TDirListEntry;
+function TDirList.Find(const filename: String): TDirListEntry;
 var
   i: Integer;
   de: TDirListEntry;
@@ -1249,10 +1249,10 @@ begin
     parent.dirlist.LastChanged:= fLastChanged;
 end;
 
-function TDirList.FindDirlist(const dirname: AnsiString; createit: Boolean = False): TDirList;
+function TDirList.FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
 var
   p: Integer;
-  firstdir, lastdir: AnsiString;
+  firstdir, lastdir: String;
   d: TDirlistEntry;
 begin
   Result := nil;
@@ -1677,7 +1677,7 @@ begin
   end;
 end;
 
-procedure TDirList.SetFullPath(const value: AnsiString);
+procedure TDirList.SetFullPath(const value: String);
 begin
   self.full_path := value;
 end;
@@ -1703,7 +1703,7 @@ begin
   end;
 end;
 
-function TDirList.GetCompleteInfo: AnsiString;
+function TDirList.GetCompleteInfo: String;
 begin
   Result := 'UNKNOWN!';
 
@@ -1729,7 +1729,7 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(const filename: AnsiString; dirlist: TDirList; SpeedTest: Boolean = False);
+constructor TDirListEntry.Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
   addedfrom := TStringList.Create;
 
@@ -1784,9 +1784,9 @@ begin
 end;
 
 procedure TDirListEntry.CalcCDNumber;
-const multicddirprefix : array[1..4] of AnsiString = ('cd', 'dvd', 'disc','disk');
+const multicddirprefix : array[1..4] of String = ('cd', 'dvd', 'disc','disk');
 var
-  s: AnsiString;
+  s: String;
   i: Integer;
 begin
 
@@ -1804,7 +1804,7 @@ begin
   end;
 end;
 
-function TDirListEntry.Extension: AnsiString;
+function TDirListEntry.Extension: String;
 begin
   Result := ExtractFileExt(filenamelc);
 end;
@@ -1871,7 +1871,7 @@ end;
 function TDirListEntry.RegenerateSkiplist: Boolean;
 var
   l, ldepth: Integer;
-  s: AnsiString;
+  s: String;
   sf: TSkipListFilter;
 begin
   Result := False;

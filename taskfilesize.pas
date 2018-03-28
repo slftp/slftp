@@ -7,11 +7,11 @@ uses tasksunit;
 type
   TFileSizeTask = class(TTask)
   private
-    filename: AnsiString;
+    filename: String;
   public
-    constructor Create(const netname, channel: AnsiString; site, filename: AnsiString);
+    constructor Create(const netname, channel: String; site, filename: String);
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -22,8 +22,8 @@ const section = 'taskfilesize';
 
 { TFileSizeTask }
 
-constructor TFileSizeTask.Create(const netname, channel: AnsiString; site,
-  filename: AnsiString);
+constructor TFileSizeTask.Create(const netname, channel: String; site,
+  filename: String);
 begin
   inherited Create(netname, channel, site);
   self.filename:= filename;
@@ -71,7 +71,7 @@ ujra:
   ready:= True;
 end;
 
-function TFileSizeTask.Name: AnsiString;
+function TFileSizeTask.Name: String;
 begin
   try
     Result:= format('FILESIZE: %s -> %s',[site1,filename]);

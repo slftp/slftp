@@ -10,9 +10,9 @@ type TLoginTask = class(TTask)
      public
        noannounce: Boolean;
        readd: Boolean; // used for autobnctest
-       constructor Create(const netname, channel: AnsiString; site: AnsiString; kill: Boolean; readd: Boolean);
+       constructor Create(const netname, channel: String; site: String; kill: Boolean; readd: Boolean);
        function Execute(slot: Pointer): Boolean; override;
-       function Name: AnsiString; override;
+       function Name: String; override;
      end;
 
 implementation
@@ -22,7 +22,7 @@ uses sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
 const section = 'login';
 
 { TLoginTask }
-constructor TLoginTask.Create(const netname, channel: AnsiString; site: AnsiString; kill: Boolean; readd: Boolean);
+constructor TLoginTask.Create(const netname, channel: String; site: String; kill: Boolean; readd: Boolean);
 begin
   self.kill := kill;
   self.readd := readd;
@@ -106,7 +106,7 @@ autobnctest:
   ready := True;
 end;
 
-function TLoginTask.Name: AnsiString;
+function TLoginTask.Name: String;
 begin
   Result := '';
   try

@@ -3,12 +3,12 @@ unit slhelper;
 interface
 
 
-function Elsosor(var osszes: AnsiString): AnsiString;
-function IsIP(AIP: AnsiString): boolean;
-function TInAddrToString(var AInAddr): AnsiString;
-procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
-function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString; overload;
-function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString; overload;
+function Elsosor(var osszes: String): String;
+function IsIP(AIP: String): boolean;
+function TInAddrToString(var AInAddr): String;
+procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
+function Fetch(var osszes: String; const Args: array of AnsiChar): String; overload;
+function Fetch(var osszes: String; sep: AnsiChar): String; overload;
 
 implementation
 
@@ -26,7 +26,7 @@ uses
 ;
 
 
-function Fetch(var osszes: AnsiString; const Args: array of AnsiChar): AnsiString;
+function Fetch(var osszes: String; const Args: array of AnsiChar): String;
 var elso, utolso: Integer;
     i,j: Integer;
     megvolt: Boolean;
@@ -61,12 +61,12 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: AnsiString; sep: AnsiChar): AnsiString;
+function Fetch(var osszes: String; sep: AnsiChar): String;
 begin
   Result:= Fetch(osszes, [sep]);
 end;
 
-function Elsosor(var osszes: AnsiString): AnsiString;
+function Elsosor(var osszes: String): String;
 begin
   Result:= Fetch(osszes, [#13,#10]);
 end;
@@ -85,11 +85,11 @@ begin
 end;
 *)
 
-function IsIP(AIP: AnsiString): boolean;
+function IsIP(AIP: String): boolean;
 var
-  s1, s2, s3, s4: AnsiString;
+  s1, s2, s3, s4: String;
 
-  function ByteIsOk(const AByte: AnsiString): boolean;
+  function ByteIsOk(const AByte: String): boolean;
   begin
     result := (StrToIntDef(AByte, -1) > -1) and (StrToIntDef(AByte, 256) < 256);
   end;
@@ -103,7 +103,7 @@ begin
 end;
 
 {$IFDEF FPC}
-function TInAddrToString(var AInAddr): AnsiString;
+function TInAddrToString(var AInAddr): String;
 begin
   with TInAddr(AInAddr) do begin
     result := IntToStr(s_bytes[1]) + '.' + IntToStr(s_bytes[2]) + '.' + IntToStr(s_bytes[3]) + '.'    {Do not Localize}
@@ -111,7 +111,7 @@ begin
   end;
 end;
 {$ELSE}
-function TInAddrToString(var AInAddr): AnsiString;
+function TInAddrToString(var AInAddr): String;
 begin
   with TInAddr(AInAddr).S_un_b do begin
     result := IntToStr(s_b1) + '.' + IntToStr(s_b2) + '.' + IntToStr(s_b3) + '.'    {Do not Localize}
@@ -121,7 +121,7 @@ end;
 {$ENDIF}
 
 {$IFDEF FPC}
-procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
+procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
 begin
   with TInAddr(AInAddr) do
   begin
@@ -132,7 +132,7 @@ begin
   end;
 end;
 {$ELSE}
-procedure TranslateStringToTInAddr(AIP: AnsiString; var AInAddr);
+procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
 begin
   with TInAddr(AInAddr).S_un_b do begin
     s_b1 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}

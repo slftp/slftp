@@ -7,14 +7,14 @@ uses Classes, tasksunit, sltcp;
 type
   TPazoHTTPNfoTask = class(TTask)
   private
-    nfo_rls: AnsiString;
-    nfo_url: AnsiString;
-    nfo_name: AnsiString;
+    nfo_rls: String;
+    nfo_url: String;
+    nfo_name: String;
   public
-    constructor Create(const nfo_rls, nfo_url, nfo_name: AnsiString);
+    constructor Create(const nfo_rls, nfo_url, nfo_name: String);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
-    function Name: AnsiString; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -27,7 +27,7 @@ const
 
 { TPazoHTTPNfoTask }
 
-constructor TPazoHTTPNfoTask.Create(const nfo_rls, nfo_url, nfo_name: AnsiString);
+constructor TPazoHTTPNfoTask.Create(const nfo_rls, nfo_url, nfo_name: String);
 begin
   self.nfo_rls:= nfo_rls;
   self.nfo_url:= nfo_url;
@@ -37,7 +37,7 @@ end;
 
 function TPazoHTTPNfoTask.Execute(slot: Pointer): Boolean;
 var
-  nfo_data: AnsiString;
+  nfo_data: String;
   fHttpGetErrMsg: String;
 begin
   Result:= False;
@@ -73,7 +73,7 @@ begin
   ready:= True;
 end;
 
-function TPazoHTTPNfoTask.Name: AnsiString;
+function TPazoHTTPNfoTask.Name: String;
 begin
   try
     Result:= Format('HTTPNfo %s : %s',[nfo_url, nfo_name]);

@@ -70,11 +70,11 @@ type
     procedure AssignToBitmap(Dest: TBitmap);
     procedure AssignToMetafile(Dest: TMetafile);
     procedure AssignToPicture(Dest: TPicture);
-    function GetAsText: AnsiString;
+    function GetAsText: String;
     function GetClipboardWindow: HWND;
     function GetFormatCount: Integer;
     function GetFormats(Index: Integer): Word;
-    procedure SetAsText(const Value: AnsiString);
+    procedure SetAsText(const Value: String);
   protected
     procedure AssignTo(Dest: TPersistent); override;
     procedure SetBuffer(Format: Word; var Buffer; Size: Integer);
@@ -95,7 +95,7 @@ type
     procedure SetComponent(Component: TComponent);
     procedure SetAsHandle(Format: Word; Value: THandle);
     procedure SetTextBuf(Buffer: PAnsiChar);
-    property AsText: AnsiString read GetAsText write SetAsText;
+    property AsText: String read GetAsText write SetAsText;
     property FormatCount: Integer read GetFormatCount;
     property Formats[Index: Integer]: Word read GetFormats;
   end;
@@ -274,7 +274,7 @@ begin
   SetBuffer(CF_TEXT, Buffer^, StrLen(Buffer) + 1);
 end;
 
-function TClipboard.GetAsText: AnsiString;
+function TClipboard.GetAsText: String;
 var
   Data: THandle;
 begin
@@ -298,7 +298,7 @@ begin
   Result := FClipboardWindow;
 end;
 
-procedure TClipboard.SetAsText(const Value: AnsiString);
+procedure TClipboard.SetAsText(const Value: String);
 begin
   SetBuffer(CF_TEXT, PAnsiChar(Value)^, Length(Value) + 1);
 end;

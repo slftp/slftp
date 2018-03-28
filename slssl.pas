@@ -8,10 +8,10 @@ type
   PSSL_METHOD     = Pointer;
 
 
-function OpenSSLVersion: AnsiString;
-function OpenSSLShortVersion: AnsiString;
-function slSSL_LastError(): AnsiString; overload;
-function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString; overload;
+function OpenSSLVersion: String;
+function OpenSSLShortVersion: String;
+function slSSL_LastError(): String; overload;
+function slSSL_LastError(ssl: PSSL; ec: Integer): String; overload;
 
 const
   OPENSSL_SSL_ERROR_NONE = 0;
@@ -104,10 +104,10 @@ const
   OPENSSL_CRYPTO_READ     = $04;
   OPENSSL_CRYPTO_WRITE    = $08;
 
-  slssl_default_cipher_list = 'ALL:!EXP'; 
+  slssl_default_cipher_list = 'ALL:!EXP';
 
 var slssl_inited: Boolean = False;
-    slssl_error: AnsiString;
+    slssl_error: String;
     slssl_ctx_sslv23_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_client: PSSL_CTX = nil;
     slssl_ctx_tlsv1_2_client: PSSL_CTX = nil;
@@ -161,7 +161,7 @@ var slssl_inited: Boolean = False;
 
 
   // locking callback functions
-  slCRYPTO_set_locking_callback : procedure(cb: Pointer); cdecl = nil;  
+  slCRYPTO_set_locking_callback : procedure(cb: Pointer); cdecl = nil;
   slCRYPTO_num_locks : function: Longint; cdecl = nil;
   slCRYPTO_set_id_callback :  procedure(cb: Pointer); cdecl = nil;
   slCRYPTO_set_dynlock_create_callback : procedure(cb: Pointer); cdecl = nil;
@@ -321,7 +321,7 @@ const
   fn_CRYPTO_set_dynlock_destroy_callback = 'CRYPTO_set_dynlock_destroy_callback';
 
 
-function OpenSSLVersion: AnsiString;
+function OpenSSLVersion: String;
 begin
   Result:= Format('%s %s %s %s',[
     slSSLeay_version(OPENSSL_SSLEAY_VERSION),
@@ -330,14 +330,14 @@ begin
     slSSLeay_version(OPENSSL_SSLEAY_PLATFORM)]);
 end;
 
-function OpenSSLShortVersion: AnsiString;
+function OpenSSLShortVersion: String;
 begin
   Result:= Copy(slSSLeay_version(OPENSSL_SSLEAY_VERSION), 9, 6);
 end;
 
 
-function slSsl_LoadProc(handle: Integer; const fnName: AnsiString; var fn: Pointer): Boolean;
-var fceName: AnsiString;
+function slSsl_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
+var fceName: String;
 begin
   Result:= False;
   FceName := fnName+#0;
@@ -375,17 +375,17 @@ end;
 procedure win32_dyn_lock_function(mode: LongInt; l: PslHandle; filename: PAnsiChar; line: LongInt);
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-		WaitForSingleObject(l^,INFINITE)
-	else
-		ReleaseMutex(l^);
+    WaitForSingleObject(l^,INFINITE)
+  else
+    ReleaseMutex(l^);
 end;
 
 procedure win32_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-		WaitForSingleObject(callback_locks[ltype],INFINITE)
-	else
-		ReleaseMutex(callback_locks[ltype]);
+    WaitForSingleObject(callback_locks[ltype],INFINITE)
+  else
+    ReleaseMutex(callback_locks[ltype]);
 end;
 procedure slSsl_Setup_Locking_Callbacks;
 var i: Integer;
@@ -410,8 +410,8 @@ begin
   slCRYPTO_set_dynlock_destroy_callback(nil);
 
   slCRYPTO_set_locking_callback(nil);
-	for i:= 0 to slCRYPTO_num_locks()-1 do
-		CloseHandle(callback_locks[i]);
+  for i:= 0 to slCRYPTO_num_locks()-1 do
+    CloseHandle(callback_locks[i]);
 
   SetLength(callback_locks, 0);
 end;
@@ -462,15 +462,15 @@ procedure pthreads_dyn_lock_function(mode: LongInt; l: PslLockHandle; filename: 
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
 
-		//pthread_mutex_lock(l^.lock)
+    //pthread_mutex_lock(l^.lock)
                 {$IFDEF FPC}
                 pthread_mutex_lock(@(l^.lock))
                 {$ELSE}
                 pthread_mutex_lock(l^.lock)
                 {$ENDIF}
 
-	else
-		//pthread_mutex_unlock(l^.lock);
+  else
+    //pthread_mutex_unlock(l^.lock);
 
                 {$IFDEF FPC}
                 pthread_mutex_unlock(@(l^.lock));
@@ -483,7 +483,7 @@ end;
 procedure pthreads_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
 begin
   if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-		//pthread_mutex_lock(callback_locks[ltype])
+    //pthread_mutex_lock(callback_locks[ltype])
 
                 {$IFDEF FPC}
                 pthread_mutex_lock(@(callback_locks[ltype]))
@@ -491,8 +491,8 @@ begin
                 pthread_mutex_lock(callback_locks[ltype])
                 {$ENDIF}
 
-	else
-		//pthread_mutex_unlock(callback_locks[ltype]);
+  else
+    //pthread_mutex_unlock(callback_locks[ltype]);
 
                 {$IFDEF FPC}
                 pthread_mutex_unlock(@(callback_locks[ltype]));
@@ -532,8 +532,8 @@ begin
   slCRYPTO_set_locking_callback(nil);
   slCRYPTO_set_id_callback(nil);
 
-	for i:= 0 to slCRYPTO_num_locks()-1 do
-		//pthread_mutex_destroy(callback_locks[i]);
+  for i:= 0 to slCRYPTO_num_locks()-1 do
+    //pthread_mutex_destroy(callback_locks[i]);
 
                 {$IFDEF FPC}
                 pthread_mutex_destroy(@(callback_locks[i]));
@@ -569,7 +569,7 @@ begin
 {$ELSE}
   {$IFDEF LINUX}
   // Workaround that is requered under Linux
-  if h_libcrypto = 0 then h_libcrypto := HMODULE(dlopen(PChar(ExtractFilePath(ParamStr(0))+slSsl_libcrypto_name), RTLD_GLOBAL));
+  if h_libcrypto = 0 then h_libcrypto := HMODULE(dlopen(PAnsiChar(ExtractFilePath(ParamStr(0))+slSsl_libcrypto_name), RTLD_GLOBAL));
   if h_libcrypto = 0 then h_libcrypto := HMODULE(dlopen(slSsl_libcrypto_name, RTLD_GLOBAL));
   if h_libcrypto = 0 then
   begin
@@ -577,7 +577,7 @@ begin
     exit;
   end;
 
-  If h_libssl = 0 Then h_libssl := HMODULE(dlopen(PChar(ExtractFilePath(ParamStr(0))+slSsl_libssl_name), RTLD_GLOBAL));
+  If h_libssl = 0 Then h_libssl := HMODULE(dlopen(PAnsiChar(ExtractFilePath(ParamStr(0))+slSsl_libssl_name), RTLD_GLOBAL));
   If h_libssl = 0 Then h_libssl := HMODULE(dlopen(slSsl_libssl_name, RTLD_GLOBAL));
   if h_libssl = 0 then
   begin
@@ -703,19 +703,19 @@ begin
 
 //----------------- sslv23 begin
   slSSL_CTX_sslv23_client:= slSSL_CTX_new(slSSLv23_client_method());
-	if (slSSL_CTX_sslv23_client = nil) then
+  if (slSSL_CTX_sslv23_client = nil) then
   begin
     slssl_error:= slssl_LastError();
     exit;
   end;
 
-	slSSL_CTX_set_default_verify_paths(slSSL_CTX_sslv23_client);
+  slSSL_CTX_set_default_verify_paths(slSSL_CTX_sslv23_client);
   if @slSSL_CTX_set_options <> nil then
-  	slSSL_CTX_set_options(slSSL_CTX_sslv23_client,OPENSSL_SSL_OP_ALL);
+    slSSL_CTX_set_options(slSSL_CTX_sslv23_client,OPENSSL_SSL_OP_ALL);
   if @slSSL_CTX_set_mode <> nil then
-	  slSSL_CTX_set_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_MODE_AUTO_RETRY);
+    slSSL_CTX_set_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_MODE_AUTO_RETRY);
   if @slSSL_CTX_set_session_cache_mode <> nil then
-  	slSSL_CTX_set_session_cache_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_SESS_CACHE_OFF);
+    slSSL_CTX_set_session_cache_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_SESS_CACHE_OFF);
 
   slSSL_CTX_set_cipher_list( slSSL_CTX_sslv23_client, slssl_default_cipher_list );
 //----------------- sslv23 end
@@ -723,19 +723,19 @@ begin
 
 //----------------- tlsv1 start
   slSSL_CTX_tlsv1_client:= slSSL_CTX_new(slTLSv1_client_method());
-	if (slSSL_CTX_tlsv1_client = nil) then
+  if (slSSL_CTX_tlsv1_client = nil) then
   begin
     slssl_error:= slssl_LastError();
     exit;
   end;
 
-	slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_client);
+  slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_client);
   if @slSSL_CTX_set_options <> nil then
-  	slSSL_CTX_set_options(slSSL_CTX_tlsv1_client,OPENSSL_SSL_OP_ALL);
+    slSSL_CTX_set_options(slSSL_CTX_tlsv1_client,OPENSSL_SSL_OP_ALL);
   if @slSSL_CTX_set_mode <> nil then
-	  slSSL_CTX_set_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_MODE_AUTO_RETRY);
+    slSSL_CTX_set_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_MODE_AUTO_RETRY);
   if @slSSL_CTX_set_session_cache_mode <> nil then
-  	slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_SESS_CACHE_OFF);
+    slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_SESS_CACHE_OFF);
 
   slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_client, slssl_default_cipher_list );
 //----------------- tlsv1 end
@@ -744,19 +744,19 @@ begin
 
 //----------------- tlsv1_2 start
   slSSL_CTX_tlsv1_2_client:= slSSL_CTX_new(slTLSv1_2_client_method());
-	if (slSSL_CTX_tlsv1_2_client = nil) then
+  if (slSSL_CTX_tlsv1_2_client = nil) then
   begin
     slssl_error:= slssl_LastError();
     exit;
   end;
 
-	slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_2_client);
+  slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_2_client);
   if @slSSL_CTX_set_options <> nil then
-  	slSSL_CTX_set_options(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_OP_ALL);
+    slSSL_CTX_set_options(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_OP_ALL);
   if @slSSL_CTX_set_mode <> nil then
-	  slSSL_CTX_set_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_MODE_AUTO_RETRY);
+    slSSL_CTX_set_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_MODE_AUTO_RETRY);
   if @slSSL_CTX_set_session_cache_mode <> nil then
-  	slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_SESS_CACHE_OFF);
+    slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_SESS_CACHE_OFF);
 
   slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_2_client, slssl_default_cipher_list );
 //----------------- tlsv1 end
@@ -768,18 +768,18 @@ end;
 procedure slSslUnInit;
 begin
   if not slssl_inited then exit;
-  
+
   if slSSL_CTX_tlsv1_client <> nil then
   begin
     slSSL_CTX_free(slSSL_CTX_tlsv1_client);
     slSSL_CTX_tlsv1_client:= nil;
   end;
-  
+
   if slSSL_CTX_tlsv1_2_client <> nil then
   begin
     slSSL_CTX_free(slSSL_CTX_tlsv1_2_client);
     slSSL_CTX_tlsv1_2_client:= nil;
-  end;  
+  end;
 
   if slSSL_CTX_sslv23_client <> nil then
   begin
@@ -802,8 +802,8 @@ begin
   slssl_inited:= False;
 end;
 
-function slSSL_LastError(): AnsiString;
-var s: AnsiString;
+function slSSL_LastError(): String;
+var s: String;
     db: Integer;
     i: Cardinal;
 begin
@@ -822,7 +822,7 @@ begin
 
   if db = 0 then Result:= 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
-function slSSL_LastError(ssl: PSSL; ec: Integer): AnsiString;
+function slSSL_LastError(ssl: PSSL; ec: Integer): String;
 begin
     ec:= slSSL_get_error(ssl, ec);
     case ec of

@@ -9,13 +9,13 @@ uses Classes, syncobjs, tasksunit, Contnrs;
 
 type
   TSiteResponse  = class
-    sitename: AnsiString;
-    slotname: AnsiString;
-    response: AnsiString;
+    sitename: String;
+    slotname: String;
+    response: String;
 
     ido: TDateTime;
 
-    constructor Create(sitename, slotname, response: AnsiString; ido: TDateTime);
+    constructor Create(sitename, slotname, response: String; ido: TDateTime);
   end;
   TTaskNotify = class
     event: TEvent;
@@ -121,7 +121,7 @@ end;
 
 { TSiteResponse }
 
-constructor TSiteResponse.Create(sitename, slotname, response: AnsiString; ido: TDateTime);
+constructor TSiteResponse.Create(sitename, slotname, response: String; ido: TDateTime);
 begin
   self.sitename:= sitename;
   self.slotname:= slotname;

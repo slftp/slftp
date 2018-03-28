@@ -47,7 +47,7 @@ type
       procedure SetResolution(const x,y : Integer); virtual;
       procedure GetCursorPos(var x,y : Integer); virtual; abstract;
       procedure GotoXY(x, y: SmallInt); virtual; abstract;
-      procedure Write(s: AnsiString); virtual; abstract;
+      procedure Write(s: String); virtual; abstract;
 
       function ReadKey: AnsiChar; virtual; abstract;
       function KeyPressed: Boolean; virtual; abstract;
@@ -61,7 +61,7 @@ type
     end;
 
 {$IFNDEF MSWINDOWS}
-function NCurses_version: AnsiString;
+function NCurses_version: String;
 {$ENDIF}
 
 var
@@ -114,7 +114,7 @@ type
       procedure SetResolution(const x, y: Integer); override;
       procedure GetCursorPos(var x, y: Integer); override;
       procedure GotoXY(x, y: SmallInt); override;
-      procedure Write(s: AnsiString); override;
+      procedure Write(s: String); override;
 
       function ReadKey: AnsiChar; override;
       function KeyPressed: Boolean; override;
@@ -177,7 +177,7 @@ type
        prev_textattr : integer;
        cp : array [0..7,0..7] of integer; { color pair array }
        Procedure nWinColor(win : pWindow; att : integer);
-       Procedure nWrite(win : pWindow; s : AnsiString);
+       Procedure nWrite(win : pWindow; s : String);
        Function nSetColorPair(att : integer) : integer;
        Function CursesAtts(att : byte) : longint;
        procedure nClrScr(win : pWindow; att : integer);
@@ -189,7 +189,7 @@ type
       procedure GetResolution(var x, y: Integer); override;
       procedure GetCursorPos(var x, y: Integer); override;
       procedure GotoXY(x, y: SmallInt); override;
-      procedure Write(s: AnsiString); override;
+      procedure Write(s: String); override;
 
       procedure SetResolution(const x, y: Integer); override;
       procedure TextColor(Color: Byte); override;
@@ -227,7 +227,7 @@ end;
 procedure TslScreen.ClrScr;
 var px,py: Integer;
     i: Integer;
-    s: AnsiString;
+    s: String;
 begin
   GetResolution(px, py);
   s:= Format('%'+IntToStr(pX)+'s', [' ']);
@@ -628,7 +628,7 @@ begin
   SetConsoleCursorPosition(hStdOut, NewPos);
 end;
 
-procedure TslWindowsScreen.Write(s: AnsiString);
+procedure TslWindowsScreen.Write(s: String);
 begin
   System.Write(s);
 end;
@@ -821,7 +821,7 @@ End;
 
 
 constructor TslUnixScreen.Create;
-var s: AnsiString;
+var s: String;
     i,j: Integer;
 begin
   inherited;
@@ -1030,12 +1030,12 @@ Begin
    nClrScr(w,TextAttr);
 End;
 
-// TODO: use Pchar instead of variable ps + check if it works with fpc/delphi and shows all correctly
+// TODO: use PAnsiChar instead of variable ps + check if it works with fpc/delphi and shows all correctly
 { write a string to a window at the current cursor position }
-Procedure TslUnixScreen.nWrite(win: pWindow; s: AnsiString);
+Procedure TslUnixScreen.nWrite(win: pWindow; s: String);
 var
-  ps : array [0..255] of AnsiChar;       { for use with pchars }
-  //p: Pchar;
+  ps : array [0..255] of AnsiChar;       { for use with PAnsiChar's }
+  //p: PAnsiChar;
 Begin
   //p := StrAlloc(Length(s) + 1);
 
@@ -1057,7 +1057,7 @@ End;
  =========================================================================}
 
 { used by CrtWrite }
-Procedure TslUnixScreen.Write(s : AnsiString);
+Procedure TslUnixScreen.Write(s : String);
 Begin
    nWrite(w,s);
 End;
@@ -1080,7 +1080,7 @@ begin
   inherited;
 end;
 
-function NCurses_version: AnsiString;
+function NCurses_version: String;
 begin
   Result:= AnsiString(curses_version());
 end;
