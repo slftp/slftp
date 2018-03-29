@@ -43,6 +43,7 @@ clean:
 	@rm -f libs/pasmp/*.ppu libs/pasmp/*.o
 	@rm -f libs/Compvers/*.ppu libs/Compvers/*.o
 	@rm -f libs/Indy10_5448/Core/*.ppu libs/Indy10_5448/Core/*.o libs/Indy10_5448/Protocols/*.ppu libs/Indy10_5448/Protocols/*.o libs/Indy10_5448/System/*.ppu libs/Indy10_5448/System/*.o
+	@rm -f libs/LibTar/*.ppu libs/LibTar/*.o
 	@rm -f *.ppu *.o slftp *.exe
 
 install:
