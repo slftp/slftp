@@ -59,9 +59,9 @@ begin
   while stats.Step(s) do
   begin
     {$IFDEF FPC}
-    size := StrToInt(StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
+      size := StrToInt(StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
     {$ELSE}
-    size := StrToInt(StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]));
+      size := StrToInt(StringReplace(stats.column_text(s, 1), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]));
     {$ENDIF}
 
     RecalcSizeValueAndUnit(size, s_unit, 2);
@@ -156,7 +156,7 @@ begin
         {$IFDEF FPC}
           s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
         {$ELSE}
-          s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+          s_size := StringReplace(stats.column_text(s, 1), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
         {$ENDIF}
         size := StrToFloatDef(s_size, 0);
         size_all_out := size + size_all_out;
@@ -175,7 +175,7 @@ begin
         {$IFDEF FPC}
           s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
         {$ELSE}
-          s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+          s_size := StringReplace(stats.column_text(s, 1), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
         {$ENDIF}
         size := StrToFloatDef(s_size, 0);
         size_all_in := size + size_all_in;
@@ -204,7 +204,7 @@ begin
       {$IFDEF FPC}
         s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ELSE}
-        s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        s_size := StringReplace(stats.column_text(s, 1), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 
@@ -220,7 +220,7 @@ begin
       {$IFDEF FPC}
         s_size := StringReplace(stats.column_text(s, 1), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ELSE}
-        s_size := StringReplace(stats.column_text(s, 1), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        s_size := StringReplace(stats.column_text(s, 1), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 
@@ -238,7 +238,7 @@ begin
       {$IFDEF FPC}
         s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ELSE}
-        s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        s_size := StringReplace(stats.column_text(s, 2), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 
@@ -254,7 +254,7 @@ begin
       {$IFDEF FPC}
         s_size := StringReplace(stats.column_text(s, 2), '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
       {$ELSE}
-        s_size := StringReplace(stats.column_text(s, 2), '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        s_size := StringReplace(stats.column_text(s, 2), '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
       {$ENDIF}
       size := StrToFloatDef(s_size, 0);
 

@@ -42,7 +42,7 @@ type
     fBindIp: String;
     fBindPort: Integer;
     fOnWaitingforSocket: TWaitingforsocketEvent;
-    socksextra: String;
+    socksextra: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
     readlnsession: Boolean;
     function ConnectSocks5(timeout: Integer): Boolean;
     function ConnectB(host: String; port: Integer; timeout: Integer; udp: Boolean): Boolean;
@@ -71,7 +71,7 @@ type
     function BindHost(): String; overload;
     function BindHost(host: String): Boolean; overload;
     function Connect(timeout: Integer = slDefaultTimeout; udp: Boolean = False): Boolean;
-    function Write(s: String; timeout: Integer = slDefaultTimeout): Boolean;
+    function Write(s: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF}; timeout: Integer = slDefaultTimeout): Boolean;
     function WriteLn(s: String; timeout: Integer = slDefaultTimeout): Boolean;
     function WriteBuffer(var Buf; BufSize: Integer; timeout: Integer = slDefaultTimeout): Boolean;
     function WriteStream(s: TStream; timeout: Integer = slDefaultTimeout; maxsend: Int64=0): Boolean;
@@ -546,7 +546,7 @@ begin
   if not WriteBuffer(tempBuffer, 3) then exit;
   if not Read(s, timeout) then exit;
 
-  if ((s[2] <> tempBuffer[2]) or (s[2] = #255)) then
+  if ((AnsiChar(s[2]) <> tempBuffer[2]) or (s[2] = #255)) then
   begin
     error:= 'Authentication method is not supported by the socks5 server';
     exit;
@@ -556,13 +556,13 @@ begin
   if socks5.username <> '' then
   begin
     tempBuffer[0] := #1; // version of subnegotiation
-    tempBuffer[1] := Chr(Length(socks5.Username));
+    tempBuffer[1] := AnsiChar(Chr(Length(socks5.Username)));
     pos := 2;
     if Length(socks5.Username) > 0 then begin
       Move(socks5.Username[1], tempBuffer[pos], Length(socks5.Username));
     end;
     pos := pos + Length(socks5.Username);
-    tempBuffer[pos] := Chr(Length(socks5.Password));
+    tempBuffer[pos] := AnsiChar(Chr(Length(socks5.Password)));
     pos := pos + 1;
     if Length(socks5.Password) > 0 then begin
       Move(socks5.Password[1], tempBuffer[pos], Length(socks5.Password));
@@ -593,7 +593,7 @@ begin
     Host := slConvertIp(Host);
   end;
 
-  tempBuffer[4] := Chr(Length(Host));
+  tempBuffer[4] := AnsiChar(Chr(Length(Host)));
   pos := 5;
   if Length(Host) > 0 then begin
     Move(Host[1], tempBuffer[pos], Length(Host));
@@ -914,10 +914,10 @@ begin
 end;
 
 
-function TslTCPSocket.Write(s: String; timeout: Integer = slDefaultTimeout): Boolean;
+function TslTCPSocket.Write(s: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF}; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
-    Result:= WriteBuffer(s[1], Length(s), timeout);
+    Result := WriteBuffer(s[1], Length(s), timeout);
   except
     on e: Exception do
     begin

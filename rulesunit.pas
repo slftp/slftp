@@ -2486,7 +2486,7 @@ begin
   begin
     S := ExtractFilePath(ParamStr(0)) + 'slftp.rules'; // convert to split format
     if FileExists(S) then
-      DeleteFile(PAnsiChar(S));
+        DeleteFile({$IFDEF UNICODE}PChar(S){$ELSE}PAnsiChar(S){$ENDIF});
     RulesSave; // force saving in new split format
   end;
 end;

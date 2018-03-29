@@ -49,7 +49,7 @@ type PMYSQL = Pointer;
      PMYSQL_RES = Pointer;
        my_bool = cchar;
 
-       MYSQL_ROW = ppansichar;
+       MYSQL_ROW = ppchar;
 
        enum_field_types = (MYSQL_TYPE_DECIMAL,MYSQL_TYPE_TINY,
          MYSQL_TYPE_SHORT,MYSQL_TYPE_LONG,MYSQL_TYPE_FLOAT,
@@ -454,14 +454,14 @@ begin
 
   if (RefCount=0) then
     begin
-    {$IFDEF FPC}
-    if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(ExtractFilePath(ParamStr(0))+LibraryName));
-    if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(LibraryName));
-    if (MysqlLibraryHandle = 0) then Exit;
+    {$IFDEF LINUX}
+      if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(ExtractFilePath(ParamStr(0))+LibraryName));
+      if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(LibraryName));
+      if (MysqlLibraryHandle = 0) then Exit;
     {$ELSE}
-      {$IFDEF LINUX}
-        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(ExtractFilePath(ParamStr(0))+LibraryName));
-        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(LibraryName));
+      {$IFDEF UNICODE}
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(LibraryName));
+        if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PChar(ExtractFilePath(ParamStr(0))+LibraryName));
         if (MysqlLibraryHandle = 0) then Exit;
       {$ELSE}
         if (MysqlLibraryHandle = 0) then MysqlLibraryHandle := loadlibrary(PAnsiChar(LibraryName));

@@ -46,7 +46,7 @@ unit Diff;
 interface
 
 uses
-  SysUtils, Classes, Math {$IFDEF MSWINDOWS}, Forms, Windows {$ENDIF};
+  SysUtils, Classes, Math {$IFDEF MSWINDOWS}, {$IFDEF UNICODE}Vcl.Forms{$ELSE}Forms{$ENDIF}, Windows {$ENDIF};
 
 const
   //Maximum realistic deviation from centre diagonal vector ...

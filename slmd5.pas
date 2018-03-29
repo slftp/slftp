@@ -31,7 +31,11 @@ end;
 
 function slMD5String(const s: String): TslMD5Data;
 begin
-  Result := TslMD5Data(MD5String(s));
+  {$IFDEF UNICODE}
+    Result := TslMD5Data(MD5String(RawByteString(s)));
+  {$ELSE}
+    Result := TslMD5Data(MD5String(s));
+  {$ENDIF}
 end;
 
 

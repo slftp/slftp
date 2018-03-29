@@ -12,12 +12,18 @@ unit Clipbrd;
 
 interface
 
-{$IFDEF LINUX}
-uses WinUtils, Windows, Messages, Classes, Graphics;
-{$ENDIF}
-{$IFDEF MSWINDOWS}
-uses Windows, Messages, Classes, Graphics;
-{$ENDIF}
+uses
+  Messages, Classes, Windows,
+  {$IFDEF LINUX}
+    WinUtils, Graphics;
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+    {$IFDEF UNICODE}
+      Vcl.Graphics;
+    {$ELSE}
+      Graphics;
+    {$ENDIF}
+  {$ENDIF}
 
 var
   CF_PICTURE: Word;
@@ -105,7 +111,13 @@ function SetClipboard(NewClipboard: TClipboard): TClipboard;
 
 implementation
 
-uses SysUtils, Forms, Consts;
+uses
+  SysUtils,
+  {$IFDEF UNICODE}
+    Vcl.Forms, Vcl.Consts
+  {$ELSE}
+    Forms, Consts
+  {$ENDIF};
 
 procedure TClipboard.Clear;
 begin
@@ -134,12 +146,12 @@ begin
   begin
     CloseClipboard;
     if FAllocated then
-{$IFDEF MSWINDOWS}       
+{$IFDEF MSWINDOWS}
       Classes.DeallocateHWnd(FClipboardWindow);
 {$ENDIF}
 {$IFDEF LINUX}
       WinUtils.DeallocateHWnd(FClipboardWindow);
-{$ENDIF}     
+{$ENDIF}
     FClipboardWindow := 0;
   end;
 end;
@@ -156,7 +168,7 @@ begin
 {$ENDIF}
 {$IFDEF LINUX}
       FClipboardWindow := WinUtils.AllocateHWnd(MainWndProc);
-{$ENDIF}       
+{$ENDIF}
       FAllocated := True;
     end;
     if not OpenClipboard(FClipboardWindow) then
