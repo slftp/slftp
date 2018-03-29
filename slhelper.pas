@@ -7,8 +7,8 @@ function Elsosor(var osszes: String): String;
 function IsIP(AIP: String): boolean;
 function TInAddrToString(var AInAddr): String;
 procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
-function Fetch(var osszes: String; const Args: array of AnsiChar): String; overload;
-function Fetch(var osszes: String; sep: AnsiChar): String; overload;
+function Fetch(var osszes: String; const Args: array of Char): String; overload;
+function Fetch(var osszes: String; sep: Char): String; overload;
 
 implementation
 
@@ -26,7 +26,7 @@ uses
 ;
 
 
-function Fetch(var osszes: String; const Args: array of AnsiChar): String;
+function Fetch(var osszes: String; const Args: array of Char): String;
 var elso, utolso: Integer;
     i,j: Integer;
     megvolt: Boolean;
@@ -61,7 +61,7 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: String; sep: AnsiChar): String;
+function Fetch(var osszes: String; sep: Char): String;
 begin
   Result:= Fetch(osszes, [sep]);
 end;

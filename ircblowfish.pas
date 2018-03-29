@@ -15,7 +15,7 @@ type
   public
     netname: String;
     channel: String;
-    blowkey: String;
+    blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
     chankey: String;
     names: String; // funkcionalitasa a csatornanak
     cbc:boolean;
@@ -42,19 +42,20 @@ uses
   SysUtils, console, debugunit;
 
 const
-  B64: String = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  B64: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF} = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   section: String = 'ircblowfish';
 
 
 //perl compatible index, cause delphis pos works different
-function PCindex(w: String): Cardinal;
+function PCindex(w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): Cardinal;
 begin
   Result:= Pos(w, B64);
   if Result > 0 then dec(Result);
 end;
 
-function PCsubstr(w: String; i: Integer): AnsiChar;
-var s: String;
+function PCsubstr(w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; i: Integer): AnsiChar;
+var
+  s: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
   Result := #0;
   s:= Copy(w, i+1, 1);
@@ -62,10 +63,11 @@ begin
     Result:= s[1];
 end;
 
-function bytetoB64(ec: String): String;
-var dc: String;
-    left, right: Cardinal;
-    i, k : Integer;
+function bytetoB64(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+var
+  dc: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  left, right: Cardinal;
+  i, k : Integer;
 begin
   dc := '';
 
@@ -107,10 +109,11 @@ begin
   Result:= dc;
 end;
 
-function B64tobyte(ec: String): String;
-var dc: String;
-    k: Integer;
-    i, right, left: Cardinal;
+function B64tobyte(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+var
+  dc: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  k: Integer;
+  i, right, left: Cardinal;
 begin
   dc:= '';
   k := -1;
@@ -134,12 +137,12 @@ begin
 
      for i := 0 to 3 do
      begin
-       dc := dc + Chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
+       dc := dc + AnsiChar(Chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
      end;
 
      for i := 0 to 3 do
      begin
-       dc := dc + Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8));
+       dc := dc + AnsiChar(Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
      end;
 
   end;
@@ -200,7 +203,7 @@ end;
 
 function irc_encrypt(netname, channel, dText: String; include_ok: Boolean = False): String;
 var
-  temp, eText: String;
+  temp, eText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   i: Integer;
   bf: TIrcBlowkey;
 begin
@@ -239,16 +242,17 @@ begin
     eText := '*' + eText + '==';
 
   if include_ok then
-    Result := '+OK ' + eText
+    Result := UTF8Decode('+OK ' + eText)
   else
-    Result := eText;
+    Result := UTF8Decode(eText);
 end;
 
 
 function irc_decrypt(netname, channel, eText: String): String;
-var temp, dText: String;
-    i : Integer;
-    bf: TIrcBlowkey;
+var
+  temp, dText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  i : Integer;
+  bf: TIrcBlowkey;
 begin
   bf:= FindIrcBlowfish(netname, channel);
   if ((bf = nil) or (bf.blowkey = '')) then
@@ -263,9 +267,9 @@ begin
      temp := B64tobyte(Copy(eText,1+(i-1)*12,12));
      SetLength(temp, 8);
      if bf.cbc then
-     BlowfishDecryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
+      BlowfishDecryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
      else
-     BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
+      BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
      dText := dtext + temp;
   end;
 
@@ -296,12 +300,13 @@ end;
 procedure TIrcBlowKey.UpdateKey(blowkey: String);
 const
     IV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
-var myKey: String;
+var
+  myKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
-  self.blowkey:= blowkey;
+  self.blowkey := {$IFDEF UNICODE}UTF8Encode(blowkey){$ELSE}blowkey{$ENDIF};
   if blowkey <> '' then
   begin
-    myKey:= set_key(blowkey);
+    myKey := {$IFDEF UNICODE}set_key(UTF8Encode(blowkey)){$ELSE}set_key(blowkey){$ENDIF};
     SetLength(myKey, length(myKey));
     BlowfishInit(KeyData, PAnsiChar(myKey), Length(myKey), @iv);
   end
@@ -313,8 +318,10 @@ procedure IrcBlowfishInit;
 begin
   chankeys:= TObjectList.Create;
 end;
+
 procedure IrcBlowfishUninit;
-var i: Integer;
+var
+  i: Integer;
 begin
   Debug(dpSpam, section, 'Uninit1');
   for i:= 0 to chankeys.Count -1 do

@@ -141,7 +141,7 @@ type
     inited: Boolean;
     sitesstat: TslLabel;
     m: TslMutualVisibilityControl;
-    function OnKeyDown(sender: TslEdit; c: AnsiChar; extended: Boolean): Boolean;
+    function OnKeyDown(sender: TslEdit; c: Char; extended: Boolean): Boolean;
     procedure OnAdminCommand(sender: TslEdit; const command: String);
     procedure OnIrcCommand(Sender: TslEdit; const command: String);
     procedure OnSiteCommand(Sender: TslEdit; const command: String);
@@ -154,7 +154,7 @@ type
     procedure MyOnShow(sender: TslControl);
     constructor Create;
     destructor Destroy; override;
-    function KeyEvent(c: AnsiChar; extended: Boolean): Boolean; override;
+    function KeyEvent(c: Char; extended: Boolean): Boolean; override;
   end;
 
 var app: TMySlApp;
@@ -744,7 +744,7 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.KeyEvent(c: AnsiChar; extended: Boolean): Boolean;
+function TMySlApp.KeyEvent(c: Char; extended: Boolean): Boolean;
 begin
   if ((c = #27) and (inited)) then
   begin
@@ -807,7 +807,7 @@ begin
   Result.SetParent(m);
 end;
 
-function TMySlApp.OnKeyDown(sender: TslEdit; c: AnsiChar; extended: Boolean): Boolean;
+function TMySlApp.OnKeyDown(sender: TslEdit; c: Char; extended: Boolean): Boolean;
 var
   x, y: TStringList;
   i, j: Integer;

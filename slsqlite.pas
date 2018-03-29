@@ -61,7 +61,7 @@ type
 
     function Close(var re: Psqlite3_stmt): Boolean;
 
-    constructor Create(const filename: String; pragma: String);
+    constructor Create(const filename: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; pragma: String);
     destructor Destroy; override;
   end;
 
@@ -283,21 +283,25 @@ var
 
 
 function slSqlite_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
-var fceName: String;
+var
+  fceName: AnsiString;
 begin
-  Result:= False;
-  FceName := fnName+#0;
-{$IFDEF FPC}
-  fn := GetProcAddress(handle, fceName);
-{$ELSE}
-  fn := GetProcAddress(handle, @fceName[1]);
-{$ENDIF}
+  Result := False;
+  fceName := fnName + #0;
+  {$IFDEF FPC}
+    fn := GetProcAddress(handle, fceName);
+  {$ELSE}
+    {$IFDEF UNICODE}
+      fn := GetProcAddress(handle, PAnsiChar(fceName));
+    {$ELSE}
+      fn := GetProcAddress(handle, @fceName[1]);
+    {$ENDIF}
+  {$ENDIF}
+
   if fn = nil then
-  begin
-    slsqlite_error:= 'Cannot load '+fnName
-  end
+    slsqlite_error := 'Cannot load ' + fnName
   else
-    Result:= True;
+    Result := True;
 end;
 
 procedure slSqliteInit;
@@ -517,8 +521,9 @@ begin
   Result:= True;
 end;
 
-constructor TslSqliteDB.Create(const filename: String; pragma: String);
-var ss: String;
+constructor TslSqliteDB.Create(const filename: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; pragma: String);
+var
+  ss: String;
 begin
  if 0 <> SQLite3_Open(PAnsiChar(filename), @fSQLite) then
    raise Exception.Create('Cant open sqlite');

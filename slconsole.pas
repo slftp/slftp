@@ -49,7 +49,7 @@ type
       procedure GotoXY(x, y: SmallInt); virtual; abstract;
       procedure Write(s: String); virtual; abstract;
 
-      function ReadKey: AnsiChar; virtual; abstract;
+      function ReadKey: Char; virtual; abstract;
       function KeyPressed: Boolean; virtual; abstract;
       procedure TextColor(Color: Byte); virtual; abstract;
       procedure TextBackground(Color: Byte); virtual; abstract;
@@ -104,7 +104,7 @@ type
       ConsoleScreenBufferInfo : Console_screen_buffer_info;
        TextAttr: Byte;
       function slKeyPressed: Boolean;
-      function slReadKey: AnsiChar;
+      function slReadKey: Char;
     protected
       procedure UpdateCon; override;
     public
@@ -116,7 +116,7 @@ type
       procedure GotoXY(x, y: SmallInt); override;
       procedure Write(s: String); override;
 
-      function ReadKey: AnsiChar; override;
+      function ReadKey: Char; override;
       function KeyPressed: Boolean; override;
       procedure TextBackground(Color: Byte); override;
       procedure TextColor(Color: Byte); override;
@@ -196,7 +196,7 @@ type
       procedure TextBackground(Color: Byte); override;
       procedure HighVideo; override;
       procedure LowVideo; override;
-      function ReadKey: AnsiChar; override;
+      function ReadKey: Char; override;
       function KeyPressed: Boolean; override;
       Procedure ClrScr; override;
       procedure cursoron; override;
@@ -449,7 +449,7 @@ const
   );
 
 var
-  ExtendedChar: AnsiChar = #0;
+  ExtendedChar: Char = #0;
 
 
 function FindKeyCode(KeyCode: Smallint): PKey; {$IFDEF INLINES}inline;{$ENDIF}
@@ -498,7 +498,7 @@ begin
   end;
 end;
 
-function TslWindowsScreen.slReadKey: AnsiChar;
+function TslWindowsScreen.slReadKey: Char;
 var
   InputRec: TInputRecord;
   NumRead: Cardinal;
@@ -559,7 +559,7 @@ begin
   SetConsoleTextAttribute(hStdOut, TextAttr);
 end;
 
-function TslWindowsScreen.ReadKey: AnsiChar;
+function TslWindowsScreen.ReadKey: Char;
 begin
   Result:= slReadKey;
 //  if ((Result = #3) and (Assigned(OnCtrlC))) then
@@ -719,9 +719,9 @@ begin
 end;
 
 
-Function nReadkey(win : pWindow) : AnsiChar;
+Function nReadkey(win : pWindow) : Char;
 var
-   c : AnsiChar;
+   c : Char;
    l : longint;
    xtnded : boolean;
 Begin
@@ -889,7 +889,7 @@ Begin
 
 end;
 
-function TslUnixScreen.ReadKey: AnsiChar;
+function TslUnixScreen.ReadKey: Char;
 begin
    Readkey := nReadkey(w);
 end;
@@ -1034,7 +1034,7 @@ End;
 { write a string to a window at the current cursor position }
 Procedure TslUnixScreen.nWrite(win: pWindow; s: String);
 var
-  ps : array [0..255] of AnsiChar;       { for use with PAnsiChar's }
+  ps : array [0..255] of Char;       { for use with PAnsiChar's }
   //p: PAnsiChar;
 Begin
   //p := StrAlloc(Length(s) + 1);

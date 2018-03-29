@@ -72,14 +72,14 @@ type
     procedure SetColors; virtual;
     procedure VisibilityChanged(c: TslControl); virtual;
     function TakesInputFocus(): TslControl; virtual;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; virtual;
+    function KeyEvent(c: Char; extended: boolean): boolean; virtual;
 
     procedure LostFocus(); virtual;
     procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0);
       overload; virtual;
     procedure Write(const x, y: integer; s: String; hossz: integer = 0); overload;
-    procedure Write(const x, y: integer; c: AnsiChar); overload;
-    function BackgroundCharacter: AnsiChar; virtual;
+    procedure Write(const x, y: integer; c: Char); overload;
+    function BackgroundCharacter: Char; virtual;
   public
     children: TObjectList;
     procedure SetParent(control: TslControl);
@@ -129,7 +129,7 @@ type
     fixedHeight: integer;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     procedure SizeChanged;
-    function BackgroundCharacter: AnsiChar; override;
+    function BackgroundCharacter: Char; override;
   public
     Left, Top, Right, Bottom: integer;
     constructor Create(Width, Height: integer; parent: TslControl); overload;
@@ -141,7 +141,7 @@ type
 
 
   TslEdit      = class;
-  TslOnKeyDown = function(Sender: TslEdit; c: AnsiChar;
+  TslOnKeyDown = function(Sender: TslEdit; c: Char;
     extended: boolean): boolean of object;
 
   TslEdit = class(TslAlignedControl)
@@ -155,12 +155,12 @@ type
     procedure SetCursor(Value: integer);
   public
     maxwidth:     integer;
-    passwordchar: AnsiChar;
+    passwordchar: Char;
     constructor Create(Left, Top, Width: integer; parent: TslControl);
     procedure SetColors; override;
     procedure Repaint; override;
     function TakesInputFocus: TslControl; override;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
     property Text: String Read fText Write SetText;
     property Cursor: integer Read fCursor Write SetCursor;
     property Window: integer Read fWindow;
@@ -178,7 +178,7 @@ type
     maxcommands: integer;
     destructor Destroy; override;
     constructor Create(Left, Top, Width: integer; parent: TslControl);
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
     property OnCommand: TslCommandEvent Read fOnCommand Write fOnCommand;
   end;
 
@@ -205,7 +205,7 @@ type
     procedure SetColors; override;
     constructor Create(modalResult: TslModalResult; parent: TslControl);
     function TakesInputFocus(): TslControl; override;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
     property OnClick: TslEvent Read fOnClick Write fOnClick;
     function Width: integer; override;
   end;
@@ -270,7 +270,7 @@ type
     constructor Create(parent: TslControl);
     function Width: integer; override;
     procedure Repaint; override;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
   end;
 
   TslVerticalScrollbar = class(TslScrollbar)
@@ -278,7 +278,7 @@ type
     constructor Create(parent: TslControl);
     function Height: integer; override;
     procedure Repaint; override;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
   end;
 
   TslScrollControl = class(TslAlignedControl)
@@ -291,7 +291,7 @@ type
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     constructor Create(Width, Height: integer; parent: TslControl); overload;
     procedure AddControl(control: TslControl); override;
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
   end;
 
 
@@ -374,7 +374,7 @@ type
   private
     visibleControl: TslControl;
   public
-    function KeyEvent(c: AnsiChar; extended: boolean): boolean; override;
+    function KeyEvent(c: Char; extended: boolean): boolean; override;
     procedure VisibilityChanged(c: TslControl); override;
     procedure AddControl(control: TslControl); override;
   end;
@@ -395,7 +395,7 @@ type
       password: boolean = False): boolean;
   protected
     procedure SetColors; override;
-    function BackgroundCharacter: AnsiChar; override;
+    function BackgroundCharacter: Char; override;
   public
     shouldquit: boolean;
     l_clock:    TslLabel;
@@ -587,7 +587,7 @@ end;
 
 procedure TslApplication.ProcessMessages;
 var
-  c: AnsiChar;
+  c: Char;
   extended: boolean;
   i: integer;
   k: boolean;
@@ -802,7 +802,7 @@ begin
   slscreen.Write(s);
 end;
 
-function TslApplication.BackgroundCharacter: AnsiChar;
+function TslApplication.BackgroundCharacter: Char;
 begin
   {$IFDEF MSWINDOWS}
     Result := Chr(176);
@@ -1070,7 +1070,7 @@ begin
 
 end;
 
-function TslControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslControl.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := False;
 
@@ -1244,7 +1244,7 @@ begin
   Write(ca, x, y, s, hossz);
 end;
 
-procedure TslControl.Write(const x, y: integer; c: AnsiChar);
+procedure TslControl.Write(const x, y: integer; c: Char);
 begin
   Write(x, y, c, 1);
 end;
@@ -1263,7 +1263,7 @@ begin
 end;
 
 
-function TslControl.BackgroundCharacter: AnsiChar;
+function TslControl.BackgroundCharacter: Char;
 begin
   if parent <> nil then
     Result := parent.BackgroundCharacter
@@ -1274,7 +1274,7 @@ end;
 function TslControl.FocusedControl: TslControl;
 begin
   Result := self;
-  if ((focus <> nil)) then//(focused) and 
+  if ((focus <> nil)) then//(focused) and
     Result := focus.FocusedControl;
 end;
 
@@ -1411,7 +1411,7 @@ end;
 
 { TslFixPanel }
 
-function TslAlignedControl.BackgroundCharacter: AnsiChar;
+function TslAlignedControl.BackgroundCharacter: Char;
 begin
   Result := ' ';
 end;
@@ -1628,7 +1628,7 @@ procedure TslBackground.Repaint;
 var
   s: String;
   i: integer;
-  c: AnsiChar;
+  c: Char;
 begin
   if Visible <> slvVisible then
     exit;
@@ -1804,12 +1804,12 @@ end;
 procedure TslFrame.Repaint;
 {$IFDEF MSWINDOWS}
 const
-  frameChars: array[False..True, 1..6] of AnsiChar = (
+  frameChars: array[False..True, 1..6] of Char = (
     (chr(196), Chr(179), Chr(218), Chr(191), Chr(192), Chr(217)),
     (chr(205), Chr(186), Chr(201), Chr(187), Chr(200), Chr(188))
     );
  {$ELSE}
-const frameChars : array[false..true, 1..6] of AnsiChar = (
+const frameChars : array[false..true, 1..6] of Char = (
     ('-', '|', ',', '.',  '`', '4'),
     ('-', '|', ',', '.',  '`', '4')
  );
@@ -1996,7 +1996,7 @@ begin
   Left   := 1;
 end;
 
-function TslHorizontalScrollbar.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslHorizontalScrollbar.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := False;
   if not extended then
@@ -2018,7 +2018,7 @@ var
   i:    integer;
   m, c: integer;
   a, x: integer;
-  p:    AnsiChar;
+  p:    Char;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2113,7 +2113,7 @@ begin
     Result := 0;
 end;
 
-function TslVerticalScrollbar.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslVerticalScrollbar.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := False;
   if not extended then
@@ -2141,7 +2141,7 @@ var
   i: integer;
   a, m, c: integer;
   x: integer;
-  p: AnsiChar;
+  p: Char;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2243,7 +2243,7 @@ begin
   end;
 end;
 
-function TslScrollControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslScrollControl.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := inherited KeyEvent(c, extended);
 
@@ -2423,7 +2423,7 @@ begin
     visibleControl := control;
 end;
 
-function TslMutualVisibilityControl.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslMutualVisibilityControl.KeyEvent(c: Char; extended: boolean): boolean;
 var
   i: integer;
 begin
@@ -2609,7 +2609,7 @@ begin
   end;
 end;
 
-function TslButton.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslButton.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := False;
   if ((c = #13) and (not extended)) then
@@ -2669,11 +2669,11 @@ begin
   cursor := 1;
 end;
 
-function TslEdit.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslEdit.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := True;
 {$IFDEF MSWINDOWS}
-  if ((not extended) and (c = #22)) then // ctrl + v 
+  if ((not extended) and (c = #22)) then // ctrl + v
   begin
     Text := Text + clipboard.AsText;
   end
@@ -2745,7 +2745,7 @@ procedure TslEdit.Repaint;
 var
   i: integer;
   l: integer;
-  c: AnsiChar;
+  c: Char;
 begin
   if Visible <> slvVisible then
     exit;
@@ -2756,11 +2756,11 @@ begin
 
   c := ' ';
   if window <> 0 then
-{$IFDEF MSWINDOWS}
-    c := Chr(17);
-{$ELSE}
-    c:= '<';
-{$ENDIF}
+    {$IFDEF MSWINDOWS}
+      c := Chr(17);
+    {$ELSE}
+      c:= '<';
+    {$ENDIF}
   Write(1, 1, c);
 
   l := length(fText);
@@ -2876,7 +2876,7 @@ begin
   inherited;
 end;
 
-function TslCommandEdit.KeyEvent(c: AnsiChar; extended: boolean): boolean;
+function TslCommandEdit.KeyEvent(c: Char; extended: boolean): boolean;
 begin
   Result := True;
   if ((extended) and (c = #72)) then // felfele nyil -- up arrow

@@ -14,6 +14,7 @@ type
     procedure LoadFromFile(const FileName: String); override;
     procedure LoadFromStream(Stream: TStream); override;
     procedure SaveToStream(Stream: TStream); override;
+    procedure SaveToFile(const FileName: String); override;
   end;
 
   { TStringHash - used internally by TMemIniFile to optimize searches. }
@@ -1042,5 +1043,19 @@ begin
     s.Free;
   end;
 end;
+
+procedure TEncStringlist.SaveToFile(const FileName: String);
+var
+  s: TStringStream;
+begin
+  s := TStringStream.Create( GetTextStr );
+  try
+    s.Position:= 0;
+    EncryptStreamToFile(s, FileName, fPassHash, true);
+  finally
+    s.Free;
+  end;
+end;
+
 
 end.

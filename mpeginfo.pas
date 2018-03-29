@@ -404,14 +404,14 @@ begin
     Data[Index + 15];
   Result.Scale := Data[Index + 119];
   { Encoder ID can be not present }
-  Result.VendorID[1] := Chr(Data[Index + 120]);
-  Result.VendorID[2] := Chr(Data[Index + 121]);
-  Result.VendorID[3] := Chr(Data[Index + 122]);
-  Result.VendorID[4] := Chr(Data[Index + 123]);
-  Result.VendorID[5] := Chr(Data[Index + 124]);
-  Result.VendorID[6] := Chr(Data[Index + 125]);
-  Result.VendorID[7] := Chr(Data[Index + 126]);
-  Result.VendorID[8] := Chr(Data[Index + 127]);
+  Result.VendorID[1] := AnsiChar(Chr(Data[Index + 120]));
+  Result.VendorID[2] := AnsiChar(Chr(Data[Index + 121]));
+  Result.VendorID[3] := AnsiChar(Chr(Data[Index + 122]));
+  Result.VendorID[4] := AnsiChar(Chr(Data[Index + 123]));
+  Result.VendorID[5] := AnsiChar(Chr(Data[Index + 124]));
+  Result.VendorID[6] := AnsiChar(Chr(Data[Index + 125]));
+  Result.VendorID[7] := AnsiChar(Chr(Data[Index + 126]));
+  Result.VendorID[8] := AnsiChar(Chr(Data[Index + 127]));
 end;
 
 { --------------------------------------------------------------------------- }
@@ -737,15 +737,15 @@ function SyncSafeIntToNormal(var buffer: array of byte): Cardinal;
 var re, b1, b2, b3, b4: Cardinal;
 begin
 //memcpy(&re, buffer, 4);  ez nem jo endian miatt */
-	re := (buffer[0] shl 24) or (buffer[1] shl 16) or (buffer[2] shl 8) or (buffer[3] shl 0);
+  re := (buffer[0] shl 24) or (buffer[1] shl 16) or (buffer[2] shl 8) or (buffer[3] shl 0);
 
-	//most meg at kell konvertalni.*/
-	b1 := (re and $FF000000) shr 3;
-	b2 := (re and $00FF0000) shr 2;
-	b3 := (re and $0000FF00) shr 1;
-	b4 := (re and $000000FF) shr 0;
+  //most meg at kell konvertalni.*/
+  b1 := (re and $FF000000) shr 3;
+  b2 := (re and $00FF0000) shr 2;
+  b3 := (re and $0000FF00) shr 1;
+  b4 := (re and $000000FF) shr 0;
 
-	Result:= b1 or b2 or b3 or b4;
+  Result:= b1 or b2 or b3 or b4;
 end;
 
 procedure TMpegAudio.ReadID3V2Size(var buffer: array of byte);
@@ -753,17 +753,17 @@ var offset: Integer;
 begin
   offset:= 0;
   // ID3
-	if((buffer[offset+0] = $49)and(buffer[offset+1] = $44) and (buffer[offset+2] = $33)) then
-	begin
-		fid3v2size := SyncSafeIntToNormal(buffer[offset+6]);
+  if((buffer[offset+0] = $49)and(buffer[offset+1] = $44) and (buffer[offset+2] = $33)) then
+  begin
+    fid3v2size := SyncSafeIntToNormal(buffer[offset+6]);
 
-		if (buffer[offset+5] and 16 <> 0) then // if footer is present */
-			inc(fid3v2size, 20)
-		else
-			inc(fid3v2size, 10);
+    if (buffer[offset+5] and 16 <> 0) then // if footer is present */
+      inc(fid3v2size, 20)
+    else
+      inc(fid3v2size, 10);
 
     exit;
-	end;
+  end;
 end;
 
 function TMPEGaudio.ReadFromBuffer(var buffer: array of byte; filesize: Integer): Boolean;
@@ -834,7 +834,11 @@ begin
       dest_info.mpeg_vbr:= m.VBR.Found;
       dest_info.mpeg_bitrate:= m.BitRate;
 //      dest_info.mpeg_frequency:= Format('%d.%d', [ m.SampleRate div 1000, (m.SampleRate - (m.SampleRate div 1000)*1000) div 100]);
-      DecimalSeparator:= '.';
+      {$IFDEF UNICODE}
+        FormatSettings.DecimalSeparator:= '.';
+      {$ELSE}
+        DecimalSeparator:= '.';
+      {$ENDIF}
       dest_info.mpeg_frequency:= Format('%.1f', [ m.SampleRate / 1000]);
       dest_info.mpeg_duration:= Round(m.Duration );
       dest_info.mpeg_frames:= m.Frames;

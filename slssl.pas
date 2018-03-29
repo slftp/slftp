@@ -344,7 +344,11 @@ begin
 {$IFDEF FPC}
   fn := GetProcAddress(handle, fceName);
 {$ELSE}
-  fn := GetProcAddress(handle, @fceName[1]);
+  {$IFDEF UNICODE}
+    fn := GetProcAddress(handle, PAnsiChar(AnsiString(fceName)));
+  {$ELSE}
+    fn := GetProcAddress(handle, @fceName[1]);
+  {$ENDIF}
 {$ENDIF}
   if fn = nil then
   begin
