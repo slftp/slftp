@@ -804,11 +804,15 @@ begin
       S := SubString(s, ';', 4);
       S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.chans';
       if FileExists(S) then
-{$IFDEF MSWINDOWS}
-        DeleteFile(PAnsiChar(S));
-{$ELSE}
-        DeleteFile(S);
-{$ENDIF}
+        {$IFDEF MSWINDOWS}
+          {$IFDEF UNICODE}
+            DeleteFile(PChar(S));
+          {$ELSE}
+            DeleteFile(PAnsiChar(S));
+          {$ENDIF}
+        {$ELSE}
+          DeleteFile(S);
+        {$ENDIF}
     end;
 
     for i := 0 to catcherFile.Count - 1 do // create if needed and append lines
@@ -826,11 +830,15 @@ begin
     end;
 
     if FileExists(catcherFilename) then // convert to split format
-{$IFDEF MSWINDOWS}
-      DeleteFile(PAnsiChar(catcherFilename));
-{$ELSE}
-      DeleteFile(catcherFilename);
-{$ENDIF}
+      {$IFDEF MSWINDOWS}
+        {$IFDEF UNICODE}
+          DeleteFile(PChar(catcherFilename));
+        {$ELSE}
+          DeleteFile(PAnsiChar(catcherFilename));
+        {$ENDIF}
+      {$ELSE}
+        DeleteFile(catcherFilename);
+      {$ENDIF}
   end
   else
   begin

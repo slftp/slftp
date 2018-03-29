@@ -209,7 +209,7 @@ begin
         // delete the file
         try
           {$IFDEF MSWINDOWS}
-            DeleteFile(PAnsiChar(s + files[oldest_index]));
+            DeleteFile({$IFDEF UNICODE}PChar(s + files[oldest_index]){$ELSE}PAnsiChar(s + files[oldest_index]){$ENDIF});
           {$ELSE}
             DeleteFile(s + files[oldest_index]);
           {$ENDIF}

@@ -2703,7 +2703,11 @@ begin
     x.CaseSensitive := False;
     x.Sorted := True;
     x.Duplicates := dupIgnore;
-    ExtractStrings([' ', ',', '|'], [], PAnsiChar(affils), List);
+    {$IFDEF UNICODE}
+      ExtractStrings([' ', ',', '|'], [], PChar(affils), List);
+    {$ELSE}
+      ExtractStrings([' ', ',', '|'], [], PAnsiChar(affils), List);
+    {$ENDIF}
 
     for i := 0 to List.Count - 1 do
     begin

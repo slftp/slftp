@@ -653,7 +653,7 @@ const
   );
 
 procedure IrcLineBreak(const Netname, Channel: String; const commatext: String;
-  QuoteChar: AnsiChar = '"'; fronttext: String = ''; breakafter: integer = 16);
+  QuoteChar: Char = '"'; fronttext: String = ''; breakafter: integer = 16);
 
 implementation
 
@@ -672,7 +672,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
 const
   section = 'irccommands';
 
-procedure IrcLineBreak(const Netname, Channel: String; const commatext: String; QuoteChar: AnsiChar = '"'; fronttext: String = ''; breakafter: integer = 16);
+procedure IrcLineBreak(const Netname, Channel: String; const commatext: String; QuoteChar: Char = '"'; fronttext: String = ''; breakafter: integer = 16);
 var
   xs: TStringList;
   i, ii: integer;
@@ -11197,12 +11197,11 @@ begin
         minus := True;
         ss := StringReplace(ss, '-', '', [rfReplaceAll, rfIgnoreCase]);
       end;
-{$IFDEF FPC}
-      ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll,
-        rfIgnoreCase]);
-{$ELSE}
-      ss := StringReplace(ss, '.', DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-{$ENDIF}
+      {$IFDEF FPC}
+        ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        ss := StringReplace(ss, '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
       c := strtofloat(ss);
       ss := x.Match[3];
       if AnsiUpperCase(ss) = 'MB' then

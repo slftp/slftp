@@ -37,73 +37,38 @@ interface
 uses Classes;
 
 function onlyEnglishAlpha(s: String): String;
-function ArrayTextContainesIndexText(const AText, AValues: array of String): Boolean;
 
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 
-function WhenDidThisHappen(SecondsElapsed: int64): TDateTime;
-
 function LeftStr(const Source: String; Count: integer): String;
 function RightStr(const Source: String; Count: integer): String;
-function MinMax(aValue, minimal, maximum: integer): integer;
 function SubString(const s, seperator: String; index: integer): String;
 function Csere(const Source, old, new: String): String;
-function AtConvert(Source: String; style: integer): String;
-function myEncode(what: String): String;//spaceket  csereli at
-function myDecode(what: String): String;
-function CleanString(mit: String): String;
 function Count(const mi, miben: String): integer;
-function RPos(SubStr: AnsiChar; Str: String): integer;
-function FillCharL(what, t: integer; whit: AnsiChar): String;
-function GetLastDir(g: String): String;
+function RPos(SubStr: Char; Str: String): integer;
 function ExtractUrlFileName(url: String): String;
 function ExtractFileNameWithoutExt(fname: String): String;
-function BufStr(B: array of byte; APos, ALen: integer): String;
-procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: String);
-function FillCharR(w: String; ig: integer; withc: AnsiChar): String;
 function ReadBetweenSeperators(s, sep1, sep2: String; var from: integer): String;
-function validemail(em: String): boolean;
-function MakeStringLeft(mi, mivel: String; c: integer): String;
-function MakeStringCenter(mi, mivel: String; c: integer): String;
-function MakeStringRight(mi, mivel: String; c: integer): String;
-function MakeFullPath(s: String): String;
-function GetByte(i, b: longword): byte;
-function GetInteger(b1, b2, b3, b4: byte): longword;
-function MyToday: String;
 function MyTimeToStr(x: TDateTime): String;
 function MyStrToTime(x: String): TDateTime;
 function MyDateToStr(x: TDateTime): String;
 function MyStrToDate(x: String): TDateTime;
-function NoToTime(x: integer): String; overload;
-function NoToTime(s: String): String; overload;
-function Szovegge(szam: integer): String; overload;
-function Szovegge(d: double): String; overload;
 function myStrToFloat(s: String): double; overload;
 function myStrToFloat(s: String; def: double): double; overload;
-function CheckTAXNumber(TAxNumber: String; BornDate: TDateTime = 0): boolean;
-function CheckCompanyTaxNumber(TaxNumber: String): integer;
-function IsValidEmail(const Value: String): boolean;
 procedure MyWriteLn(s: String);
 function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
-
-{$IFDEF MSWINDOWS}
-function GetWinDir: String;
-function GetTempDir: String;
-function GetContentType(fname: String): String;
-{$ENDIF}
 function MyIncludeTrailingSlash(s: String): String;
 function CombineDirectories(dir1, dir2: String): String;
 function ParsePasvString(s: String; out host: String; out port: integer): boolean;
 
-function IsALetter(const c: AnsiChar): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
-function IsANumber(const c: AnsiChar): boolean; // { returns with true if it's a number: [0-9] }
+function IsALetter(const c: Char): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
+function IsANumber(const c: Char): boolean; // { returns with true if it's a number: [0-9] }
 function Szamokszama(s: String): integer;
-function CsakSzamok(s: String): String;
 
 function GetFileContents(fn: String): String;
-function Fetch(var osszes: String; const Args: array of AnsiChar): String; overload;
-function Fetch(var osszes: String; sep: AnsiChar): String; overload;
+function Fetch(var osszes: String; const Args: array of Char): String; overload;
+function Fetch(var osszes: String; sep: Char): String; overload;
 function Elsosor(var osszes: String): String;
 function todaycsere(const s: String; datum: TDateTime = 0): String;
 function InArray(const s: String; const d: array of String;
@@ -128,48 +93,6 @@ uses
     , registry, Windows
   {$ENDIF}
   , DateUtils;
-
-procedure StrBuf(var B: array of byte; APos, ALen: integer; const AStr: String);
-var
-  Len: integer;
-begin
-  Len := Length(AStr);
-  if Len > ALen then
-    Len := ALen;
-  Move(AStr[1], b[APos], Len);
-  if Len < ALen then
-    FillChar(b[APos + Len], ALen - Len, $00);
-end;
-
-function BufStr(B: array of byte; APos, ALen: integer): String;
-begin
-  SetString(Result, nil, ALen);
-  Move(b[APos], Result[1], ALen);
-  if Pos(#0, Result) > 0 then
-    Result := copy(Result, 1, Pos(#0, Result) - 1);
-  Result := TrimRight(Result);
-end;
-
-{$IFDEF MSWINDOWS}
-function GetWinDir: String;
-var
-  a: array[1..255] of byte;
-  i: integer;
-begin
-  i      := GetWindowsDirectory(@a, 255);
-  Result := BufStr(a, 0, i);
-end;
-
-function GetTempDir: String;
-var
-  a: array[1..255] of byte;
-  i: integer;
-begin
-  i      := GetTempPath(255, @a);
-  Result := BufStr(a, 0, i);
-end;
-
-{$ENDIF}
 
 function Count(const mi, miben: String): integer;
 var
@@ -205,17 +128,6 @@ begin
   Result := '';
   for i := Count + 1 to length(Source) do
     Result := Result + Source[i];
-end;
-
-function MinMax(aValue, minimal, maximum: integer): integer;
-begin
-  if aValue < minimal then
-    Result := minimal
-  else
-  if aValue > maximum then
-    Result := maximum
-  else
-    Result := aValue;
 end;
 
 
@@ -289,94 +201,6 @@ begin
   Result := StringReplace(Source, old, new, [rfReplaceAll, rfIgnoreCase]);
 end;
 
-function AtConvert(Source: String; style: integer): String;
-var
-  i: integer;
-  nemkell: boolean;
-begin
-  Result := Source;
-  case style of
-    1: Result := AnsiLowerCase(Source);
-    2:
-    begin
-      Result  := '';
-      nemkell := False;
-      for i := 1 to length(Source) do
-      begin
-        if (i + 1 <= length(Source)) and (Source[i] in
-          [' ', '-', '.', '_', '(', '?', '!']) then
-        begin
-          Result  := Result + Source[i];
-          Source[i + 1] := AnsiUpperCase(Source[i + 1])[1];
-          nemkell := True;
-        end
-        else
-        if (i = 1) then
-          Result := Result + AnsiUpperCase(Source[i])
-        else
-        begin
-          if nemkell then
-          begin
-            Result  := Result + Source[i];
-            nemkell := False;
-          end
-          else
-            Result := Result + AnsiLowerCase(Source[i]);
-        end;
-      end;
-    end;
-    3: Result := AnsiUpperCase(Source);
-    4:
-    begin
-      Result := AnsiLowerCase(Source);
-      if length(Result) > 0 then
-        Result[1] := AnsiUpperCase(Result)[1];
-    end;
-  end;
-end;
-
-function myDecode(what: String): String;
-begin
-  Result := Csere(what, ' ', '\ia{{ai/');
-end;
-
-function myEncode(what: String): String;
-begin
-  Result := Csere(what, '\ia{{ai/', ' ');
-end;
-
-//lecsereli az osszes nemfajlnevkaraktert
-function CleanString(mit: String): String;
-begin
-  mit    := Csere(mit, '/', '-');
-  mit    := Csere(mit, ':', '-');
-  mit    := Csere(mit, '?', '');
-  mit    := Csere(mit, '<', '');
-  mit    := Csere(mit, '>', '');
-  mit    := Csere(mit, '"', '');
-  mit    := Csere(mit, '*', '');
-  mit    := Csere(mit, #0, '');
-  Result := mit;
-end;
-
-
-
-function FillCharL(what, t: integer; whit: AnsiChar): String;
-var
-  i: integer;
-begin
-  Result := IntToStr(what);
-  for i := 0 to t - length(Result) - 1 do
-    Result := whit + Result;
-end;
-
-function GetLastDir(g: String): String;
-begin
-  if ((length(g) > 0) and (g[length(g)] = '\')) then
-    Delete(g, length(g), 1);
-  Result := RightStr(g, RPos('\', g));
-end;
-
 function ExtractUrlFileName(url: String): String;
 var
   i: integer;
@@ -393,15 +217,6 @@ var
 begin
   tmp    := ExtractFileName(fname);
   Result := Copy(tmp, 1, length(tmp) - length(ExtractFileExt(fname)));
-end;
-
-function FillCharR(w: String; ig: integer; withc: AnsiChar): String;
-var
-  i: integer;
-begin
-  Result := w;
-  for i := length(w) to ig do
-    Result := Result + withc;
 end;
 
 function ReadBetweenSeperators(s, sep1, sep2: String; var from: integer): String;
@@ -445,136 +260,6 @@ begin
   Result := Copy(tmp, k, v - k);
 end;
 
-
-
-function validemail(em: String): boolean;
-var
-  i1, i2: integer;
-begin
-  i1 := Pos('@', em);
-  i2 := RPos('.', em);
-  if ((i1 = 0) or (i2 = 0) or (i1 + 1 >= i2)) then
-    Result := False
-  else
-    Result := True;
-end;
-
-
-function MakeStringLeft(mi, mivel: String; c: integer): String;
-var
-  i: integer;
-begin
-  Result := Copy(mi, 1, c);
-  for i := length(Result) + 1 to c do
-    Result := Result + mivel;
-end;
-
-function MakeStringCenter(mi, mivel: String; c: integer): String;
-var
-  s: integer;
-begin
-  Result := Copy(mi, 1, c);
-  s      := length(Result);
-  Result := MakeStringLeft(Result, ' ', (c - s) div 2 + s);
-  Result := MakeStringRight(Result, ' ', c);
-end;
-
-function MakeStringRight(mi, mivel: String; c: integer): String;
-var
-  i: integer;
-begin
-  Result := Copy(mi, 1, c);
-  for i := 1 to (c - length(Result)) do
-    Result := mivel + Result;
-end;
-
-
-function MakeFullPath(s: String): String;
-var
-  x: integer;
-begin
-  Result := s;
-  x      := length(Result);
-  if x <> 0 then
-    if s[x] <> '\' then
-      Result := s + '\';
-end;
-
-//visszaadja i b-ik bajtjat
-function GetByte(i, b: longword): byte;
-var
-  mask: longword;
-begin
-  mask   := Round(IntPower(2, b * 8) - 1 - ((IntPower(2, (b - 1) * 8)) - 1));
-  Result := (i and mask) shr ((b - 1) * 8);
-end;
-
-//a negy megadott bajtbol keszit egy integert
-function GetInteger(b1, b2, b3, b4: byte): longword;
-begin
-  Result := b4;
-  Result := Result shl 8;
-  Result := Result + b3;
-  Result := Result shl 8;
-  Result := Result + b2;
-  Result := Result shl 8;
-  Result := Result + b1;
-end;
-
-function HexToInt(HexStr: String): int64;
-var
-  RetVar: int64;
-  i:      byte;
-begin
-  HexStr := UpperCase(HexStr);
-  if HexStr[length(HexStr)] = 'H' then
-    Delete(HexStr, length(HexStr), 1);
-  RetVar := 0;
-
-  for i := 1 to length(HexStr) do
-  begin
-    RetVar := RetVar shl 4;
-    if HexStr[i] in ['0'..'9'] then
-      RetVar := RetVar + (byte(HexStr[i]) - 48)
-    else
-    if HexStr[i] in ['A'..'F'] then
-      RetVar := RetVar + (byte(HexStr[i]) - 55)
-    else
-    begin
-      Retvar := 0;
-      break;
-    end;
-  end;
-
-  Result := RetVar;
-end;
-
-{$IFDEF MSWINDOWS}
-function GetContentType(fname: String): String;
-var
-  x: TRegistry;
-begin
-  x      := TRegistry.Create;
-  x.RootKey := HKEY_CLASSES_ROOT;
-  Result := 'application/octet-stream';
-  try
-    x.OpenKey('\' + ExtractFileExt(fname), False);
-    Result := x.ReadString('Content Type');
-  finally
-    x.Free;
-  end;
-end;
-
-{$ENDIF}
-
-function MyToday: String;
-var
-  y, m, d: word;
-begin
-  DecodeDate(Now, y, m, d);
-  Result := Format('%.4d-%.2d-%.2d', [y, m, d]);
-end;
-
 function MyDateToStr(x: TDateTime): String;
 begin
   Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', x);
@@ -594,7 +279,6 @@ begin
   Result := EncodeTime(h, m, 0, 0);
 end;
 
-
 function MyStrToDate(x: String): TDateTime;
 var
   y, m, d, h, mm, s: integer;
@@ -608,122 +292,6 @@ begin
   if not TryEncodeDateTime(y, m, d, h, mm, s, 0, Result) then
     Result := 0;
 end;
-
-function NoToTime(x: integer): String;
-begin
-  Result := IntToStr(8 + (x div 2)) + ':';
-  if (x mod 2 = 0) then
-    Result := Result + '00'
-  else
-    Result := Result + '30';
-end;
-
-function NoToTime(s: String): String;
-begin
-  Result := NoToTime(StrToInt(s)) + '-' + NoToTime(StrToInt(s) + 1);
-end;
-
-
-procedure betuzz(var s: String; number: integer);
-const
-  kicsik: array[0..8] of String =
-    ('egy', 'kettu', 'harom', 'nigy', 'vt', 'hat', 'hit', 'nyolc', 'kilenc');
-var
-  num: integer;
-begin
-
-  num := number;
-  if (num div 100 <> 0) then
-  begin
-    if (num div 100 <> 1) then
-    begin
-      s := s + kicsik[(num div 100) - 1];
-    end;
-    s   := s + 'szaz';
-    num := num mod 100;
-  end;
-
-  if (num div 10 <> 0) then
-  begin
-    case (num div 10) of
-      9: s := s + 'kilencven';
-      8: s := s + 'nyolcvan';
-      7: s := s + 'hetven';
-      6: s := s + 'hatvan';
-      5: s := s + 'vtven';
-      4: s := s + 'negyven';
-      3: s := s + 'harminc';
-      2:
-        if (num mod 10 <> 0) then
-          s := s + 'huszon'
-        else
-          s := s + 'hzsz';
-      1:
-        if (num mod 10 <> 0) then
-          s := s + 'tizen'
-        else
-          s := s + 'tmz';
-    end; //end of case
-  end;
-
-  if (num mod 10 <> 0) then
-    s := s + kicsik[(num mod 10) - 1];
-
-end;
-
-
-function Szovegge(szam: integer): String;
-const
-  SZMAX = 4;
-type
-  TCuccok = record
-    ertek: integer;
-    s:     String
-  end;
-  TTablazat = array[1..SZMAX] of TCuccok;
-
-const
-  ertekek: TTablazat = (
-    (ertek: 1000000000; s: 'milliard'),
-    (ertek: 1000000; s: 'millis'),
-    (ertek: 1000; s: 'ezer'),
-    (ertek: 1; s: '')
-    );
-var
-  orig, i:  integer;
-  betukkel: String;
-begin
-  Result := '';
-  if szam < 0 then
-  begin
-    szam   := szam * -1;
-    Result := 'mmnusz ';
-  end;
-
-  orig := szam;
-  for i := 1 to SZMAX do
-  begin
-    if (szam div ertekek[i].ertek <> 0) then
-    begin
-      betukkel := '';
-      betuzz(betukkel, szam div ertekek[i].ertek);
-      Result := Result + betukkel + ertekek[i].s;
-      szam   := szam mod ertekek[i].ertek;
-      if (i <> SZMAX) and (szam > 0) and (orig > 2000) then
-        Result := Result + '-';
-    end;
-  end;
-
-end;
-
-function Szovegge(d: double): String;
-var
-  a: integer;
-begin
-  a      := Round(d);
-  Result := Szovegge(a);
-end;
-
 
 function myStrToFloat(s: String; def: double): double;
 var
@@ -756,144 +324,6 @@ begin
   Result := myStrToFloat(s, -1);
 end;
 
-function CheckTAXNumber(TAxNumber: String; BornDate: TDateTime = 0): boolean;
-var
-  index, napok_szama, crc: integer;
-begin
-  try
-    if (Length(TaxNumber) <> 10) then
-      Result := False
-    else
-    begin
-      Result := True;
-      if BornDate <> 0 then
-      begin
-        napok_szama := Trunc(BornDate - EncodeDate(1867, 1, 1));
-        if (StrToInt(copy(TaxNumber, 2, 5)) <> napok_szama) then
-          Result := False;
-      end;
-      if Result then
-      begin
-        crc   := 0;
-        index := 1;
-        while (index < Length(TaxNumber)) do
-        begin
-          crc   := crc + (StrToInt(copy(TaxNumber, index, 1)) * index);
-          index := index + 1;
-        end;
-        crc    := (crc - StrToInt(copy(TaxNumber, 10, 1))) mod 11;
-        Result := crc = 0;
-      end;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-function CheckCompanyTaxNumber(TaxNumber: String): integer;
-{************************************************
-* Adsszam ellenurzise
-* Visszatirisi irtik:
-* - 0: Js adsszam
-* - -1: Rossz a kapott irtik hossza (csak 11 /elvalasztas nilk|l/ vagy 13 /elvalasztassal/ karakter lehet)
-* - -2: A kapott irtik nem csak szamjegyet tartalmaz (kivive: elvalasztas)
-* - -3: A 9. helyen nem 1,2 vagy 3 szerepel (adsmentes, adskvteles,EVA)
-* - -4: Az utolss kit szamjegy nem a kvvetkezuk egyike: 02-20, 22-44, 41
-* - -5: A kapott irtik CDV hibas
-************************************************}
-const
-  aCDV: array[1..4] of integer = (9, 7, 3, 1);
-var
-  i:     int64;
-  j:     integer;
-  nCDV:  integer;
-  cTemp: String;
-begin
-  if not (length(TaxNumber) in [11, 13]) then
-  begin
-    Result := -1;
-    exit;
-  end;
-  if Length(TaxNumber) = 11 then
-  begin
-    if not TryStrToInt64(TaxNumber, i) then
-    begin
-      Result := -2;
-      exit;
-    end;
-    cTemp := TaxNumber;
-  end
-  else
-  begin
-    cTemp := copy(TaxNumber, 1, 8) + copy(TaxNumber, 10, 1) + copy(TaxNumber, 12, 2);
-    if not TryStrToInt64(cTemp, i) then
-    begin
-      Result := -2;
-      exit;
-    end;
-  end;
-  if not (cTemp[9] in ['1', '2', '3']) then
-  begin
-    Result := -3;
-    exit;
-  end;
-  nCDV := StrToInt(copy(cTemp, 10, 2));
-  if not (((nCDV > 1) and (nCDV < 21)) or ((nCDV > 21) and (nCDV < 45)) or
-    (nCDV = 51)) then
-  begin
-    Result := -4;
-    exit;
-  end;
-  nCDV := 0;
-  for j := 1 to 7 do
-  begin
-    nCDV := nCDV + StrToInt(cTemp[j]) * aCDV[((j - 1) mod 4) + 1];
-  end;
-  if StrToInt(cTemp[8]) <> ((10 - (nCDV mod 10)) mod 10) then
-  begin
-    Result := -5;
-    exit;
-  end;
-  Result := 0;
-end;
-
-function IsValidEmail(const Value: String): boolean;
-
-  function CheckAllowed(const s: String): boolean;
-  var
-    i: integer;
-  begin
-    Result := False;
-    for i := 1 to Length(s) do
-    begin
-      // illegal char in s -> no valid address
-      if not (s[i] in ['a'..'z', 'A'..'Z', '0'..'9', '_', '-', '.']) then
-        Exit;
-    end;
-    Result := True;
-  end;
-
-var
-  i: integer;
-  namePart, serverPart: String;
-begin // of IsValidEmail
-  Result := False;
-  i      := Pos('@', Value);
-  if (i = 0) or (pos('..', Value) > 0) then
-    Exit;
-  namePart   := Copy(Value, 1, i - 1);
-  serverPart := Copy(Value, i + 1, Length(Value));
-  if (Length(namePart) = 0)         // @ or name missing
-    or ((Length(serverPart) < 4))   // name or server missing or
-  then
-    Exit;                      // too short
-  i := Pos('.', serverPart);
-  // must have dot and at least 3 places from end
-  if (i < 2) or (i > (Length(serverPart) - 2)) then
-    Exit;
-  Result := CheckAllowed(namePart) and CheckAllowed(serverPart);
-end;
-
 procedure MyWriteLn(s: String);
 {$IFDEF DEBUG}var f: TextFile;{$ENDIF}
 begin
@@ -916,7 +346,7 @@ begin
     Result := Result + Chr(b[i]);
 end;
 
-function RPos(SubStr: AnsiChar; Str: String): integer;
+function RPos(SubStr: Char; Str: String): integer;
 var
   m, i: integer;
 begin
@@ -1005,12 +435,12 @@ begin
   Result := True;
 end;
 
-function IsALetter(const c: AnsiChar): boolean;
+function IsALetter(const c: Char): boolean;
 begin
   Result := (((c >= 'a') and (c <= 'z')) or ((c >= 'A') and (c <= 'Z')));
 end;
 
-function IsANumber(const c: AnsiChar): boolean;
+function IsANumber(const c: Char): boolean;
 begin
   Result := ((c >= '0') and (c <= '9'));
 end;
@@ -1023,18 +453,6 @@ begin
   for i := 1 to length(s) do
     if (IsANumber(s[i])) then
       Inc(Result);
-end;
-
-function CsakSzamok(s: String): String;
-var
-  i: integer;
-begin
-  Result := '';
-  for i := 1 to length(s) do
-    if not (s[i] in ['/', '-', '0'..'9']) then
-      exit
-    else if (IsANumber(s[i])) then
-      Result := Result + s[i];
 end;
 
 function GetFileContents(fn: String): String;
@@ -1058,9 +476,7 @@ begin
     Result := '';
 end;
 
-
-
-function Fetch(var osszes: String; const Args: array of AnsiChar): String;
+function Fetch(var osszes: String; const Args: array of Char): String;
 var
   elso, utolso: integer;
   i, j:    integer;
@@ -1097,7 +513,7 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: String; sep: AnsiChar): String;
+function Fetch(var osszes: String; sep: Char): String;
 begin
   Result := Fetch(osszes, [sep]);
 end;
@@ -1333,16 +749,6 @@ end;
 
 {$WARNINGS ON}
 
-function WhenDidThisHappen(SecondsElapsed: int64): TDateTime;
-var
-  dtsec:   TDateTime;
-  SecFrac: real;
-begin
-  SecFrac := (1 / 86400);
-  dtsec   := SecondsElapsed * SecFrac;
-  Result  := Now - dtsec;
-end;
-
 function BoolToStr(Value: boolean; const TS, FS: String): String; overload;
 begin
   if Value then
@@ -1386,9 +792,6 @@ begin
     dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
 end;
 
-
-
-
 function onlyEnglishAlpha(s: String): String;
 var
   i: integer;
@@ -1400,21 +803,6 @@ begin
     begin
       Result := Result + s[i];
     end;
-end;
-
-function ArrayTextContainesIndexText(const AText, AValues: array of String): Boolean;
-var
-ati,avi: Integer;
-begin
-  Result := false;
-  for ati := Low(AText) to High(AText) do begin
-    for avi := Low(AValues) to High(AValues) do
-    if AnsiSameText(AText[ati], AValues[avi]) then
-    begin
-      Result := true;
-      Break;
-    end;
-  end;
 end;
 
 {$IFDEF FPC}

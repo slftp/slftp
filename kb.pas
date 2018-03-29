@@ -2731,7 +2731,11 @@ begin
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
       {$IFDEF MSWINDOWS}
-        DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+        {$IFDEF UNICODE}
+          DeleteFile(PChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+        {$ELSE}
+          DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
+        {$ENDIF}
       {$ELSE}
         DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
       {$ENDIF}
