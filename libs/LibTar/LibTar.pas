@@ -79,10 +79,22 @@ unit LibTar;
 
 interface
 
+{$IFDEF FPC}
+ {$MODE Delphi}
+{$ELSE}
+  {$IFDEF UNIX}
+     {$DEFINE Kylix}
+     {$DEFINE LIBCUNIT}
+  {$ENDIF}
+{$ENDIF}
+
 uses
-(*$IFDEF LINUX*)
+{$IFDEF LIBCUNIT}
    Libc,
-(*$ENDIF *)
+{$ENDIF}
+{$IFDEF UNIX}
+  UnixType, BaseUnix, Unix,
+{$ENDIF}
 {$IFDEF WIN32}
   {$DEFINE MSWINDOWS} // predefined for D6+/BCB6+    // because in Delphi 5  MSWINDOWS is not defined
 {$ENDIF}
@@ -272,7 +284,7 @@ FUNCTION FileTimeGMT (SearchRec : TSearchRec) : TDateTime;
 VAR
   SystemFileTime: TSystemTime;
 (*$ENDIF *)
-(*$IFDEF LINUX *)
+(*$IFDEF UNIX *)
 VAR
   TimeVal  : TTimeVal;
   TimeZone : TTimeZone;
@@ -285,10 +297,16 @@ BEGIN
         Result := EncodeDate (SystemFileTime.wYear, SystemFileTime.wMonth, SystemFileTime.wDay)
                 + EncodeTime (SystemFileTime.wHour, SystemFileTime.wMinute, SystemFileTime.wSecond, SystemFileTime.wMilliseconds);
   (*$ENDIF *) (*$WARNINGS ON *)
-  (*$IFDEF LINUX *)
+  (*$IFDEF UNIX *)
      IF SearchRec.Attr AND faDirectory = 0 THEN BEGIN
+       FillChar(TimeVal, SizeOf(TimeVal), #0);
+       FillChar(TimeZone, SizeOf(TimeZone), #0);
        Result := FileDateToDateTime (SearchRec.Time);
-       GetTimeOfDay (TimeVal, TimeZone);
+       {$IFDEF Kylix}
+        GetTimeOfDay (TimeVal, TimeZone);
+       {$ELSE}
+        fpGetTimeOfDay (@TimeVal, @TimeZone);
+       {$ENDIF}
        Result := Result + TimeZone.tz_minuteswest / (60 * 24);
        END;
   (*$ENDIF *)
@@ -958,6 +976,13 @@ VAR
   Rec : ARRAY [0..RECORDSIZE-1] OF CHAR;
 BEGIN
   FillChar (Rec, SizeOf (Rec), 0);
+  FStream.Write (Rec, RECORDSIZE);
+  {
+    Avoid warning: 'tar: A lone zero block at *'
+    The reason for this message is that GNU tar format has been changed
+    to require TWO zero blocks marking the end of the archive.
+    Thus write a second zero block.
+  }
   FStream.Write (Rec, RECORDSIZE);
   FFinalized := TRUE;
 END;
