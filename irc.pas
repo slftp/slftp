@@ -919,7 +919,7 @@ begin
           news.SlftpNewsAdd('IRC', Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
       end;
     end;
-    
+
     exit;
   end;
 
