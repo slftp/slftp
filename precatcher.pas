@@ -48,7 +48,7 @@ function PrecatcherSectionMapping(const rls, section: String; x_count: integer =
 
 function FindSection(const section: String): boolean;
 function ExtractReleasename(ts_data: TStringList): String;
-
+function RemoveSpecialCharsAndBareIt(const s: String): String;
 function StripNoValidChars(aInput: String): String; // { removes all chars from string which are not in array ValidChars }
 
 function KibontasSection(const s, section: String): String;
@@ -86,9 +86,9 @@ var
   precatcher_debug_lock: TCriticalSection;
   precatcher_lock: TCriticalSection;
 
-  ValidChars: set of AnsiChar = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
+  ValidChars: set of Char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
     '/', ':', ';', ' '];
-  StrippingChars: set of AnsiChar = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
+  StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 procedure mydebug(s: String); overload;
 var
