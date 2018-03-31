@@ -50,7 +50,7 @@ implementation
 
 uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
   sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit,
+  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSLHeaders,
   dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
 {$IFNDEF MSWINDOWS}
   slconsole,
@@ -103,6 +103,9 @@ begin
     result := Format('OpenSSL version %s is deprecated! %s or newer needed.', [OpenSSLVersion, lib_OpenSSL]);
     exit;
   end;
+  
+  // Tell Indy OpenSSL to load libs from current dir
+  IdOpenSSLSetLibPath('.');
 
   if config.ReadString('mysql', 'host', '0') <> '0' then
   begin
