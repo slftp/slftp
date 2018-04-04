@@ -26,6 +26,29 @@ uses
 const
   section = 'taskhttpimdb';
 
+{ Removes not allowed characters in Box Office Mojo search
+  @param(aMoviename Movietitle from IMDB which contains language/movie depending characters)
+  @returns(String without not allowed characters on BOM search) }
+function CleanMovienameForBOM(const aMoviename: String): String;
+begin
+  Result := aMoviename;
+
+  // BOM search does not allow ' at the beginning or at the end
+  {$IFDEF FPC}
+    if AnsiStartsText('''', Result) then
+      Result := Copy(Result, 1, 1);
+
+    if AnsiEndsText('''', Result) then
+      SetLength(Result, Length(Result) - 1);
+  {$ELSE}
+    if StartsText('''', Result) then
+      Result := Copy(Result, 1, 1);
+
+    if EndsText('''', Result) then
+      SetLength(Result, Length(Result) - 1);
+  {$ENDIF}
+end;
+
   { TPazoHTTPImdbTask }
 
 constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
@@ -562,7 +585,7 @@ begin
 
         if fBOMSearchNeeded then
         begin
-          if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + imdb_mtitle, bomsite, fHttpGetErrMsg) then
+          if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + CleanMovienameForBOM(imdb_mtitle), bomsite, fHttpGetErrMsg) then
           begin
             Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
             irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
