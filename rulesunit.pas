@@ -340,7 +340,7 @@ implementation
 
 uses
   SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit,
-  knowngroups, DateUtils {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  knowngroups, DateUtils, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   dsection = 'rules';
@@ -1593,7 +1593,7 @@ begin
         break;
       end;
       Inc(operand_read);
-      s := Trim(Fetch(fs, ','));
+      s := Trim(Fetch(fs, ',', True, False));
       if s = '' then
         Break;
       if s <> '' then
@@ -3625,7 +3625,7 @@ begin
       break;
     end;
 
-    s := Fetch(rule, ' ');
+    s := Fetch(rule, ' ', True, False);
     if s = '' then
       Break;
 

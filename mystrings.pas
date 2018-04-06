@@ -67,8 +67,7 @@ function IsANumber(const c: Char): boolean; // { returns with true if it's a num
 function Szamokszama(s: String): integer;
 
 function GetFileContents(fn: String): String;
-function Fetch(var osszes: String; const Args: array of Char): String; overload;
-function Fetch(var osszes: String; sep: Char): String; overload;
+function FetchSL(var osszes: String; const Args: array of Char): String;
 function Elsosor(var osszes: String): String;
 function todaycsere(const s: String; datum: TDateTime = 0): String;
 function InArray(const s: String; const d: array of String;
@@ -92,7 +91,7 @@ uses
   {$IFDEF MSWINDOWS}
     , registry, Windows
   {$ENDIF}
-  , DateUtils;
+  , DateUtils, IdGlobal;
 
 function Count(const mi, miben: String): integer;
 var
@@ -424,12 +423,12 @@ begin
   if s = '' then
     exit;
 
-  host := Fetch(s, ',') + '.' + Fetch(s, ',') + '.' + Fetch(s, ',') +
-    '.' + Fetch(s, ',');
+  host := Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) +
+    '.' + Fetch(s, ',', True, False);
   if s = '' then
     exit;
 
-  port := StrToIntDef(Fetch(s, ','), 0) * 256 + StrToIntDef(Fetch(s, ','), 0);
+  port := StrToIntDef(Fetch(s, ',', True, False), 0) * 256 + StrToIntDef(Fetch(s, ',', True, False), 0);
   if port = 0 then
     exit;
   Result := True;
@@ -476,7 +475,7 @@ begin
     Result := '';
 end;
 
-function Fetch(var osszes: String; const Args: array of Char): String;
+function FetchSL(var osszes: String; const Args: array of Char): String;
 var
   elso, utolso: integer;
   i, j:    integer;
@@ -513,14 +512,9 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: String; sep: Char): String;
-begin
-  Result := Fetch(osszes, [sep]);
-end;
-
 function Elsosor(var osszes: String): String;
 begin
-  Result := Fetch(osszes, [#13, #10]);
+  Result := FetchSL(osszes, [#13, #10]);
 end;
 
 

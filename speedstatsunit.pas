@@ -39,7 +39,7 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, UIntList, Math;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, UIntList, Math, IdGlobal;
 
 const
   r_section = 'speedstats';
@@ -589,11 +589,11 @@ end;
 { TSpeedStat }
 constructor TSpeedStat.Create(line: String);
 begin
-  src := Fetch(line, ' ');
-  dst := Fetch(line, ' ');
-  speed := myStrToFloat( Fetch(line, ' '), 0 );
-  rlsname := Fetch(line, ' ');
-  section := Fetch(line, ' ');
+  src := Fetch(line, ' ', True, False);
+  dst := Fetch(line, ' ', True, False);
+  speed := myStrToFloat( Fetch(line, ' ', True, False), 0 );
+  rlsname := Fetch(line, ' ', True, False);
+  section := Fetch(line, ' ', True, False);
 end;
 
 constructor TSpeedStat.Create(src, dst: String; speed: Double);

@@ -69,7 +69,7 @@ implementation
 
 uses SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
-  console, mrdohutils, SyncObjs
+  console, mrdohutils, SyncObjs, IdGlobal
 {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
@@ -926,7 +926,7 @@ begin
     v := SubString(s, '=', 2);
     while (True) do
     begin
-      vv := Trim(Fetch(v, ','));
+      vv := Trim(Fetch(v, ',', True, False));
       if ((vv = '') and (v = '')) then
         break;
       if (vv <> '') then

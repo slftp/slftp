@@ -7,13 +7,12 @@ function Elsosor(var osszes: String): String;
 function IsIP(AIP: String): boolean;
 function TInAddrToString(var AInAddr): String;
 procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
-function Fetch(var osszes: String; const Args: array of Char): String; overload;
-function Fetch(var osszes: String; sep: Char): String; overload;
+function FetchSL(var osszes: String; const Args: array of Char): String;
 
 implementation
 
 uses
-  SysUtils,
+  SysUtils, IdGlobal,
 {$IFDEF FPC}
   sockets
 {$ELSE}
@@ -26,7 +25,7 @@ uses
 ;
 
 
-function Fetch(var osszes: String; const Args: array of Char): String;
+function FetchSL(var osszes: String; const Args: array of Char): String;
 var elso, utolso: Integer;
     i,j: Integer;
     megvolt: Boolean;
@@ -61,29 +60,10 @@ begin
   Delete(osszes, 1, utolso);
 end;
 
-function Fetch(var osszes: String; sep: Char): String;
-begin
-  Result:= Fetch(osszes, [sep]);
-end;
-
 function Elsosor(var osszes: String): String;
 begin
-  Result:= Fetch(osszes, [#13,#10]);
+  Result:= FetchSL(osszes, [#13,#10]);
 end;
-
-(*
-function Fetch(var s: string; delim: string): string;
-var i: Integer;
-begin
-  Result:= s;
-  i:= Pos(delim, s);
-  if i > 0 then
-  begin
-    Result:= Copy(s, 1, i-1);
-    Delete(s, 1, i-1+length(delim));
-  end;
-end;
-*)
 
 function IsIP(AIP: String): boolean;
 var
@@ -95,9 +75,9 @@ var
   end;
 
 begin
-  s1 := Fetch(AIP, '.');    {Do not Localize}
-  s2 := Fetch(AIP, '.');    {Do not Localize}
-  s3 := Fetch(AIP, '.');    {Do not Localize}
+  s1 := Fetch(AIP, '.', True, False);    {Do not Localize}
+  s2 := Fetch(AIP, '.', True, False);    {Do not Localize}
+  s3 := Fetch(AIP, '.', True, False);    {Do not Localize}
   s4 := AIP;
   result := ByteIsOk(s1) and ByteIsOk(s2) and ByteIsOk(s3) and ByteIsOk(s4);
 end;
@@ -125,67 +105,22 @@ procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
 begin
   with TInAddr(AInAddr) do
   begin
-    s_bytes[1] := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_bytes[2] := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_bytes[3] := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_bytes[4] := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
+    s_bytes[1] := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_bytes[2] := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_bytes[3] := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_bytes[4] := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
   end;
 end;
 {$ELSE}
 procedure TranslateStringToTInAddr(AIP: String; var AInAddr);
 begin
   with TInAddr(AInAddr).S_un_b do begin
-    s_b1 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_b2 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_b3 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
-    s_b4 := Byte(StrToInt(Fetch(AIP, '.')));    {Do not Localize}
+    s_b1 := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_b2 := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_b3 := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
+    s_b4 := Byte(StrToInt(Fetch(AIP, '.', True, False)));    {Do not Localize}
   end;
 end;
 {$ENDIF}
-
-
-(*
-function IsIP(s: string): Boolean;
-var i, j: Integer;
-    aktszam: string;
-    db: Integer;
-    szamdb: Integer;
-begin
-  Result:= False;
-
-  aktszam:= '';
-  db:= 0;
-  szamdb:= 0;
-  for i:= 1 to length(s) do
-  begin
-    if (s[i] = '.') then
-    begin
-      j:= StrToIntDef(aktszam, -1);
-      if (j > 255) or (j < 0) then exit;
-
-      inc(szamdb);
-      db:= 0;
-      aktszam:= '';
-    end
-    else
-    if (s[i] in ['0'..'9']) then
-    begin
-      aktszam:= aktszam + s[i];
-      inc(db);
-
-      if db > 3 then exit;
-
-    end else
-      exit;
-  end;
-
-  if szamdb <> 3 then exit;
-
-  j:= StrToIntDef(aktszam, -1);
-  if (j > 255) or (j < 0) then exit;
-
-  Result:= True;
-end;
-*)
 
 end.

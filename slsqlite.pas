@@ -190,7 +190,7 @@ implementation
 
 uses
   SysUtils,
-  mystrings,
+  IdGlobal,
 {$IFDEF FPC}
   dynlibs
 {$ELSE}
@@ -531,7 +531,7 @@ begin
  pragma:= Trim(pragma);
  while(true)do
  begin
-   ss:= Fetch(pragma, ';');
+   ss:= Fetch(pragma, ';', True, False);
    if ss= '' then Break;
    ExecSQL('PRAGMA '+ss);
  end;

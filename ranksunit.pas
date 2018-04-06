@@ -35,7 +35,7 @@ var
 
 implementation
 
-uses Classes, irc, sitesunit, Debugunit, SysUtils, mystrings, configunit, encinifile, UIntList, DateUtils;
+uses Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, UIntList, DateUtils, IdGlobal;
 
 const
   r_section = 'ranks';
@@ -352,9 +352,9 @@ end;
 
 constructor TRankStat.Create(line: String);
 begin
-  sitename := Fetch(line, ' ');
-  section := Fetch(line, ' ');
-  score := StrToIntDef(Fetch(line, ' '), 0);
+  sitename := Fetch(line, ' ', True, False);
+  section := Fetch(line, ' ', True, False);
+  score := StrToIntDef(Fetch(line, ' ', True, False), 0);
 end;
 
 constructor TRankStat.Create(const sitename, section: String; const score: Integer);

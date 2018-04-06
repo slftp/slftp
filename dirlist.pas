@@ -169,7 +169,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, IdGlobal;
 
 const
   section = 'dirlist';
@@ -562,9 +562,9 @@ var
 begin
   Result := 0;
 
-  s1 := Fetch(ts, ' ');
-  s2 := Fetch(ts, ' ');
-  s3 := Fetch(ts, ' ');
+  s1 := Fetch(ts, ' ', True, False);
+  s2 := Fetch(ts, ' ', True, False);
+  s3 := Fetch(ts, ' ', True, False);
 
   if s3 = '' then
     exit;
@@ -685,16 +685,16 @@ begin
         if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
           continue;
 
-        dirmaszk := Fetch(tmp, ' '); // dir mask
-        Fetch(tmp, ' '); // No. of something
-        username := Fetch(tmp, ' '); // username
-        groupname := Fetch(tmp, ' '); // groupname
-        filesize := StrToInt64Def(Fetch(tmp, ' '),-1); // filesize
+        dirmaszk := Fetch(tmp, ' ', True, False); // dir mask
+        Fetch(tmp, ' ', True, False); // No. of something
+        username := Fetch(tmp, ' ', True, False); // username
+        groupname := Fetch(tmp, ' ', True, False); // groupname
+        filesize := StrToInt64Def(Fetch(tmp, ' ', True, False),-1); // filesize
 
         if filesize < 0 then
           Continue;
 
-        datum := Fetch(tmp, ' ') + ' ' + Fetch(tmp, ' ') + ' ' + Fetch(tmp, ' '); // datum
+        datum := Fetch(tmp, ' ', True, False) + ' ' + Fetch(tmp, ' ', True, False) + ' ' + Fetch(tmp, ' ', True, False); // datum
         filename := Trim(tmp); // file or dirname
 
         if filename = '' then
