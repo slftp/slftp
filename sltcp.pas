@@ -26,8 +26,8 @@ type
 
   TslSocks5 = class
     enabled: Boolean;
-    username: String;
-    password: String;
+    username: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
+    password: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
     host: String;
     port: Integer;
   end;
@@ -55,7 +55,7 @@ type
     procedure SetSSLContext(m: TslSSLMethod);
   public
     slSocket: TslSocket;
-    Host: String;
+    Host: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
     Port: Integer;
     error: String;
 
