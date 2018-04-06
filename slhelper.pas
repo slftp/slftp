@@ -17,7 +17,7 @@ uses
   sockets
 {$ELSE}
   {$IFDEF MSWINDOWS}
-    slWinSock2
+    IdWinsock2
   {$ELSE}
     Libc
   {$ENDIF}

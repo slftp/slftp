@@ -15,12 +15,16 @@ uses
   {$ENDIF}
 {$ELSE}
   {$IFDEF MSWINDOWS}
-  Windows,  slWinSock2
+  Windows, IdWinsock2
   {$ELSE}
     Libc
   {$ENDIF}
 {$ENDIF}
 ;
+
+// needed for below TslSocket, else SOCKET_ERROR gives a compiler error in windows
+type
+  TSocket = Integer;
 
 type
   TslSocket = record
@@ -43,7 +47,7 @@ const
   {$ENDIF}
 {$ELSE}
   {$IFDEF MSWINDOWS}
-    slSocketError = socket_error;
+    slSocketError = SOCKET_ERROR;
   {$ELSE}
     slSocketError = -1;
 
@@ -91,31 +95,33 @@ implementation
 
 uses slhelper;
 
-{$IFDEF FPC}
-function slStackInit(var error: String): Boolean;
-begin
-  Result:= True;
-end;
-{$ELSE}
 function slStackInit(var error: String): Boolean;
 {$IFDEF MSWINDOWS}
 var
   sData: TWSAData;
 {$ENDIF}
 begin
-{$IFDEF MSWINDOWS}
-  Result:= False;
-  if WSAStartup($202, sData) = SOCKET_ERROR then
-  begin
-    error:= slWinsock2error;
-    exit;
-  end;
-{$ELSE}
-  // nothing to do on linux
-{$ENDIF}
-  Result:= True;
+  {$IFDEF MSWINDOWS}
+    try
+      InitializeWinSock;
+    except
+      on e : Exception do
+      begin
+        error := e.Message;
+        exit;
+      end;
+      on e : EIdWinsockStubError do
+      begin
+        error := e.Message + ' -- ' + e.Win32ErrorMessage;
+        exit;
+      end;
+    end;
+  {$ELSE}
+    // nothing to do on linux
+  {$ENDIF}
+
+  Result := True;
 end;
-{$ENDIF}
 
 {$IFDEF MSWINDOWS}
 function slSetnonblocking(s: TslSocket; var error: String): Boolean;
@@ -286,8 +292,11 @@ var
   Host: PHostEnt;
 begin
   Result:= '';
-
-  Host := GetHostByName(PAnsiChar(AHostName));
+  {$IFDEF UNICODE}
+    Host := GetHostByName(PAnsiChar(RawByteString(AHostName)));
+  {$ELSE}
+    Host := GetHostByName(PAnsiChar(AHostName));
+  {$ENDIF}
   if Host <> nil then
   begin
   {$IFDEF MSWINDOWS}
