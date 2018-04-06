@@ -2,7 +2,7 @@ unit dbaddurl;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs;
+uses Classes, irc;
 
 type
   TDbUrl = class
@@ -28,8 +28,7 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, debugunit, dbaddimdb;
+uses DateUtils, SysUtils, configunit, mystrings, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';

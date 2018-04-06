@@ -37,7 +37,7 @@ var
 
 implementation
 
-uses mystrings, debugunit, Regexpr, irc;
+uses mystrings, debugunit, Regexpr;
 
 const
   rsections = 'sllanguagebase';
