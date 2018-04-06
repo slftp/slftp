@@ -16,7 +16,7 @@ uses
 {$ELSE}
   ActiveX, Variants, xmldom, XMLIntf, msxmldom, XMLDoc
 {$ENDIF}
-  , Classes, SysUtils, irc;
+  , Classes, SysUtils;
 
 type
 {$IFDEF FPC}

@@ -18,7 +18,7 @@ function LameID3v1ID3v2Info(s: TSiteSlot; id3v1only: Boolean; filesize: Int64; c
 
 implementation
 
-uses mystrings, SysUtils, DebugUnit, irc;
+uses SysUtils, DebugUnit;
 
 const section = 'lame';
 
@@ -170,7 +170,7 @@ ujra:
     readyerror:= True;
     exit;
   end;
-     
+
   if s.status <> ssOnline then
     if not s.ReLogin then
     begin

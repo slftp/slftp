@@ -20,7 +20,7 @@ type
 implementation
 
 uses
-  SysUtils, irc, debugunit, dateutils, configunit, dirlist, dbaddnfo, http, sitesunit;
+  SysUtils, irc, debugunit, dateutils, dirlist, dbaddnfo, http, sitesunit;
 
 const
   section = 'taskhttpnfo';

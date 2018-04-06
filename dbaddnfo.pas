@@ -2,7 +2,7 @@ unit dbaddnfo;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs, encinifile;
+uses Classes, irc, kb, encinifile;
 
 type
   TDbNfo = class
@@ -30,9 +30,8 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, slmasks, regexpr, debugunit, taskhttpnfo,
-  dbaddurl, dbaddimdb, pazo;
+uses DateUtils, SysUtils, configunit, mystrings, queueunit, regexpr, debugunit, taskhttpnfo,
+  dbaddurl, dbaddimdb;
 
 const
   section = 'dbaddnfo';

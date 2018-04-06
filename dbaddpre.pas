@@ -54,9 +54,9 @@ function AddPreDbAlive: boolean;
 
 implementation
 
-uses DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console,
-  sitesunit, queueunit, regexpr, debugunit, pazo, taskrace,
-  precatcher, SyncObjs, DateUnit, taskpretime,
+uses DateUtils, SysUtils, configunit, mystrings, console,
+  sitesunit, regexpr, debugunit,
+  precatcher, SyncObjs, taskpretime,
   slsqlite, mysqlutilunit, slmysql2, http;
 
 const

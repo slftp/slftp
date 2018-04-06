@@ -3,7 +3,7 @@
 interface
 
 uses
-  Classes, pazo, tasksunit, sltcp;
+  Classes, tasksunit, sltcp;
 
 type
   TPazoHTTPImdbTask = class(TTask)
@@ -21,7 +21,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, http,
-  sitesunit, regexpr, dbaddimdb, Contnrs, mystrings, dbtvinfo;
+  sitesunit, regexpr, dbaddimdb, mystrings, dbtvinfo;
 
 const
   section = 'taskhttpimdb';
