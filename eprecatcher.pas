@@ -9,9 +9,10 @@ procedure EPrecatcherStart;
 
 implementation
 
-uses configunit, queueunit, debugunit, sltcp, mycrypto, kb, mystrings, SysUtils;
+uses configunit, queueunit, debugunit, sltcp, mycrypto, kb, IdGlobal, SysUtils;
 
-const rsections = 'eprecatcher';
+const
+  rsections = 'eprecatcher';
 
 type
   TEPrecatcherThread = class(TslTCPThread)
@@ -19,7 +20,8 @@ type
     procedure Execute; override;
   end;
 
-var slUDP: TEPrecatcherThread = nil;
+var
+  slUDP: TEPrecatcherThread = nil;
 
 procedure EPrecatcherInit;
 begin
@@ -61,8 +63,9 @@ begin
 end;
 
 procedure TEPrecatcherThread.Execute;
-var ss: String;
-    sitename, section, genre, event, rls, cdno: String;
+var
+  ss: String;
+  sitename, section, genre, event, rls, cdno: String;
 begin
 
   while(true) do
@@ -83,12 +86,12 @@ begin
     debug(dpMessage, rsections, 'Got line: %s', [ss]);
 
     ss:= Csere(ss, '||', '| |'); // fix for empty genre
-    sitename:= Fetch(ss, '|');
-    section:= Fetch(ss, '|');
-    genre:= trim(Fetch(ss, '|'));
-    event:= Fetch(ss, '|');
-    rls:= Fetch(ss, '|');
-    cdno:= Fetch(ss, '|');
+    sitename:= Fetch(ss, '|', True, False);
+    section:= Fetch(ss, '|', True, False);
+    genre:= trim(Fetch(ss, '|', True, False));
+    event:= Fetch(ss, '|', True, False);
+    rls:= Fetch(ss, '|', True, False);
+    cdno:= Fetch(ss, '|', True, False);
 
     kb_add(
       '',
