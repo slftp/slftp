@@ -14,7 +14,7 @@ var
 implementation
 
 uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, dbaddpre, slvision, StrUtils
+  statsunit, indexer, dbtvinfo, dbaddpre, StrUtils
   {$IFDEF MSWINDOWS}
     , Windows
   {$ENDIF};

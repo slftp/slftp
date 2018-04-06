@@ -16,7 +16,7 @@ var
 
 implementation
 
-uses debugunit, sysutils, irc;
+uses debugunit, sysutils;
 
 const
   section = 'globalskip';
