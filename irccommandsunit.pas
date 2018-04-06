@@ -11343,7 +11343,7 @@ begin
   {$ENDIF}
   cpuversion := cpuversion + ' [' + Compiler_Str + ']';
 
-  fProcessID := IntToStr(GetCurrentProcessId);
+  fProcessID := IntToStr(CurrentProcessId);
 
   {$IFDEF MSWINDOWS}
     // TODO: read memory usage on windows
