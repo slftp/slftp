@@ -17,7 +17,7 @@ implementation
 
 uses configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
-  debugunit, RegExpr;
+  debugunit, RegExpr, IdGlobal;
 
 const
   rsections = 'autodirlist';
@@ -80,7 +80,7 @@ begin
     while (i < x.Count) do
     begin
       ss := x.Names[i];
-      sitename := Fetch(ss, '-');
+      sitename := Fetch(ss, '-', True, False);
       if sitename = site1 then
       begin
         // lolka fel van toltve helyben.  -- Lolka is charged on site.
@@ -118,7 +118,7 @@ begin
     begin
       // jo, addolunk racetaskot dirlistekkel meg minden   ~~ jo, addolunk racetaskot dirlistekkel all
       ss := x.Names[0];
-      Fetch(ss, '-');
+      Fetch(ss, '-', True, False);
 
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasename, ss);
@@ -129,7 +129,7 @@ begin
       for i := 0 to x.Count - 1 do
       begin
         ss := x.Names[i];
-        sitename := Fetch(ss, '-');
+        sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;

@@ -665,7 +665,7 @@ uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, spe
   RegExpr, mslproxys, http, strUtils, inifiles, rcmdline,
   mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
-  tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers;
+  tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers, IdGlobal;
 
 {$I common.inc}
 
@@ -6744,7 +6744,7 @@ begin
       sc := s.RCString('autocrawlersections', '');
       while (True) do
       begin
-        asc := Fetch(sc, ' ');
+        asc := Fetch(sc, ' ', True, False);
         if ((asc = '') and (sc = '')) then
           break;
 
@@ -8007,7 +8007,7 @@ begin
 
     while (True) do
     begin
-      ss := Fetch(params, ' ');
+      ss := Fetch(params, ' ', True, False);
       if ss = '' then
         break;
 
@@ -8104,7 +8104,7 @@ begin
   oparams := params;
   while (True) do
   begin
-    ss := Fetch(params, ' ');
+    ss := Fetch(params, ' ', True, False);
     if ss = '' then
       break;
 
@@ -8145,7 +8145,7 @@ begin
 
   while (True) do
   begin
-    ss := Fetch(params, ' ');
+    ss := Fetch(params, ' ', True, False);
     if ss = '' then
       break;
 
@@ -8216,7 +8216,7 @@ begin
     kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
     while (True) do
     begin
-      ss := Fetch(params, ' ');
+      ss := Fetch(params, ' ', True, False);
       if ss = '' then
         break;
 
@@ -8335,7 +8335,7 @@ begin
   oparams := params;
   while (True) do
   begin
-    ss := Fetch(params, ' ');
+    ss := Fetch(params, ' ', True, False);
     if ss = '' then
       break;
 
@@ -8408,7 +8408,7 @@ begin
 
   while (True) do
   begin
-    ss := Fetch(params, ' ');
+    ss := Fetch(params, ' ', True, False);
     if ss = '' then
       break;
 
@@ -8461,7 +8461,7 @@ begin
 
   while (True) do
   begin
-    ss := Fetch(params, ' ');
+    ss := Fetch(params, ' ', True, False);
     if ss = '' then
       break;
 
@@ -9200,8 +9200,8 @@ begin
       if ((1 = Pos('delay' + s2, x[i])) and (0 <> Pos('-min', x[i]))) then
       begin
         s := x[i];
-        Fetch(s, '-');
-        s3 := Fetch(s, '-');
+        Fetch(s, '-', True, False);
+        s3 := Fetch(s, '-', True, False);
         minv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-min', 0);
         maxv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max', 0);
 
