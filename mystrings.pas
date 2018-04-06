@@ -78,12 +78,6 @@ function BoolToStr(Value: boolean): String; overload;
 
 procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
-{$IFDEF FPC}
-  function GetCurrentProcessId : Cardinal;
-{$ELSE}
-  function GetCurrentProcessId : Cardinal; stdcall; external 'kernel32.dll';
-{$ENDIF}
-
 implementation
 
 uses
@@ -798,13 +792,6 @@ begin
       Result := Result + s[i];
     end;
 end;
-
-{$IFDEF FPC}
-  function GetCurrentProcessId : Cardinal;
-  begin
-    Result := GetProcessID();
-  end;
-{$ENDIF}
 
 end.
 
