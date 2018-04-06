@@ -686,9 +686,13 @@ begin
           continue;
 
         dirmaszk := Fetch(tmp, ' ', True, False); // dir mask
+        tmp := TrimLeft(tmp);
         Fetch(tmp, ' ', True, False); // No. of something
+        tmp := TrimLeft(tmp);
         username := Fetch(tmp, ' ', True, False); // username
+        tmp := TrimLeft(tmp);
         groupname := Fetch(tmp, ' ', True, False); // groupname
+        tmp := TrimLeft(tmp);
         filesize := StrToInt64Def(Fetch(tmp, ' ', True, False),-1); // filesize
 
         if filesize < 0 then
