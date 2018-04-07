@@ -67,6 +67,7 @@ function slGetHostByName(AHostName: String; var error: String): String; overload
 function slResolve(host: String; var error: String): String;
 function slConvertIp(host: String): String;
 function slBind(var slSocket: TslSocket; ip: String; port: Word; var error: String): Boolean;
+function slGetHostName: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 function slGetSocket(var slSocket: TslSocket; udp: Boolean; var error: String): Boolean;
 function slConnect(socket: TslSocket; host: String; port: Integer; var error: String): Integer;
@@ -357,18 +358,16 @@ begin
   Result := Format('%d.%d.%d.%d', [(lip shr 24), (lip shr 16) and $FF,(lip shr 8) and $FF, lip and $FF]);
 end;
 
-
-function slGetHostName: String;
+function slGetHostName: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
 begin
-{$IFDEF MSWINDOWS}
-  SetLength(result, 250);
-  GetHostName(PAnsiChar(result), Length(result));
-  Result := AnsiString(PAnsiChar(result));
-{$ELSE}
-  Result := GetHostName;
-{$ENDIF}
+  {$IFDEF MSWINDOWS}
+    SetLength(result, 250);
+    GetHostName(PAnsiChar(result), Length(result));
+    Result := PAnsiChar(result);
+  {$ELSE}
+    Result := GetHostName;
+  {$ENDIF}
 end;
-
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 type
