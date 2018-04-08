@@ -693,12 +693,16 @@ begin
         tmp := TrimLeft(tmp);
         groupname := Fetch(tmp, ' ', True, False); // groupname
         tmp := TrimLeft(tmp);
-        filesize := StrToInt64Def(Fetch(tmp, ' ', True, False),-1); // filesize
+        filesize := StrToInt64Def(Fetch(tmp, ' ', True, False), -1); // filesize
 
         if filesize < 0 then
           Continue;
 
-        datum := Fetch(tmp, ' ', True, False) + ' ' + Fetch(tmp, ' ', True, False) + ' ' + Fetch(tmp, ' ', True, False); // datum
+        datum := Fetch(tmp, ' ', True, False);
+        tmp := TrimLeft(tmp);
+        datum := datum + ' ' + Fetch(tmp, ' ', True, False);
+        tmp := TrimLeft(tmp);
+        datum := datum + ' ' + Fetch(tmp, ' ', True, False); // date and time
         filename := Trim(tmp); // file or dirname
 
         if filename = '' then
