@@ -61,8 +61,8 @@ echo Compiling NEWDELPHI RELEASE Win64 slftp.exe
 if errorlevel 1 (
    echo Failure Reason Given is %errorlevel%
    exit /b %errorlevel%
-)g
-oto :eof
+)
+goto :eof
 
 :slftp_nd_32_debug
 del /q *.exe *.dcu
