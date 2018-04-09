@@ -11329,18 +11329,29 @@ begin
   {$IFDEF FPC}
     {$IFDEF CPU32}
       cpuversion := '32-Bit';
-    {$ENDIF}
-    {$IFDEF CPU64}
+    {$ELSE}
       cpuversion := '64-Bit';
     {$ENDIF}
-
-    {$IFDEF CPUARM}
-      cpuversion := cpuversion + ' on ARM';
-    {$ENDIF}
   {$ELSE}
-    // delphi 2007 doesn't have support for 64 bit
-    cpuversion := '32-Bit';
+    {$IFDEF MSWINDOWS}
+      {$IFDEF WIN32}
+        cpuversion := '32-Bit';
+      {$ELSE}
+        cpuversion := '64-Bit';
+      {$ENDIF}
+    {$ELSE}
+      {$IFDEF LINUX32}
+        cpuversion := '32-Bit';
+      {$ELSE}
+        cpuversion := '64-Bit';
+      {$ENDIF}
+    {$ENDIF}
   {$ENDIF}
+
+  {$IFDEF CPUARM}
+    cpuversion := cpuversion + ' on ARM';
+  {$ENDIF}
+
   cpuversion := cpuversion + ' [' + Compiler_Str + ']';
 
   fProcessID := IntToStr(CurrentProcessId);
