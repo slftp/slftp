@@ -312,7 +312,7 @@ uses {$ifdef windows}Windows,{$endif}{$ifdef unix}dl,BaseUnix,Unix,UnixType,{$en
 
 const FLREVersion=$00000004;
 
-      FLREVersionString='1.00.2018.04.07.21.40.0000';
+      FLREVersionString='1.00.2018.04.17.20.04.0000';
 
       FLREMaxPrefixCharClasses=32;
 
@@ -1133,7 +1133,7 @@ type EFLRE=class(Exception);
        function Concat(NodeLeft,NodeRight:PFLRENode):PFLRENode;
 
        function NewEmptyMatch:PFLRENode;
-       
+
        function NewAlt(NodeLeft,NodeRight:PFLRENode):PFLRENode;
        function NewPlus(Node:PFLRENode;Kind:TFLREInt32):PFLRENode;
        function NewStar(Node:PFLRENode;Kind:TFLREInt32):PFLRENode;
@@ -1167,6 +1167,8 @@ type EFLRE=class(Exception);
        function SearchNextPossibleStartForDFA(const Input:PFLRERawByteChar;const InputLength:TFLREInt32):TFLREInt32; {$ifdef cpu386}register;{$endif}
 
        function SearchMatch(ThreadLocalStorageInstance:TFLREThreadLocalStorageInstance;var Captures:TFLRECaptures;StartPosition,UntilExcludingPosition:TFLREInt32;UnanchoredStart:boolean):boolean;
+
+       function DumpRegularExpressionNode(StartNode:PFLRENode):TFLRERawByteString;
 
       public
 
@@ -3673,11 +3675,15 @@ end;
 
 function PtrPosChar(const SearchChar:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSearch(@Text[Offset],TFLREUInt8(TFLRERawByteChar(SearchChar)),@Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSearch(@Text[Offset],TFLREUInt8(TFLRERawByteChar(SearchChar)),@Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -3769,11 +3775,15 @@ end;
 
 function PtrPosCharSetOf2(const SearchChar0,SearchChar1:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf2Search(@Text[Offset],(TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),@Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf2Search(@Text[Offset],(TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),@Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -3888,15 +3898,19 @@ end;
 
 function PtrPosCharSetOf3(const SearchChar0,SearchChar1,SearchChar2:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf3Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf3Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4028,16 +4042,20 @@ end;
 
 function PtrPosCharSetOf4(const SearchChar0,SearchChar1,SearchChar2,SearchChar3:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf4Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf4Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4156,17 +4174,21 @@ end;
 
 function PtrPosCharSetOf5(const SearchChar0,SearchChar1,SearchChar2,SearchChar3,SearchChar4:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf5Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf5Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4296,18 +4318,22 @@ end;
 
 function PtrPosCharSetOf6(const SearchChar0,SearchChar1,SearchChar2,SearchChar3,SearchChar4,SearchChar5:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf6Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf6Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4448,19 +4474,23 @@ end;
 
 function PtrPosCharSetOf7(const SearchChar0,SearchChar1,SearchChar2,SearchChar3,SearchChar4,SearchChar5,SearchChar6:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf7Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar6))) shl 48) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf7Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar6))) shl 48) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4612,20 +4642,24 @@ end;
 
 function PtrPosCharSetOf8(const SearchChar0,SearchChar1,SearchChar2,SearchChar3,SearchChar4,SearchChar5,SearchChar6,SearchChar7:TFLRERawByteChar;const Text:PFLRERawByteChar;TextLength:TFLREInt32;Offset:TFLREInt32=0):TFLREPtrInt;
 begin
- result:=PtrPosCharSetOf8Search(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar7))) shl 56) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar6))) shl 48) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf8Search(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar7))) shl 56) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar6))) shl 48) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar5))) shl 40) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar4))) shl 32) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar3))) shl 24) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar2))) shl 16) or
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4736,11 +4770,15 @@ function PtrPosCharPair(const SearchChar0,SearchChar1:TFLRERawByteChar;const Tex
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharPairSearch(@Text[Offset],(TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),@Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharPairSearch(@Text[Offset],(TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),@Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -4892,14 +4930,18 @@ function PtrPosCharSetOf2Of2(const SearchChar0,SearchChar1:TFLRERawByteChar;cons
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharSetOf2Of2Search(@Text[Offset],
-                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                                   TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                                   @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf2Of2Search(@Text[Offset],
+                                    (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                    TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                    @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -5041,14 +5083,18 @@ function PtrPosCharSetOf2Of3(const SearchChar0,SearchChar1:TFLRERawByteChar;cons
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharSetOf2Of3Search(@Text[Offset],
-                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                                   TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                                   @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf2Of3Search(@Text[Offset],
+                                    (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                    TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                    @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -5212,14 +5258,18 @@ function PtrPosCharSetOf2Of4(const SearchChar0,SearchChar1:TFLRERawByteChar;cons
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharSetOf2Of4Search(@Text[Offset],
-                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
-                                   TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
-                                   @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharSetOf2Of4Search(@Text[Offset],
+                                    (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar1))) shl 8) or
+                                    TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchChar0))),
+                                    @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -5317,14 +5367,18 @@ function PtrPosCharRange(const SearchFromChar,SearchToChar:TFLRERawByteChar;cons
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharRangeSearch(@Text[Offset],
-                               (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar))) shl 8) or
-                               TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar))),
-                               @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharRangeSearch(@Text[Offset],
+                                (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar))) shl 8) or
+                                TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar))),
+                                @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -5473,16 +5527,20 @@ function PtrPosCharRangeOf2(const SearchFromChar0,SearchToChar0,SearchFromChar1,
 var Index:TFLREInt32;
     CurrentChar:TFLRERawByteChar;
 begin
- result:=PtrPosCharRangeOf2Search(@Text[Offset],
-                                  (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar1))) shl 24) or
-                                  (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar1))) shl 16) or
-                                  (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar0))) shl 8) or
-                                  TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar0))),
-                                  @Text[TextLength]);
- if result=0 then begin
-  result:=-1;
+ if Offset<TextLength then begin
+  result:=PtrPosCharRangeOf2Search(@Text[Offset],
+                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar1))) shl 24) or
+                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar1))) shl 16) or
+                                   (TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchToChar0))) shl 8) or
+                                   TFLREQWord(TFLREUInt8(TFLRERawByteChar(SearchFromChar0))),
+                                   @Text[TextLength]);
+  if result=0 then begin
+   result:=-1;
+  end else begin
+   dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  end;
  end else begin
-  dec(result,TFLREPtrInt(pointer(@Text[Offset])));
+  result:=-1;
  end;
 end;
 
@@ -13392,7 +13450,7 @@ begin
    if Position>=LookAssertionStringLength then begin
     result:=true;
     for Index:=0 to LookAssertionStringLength-1 do begin
-     if Input[Position-Index]<>LookAssertionString[LookAssertionStringLength-Index] then begin
+     if Input[(Position-Index)-1]<>LookAssertionString[LookAssertionStringLength-Index] then begin
       result:=false;
       break;
      end;
@@ -13409,7 +13467,7 @@ begin
      dec(BasePosition);
     end;
     for Index:=1 to LookAssertionStringLength do begin
-     if Input[BasePosition+Index]<>LookAssertionString[Index] then begin
+     if Input[(BasePosition+Index)-1]<>LookAssertionString[Index] then begin
       result:=false;
       break;
      end;
@@ -13704,11 +13762,6 @@ begin
 
   if not ((fifHasLookAssertions in InternalFlags) or (fifHasBackReferences in InternalFlags)) then begin
    Include(InternalFlags,fifDFAReady);
-  end;
-
-  if (fifHasLookAssertions in InternalFlags) or (fifHasBackReferences in InternalFlags) then begin
-   Include(InternalFlags,fifOnePassNFAReady);
-  end else begin
    CompileOnePassNFA;
   end;
 
@@ -14543,6 +14596,9 @@ begin
                        TempNode:=NewNode(ntCAT,TempNode,NodeListLeft[NewNodeIndex],0);
                       end;
                       Alternative:=NewAlt(Alternative,TempNode);
+                     end else begin
+                      TempNode:=NewNode(ntZEROWIDTH,nil,nil,0);
+                      Alternative:=NewAlt(Alternative,TempNode);
                      end;
                     finally
                      NodeListLeft.Free;
@@ -14634,6 +14690,9 @@ begin
                       for NewNodeIndex:=NodeListLeft.Count-2 downto 0 do begin
                        TempNode:=NewNode(ntCAT,TempNode,NodeListLeft[NewNodeIndex],0);
                       end;
+                      Alternative:=NewAlt(Alternative,TempNode);
+                     end else begin
+                      TempNode:=NewNode(ntZEROWIDTH,nil,nil,0);
                       Alternative:=NewAlt(Alternative,TempNode);
                      end;
                     finally
@@ -21075,7 +21134,7 @@ begin
  end;
 end;
 
-function TFLRE.DumpRegularExpression:TFLRERawByteString;
+function TFLRE.DumpRegularExpressionNode(StartNode:PFLRENode):TFLRERawByteString;
 var CharClass:TFLRECharClass;
  function ProcessNode(Node:PFLRENode;ParentPrecedence:TFLREInt32):TFLRERawByteString;
  const HexChars:array[$0..$f] of TFLRERawByteChar='0123456789abcdef';
@@ -21283,7 +21342,12 @@ var CharClass:TFLRECharClass;
   end;
  end;
 begin
- result:=ProcessNode(AnchoredRootNode,npTopLevel);
+ result:=ProcessNode(StartNode,npTopLevel);
+end;
+
+function TFLRE.DumpRegularExpression:TFLRERawByteString;
+begin
+ result:=DumpRegularExpressionNode(AnchoredRootNode);
 end;
 
 function TFLRE.GetPrefilterExpression:TFLRERawByteString;
