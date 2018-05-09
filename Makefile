@@ -2,7 +2,7 @@ SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Compvers -Fulibs/Indy10_5448/* -Fulibs/LibTar
+CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Compvers -Fulibs/Indy10_5457/* -Fulibs/LibTar -Fu/usr/lib/fpc/3.1.1/units/x86_64-linux/*
 CDBFLAGS = -MDelphi -gl -gp -gs -gw3
 default: clean slftp
 
@@ -42,7 +42,7 @@ clean:
 	@rm -f libs/TRegExpr/*.ppu libs/TRegExpr/*.o
 	@rm -f libs/pasmp/*.ppu libs/pasmp/*.o
 	@rm -f libs/Compvers/*.ppu libs/Compvers/*.o
-	@rm -f libs/Indy10_5448/Core/*.ppu libs/Indy10_5448/Core/*.o libs/Indy10_5448/Protocols/*.ppu libs/Indy10_5448/Protocols/*.o libs/Indy10_5448/System/*.ppu libs/Indy10_5448/System/*.o
+	@rm -f libs/Indy10_5457/Core/*.ppu libs/Indy10_5457/Core/*.o libs/Indy10_5457/Protocols/*.ppu libs/Indy10_5457/Protocols/*.o libs/Indy10_5457/System/*.ppu libs/Indy10_5457/System/*.o
 	@rm -f libs/LibTar/*.ppu libs/LibTar/*.o
 	@rm -f *.ppu *.o slftp *.exe
 
