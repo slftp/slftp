@@ -33,6 +33,11 @@ SpecialDirsTags: array[0..9] of String = (
   'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
 );
 
+// identification words for messages which are ECB or CBC encrypted
+BlowfishIdentificationWords: array[0..2] of String = (
+  '+OK *', '+OK ', 'mcps '
+);
+
 NewsSystemSpamMessages: array[0..0] of String = (
   'IRC connection timed out'
 );
