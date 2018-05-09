@@ -22,12 +22,11 @@ type
     inviteonly: Boolean;
     procedure UpdateKey(blowkey: String);
     constructor Create(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc:boolean = False);
-
     function HasKey(key: String): Boolean;
   end;
 
 function irc_encrypt(netname, channel, dText: String; include_ok: Boolean = False): String;
-function irc_decrypt(netname, channel, eText: String): String;
+function irc_ecb_decrypt(netname, channel, eText: String): String;
 function irc_RegisterChannel(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
 function FindIrcBlowfish(const netname, channel: String; acceptdefault: Boolean = True): TIrcBlowkey;
 procedure IrcblowfishInit;
@@ -49,7 +48,7 @@ const
 //perl compatible index, cause delphis pos works different
 function PCindex(w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): Cardinal;
 begin
-  Result:= Pos(w, B64);
+  Result := Pos(w, B64);
   if Result > 0 then dec(Result);
 end;
 
@@ -58,9 +57,9 @@ var
   s: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
   Result := #0;
-  s:= Copy(w, i+1, 1);
+  s := Copy(w, i+1, 1);
   if (length(s) > 0) then
-    Result:= s[1];
+    Result := s[1];
 end;
 
 function bytetoB64(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
@@ -106,7 +105,7 @@ begin
     end;
 
   end;
-  Result:= dc;
+  Result := dc;
 end;
 
 function B64tobyte(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
@@ -115,7 +114,7 @@ var
   k: Integer;
   i, right, left: Cardinal;
 begin
-  dc:= '';
+  dc := '';
   k := -1;
 
   while(k < (length(ec)-1)) do
@@ -147,16 +146,17 @@ begin
 
   end;
 
-  Result:= dc;
+  Result := dc;
 end;
 
 
 function set_key(key: String): String;
-var i, keyLen: Integer;
-    newkey: String;
+var
+  i, keyLen: Integer;
+  newkey: String;
 begin
   Result := key;
-  if(length(key) < 8) then
+  if (length(key) < 8) then
   begin
     keyLen := length(key);
     i := 8 div keyLen;
@@ -247,59 +247,61 @@ begin
     Result := UTF8Decode(eText);
 end;
 
-
-function irc_decrypt(netname, channel, eText: String): String;
+function irc_ecb_decrypt(netname, channel, eText: String): String;
 var
   temp, dText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   i : Integer;
   bf: TIrcBlowkey;
 begin
-  bf:= FindIrcBlowfish(netname, channel);
+  bf := FindIrcBlowfish(netname, channel);
   if ((bf = nil) or (bf.blowkey = '')) then
   begin
-    Result:= eText;
+    Result := eText;
     exit;
   end;
 
-  dtext:= '';
-  for i:= 1 to length(eText) div 12 do
+  if bf.cbc then
   begin
-     temp := B64tobyte(Copy(eText,1+(i-1)*12,12));
-     SetLength(temp, 8);
-     if bf.cbc then
-      BlowfishDecryptCBC(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp))
-     else
-      BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
-     dText := dtext + temp;
+    Debug(dpError, section, Format('[FiSH] Fishkey is for CBC but encrypted text is in ECB mode! %s-%s : %s', [netname, channel, eText]));
+    exit;
   end;
 
-  Result:= dText;
+  dtext := '';
+  for i := 1 to length(eText) div 12 do
+  begin
+    temp := B64tobyte(Copy(eText, 1 + (i - 1) * 12, 12));
+    SetLength(temp, 8);
+    BlowfishDecryptECB(bf.KeyData, PAnsiChar(temp), PAnsiChar(temp));
+    dText := dtext + temp;
+  end;
+
+  Result := dText;
 end;
 
 
 { TIrcBlowkey }
 
-constructor TIrcBlowkey.Create(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True;cbc:boolean = False);
+constructor TIrcBlowkey.Create(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc: Boolean = False);
 begin
-  self.channel:= channel;
-  self.chankey:= chankey;
-  self.netname:= netname;
-  self.inviteonly:= inviteonly;
-  self.cbc:=cbc;
+  self.channel := channel;
+  self.chankey := chankey;
+  self.netname := netname;
+  self.inviteonly := inviteonly;
+  self.cbc := cbc;
   UpdateKey(blowkey);
 end;
 
 function TIrcBlowkey.HasKey(key: String): Boolean;
 begin
-  Result:= False;
-  key:= ' '+UpperCase(key)+' ';
+  Result := False;
+  key := ' ' + UpperCase(key) + ' ';
   if Pos(key, names) > 0 then
-    Result:= True;
+    Result := True;
 end;
 
 procedure TIrcBlowKey.UpdateKey(blowkey: String);
 const
-    IV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
+  IV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
 var
   myKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
@@ -311,12 +313,12 @@ begin
     BlowfishInit(KeyData, PAnsiChar(myKey), Length(myKey), @iv);
   end
   else
-    myKey:= '';
+    myKey := '';
 end;
 
 procedure IrcBlowfishInit;
 begin
-  chankeys:= TObjectList.Create;
+  chankeys := TObjectList.Create;
 end;
 
 procedure IrcBlowfishUninit;
@@ -324,20 +326,19 @@ var
   i: Integer;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  for i:= 0 to chankeys.Count -1 do
+  for i := 0 to chankeys.Count - 1 do
     BlowfishBurn(TIrcBlowkey(chankeys[i]).KeyData);
   chankeys.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-// ezt a fuggvenyt csak irc_lock mellett szabad hivni!
-function irc_RegisterChannel(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
+function irc_RegisterChannel(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False; cbc: Boolean = False): TIrcBlowkey;
 begin
-  Result:= FindIrcBlowfish(netname, channel, False);
+  Result := FindIrcBlowfish(netname, channel, False);
   if nil = Result then
   begin
     console_add_ircwindow(netname+' '+channel);
-    Result:= TIrcBlowkey.Create(netname, channel, blowkey, chankey, inviteonly,cbc);
+    Result := TIrcBlowkey.Create(netname, channel, blowkey, chankey, inviteonly, cbc);
     chankeys.Add(Result);
   end;
 end;
