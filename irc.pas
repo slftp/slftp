@@ -929,7 +929,11 @@ begin
 
   for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
   begin
-    FishModeArrayIndex := {$IFDEF UNICODE}IndexText{$ELSE}AnsiIndexText{$ENDIF}(BlowfishIdentificationWords[i], msg);
+    if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[i], msg) then
+    begin
+      FishModeArrayIndex := i;
+      break;
+    end;
   end;
 
   // handle decryption based on blowfish identification word
@@ -986,7 +990,7 @@ begin
   end;
 
   // decrypting wasn't successful or failed somehow
-  if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[FishModeArrayIndex], msg) then
+  if (is_crypted_msg) and ({$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[FishModeArrayIndex], msg)) then
   begin
     Debug(dpMessage, section, Format('[FiSH] Decryption failed for %s: %s', [channel, msg]));
     exit;
@@ -1334,7 +1338,11 @@ begin
 
       for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
       begin
-        FishModeArrayIndex := {$IFDEF UNICODE}IndexText{$ELSE}AnsiIndexText{$ENDIF}(BlowfishIdentificationWords[i], msg);
+        if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[i], msg) then
+        begin
+          FishModeArrayIndex := i;
+          break;
+        end;
       end;
 
       // handle decryption of IRC Topics if encrypted
