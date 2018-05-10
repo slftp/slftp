@@ -50,7 +50,7 @@ implementation
 
 uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
   sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSLHeaders,
+  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders,
   dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
 {$IFNDEF MSWINDOWS}
   slconsole,
@@ -103,14 +103,34 @@ begin
     result := Format('OpenSSL version %s is deprecated! %s or newer needed.', [OpenSSLVersion, lib_OpenSSL]);
     exit;
   end;
-  
+
+
   // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
-  
+  //IdOpenSSLSetLibPath('.');
+  // note for Indy 5457: "Failed to load ./libcrypto.so."
+
   {$IFDEF UNIX}
-    // do not load sym links
+    // do not try to load sym links first
     IdOpenSSLSetLoadSymLinksFirst(False);
   {$ENDIF}
+
+  try
+    IdSSLOpenSSLHeaders.Load;
+  except
+    on e: EIdOSSLCouldNotLoadSSLLibrary do
+    begin
+      Result := Format('Failed to load OpenSSL: #13#10 %s', [IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      exit;
+    end;
+    on e: Exception do
+    begin
+      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: #13#10 %s #13#10 %s', [e.ClassName, e.Message]);
+      exit;
+    end;
+  end;
+
+  // TODO: add a check for OpenSSL version
+
 
   if config.ReadString('mysql', 'host', '0') <> '0' then
   begin
