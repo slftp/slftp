@@ -106,6 +106,11 @@ begin
   
   // Tell Indy OpenSSL to load libs from current dir
   IdOpenSSLSetLibPath('.');
+  
+  {$IFDEF UNIX}
+    // do not load sym links
+    IdOpenSSLSetLoadSymLinksFirst(False);
+  {$ENDIF}
 
   if config.ReadString('mysql', 'host', '0') <> '0' then
   begin
