@@ -535,8 +535,7 @@ begin
       begin
         nn := SubString(x[i], '-', 2);
         channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
-        //b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False),sitesdat.ReadBool(x[i], 'cbc', False));
-        b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False));
+        b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False), sitesdat.ReadBool(x[i], 'cbc', False));
         b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
       end;
     end;
@@ -971,7 +970,7 @@ begin
         end;
       end;
     end;
-    2: // ECB alternative start-word 'mcps '
+    2: // ECB alternative start-word 'mcps ' (Mircryption)
     begin
       if (l > 6) then
       begin
@@ -1374,7 +1373,7 @@ begin
             end;
           end;
         end;
-        2: // ECB alternative start-word 'mcps '
+        2: // ECB alternative start-word 'mcps ' (Mircryption)
         begin
           crypted := True;
           try

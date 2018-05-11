@@ -4803,18 +4803,20 @@ var
   nn, blowchannel, key: String;
   b: TIrcBlowkey;
   ircth: TMyIrcThread;
-  cbc:boolean;
+  cbc: boolean;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
   blowchannel := SubString(params, ' ', 2);
   key := mystrings.RightStr(params, length(nn) + length(blowchannel) + 2);
-  cbc:= False;
+  cbc := False;
 
- if AnsiStartsStr('cbc',key) then begin
-   Delete(key,1,4);
-   cbc:=True;
- end;
+  // for CBC, key must start with 'cbc:' for setup compatibility with other software
+  if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}('cbc:',key) then
+  begin
+   Delete(key, 1, 4);
+   cbc := True;
+  end;
 
   ircth := FindIrcnetwork(nn);
   if ircth = nil then
@@ -4831,8 +4833,7 @@ begin
     sitesdat.WriteBool('channel-' + nn + '-' + blowchannel, 'cbc', cbc);
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found',
-      [blowchannel, nn]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
 
   Result := True;
 end;
@@ -4862,8 +4863,7 @@ begin
     ircth.shouldjoin := True;
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s is already added',
-      [blowchannel, Netname]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s is already added', [blowchannel, Netname]));
 
   Result := True;
 end;
