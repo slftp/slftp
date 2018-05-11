@@ -13,21 +13,24 @@ type
   private
     KeyData: TBlowfishData;
   public
-    netname: String;
-    channel: String;
-    blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
-    chankey: String;
-    names: String; // funkcionalitasa a csatornanak
-    cbc:boolean;
-    inviteonly: Boolean;
-    procedure UpdateKey(blowkey: String);
-    constructor Create(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc:boolean = False);
+    netname: String; //< { netname of IRC network }
+    channel: String; //< { IRC channelname }
+    blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @value(channel) }
+    chankey: String; //< { chankey for @value(channel) which is needed to join it }
+    names: String; // funkcionalitasa a csatornanak - Functionality of the channel
+    cbc: Boolean; //< { @true if channel is CBC encrypted, @false otherwise. }
+    inviteonly: Boolean; //< { @true if channel is invite only (you have to invite yourself first), @false otherwise. }
+    procedure UpdateKey(const blowkey: String);
+
+    { Creates a new IrcBlowkey entry }
+    constructor Create(const netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc: Boolean = False);
     function HasKey(key: String): Boolean;
   end;
 
 function irc_encrypt(netname, channel, dText: String; include_ok: Boolean = False): String;
-function irc_ecb_decrypt(netname, channel, eText: String): String;
-function irc_RegisterChannel(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False;cbc:boolean = False): TIrcBlowkey;
+{ Decrypt encrypted eText in ECB mode }
+function irc_ecb_decrypt(const netname, channel, eText: String): String;
+function irc_RegisterChannel(const netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = False; cbc: Boolean = False): TIrcBlowkey;
 function FindIrcBlowfish(const netname, channel: String; acceptdefault: Boolean = True): TIrcBlowkey;
 procedure IrcblowfishInit;
 procedure IrcblowfishUnInit;
@@ -44,35 +47,35 @@ const
   B64: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF} = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   section: String = 'ircblowfish';
 
+{ functions for ECB de-/encryption }
 
-//perl compatible index, cause delphis pos works different
-function PCindex(w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): Cardinal;
+// perl compatible index, cause delphis pos works different
+function PCindex(const w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): Cardinal;
 begin
   Result := Pos(w, B64);
   if Result > 0 then dec(Result);
 end;
 
-function PCsubstr(w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; i: Integer): AnsiChar;
+function PCsubstr(const w: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; i: Integer): AnsiChar;
 var
   s: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
   Result := #0;
-  s := Copy(w, i+1, 1);
+  s := Copy(w, i + 1, 1);
   if (length(s) > 0) then
     Result := s[1];
 end;
 
-function bytetoB64(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+function bytetoB64(const ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 var
   dc: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   left, right: Cardinal;
   i, k : Integer;
 begin
   dc := '';
-
   k := -1;
 
-  while(k < (length(ec)-1)) do
+  while (k < (length(ec) - 1)) do
   begin
     inc(k);
     left := (ord(PCsubstr(ec,k)) shl 24);
@@ -103,12 +106,12 @@ begin
       dc := dc + PCsubstr(B64, left and $3F);
       left := left shr 6;
     end;
-
   end;
+
   Result := dc;
 end;
 
-function B64tobyte(ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+function B64tobyte(const ec: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 var
   dc: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   k: Integer;
@@ -117,7 +120,7 @@ begin
   dc := '';
   k := -1;
 
-  while(k < (length(ec)-1)) do
+  while (k < (length(ec) - 1)) do
   begin
      right := 0;
      left := 0;
@@ -143,19 +146,19 @@ begin
      begin
        dc := dc + AnsiChar(Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
      end;
-
   end;
 
   Result := dc;
 end;
 
 
-function set_key(key: String): String;
+function set_key(const key: String): String;
 var
   i, keyLen: Integer;
   newkey: String;
 begin
   Result := key;
+
   if (length(key) < 8) then
   begin
     keyLen := length(key);
@@ -163,11 +166,13 @@ begin
     if (8 mod keyLen > 0) then inc(i);
 
     newkey := '';
+
     while (i > 0) do
     begin
       newkey := newkey + key;
       dec(i);
     end;
+
     Result := newkey;
   end;
 end;
@@ -247,7 +252,9 @@ begin
     Result := UTF8Decode(eText);
 end;
 
-function irc_ecb_decrypt(netname, channel, eText: String): String;
+
+
+function irc_ecb_decrypt(const netname, channel, eText: String): String;
 var
   temp, dText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   i : Integer;
@@ -262,7 +269,7 @@ begin
 
   if bf.cbc then
   begin
-    Debug(dpError, section, Format('[FiSH] Fishkey is for CBC but encrypted text is in ECB mode! %s-%s : %s', [netname, channel, eText]));
+    Debug(dpError, section, Format('[FiSH] Fishkey is for CBC but encrypted text is in ECB mode! %s@%s : %s', [channel, netname, eText]));
     exit;
   end;
 
@@ -281,7 +288,7 @@ end;
 
 { TIrcBlowkey }
 
-constructor TIrcBlowkey.Create(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc: Boolean = False);
+constructor TIrcBlowkey.Create(const netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc: Boolean = False);
 begin
   self.channel := channel;
   self.chankey := chankey;
@@ -299,9 +306,9 @@ begin
     Result := True;
 end;
 
-procedure TIrcBlowKey.UpdateKey(blowkey: String);
+procedure TIrcBlowKey.UpdateKey(const blowkey: String);
 const
-  IV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
+  IV: array[0..7] of byte = ($11, $22, $33, $44, $55, $66, $77, $88);
 var
   myKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
@@ -326,18 +333,21 @@ var
   i: Integer;
 begin
   Debug(dpSpam, section, 'Uninit1');
+
   for i := 0 to chankeys.Count - 1 do
     BlowfishBurn(TIrcBlowkey(chankeys[i]).KeyData);
+
   chankeys.Free;
+
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function irc_RegisterChannel(netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False; cbc: Boolean = False): TIrcBlowkey;
+function irc_RegisterChannel(const netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean= False; cbc: Boolean = False): TIrcBlowkey;
 begin
   Result := FindIrcBlowfish(netname, channel, False);
-  if nil = Result then
+  if Result = nil then
   begin
-    console_add_ircwindow(netname+' '+channel);
+    console_add_ircwindow(netname + ' ' + channel);
     Result := TIrcBlowkey.Create(netname, channel, blowkey, chankey, inviteonly, cbc);
     chankeys.Add(Result);
   end;
