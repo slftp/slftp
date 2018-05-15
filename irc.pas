@@ -813,10 +813,11 @@ procedure TMyIrcThread.IrcPrivMsg(const s: String);
 var
   channel, msg, nick, ctcp_event: String;
   is_crypted_msg: Boolean;
-  l: Integer;
+  i, FishModeArrayIndex, l: Integer;
   b: TIrcBlowkey;
   {$I common.inc}
 begin
+  FishModeArrayIndex := -1;
   {
   * full input string 's' looks like:
   :***!znc@znc.in PRIVMSG #channel :Buffer Playback... <-- znc
@@ -925,49 +926,82 @@ begin
 
 
   is_crypted_msg := False;
-  if ((1 = Pos('+OK ', msg)) and (l > 5)) then
+
+  for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
   begin
-    is_crypted_msg := True;
-    try
-      msg := TrimRight(irc_decrypt(netname, channel, Copy(msg, 5, 1000)));
-    except
-      on e: Exception do
+    if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[i], msg) then
+    begin
+      FishModeArrayIndex := i;
+      break;
+    end;
+  end;
+
+  // handle decryption based on blowfish identification word
+  case FishModeArrayIndex of
+    0: // CBC '+OK *'
+    begin
+      if (l > 6) then
       begin
-        Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-        exit;
+        is_crypted_msg := True;
+        try
+          irc_Addadmin(Format('[CBC encrypted] %s : %s', [channel, msg]));
+          //msg := TrimRight(irc_cbc_decrypt(netname, channel, Copy(msg, 6, 1000)));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] in irc_cbc_decrypt: %s', [e.Message]));
+            exit;
+          end;
+        end;
       end;
     end;
-  end
-  else if ((1 = Pos('mcps ', msg)) and (l > 6)) then
-  begin
-    is_crypted_msg := True;
-    try
-      msg := TrimRight(irc_decrypt(netname, channel, Copy(msg, 6, 1000)));
-    except
-      on e: Exception do
+    1: // ECB '+OK '
+    begin
+      if (l > 5) then
       begin
-        Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
-        exit;
+        is_crypted_msg := True;
+        try
+          msg := TrimRight(irc_ecb_decrypt(netname, channel, Copy(msg, 5, 1000)));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt: %s', [e.Message]));
+            exit;
+          end;
+        end;
+      end;
+    end;
+    2: // ECB alternative start-word 'mcps '
+    begin
+      if (l > 6) then
+      begin
+        is_crypted_msg := True;
+        try
+          msg := TrimRight(irc_ecb_decrypt(netname, channel, Copy(msg, 6, 1000)));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt: %s', [e.Message]));
+            exit;
+          end;
+        end;
       end;
     end;
   end;
 
-
   // decrypting wasn't successful or failed somehow
-  if ((1 = Pos('+OK ', msg)) or (1 = Pos('mcps ', msg))) then
+  if (is_crypted_msg) and ({$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[FishModeArrayIndex], msg)) then
   begin
+    Debug(dpMessage, section, Format('[FiSH] Decryption failed for %s: %s', [channel, msg]));
     exit;
   end;
 
-  //try
-    b := FindIrcBlowfish(netname, channel, False);
-    if (b = nil) then
-    begin
-      exit;
-    end;
-  //except
-  //  exit;
-  //end;
+
+  b := FindIrcBlowfish(netname, channel, False);
+  if (b = nil) then
+  begin
+    exit;
+  end;
 
   console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), nick, msg]));
 
@@ -1183,9 +1217,11 @@ function TMyIrcThread.IrcProcessLine(s: String): Boolean;
 var
   msg, nick, snick, s1, s2, chan: String;
   b: TIrcBlowkey;
-  i: Integer;
+  i, FishModeArrayIndex: Integer;
   crypted: boolean;
+  {$I common.inc}
 begin
+  FishModeArrayIndex := -1;
   crypted := false;
   console_addline(netname, s);
   if s = '' then
@@ -1193,10 +1229,9 @@ begin
     Result := True;
     exit;
   end;
-  //  Result:= False;
 
   irc_last_read := Now();
-  //Debug(dpSpam, section, netname+'<< '+s);
+
   if 1 = Pos('PING :', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
@@ -1299,32 +1334,62 @@ begin
       s1 := Copy(s1, Pos(' ', s1), MaxInt);
       msg := Copy(s1, Pos(':', s1) + 1, MaxInt);
       //irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
-      if (1 = Pos('+OK ', msg)) then
+
+
+      for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
       begin
-        try
+        if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}(BlowfishIdentificationWords[i], msg) then
+        begin
+          FishModeArrayIndex := i;
+          break;
+        end;
+      end;
+
+      // handle decryption of IRC Topics if encrypted
+      case FishModeArrayIndex of
+        0: // CBC '+OK *'
+        begin
           crypted := True;
-          if config.ReadBool(section, 'echo_topic_change_events', False) then
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+          try
+            if config.ReadBool(section, 'echo_topic_change_events', False) then
+              //irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_cbc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+              irc_Addadmin(Format('[CBC encrypted Topic] %s : %s', [chan, msg]));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] in irc_cbc_decrypt for Topic: %s', [e.Message]));
+            end;
           end;
         end;
-      end
-      else if (1 = Pos('mcps ', msg)) then
-      begin
-        try
+        1: // ECB '+OK '
+        begin
           crypted := True;
-          if config.ReadBool(section, 'echo_topic_change_events', False) then
-            irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] in irc_decrypt: %s', [e.Message]));
+          try
+            if config.ReadBool(section, 'echo_topic_change_events', False) then
+              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_ecb_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt for Topic: %s', [e.Message]));
+            end;
+          end;
+        end;
+        2: // ECB alternative start-word 'mcps '
+        begin
+          crypted := True;
+          try
+            if config.ReadBool(section, 'echo_topic_change_events', False) then
+              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_ecb_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt for Topic: %s', [e.Message]));
+            end;
           end;
         end;
       end;
+
+
       if not crypted then
       begin
         if config.ReadBool(section, 'echo_topic_change_events', False) then
@@ -1350,7 +1415,6 @@ begin
         chanpart(chan, snick);
       end;
     end;
-
   end;
 
   Result := True;
