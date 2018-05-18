@@ -255,7 +255,15 @@ end;
 
 procedure TTVInfoDB.Save;
 begin
-  try
+  try 
+      //Debug(dpError, section, thetvdb_id);
+      //Debug(dpError, section, Format('INSERT OR IGNORE INTO infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id,tvmaze_id,airdays,next_date,next_season,next_episode,tv_language) VALUES '+
+      //'(%1:d,%2:d,%0:s%3:s%0:s,%0:s%4:s%0:s,%0:s%5:s%0:s,%0:s%6:s%0:s,%0:s%7:s%0:s,%8:d,%9:d,%10:d,%11:d,%0:s%12:s%0:s,%13:d,%14:d,%15:d,%0:s%16:s%0:s)',
+      //[chr(39),StrToIntDef(thetvdb_id, -1),tv_premiered_year,tv_country,
+      //tv_status,tv_classification,tv_network,tv_genres.CommaText,
+      //tv_endedyear,DateTimeToUnix(now()),StrToIntDef(tvrage_id, -1),
+      //StrToInt(tvmaze_id),tv_days.CommaText,tv_next_date,tv_next_season,
+      //tv_next_ep,tv_language]));
     if
       tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO infos (tvdb_id,premiered_year,country,status,classification,network,genre,ended_year,last_updated,tvrage_id,tvmaze_id,airdays,next_date,next_season,next_episode,tv_language) VALUES '+
       '(%1:d,%2:d,%0:s%3:s%0:s,%0:s%4:s%0:s,%0:s%5:s%0:s,%0:s%6:s%0:s,%0:s%7:s%0:s,%8:d,%9:d,%10:d,%11:d,%0:s%12:s%0:s,%13:d,%14:d,%15:d,%0:s%16:s%0:s)',
@@ -273,9 +281,10 @@ begin
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT infos %s', [e.Message]);
   end;
 
+  //Debug(dpError, section, Format('INSERT OR IGNORE INTO series (rip,showname,id,tvmaze_url) VALUES (%0:s%1:s%0:s,%0:s%2:s%0:s,%3:d,%0:s%4:s%0:s)',[chr(39),rls_showname, tv_showname, StrToInt(tvmaze_id), tv_url]));
   try
     tvinfodb.ExecSQL(Format('INSERT OR IGNORE INTO series (rip,showname,id,tvmaze_url) VALUES (%0:s%1:s%0:s,%0:s%2:s%0:s,%3:d,%0:s%4:s%0:s);',
-    [chr(39),rls_showname, tv_showname, StrToInt(tvmaze_id), tv_url]));
+    [chr(39),rls_showname, StringReplace(tv_showname, '''', '''''', [rfReplaceAll, rfIgnoreCase]), StrToInt(tvmaze_id), tv_url]));
   except on E: Exception do
     begin
       Irc_AddAdmin('<c4><b>Exception</c></b>: TTVInfoDB.INSERT series %s', [e.Message]);
