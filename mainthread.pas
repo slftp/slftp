@@ -337,7 +337,7 @@ begin
   end;
 
   // announce unread news count
-  if ((new_news_announce_interval > 0) (HoursBetween(Now, last_news_announce) >= new_news_announce_interval)) then
+  if ((new_news_announce_interval > 0) and (HoursBetween(Now, last_news_announce) >= new_news_announce_interval)) then
   begin
     if (Pos('<b>0</b> unread', SlftpNewsStatus) = 0) then
     begin
