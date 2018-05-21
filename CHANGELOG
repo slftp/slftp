@@ -39,6 +39,7 @@
     NEW slftp.ini parameter(s):
       only_use_routable_sites_on_reqfill=0
       parse_boxofficemojo_exact=0
+      new_news_announce_interval=3
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
@@ -52,8 +53,8 @@
 
 --=============================( SLFTP v1.5.6 )===================================-
     {+} Box Office Mojo support
-    {+} New HTTP Library (Indy) (up to 50% faster) with Socks5 support
-    {+} News System to store important messages to encrypted file. (#173, #164)
+    {+} New HTTP Library (up to 50% faster) with Socks5 support
+    {+} News System to store important messages to encrypted file. (#173, #164, #198)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} New !affils command.
     {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
@@ -62,10 +63,13 @@
     {+} Support for CTCP Requests (might be useful for scripters)
     {+} Show a warn message if important files not found on startup
     {+} Show PID & actual memory usage in !status command (atm linux only!) (#170)
+    {+} !fetchuser cmd to fetch some information about site settings + basic recommendation (#51)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
     {#} Correct counting and comparing of CRC errors in TPazoRaceTask
+    {#} Missing built-in skip features from slftp.skip added (#195)
+    {#} Saving TVInfo for some shows containing ' in its name (#191, #196)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -79,6 +83,7 @@
     {^} IMDb parsing code update due to recent website changes
     {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
+    {-} Support for older FPC compilers (at least version 3.0.4 needed!)
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
