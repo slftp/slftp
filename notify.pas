@@ -28,7 +28,8 @@ type
     destructor Destroy; override;
   end;
 
-var tasknotifies: TObjectList;
+var
+  tasknotifies: TObjectList;
 
 procedure TaskReady(t: TTask);
 function AddNotify: TTaskNotify;
@@ -38,11 +39,13 @@ procedure NotifyUninit;
 
 implementation
 
-uses SysUtils, irc, debugunit;
+uses SysUtils, Types, irc, debugunit;
 
-const section = 'notify';
+const
+  section = 'notify';
 
-var gtnno: Integer;
+var
+  gtnno: Integer;
 
 function AddNotify: TTaskNotify;
 begin

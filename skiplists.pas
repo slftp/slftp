@@ -46,9 +46,9 @@ function SkiplistCount: integer;
 
 implementation
 
-uses mystrings, SysUtils, DebugUnit, irc, console
-{$IFDEF MSWINDOWS}, Windows{$ENDIF}
-  ;
+uses
+  Classes mystrings, SysUtils, DebugUnit, irc,
+  console {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   section: String = 'skiplists';
