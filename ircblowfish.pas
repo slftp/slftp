@@ -38,7 +38,7 @@ var
 implementation
 
 uses
-  SysUtils, console, debugunit;
+  Classes, SysUtils, console, debugunit;
 
 const
   B64: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF} = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';

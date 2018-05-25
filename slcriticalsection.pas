@@ -23,21 +23,21 @@ type
 implementation
 
 uses
-  SysUtils
-{$IFDEF MSWINDOWS}
-  , Windows
-{$ELSE}
-{$IFDEF FPC}
-  , pthreads
-{$ELSE}
-  , Libc
-{$ENDIF}
-{$ENDIF}
-  , irc, debugunit
-;
+  Classes, Types, SysUtils
+  {$IFDEF MSWINDOWS}
+    , Windows
+  {$ELSE}
+    {$IFDEF FPC}
+      , pthreads
+    {$ELSE}
+      , Libc
+    {$ENDIF}
+  {$ENDIF}
+  , irc, debugunit;
 
 
-var ec: Cardinal = 0;
+var
+  ec: Cardinal = 0;
 
 function MyGetCurrentProcessId(): LongWord;
 begin

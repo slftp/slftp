@@ -53,7 +53,7 @@ var
 implementation
 
 uses
-  SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
+  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
   tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
 
 const

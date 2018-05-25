@@ -51,7 +51,7 @@ function findTVMazeIDByName(name: String; Netname: String = ''; Channel: String 
 implementation
 
 uses
-  DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
+  DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
   http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
 
 const
