@@ -33,7 +33,7 @@ var
 implementation
 
 uses
-  SysUtils, encinifile, configunit, mystrings;
+  Classes, SysUtils, encinifile, configunit, mystrings;
 
 procedure NukeInit;
 begin

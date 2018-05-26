@@ -339,7 +339,7 @@ var
 implementation
 
 uses
-  SysUtils, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit,
+  SysUtils, Types, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit,
   knowngroups, DateUtils, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const

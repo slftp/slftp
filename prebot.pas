@@ -30,7 +30,7 @@ procedure PrebotUnInit;
 implementation
 
 uses
-  DateUtils, debugunit, ircblowfish, SysUtils, kb, configunit, queueunit,
+  Contnrs, SyncObjs, DateUtils, debugunit, ircblowfish, SysUtils, kb, configunit, queueunit,
   mystrings, sitesunit, pazo, notify, tasklame, taskdirlist, skiplists,
   taskraw, dirlist, irccommandsunit, statsunit;
 

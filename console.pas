@@ -2,9 +2,6 @@ unit console;
 
 interface
 
-
-
-
 procedure Console_QueueAdd(name, task: String);
 procedure Console_QueueDel(name: String);
 procedure Console_Slot_Add(name, s: String); overload;
@@ -35,12 +32,11 @@ var
   no_console_queue: Boolean;
   no_console_slot: Boolean;
 
-
 implementation
 
 uses slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
      Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-     kb, StrUtils, encinifile, dateutils, mrdohutils
+     kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs
      {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const section = 'console';
@@ -1129,7 +1125,8 @@ end;
 { TAddDummyWindowTask }
 
 procedure TAddDummyWindowTask.Execute;
-var w: TslCommandWindow;
+var w: TslCommandWindow;
+
 begin
   try
     w:= FindWindow;

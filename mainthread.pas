@@ -227,8 +227,8 @@ begin
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
   speedstats_recalc_routes_interval := config.readInteger('speedstats', 'recalc_routes_interval', 3600);
-  backup_interval := config.ReadInteger('backup', 'backup_interval', 0);
-  new_news_announce_interval := config.ReadInteger('news', 'new_news_announce_interval', 3);
+  backup_interval := config.ReadInteger('backup', 'backup_interval', 0); //< time value in seconds for automatic backup
+  new_news_announce_interval := config.ReadInteger('news', 'new_news_announce_interval', 3); //< time value in hours for announcing unread news count
 end;
 
 procedure Main_Iter;
@@ -336,8 +336,8 @@ begin
     end;
   end;
 
-  // announce unread news count every 1h
-  if (HoursBetween(Now, last_news_announce) >= new_news_announce_interval) then
+  // announce unread news count
+  if ((new_news_announce_interval > 0) and (HoursBetween(Now, last_news_announce) >= new_news_announce_interval)) then
   begin
     if (Pos('<b>0</b> unread', SlftpNewsStatus) = 0) then
     begin

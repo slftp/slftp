@@ -1,4 +1,4 @@
-unit slvision;
+﻿unit slvision;
 
 interface
 
@@ -1805,8 +1805,8 @@ procedure TslFrame.Repaint;
 {$IFDEF MSWINDOWS}
 const
   frameChars: array[False..True, 1..6] of Char = (
-    (chr(196), Chr(179), Chr(218), Chr(191), Chr(192), Chr(217)),
-    (chr(205), Chr(186), Chr(201), Chr(187), Chr(200), Chr(188))
+    ('─', '│', '┌', '┐', '└', '┘'),
+    ('─', '│', '┌', '┐', '└', '┘')
     );
  {$ELSE}
 const frameChars : array[false..true, 1..6] of Char = (

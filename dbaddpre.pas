@@ -790,9 +790,9 @@ begin
   end;
 
   case Integer(dbaddpre_mode) of
-    0: Console_Addline('', 'Local addpre List Started...');
-    1: Console_Addline('', 'Local SQLITE addpre DB Started...');
-    2: Console_Addline('', 'Connected to MYSQL DupeDB...');
+    0: Console_Addline('', 'Memory PreDB started...');
+    1: Console_Addline('', 'SQLite PreDB started...');
+    2: Console_Addline('', 'MySQL PreDB started...');
     //3: Exit;
   end;
 end;
