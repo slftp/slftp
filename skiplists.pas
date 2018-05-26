@@ -46,7 +46,7 @@ function SkiplistCount: integer;
 
 implementation
 
-uses mystrings, SysUtils, DebugUnit, irc, console
+uses mystrings, SysUtils, DebugUnit, irc
 {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
