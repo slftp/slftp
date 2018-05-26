@@ -943,8 +943,7 @@ begin
       begin
         is_crypted_msg := True;
         try
-          irc_Addadmin(Format('[CBC encrypted] %s : %s', [channel, msg]));
-          //msg := TrimRight(irc_cbc_decrypt(netname, channel, Copy(msg, 6, 1000)));
+          msg := TrimRight(irc_cbc_decrypt(netname, channel, Copy(msg, 6, 1000)));
         except
           on e: Exception do
           begin
