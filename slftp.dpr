@@ -42,6 +42,10 @@ uses
   console;
 
 {$APPTYPE CONSOLE}
+
+// allow more user mode address space
+{$SetPEFlags $20}
+
 begin
   ConsoleStart;
 end.
