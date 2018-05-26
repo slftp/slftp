@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo, globals;
+uses SyncObjs, tasksunit, pazo;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -67,13 +67,12 @@ type
 implementation
 
 uses
-  StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
-  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  dirlist, midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
+  Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
+  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
+  midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
 
 const
   c_section = 'taskrace';
-
 
 
 constructor TPazoPlainTask.Create(const netname, channel: String; site1: String; site2: String; pazo: TPazo);

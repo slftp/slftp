@@ -61,6 +61,11 @@ uses
   {$ENDIF}
   console;
 
+{$IFNDEF CPUARM}
+  // allow more user mode address space
+  {$SetPEFlags $20}
+{$ENDIF}
+
 begin
   ConsoleStart;
 end.

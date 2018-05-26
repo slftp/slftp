@@ -10,12 +10,7 @@ unit mslproxys;
 interface
 
 uses
-  Classes, Contnrs, SyncObjs
-  {$IFDEF FPC}
-    {$IFNDEF MSWINDOWS}
-      , baseunix
-    {$ENDIF}
-  {$ENDIF};
+  Classes, Contnrs, SyncObjs;
 
 procedure InitProxys;
 procedure UninitProxys;
@@ -89,7 +84,7 @@ function GetFormattedProxyInfo(const aIndex: integer): String;
 implementation
 
 uses
-  debugunit, configunit, SysUtils, StrUtils, encinifile;
+  debugunit, configunit, SysUtils, Types, StrUtils, encinifile;
 
 var
   proxys: TObjectList = nil;
