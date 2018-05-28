@@ -657,7 +657,7 @@ procedure IrcLineBreak(const Netname, Channel: String; const commatext: String;
 
 implementation
 
-uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
+uses sltcp, SysUtils, SyncObjs, Contnrs, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
   debugunit, queueunit, tasksunit, mystrings, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
