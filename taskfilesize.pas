@@ -16,9 +16,10 @@ type
 
 implementation
 
-uses debugunit, sitesunit, dirlist, SysUtils;
+uses Classes, debugunit, sitesunit, dirlist, SysUtils;
 
-const section = 'taskfilesize';
+const
+  section = 'taskfilesize';
 
 { TFileSizeTask }
 

@@ -24,7 +24,7 @@ type
 
 implementation
 
-uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+uses SysUtils, SyncObjs, Contnrs, StrUtils, kb, debugunit, dateutils, queueunit, tags,
      configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr;
 
 const
