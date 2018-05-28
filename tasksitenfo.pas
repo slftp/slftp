@@ -18,7 +18,7 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
+uses SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
   configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl;
 
 const

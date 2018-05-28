@@ -19,11 +19,12 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+uses SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
      configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr,
      sllanguagebase;
 
-const section = 'taskgame';
+const
+  section = 'taskgame';
 
 
 constructor TPazoGameTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);

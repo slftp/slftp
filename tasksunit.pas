@@ -68,7 +68,7 @@ function FindTaskByUidText(uidtext: String): TTask;
 
 implementation
 
-uses SysUtils, SyncObjs, debugunit, queueunit, sitesunit;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit;
 
 const
   section = 'tasks';
