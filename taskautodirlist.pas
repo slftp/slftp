@@ -15,7 +15,7 @@ type
 
 implementation
 
-uses configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
+uses SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
   debugunit, RegExpr, IdGlobal;
 
