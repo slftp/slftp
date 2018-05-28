@@ -13,9 +13,10 @@ type TAutoNukeTask = class(TTask)
 
 implementation
 
-uses configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc, debugunit, nuke;
+uses Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc, debugunit, nuke;
 
-const rsections = 'autonuke';
+const
+  rsections = 'autonuke';
 
 { TAutoSectionTask }
 
