@@ -34,6 +34,11 @@ SpecialDirsTags: array[0..9] of String = (
 );
 
 // identification words for messages which are ECB or CBC encrypted
+{
+    '+OK *' for CBC
+    '+OK ' for ECB
+    'mcps ' for Mircryption compatibility
+}
 BlowfishIdentificationWords: array[0..2] of String = (
   '+OK *', '+OK ', 'mcps '
 );
