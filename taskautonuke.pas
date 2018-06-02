@@ -13,34 +13,37 @@ type TAutoNukeTask = class(TTask)
 
 implementation
 
-uses Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc, debugunit, nuke;
+uses
+  Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings,
+  dateutils, dirlist, SysUtils, irc, debugunit, nuke;
 
 const
   rsections = 'autonuke';
 
 { TAutoSectionTask }
 
-
-
 function TAutoNukeTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    i: Integer;
-    ss: String;
-    l: TAutoNukeTask;
-    n: TNukeQueueItem;
-    b: Boolean;
+label
+  TryAgain;
+var
+  s: TSiteSlot;
+  i: Integer;
+  ss: String;
+  l: TAutoNukeTask;
+  n: TNukeQueueItem;
+  b: Boolean;
 
-  procedure UjraAddolas;
+  procedure RetryNextTime;
   begin
-    // megnezzuk, kell e meg a taszk    -- we have to look, do we need the task
-    i:= s.RCInteger('autonuke', 0);
+    // If value of autonuke is bigger zero, feature is still enabled and slftp need
+    // to add a new task which will be executed in i seconds
+    i := s.RCInteger('autonuke', 0); // TODO: add property to TSite
     if i > 0 then
     begin
       try
-        l:= TAutoNukeTask.Create(netname, channel, site1);
-        l.startat:= IncSecond(Now, i);
-        l.dontremove:= True;
+        l := TAutoNukeTask.Create(netname, channel, site1);
+        l.startat := IncSecond(Now, i);
+        l.dontremove := True;
         AddTask(l);
         s.site.WCDateTime('nextautonuke', l.startat);
       except
@@ -53,86 +56,86 @@ var s: TSiteSlot;
   end;
 
 begin
-  Result:= False;
-  s:= slot;
+  Result := False;
+  s := slot;
   debugunit.Debug(dpMessage, rsections, Name);
 
-    // megnezzuk, kell e meg a taszk  -- we have to look, do we need the task
-    if s.RCInteger('autonuke', 0) = 0 then
-    begin
-      ready:= True;
-      Result:= True;
-      exit;
-    end;
+  // autonuke=0 means that the feature isn't in use anymore -> exit
+  if s.RCInteger('autonuke', 0) = 0 then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
 
-ujra:
+TryAgain:
   if s.site.working = sstDown then
-    begin
-      ujraaddolas();
-      readyerror:= True;
-      exit;
-    end;
+  begin
+    RetryNextTime();
+    readyerror := True;
+    exit;
+  end;
 
   if (s.status <> ssOnline) then
+  begin
     if (not s.ReLogin) then
     begin
-      ujraaddolas();
-      readyerror:= True;
+      RetryNextTime();
+      readyerror := True;
       exit;
     end;
+  end;
 
-
-    i:= 0;
-    while ((i < nukequeue.Count) and (not slshutdown) and (not s.shouldquit)) do
+  i := 0;
+  while ((i < nukequeue.Count) and (not slshutdown) and (not s.shouldquit)) do
+  begin
+    n := TNukeQueueItem(nukequeue[i]);
+    if n.site = site1 then
     begin
-      n:= TNukeQueueItem(nukequeue[i]);
-      if n.site = site1 then
+      ss := s.site.sectiondir[n.section];
+      if ss <> '' then
       begin
-
-        ss:= s.site.sectiondir[n.section];
-        if ss <> '' then
+        ss := Csere(ss, '<yyyy>', n.yyyy);
+        ss := Csere(ss, '<yy>', n.yy);
+        ss := Csere(ss, '<mm>', n.mm);
+        ss := Csere(ss, '<dd>', n.dd);
+        if s.Cwd(ss, True) then
         begin
+          if n.multiplier >= 0 then
+            b := s.Send('SITE NUKE %s %d %s', [n.rip, n.multiplier, n.reason])
+          else
+            b := s.Send('SITE UNNUKE %s %s', [n.rip, n.reason]);
 
-          ss:= Csere(ss, '<yyyy>', n.yyyy);
-          ss:= Csere(ss, '<yy>', n.yy);
-          ss:= Csere(ss, '<mm>', n.mm);
-          ss:= Csere(ss, '<dd>', n.dd);
-          if s.Cwd(ss, True) then
-          begin
-            if n.multiplier >= 0 then
-              b:= s.Send('SITE NUKE %s %d %s', [n.rip, n.multiplier, n.reason])
-            else
-              b:= s.Send('SITE UNNUKE %s %s', [n.rip, n.reason]);
+          if not b then 
+            goto TryAgain;
 
-            if not b then goto ujra;
-
-            if not s.Read('NUKE') then
-              goto ujra;
-          end else
-          begin
-            if s.Status <> ssOnline then
-              goto ujra;
-          end;
-
+          if not s.Read('NUKE') then
+            goto TryAgain;
+        end
+        else
+        begin
+          if s.Status <> ssOnline then
+            goto TryAgain;
         end;
-        nukequeue.Remove(n);
-        n.Free;
-        NukeSave;
-        i:= -1;
       end;
-      inc(i);
+
+      nukequeue.Remove(n);
+      NukeSave;
+
+      i := -1;
     end;
+    inc(i);
+  end;
 
+  RetryNextTime();
 
-    ujraaddolas();
-
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
 end;
 
 function TAutoNukeTask.Name: String;
 begin
-  Result:= 'AUTONUKE '+site1+ScheduleText;
+  Result := 'AUTONUKE ' + site1 + ScheduleText;
 end;
 
 end.
