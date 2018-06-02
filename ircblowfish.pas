@@ -32,7 +32,7 @@ type
 function irc_encrypt(const netname, channel, dText: String; include_ok: Boolean = False): String;
 
 { Encrypt decrypted dText in CBC mode }
-function irc_cbc_encrypt(const dText: String; const BlowfishKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+function irc_cbc_encrypt(const dText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; const BlowfishKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 { Decrypt encrypted eText in CBC mode }
 function irc_cbc_decrypt(const netname, channel, eText: String): String;
 
@@ -319,7 +319,7 @@ begin
   Result := fSuccess;
 end;
 
-function irc_cbc_encrypt(const dText: String; const BlowfishKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+function irc_cbc_encrypt(const dText: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; const BlowfishKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 const
   IV: array[0..7] of Byte = ($00, $00, $00, $00, $00, $00, $00, $00);
 var
@@ -336,7 +336,7 @@ begin
   eText := '';
   eTextBase64 := '';
 
-  FillChar(fRealIV[0], High(fRealIV), 0);
+  FillChar(fRealIV[0], Length(fRealIV), 0);
 
   fKeyLen := Length(BlowfishKey);
   if (fKeyLen >= 56) then
@@ -344,72 +344,75 @@ begin
 
   {* init struct for encryption *}
   EVP_CIPHER_CTX_init(@fCTX);
-  if (EVP_CipherInit_ex(@fCTX, EVP_bf_cbc(), nil, nil, nil, 1) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC encryption!');
-    exit;
-  end;
-
-  {* set options *}
-  EVP_CIPHER_CTX_set_key_length(@fCTX, fKeyLen);
-  // disable auto padding. Required for Mircryption compatibility.
-  EVP_CIPHER_CTX_set_padding(@fCTX, 0);
-
-  {* actually initialize session context *}
-  // 1 for encryption mode
-  if (EVP_CipherInit_ex(@fCTX, nil, nil, @BlowfishKey[1], @IV[0], 1) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC encryption!');
-    exit;
-  end;
-
-  // prepare buffers
-  fInBufSize := Length(dText);
-  fInBufSizeMod := fInBufSize mod 8;
-  if (fInBufSizeMod <> 0) then
-  begin
-    Inc(fInBufSize, 8 - fInBufSizeMod);
-  end;
-  Inc(fInBufSize, 8); // for the IV data
-
-  SetLength(fInBuf, fInBufSize);
-  // important for padding
-  FillChar(fInBuf[0], fInBufSize, 0);
-
-  // for some f*cked up reason, Mircryption's CBC blowfish does not use an
-  // explicit IV, but prepends 8 bytes of random data to the actual string
-  // instead, so we have to do this too... }
-  {$IFDEF MSWINDOWS}
-    // generate IV using screen/user input
-    RAND_screen();
-  {$ELSE}
-    // TODO: Add new stuff to random bytes from time to time
-  {$ENDIF}
-
-  if (RAND_bytes(@fRealIV[0], 8) <> 1) then
-  begin
-    // fallback but deprecated in OpenSSL
-    if (RAND_pseudo_bytes(@fRealIV[0], 8) <> 1) then
+  try
+    if (EVP_CipherInit_ex(@fCTX, EVP_bf_cbc(), nil, nil, nil, 1) <> 1) then
     begin
-      Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
+      Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC encryption!');
       exit;
     end;
-  end;
-  // got an IV
-  move(fRealIV[0], fInBuf[0], 8);
 
-  // append unencrypted msg to buffer
-  move(dText[1], fInBuf[8], Length(dText));
+    {* set options *}
+    EVP_CIPHER_CTX_set_key_length(@fCTX, fKeyLen);
+    // disable auto padding. Required for Mircryption compatibility.
+    EVP_CIPHER_CTX_set_padding(@fCTX, 0);
 
-  {* encrypt... *}
-  fSuccess := BlowfishCipherWalk(@fCTX, @fInBuf[0], fInBufSize, eText);
-  if not fSuccess then
-    exit;
+    {* actually initialize session context *}
+    // 1 for encryption mode
+    if (EVP_CipherInit_ex(@fCTX, nil, nil, @BlowfishKey[1], @IV[0], 1) <> 1) then
+    begin
+      Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC encryption!');
+      exit;
+    end;
 
-  if (EVP_CIPHER_CTX_cleanup(@fCTX) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] EVP_CIPHER_CTX_cleanup failed for CBC encryption!');
-    // we can't do something...
+    // prepare buffers
+    fInBufSize := Length(dText);
+    fInBufSizeMod := fInBufSize mod 8;
+    if (fInBufSizeMod <> 0) then
+    begin
+      Inc(fInBufSize, 8 - fInBufSizeMod);
+    end;
+    Inc(fInBufSize, 8); // for the IV data
+
+    SetLength(fInBuf, fInBufSize);
+    // important for padding
+    FillChar(fInBuf[0], fInBufSize, 0);
+
+    // for some f*cked up reason, Mircryption's CBC blowfish does not use an
+    // explicit IV, but prepends 8 bytes of random data to the actual string
+    // instead, so we have to do this too... }
+    {$IFDEF MSWINDOWS}
+      // generate IV using screen/user input
+      RAND_screen();
+    {$ELSE}
+      // TODO: Add new stuff to random bytes from time to time
+    {$ENDIF}
+
+    if (RAND_bytes(@fRealIV[0], 8) <> 1) then
+    begin
+      // fallback but deprecated in OpenSSL
+      if (RAND_pseudo_bytes(@fRealIV[0], 8) <> 1) then
+      begin
+        Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
+        exit;
+      end;
+    end;
+    // got an IV
+    move(fRealIV[0], fInBuf[0], 8);
+
+    // append unencrypted msg to buffer
+    move(dText[1], fInBuf[8], Length(dText));
+
+    {* encrypt... *}
+    fSuccess := BlowfishCipherWalk(@fCTX, @fInBuf[0], fInBufSize, eText);
+    if not fSuccess then
+      exit;
+
+  finally
+    if (EVP_CIPHER_CTX_cleanup(@fCTX) <> 1) then
+    begin
+      Debug(dpError, section, '[FiSH] EVP_CIPHER_CTX_cleanup failed for CBC encryption!');
+      // we can't do something...
+    end;
   end;
 
   if (DoBase64Encode(eText, eTextBase64) < 1) then
@@ -459,50 +462,53 @@ begin
 
   {* init struct for decryption *}
   EVP_CIPHER_CTX_init(@fCTX);
-  if (EVP_CipherInit_ex(@fCTX, EVP_bf_cbc(), nil, nil, nil, 0) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC decryption!');
-    exit;
-  end;
+  try
+    if (EVP_CipherInit_ex(@fCTX, EVP_bf_cbc(), nil, nil, nil, 0) <> 1) then
+    begin
+      Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC decryption!');
+      exit;
+    end;
 
-  {* set options *}
-  EVP_CIPHER_CTX_set_key_length(@fCTX, fKeyLen);
-  // MUST be the same setting used during encryption
-  EVP_CIPHER_CTX_set_padding(@fCTX, 0);
+    {* set options *}
+    EVP_CIPHER_CTX_set_key_length(@fCTX, fKeyLen);
+    // MUST be the same setting used during encryption
+    EVP_CIPHER_CTX_set_padding(@fCTX, 0);
 
-  {* actually initialize session context *}
-  // 0 for decryption mode
-  if (EVP_CipherInit_ex(@fCTX, nil, nil, @bfKey[1], @IV[0], 0) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] Second EVP_CipherInit_ex failed for CBC decryption!');
-    exit;
-  end;
+    {* actually initialize session context *}
+    // 0 for decryption mode
+    if (EVP_CipherInit_ex(@fCTX, nil, nil, @bfKey[1], @IV[0], 0) <> 1) then
+    begin
+      Debug(dpError, section, '[FiSH] Second EVP_CipherInit_ex failed for CBC decryption!');
+      exit;
+    end;
 
-  {* do base64 decryption *}
-  LengthB64Text := DoBase64Decode(eText, B64Text);
-  if (LengthB64Text < 1) then
-  begin
-    Debug(dpError, section, Format('[FiSH] Base64 Decode for %s failed!', [eText]));
-    exit;
-  end;
+    {* do base64 decryption *}
+    LengthB64Text := DoBase64Decode(eText, B64Text);
+    if (LengthB64Text < 1) then
+    begin
+      Debug(dpError, section, Format('[FiSH] Base64 Decode for %s failed!', [eText]));
+      exit;
+    end;
 
-  LengthB64TextMod := LengthB64Text mod 8;
-  fBeenCut := (LengthB64TextMod <> 0);
-  if fBeenCut then
-  begin
-    SetLength(B64Text, LengthB64Text - LengthB64TextMod);
-    LengthB64Text := Length(B64Text);
-  end;
+    LengthB64TextMod := LengthB64Text mod 8;
+    fBeenCut := (LengthB64TextMod <> 0);
+    if fBeenCut then
+    begin
+      SetLength(B64Text, LengthB64Text - LengthB64TextMod);
+      LengthB64Text := Length(B64Text);
+    end;
 
-  {* decrypt... *}
-  fSuccess := BlowfishCipherWalk(@fCTX, @B64Text[1], LengthB64Text, DecryptedText);
-  if not fSuccess then
-    exit;
+    {* decrypt... *}
+    fSuccess := BlowfishCipherWalk(@fCTX, @B64Text[1], LengthB64Text, DecryptedText);
+    if not fSuccess then
+      exit;
 
-  if (EVP_CIPHER_CTX_cleanup(@fCTX) <> 1) then
-  begin
-    Debug(dpError, section, '[FiSH] EVP_CIPHER_CTX_cleanup failed for CBC decryption!');
-    // we can't do something...
+  finally
+    if (EVP_CIPHER_CTX_cleanup(@fCTX) <> 1) then
+    begin
+      Debug(dpError, section, '[FiSH] EVP_CIPHER_CTX_cleanup failed for CBC decryption!');
+      // we can't do something...
+    end;
   end;
 
   // even if the decryption was not successful, there might be *some* data in
