@@ -15,7 +15,7 @@ type
 
 implementation
 
-uses configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
+uses SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
   dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
 
 const

@@ -657,7 +657,7 @@ procedure IrcLineBreak(const Netname, Channel: String; const commatext: String;
 
 implementation
 
-uses sltcp, SysUtils, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
+uses sltcp, SysUtils, SyncObjs, Contnrs, DateUtils, Math, versioninfo, knowngroups, encinifile, speedstatsunit,
   debugunit, queueunit, tasksunit, mystrings, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
@@ -4812,7 +4812,7 @@ begin
   cbc := False;
 
   // for CBC, key must start with 'cbc:' for setup compatibility with other software
-  if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}('cbc:',key) then
+  if {$IFDEF UNICODE}StartsText{$ELSE}AnsiStartsText{$ENDIF}('cbc:', key) then
   begin
    Delete(key, 1, 4);
    cbc := True;
@@ -12461,4 +12461,3 @@ begin
 end;
 
 end.
-

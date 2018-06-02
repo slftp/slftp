@@ -1957,6 +1957,17 @@ begin
           end;
         end;
 
+      551:
+        begin
+          //COMPLETE MSG: 551 Error on input file: Input/output error.
+          if (0 < AnsiPos('Error on input', lastResponse)) then
+          begin
+            //try again (maybe will help) or setdown site - some ftpd problem..
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
       else  //to get other errors to put here
         begin
           if (lastResponseCode <> 226) then
@@ -2105,8 +2116,13 @@ begin
           //COMPLETE MSG: 452 Error writing file: Success.
           if (0 < AnsiPos('Error writing file', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
-            goto TryAgain;
+            sdst.site.SetOutofSpace;
+            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
+              sdst.DestroySocket(True);
+            readyerror := True;
+            mainpazo.errorreason := 'No freespace or slave';
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
         end;
 
