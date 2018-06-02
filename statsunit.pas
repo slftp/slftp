@@ -28,7 +28,7 @@ procedure RemoveStats(const sitename, section: String); overload;
 implementation
 
 uses
-  Classes, SyncObjs, DateUtils, debugunit, configunit, sitesunit, queueunit, SysUtils, pazo, kb, ranksunit, irc;
+  Classes, SyncObjs, Contnrs, DateUtils, debugunit, configunit, sitesunit, queueunit, SysUtils, pazo, kb, ranksunit, irc;
 
 const
   section = 'stats';
