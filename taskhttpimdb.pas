@@ -34,17 +34,17 @@ begin
   Result := aMoviename;
 
   // BOM search does not allow ' at the beginning or at the end
-  {$IFDEF FPC}
-    if AnsiStartsText('''', Result) then
-      Result := Copy(Result, 1, 1);
-
-    if AnsiEndsText('''', Result) then
-      SetLength(Result, Length(Result) - 1);
-  {$ELSE}
+  {$IFDEF UNICODE}
     if StartsText('''', Result) then
       Result := Copy(Result, 1, 1);
 
     if EndsText('''', Result) then
+      SetLength(Result, Length(Result) - 1);
+  {$ELSE}
+    if AnsiStartsText('''', Result) then
+      Result := Copy(Result, 1, 1);
+
+    if AnsiEndsText('''', Result) then
       SetLength(Result, Length(Result) - 1);
   {$ENDIF}
 end;
