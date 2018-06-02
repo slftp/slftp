@@ -4614,9 +4614,8 @@ begin
     b := chankeys[i] as TIrcBlowkey;
     if ((nn = '') or (nn = b.Netname)) then
     begin
-      irc_addtext_b(Netname, Channel, format('%s@%s -> blowkey(%s) chankey(%s)',
-        [b.Channel, b.Netname, b.blowkey, b.chankey]));
-      // inviteonly(%s) BoolToStr(b.inviteonly, True)
+      irc_addtext_b(Netname, Channel, format('%s@%s -> %s blowkey(%s) chankey(%s)',
+        [b.Channel, b.Netname, IfThen(b.cbc, 'CBC mode', 'ECB mode'), b.blowkey, b.chankey]));
     end;
   end;
   Result := True;
