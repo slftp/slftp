@@ -52,6 +52,7 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
+    {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
     {+} New HTTP Library (up to 50% faster) with Socks5 support
     {+} News System to store important messages to encrypted file. (#173, #164, #198)

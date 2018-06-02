@@ -59,7 +59,7 @@ function CommonFileCheck: String;
 var
   fPath: String;
   i, fsize: Integer;
-  finiFound, fNeeded: boolean;
+  finiFound: boolean;
 begin
   Result := '';
   finiFound := false;
