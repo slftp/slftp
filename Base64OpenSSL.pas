@@ -36,36 +36,41 @@ begin
   SetLength(aOutput, 256);
 
   fB64 := BIO_new(BIO_f_base64());
-  fBIO := BIO_new(BIO_s_mem());
+  try
+    fBIO := BIO_new(BIO_s_mem());
+    try
+      BIO_set_flags(fB64, BIO_FLAGS_BASE64_NO_NL);
+      BIO_push(fB64, fBIO);
 
-  BIO_set_flags(fB64, BIO_FLAGS_BASE64_NO_NL);
-  BIO_push(fB64, fBIO);
+      if (aDoEncode) then
+      begin
+        fWrittenBytes := BIO_write(fB64, Pointer(@aInput[1]), aInputLen);
 
-  if (aDoEncode) then
-  begin
-    fWrittenBytes := BIO_write(fB64, Pointer(@aInput[1]), aInputLen);
+        BIO_flush(fB64);
 
-    BIO_flush(fB64);
+        if (fWrittenBytes > 0) then
+        begin
+          Result := BIO_read(fBIO, Pointer(@aOutput[1]), 256);
+          SetLength(aOutput, Result);
+        end;
+      end
+      else
+      begin
+        fWrittenBytes := BIO_write(fBIO, Pointer(@aInput[1]), aInputLen);
 
-    if (fWrittenBytes > 0) then
-    begin
-      Result := BIO_read(fBIO, Pointer(@aOutput[1]), 256);
-      SetLength(aOutput, Result);
+        BIO_flush(fBIO);
+
+        if (fWrittenBytes <> 0) then
+        begin
+          Result := BIO_read(fB64, Pointer(@aOutput[1]), 256);
+        end;
+      end;
+    finally
+      BIO_free(fBIO);
     end;
-  end
-  else
-  begin
-    fWrittenBytes := BIO_write(fBIO, Pointer(@aInput[1]), aInputLen);
-
-    BIO_flush(fBIO);
-
-    if (fWrittenBytes <> 0) then
-    begin
-      Result := BIO_read(fB64, Pointer(@aOutput[1]), 256);
-    end;
+  finally
+    BIO_free(fB64);
   end;
-
-  BIO_free(fB64);
 end;
 
 function DoBase64Encode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; out aOutput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): integer;
