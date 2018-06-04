@@ -146,15 +146,24 @@ begin
 
       with fIdHTTP do
       begin
-        aRecvStr := Get(fEncodedUrl);
-
+        try
+          aRecvStr := Get(fEncodedUrl);
+        except
+          on e: Exception do
+          begin
+            Debug(dpMessage, section, Format('HTTP GET for %s failed due to %d error code <--> %s.', [fEncodedUrl, ResponseCode, ResponseText]));
+            aErrMsg := Format('HTTP GET failed with %d error code <--> %s.', [ResponseCode, ResponseText]);
+            exit;
+          end;
+        end;
+{
         if ResponseCode <> 200 then
         begin
           Debug(dpMessage, section, Format('HTTP GET for %s failed due to %d error code <--> %s.', [fEncodedUrl, ResponseCode, ResponseText]));
           aErrMsg := Format('HTTP GET failed with %d error code <--> %s.', [ResponseCode, ResponseText]);
           exit;
         end;
-
+}
         if (Length(aRecvStr) = 0) then
         begin
           Debug(dpMessage, section, Format('HTTP GET reply for %s is empty.', [fEncodedUrl]));
