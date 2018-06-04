@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  slssl, debugunit, mystrings,
+  IdSSLOpenSSLHeaders, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -1119,12 +1119,29 @@ end;
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
 begin
   try
-    Result := slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
-    if Result <= 0 then
-    begin
-      error := 'sslread failed: ' + slSSL_LastError(ssl, Result);
-      if 0 < Pos('zero return', error) then
-        error := 'Connection lost';
+    Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
+    try
+      if Result <= 0 then
+        EIdOpenSSLAPISSLError.RaiseException(ssl, Result);
+    except
+      on e: EIdOpenSSLAPISSLError do
+      begin
+        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+        error := 'sslread failed: ' + e.Message;
+        if 0 < Pos('zero return', error) then
+          error := 'Connection lost';
+
+        Result := -1; // for backward compatibility
+      end;
+      on e: Exception do
+      begin
+        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
+        error := 'sslread Exception failed: ' + e.Message;
+        if 0 < Pos('zero return', error) then
+          error := 'Connection lost (Exception)';
+
+        Result := -1; // for backward compatibility
+      end;
     end;
   except
     on e: Exception do
@@ -1141,10 +1158,24 @@ var
 begin
   Result := True;
   try
-    rc := slSSL_write(ssl, PAnsiChar(@buffer), bufsize);
+    rc := SSL_write(ssl, PAnsiChar(@buffer), bufsize);
     if rc <= 0 then
     begin
-      error := 'sslwrite failed: ' + slSSL_LastError(ssl, rc);
+      try
+        EIdOpenSSLAPISSLError.RaiseException(ssl, rc);
+      except
+        on e: EIdOpenSSLAPISSLError do
+        begin
+          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+          error := 'sslwrite failed: ' + e.Message;
+        end;
+        on e: Exception do
+        begin
+          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
+          error := 'sslwrite Exception failed: ' + e.Message;
+        end;
+      end;
+
       Result := False;
     end
     else
