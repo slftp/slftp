@@ -9,7 +9,7 @@ type
   TSpeedStat = class
     section, rlsname, src, dst: String;
     speed: Double;
-    function ToString: String;
+    function ToString: String; override;
     function ToStringEx: String;
     constructor Create(src, dst: String; speed: Double); overload;
     constructor Create(src, dst: String; speed: Double; rip, section: String); overload;
@@ -615,16 +615,16 @@ end;
 function TSpeedStat.ToString: String;
 begin
   try
-    Result := FormaT('%s %s %f', [src, dst, speed]);
+    Result := Format('%s %s %f', [src, dst, speed]);
   except
     Result := '';
   end;
 end;
 
-function TSpeedStat.ToStringEx:String;
+function TSpeedStat.ToStringEx: String;
 begin
   try
-    Result := FormaT('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
+    Result := Format('%s %s %f %s %s', [src, dst, speed, section, rlsname]);
   except
     Result := '';
   end;

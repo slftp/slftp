@@ -8,7 +8,7 @@ type
   TRankStat = class
     sitename, section: String;
     score: Integer;
-    function ToString: String;
+    function ToString: String; override;
     constructor Create(const sitename, section: String; const score: Integer); overload;
     constructor Create(line: String); overload;
   end;
