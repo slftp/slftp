@@ -1,4 +1,4 @@
-﻿unit taskhttpimdb;
+unit taskhttpimdb;
 
 interface
 
@@ -47,6 +47,14 @@ begin
     if AnsiEndsText('''', Result) then
       SetLength(Result, Length(Result) - 1);
   {$ENDIF}
+
+    // BOM search does not allow '...' in search
+    {
+      Examples:
+        http://www.boxofficemojo.com/search/?q=Stinsen%20brinner...%20filmen%20allts?
+        http://www.boxofficemojo.com/search/?q=Il%20?tait%20une%20fois...%20la%20vie
+    }
+    Result := ReplaceText(Result, '...', '');
 end;
 
   { TPazoHTTPImdbTask }
