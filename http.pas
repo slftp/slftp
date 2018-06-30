@@ -12,7 +12,7 @@ function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: Strin
 implementation
 
 uses
-  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit, mslproxys, IdIOHandlerStack;
+  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit, mslproxys, IdIOHandlerStack, IdExceptionCore;
 
 const
   section = 'http';
