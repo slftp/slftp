@@ -168,7 +168,7 @@ ujra:
       end;
     end;
 
-    ParsePasvString(s.lastResponse, host, port);
+    ParsePASVString(s.lastResponse, host, port);
     if port = 0 then
     begin
         irc_addtext(s.todotask, 'Couldnt parse passive string');

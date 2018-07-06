@@ -1826,7 +1826,7 @@ begin
         Result := -1;
         exit;
       end;
-      ParsePasvString(lastResponse, host, port);
+      ParsePASVString(lastResponse, host, port);
       if port = 0 then
       begin
         irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: Could not parse PASV string from site %s while getting %s', [site.name, filename]);
