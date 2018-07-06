@@ -73,7 +73,7 @@ ujra:
 
   if ( ( (idlecmd = 'REST 0') and (s.lastResponseCode <> 350) )
      or ( (idlecmd = 'CWD .') and (0 = Pos('250 CWD', s.lastResponse)) and (0 = Pos('250 Directory changed to', s.lastResponse)) )
-     or ( (idlecmd = 'PASV') and (not ParsePasvString(s.lastResponse, h, p)) ) )
+     or ( (idlecmd = 'PASV') and (not ParsePASVString(s.lastResponse, h, p)) ) )
   then
   begin
     irc_Adderror(Format('<c7>[ERROR idle]</c> %s: %s', [name, s.Name]));
