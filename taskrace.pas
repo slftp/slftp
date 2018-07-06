@@ -1325,11 +1325,11 @@ begin
   end;
 
   try
-    ParsePasvString(ssrc.lastResponse, host, port);
+    ParsePASVString(ssrc.lastResponse, host, port);
   except
     on e: Exception do
     begin
-      Debug(dpError, c_section, '[EXCEPTION] Taskrace ParsePasvString: %s', [e.Message]);
+      Debug(dpError, c_section, '[EXCEPTION] Taskrace ParsePASVString: %s', [e.Message]);
       readyerror := True;
       exit;
     end;

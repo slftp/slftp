@@ -60,10 +60,30 @@ function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
 function MyIncludeTrailingSlash(s: String): String;
 function CombineDirectories(dir1, dir2: String): String;
-function ParsePasvString(s: String; out host: String; out port: integer): boolean;
 
-function IsALetter(const c: Char): boolean; // { returns with true if it's a letter: [a-z] or [A-Z] }
-function IsANumber(const c: Char): boolean; // { returns with true if it's a number: [0-9] }
+{ extracts data from ftpd PASV reply
+  @param(s (ip,ip,ip,ip,port,port) reply)
+  @param(host extracted host IP)
+  @param(port extracted port)
+  @returns(@true if host and port successful extracted, @false otherwise) }
+function ParsePASVString(s: String; out host: String; out port: integer): boolean;
+
+{ extracts data from ftpd EPSV reply
+  @param(s (|mode|ip.ip.ip.ip|port|) reply (| is a variable delimiter))
+  @param(host extracted host IP)
+  @param(port extracted port)
+  @param(IPv4Transfermode @true if IP adress is IPv4, @false if IPv6)
+  @returns(@true if host, port and transfermode successful extracted, @false otherwise) }
+function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
+
+{ checks if c is a letter (case-insensitive)
+  @param(c Character which should be checked)
+  @returns(@true if it's a letter: [a-z] or [A-Z], @false otherwise) }
+function IsALetter(const c: Char): boolean;
+{ checks if c is a number
+  @param(c Character which should be checked)
+  @returns(@true if it's a number: [0-9], @false otherwise) }
+function IsANumber(const c: Char): boolean;
 function Szamokszama(s: String): integer;
 
 function GetFileContents(fn: String): String;
@@ -408,23 +428,68 @@ begin
     Result := '/';
 end;
 
-function ParsePasvString(s: String; out host: String; out port: integer): boolean;
+function ParsePASVString(s: String; out host: String; out port: integer): boolean;
 begin
   Result := False;
 
+  {
+  * PASV
+  * 227 Entering Passive Mode (ip,ip,ip,ip,port,port)
+  }
   s := Copy(s, Pos('(', s) + 1, 100000);
   s := Copy(s, 1, Pos(')', s) - 1);
   if s = '' then
     exit;
 
-  host := Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) +
-    '.' + Fetch(s, ',', True, False);
+  host := Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False) + '.' + Fetch(s, ',', True, False);
   if s = '' then
     exit;
 
   port := StrToIntDef(Fetch(s, ',', True, False), 0) * 256 + StrToIntDef(Fetch(s, ',', True, False), 0);
   if port = 0 then
     exit;
+
+  Result := True;
+end;
+
+// TODO: Implement based on FEAT response, as we need to know if it's supported by site before using it
+// for more infos see: https://glftpd.eu/beta/docs/README.IPv6
+function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
+var
+  helper, delimiter: String;
+  ipdots: Char;
+begin
+  Result := False;
+  ipdots := '.';
+
+  {
+  * CEPR on
+  * 200 Custom Extended Passive Reply enabled
+  * EPSV
+  * 229 Entering Extended Passive Mode (|mode|ip.ip.ip.ip|port|)
+  }
+  s := Copy(s, Pos('(', s) + 2, 100000);
+  s := Copy(s, 1, Pos(')', s) - 2);
+  if s = '' then
+    exit;
+
+  // s is now: mode|ip.ip.ip.ip|port
+  delimiter := s[2]; // delimiter in the range of ASCII 33-126
+
+  // protocol family as defined by IANA (1 for IPv4, 2 for IPv6)
+  IPv4Transfermode := Boolean(StrToInt(s[1]) = 1);
+  if not IPv4Transfermode then
+  begin
+    ipdots := ':';
+  end;
+
+  helper := Copy(s, Pos(delimiter, s) + 1, Pos(delimiter, s) - 1);
+  host := Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False);
+
+  port := StrToIntDef(Copy(s, LastDelimiter(delimiter, s) + 1, 100000), 0);
+  if port = 0 then
+    exit;
+
   Result := True;
 end;
 
