@@ -11166,13 +11166,16 @@ begin
   Result := True;
 end;
 
-function parseSTATLine(sitename, line: String; includeLastCredits: boolean = false): String;
+function parseSTATLine(const sitename, line: String; includeLastCredits: boolean = false): String;
 var
   x: TRegExpr;
   ss, creds, ratio: String;
   minus: boolean;
   c: double;
 begin
+  ratio := '';
+  creds := '';
+
   x := TRegExpr.Create;
   try
     x.ModifierI := True;
@@ -11186,7 +11189,17 @@ begin
         ratio := x.Match[2];
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\s?([\-\d\.\,]+)\s?(MB|GB|TB|EP|ZP)\]?');
+    // ratio(UL: 1:3 | DL: 1:1)
+    if ratio = '' then
+    begin
+      x.Expression := '(Ratio\((.*)\))';
+      if x.Exec(line) then
+      begin
+        ratio := x.Match[2];
+      end;
+    end;
+
+    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?(MB|GB|TB|EP|ZP)\]?');
     if x.Exec(line) then
     begin
       minus := False;
@@ -11205,17 +11218,7 @@ begin
       ss := x.Match[3];
       if AnsiUpperCase(ss) = 'MB' then
       begin
-        ss := 'MB';
-        if c > 1024 then
-        begin
-          c := c / 1024;
-          ss := 'GB';
-        end;
-        if c > 1024 then
-        begin
-          c := c / 1024;
-          ss := 'TB';
-        end;
+        RecalcSizeValueAndUnit(c, ss, 2);
       end;
 
       if minus then
