@@ -10,10 +10,17 @@
 unit delphiblowfish;
 
 interface
+
 uses
   Sysutils, delphiblowfishtools;
 
 type
+  {$IFDEF VER120}
+    DWord = longword;
+  {$ELSE}
+    DWord = longint;
+  {$ENDIF}
+
   TBlowfishData= record
     InitBlock: array[0..7] of byte;    { initial IV }
     LastBlock: array[0..7] of byte;    { current IV }
