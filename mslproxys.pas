@@ -42,11 +42,11 @@ type
   public
     constructor Create(const bncname: String);
 
-    property Host: String Read GetHost Write SetHost;
-    property Port: integer Read GetPort Write SetPort;
-    property Username: String Read GetUsername Write SetUsername;
-    property Password: String Read GetPassword Write SetPassword;
-    property Enabled: boolean Read GetStatus Write SetStatus; //! Usage status of proxy, for enabling/disabling proxy
+    property Host: String Read GetHost Write SetHost; //< Hostadress
+    property Port: integer Read GetPort Write SetPort; //< Portnumber
+    property Username: String Read GetUsername Write SetUsername; //< Username
+    property Password: String Read GetPassword Write SetPassword; //< Password
+    property Enabled: boolean Read GetStatus Write SetStatus; //< Usage status of proxy, for enabling/disabling proxy
   end;
 
 { Adds a new proxy to list and writes settings to socksini
@@ -94,13 +94,15 @@ var
 
 procedure InitProxys;
 begin
-  proxys   := TObjectList.Create;
+  proxys := TObjectList.Create;
   socksini := TEncinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.socks5', passphrase);
 end;
 
 procedure UninitProxys;
 begin
   Debug(dpSpam, 'Proxys', 'Uninit1');
+  socksini.Free;
+  
   if proxys <> nil then
   begin
     proxys.Clear;
