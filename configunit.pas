@@ -2,20 +2,18 @@ unit configunit;
 
 interface
 
-uses encinifile, slmd5;
+uses
+  encinifile, slmd5;
 
 procedure ReadPass;
+function config_io_timeout: Integer;
+function config_connect_timeout: Integer;
 function ConfigInit(var p: String): Boolean;
 procedure ConfigUninit;
-//function ConfigRehash:boolean;
 
 var
   config: TEncIniFile;
   passphrase: TslMD5Data;
-
-
-function config_io_timeout: Integer;
-function config_connect_timeout: Integer;
 
 implementation
 
@@ -28,7 +26,6 @@ const
 
 var
   cfgloaded: boolean = False;
-
 
 procedure ReadPass;
 var
@@ -68,41 +65,25 @@ end;
 function ConfigInit(var p: String): Boolean;
 begin
   Result := True;
+
   passphrase := slMD5String(p);
   WipePass(p);
   try
     if FileExists(ExtractFilePath(ParamStr(0))+'slftp.cini') then
-      config := TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'slftp.cini', passphrase)
+      config := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.cini', passphrase)
     else
-      config := TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'slftp.ini', '');
+      config := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.ini', '');
   except
     Result := False;
   end;
-    cfgloaded := result;
-  end;
+
+  cfgloaded := result;
+end;
 
 procedure ConfigUninit;
 begin
   config.Free;
-  cfgloaded:=False;
+  cfgloaded := False;
 end;
 
-(*
-function ConfigRehash:boolean;
-begin
-  result:=False;
-try
-  ConfigUninit;
-    if FileExists(ExtractFilePath(ParamStr(0))+'slftp.cini') then
-    config:= TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'slftp.cini', passphrase)
-//    if FileExists(ExtractFilePath(ParamStr(0))+'etc'+PathDelim+'slftp.cini') then
-//      config:= TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'etc'+PathDelim+'slftp.cini', passphrase)
-    else
-      config:= TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'slftp.ini', '');
-//      config:= TEncIniFile.Create(ExtractFilePath(ParamStr(0))+'etc'+PathDelim+'slftp.ini', '');
-finally
-  result:=True;
-end;
-end;
-  *)
 end.
