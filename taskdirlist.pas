@@ -59,7 +59,7 @@ ujra:
       goto ujra;
 
     // could not list directory
-    Debug(dpError, section, Format('ERROR: can not dirlist dir %s with forcecwd value %s', [dir, BoolToStr(forcecwd)]));
+    Debug(dpError, section, Format('ERROR: can not dirlist dir %s with forcecwd value %s', [dir, BoolToStr(forcecwd, True)]));
     readyerror:= True;
     exit;
   end;

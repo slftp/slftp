@@ -93,9 +93,6 @@ function todaycsere(const s: String; datum: TDateTime = 0): String;
 function InArray(const s: String; const d: array of String;
   casesensitive: boolean = True): boolean;
 
-function BoolToStr(Value: boolean; const TS, FS: String): String; overload;
-function BoolToStr(Value: boolean): String; overload;
-
 procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
 implementation
@@ -801,19 +798,6 @@ end else dayi:=dayi;
 end;
 
 {$WARNINGS ON}
-
-function BoolToStr(Value: boolean; const TS, FS: String): String; overload;
-begin
-  if Value then
-    Result := TS
-  else
-    Result := FS;
-end;
-
-function BoolToStr(Value: boolean): String; overload;
-begin
-  Result := BoolToStr(Value, 'TRUE', 'FALSE');
-end;
 
 procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 var
