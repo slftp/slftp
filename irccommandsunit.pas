@@ -1075,7 +1075,7 @@ begin
 
     // debug shit to be removed
     //irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | backroute: %s | apply: %s',
-    //  [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(back), BoolToStr(apply)]);
+    //  [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(back, True), BoolToStr(apply, True)]);
 
   finally
     rcmd.Free;
@@ -5431,10 +5431,10 @@ begin
     if params = '1' then
       precatcher_ircdebug := True;
 
-    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug));
+    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug, True));
   end
   else
-    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug));
+    irc_addtext(Netname, Channel, 'CatchDebug is: ' + BoolToStr(precatcher_ircdebug, True));
 
   Result := True;
 end;
@@ -12356,7 +12356,7 @@ begin
 
   if value = '' then
   begin
-    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite)]);
+    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite, True)]);
   end
   else if ((value = '1') or (value = '0')) then
   begin
@@ -12365,7 +12365,7 @@ begin
     if value = '0' then
       site.UseAutoInvite := False;
 
-    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite)]);
+    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite, True)]);
   end
   else
   begin
