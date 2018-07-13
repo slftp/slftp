@@ -377,7 +377,7 @@ begin
     if (r.mp3_number_of = r.words[i]) then
       Break;
 
-    j := SzamokSzama(r.words[i]);
+    j := OccurrencesOfNumbers(r.words[i]);
     k := length(r.words[i]);
 
     if ((j >0) and (k = j + 2)) then
