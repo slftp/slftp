@@ -1992,10 +1992,10 @@ begin
     Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
     if status <> '' then
       Result := Result + 'Status: ' + status + #13#10;
-    Result := Result + 'Current Season: ' + BoolToStr(currentseason) + #13#10;
-    Result := Result + 'Current Episode: ' + BoolToStr(currentepisode) + #13#10;
-    Result := Result + 'Current on Air: ' + BoolToStr(currentair) + #13#10;
-    Result := Result + 'Daily: ' + BoolToStr(daily) + #13#10;
+    Result := Result + 'Current Season: ' + BoolToStr(currentseason, True) + #13#10;
+    Result := Result + 'Current Episode: ' + BoolToStr(currentepisode, True) + #13#10;
+    Result := Result + 'Current on Air: ' + BoolToStr(currentair, True) + #13#10;
+    Result := Result + 'Daily: ' + BoolToStr(daily, True) + #13#10;
   except
     on e: Exception do
     begin
@@ -2982,7 +2982,7 @@ begin
     ps := TPazoSite(p.sites[i]);
 
     irc_Addstats(Format('doing %s - status: %s error: %s',
-      [ps.Name, ps.StatusText, BooltoStr(ps.error)]));
+      [ps.Name, ps.StatusText, BoolToStr(ps.error, True)]));
 
     (*
       case status of
@@ -3039,8 +3039,8 @@ begin
       begin
         pss := TPazoSite(p.sites[j]);
         irc_Addstats(Format('do %s (%s) - status: %s error: %s Complete: %s',
-          [pss.Name, ps.Name, pss.StatusText, BooltoStr(pss.error),
-          BooltoStr(pss.Complete)]));
+          [pss.Name, ps.Name, pss.StatusText, BoolToStr(pss.error, True),
+          BoolToStr(pss.Complete, True)]));
 
         if pss.Name = ps.Name then //set pss := nil; too
         begin
@@ -3075,7 +3075,7 @@ begin
           sfound := tts.isRouteableTo(ts.Name);
           //TSite.isRouteableFrom check sitesunit.pas
           irc_Addstats(Format('routable part: %s (%s) <- %s - sfound: %s',
-            [ps.Name, ts.Name, pss.Name, BooltoStr(sfound)]));
+            [ps.Name, ts.Name, pss.Name, BoolToStr(sfound, True)]));
         end
         else
         begin
