@@ -1504,7 +1504,7 @@ begin
   try
     if (length(s) = 4) then
     begin
-      i := SzamokSzama(s);
+      i := OccurrencesOfNumbers(s);
       if (i = 4) then
       begin
         mp3Year := StrToIntDef(s, 1900);
