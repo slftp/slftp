@@ -36,7 +36,10 @@ interface
 
 uses Classes;
 
-function onlyEnglishAlpha(s: String): String;
+{ Remove all non/special characters from String
+  @param(S String which should be cleaned)
+  @returns(String which only contains characters as [a-z] or [A-Z]) }
+function onlyEnglishAlpha(const S: String): String;
 
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 
@@ -45,21 +48,15 @@ function RightStr(const Source: String; Count: integer): String;
 function SubString(const s, seperator: String; index: integer): String;
 function Csere(const Source, old, new: String): String;
 function Count(const mi, miben: String): integer;
-function RPos(SubStr: Char; Str: String): integer;
-function ExtractUrlFileName(url: String): String;
-function ExtractFileNameWithoutExt(fname: String): String;
-function ReadBetweenSeperators(s, sep1, sep2: String; var from: integer): String;
-function MyTimeToStr(x: TDateTime): String;
-function MyStrToTime(x: String): TDateTime;
+function RPos(const SubStr: Char; const Str: String): integer;
+function MyStrToTime(const x: String): TDateTime;
 function MyDateToStr(x: TDateTime): String;
 function MyStrToDate(x: String): TDateTime;
 function myStrToFloat(s: String): double; overload;
 function myStrToFloat(s: String; def: double): double; overload;
-procedure MyWriteLn(s: String);
 function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
-function MyIncludeTrailingSlash(s: String): String;
-function CombineDirectories(dir1, dir2: String): String;
+function MyIncludeTrailingSlash(const s: String): String;
 
 { extracts data from ftpd PASV reply
   @param(s (ip,ip,ip,ip,port,port) reply)
@@ -84,14 +81,16 @@ function IsALetter(const c: Char): boolean;
   @param(c Character which should be checked)
   @returns(@true if it's a number: [0-9], @false otherwise) }
 function IsANumber(const c: Char): boolean;
-function Szamokszama(s: String): integer;
 
-function GetFileContents(fn: String): String;
+{ Counts the number of occurrences of numbers in String
+  @param(S String which should be used to search in)
+  @returns(Count of occurrences of numbers) }
+function OccurrencesOfNumbers(const S: string): Integer;
+
+function GetFileContents(const fn: String): String;
 function FetchSL(var osszes: String; const Args: array of Char): String;
 function Elsosor(var osszes: String): String;
 function todaycsere(const s: String; datum: TDateTime = 0): String;
-function InArray(const s: String; const d: array of String;
-  casesensitive: boolean = True): boolean;
 
 procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
@@ -211,76 +210,12 @@ begin
   Result := StringReplace(Source, old, new, [rfReplaceAll, rfIgnoreCase]);
 end;
 
-function ExtractUrlFileName(url: String): String;
-var
-  i: integer;
-begin
-  Result := '';
-  i      := RPos('/', url);
-  if i > 5 then
-    Result := Copy(url, i + 1, 200);
-end;
-
-function ExtractFileNameWithoutExt(fname: String): String;
-var
-  tmp: String;
-begin
-  tmp    := ExtractFileName(fname);
-  Result := Copy(tmp, 1, length(tmp) - length(ExtractFileExt(fname)));
-end;
-
-function ReadBetweenSeperators(s, sep1, sep2: String; var from: integer): String;
-var
-  tmp, tmp2: String;
-  k, tmpv, v: integer;
-  ok: boolean;
-begin
-  tmp := Copy(s, from, length(s));
-  if sep1 <> '' then
-    k := Pos(sep1, tmp) + length(sep1)
-  else
-    k := 1;
-  if k = 0 then
-    k := 1;
-  v := 0;
-  tmpv := 0;
-  ok   := True;
-  tmp2 := tmp;
-  while ok do
-  begin
-    tmp2 := Copy(tmp, v + 1, length(tmp));
-    if sep2 <> '' then
-      tmpv := Pos(sep2, tmp2)
-    else
-    begin
-      v  := length(tmp) + 1;
-      ok := False;
-    end;
-    if tmpv = 0 then
-    begin
-      ok := False;
-      v  := length(tmp) + 1;
-    end;
-    Inc(v, tmpv);
-    if v >= k then
-      ok := False;
-  end;
-
-  from   := v;
-  Result := Copy(tmp, k, v - k);
-end;
-
 function MyDateToStr(x: TDateTime): String;
 begin
   Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', x);
 end;
 
-function MyTimeToStr(x: TDateTime): String;
-begin
-  Result := FormatDateTime('hh:nn', x);
-end;
-
-function MyStrToTime(x: String): TDateTime;
+function MyStrToTime(const x: String): TDateTime;
 var
   h, m: integer;
 begin
@@ -334,19 +269,6 @@ begin
   Result := myStrToFloat(s, -1);
 end;
 
-procedure MyWriteLn(s: String);
-{$IFDEF DEBUG}var f: TextFile;{$ENDIF}
-begin
-{$IFDEF DEBUG}
-  s:= FormatDateTime('hh:nn:ss.zzz', Now())+': '+s;
-  AssignFile(f, 'szamlazo.log');
-  if (FileExists('szamlazo.log')) then Append(f) else Rewrite(f);
-  WriteLn(f,s);
-  CloseFile(f);
-{$ENDIF}
-end;
-
-
 function MyCopy(b: array of byte; index, len: integer): String;
 var
   i: integer;
@@ -356,7 +278,7 @@ begin
     Result := Result + Chr(b[i]);
 end;
 
-function RPos(SubStr: Char; Str: String): integer;
+function RPos(const SubStr: Char; const Str: String): integer;
 var
   m, i: integer;
 begin
@@ -405,15 +327,7 @@ begin
   end;
 end;
 
-function CombineDirectories(dir1, dir2: String): String;
-begin
-  if dir1 <> '' then
-    Result := MyIncludeTrailingSlash(dir1) + dir2
-  else
-    Result := dir2;
-end;
-
-function MyIncludeTrailingSlash(s: String): String;
+function MyIncludeTrailingSlash(const s: String): String;
 begin
   if length(s) > 0 then
   begin
@@ -500,17 +414,19 @@ begin
   Result := ((c >= '0') and (c <= '9'));
 end;
 
-function Szamokszama(s: String): integer;
+function OccurrencesOfNumbers(const S: string): Integer;
 var
-  i: integer;
+  i: Integer;
 begin
   Result := 0;
-  for i := 1 to length(s) do
-    if (IsANumber(s[i])) then
+  for i := 1 to Length(S) do
+  begin
+    if IsANumber(s[i]) then
       Inc(Result);
+  end;
 end;
 
-function GetFileContents(fn: String): String;
+function GetFileContents(const fn: String): String;
 var
   x: TextFile;
   s: String;
@@ -594,28 +510,6 @@ begin
   Result := Csere(Result, '<mm>', mm);
   Result := Csere(Result, '<dd>', dd);
   Result := Csere(Result, '<ww>', ww);
-end;
-
-function InArray(const s: String; const d: array of String;
-  casesensitive: boolean = True): boolean;
-var
-  i: integer;
-begin
-  Result := True;
-
-  for i := low(d) to high(d) do
-  begin
-    if casesensitive then
-    begin
-      if d[i] = s then
-        exit;
-    end
-    else
-    if AnsiSameText(d[i], s) then
-      exit;
-  end;
-
-  Result := False;
 end;
 
 {$WARNINGS OFF}
@@ -829,17 +723,18 @@ begin
     dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
 end;
 
-function onlyEnglishAlpha(s: String): String;
+function onlyEnglishAlpha(const S: String): String;
 var
   i: integer;
 begin
-  s      := LowerCase(s);
   Result := '';
-  for i := 1 to length(s) do
-    if ((s[i] >= 'a') and (s[i] <= 'z')) then
+  for i := 1 to Length(S) do
+  begin
+    if IsALetter(S[i]) then
     begin
-      Result := Result + s[i];
+      Result := Result + S[i];
     end;
+  end;
 end;
 
 end.
