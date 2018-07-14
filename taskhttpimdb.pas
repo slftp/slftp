@@ -126,7 +126,7 @@ begin
     (*  Fetch MainInfoPage from iMDB *)
     if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', mainsite, fHttpGetErrMsg) then
     begin
-      Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
+      Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
       irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask mainpage --> %s', [fHttpGetErrMsg]));
       Result := True;
       ready := True;
@@ -421,7 +421,7 @@ begin
       (* Get STV Info through releaseinfo page from iMDB *)
       if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/releaseinfo', rlsdatesite, fHttpGetErrMsg) then
       begin
-        Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
+        Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
         irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
         Result := True;
         ready := True;
@@ -595,7 +595,7 @@ begin
         begin
           if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + CleanMovienameForBOM(imdb_mtitle), bomsite, fHttpGetErrMsg) then
           begin
-            Debug(dpError, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+            Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
             irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
             Result := True;
             ready := True;
