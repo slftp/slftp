@@ -1779,8 +1779,12 @@ begin
       // TODO: Find out why it is negative sometimes + try to fix
       if fsize < 0 then
       begin
-        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(true) = %f, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
-        Debug(dpMessage, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(true) = %f, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
+        try
+          irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(true) = %d, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
+          Debug(dpMessage, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(true) = %d, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
+          irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s', [fsize, fsname ]));
+        finally
+        end;
       end;
     end
     else
