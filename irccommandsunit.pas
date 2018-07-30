@@ -7,13 +7,13 @@ uses
 
 type
   TIrcCommandHandler = function(const netname, channel: String; params: String): boolean;
-  //TIrcCommandHandler = function (const netname, channel: string; params: string; nickname:string = ''): Boolean;
+
   TIrcCommand = record
-    cmd: String;
-    hnd: TIrcCommandHandler;
-    minparams: integer;
-    maxparams: integer;
-    hlpgrp: String;
+    cmd: String; //< triggername for command
+    hnd: TIrcCommandHandler; //< function which is used for the command
+    minparams: integer; //< minimal count of input parameters
+    maxparams: integer; //< maximal count of input parameters
+    hlpgrp: String; //< name of the group the command belongs to
   end;
 
   TIRCCommandThread = class(TThread)
@@ -21,7 +21,6 @@ type
     th: TMyIrcThread;
     netname, channel, cmd, params: String;
     constructor Create(c: TIRCCommandHandler; netname, channel, params: String; cmd: String = '');
-    //constructor Create(c: TIRCCommandHandler; netname, channel, params: string; nickname:string = '');
     procedure Execute; override;
   end;
 
@@ -34,8 +33,7 @@ function IrcHelpSeperator(const netname, channel: String; params: String): boole
 
 function IrcHelpv2(const Netname, Channel: String; params: String): boolean;
 
-function FindIrcCommand(cmd: String): integer; // overload;
-//function FindIrcCommand(cmd: string): boolean; overload;
+function FindIrcCommand(cmd: String): integer;
 function IrcDie(const netname, channel: String; params: String): boolean;
 function IrcHelp(const netname, channel: String; params: String): boolean;
 function IrcUptime(const netname, channel: String; params: String): boolean;
@@ -48,7 +46,6 @@ function IrcSites(const netname, channel: String; params: String): boolean;
 function IrcSite(const netname, channel: String; params: String): boolean;
 function IrcBnc(const netname, channel: String; params: String): boolean;
 function IrcSetdown(const netname, channel: String; params: String): boolean;
-//function IrcNope(const netname, channel: string;params: string; nickname:string = ''): Boolean;
 
 function IrcQueue(const netname, channel: String; params: String): boolean;
 
@@ -114,7 +111,6 @@ function IrcChanAdd(const netname, channel: String; params: String): boolean;
 function IrcSetBlowkey(const netname, channel: String; params: String): boolean;
 function IrcSetChankey(const netname, channel: String; params: String): boolean;
 function IrcSetChanName(const netname, channel: String; params: String): boolean;
-//function IrcSetChanInvite(const netname, channel: string;params: string): Boolean;
 function IrcShowNet(const netname, channel: String; params: String): boolean;
 function IrcAddnet(const netname, channel: String; params: String): boolean;
 function IrcModnet(const netname, channel: String; params: String): boolean;
@@ -192,12 +188,9 @@ function IrcDelWindow(const netname, channel: String; params: String): boolean;
 function IrcRepaint(const netname, channel: String; params: String): boolean;
 function IrcIrcNames(const netname, channel: String; params: String): boolean;
 
-function DirlistB(const netname, channel: String; sitename, dir: String; SpeedTest:
-  boolean = False): TDirList;
-procedure RawB(const netname, channel: String; sitename, dir, command: String;
-  AnnounceSitename: boolean = False);
-function RawC(const Netname, Channel: String; sitename, dir, command: String;
-  AnnounceSitename: boolean = False): String;
+function DirlistB(const netname, channel: String; sitename, dir: String; SpeedTest: boolean = False): TDirList;
+procedure RawB(const netname, channel: String; sitename, dir, command: String; AnnounceSitename: boolean = False);
+function RawC(const Netname, Channel: String; sitename, dir, command: String; AnnounceSitename: boolean = False): String;
 
 function IrcNuke(const netname, channel: String; params: String): boolean;
 function IrcUnnuke(const netname, channel: String; params: String): boolean;
@@ -249,7 +242,6 @@ function IrcKillAll(const netname, channel: String; params: String): boolean;
 function IrcNetNoSocks5(const netname, channel: String; params: String): boolean;
 function IrcSetMYIrcNick(const netname, channel: String; params: String): boolean;
 function IrcInviteMyIRCNICK(const netname, channel: String; params: String): boolean;
-//function IrcNetBotNick(const netname, channel: string;params: string): Boolean;
 
 //Site_stuff
 function IrcNoLoginMSG(const netname, channel: String; params: String): boolean;
@@ -450,7 +442,7 @@ const
     (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
     (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
     (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2; maxparams: 3; hlpgrp: 'rip'),
-    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 0; maxparams: 1; hlpgrp: 'rip'),
+    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 1; maxparams: 1; hlpgrp: 'rip'),
     (cmd: 'prechecktime'; hnd: IrcSetReexamineTime; minparams: 0; maxparams: 1; hlpgrp: 'rip'),
     (cmd: 'skippre'; hnd: IrcSetSkipPre; minparams: 1; maxparams: 2; hlpgrp: 'rip'),
 
@@ -530,7 +522,6 @@ const
     (cmd: 'ircchanrole'; hnd: IrcSetChanName; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
     (cmd: 'ircchanpart'; hnd: IrcDelPart; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     (cmd: 'ircnick'; hnd: IrcSetMYIrcNick; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
-    //(cmd: 'ircnetbotnick'; hnd: IrcNetBotNick; minparams: 2; maxparams:2; hlpgrp:'')
     (cmd: 'inviteme'; hnd: IrcInviteMyIRCNICK; minparams: 1; maxparams: - 1; hlpgrp: 'irc'),
 
     (cmd: 'PRECATCHER'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$precatcher'),
@@ -12426,9 +12417,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section,
-        format('[EXCEPTION] TIRCCommandThread.Execute: %s (%s %s %s %s)',
-        [E.Message, Netname, Channel, cmd, params]));
+      Debug(dpError, section, Format('[EXCEPTION] TIRCCommandThread.Execute: %s (%s %s %s %s)', [E.Message, Netname, Channel, cmd, params]));
     end;
   end;
 end;
