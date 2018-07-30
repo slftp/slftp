@@ -949,13 +949,15 @@ begin
   while (True) do
   begin
     queue_lock.Enter;
-    if batchqueue.Count = 0 then
-    begin
+    try
+      if batchqueue.Count = 0 then
+      begin
+        Break;
+      end;
+      s := batchqueue[0];
+    finally
       queue_lock.Leave;
-      Break;
     end;
-    s := batchqueue[0];
-    queue_lock.Leave;
 
     sitename := SubString(s, #9, 1);
     section  := SubString(s, #9, 2);
@@ -966,12 +968,10 @@ begin
     begin
       if not webstuff(dir) then
       begin
-        irc_Addtext(netname, channel, '%slame %s %s %s',
-          [irccmdprefix, sitename, section, dir]);
+        irc_Addtext(netname, channel, '%slame %s %s %s', [irccmdprefix, sitename, section, dir]);
         if not IrcLame(netname, channel, sitename + ' ' + dir) then
         begin
-          irc_Addtext(netname, channel, 'ERROR: <c4>%s</c>',
-            ['Lame checking returned error. Skipping.']);
+          irc_Addtext(netname, channel, 'ERROR: <c4>Lame checking returned error. Skipping.</c>');
           goto ujkor;
         end;
       end
@@ -980,84 +980,91 @@ begin
     end;
 
     queue_lock.Enter;
-    i := kb_add(netname, channel, sitename, section, '', 'NEWDIR', dir, '', True, False);
+    try
+      i := kb_add(netname, channel, sitename, section, '', 'NEWDIR', dir, '', True, False);
+    finally
+      queue_lock.Leave;
+    end;
+
     if i = -1 then
     begin
       irc_Addtext(netname, channel, 'No Pazo found for ' + dir);
-      queue_lock.Leave;
       goto ujkor;
     end;
-    p := TPazo(kb_list.Objects[i]);
 
-    ss := '';
-    for i := 0 to sites.Count - 1 do
-    begin
-      site := TSite(sites[i]);
-      if site.Name = getAdminSiteName then
-        Continue;
+    queue_lock.Enter;
+    try
+      p := TPazo(kb_list.Objects[i]);
 
-      if site.sectiondir[section] <> '' then
+      ss := '';
+      for i := 0 to sites.Count - 1 do
       begin
-        if site.PermDown then
-        begin
-          irc_addtext(netname, channel, '<c4>Site ' + site.Name +
-            ' perm. down, skipping bnctest!</c>');
+        site := TSite(sites[i]);
+        if site.Name = getAdminSiteName then
           Continue;
-        end;
-        if site.markeddown then
+
+        if site.sectiondir[section] <> '' then
         begin
-          irc_addtext(netname, channel, '<c4>Site ' + site.Name +
-            ' is marked as down, skipping bnctest!</c>');
-          Continue;
+          if site.PermDown then
+          begin
+            irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' perm. down, skipping bnctest!</c>');
+            Continue;
+          end;
+          {
+          * might be done automatically for several reasons but site works again now
+          if site.markeddown then
+          begin
+            irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' is marked as down, skipping bnctest!</c>');
+            Continue;
+          end;
+          }
+          ps := p.FindSite(site.Name);
+          if ((ps <> nil) and (ps.status = rssNotAllowed)) then
+            continue;
+
+          ss := ss + site.Name + ' ';
         end;
-
-        ps := p.FindSite(site.Name);
-        if ((ps <> nil) and (ps.status = rssNotAllowed)) then
-          continue;
-
-        ss := ss + site.Name + ' ';
       end;
+    finally
+      queue_lock.Leave;
     end;
-    queue_lock.Leave;
 
     ss := Trim(ss);
     irc_Addtext(netname, channel, '%sbnctest %s', [irccmdprefix, ss]);
     IrcBnctest(netname, channel, Trim(ss));
 
-    irc_Addtext(netname, channel, '%sspread %s %s %s',
-      [irccmdprefix, sitename, section, dir]);
+    irc_Addtext(netname, channel, '%sspread %s %s %s', [irccmdprefix, sitename, section, dir]);
     if not IrcSpread(netname, channel, sitename + ' ' + dir) then
     begin
-      irc_Addtext(netname, channel, 'ERROR: <c4>%s</c>',
-        ['Spreading returned error. Skipping.']);
+      irc_Addtext(netname, channel, 'ERROR: <c4>Spreading returned error. Skipping.</c>');
       goto ujkor;
     end
     else
       irc_Addtext(netname, channel, 'Checking now....');
 
-    irc_Addtext(netname, channel, '%scheck %s %s %s',
-      [irccmdprefix, sitename, section, dir]);
+    irc_Addtext(netname, channel, '%scheck %s %s %s', [irccmdprefix, sitename, section, dir]);
     if not IrcCheck(netname, channel, sitename + ' ' + dir) then
     begin
-      irc_Addtext(netname, channel, 'ERROR: <c4>%s</c>',
-        ['Checking returned error. Skipping.']);
+      irc_Addtext(netname, channel, 'ERROR: <c4>Checking returned error. Skipping.</c>');
       goto ujkor;
     end
     else
       irc_Addtext(netname, channel, 'preeeeing now....');
 
-    irc_Addtext(netname, channel, '%spre %s %s %s',
-      [irccmdprefix, section, dir, ripper]);
-    //    irc_Addtext(channel, 'skipping right now, believe is debugging');
+    irc_Addtext(netname, channel, '%spre %s %s %s', [irccmdprefix, section, dir, ripper]);
     IrcPre(netname, channel, section + ' ' + dir + ' ' + ripper);
 
     ujkor:
-      queue_lock.Enter;
-    i := batchqueue.IndexOf(s);
-    if i = 0 then
-      batchqueue.Delete(0);
-    queue_lock.Leave;
+    queue_lock.Enter;
+    try
+      i := batchqueue.IndexOf(s);
+      if i = 0 then
+        batchqueue.Delete(0);
+    finally
+      queue_lock.Leave;
+    end;
   end;
+
   irc_Addtext(netname, channel, 'Batch queue is empty.');
   Result := True;
 end;
@@ -1174,295 +1181,242 @@ begin
   section  := UpperCase(SubString(params, ' ', 2));
 
   queue_lock.Enter;
-  s := FindSiteByName(netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
-    queue_lock.Leave;
-    exit;
-  end;
-
-  predir := s.sectiondir[section];
-
-  dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
-  if ((dir = '') and (predir = '')) then
-  begin
-    section := 'PRE';
-    predir  := s.sectiondir[section];
-    dir     := mystrings.RightStr(params, length(sitename) + 1);
-  end;
-  if (predir = '') then
-  begin
-    irc_addtext(netname, channel, 'Site <b>%s</b> has no dir set for section %s.',
-      [sitename, section]);
-    queue_lock.Leave;
-    exit;
-  end;
-
-
-
-  kb_Add(netname, channel, sitename, section, '', 'COMPLETE', dir, '', True);
-  i := kb_list.IndexOf(section + '-' + dir);
-  if i = -1 then
-  begin
-    irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
-    queue_lock.Leave;
-    exit; // this is not possible
-  end;
-
-  p := TPazo(kb_list.Objects[i]);
-
-
-  addednumber := 0;
-  tn := AddNotify;
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    ps := TPazoSite(p.sites[i]);
-    s  := FindSiteByName(netname, ps.Name);
-    if s.Name = getAdminSiteName then
-      continue;
-
-    if s.SkipPre then
-    begin
-      irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [ps.Name]);
-      continue;
-    end;
-
-
+  try
+    s := FindSiteByName(netname, sitename);
     if s = nil then
-      irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
-
-    if s.markeddown then
-      irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
-
-    if ps.status = rssNotAllowed then
-      irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s status is NotAllowed', [ps.Name]);
-
-
-
-    if ((s <> nil) and (not s.markeddown) and (ps.status <> rssNotAllowed)) then
     begin
-      r := TDirlistTask.Create(netname, channel, ps.Name,
-        MyIncludeTrailingSlash(ps.maindir) + dir);
-      // r.announce:= ps.name+' dirlist ready...'; // we dont want this anymore because of the lag
-      tn.tasks.Add(r);
-      AddTask(r);
-      Inc(addednumber);
+      irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
+      exit;
     end;
-  end;
 
-  QueueFire;
-  queue_lock.Leave;
+    predir := s.sectiondir[section];
+
+    dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
+    if ((dir = '') and (predir = '')) then
+    begin
+      section := 'PRE';
+      predir  := s.sectiondir[section];
+      dir     := mystrings.RightStr(params, length(sitename) + 1);
+    end;
+    if (predir = '') then
+    begin
+      irc_addtext(netname, channel, 'Site <b>%s</b> has no dir set for section %s.', [sitename, section]);
+      exit;
+    end;
+
+    kb_Add(netname, channel, sitename, section, '', 'COMPLETE', dir, '', True);
+    i := kb_list.IndexOf(section + '-' + dir);
+    if i = -1 then
+    begin
+      irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
+      exit; // this is not possible
+    end;
+
+    p := TPazo(kb_list.Objects[i]);
+
+
+    addednumber := 0;
+    tn := AddNotify;
+    for i := 0 to p.sites.Count - 1 do
+    begin
+      ps := TPazoSite(p.sites[i]);
+      s  := FindSiteByName(netname, ps.Name);
+      if s.Name = getAdminSiteName then
+        continue;
+
+      if s.SkipPre then
+      begin
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [ps.Name]);
+        continue;
+      end;
+
+
+      if s = nil then
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
+
+      if s.markeddown then
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
+
+      if ps.status = rssNotAllowed then
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s status is NotAllowed', [ps.Name]);
+
+
+
+      if ((s <> nil) and (not s.markeddown) and (ps.status <> rssNotAllowed)) then
+      begin
+        r := TDirlistTask.Create(netname, channel, ps.Name,
+          MyIncludeTrailingSlash(ps.maindir) + dir);
+        // r.announce:= ps.name+' dirlist ready...'; // we dont want this anymore because of the lag
+        tn.tasks.Add(r);
+        AddTask(r);
+        Inc(addednumber);
+      end;
+    end;
+
+    QueueFire;
+  finally
+    queue_lock.Leave;
+  end;
 
   if addednumber = 0 then
   begin
     queue_lock.Enter;
-    RemoveTN(tn);
-    queue_lock.Leave;
+    try
+      RemoveTN(tn);
+    finally
+      queue_lock.Leave;
+    end;
     exit;
   end;
 
   tn.event.WaitFor($FFFFFFFF);
 
   added := True;
+
   queue_lock.Enter;
+  try
+    csl := FindSkipList('PRE');
 
-  csl := FindSkipList('PRE');
-
-  if tn.responses.Count <> addednumber then
-  begin
-    irc_addtext(netname, channel, 'ERROR: <c4>%s</c>',
-      ['We got different number of dirlist responses...']);
-    added := False;
-  end;
-
-  if (added) then
-  begin
-    added    := False;
-    nfofound := False;
-    sized:=0;
-    for i := 0 to tn.responses.Count - 1 do
+    if tn.responses.Count <> addednumber then
     begin
-      sr := TSiteResponse(tn.responses[i]);
-      if sr.sitename = sitename then
-      begin
-        added := True;
-        d := TDirList.Create(sr.sitename, nil, csl, sr.response);
-        try
-          nfofound := d.hasnfo;
-          d.UsefulFiles(files, size);
-
-(*
-          sizestring := 'byte';
-          sized      := size;
-          if sized > 1024 then
-          begin
-            sized      := sized / 1024;
-            sizestring := 'KB';
-          end;
-          if sized > 1024 then
-          begin
-            sized      := sized / 1024;
-            sizestring := 'MB';
-          end;
-          if sized > 1024 then
-          begin
-            sized      := sized / 1024;
-            sizestring := 'GB';
-          end;
-*)
-
-          sized := size;
-          RecalcSizeValueAndUnit(sized, sizestring, 0);
-        finally
-          d.Free;
-        end;
-        Break;
-      end;
-    end;
-
-    if ((files = 0) or (size = 0)) then
-    begin
-      irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c>',
-        ['Something is wrong: i think there are no files on src ' + sitename + '...']);
+      irc_addtext(netname, channel, 'ERROR: <c4>We got different number of dirlist responses...</c>');
       added := False;
     end;
 
-    if (not nfofound) then
+    if (added) then
     begin
-      irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c>',
-        ['No NFO on src ' + sitename + '...']);
-    (*
-      irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c>',
-        ['Durex check failed on src ' + sitename + '...']);
-        *)
-      added := False;
-    end;
-
-    if added then
-    begin
-      irc_addtext(netname, channel, '<b>%s</b> @ <b>%s</b> is %.2f %s in %d files.',
-        [dir, sitename, sized, sizestring, files]);
-
-      perfect     := 0;
-      failed      := 0;
-      //      addednumber:= 0;
-      checkedlist := TStringList.Create;
-      try
-
+      added    := False;
+      nfofound := False;
+      sized:=0;
       for i := 0 to tn.responses.Count - 1 do
       begin
         sr := TSiteResponse(tn.responses[i]);
-        if sr.sitename <> sitename then
+        if sr.sitename = sitename then
         begin
-          //          inc(addednumber);
-
-          d := TDirList.Create(sr.sitename, nil, nil, sr.response);
+          added := True;
+          d := TDirList.Create(sr.sitename, nil, csl, sr.response);
           try
-            d.UsefulFiles(aktfiles, aktsize);
-            //nfofound := d.hasnfo;
-
-(*
-            aksizestring := 'byte';
-            aksized      := aktsize;
-            if aksized > 1024 then
-            begin
-              aksized      := aksized / 1024;
-              aksizestring := 'KB';
-            end;
-            if aksized > 1024 then
-            begin
-              aksized      := aksized / 1024;
-              aksizestring := 'MB';
-            end;
-            if aksized > 1024 then
-            begin
-              aksized      := aksized / 1024;
-              aksizestring := 'GB';
-            end;
-*)
-          aksized := aktsize;
-          RecalcSizeValueAndUnit(aksized, aksizestring, 0);
-
+            nfofound := d.hasnfo;
+            d.UsefulFiles(files, size);
+            sized := size;
+            RecalcSizeValueAndUnit(sized, sizestring, 0);
           finally
             d.Free;
           end;
-
-          if aktfiles <> files then
-          begin
-            sttr := '';
-            if aktfiles > files then
-              sttr := 'more';
-            if aktfiles < files then
-              sttr := 'less';
-            irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) have %s file then %s (%d)', [sr.sitename, aktfiles, sttr, sitename, files]);
-          end;
-
-
-          if aktsize <> size then
-          begin
-            sttr := '';
-            if aktsize > size then
-              sttr := 'bigger';
-            if aktsize < size then
-              sttr := 'smaller';
-            irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) is %s then %s (%d)',
-              [sr.sitename, aktsize, sttr, sitename, size]);
-          end;
-
-          if ((aktfiles <> files) or (aktsize <> size)) then
-          begin
-            irc_addtext(netname, channel,
-              'ERROR: <c4>%s</c> @ <c4><b>%s</b></c> is %.2f %s in %d files.',
-              [dir, sr.sitename, aksized, aksizestring, aktfiles]);
-            added := False;
-            checkedlist.Values['FAILED'] := checkedlist.Values['FAILED'] + ' ' + sr.sitename;
-            Inc(failed);
-          end
-          else
-          begin
-            Inc(perfect);
-            checkedlist.Values['PERFECT'] := checkedlist.Values['PERFECT'] + ' ' + sr.sitename;
-          end;
-
-          (*
-          if (not nfofound) then
-          begin
-            irc_addtext(netname, channel, 'ERROR: %s @ %s has no condom.', [Red(dir), Red(sr.sitename))]);
-            added:= False;
-          end;
-          *)
+          Break;
         end;
       end;
 
-      if ((perfect > 0) and (failed > 0)) then
+      if ((files = 0) or (size = 0)) then
       begin
-        irc_addtext(netname, channel,
-          'Perfect on <c3><b>%d</c></b> sites and failed on <c4><b>%d</c></b> sites compared to <b>%s</b>.',
-          [perfect, failed, sitename]);
-        irc_addtext(netname, channel, 'failed on: ' + checkedlist.Values['FAILED']);
-        //        irc_addtext(netname, channel, '');
-      end
-      else
-      if (failed > 0) then
-        irc_addtext(netname, channel,
-          '<c4>Failed on %d sites compared to</c> <b>%s</b>.', [failed, sitename])
-      else
-      if (perfect > 0) then
-        irc_addtext(netname, channel,
-          '<c3>Perfect on %d sites compared to</c> <b>%s</b>.', [perfect, sitename]);
-
-      finally
-        checkedlist.Free;
+        irc_addtext(netname, channel, 'ERROR: <c4><b>Something is wrong: i think there are no files on src %s ...</b></c>', [sitename]);
+        added := False;
       end;
 
+      if (not nfofound) then
+      begin
+        irc_addtext(netname, channel, 'ERROR: <c4><b>No NFO on src %s ...</b></c>', [sitename]);
+        added := False;
+      end;
+
+      if added then
+      begin
+        irc_addtext(netname, channel, '<b>%s</b> @ <b>%s</b> is %.2f %s in %d files.', [dir, sitename, sized, sizestring, files]);
+
+        perfect     := 0;
+        failed      := 0;
+        //      addednumber:= 0;
+        checkedlist := TStringList.Create;
+        try
+          for i := 0 to tn.responses.Count - 1 do
+          begin
+            sr := TSiteResponse(tn.responses[i]);
+            if sr.sitename <> sitename then
+            begin
+              //          inc(addednumber);
+              d := TDirList.Create(sr.sitename, nil, nil, sr.response);
+              try
+                d.UsefulFiles(aktfiles, aktsize);
+                //nfofound := d.hasnfo;
+                aksized := aktsize;
+                RecalcSizeValueAndUnit(aksized, aksizestring, 0);
+              finally
+                d.Free;
+              end;
+
+              if aktfiles <> files then
+              begin
+                sttr := '';
+                if aktfiles > files then
+                  sttr := 'more';
+                if aktfiles < files then
+                  sttr := 'less';
+                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) have %s file then %s (%d)', [sr.sitename, aktfiles, sttr, sitename, files]);
+              end;
+
+
+              if aktsize <> size then
+              begin
+                sttr := '';
+                if aktsize > size then
+                  sttr := 'bigger';
+                if aktsize < size then
+                  sttr := 'smaller';
+
+                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) is %s then %s (%d)', [sr.sitename, aktsize, sttr, sitename, size]);
+              end;
+
+              if ((aktfiles <> files) or (aktsize <> size)) then
+              begin
+                irc_addtext(netname, channel,
+                  'ERROR: <c4>%s</c> @ <c4><b>%s</b></c> is %.2f %s in %d files.',
+                  [dir, sr.sitename, aksized, aksizestring, aktfiles]);
+                added := False;
+                checkedlist.Values['FAILED'] := checkedlist.Values['FAILED'] + ' ' + sr.sitename;
+                Inc(failed);
+              end
+              else
+              begin
+                Inc(perfect);
+                checkedlist.Values['PERFECT'] := checkedlist.Values['PERFECT'] + ' ' + sr.sitename;
+              end;
+
+              (*
+              if (not nfofound) then
+              begin
+                irc_addtext(netname, channel, 'ERROR: %s @ %s has no condom.', [Red(dir), Red(sr.sitename))]);
+                added:= False;
+              end;
+              *)
+            end;
+          end;
+
+          if ((perfect > 0) and (failed > 0)) then
+          begin
+            irc_addtext(netname, channel,
+              'Perfect on <c3><b>%d</c></b> sites and failed on <c4><b>%d</c></b> sites compared to <b>%s</b>.',
+              [perfect, failed, sitename]);
+            irc_addtext(netname, channel, 'failed on: ' + checkedlist.Values['FAILED']);
+          end
+          else
+          if (failed > 0) then
+            irc_addtext(netname, channel,
+              '<c4>Failed on %d sites compared to</c> <b>%s</b>.', [failed, sitename])
+          else
+          if (perfect > 0) then
+            irc_addtext(netname, channel, '<c3>Perfect on %d sites compared to</c> <b>%s</b>.', [perfect, sitename]);
+
+        finally
+          checkedlist.Free;
+        end;
+
+      end;
     end;
+
+    RemoveTN(tn);
+  finally
+    queue_lock.Leave;
   end;
-
-  RemoveTN(tn);
-  queue_lock.Leave;
-
-  //  irc_addtext(channel, 'Kileptunk checkbol');
 
   if added then
     Result := True;
