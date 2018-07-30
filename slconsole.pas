@@ -81,19 +81,14 @@ uses
     ncurses,
   {$ENDIF}
 {$ELSE}
-  {$IFDEF MSWINDOWS}
-    Windows,
-  {$ELSE}
-    kylixncurses, Libc, KernelIoctl,
-  {$ENDIF}
+  Windows,
 {$ENDIF}
 
 {$IFNDEF MSWINDOWS}
   slsignals,
 {$ENDIF}
 
-  SysUtils
-;
+  SysUtils;
 
 {$IFDEF MSWINDOWS}
 type
@@ -1082,9 +1077,8 @@ end;
 
 function NCurses_version: String;
 begin
-  Result:= AnsiString(curses_version());
+  Result := AnsiString(curses_version());
 end;
-
 {$ENDIF}
 
 
