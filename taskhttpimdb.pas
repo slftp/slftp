@@ -593,7 +593,7 @@ begin
 
         if fBOMSearchNeeded then
         begin
-          if not HttpGetUrl('http://www.boxofficemojo.com/search/?q=' + CleanMovienameForBOM(imdb_mtitle), bomsite, fHttpGetErrMsg) then
+          if not HttpGetUrl('https://www.boxofficemojo.com/search/?q=' + CleanMovienameForBOM(imdb_mtitle), bomsite, fHttpGetErrMsg) then
           begin
             Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
             irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
