@@ -1,8 +1,8 @@
-#   Makefile.fpc for indycorefpc 10.6.2.5461
+#   Makefile.fpc for indycorefpc 10.6.2.5473
 
 [package]
 name=indyprotocolsfpc
-version=10.6.2.5461
+version=10.6.2.5473
 main=indy
 
 [compiler]
