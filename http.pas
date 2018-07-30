@@ -6,8 +6,9 @@ interface
   @param(aUrl complete url which should be fetched (gets automatically URL encoded))
   @param(aRecvStr Fetched HTML Sourcecode from given @link(aUrl))
   @param(aErrMsg Holds Exception text, webserver response text for occured failure code or a message if reply was empty)
+  @param(aMaxTries Max. number of retries when http get failed - default 2)
   @returns(@true on success, @false on failure, exception or if response was empty) }
-function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String): boolean;
+function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer = 2): boolean;
 
 implementation
 
@@ -18,11 +19,15 @@ const
   section = 'http';
   UserAgentsCount = 3;
   UserAgents: array[0..UserAgentsCount] of String = (
-    'Mozilla/5.0 (Windows NT 6.3; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0', 'Mozilla/5.0 (X11; Linux x86_64; rv:59.0) Gecko/20100101 Firefox/59.0',
-    'Mozilla/5.0 (Windows NT 10.0; WOW64) Gecko/20100101 Firefox/58.0', 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0'
+    'Mozilla/5.0 (Windows NT 6.3; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:59.0) Gecko/20100101 Firefox/59.0',
+    'Mozilla/5.0 (Windows NT 10.0; WOW64) Gecko/20100101 Firefox/58.0',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0'
   );
 
-function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String): boolean;
+function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer): boolean;
+label
+  TryAgain;
 var
   fIdHTTP: TIdHTTP;
   fIdSSLIOHandlerSocketOpenSSL: TIdSSLIOHandlerSocketOpenSSL;
@@ -31,9 +36,11 @@ var
   fProxyname: String;
   fSocks5: TmSLSocks5;
   fIdIOHandlerStack: TIdIOHandlerStack;
+  fNumErrors: Integer;
 begin
   Result := False;
   fIdSocksInfo := nil;
+  fNumErrors := 0;
 
   // encodes input URL with % and other defined characters for Uniform Resource Identifier as needed for TIdHTTP
   fEncodedUrl := TIdURI.URLEncode(aUrl);
@@ -144,32 +151,46 @@ begin
         end;
       end;
 
-      with fIdHTTP do
+      TryAgain:
+      Inc(fNumErrors);
+      if fNumErrors <= aMaxTries then
       begin
-        try
-          aRecvStr := Get(fEncodedUrl);
-        except
-          on e: EIdReadTimeout do
-          begin
-            Debug(dpMessage, section, Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]));
-            aErrMsg := Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]);
-            exit;
+        // reset buffers
+        aErrMsg := '';
+        // load website
+        with fIdHTTP do
+        begin
+          try
+            aRecvStr := Get(fEncodedUrl);
+          except
+            on e: EIdReadTimeout do
+            begin
+              Debug(dpMessage, section, Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]));
+              aErrMsg := Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]);
+            end;
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('HTTP GET for %s failed due to %d error code <--> %s.', [fEncodedUrl, ResponseCode, ResponseText]));
+              Debug(dpError, section, Format('ClassName: %s <--> Exception: %s', [e.ClassName, e.Message]));
+              aErrMsg := Format('HTTP GET failed with %d error code <--> %s.', [ResponseCode, ResponseText]);
+            end;
           end;
-          on e: Exception do
+
+          if (Length(aRecvStr) = 0) then
           begin
-            Debug(dpError, section, Format('HTTP GET for %s failed due to %d error code <--> %s.', [fEncodedUrl, ResponseCode, ResponseText]));
-            Debug(dpError, section, Format('ClassName: %s <--> Exception: %s', [e.ClassName, e.Message]));
-            aErrMsg := Format('HTTP GET failed with %d error code <--> %s.', [ResponseCode, ResponseText]);
-            exit;
+            Debug(dpMessage, section, Format('HTTP GET reply for %s is empty.', [fEncodedUrl]));
+            aErrMsg := 'HTTP GET reply is empty.';
           end;
         end;
 
-        if (Length(aRecvStr) = 0) then
-        begin
-          Debug(dpMessage, section, Format('HTTP GET reply for %s is empty.', [fEncodedUrl]));
-          aErrMsg := 'HTTP GET reply is empty.';
-          exit;
-        end;
+        if aErrMsg <> '' then
+          goto TryAgain;
+      end
+      else
+      begin
+        Debug(dpMessage, section, Format('Too many errors while getting website content. URL: %s', [fEncodedUrl]));
+        aErrMsg := 'Too many errors while getting website content.';
+        exit;
       end;
 
       Result := True;
@@ -177,7 +198,6 @@ begin
     finally
       fIdHTTP.Free;
     end;
-
   except
     on e: Exception do
     begin
