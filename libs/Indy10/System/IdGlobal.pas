@@ -1896,19 +1896,21 @@ var
   IndyPos: TPosProc = nil;
 
 {$IFDEF UNIX}
+  {$UNDEF DARWIN_OR_IOS}
+  {$IFDEF DARWIN}
+    {$DEFINE DARWIN_OR_IOS}
+  {$ENDIF}
+  {$IFDEF IOS}
+    {$DEFINE DARWIN_OR_IOS}
+  {$ENDIF}
+{$ENDIF}
+
+{$IFDEF UNIX}
 const
   {$IFDEF HAS_SharedSuffix}
   LIBEXT = '.' + SharedSuffix; {do not localize}
   {$ELSE}
-    {$UNDEF LIBEXT_IS_DYLIB}
-    {$IFDEF DARWIN}
-      {$DEFINE LIBEXT_IS_DYLIB}
-    {$ELSE}
-      {$IFDEF IOS}
-        {$DEFINE LIBEXT_IS_DYLIB}
-      {$ENDIF}
-    {$ENDIF}
-    {$IFDEF LIBEXT_IS_DYLIB}
+    {$IFDEF DARWIN_OR_IOS}
   LIBEXT = '.dylib'; {do not localize}
     {$ELSE}
   LIBEXT = '.so'; {do not localize}
@@ -1975,6 +1977,28 @@ uses
 const
   CP_UTF7 = 65000;
   CP_UTF8 = 65001;
+  {$ENDIF}
+{$ENDIF}
+
+{$IFDEF REGISTER_EXPECTED_MEMORY_LEAK}
+  {$IFNDEF HAS_System_RegisterExpectedMemoryLeak}
+    {$IFDEF USE_FASTMM4}
+// RLebeau 7/5/2018: Prior to Delphi 2009+, FastMM manually defines several of
+// Delphi's native types.  Most importantly, it defines PByte, which then causes
+// problems for IIdTextEncoding implementations below.  So, lets make sure that
+// our definitions below are using the same RTL types that their declarations
+// above were using, and not use FastMM's types by mistake, otherwise we get
+// compiler errors!
+type
+  PByte = System.PByte;
+  //NativeInt = System.NativeInt;
+  //NativeUInt = System.NativeUInt;
+  //PNativeUInt = System.PNativeUInt;
+  {$IFDEF DOTNET}
+  IntPtr = System.IntPtr;
+  {$ENDIF}
+  //UIntPtr = System.UIntPtr;
+    {$ENDIF}
   {$ENDIF}
 {$ENDIF}
 
@@ -2271,15 +2295,11 @@ type
   TIdUTF7Encoding = class(TIdMBCSEncoding)
   public
     constructor Create; override;
-    function GetByteCount(const AChars: PIdWideChar; ACharCount: Integer): Integer; overload; override;
-    function GetBytes(const AChars: PIdWideChar; ACharCount: Integer; ABytes: PByte; AByteCount: Integer): Integer; overload; override;
-    function GetCharCount(const ABytes: PByte; AByteCount: Integer): Integer; overload; override;
-    function GetChars(const ABytes: PByte; AByteCount: Integer; AChars: PIdWideChar; ACharCount: Integer): Integer; overload; override;
     function GetMaxByteCount(CharCount: Integer): Integer; override;
     function GetMaxCharCount(ByteCount: Integer): Integer; override;
   end;
 
-  TIdUTF8Encoding = class(TIdUTF7Encoding)
+  TIdUTF8Encoding = class(TIdMBCSEncoding)
   public
     constructor Create; override;
     function GetMaxByteCount(CharCount: Integer): Integer; override;
@@ -2715,6 +2735,61 @@ end;
 
 { TIdMBCSEncoding }
 
+function IsCharsetASCII(const ACharSet: string): Boolean;
+  {$IFDEF USE_INLINE}inline;{$ENDIF}
+begin
+  // TODO: when the IdCharsets unit is moved to the System
+  // package, use CharsetToCodePage() here...
+  Result := PosInStrArray(ACharSet,
+      [
+      'US-ASCII',                                      {do not localize}
+      'ANSI_X3.4-1968',                                {do not localize}
+      'iso-ir-6',                                      {do not localize}
+      'ANSI_X3.4-1986',                                {do not localize}
+      'ISO_646.irv:1991',                              {do not localize}
+      'ASCII',                                         {do not localize}
+      'ISO646-US',                                     {do not localize}
+      'us',                                            {do not localize}
+      'IBM367',                                        {do not localize}
+      'cp367',                                         {do not localize}
+      'csASCII'                                        {do not localize}
+      ], False) <> -1;
+end;
+
+{$IFNDEF USE_ICONV}
+  {$IFNDEF HAS_LocaleCharsFromUnicode}
+    {$IFDEF WINDOWS}
+{$IFNDEF HAS_PLongBool}
+type
+  PLongBool = ^LongBool;
+{$ENDIF}
+
+function LocaleCharsFromUnicode(CodePage, Flags: Cardinal;
+  UnicodeStr: PWideChar; UnicodeStrLen: Integer; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; DefaultChar: PAnsiChar; UsedDefaultChar: PLongBool): Integer; overload;
+  {$IFDEF USE_INLINE}inline;{$ENDIF}
+begin
+  Result := WideCharToMultiByte(CodePage, Flags, UnicodeStr, UnicodeStrLen, LocaleStr, LocaleStrLen, DefaultChar, PBOOL(UsedDefaultChar));
+end;
+      {$DEFINE HAS_LocaleCharsFromUnicode}
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}
+
+{$IFNDEF USE_ICONV}
+  {$IFNDEF HAS_UnicodeFromLocaleChars}
+    {$IFDEF WINDOWS}
+function UnicodeFromLocaleChars(CodePage, Flags: Cardinal; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; UnicodeStr: PWideChar; UnicodeStrLen: Integer): Integer; overload;
+  {$IFDEF USE_INLINE}inline;{$ENDIF}
+begin
+  Result := MultiByteToWideChar(CodePage, Flags, LocaleStr, LocaleStrLen, UnicodeStr, UnicodeStrLen);
+end;
+      {$DEFINE HAS_UnicodeFromLocaleChars}
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}
+
 constructor TIdMBCSEncoding.Create;
 begin
   {$IFDEF USE_ICONV}
@@ -2746,27 +2821,57 @@ begin
 
   // RLebeau 9/27/2017: updating to handle a few more UTFs without hyphens...
 
-  case PosInStrArray(CharSet, ['UTF7', 'UTF8', 'UTF16', 'UTF16LE', 'UTF16BE', 'UTF32', 'UTF32LE', 'UTF32BE'], False) of {Do not Localize}
-    0:   FCharSet := 'UTF-7';    {Do not Localize}
-    1:   FCharSet := 'UTF-8';    {Do not Localize}
-    2,3: FCharSet := 'UTF-16LE'; {Do not Localize}
-    4:   FCharSet := 'UTF-16BE'; {Do not Localize}
-    5,6: FCharSet := 'UTF-32LE'; {Do not Localize}
-    7:   FCharSet := 'UTF-32BE'; {Do not Localize}
+  // RLebeau 7/6/2018: iconv does not have a way to query the highest Unicode
+  // codepoint a charset supports, let alone the max bytes needed to encode such
+  // a codepoint, so use known values for select charsets, and calculate
+  // MaxCharSize dynamically for the rest...
+
+  case PosInStrArray(CharSet, ['UTF-7', 'UTF7', 'UTF-8', 'UTF8', 'UTF-16', 'UTF16', 'UTF-16LE', 'UTF16LE', 'UTF-16BE', 'UTF16BE', 'UTF-32', 'UTF32', 'UTF-32LE', 'UTF32LE', 'UTF-32BE', 'UTF32BE'], False) of {Do not Localize}
+    0, 1: begin
+      FCharSet := 'UTF-7';    {Do not Localize}
+      FMaxCharSize := 5;
+    end;
+    2, 3: begin
+      FCharSet := 'UTF-8';    {Do not Localize}
+      FMaxCharSize := 4;
+    end;
+    4..7: begin
+      FCharSet := 'UTF-16LE'; {Do not Localize}
+      FMaxCharSize := 4;
+    end;
+    8, 9: begin
+      FCharSet := 'UTF-16BE'; {Do not Localize}
+      FMaxCharSize := 4;
+    end;
+    10..13: begin
+      FCharSet := 'UTF-32LE'; {Do not Localize}
+      FMaxCharSize := 4;
+    end;
+    14, 15: begin
+      FCharSet := 'UTF-32BE'; {Do not Localize}
+      FMaxCharSize := 4;
+    end;
   else
     FCharSet := CharSet;
-  end;
-
-  FMaxCharSize := GetByteCount(PIdWideChar(@cValue[0]), 2);
-
-  // Not all charsets support all codepoints.  For example, ISO-8859-1 does
-  // not support U+10FFFF.  If GetByteCount() fails above, FMaxCharSize gets
-  // set to 0, preventing any character conversions.  So force FMaxCharSize
-  // to 1 if GetByteCount() fails, until a better solution can be found.
-  // Maybe loop through the codepoints until we find the largest one that is
-  // supported by this charset..
-  if FMaxCharSize = 0 then begin
-    FMaxCharSize := 1;
+    if TextStartsWith(CharSet, 'ISO-8859') or           {Do not Localize}
+       TextStartsWith(CharSet, 'Windows') or            {Do not Localize}
+       TextStartsWith(CharSet, 'KOI8') or               {Do not Localize}
+       IsCharsetASCII(CharSet) then
+    begin
+      FMaxCharSize := 1;
+    end
+    else begin
+      FMaxCharSize := GetByteCount(PWideChar(@cValue[0]), 2);
+      // Not all charsets support all codepoints.  For example, ISO-8859-1 does
+      // not support U+10FFFF.  If GetByteCount() fails above, FMaxCharSize gets
+      // set to 0, preventing any character conversions.  So force FMaxCharSize
+      // to 1 if GetByteCount() fails, until a better solution can be found.
+      // Maybe loop through the codepoints until we find the largest one that is
+      // supported by this charset..
+      if FMaxCharSize = 0 then begin
+        FMaxCharSize := 1;
+      end;
+    end;
   end;
 
   FIsSingleByte := (FMaxCharSize = 1);
@@ -2817,20 +2922,38 @@ begin
   end;
   FMaxCharSize := LCPInfo.MaxCharSize;
   {$ELSE}
-  FMaxCharSize := LocaleCharsFromUnicode(FCodePage, FWCharToMBFlags, @cValue[0], 2, nil, 0, nil, nil);
-  if FMaxCharSize < 1 then begin
-    raise EIdException.CreateResFmt(@RSInvalidCodePage, [FCodePage]);
-  end;
-  // Not all charsets support all codepoints.  For example, ISO-8859-1 does
-  // not support U+10FFFF.  If LocaleCharsFromUnicode() fails above,
-  // FMaxCharSize gets set to 0, preventing any character conversions.  So
-  // force FMaxCharSize to 1 if GetByteCount() fails, until a better solution
-  // can be found.  Maybe loop through the codepoints until we find the largest
-  // one that is supported by this codepage..
-  if FMaxCharSize = 0 then begin
-    FMaxCharSize := 1;
+  case FCodePage of
+    65000: begin
+      FMaxCharSize := 5;
+    end;
+    65001: begin
+      FMaxCharSize := 4;
+    end;
+    1200: begin
+      FMaxCharSize := 4;
+    end;
+    1201: begin
+      FMaxCharSize := 4;
+    end;
+    // TODO: add support for UTF-32...
+    // TODO: add cases for 'ISO-8859-X', 'Windows-X', 'KOI8-X', and ASCII charsets...
+  else
+    FMaxCharSize := LocaleCharsFromUnicode(FCodePage, FWCharToMBFlags, @cValue[0], 2, nil, 0, nil, nil);
+    if FMaxCharSize < 1 then begin
+      raise EIdException.CreateResFmt(@RSInvalidCodePage, [FCodePage]);
+    end;
+    // Not all charsets support all codepoints.  For example, ISO-8859-1 does
+    // not support U+10FFFF.  If LocaleCharsFromUnicode() fails above,
+    // FMaxCharSize gets set to 0, preventing any character conversions.  So
+    // force FMaxCharSize to 1 if GetByteCount() fails, until a better solution
+    // can be found.  Maybe loop through the codepoints until we find the largest
+    // one that is supported by this codepage (though that will take time)...
+    if FMaxCharSize = 0 then begin
+      FMaxCharSize := 1;
+    end;
   end;
   {$ENDIF}
+
   FIsSingleByte := (FMaxCharSize = 1);
 end;
   {$ENDIF}
@@ -3024,7 +3147,8 @@ end;
 function TIdMBCSEncoding.GetByteCount(const AChars: PIdWideChar; ACharCount: Integer): Integer;
 {$IFDEF USE_ICONV}
 var
-  LBytes: array[0..3] of Byte;
+  // TODO: size this dynamically to accomodate FMaxCharSize, plus some extra padding for safety...
+  LBytes: array[0..7] of Byte;
 {$ENDIF}
 begin
   {$IFDEF USE_ICONV}
@@ -3033,12 +3157,8 @@ begin
     {$IFDEF HAS_LocaleCharsFromUnicode}
   Result := LocaleCharsFromUnicode(FCodePage, FWCharToMBFlags, AChars, ACharCount, nil, 0, nil, nil);
     {$ELSE}
-      {$IFDEF WINDOWS}
-  Result := WideCharToMultiByte(FCodePage, FWCharToMBFlags, AChars, ACharCount, nil, 0, nil, nil);
-      {$ELSE}
   Result := 0;
   ToDo('GetByteCount() method of TIdMBCSEncoding class is not implemented for this platform yet'); {do not localize}
-      {$ENDIF}
     {$ENDIF}
   {$ENDIF}
 end;
@@ -3053,12 +3173,8 @@ begin
     {$IFDEF HAS_LocaleCharsFromUnicode}
   Result := LocaleCharsFromUnicode(FCodePage, FWCharToMBFlags, AChars, ACharCount, {$IFNDEF HAS_PAnsiChar}Pointer{$ELSE}PAnsiChar{$ENDIF}(ABytes), AByteCount, nil, nil);
     {$ELSE}
-      {$IFDEF WINDOWS}
-  Result := WideCharToMultiByte(FCodePage, FWCharToMBFlags, AChars, ACharCount, PAnsiChar(ABytes), AByteCount, nil, nil);
-      {$ELSE}
   Result := 0;
   ToDo('GetBytes() method of TIdMBCSEncoding class is not implemented for this platform yet'); {do not localize}
-      {$ENDIF}
     {$ENDIF}
   {$ENDIF}
 end;
@@ -3186,12 +3302,8 @@ begin
     {$IFDEF HAS_UnicodeFromLocaleChars}
   Result := UnicodeFromLocaleChars(FCodePage, FMBToWCharFlags, {$IFNDEF HAS_PAnsiChar}Pointer{$ELSE}PAnsiChar{$ENDIF}(ABytes), AByteCount, nil, 0);
     {$ELSE}
-      {$IFDEF WINDOWS}
-  Result := MultiByteToWideChar(FCodePage, FMBToWCharFlags, PAnsiChar(ABytes), AByteCount, nil, 0);
-      {$ELSE}
   Result := 0;
   ToDo('GetCharCount() method of TIdMBCSEncoding class is not implemented for this platform yet'); {do not localize}
-      {$ENDIF}
     {$ENDIF}
   {$ENDIF}
 end;
@@ -3205,12 +3317,8 @@ begin
     {$IFDEF HAS_UnicodeFromLocaleChars}
   Result := UnicodeFromLocaleChars(FCodePage, FMBToWCharFlags, {$IFNDEF HAS_PAnsiChar}Pointer{$ELSE}PAnsiChar{$ENDIF}(ABytes), AByteCount, AChars, ACharCount);
     {$ELSE}
-      {$IFDEF WINDOWS}
-  Result := MultiByteToWideChar(FCodePage, FMBToWCharFlags, PAnsiChar(ABytes), AByteCount, AChars, ACharCount);
-      {$ELSE}
   Result := 0;
   ToDo('GetChars() method of TIdMBCSEncoding class is not implemented for this platform yet'); {do not localize}
-      {$ENDIF}
     {$ENDIF}
   {$ENDIF}
 end;
@@ -3268,7 +3376,7 @@ begin
     SetLength(Result, 0);
   end;
   {$ELSE}
-    {$IFDEF WINDOWS}
+    {$IFDEF SUPPORTS_CODEPAGE_ENCODING}
   case FCodePage of
     CP_UTF8: begin
       SetLength(Result, 3);
@@ -3315,36 +3423,23 @@ end;
 constructor TIdUTF7Encoding.Create;
 begin
   {$IFDEF USE_ICONV}
-  inherited Create('UTF-7'); {do not localize}
+  // RLebeau 7/6/2018: iconv does not have a way to query the highest Unicode codepoint
+  // a charset supports, let alone the max bytes needed to encode such a codepoint, so
+  // the inherited constructor tries to calculate MaxCharSize dynamically, which doesn't
+  // work very well for most charsets.  Since we already know the exact value to use for
+  // this charset, let's just skip the inherited constructor and hard-code the value here...
+  //
+  //inherited Create('UTF-7'); {do not localize}
+  FCharSet := 'UTF-7'; {do not localize};
+  FIsSingleByte := False;
+  FMaxCharSize := 5;
   {$ELSE}
     {$IFDEF SUPPORTS_CODEPAGE_ENCODING}
   inherited Create(CP_UTF7);
     {$ELSE}
-  ToDo('Construtor of TIdUTF7Encoding class is not implemented for this platform yet'); {do not localize}
+  ToDo('Constructor of TIdUTF7Encoding class is not implemented for this platform yet'); {do not localize}
     {$ENDIF}
   {$ENDIF}
-end;
-
-function TIdUTF7Encoding.GetByteCount(const AChars: PIdWideChar; ACharCount: Integer): Integer;
-begin
-  Result := inherited GetByteCount(AChars, ACharCount);
-end;
-
-function TIdUTF7Encoding.GetBytes(const AChars: PIdWideChar; ACharCount: Integer;
-  ABytes: PByte; AByteCount: Integer): Integer;
-begin
-  Result := inherited GetBytes(AChars, ACharCount, ABytes, AByteCount);
-end;
-
-function TIdUTF7Encoding.GetCharCount(const ABytes: PByte; AByteCount: Integer): Integer;
-begin
-  Result := inherited GetCharCount(ABytes, AByteCount);
-end;
-
-function TIdUTF7Encoding.GetChars(const ABytes: PByte; AByteCount: Integer;
-  AChars: PIdWideChar; ACharCount: Integer): Integer;
-begin
-  Result := inherited GetChars(ABytes, AByteCount, AChars, ACharCount);
 end;
 
 function TIdUTF7Encoding.GetMaxByteCount(CharCount: Integer): Integer;
@@ -3364,10 +3459,19 @@ end;
 constructor TIdUTF8Encoding.Create;
 begin
   {$IFDEF USE_ICONV}
-  inherited Create('UTF-8'); {do not localize}
+  // RLebeau 7/6/2018: iconv does not have a way to query the highest Unicode codepoint
+  // a charset supports, let alone the max bytes needed to encode such a codepoint, so
+  // the inherited constructor tries to calculate MaxCharSize dynamically, which doesn't
+  // work very well for most charsets.  Since we already know the exact value to use for
+  // this charset, let's just skip the inherited constructor and hard-code the value here...
+  //
+  //inherited Create('UTF-8'); {do not localize}
+  FCharSet := 'UTF-8'; {do not localize};
+  FIsSingleByte := False;
+  FMaxCharSize := 4;
   {$ELSE}
     {$IFDEF SUPPORTS_CODEPAGE_ENCODING}
-  inherited Create(CP_UTF8, 0, 0);
+  inherited Create(CP_UTF8);
     {$ELSE}
   ToDo('Constructor of TIdUTF8Encoding class is not implemented for this platform yet'); {do not localize}
     {$ENDIF}
@@ -3545,27 +3649,6 @@ end;
 
 { TIdASCIIEncoding }
 
-function IsCharsetASCII(const ACharSet: string): Boolean;
-  {$IFDEF USE_INLINE}inline;{$ENDIF}
-begin
-  // TODO: when the IdCharsets unit is moved to the System
-  // package, use CharsetToCodePage() here...
-  Result := PosInStrArray(ACharSet,
-      [
-      'US-ASCII',                                      {do not localize}
-      'ANSI_X3.4-1968',                                {do not localize}
-      'iso-ir-6',                                      {do not localize}
-      'ANSI_X3.4-1986',                                {do not localize}
-      'ISO_646.irv:1991',                              {do not localize}
-      'ASCII',                                         {do not localize}
-      'ISO646-US',                                     {do not localize}
-      'us',                                            {do not localize}
-      'IBM367',                                        {do not localize}
-      'cp367',                                         {do not localize}
-      'csASCII'                                        {do not localize}
-      ], False) <> -1;
-end;
-
 constructor TIdASCIIEncoding.Create;
 begin
   inherited Create;
@@ -3575,6 +3658,7 @@ end;
 
 function TIdASCIIEncoding.GetByteCount(const AChars: PIdWideChar; ACharCount: Integer): Integer;
 begin
+  // TODO: decode UTF-16 surrogates...
   Result := ACharCount;
 end;
 
@@ -3584,6 +3668,7 @@ var
   P: PIdWideChar;
   i : Integer;
 begin
+  // TODO: decode UTF-16 surrogates...
   P := AChars;
   Result := IndyMin(ACharCount, AByteCount);
   for i := 1 to Result do begin
@@ -3646,6 +3731,7 @@ end;
 
 function TId8BitEncoding.GetByteCount(const AChars: PIdWideChar; ACharCount: Integer): Integer;
 begin
+  // TODO: decode UTF-16 surrogates...
   Result := ACharCount;
 end;
 
@@ -3655,6 +3741,7 @@ var
   P: PIdWideChar;
   i : Integer;
 begin
+  // TODO: decode UTF-16 surrogates...
   P := AChars;
   Result := IndyMin(ACharCount, AByteCount);
   for i := 1 to Result do begin
@@ -3886,7 +3973,6 @@ begin
 
     // RLebeau 9/27/2017: updating to handle a few more UTFs without hyphens...
 
-    // TODO: add support for UTF-32...
     case PosInStrArray(ACharset, ['UTF-7', 'UTF7', 'UTF-8', 'UTF8', 'UTF-16', 'UTF16', 'UTF-16LE', 'UTF16LE', 'UTF-16BE', 'UTF16BE'], False) of {Do not Localize}
       0, 1: Result := IndyTextEncoding_UTF7;
       2, 3: Result := IndyTextEncoding_UTF8;
@@ -3904,7 +3990,7 @@ begin
       // CharsetToCodePage() here, at least until CharsetToEncoding() can be moved
       // to this unit once IdCharsets has been moved to the System package...
       Result := nil;
-      raise EIdException.CreateResFmt(PResStringRec(@RSUnsupportedCharSet), [ACharSet]);
+      raise EIdException.CreateFmt(RSUnsupportedCharSet, [ACharSet]);
         {$ENDIF}
       {$ENDIF}
     end;
@@ -4218,32 +4304,34 @@ end;
 {$IFDEF UNIX}
 function HackLoadFileName(const ALibName, ALibVer : String) : string;  {$IFDEF USE_INLINE} inline; {$ENDIF}
 begin
-  {$IFDEF DARWIN}
+  {$IFDEF DARWIN_OR_IOS}
   Result := ALibName+ALibVer+LIBEXT;
   {$ELSE}
-    {$IFDEF IOS}
-  Result := ALibName+ALibVer+LIBEXT;
-    {$ELSE}
   Result := ALibName+LIBEXT+ALibVer;
-    {$ENDIF}
   {$ENDIF}
 end;
 
 function HackLoad(const ALibName : String; const ALibVersions : array of String) : HMODULE;
 var
   i : Integer;
+  FileName: string;
 begin
   Result := NilHandle;
   for i := Low(ALibVersions) to High(ALibVersions) do
   begin
+    FileName := HackLoadFileName(ALibName, ALibVersions[i]);
     {$IFDEF USE_SAFELOADLIBRARY}
-    Result := SafeLoadLibrary(HackLoadFileName(ALibName,ALibVersions[i]));
+    Result := SafeLoadLibrary(FileName);
     {$ELSE}
       {$IFDEF KYLIXCOMPAT}
     // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
-    Result := HMODULE(dlopen(PAnsiChar(HackLoadFileName(ALibName,ALibVersions[i])), RTLD_LAZY));
+    // TODO: use ToSingleByteFileSystemEncodedFileName() to encode the filename:
+    // Result := HMODULE(dlopen(PAnsiChar(ToSingleByteFileSystemEncodedFileName(FileName)), RTLD_LAZY));
+    // TODO: use dynlibs.SysLoadLibraryU() instead:
+    // Result := HMODULE(SysLoadLibraryU(FileName));
+    Result := HMODULE(dlopen(PAnsiChar(FileName), RTLD_LAZY));
       {$ELSE}
-    Result := LoadLibrary(HackLoadFileName(ALibName,ALibVersions[i]));
+    Result := LoadLibrary(FileName);
       {$ENDIF}
     {$ENDIF}
     {$IFDEF USE_INVALIDATE_MOD_CACHE}
@@ -4466,7 +4554,7 @@ end;
 function InterlockedCompareExchangeObj(var VTarget: TObject; const AValue, Compare: TObject): TObject;
   {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF USE_OBJECT_ARC}
+  {$IFDEF HAS_TInterlocked}
   // for ARC, we have to use the TObject overload of TInterlocked to ensure
   // that the reference counts of the objects are managed correctly...
   Result := TInterlocked.CompareExchange(VTarget, AValue, Compare);
@@ -4478,7 +4566,8 @@ end;
 function InterlockedCompareExchangeIntf(var VTarget: IInterface; const AValue, Compare: IInterface): IInterface;
   {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  // we have to ensure that the reference counts of the interfaces are managed correctly...
+  // TInterlocked does not have an overload for IInterface.
+  // We have to ensure that the reference counts of the interfaces are managed correctly...
   if AValue <> nil then begin
     AValue._AddRef;
   end;
@@ -4627,7 +4716,7 @@ end;
 // Delphi 2010 to allow other flags to be specified along with fmCreate.  So
 // at best, we will now be able to allow read-only access to other processes
 // in Delphi 2010 and later, and at worst we will continue having exclusive
-// right to the file in Delphi 2009 and earlier, just like we always did...
+// rights to the file in Delphi 2009 and earlier, just like we always did...
 
 constructor TIdFileCreateStream.Create(const AFile : String);
 begin
@@ -5231,6 +5320,8 @@ var
   {$IFDEF USE_INLINE}inline;{$ENDIF}
 {$ENDIF}
 begin
+  // TODO: support other debugging platforms
+
   {$IFDEF KYLIX}
   __write(stderr, AText, Length(AText));
   __write(stderr, EOL, Length(EOL));
@@ -5435,7 +5526,8 @@ function Impl_GetTickCount64: UInt64; stdcall;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
   // TODO: implement some kind of accumulator so the Result
-  // keeps growing even when GetTickCount() wraps back to 0
+  // keeps growing even when GetTickCount() wraps back to 0.
+  // Or maybe access the CPU's TSC via the x86 RDTSC instruction...
   Result := UInt64(Windows.GetTickCount);
 end;
 
@@ -7041,6 +7133,7 @@ begin
   Result.LongTimeFormat := 'h:mm:ss AMPM';                    {do not localize}
   Result.ShortTimeFormat := 'h:mm AMPM';                      {do not localize}
 
+  // TODO: use hard-coded names instead?
   Result.ShortMonthNames[1] := monthnames[1]; //'Jan';
   Result.ShortMonthNames[2] := monthnames[2]; //'Feb';
   Result.ShortMonthNames[3] := monthnames[3]; //'Mar';
@@ -7067,6 +7160,7 @@ begin
   Result.LongMonthNames[11] := 'November';                    {do not localize}
   Result.LongMonthNames[12] := 'December';                    {do not localize}
 
+  // TODO: use hard-coded names instead?
   Result.ShortDayNames[1] := wdays[1]; //'Sun';
   Result.ShortDayNames[2] := wdays[2]; //'Mon';
   Result.ShortDayNames[3] := wdays[3]; //'Tue';
@@ -9134,8 +9228,11 @@ function IndyRegisterExpectedMemoryLeak(AAddress: Pointer): Boolean;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
   // use only System.RegisterExpectedMemoryLeak() on systems that support
-  // it. We should use whatever the RTL's active memory manager is.  Fallback
-  // to specific memory managers only if System.RegisterExpectedMemoryLeak()
+  // it. We should use whatever the RTL's active memory manager is. The user
+  // can override the RTL's version of FastMM (2006+ only) with any memory
+  // manager they want, such as MadExcept.
+  //
+  // Fallback to specific memory managers if System.RegisterExpectedMemoryLeak()
   // is not available.
 
   {$IFDEF HAS_System_RegisterExpectedMemoryLeak}
