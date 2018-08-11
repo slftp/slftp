@@ -1767,8 +1767,7 @@ begin
     if dirlist.RacedByMe(True) >= 1 then
     begin
       // we send some files
-      fsize := dirlist.SizeRacedByMe(True);
-      fsize := fsize / 1024;
+      fsize := dirlist.SizeRacedByMe(True) / 1024;
       RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
       if not dirlist.Complete then
@@ -1779,12 +1778,8 @@ begin
       // TODO: Find out why it is negative sometimes + try to fix
       if fsize < 0 then
       begin
-        try
-          irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(true) = %d, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
-          Debug(dpMessage, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(true) = %d, /1024 : %f, dirname : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.SizeRacedByMe(True) / 1024, dirlist.Dirname]));
-          irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s', [fsize, fsname ]));
-        finally
-        end;
+        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
       end;
     end
     else
