@@ -884,6 +884,13 @@ begin
             // if only current directory, we should not setdown site - but we can find out with some testing ;)
             failure := True;
           end
+          
+          // 550- can't find package msgcat 1.6 while executing
+          else if (0 <> AnsiPos('t find package', s.lastResponse)) then
+          begin
+            // just a silly site error...
+            failure := True;
+          end
 
           else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
           begin
