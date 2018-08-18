@@ -37,6 +37,13 @@ program slftp;
                 .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
 
 *******************************************************************************}
+
+// http://docwiki.embarcadero.com/RADStudio/Tokyo/en/Compiler_Versions
+// you can only check easily if it's Tokyo but not if it's 10.2.3
+{$if CompilerVersion < 32}
+  {$MESSAGE Fatal 'Please upgrade your compiler to at least Delphi 10.2 Tokyo Release 3 (10.2.3)'}
+{$endif}
+
 uses
   FastMM4,
   console;
