@@ -201,15 +201,9 @@ begin
       imdb_genr := '';
 
       (*  Fetch Votes from iMDB *)
-      rr.Expression := '<strong.*?on (\d+.*?\d+) user ratings\"><span>\d\.\d<\/span>';
-      if rr.Exec(mainsite) then
-      begin
-        rr2.Expression := '[\.\,]';
-        imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-      end
       // Trying newest iMDB layout from 24.09.2011 first
       rr.Expression := '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>';
-      else if rr.Exec(mainsite) then
+      if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
         imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
@@ -246,15 +240,9 @@ begin
       end;
 
       (*  Fetch Rating from iMDB  *)
-      rr.Expression := '<strong.*?user ratings\"><span>(\d\.\d)<\/span>';
-      if rr.Exec(mainsite) then
-      begin
-        rr2.Expression := '[\.\,]';
-        imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-      end
       // Trying newest iMDB layout from 24.09.2011 first
       rr.Expression := '<span[^<>]*itemprop="ratingValue">(\d+\.\d+)<\/span>';
-      else if rr.Exec(mainsite) then
+      if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
         imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
