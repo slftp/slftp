@@ -289,7 +289,7 @@ begin
 
       (* Rating/Votes combined occured on some of the newer layouts but vanished by now *)
       rr.Expression :=
-        '<div class="rating rating-big" [^<]+ title="Users rated this (\d+\.\d+)\/10 \((\d+(,\d+)?) votes\) - click stars to rate">';
+        '<div class="rating rating-\S+"[^<]+title="Users rated this (\d+[.,]\d+)\/10 \((\d+([.,]\d+)?) votes\) - click stars to rate"[^>]*>';
       if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
