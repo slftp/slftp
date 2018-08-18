@@ -201,8 +201,7 @@ begin
       imdb_genr := '';
 
       (*  Fetch Votes from iMDB *)
-      // Trying newest iMDB layout from 24.09.2011 first
-      rr.Expression := '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>';
+      rr.Expression := '<strong.*?on (\d+.*?\d+) user ratings\"><span>\d\.\d<\/span>';
       if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
@@ -210,8 +209,8 @@ begin
       end
       else
       begin
-        // Trying new layout of iMDB next
-        rr.Expression := '\>(\S+) votes<\/a>\)';
+        // Trying newest iMDB layout from 24.09.2011 first
+        rr.Expression := '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>';
         if rr.Exec(mainsite) then
         begin
           rr2.Expression := '[\.\,]';
@@ -219,9 +218,8 @@ begin
         end
         else
         begin
-          // Trying old layout of iMDB if the other layouts fail
-          rr.Expression :=
-            '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>';
+          // Trying new layout of iMDB next
+          rr.Expression := '\>(\S+) votes<\/a>\)';
           if rr.Exec(mainsite) then
           begin
             rr2.Expression := '[\.\,]';
@@ -229,19 +227,29 @@ begin
           end
           else
           begin
-            // Apparently no votes yet - no-votes regex should work for new and old layout
+            // Trying old layout of iMDB if the other layouts fail
             rr.Expression :=
-              '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="rating rating-big" [^<]+ title="Awaiting enough ratings - click stars to rate">';
+              '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>';
             if rr.Exec(mainsite) then
-              imdbdata.imdb_votes := -1;
-              imdbdata.imdb_rating := -1;
+            begin
+              rr2.Expression := '[\.\,]';
+              imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
+            end
+            else
+            begin
+              // Apparently no votes yet - no-votes regex should work for new and old layout
+              rr.Expression :=
+                '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="rating rating-big" [^<]+ title="Awaiting enough ratings - click stars to rate">';
+              if rr.Exec(mainsite) then
+                imdbdata.imdb_votes := -1;
+                imdbdata.imdb_rating := -1;
+            end;
           end;
         end;
       end;
 
       (*  Fetch Rating from iMDB  *)
-      // Trying newest iMDB layout from 24.09.2011 first
-      rr.Expression := '<span[^<>]*itemprop="ratingValue">(\d+\.\d+)<\/span>';
+      rr.Expression := '<strong.*?user ratings\"><span>(\d\.\d)<\/span>';
       if rr.Exec(mainsite) then
       begin
         rr2.Expression := '[\.\,]';
@@ -249,9 +257,8 @@ begin
       end
       else
       begin
-        // Trying new layout of iMDB next
-        rr.Expression :=
-          '<span class="rating-rating">(\d+\.\d+)<span>\/10<\/span><\/span>';
+        // Trying newest iMDB layout from 24.09.2011 first
+        rr.Expression := '<span[^<>]*itemprop="ratingValue">(\d+\.\d+)<\/span>';
         if rr.Exec(mainsite) then
         begin
           rr2.Expression := '[\.\,]';
@@ -259,12 +266,23 @@ begin
         end
         else
         begin
-          // Trying old layout of iMDB if the other layouts fail
-          rr.Expression := '<b>(\d+\.\d+)\/10<\/b>';
+          // Trying new layout of iMDB next
+          rr.Expression :=
+            '<span class="rating-rating">(\d+\.\d+)<span>\/10<\/span><\/span>';
           if rr.Exec(mainsite) then
           begin
             rr2.Expression := '[\.\,]';
             imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
+          end
+          else
+          begin
+            // Trying old layout of iMDB if the other layouts fail
+            rr.Expression := '<b>(\d+\.\d+)\/10<\/b>';
+            if rr.Exec(mainsite) then
+            begin
+              rr2.Expression := '[\.\,]';
+              imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
+            end;
           end;
         end;
       end;
