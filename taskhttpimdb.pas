@@ -543,7 +543,10 @@ begin
           fBOMSearchNeeded := True;
         end;
 
-
+        if config.ReadBool('dbaddimdb', 'parse_boxofficemojo_always', False) then
+        begin
+          fBOMSearchNeeded := True;
+        end;
 
 
         (* EXAMPLES BELOW ARE COLLECTED WITH parse_boxofficemojo_exact True *)
