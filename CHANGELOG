@@ -39,6 +39,7 @@
     NEW slftp.ini parameter(s):
       only_use_routable_sites_on_reqfill=0
       parse_boxofficemojo_exact=0
+      parse_boxofficemojo_always=0
       new_news_announce_interval=3
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
