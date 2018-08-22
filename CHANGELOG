@@ -52,13 +52,15 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
+  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2 Tokyo - ON WINDOWS! **
+  
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
     {+} New HTTP Library (up to 50% faster) with Socks5 support
     {+} News System to store important messages to encrypted file. (#173, #164, #198)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} New !affils command.
-    {+} Show a message when 0 byte file was detected on startup (#189)                                              --- not tested with a real 0byte file ---
+    {+} Show a message when 0 byte file was detected on startup (#189)
     {+} !status and !uptime shows if you use 32/64-bit version of slftp and used compiler version
     {+} !lastlog command to show last log entries. (#160)
     {+} Support for CTCP Requests (might be useful for scripters)
@@ -71,6 +73,9 @@
     {#} Correct counting and comparing of CRC errors in TPazoRaceTask
     {#} Missing built-in skip features from slftp.skip added (#195)
     {#} Saving TVInfo for some shows containing ' in its name (#191, #196)
+    {#} Double free of TNukeQueueItem (#203)
+    {#} !batch looses sites in bnctest output over time (#216)
+    {#} !prelist parameter count (#212)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
