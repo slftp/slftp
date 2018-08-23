@@ -30,9 +30,9 @@ procedure PrebotUnInit;
 implementation
 
 uses
-  Contnrs, SyncObjs, DateUtils, debugunit, ircblowfish, SysUtils, kb, configunit, queueunit,
+  Contnrs, SyncObjs, DateUtils, debugunit, ircblowfish, SysUtils, StrUtils, kb, configunit, queueunit,
   mystrings, sitesunit, pazo, notify, tasklame, taskdirlist, skiplists,
-  taskraw, dirlist, irccommandsunit, statsunit;
+  taskraw, dirlist, irccommandsunit, statsunit, slmasks;
 
 var
   batchqueue: TStringList;
@@ -1073,6 +1073,24 @@ function IrcBatchAdd(const netname, channel: String; params: String): boolean;
 var
   sitename, section, dir, ripper: String;
   s: TSite;
+  fInputRlsMask: TslMask;
+  fDirlist: TDirList;
+  fDirlistEntry: TDirListEntry;
+
+  // helper function to reduce code duplication
+  // adds a new entry to batchqueue
+  procedure AddEntryToBatchQueue;
+  begin
+    queue_lock.Enter;
+    try
+      batchqueue.Add(sitename + #9 + section + #9 + dir + #9 + ripper);
+      if batchqueue.Count = 1 then
+        IrcBatch(netname, channel, params);
+    finally
+      queue_lock.Leave;
+    end;
+  end;
+
 begin
   Result := False;
 
@@ -1096,6 +1114,7 @@ begin
       irc_Addtext(netname, channel, 'Site %s not found', [sitename]);
       exit;
     end;
+
     if s.sectiondir[section] = '' then
     begin
       ripper  := dir;
@@ -1106,6 +1125,7 @@ begin
     queue_lock.Leave;
   end;
 
+  // todo: check why 'AP' is not allowed or what it does mean - maybe remove
   if ripper = 'AP' then
   begin
     irc_addText(netname, channel, 'Syntax error.');
@@ -1118,13 +1138,42 @@ begin
     exit;
   end;
 
-  queue_lock.Enter;
-  try
-    batchqueue.Add(sitename + #9 + section + #9 + dir + #9 + ripper);
-    if batchqueue.Count = 1 then
-      IrcBatch(netname, channel, params);
-  finally
-    queue_lock.Leave;
+  {$IFDEF UNICODE}
+    if ContainsText(dir, '*') then
+  {$ELSE}
+    if AnsiContainsText(dir, '*') then
+  {$ENDIF}
+  begin
+    fInputRlsMask := TslMask.Create(dir);
+    try
+      fDirlist := DirlistB(netname, channel, sitename, MyIncludeTrailingSlash(section));
+      try
+        if fDirlist <> nil then
+        begin
+          for i := 0 to fDirlist.entries.Count - 1 do
+          begin
+            de := TDirListEntry(fDirlist.entries[i]);
+
+            if de.directory then
+            begin
+              if fInputRlsMask.Matches(de.filename) then
+              begin
+                dir := de.filename;
+                AddEntryToBatchQueue;
+              end;
+            end;
+          end;
+        end;
+      finally
+        fDirlist.Free;
+      end;
+    finally
+      fInputRlsMask.Free;
+    end;
+  end
+  else
+  begin
+    AddEntryToBatchQueue;
   end;
 
   Result := True;
