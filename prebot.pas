@@ -1076,6 +1076,7 @@ var
   fInputRlsMask: TslMask;
   fDirlist: TDirList;
   fDirlistEntry: TDirListEntry;
+  i: Integer;
 
   // helper function to reduce code duplication
   // adds a new entry to batchqueue
@@ -1152,13 +1153,13 @@ begin
         begin
           for i := 0 to fDirlist.entries.Count - 1 do
           begin
-            de := TDirListEntry(fDirlist.entries[i]);
+            fDirlistEntry := TDirListEntry(fDirlist.entries[i]);
 
-            if de.directory then
+            if fDirlistEntry.directory then
             begin
-              if fInputRlsMask.Matches(de.filename) then
+              if fInputRlsMask.Matches(fDirlistEntry.filename) then
               begin
-                dir := de.filename;
+                dir := fDirlistEntry.filename;
                 AddEntryToBatchQueue;
               end;
             end;
