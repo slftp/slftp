@@ -56,6 +56,10 @@ function myStrToFloat(s: String): double; overload;
 function myStrToFloat(s: String; def: double): double; overload;
 function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
+
+{ Adds '/' to end of dir if it's missing or returns '/' if empty string
+  @param(s input dir)
+  @returns(Input dir with appended '/' if it was missing or just '/' if empty string) }
 function MyIncludeTrailingSlash(const s: String): String;
 
 { extracts data from ftpd PASV reply
@@ -328,11 +332,14 @@ begin
 end;
 
 function MyIncludeTrailingSlash(const s: String): String;
+var
+  fLength: Integer;
 begin
-  if length(s) > 0 then
+  fLength := Length(s);
+  if fLength > 0 then
   begin
     Result := s;
-    if Result[length(s)] <> '/' then
+    if Result[fLength] <> '/' then
       Result := Result + '/';
   end
   else
