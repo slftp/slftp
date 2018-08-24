@@ -1145,26 +1145,31 @@ begin
     if AnsiContainsText(dir, '*') then
   {$ENDIF}
   begin
+    irc_Addtext(netname, channel, 'Doing a wildcard batch for %s', [dir]);
     fInputRlsMask := TslMask.Create(dir);
     try
-      fDirlist := DirlistB(netname, channel, sitename, MyIncludeTrailingSlash(section));
+      fDirlist := DirlistB(netname, channel, sitename, section);
       try
         if fDirlist <> nil then
         begin
           for i := 0 to fDirlist.entries.Count - 1 do
           begin
             fDirlistEntry := TDirListEntry(fDirlist.entries[i]);
+            irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
 
             if fDirlistEntry.directory then
             begin
               if fInputRlsMask.Matches(fDirlistEntry.filename) then
               begin
                 dir := fDirlistEntry.filename;
+                irc_Addtext(netname, channel, 'Adding %s to batchqueue', [dir]);
                 AddEntryToBatchQueue;
               end;
             end;
           end;
-        end;
+        end
+        else
+          irc_Addtext(netname, channel, 'Can''t dirlist section %s', [section]);
       finally
         fDirlist.Free;
       end;
