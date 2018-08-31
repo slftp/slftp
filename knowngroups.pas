@@ -3,15 +3,44 @@ unit knowngroups;
 interface
 
 type
+{ Different types of knowngroup status
+  @definitionList(
+    @itemLabel(grp_known)
+    @item(Means that the group was defined as known group in config file.)
+
+    @itemLabel(grp_unknown)
+    @item(Group was not found in list but a list for the section does exist.)
+
+    @itemLabel(grp_notconfigured)
+    @item(Group is not found in known group check, means it wasn't added as known group or
+      list for section is empty)
+  )
+}
   TKnownGroup = (grp_known, grp_unknown, grp_notconfigured);
 
+{ Just a helper function to create @value(kg) on init }
 procedure KnowngroupsInit;
+
+{ Just a helper function to free @value(kg) on uninit }
 procedure KnowngroupsUnInit;
+
+{ Just a helper function to set values from knowngroups file to @value(kg). It even handles the support for placeholders like TV-720=%TV-1080% }
 procedure KnowngroupsStart;
 
-function IsKnownGroup(section, groupname: String): TKnownGroup;
+{ Checks what type of @link(TKnownGroup) a given group is in a given sectionname
+  @param(section Sectioname of the knowngroup list which should be used)
+  @param(groupname Groupname to check)
+  @returns(@link(TKnownGroup)) }
+function IsKnownGroup(const section: String; groupname: String): TKnownGroup;
 
+{ Removes the internal marker from groupname
+  @param(grp Groupname)
+  @returns(Groupname without internal marker) }
 function RemoveINT(const grp: String): String;
+
+{ Removes the WEB marker from groupname
+  @param(grp Groupname)
+  @returns(Groupname without WEB marker) }
 function RemoveWEB(const grp: String): String;
 
 implementation
@@ -20,7 +49,7 @@ uses
   Classes, SysUtils, StrUtils, configunit, regexpr;
 
 var
-  kg: TStringList;
+  kg: TStringList; //< stringlist which stores all knowngroups from config file
 
 procedure KnowngroupsInit;
 begin
@@ -122,7 +151,7 @@ begin
   end;
 end;
 
-function IsKnownGroup(section, groupname: String): TKnownGroup;
+function IsKnownGroup(const section: String; groupname: String): TKnownGroup;
 var
   s: String;
 begin
