@@ -5,6 +5,12 @@ interface
 uses
   Classes, tasksunit, sltcp;
 
+{ Just a helper function to initialize @value(ImdbVotesRegexList) and @value(ImdbRatingRegexList) }
+procedure TaskHttpImdbInit;
+
+{ Just a helper function to free @value(ImdbVotesRegexList) and @value(ImdbRatingRegexList) }
+procedure TaskHttpImdbUnInit;
+
 type
   TPazoHTTPImdbTask = class(TTask)
   private
@@ -25,6 +31,48 @@ uses
 
 const
   section = 'taskhttpimdb';
+
+var
+  ImdbVotesRegexList, ImdbRatingRegexList: TStringList;
+
+procedure TaskHttpImdbInit;
+begin
+  (* Initialize StringLists with valid regex for imdb rating/votes
+     This allows us to reduce alot of code duplication and nested if/else
+     constructs. Create them here as unit variables instead of in the function
+     to not have to recreate them on every call to imdb, which is just useless
+     overhead.
+
+     Newest versions should be added on top as they will be checked against the
+     website in ascending order. Quicker match = less overhead.
+
+     Syntax is regex=matchVariableIndex
+  *)
+  ImdbVotesRegexList := TStringList.Create;
+  with ImdbVotesRegexList do
+  begin
+    Add('<strong.*?on (\S+) user ratings\"><span>\d+[,.]\d<\/span>=1');
+    Add('<span[^<>]*itemprop="ratingCount">(\S+)<\/span>=1');
+    Add('\>(\S+) votes<\/a>\)=1');
+    Add('<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>=1');
+  end;
+  ImdbRatingRegexList := TStringList.Create;
+  with ImdbRatingRegexList do
+  begin
+    Add('<strong.*?user ratings\"><span>(\d+[,.]\d)<\/span>=1');
+    Add('<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>=1');
+    Add('<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>=1');
+    Add('<b>(\d+[,.]\d+)\/10<\/b>=1');
+  end;
+end;
+
+procedure TaskHttpImdbUnInit;
+begin
+  if Assigned(ImdbVotesRegexList) then
+    ImdbVotesRegexList.Free;
+  if Assigned(ImdbRatingRegexList) then
+    ImdbRatingRegexList.Free;
+end;
 
 { Removes not allowed characters in Box Office Mojo search
   @param(aMoviename Movietitle from IMDB which contains language/movie depending characters)
@@ -73,9 +121,9 @@ var
   imdbdata: TDbImdbData;
   rr, rr2: TRegexpr;
   imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang,
-    imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date: String;
+    imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date, imdb_votes, imdb_rating: String;
   ir: TImdbRelease;
-
+  i: integer;
   mainsite, rlsdatesite, businesssite, bomsite: String;
   release_date: TDateTime;
   formatSettings: TFormatSettings;
@@ -194,108 +242,50 @@ begin
     rr2 := TRegexpr.Create;
     try
       rr2.ModifierI := True;
-      imdbdata.imdb_rating := -5;
-      imdbdata.imdb_votes := -5;
       imdb_lang := '';
       imdb_countr := '';
       imdb_genr := '';
+      imdb_votes := '-10';
+      imdb_rating := '-10';
 
-      (*  Fetch Votes from iMDB *)
-      rr.Expression := '<strong.*?on (\d+.*?\d+) user ratings\"><span>\d\.\d<\/span>';
-      if rr.Exec(mainsite) then
-      begin
-        rr2.Expression := '[\.\,]';
-        imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-      end
-      else
-      begin
-        // Trying newest iMDB layout from 24.09.2011 first
-        rr.Expression := '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>';
-        if rr.Exec(mainsite) then
-        begin
-          rr2.Expression := '[\.\,]';
-          imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-        end
-        else
-        begin
-          // Trying new layout of iMDB next
-          rr.Expression := '\>(\S+) votes<\/a>\)';
-          if rr.Exec(mainsite) then
-          begin
-            rr2.Expression := '[\.\,]';
-            imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-          end
-          else
-          begin
-            // Trying old layout of iMDB if the other layouts fail
-            rr.Expression :=
-              '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>';
-            if rr.Exec(mainsite) then
-            begin
-              rr2.Expression := '[\.\,]';
-              imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-            end
-            else
-            begin
-              // Apparently no votes yet - no-votes regex should work for new and old layout
-              rr.Expression :=
-                '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="rating rating-big" [^<]+ title="Awaiting enough ratings - click stars to rate">';
-              if rr.Exec(mainsite) then
-                imdbdata.imdb_votes := -1;
-                imdbdata.imdb_rating := -1;
-            end;
-          end;
-        end;
-      end;
-
-      (*  Fetch Rating from iMDB  *)
-      rr.Expression := '<strong.*?user ratings\"><span>(\d\.\d)<\/span>';
-      if rr.Exec(mainsite) then
-      begin
-        rr2.Expression := '[\.\,]';
-        imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-      end
-      else
-      begin
-        // Trying newest iMDB layout from 24.09.2011 first
-        rr.Expression := '<span[^<>]*itemprop="ratingValue">(\d+\.\d+)<\/span>';
-        if rr.Exec(mainsite) then
-        begin
-          rr2.Expression := '[\.\,]';
-          imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-        end
-        else
-        begin
-          // Trying new layout of iMDB next
-          rr.Expression :=
-            '<span class="rating-rating">(\d+\.\d+)<span>\/10<\/span><\/span>';
-          if rr.Exec(mainsite) then
-          begin
-            rr2.Expression := '[\.\,]';
-            imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-          end
-          else
-          begin
-            // Trying old layout of iMDB if the other layouts fail
-            rr.Expression := '<b>(\d+\.\d+)\/10<\/b>';
-            if rr.Exec(mainsite) then
-            begin
-              rr2.Expression := '[\.\,]';
-              imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-            end;
-          end;
-        end;
-      end;
-
-      (* Rating/Votes combined occured on some of the newer layouts but vanished by now *)
       rr.Expression :=
-        '<div class="rating rating-\S+"[^<]+title="Users rated this (\d+[.,]\d+)\/10 \((\d+([.,]\d+)?) votes\) - click stars to rate"[^>]*>';
+        '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="notEnoughRatings">Coming Soon</div>';
       if rr.Exec(mainsite) then
       begin
-        rr2.Expression := '[\.\,]';
-        imdbdata.imdb_rating := StrToIntDef(rr2.Replace(rr.Match[1], '', False), 0);
-        imdbdata.imdb_votes := StrToIntDef(rr2.Replace(rr.Match[2], '', False), 0);
+        imdb_votes := '-1';
+        imdb_rating := '-1';
+      end
+      else
+      begin
+        (*  Fetch Votes from iMDB *)
+        for i := 0 to ImdbVotesRegexList.Count-1 do
+        begin
+          rr.Expression := ImdbVotesRegexList.Names[i];
+          if rr.Exec(mainsite) then
+          begin
+            imdb_votes := rr.Match[StrToIntDef(ImdbVotesRegexList.ValueFromIndex[i], 1)];
+            break;
+          end;
+        end;
+
+        (*  Fetch Rating from iMDB  *)
+        for i := 0 to ImdbRatingRegexList.Count-1 do
+        begin
+          rr.Expression := ImdbRatingRegexList.Names[i];
+          if rr.Exec(mainsite) then
+          begin
+            imdb_rating := rr.Match[StrToIntDef(ImdbRatingRegexList.ValueFromIndex[i], 1)];
+            break;
+          end;
+        end;
       end;
+
+      imdb_votes := StringReplace(imdb_votes, '.', '', [rfReplaceAll, rfIgnoreCase]);
+      imdb_votes := StringReplace(imdb_votes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+      imdbdata.imdb_votes := StrToIntDef(imdb_votes, -5);
+      imdb_rating := StringReplace(imdb_rating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+      imdb_rating := StringReplace(imdb_rating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+      imdbdata.imdb_rating := StrToIntDef(imdb_rating, -5);
 
       (*  Fetch Languages from iMDB  *)
       // Expression designed to work with new and old layouts of iMDB (04/10/2010)
@@ -553,7 +543,10 @@ begin
           fBOMSearchNeeded := True;
         end;
 
-
+        if config.ReadBool('dbaddimdb', 'parse_boxofficemojo_always', False) then
+        begin
+          fBOMSearchNeeded := True;
+        end;
 
 
         (* EXAMPLES BELOW ARE COLLECTED WITH parse_boxofficemojo_exact True *)
