@@ -17,16 +17,16 @@ function dupeDBQuery(const q: String): String;
 
 implementation
 
+uses
+  DateUtils, debugunit, configunit, sitesunit, queueunit, dirlist, SysUtils,
+  pazo, kb, ranksunit, regexpr, mystrings, irc;
+
 const
   section = 'pretimeunit';
 
 var
   dupedb: TslSqliteDB;
   dupeInsert: Psqlite3_stmt;
-
-uses
-  DateUtils, debugunit, configunit, sitesunit, queueunit, dirlist, SysUtils,
-  pazo, kb, ranksunit, regexpr, mystrings, irc;
 
 function AllreadyInDataBase(const rls: String): boolean;
 var
