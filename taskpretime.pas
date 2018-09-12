@@ -126,7 +126,7 @@ begin
 
   response := TStringList.Create;
   try
-    if not HttpGetUrl(url + mainpazo.rls.rlsname, fStrHelper, fHttpGetErrMsg) then
+    if not HttpGetUrl(Format(url, [mainpazo.rls.rlsname]), fStrHelper, fHttpGetErrMsg) then
     begin
       Debug(dpError, section, Format('[FAILED] Pretime fetch from HTTP for %s --> %s ', [mainpazo.rls.rlsname, fHttpGetErrMsg]));
       irc_Adderror(Format('<c4>[FAILED]</c> Pretime fetch from HTTP for %s --> %s', [mainpazo.rls.rlsname, fHttpGetErrMsg]));
