@@ -5,7 +5,7 @@ interface
 uses Classes;
 
 type
-  // ez az ose az osszes feladatnak
+  // this is all or part of the job
   TTask = class
   public
     site1: String;
@@ -45,15 +45,15 @@ type
 
     TryToAssign : Integer;
 
-    constructor Create(const netname, channel: String; site1: String); overload;
-    constructor Create(const netname, channel: String; site1, site2: String); overload;
+    constructor Create(const netname, channel: String; const site1: String); overload;
+    constructor Create(const netname, channel: String; const site1, site2: String); overload;
     destructor Destroy; override;
 
 
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
-    // a slot parameter itt a calling slot
+    // the slot parameter is the calling slot here
     function Name: String; virtual; abstract;
     function Fullname: String; virtual;
     function UidText: String;
@@ -63,7 +63,7 @@ type
 
 procedure Tasks_Init;
 procedure Tasks_Uninit;
-function FindTaskByUidText(uidtext: String): TTask;
+function FindTaskByUidText(const uidtext: String): TTask;
 
 
 implementation
@@ -77,12 +77,12 @@ var
   uidg: Integer = 1;
   uid_lock: TCriticalSection;
 
-constructor TTask.Create(const netname, channel: String; site1: String);
+constructor TTask.Create(const netname, channel: String; const site1: String);
 begin
   Create(netname, channel, site1, '');
 end;
 
-constructor TTask.Create(const netname, channel: String; site1, site2: String);
+constructor TTask.Create(const netname, channel: String; const site1, site2: String);
 begin
   created := Now();
   assigned := 0;
@@ -143,12 +143,9 @@ begin
 end;
 
 function TTask.Fullname: String;
-var
-  s_dep: String;
 begin
   try
-    s_dep := Format('[%s]', [dependencies.DelimitedText]);
-    Result := Format('#%d (%s): %s [%d] %s', [uid, site1, name, TryToAssign, s_dep]);
+    Result := Format('#%d (%s): %s [%d] [%s]', [uid, site1, name, TryToAssign, dependencies.DelimitedText]);
   except
     Result := 'TTask';
   end;
@@ -178,7 +175,7 @@ begin
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function FindTaskByUidText(uidtext: String): TTask;
+function FindTaskByUidText(const uidtext: String): TTask;
 var
   i: Integer;
 begin
