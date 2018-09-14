@@ -173,7 +173,7 @@ begin
     prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
     read_count := 0;
 
-    if not HttpGetUrl(url + rls, fStrHelper, fHttpGetErrMsg) then
+    if not HttpGetUrl(Format(url, [rls]), fStrHelper, fHttpGetErrMsg) then
     begin
       Debug(dpError, section, Format('[FAILED] HTTP Pretime for %s --> %s ', [rls, fHttpGetErrMsg]));
       irc_Adderror(Format('<c4>[FAILED]</c> HTTP Pretime for %s --> %s', [rls, fHttpGetErrMsg]));
