@@ -51,7 +51,7 @@ begin
   ImdbVotesRegexList := TStringList.Create;
   with ImdbVotesRegexList do
   begin
-    Add('<strong.*?on (\S+) user ratings\"><span>\d+[,.]\d<\/span>=1');
+    Add('<strong.*?on (\S+) user ratings\"><span.*?>\d+[,.]\d<\/span>=1');
     Add('<span[^<>]*itemprop="ratingCount">(\S+)<\/span>=1');
     Add('\>(\S+) votes<\/a>\)=1');
     Add('<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>=1');
@@ -59,7 +59,7 @@ begin
   ImdbRatingRegexList := TStringList.Create;
   with ImdbRatingRegexList do
   begin
-    Add('<strong.*?user ratings\"><span>(\d+[,.]\d)<\/span>=1');
+    Add('<strong.*?user ratings\"><span.*?>(\d+[,.]\d)<\/span>=1');
     Add('<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>=1');
     Add('<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>=1');
     Add('<b>(\d+[,.]\d+)\/10<\/b>=1');
@@ -353,13 +353,13 @@ begin
       (*  Fetch Gernres from iMDB  *)
       // Expression designed to work with new and old layouts of iMDB (24.09.2011)
       rr2.Expression :=
-        '<a\s*(onclick=\"[^\"]+\")?\s*href=\"\/(Sections\/)?Genres?\/?[^<>]+\/?\"\s*>([^<>]+)<\/a>';
+        '<a[^>]+>\s(\S+)<\/a>';
       // Trying new layout of iMDB first
-      rr.Expression := '<h4 class="inline">Genres:<\/h4>\s*(<.*?<\/a>)\s*<\/div>';
+      rr.Expression := '(<h4 class="inline">Genres:<\/h4>(\s*<a href\S+\s>.*?<\/a>(\S+<\/span>)?\s*)+<\/div>)';
       if rr.Exec(mainsite) then
       begin
         if rr2.Exec(rr.Match[1]) then
-          repeat imdb_genr := imdb_genr + rr2.Match[3] + ',';
+          repeat imdb_genr := imdb_genr + rr2.Match[1] + ',';
           until not rr2.ExecNext;
       end
       else
