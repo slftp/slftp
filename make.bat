@@ -8,7 +8,7 @@ set CC_ND_64=C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\dcc64.exe
 set CC_ND_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap;DUnitX.MemoryLeakMonitor
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Ulibs/FastMM4 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/DFFLibV15_UIntList -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Compvers -Ulibs/ctypes -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/System -Ulibs/LibTar
+set CINCLUDES=-Ulibs/FastMM4 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/DFFLibV15_UIntList -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Compvers -Ulibs/ctypes -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot
 
 if /I "%~1" == "" goto :slftp
 if /I "%~1" == "slftp" goto :slftp
