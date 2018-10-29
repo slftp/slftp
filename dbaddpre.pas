@@ -55,14 +55,15 @@ implementation
 
 uses
   DateUtils, SysUtils, configunit, mystrings, console, sitesunit, regexpr,
-  debugunit, precatcher, SyncObjs, taskpretime, SynDBSQLite3, SynDB,
+  debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB,
   mysqlutilunit, slmysql2, http;
 
 const
   section = 'dbaddpre';
 
 var
-  addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil;
+  addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
+  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
   addprecmd: TStringList;
   siteprecmd: String;
@@ -224,23 +225,28 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+  SQLite3Lock.Enter;
   try
-    fQuery.SQL.Text := 'SELECT ts FROM addpre WHERE rlz = :release';
-    fQuery.ParamByName('release').AsString := rls;
+    fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.Open;
-      if not fQuery.IsEmpty then
-        Result := UnixToDateTime(fQuery.FieldByName('ts').AsInteger);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
-        exit;
+      fQuery.SQL.Text := 'SELECT ts FROM addpre WHERE rlz = :release';
+      fQuery.ParamByName('release').AsString := rls;
+      try
+        fQuery.Open;
+        if not fQuery.IsEmpty then
+          Result := UnixToDateTime(fQuery.FieldByName('ts').AsInteger);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
+          exit;
+        end;
       end;
+    finally
+      fQuery.free;
     end;
   finally
-    fQuery.free;
+    SQLite3Lock.Leave;
   end;
 end;
 
@@ -506,8 +512,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s',
-              [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s', [e.Message]));
             Result := False;
             exit;
           end;
@@ -515,25 +520,30 @@ begin
       end;
     apmSQLITE:
       begin
-        fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+        SQLite3Lock.Enter;
         try
-          fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
-          fQuery.ParamByName('release').AsString := rls;
-          fQuery.ParamByName('section').AsString := rls_section;
-          fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
-          fQuery.ParamByName('source').AsString := Source;
+          fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
-            fQuery.ExecSQL;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
-              Result := False;
-              exit;
+            fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
+            fQuery.ParamByName('release').AsString := rls;
+            fQuery.ParamByName('section').AsString := rls_section;
+            fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
+            fQuery.ParamByName('source').AsString := Source;
+            try
+              fQuery.ExecSQL;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+                Result := False;
+                exit;
+              end;
             end;
+          finally
+            fQuery.free;
           end;
         finally
-          fQuery.free;
+          SQLite3Lock.Leave;
         end;
       end;
     apmMYSQL:
@@ -572,8 +582,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s',
-              [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
             Result := False;
             exit;
           end;
@@ -598,18 +607,23 @@ begin
       end;
     apmSQLITE:
       begin
-        fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+        SQLite3Lock.Enter;
         try
-          fQuery.SQL.Text := 'SELECT count(*) FROM addpre';
-          fQuery.Open;
+          fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+          try
+            fQuery.SQL.Text := 'SELECT count(*) FROM addpre';
+            fQuery.Open;
 
-          if fQuery.IsEmpty then
-            Result := 0
-          else
-            Result := fQuery.Fields[0].AsInteger;
+            if fQuery.IsEmpty then
+              Result := 0
+            else
+              Result := fQuery.Fields[0].AsInteger;
 
+          finally
+            fQuery.Free;
+          end;
         finally
-          fQuery.Free;
+          SQLite3Lock.Leave;
         end;
       end;
     apmMYSQL:
@@ -719,9 +733,11 @@ begin
 
   if dbaddpre_mode = apmSQLITE then
   begin
+    SQLite3Lock := TCriticalSection.Create;
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
+
     try
-      addpreSQLite3DBCon := TSQLDBSQLite3ConnectionProperties.Create(db_pre_name, '', '', '');
+      addpreSQLite3DBCon := CreateSQLite3DbConn(db_pre_name, '');
 
       addpreSQLite3DBCon.MainSQLite3DB.Execute(
         'CREATE TABLE IF NOT EXISTS addpre (rlz VARCHAR(255) NOT NULL, section VARCHAR(25) NOT NULL, ts INT(12) NOT NULL, source VARCHAR(255) NOT NULL)'
@@ -760,7 +776,12 @@ begin
   last_addpre_lock.Free;
   last_addpre.Free;
 
-  if addpreSQLite3DBCon <> nil then
+  if Assigned(SQLite3Lock) then
+  begin
+    FreeAndNil(SQLite3Lock);
+  end;
+
+  if Assigned(addpreSQLite3DBCon) then
   begin
     FreeAndNil(addpreSQLite3DBCon);
   end;
