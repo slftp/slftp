@@ -1,0 +1,5 @@
+8efc142367d550190d8c6ffdaed169e327e142af
+
+let TSynLog use new TFileStreamWithoutWriteError file class
+to let the application continue working even if disk space is void for logs
+- adaptation of a mpv patch from github
