@@ -2,8 +2,8 @@ program slftp;
 {$MODE Delphi}
 
 {$IFDEF FPC}
-  {$if FPC_FULlVERSION < 30004}
-    {$stop Please upgrade your Free Pascal Compiler version to at least 3.0.4 }
+  {$if FPC_FULLVERSION < 30101}
+    {$stop Please upgrade your Free Pascal Compiler version to at least 3.1.1 }
   {$endif}
 {$ENDIF}
 
