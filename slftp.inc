@@ -10,4 +10,4 @@ const
   (* libaries *)
   lib_OpenSSL: string = '1.0.2';
   lib_Ncurses: string = 'ncurses 5.5.';
-  lib_SQLite3: integer = 3020000000; // version 3.20.0
+  lib_SQLite3: Int64 = 3020000000; // version 3.20.0
