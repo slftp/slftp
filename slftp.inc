@@ -8,5 +8,6 @@ const
   CC_MasterK: string = 'masterpass.txt';
 
   (* libaries *)
-  lib_OpenSSL:string = '1.0.2';
-  lib_Ncurses:string = 'ncurses 5.5.';
+  lib_OpenSSL: string = '1.0.2';
+  lib_Ncurses: string = 'ncurses 5.5.';
+  lib_SQLite3: integer = 3020000000; // version 3.20.0

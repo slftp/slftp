@@ -55,7 +55,7 @@ uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfis
 {$IFNDEF MSWINDOWS}
   slconsole,
 {$ENDIF}
-  StrUtils, news;
+  StrUtils, news, SynSQLite3;
 
 {$I slftp.inc}
 
@@ -146,6 +146,7 @@ begin
     end;
   end;
 
+  // todo: old, remove together with old lib
   if slsqlite_inited then
     Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
   else
@@ -155,10 +156,19 @@ begin
     Exit;
   end;
 
+  //< initialize global SQLite3 object for API calls
+  sqlite3 := TSQLite3LibraryDynamic.Create;
+
+  if (sqlite3.VersionNumber < lib_SQLite3) then
+  begin
+    result := Format('SQLite3 version %s is too old! %d or newer needed.', [sqlite3.VersionText, lib_SQLite3]);
+    exit;
+  end;
+
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
     begin
-      Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
+      Result := Format('Ncurses version is unsupported! %s or newer needed.', [lib_Ncurses]);
       exit;
     end;
   {$ENDIF}
