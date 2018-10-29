@@ -224,7 +224,7 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+  fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
   try
     fQuery.SQL.Text := 'SELECT ts FROM addpre WHERE rlz = :release';
     fQuery.ParamByName('release').AsString := rls;
@@ -515,7 +515,7 @@ begin
       end;
     apmSQLITE:
       begin
-        fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+        fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
           fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
           fQuery.ParamByName('release').AsString := rls;
@@ -598,7 +598,7 @@ begin
       end;
     apmSQLITE:
       begin
-        fQuery := TQuery.Create(addpreSQLite3DBCon.NewConnection);
+        fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
           fQuery.SQL.Text := 'SELECT count(*) FROM addpre';
           fQuery.Open;
