@@ -4,15 +4,15 @@
   {$NODEFINE gsIdVersionMinor}
   gsIdVersionRelease = 2;
   {$NODEFINE gsIdVersionRelease}
-  gsIdVersionBuild = 5479;
+  gsIdVersionBuild = 5473;
   {$NODEFINE gsIdVersionBuild}
 
   (*$HPPEMIT '#define gsIdVersionMajor 10'*)
   (*$HPPEMIT '#define gsIdVersionMinor 6'*)
   (*$HPPEMIT '#define gsIdVersionRelease 2'*)
-  (*$HPPEMIT '#define gsIdVersionBuild 5479'*)
+  (*$HPPEMIT '#define gsIdVersionBuild 5473'*)
   (*$HPPEMIT ''*)
 
-  gsIdVersion = '10.6.2.5479'; {do not localize}
+  gsIdVersion = '10.6.2.5473'; {do not localize}
   gsIdProductName = 'Indy';  {do not localize}
   gsIdProductVersion = '10.6.2'; {do not localize}
