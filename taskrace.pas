@@ -1452,6 +1452,21 @@ begin
           end;
         end;
 
+      435:
+        begin
+
+          //COMPLETE MSG: 435 Failed TLS negotiation on data channel (using SSL_accept()), disconnected
+          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          begin
+            //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
+            //maybe relogin needed because response says something about disconnect!
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+        end;
+
+
       450, 452, 533, 553:
         begin
           if ( (0 < AnsiPos('out of disk space', lastResponse))
