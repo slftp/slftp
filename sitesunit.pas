@@ -218,6 +218,12 @@ type
     function GetAutoRulesStatus: integer;
     procedure SetAutoRulesStatus(const Value: integer);
 
+    function GetSetDownOnOutOfSpace: boolean;
+    procedure SetSetDownOnOutOfSpace(const Value: boolean);
+    function GetSetDownOnOutOfCredits: boolean;
+    procedure SetSetDownOnOutOfCredits(const Value: boolean);
+    { Sets the necessary values to set the site down due to no space or credits left }
+    procedure SetDownSiteDueToCreditsOrSpace;
   public
     emptyQueue: boolean;
     markeddown: boolean;
@@ -341,6 +347,8 @@ type
     property IsUp: Boolean read GetIsUp;
     property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus;
 
+    property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
+    property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
   end;
 
 function ReadSites(): boolean;
@@ -2352,6 +2360,15 @@ begin
   WCBool('legacycwd', Value);
 end;
 
+procedure TSite.SetDownSiteDueToCreditsOrSpace;
+begin
+  markeddown := True;
+  working := sstDown;
+  RemoveAutoIndex;
+  RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
+  RemoveAutoRules;
+end;
+
 procedure TSite.SetOutofSpace;
 begin
   if ((foutofannounce = 0) or (HoursBetween(Now, foutofannounce) >= 1)) then
@@ -2359,13 +2376,10 @@ begin
     foutofannounce := Now();
     irc_addadmin(Format('<c4>Site <b>%s</b> is out of disk space.</c>', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool(section, 'set_down_on_out_of_space', False) then
+
+    if SetDownOnOutOfSpace then
     begin
-      markeddown := True;
-      working := sstDown;
-      RemoveAutoIndex;
-      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
-      RemoveAutoRules;
+      SetDownSiteDueToCreditsOrSpace;
     end;
   end;
 end;
@@ -2377,16 +2391,12 @@ begin
     fkreditz := Now();
     irc_addadmin(Format('Site %s is out of credits.', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool(section, 'set_down_on_out_of_credits', False) then
+
+    if SetDownOnOutOfCredits then
     begin
-      markeddown := True;
-      working := sstDown;
-      RemoveAutoIndex;
-      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
-      RemoveAutoRules;
+      SetDownSiteDueToCreditsOrSpace;
     end;
   end;
-
 end;
 
 function TSite.GetSectionDir(Name: String): String;
@@ -3435,6 +3445,26 @@ end;
 procedure TSite.SetAutoRulesStatus(const Value: integer);
 begin
   WCInteger('autorules', Value);
+end;
+
+function TSite.GetSetDownOnOutOfSpace: boolean;
+begin
+  Result := RCBool('set_down_on_out_of_space', config.ReadBool('sites', 'set_down_on_out_of_space', False));
+end;
+
+procedure TSite.SetSetDownOnOutOfSpace(const Value: boolean);
+begin
+  WCBool('set_down_on_out_of_space', Value);
+end;
+
+function TSite.GetSetDownOnOutOfCredits: boolean;
+begin
+  Result := RCBool('set_down_on_out_of_credits', config.ReadBool('sites', 'set_down_on_out_of_credits', False));
+end;
+
+procedure TSite.SetSetDownOnOutOfCredits(const Value: boolean);
+begin
+  WCBool('set_down_on_out_of_credits', Value);
 end;
 
 procedure TSite.SetIRCNick(Value: String);
