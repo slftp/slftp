@@ -14,7 +14,7 @@ function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: Strin
 implementation
 
 uses
-  SysUtils, debugunit;
+  SysUtils, debugunit, SynSQLite3;
 
 const
   section = 'dbhandler';
@@ -25,6 +25,8 @@ begin
 
   try
     Result := TSQLDBSQLite3ConnectionProperties.Create(aDatabaseName, '', '', '');
+    // locks the database file for exclusive use during the whole session, read/write will be much faster
+    Result.MainSQLite3DB.LockingMode := lmExclusive;
     // enable Write-Ahead Logging mode a which is slightly faster
     Result.MainSQLite3DB.WALMode := True;
   except
