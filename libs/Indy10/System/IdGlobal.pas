@@ -1784,7 +1784,7 @@ function IndyRegisterExpectedMemoryLeak(AAddress: Pointer): Boolean;
   {$ENDIF}
 {$ENDIF}
 {$IFDEF UNIX}
-function HackLoad(const ALibName : String; const ALibVersions : array of String) : HMODULE;
+function HackLoad(const ALibName : String; const ALibVersions : array of String) : THandle;
 {$ENDIF}
 {$IFNDEF DOTNET}
 function MemoryPos(const ASubStr: string; MemBuff: PChar; MemorySize: Integer): Integer;
@@ -4302,44 +4302,58 @@ begin
 end;
 
 {$IFDEF UNIX}
-function HackLoadFileName(const ALibName, ALibVer : String) : string;  {$IFDEF USE_INLINE} inline; {$ENDIF}
+function HackLoadFileName(const ALibName, ALibVer : String) : string;
+  {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
   {$IFDEF DARWIN_OR_IOS}
-  Result := ALibName+ALibVer+LIBEXT;
+  Result := ALibName + ALibVer + LIBEXT;
   {$ELSE}
-  Result := ALibName+LIBEXT+ALibVer;
+  Result := ALibName + LIBEXT + ALibVer;
   {$ENDIF}
 end;
 
-function HackLoad(const ALibName : String; const ALibVersions : array of String) : HMODULE;
+function HackLoad(const ALibName : String; const ALibVersions : array of String) : THandle;
 var
   i : Integer;
-  FileName: string;
-begin
-  Result := NilHandle;
-  for i := Low(ALibVersions) to High(ALibVersions) do
+
+  function LoadLibVer(const ALibVer: string): THandle;
+  var
+    FileName: string;
   begin
-    FileName := HackLoadFileName(ALibName, ALibVersions[i]);
+    FileName := HackLoadFileName(ALibName, ALibVer);
+
     {$IFDEF USE_SAFELOADLIBRARY}
     Result := SafeLoadLibrary(FileName);
     {$ELSE}
       {$IFDEF KYLIXCOMPAT}
     // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
     // TODO: use ToSingleByteFileSystemEncodedFileName() to encode the filename:
-    // Result := HMODULE(dlopen(PAnsiChar(ToSingleByteFileSystemEncodedFileName(FileName)), RTLD_LAZY));
+    // Result := THandle(dlopen(PAnsiChar(ToSingleByteFileSystemEncodedFileName(FileName)), RTLD_LAZY));
     // TODO: use dynlibs.SysLoadLibraryU() instead:
-    // Result := HMODULE(SysLoadLibraryU(FileName));
-    Result := HMODULE(dlopen(PAnsiChar(FileName), RTLD_LAZY));
+    // Result := THandle(SysLoadLibraryU(FileName));
+    Result := THandle(dlopen(PAnsiChar(FileName), RTLD_LAZY));
       {$ELSE}
     Result := LoadLibrary(FileName);
       {$ENDIF}
     {$ENDIF}
+
     {$IFDEF USE_INVALIDATE_MOD_CACHE}
     InvalidateModuleCache;
     {$ENDIF}
-    if Result <> NilHandle then begin
-      break;
+  end;
+
+begin
+  if High(ALibVersions) > -1 then begin
+    Result := NilHandle;
+    for i := Low(ALibVersions) to High(ALibVersions) do
+    begin
+      Result := LoadLibVer(ALibVersions[i]);
+      if Result <> NilHandle then begin
+        Break;
+      end;
     end;
+  end else begin
+    Result := LoadLibVer('');
   end;
 end;
 {$ENDIF}
@@ -4595,97 +4609,139 @@ ways on other architectures.
 function HostToLittleEndian(const AValue : UInt16) : UInt16;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function HostToLittleEndian(const AValue : UInt32) : UInt32;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue shr 16) or (UInt32(swap(AValue and $FFFF)) shl 16);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function HostToLittleEndian(const AValue : Integer) : Integer;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : UInt16) : UInt16;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
   //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : UInt32): UInt32;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
   //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue shr 16) or (UInt32(swap(AValue and $FFFF)) shl 16);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : Integer): Integer;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := Swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 // TODO: add an AIndex parameter
