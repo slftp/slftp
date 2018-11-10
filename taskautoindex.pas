@@ -226,8 +226,6 @@ begin
 
   // implement the task itself
   ss := s.RCString('autoindexsections', '');
-  if not indexerCapable then
-    ss := '';
 
   for i := 1 to 1000 do
   begin
@@ -237,33 +235,22 @@ begin
     sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-
       irc_SendINDEXER(Format('Indexing of %s on site %s start.', [section, site1]));
       try
-        if config.ReadBool(rsections, 'transaction', True) then
-          indexerBeginTransaction();
+        indexerRemoveSiteSection(site1, section);
+        db := doIndexing(slot, section, sectiondir, 1);
 
-        try
-          indexerRemoveSiteSection(site1, section);
-          db := doIndexing(slot, section, sectiondir, 1);
-
-          if db < 0 then
-          begin
-            irc_addtext(netname, channel, 'Indexing of %s on site %s finished, no rips added.', [section, site1]);
-            irc_SendINDEXER(Format('Indexing of %s on site %s finished, no rips added.', [section, site1]));
-          end;
-
-          if db >= 0 then
-          begin
-            irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]);
-            irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]));
-          end;
-
-        finally
-          if config.ReadBool(rsections, 'transaction', True) then
-            indexerEndTransaction();
+        if db < 0 then
+        begin
+          irc_addtext(netname, channel, 'Indexing of %s on site %s finished, no rips added.', [section, site1]);
+          irc_SendINDEXER(Format('Indexing of %s on site %s finished, no rips added.', [section, site1]));
         end;
 
+        if db >= 0 then
+        begin
+          irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]);
+          irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]));
+        end;
       except
         on e: Exception do
         begin
