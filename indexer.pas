@@ -16,7 +16,7 @@ implementation
 
 uses
   configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  mystrings, slsqlite, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
+  mystrings, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
 
 const
   section = 'indexer';
