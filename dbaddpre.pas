@@ -772,6 +772,7 @@ end;
 
 procedure dbaddpreUninit;
 begin
+  Debug(dpSpam, section, 'Uninit1');
   addprecmd.Free;
   last_addpre_lock.Free;
   last_addpre.Free;
@@ -785,6 +786,7 @@ begin
   begin
     FreeAndNil(addpreSQLite3DBCon);
   end;
+  Debug(dpSpam, section, 'Uninit2');
 end;
 
 end.
