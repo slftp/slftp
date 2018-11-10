@@ -1159,25 +1159,25 @@ function IsValidUTF8WithoutControlChars(const source: RawUTF8): Boolean; overloa
 function Utf8TruncateToUnicodeLength(var text: RawUTF8; maxUtf16: integer): boolean;
 
 /// will truncate the supplied UTF-8 value if its length exceeds the specified
-// UTF-8 Unicode characters count
+// bytes count
 // - this function will ensure that the returned content will contain only valid
 // UTF-8 sequence, i.e. will trim the whole trailing UTF-8 sequence
 // - returns FALSE if text was not truncated, TRUE otherwise
-function Utf8TruncateToLength(var text: RawUTF8; maxUTF8: cardinal): boolean;
+function Utf8TruncateToLength(var text: RawUTF8; maxBytes: cardinal): boolean;
 
 /// compute the truncated length of the supplied UTF-8 value if it exceeds the
-// specified UTF-8 Unicode characters count
+// specified bytes count
 // - this function will ensure that the returned content will contain only valid
 // UTF-8 sequence, i.e. will trim the whole trailing UTF-8 sequence
 // - returns maxUTF8 if text was not truncated, or the number of fitting bytes
-function Utf8TruncatedLength(const text: RawUTF8; maxUTF8: cardinal): integer; overload;
+function Utf8TruncatedLength(const text: RawUTF8; maxBytes: cardinal): integer; overload;
 
 /// compute the truncated length of the supplied UTF-8 value if it exceeds the
-// specified UTF-8 Unicode characters count
+// specified bytes count
 // - this function will ensure that the returned content will contain only valid
 // UTF-8 sequence, i.e. will trim the whole trailing UTF-8 sequence
 // - returns maxUTF8 if text was not truncated, or the number of fitting bytes
-function Utf8TruncatedLength(text: PAnsiChar; textlen,maxUTF8: cardinal): integer; overload;
+function Utf8TruncatedLength(text: PAnsiChar; textlen,maxBytes: cardinal): integer; overload;
 
 /// calculate the UTF-16 Unicode characters count of the UTF-8 encoded first line
 // - count may not match the UCS4 glyphs number, in case of UTF-16 surrogates
@@ -2910,7 +2910,9 @@ procedure Split(const Str: RawUTF8; const SepStr: array of RawUTF8;
 /// returns the last occurence of the given SepChar separated context
 // - e.g. SplitRight('01/2/34','/')='34'
 // - if SepChar doesn't appear, will return Str, e.g. SplitRight('123','/')='123'
-function SplitRight(const Str: RawUTF8; SepChar: AnsiChar): RawUTF8;
+// - if LeftStr is supplied, the RawUTF8 it points to will be filled with
+// the left part just before SepChar ('' if SepChar doesn't appear)
+function SplitRight(const Str: RawUTF8; SepChar: AnsiChar; LeftStr: PRawUTF8=nil): RawUTF8;
 
 /// returns the last occurence of the given SepChar separated context
 // - e.g. SplitRight('path/one\two/file.ext','/\')='file.ext', i.e.
@@ -13414,6 +13416,7 @@ type
 // depending on the underlying operating system
 // - will use SHGetFolderPath and the corresponding CSIDL constant under Windows
 // - will return the $HOME folder (whatever kind value is given) otherwise
+// - returned folder name contains the trailing path delimiter (\ or /)
 function GetSystemPath(kind: TSystemPath): TFileName;
 
 /// self-modifying code - change some memory buffer in the code segment
@@ -19648,35 +19651,35 @@ begin
   result := false;
 end;
 
-function Utf8TruncateToLength(var text: RawUTF8; maxUTF8: cardinal): boolean;
+function Utf8TruncateToLength(var text: RawUTF8; maxBytes: cardinal): boolean;
 begin
-  if cardinal(length(text))<maxUTF8 then begin
+  if cardinal(length(text))<maxBytes then begin
     result := false;
     exit; // nothing to truncate
   end;
-  while (maxUTF8>0) and (ord(text[maxUTF8]) and $c0=$80) do dec(maxUTF8);
-  if (maxUTF8>0) and (ord(text[maxUTF8]) and $80<>0) then dec(maxUTF8);
-  SetLength(text,maxUTF8);
+  while (maxBytes>0) and (ord(text[maxBytes]) and $c0=$80) do dec(maxBytes);
+  if (maxBytes>0) and (ord(text[maxBytes]) and $80<>0) then dec(maxBytes);
+  SetLength(text,maxBytes);
   result := true;
 end;
 
-function Utf8TruncatedLength(const text: RawUTF8; maxUTF8: cardinal): integer;
+function Utf8TruncatedLength(const text: RawUTF8; maxBytes: cardinal): integer;
 begin
   result := length(text);
-  if cardinal(result)<maxUTF8 then
+  if cardinal(result)<maxBytes then
     exit;
-  result := maxUTF8;
+  result := maxBytes;
   while (result>0) and (ord(text[result]) and $c0=$80) do dec(result);
   if (result>0) and (ord(text[result]) and $80<>0) then dec(result);
 end;
 
-function Utf8TruncatedLength(text: PAnsiChar; textlen,maxUTF8: cardinal): integer;
+function Utf8TruncatedLength(text: PAnsiChar; textlen,maxBytes: cardinal): integer;
 begin
-  if textlen<maxUTF8 then begin
+  if textlen<maxBytes then begin
     result := textlen;
     exit;
   end;
-  result := maxUTF8;
+  result := maxBytes;
   while (result>0) and (ord(text[result]) and $c0=$80) do dec(result);
   if (result>0) and (ord(text[result]) and $80<>0) then dec(result);
 end;
@@ -23058,15 +23061,19 @@ asm
 end;
 {$endif}
 
-function SplitRight(const Str: RawUTF8; SepChar: AnsiChar): RawUTF8;
+function SplitRight(const Str: RawUTF8; SepChar: AnsiChar; LeftStr: PRawUTF8): RawUTF8;
 var i: PtrInt;
 begin
   for i := length(Str) downto 1 do
     if Str[i]=SepChar then begin
       result := copy(Str,i+1,maxInt);
+      if LeftStr<>nil then
+        LeftStr^ := copy(Str,1,i-1);
       exit;
     end;
   result := Str;
+  if LeftStr<>nil then
+    LeftStr^ := '';
 end;
 
 function SplitRights(const Str, SepChar: RawUTF8): RawUTF8;
@@ -31504,7 +31511,7 @@ end;
 
 function FastLocateIntegerSorted(P: PIntegerArray; R: PtrInt; Value: integer): PtrInt;
 var L,i: PtrInt;
-   cmp: integer;
+    cmp: integer;
 begin
   if R<0 then
     result := 0 else begin
