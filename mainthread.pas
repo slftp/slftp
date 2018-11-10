@@ -457,6 +457,10 @@ begin
     Debug(dpSpam, section, 'Uninit2');
   *)
 
+  // TSQLite3LibraryDynamic
+  if Assigned(sqlite3) then
+    sqlite3.Free;
+
   ConsoleUnInit;
   UninitXMLWeapper;
   RanksUnInit;

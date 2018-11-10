@@ -1111,8 +1111,7 @@ begin
           end;
         0:
           begin
-            fQuery.SQL.Text := 'PRAGMA user_version = :DBVersion';
-            fQuery.ParamByName('DBVersion').AsInteger := CurrentDbVersion;
+            fQuery.SQL.Text := 'PRAGMA user_version = ' + IntToStr(CurrentDbVersion);
             fQuery.ExecSQL;
           end;
         2:
