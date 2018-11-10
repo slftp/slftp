@@ -1,5 +1,3 @@
-8efc142367d550190d8c6ffdaed169e327e142af
+dea9f559a50886e468d8469b686e7c258a5ad874
 
-let TSynLog use new TFileStreamWithoutWriteError file class
-to let the application continue working even if disk space is void for logs
-- adaptation of a mpv patch from github
+included new "FishShop EKON 22" sample
