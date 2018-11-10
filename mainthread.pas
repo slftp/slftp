@@ -48,14 +48,12 @@ var
 
 implementation
 
-uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
-  sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders,
-  dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb,
-{$IFNDEF MSWINDOWS}
-  slconsole,
-{$ENDIF}
-  StrUtils, news, SynSQLite3;
+uses
+  ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
+  mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
+  taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF} StrUtils, news, SynSQLite3;
 
 {$I slftp.inc}
 
@@ -144,16 +142,6 @@ begin
       Result := 'Cant initialize MYSQL libs!';
       Exit;
     end;
-  end;
-
-  // todo: old, remove together with old lib
-  if slsqlite_inited then
-    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
-  else
-  begin
-    Debug(dpError, section, 'Could not initialize sqlite: ' + slsqlite_error);
-    Result := slsqlite_error;
-    Exit;
   end;
 
   //< initialize global SQLite3 object for API calls (only load from current dir)
