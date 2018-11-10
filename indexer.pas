@@ -5,223 +5,274 @@ interface
 procedure indexerStart;
 procedure indexerInit;
 procedure indexerUninit;
-procedure indexerBeginTransaction();
-procedure indexerEndTransaction();
-function indexerQuery(var rls: String): String;
-function indexerQueryPartially(var rls: String): String;
+function indexerQuery(var aRls: String): String;
+function indexerQueryPartially(var aRls: String): String;
 function indexerStat: String;
 procedure indexerAddRelease(const rls, site, section, path: String);
 procedure indexerRemoveSiteSection(const site, section: String);
-function indexerCapable: Boolean;
-
 function IndexerAlive: boolean;
 
 implementation
 
-uses configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  mystrings, slsqlite, Classes, SyncObjs;
+uses
+  configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
+  mystrings, slsqlite, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
 
 const
   section = 'indexer';
 
 var
-  indexes: TslSqliteDB = nil;
-  indexerCount: Psqlite3_stmt = nil;
-  indexerDelete: Psqlite3_stmt = nil;
-  indexerInsert: Psqlite3_stmt = nil;
-  indexerSelect: Psqlite3_stmt = nil;
-  indexerSelectPartially: Psqlite3_stmt = nil;
-  indexer_lock: TCriticalSection;
+  indexesSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
+  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
 function IndexerAlive: boolean;
 begin
-  if indexes = nil then
+  if indexesSQLite3DBCon = nil then
     result := False
   else
     result := True;
 end;
 
-procedure indexerBeginTransaction();
-begin
-  if indexes = nil then
-    exit;
-
-  indexes.ExecSQL('BEGIN TRANSACTION');
-end;
-
-procedure indexerEndTransaction();
-begin
-  if indexes = nil then
-    exit;
-
-  indexes.ExecSQL('COMMIT TRANSACTION');
-end;
-
-function indexerCapable: Boolean;
-begin
-  Result := indexes <> nil;
-end;
-
 procedure indexerAddRelease(const rls, site, section, path: String);
+var
+  fQuery: TQuery;
 begin
-  if indexes = nil then
-    exit;
-  if indexerInsert = nil then
-    exit;
-
-  indexer_lock.Enter;
+  SQLite3Lock.Enter;
   try
-    indexes.ExecSQL(indexerInsert, [rls, site, section, path]);
+    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.SQL.Text := 'INSERT INTO rls (rls, sitename, section, path) VALUES (:release, :sitename, :section, :path)';
+      fQuery.ParamByName('release').AsString := rls;
+      fQuery.ParamByName('sitename').AsString := site;
+      fQuery.ParamByName('section').AsString := section;
+      fQuery.ParamByName('path').AsString := path;
+      try
+        fQuery.ExecSQL;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] indexerAddRelease: %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      fQuery.free;
+    end;
   finally
-    indexer_lock.Leave;
+    SQLite3Lock.Leave;
   end;
 end;
 
 procedure indexerRemoveSiteSection(const site, section: String);
+var
+  fQuery: TQuery;
 begin
-  if indexes = nil then
-    exit;
-  if indexerDelete = nil then
-    exit;
-  indexer_lock.Enter;
+  SQLite3Lock.Enter;
   try
-    if section = '' then
-      indexes.ExecSQL('DELETE FROM rls WHERE sitename=' + site)
-    else
-      indexes.ExecSQL(indexerDelete, [site, section]);
+    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    try
+      if section = '' then
+      begin
+        fQuery.SQL.Text := 'DELETE FROM rls WHERE sitename = :sitename';
+        fQuery.ParamByName('sitename').AsString := site;
+      end
+      else
+      begin
+        fQuery.SQL.Text := 'DELETE FROM rls WHERE sitename = :sitename AND section = :section';
+        fQuery.ParamByName('sitename').AsString := site;
+        fQuery.ParamByName('section').AsString := section;
+      end;
+      try
+        fQuery.ExecSQL;
+      except
+        on e: Exception do
+        begin
+          if section = '' then
+            Debug(dpError, section, Format('[EXCEPTION] indexerRemoveSiteSection with empty section: %s', [e.Message]))
+          else
+            Debug(dpError, section, Format('[EXCEPTION] indexerRemoveSiteSection with section: %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      fQuery.free;
+    end;
   finally
-    indexer_lock.Leave;
+    SQLite3Lock.Leave;
   end;
 end;
 
 procedure indexerStart;
 var
-  s: String;
+  db_name: String;
 begin
-  if slsqlite_inited then
-  begin
-    s := Trim(config.ReadString(section, 'database', ''));
-    if s = '' then
-      exit;
+  db_name := Trim(config.ReadString(section, 'database', 'indexes.db'));
 
-    indexes := TslSqliteDB.Create(s, config.ReadString(section, 'pragma', ''));
-    indexes.ExecSQL(
-      'CREATE TABLE IF NOT EXISTS rls (' +
-      ' rls VARCHAR(200) NOT NULL, ' +
-      ' sitename VARCHAR(20) NOT NULL, ' +
-      ' section VARCHAR(40) NOT NULL, ' +
-      ' path VARCHAR(200) NOT NULL ' +
-      ')'
-      );
+  indexesSQLite3DBCon := CreateSQLite3DbConn(db_name, '');
 
-    indexes.ExecSQL(
-      'CREATE INDEX IF NOT EXISTS rls_index ON rls (rls)'
-      );
-    indexes.ExecSQL(
-      'CREATE INDEX IF NOT EXISTS sitenamesection_index ON rls (sitename,section)'
-      );
+  indexesSQLite3DBCon.MainSQLite3DB.Execute(
+    'CREATE TABLE IF NOT EXISTS rls (' +
+    ' rls VARCHAR(200) NOT NULL, ' +
+    ' sitename VARCHAR(20) NOT NULL, ' +
+    ' section VARCHAR(40) NOT NULL, ' +
+    ' path VARCHAR(200) NOT NULL ' +
+    ')'
+  );
 
-    indexerCount := indexes.Open('SELECT sitename, section, COUNT(*) FROM rls GROUP BY sitename, section ORDER BY sitename, section');
-    indexerSelect := indexes.Open('SELECT sitename,section,path,rls FROM rls WHERE rls=?');
-    indexerSelectPartially := indexes.Open('SELECT sitename,section,path, rls FROM rls WHERE rls LIKE ? ORDER BY rls LIMIT 20');
-    indexerInsert := indexes.Open('INSERT INTO rls (rls, sitename, section, path) VALUES (?, ?, ?, ?)');
-    indexerDelete := indexes.Open('DELETE FROM rls WHERE sitename=? AND section=?');
-
-  end;
-end;
-
-function indexerStat: String;
-var
-  all, db: Integer;
-begin
-  Result := '';
-  if indexes = nil then
-    exit;
-  if indexerCount = nil then
-    exit;
-
-  indexer_lock.Enter;
-  try
-    all := 0;
-    indexes.Open(indexerCount);
-    while indexes.Step(indexerCount) do
-    begin
-      db := indexes.column_int(indexerCount, 2);
-      Result := Result + Format('%s-%s=%d', [indexes.column_text(indexerCount, 0), indexes.column_text(indexerCount, 1), db]) + #13#10;
-      inc(all, db);
-    end;
-    Result := Result + 'Total: ' + IntToStr(all) + ' releases' + #13#10;
-  finally
-    indexer_lock.Leave;
-  end;
+  indexesSQLite3DBCon.MainSQLite3DB.Execute(
+    'CREATE INDEX IF NOT EXISTS rls_index ON rls (rls)'
+  );
+  indexesSQLite3DBCon.MainSQLite3DB.Execute(
+    'CREATE INDEX IF NOT EXISTS sitenamesection_index ON rls (sitename, section)'
+  );
 end;
 
 procedure indexerInit;
 begin
-  indexer_lock := TCriticalSection.Create;
+  SQLite3Lock := TCriticalSection.Create;
 end;
 
 procedure indexerUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  if indexes <> nil then
+  if Assigned(SQLite3Lock) then
   begin
-    if indexerCount <> nil then
-      indexes.Close(indexerCount);
-    if indexerSelect <> nil then
-      indexes.Close(indexerSelect);
-    if indexerDelete <> nil then
-      indexes.Close(indexerDelete);
-    if indexerInsert <> nil then
-      indexes.Close(indexerInsert);
-    indexes.Free;
-    indexes := nil;
+    FreeAndNil(SQLite3Lock);
   end;
-  indexer_lock.Free;
+
+  if Assigned(indexesSQLite3DBCon) then
+  begin
+    FreeAndNil(indexesSQLite3DBCon);
+  end;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function indexerQuery(var rls: String): String;
+function indexerStat: String;
+var
+  fQuery: TQuery;
+  fAll, fCount: Integer;
 begin
   Result := '';
-  if indexes = nil then
-    exit;
-  if indexerSelect = nil then
-    exit;
+  fAll := 0;
 
-  indexer_lock.Enter;
+  SQLite3Lock.Enter;
   try
-    indexes.open(indexerSelect, [rls]);
-    while indexes.Step(indexerSelect) do
-    begin
-      Result := Result + indexes.column_text(indexerSelect, 0) + '-' + indexes.column_text(indexerSelect, 1) + '=' + indexes.column_text(indexerSelect, 2) + #13#10;
-      rls := indexes.column_text(indexerSelect, 3);
+    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.SQL.Text := 'SELECT sitename, section, COUNT(*) FROM rls GROUP BY sitename, section ORDER BY sitename, section';
+      try
+        fQuery.Open;
+
+        if not fQuery.IsEmpty then
+        begin
+          fQuery.First;
+
+          while not fQuery.Eof do
+          begin
+            fCount := fQuery.Fields[2].AsInteger;
+            Result := Result + Format('%s-%s=%d', [fQuery.FieldByName('sitename').AsString, fQuery.FieldByName('section').AsString, fCount]) + #13#10;
+            Inc(fAll, fCount);
+            fQuery.Next;
+          end;
+        end;
+        Result := Result + 'Total: ' + IntToStr(fAll) + ' releases';
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] indexerStat: %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      fQuery.free;
     end;
   finally
-    indexer_lock.Leave;
+    SQLite3Lock.Leave;
   end;
 end;
 
-function indexerQueryPartially(var rls: String): String;
+function indexerQuery(var aRls: String): String;
+var
+  fQuery: TQuery;
 begin
   Result := '';
-  if indexes = nil then
-    exit;
-  if indexerSelect = nil then
-    exit;
 
-  rls := Csere(rls, '_', '%');
-  rls := Csere(rls, ' ', '%');
-  rls := '%' + rls + '%';
-
-  indexer_lock.Enter;
+  SQLite3Lock.Enter;
   try
-    indexes.open(indexerSelectPartially, [rls]);
-    while indexes.Step(indexerSelectPartially) do
-      Result := Result + indexes.column_text(indexerSelectPartially, 0) + '-' + indexes.column_text(indexerSelectPartially, 1) + '=' + indexes.column_text(indexerSelectPartially,
-        2) + '/' + indexes.column_text(indexerSelectPartially, 3) + #13#10;
+    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls = :release';
+      fQuery.ParamByName('release').AsString := aRls;
+      try
+        fQuery.Open;
+
+        if not fQuery.IsEmpty then
+        begin
+          fQuery.First;
+
+          while not fQuery.Eof do
+          begin
+            Result := Result + fQuery.FieldByName('sitename').AsString + '-' + fQuery.FieldByName('section').AsString + '=' + fQuery.FieldByName('path').AsString + #13#10;
+            aRls := fQuery.FieldByName('rls').AsString;
+            fQuery.Next;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] indexerQuery: %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      fQuery.free;
+    end;
   finally
-    indexer_lock.Leave;
+    SQLite3Lock.Leave;
+  end;
+end;
+
+function indexerQueryPartially(var aRls: String): String;
+var
+  fQuery: TQuery;
+begin
+  Result := '';
+
+  aRls := Csere(aRls, '_', '%');
+  aRls := Csere(aRls, ' ', '%');
+  aRls := '%' + aRls + '%';
+
+  SQLite3Lock.Enter;
+  try
+    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls LIKE :name ORDER BY rls LIMIT 20';
+      fQuery.ParamByName('name').AsString := aRls;
+      try
+        fQuery.Open;
+
+        if not fQuery.IsEmpty then
+        begin
+          fQuery.First;
+
+          while not fQuery.Eof do
+          begin
+            Result := Result + fQuery.FieldByName('sitename').AsString + '-' + fQuery.FieldByName('section').AsString + '=' + fQuery.FieldByName('path').AsString + '/' + fQuery.FieldByName('rls').AsString + #13#10;
+            fQuery.Next;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] indexerQueryPartially: %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      fQuery.free;
+    end;
+  finally
+    SQLite3Lock.Leave;
   end;
 end;
 
