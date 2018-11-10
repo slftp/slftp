@@ -119,12 +119,12 @@ begin
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
-      Result := Format('Failed to load OpenSSL: #13#10 %s', [IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
     on e: Exception do
     begin
-      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: #13#10 %s #13#10 %s', [e.ClassName, e.Message]);
+      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
       exit;
     end;
   end;
@@ -156,19 +156,27 @@ begin
     Exit;
   end;
 
-  //< initialize global SQLite3 object for API calls
-  sqlite3 := TSQLite3LibraryDynamic.Create;
+  //< initialize global SQLite3 object for API calls (only load from current dir)
+  try
+    sqlite3 := TSQLite3LibraryDynamic.Create('./' + 'libsqlite3.so');
+  except
+    on e: Exception do
+    begin
+      Result := Format('Failed to load SQLite3: %s%s', [sLineBreak, e.Message]);
+      exit;
+    end;
+  end;
 
-  if (sqlite3.VersionNumber < lib_SQLite3) then
+  if sqlite3.VersionText < lib_SQLite3 then
   begin
-    result := Format('SQLite3 version %s is too old! %d or newer needed.', [sqlite3.VersionText, lib_SQLite3]);
+    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [sqlite3.VersionText, sLineBreak, lib_SQLite3]);
     exit;
   end;
 
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
     begin
-      Result := Format('Ncurses version is unsupported! %s or newer needed.', [lib_Ncurses]);
+      Result := Format('ncurses version is too old! %s%s or newer needed.', [sLineBreak, lib_Ncurses]);
       exit;
     end;
   {$ENDIF}
@@ -370,10 +378,13 @@ procedure Main_Run;
 begin
   Debug(dpError, section, '%s started', [Get_VersionString(ParamStr(0))]);
 
-  Debug(dpMessage, section, OpenSSLVersion());
+
+  Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));
+
+  Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
 
   {$IFNDEF MSWINDOWS}
-    Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
+    Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
   {$ENDIF}
 
   started := Now();
