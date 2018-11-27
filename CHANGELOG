@@ -45,6 +45,7 @@
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
     3. delete your old slftp.news file (if existing)
+    4. delete your old stats.db file due to a wrong UNIQUE INDEX (if existing)
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -53,7 +54,8 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
-  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2 Tokyo - ON WINDOWS! **
+      ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2 Tokyo - ON WINDOWS! **
+  ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.1.1 or newer - ON LINUX! **
   
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
@@ -69,6 +71,7 @@
     {+} Show PID & actual memory usage in !status command (atm linux only!) (#170)
     {+} !fetchuser cmd to fetch some information about site settings + basic recommendation (#51)
     {+} Support for wildcards in !batch (#222)                                  --- some more work + testing needed ---
+    {+} Completely new SQLite engine
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -89,6 +92,7 @@
     {^} Support for regex in IMDb Language rule
     {^} Detection for iOFTPD sites
     {^} IMDb parsing code update due to recent website changes
+    {^} taskdirlist shows sitename on 'can not dirlist' announce (#227)
     {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.0.4 needed!)
