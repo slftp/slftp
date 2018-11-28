@@ -458,11 +458,13 @@ begin
   genre := '';
   if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
-    genre := _findMP3GenreOnAnnounce(s, ts_data);
+    // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
+    // remove rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+    genre :=  _findMP3GenreOnAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]), ts_data);
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
-      Debug(dpSpam, rsections, Format('Genre found via _findMP3GenreOnAnnounce: %s', [genre]));
+      Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
     end;
   end;
 
