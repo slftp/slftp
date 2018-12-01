@@ -11,7 +11,7 @@ interface
 
  DESCRIPTION     :  Return compiler version as string or symbol
 
- REQUIREMENTS    :  TP4-7, D1-D7/D9-D12/D17-D25, FPC1/2/3, VP, (and others)
+ REQUIREMENTS    :  TP4-7, D1-D7/D9-D12/D17-D26, FPC1/2/3, VP, (and others)
 
  EXTERNAL DATA   :  ---
 
@@ -56,11 +56,14 @@ interface
  0.36     26.04.16  we          D24
  0.37     11.04.17  we          FPC 3.0.2, D25
  0.38     11.04.17  we          FPC 3.0.4
+ 0.39     02.10.18  we          FPC 3.2.0, 3.3.1
+ 0.40     13.10.18  we          Removed conditional define 'unknown'
+ 0.41     22.11.18  we          D26
 **************************************************************************)
 
 
 (*-------------------------------------------------------------------------
- (C) Copyright 2005-2017 Wolfgang Ehrhardt
+ (C) Copyright 2005-2018 Wolfgang Ehrhardt
 
  This software is provided 'as-is', without any express or implied warranty.
  In no event will the authors be held liable for any damages arising from
@@ -98,7 +101,8 @@ type
                 _FPC264,
                 _D20,_D21,
                 _FPC271, _FPC301, _FPC311,
-                _D22, _FPC300, _D23, _D24, _FPC302, _D25, _FPC304
+                _D22, _FPC300, _D23, _D24, _FPC302, _D25, _FPC304,
+                _FPC320, _FPC331, _D26
               );
 
 type
@@ -113,220 +117,34 @@ function Compiler_Str: TCompString;
 
 implementation
 
-{$define unknown}
 
-{$ifdef VER10}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER15}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER40}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER50}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER55}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER60}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER70}
-  {$ifdef windows}
-    {$undef unknown}
-  {$else}
-    {$ifdef DPMI}
-      {$undef unknown}
-    {$else}
-      {$undef unknown}
-    {$endif}
-  {$endif}
-{$endif}
-
-{$ifdef VER80}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER90}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER100}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER110}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER120}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER125}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER130}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER140}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER150}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER170}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VER160}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver180}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver190}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver200}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver210}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver220}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver230}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver240}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver250}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver260}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver270}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver280}
-  {$undef unknown}
-{$endif}
-
-{$ifdef Ver290}
-  {$undef unknown}
-{$endif}
-
-{$ifdef VirtualPascal}
-  {$undef unknown}
-{$endif}
+{$undef nowarn}
 
 {$ifdef FPC}
-  {$ifdef VER1}
-    {$undef unknown}
-  {$else}
-    {$ifdef VER2}
-      {$ifdef VER2_0_2}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_0_4}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_1_4}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_2_0}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_2_2}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_2_4}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_4_0}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_4_2}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_4_4}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_6_0}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_6_2}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_6_4}
-        {$undef unknown}
-      {$endif}
-      {$ifdef VER2_7_1}
-        {$undef unknown}
-      {$endif}
-      {$ifdef unknown}
-        {$define unkFPC}
-        {$undef unknown}
-      {$endif}
-    {$else}
-      {$ifdef VER3}
-        {$ifdef VER3_0_0}
-          {$undef unknown}
-        {$endif}
-        {$ifdef VER3_0_1}
-          {$undef unknown}
-        {$endif}
-        {$ifdef VER3_0_2}
-          {$undef unknown}
-        {$endif}
-        {$ifdef VER3_0_4}
-          {$undef unknown}
-        {$endif}
-        {$ifdef VER3_1_1}
-          {$undef unknown}
-        {$endif}
-      {$endif}
-      {$ifdef unknown}
-        {$define unkFPC}
-        {$undef unknown}
-      {$endif}
-    {$endif}
-  {$endif}
-
+  {$define nowarn}
 {$endif}
+{$ifdef CONDITIONALEXPRESSIONS} {D6+}
+  {$define nowarn}
+{$endif}
+{$ifdef WIN32}
+  {$ifndef VirtualPascal}
+    {$define nowarn}
+  {$endif}
+{$endif}
+
+{$ifdef nowarn}
+  {$WARNINGS OFF}
+  {$HINTS OFF}
+{$endif}
+
 
 {---------------------------------------------------------------------------}
 function Compiler_Sym: TCompiler;
   {-Return compiler version as symbol}
 begin
-  {$ifdef unknown}
+  {$ifdef FPC}
+    Compiler_Sym := _FPC;
+  {$else}
     Compiler_Sym := _Unknown;
   {$endif}
 
@@ -482,6 +300,10 @@ begin
     Compiler_Sym := _D25;
   {$endif}
 
+  {$ifdef Ver330}
+    Compiler_Sym := _D26;
+  {$endif}
+
   {$ifdef VirtualPascal}
     Compiler_Sym := _VP21;
   {$endif}
@@ -534,9 +356,6 @@ begin
         {$ifdef VER2_7_1}
           Compiler_Sym := _FPC271;
         {$endif}
-        {$ifdef unkFPC}
-          Compiler_Sym := _FPC;
-        {$endif}
       {$else}
         {$ifdef VER3}
           {$ifdef VER3_0_0}
@@ -554,12 +373,11 @@ begin
           {$ifdef VER3_1_1}
             Compiler_Sym := _FPC311;
           {$endif}
-          {$ifdef unkFPC}
-            Compiler_Sym := _FPC;
+          {$ifdef VER3_2_0}
+            Compiler_Sym := _FPC320;
           {$endif}
-        {$else}
-          {$ifdef unkFPC}
-            Compiler_Sym := _FPC;
+          {$ifdef VER3_3_1}
+            Compiler_Sym := _FPC331;
           {$endif}
         {$endif}
       {$endif}
@@ -572,7 +390,9 @@ end;
 function Compiler_Str: TCompString;
   {-Return compiler version as string}
 begin
-  {$ifdef unknown}
+  {$ifdef FPC}
+    Compiler_Str := 'FPC??';
+  {$else}
     Compiler_Str := '(unknown)';
   {$endif}
 
@@ -728,6 +548,10 @@ begin
     Compiler_Str := 'D25';     {'Tokyo'}
   {$endif}
 
+  {$ifdef Ver330}
+    Compiler_Str := 'D26';     {'Rio'}
+  {$endif}
+
   {$ifdef VirtualPascal}
     Compiler_Str := 'VP21';
   {$endif}
@@ -780,9 +604,6 @@ begin
         {$ifdef VER2_7_1}
           Compiler_Str := 'FPC271';
         {$endif}
-        {$ifdef unkFPC}
-          Compiler_Str := 'FPC2??';
-        {$endif}
       {$else}
         {$ifdef VER3}
           {$ifdef VER3_0_0}
@@ -800,12 +621,11 @@ begin
           {$ifdef VER3_1_1}
             Compiler_Str := 'FPC311';
           {$endif}
-          {$ifdef unkFPC}
-            Compiler_Str := 'FPC3??';
+          {$ifdef VER3_2_0}
+            Compiler_Str := 'FPC320';
           {$endif}
-        {$else}
-          {$ifdef unkFPC}
-            Compiler_Str := 'FPC??';
+          {$ifdef VER3_3_1}
+            Compiler_Str := 'FPC331';
           {$endif}
         {$endif}
       {$endif}
