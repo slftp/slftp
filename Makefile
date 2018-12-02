@@ -2,7 +2,7 @@ SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Compvers -Fulibs/Indy10/* -Fulibs/LibTar -Fulibs/mORMot
+CINCLUDES = -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Compvers -Fulibs/Indy10/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/ZeosLib
 CDBFLAGS = -MDelphi -gl -gp -gs -gw3
 default: clean slftp
 
@@ -45,6 +45,7 @@ clean:
 	@rm -f libs/Indy10/Core/*.ppu libs/Indy10/Core/*.o libs/Indy10/Protocols/*.ppu libs/Indy10/Protocols/*.o libs/Indy10/System/*.ppu libs/Indy10/System/*.o
 	@rm -f libs/LibTar/*.ppu libs/LibTar/*.o
 	@rm -f libs/mORMot/*.ppu libs/mORMot/*.o libs/mORMot/CrossPlatform/*.ppu libs/mORMot/CrossPlatform/*.o libs/mORMot/SQLite3/*.ppu libs/mORMot/SQLite3/*.o libs/mORMot/SynDBDataset/*.ppu libs/mORMot/SynDBDataset/*.o
+	@rm -f libs/ZeosLib/core/*.ppu libs/ZeosLib/core/*.o libs/ZeosLib/dbc/*.ppu libs/ZeosLib/dbc/*.o libs/ZeosLib/plain/*.ppu libs/ZeosLib/plain/*.o
 	@rm -f *.ppu *.o slftp *.exe
 
 install:
