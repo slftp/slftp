@@ -8,7 +8,6 @@ cd "$(dirname "$0")"
 
 # delete unwanted folders
 rm -r component
-rm -r parsesql
 
 # delete unwanted file types
 find * -iname "repl.*" -type f -delete
@@ -33,6 +32,18 @@ find * -iname "ZPlainOleDB*" -type f -delete
 find * -iname "ZPlainOracle*" -type f -delete
 find * -iname "ZPlainPostgreSql*" -type f -delete
 find * -iname "ZPlainSqLite*" -type f -delete
+
+# set settings for ZeosLib as needed
+sed -i 's/{.$DEFINE ZEOS_DISABLE_POSTGRESQL}/{$DEFINE ZEOS_DISABLE_POSTGRESQL}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_DBLIB}/{$DEFINE ZEOS_DISABLE_DBLIB}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_ADO}/{$DEFINE ZEOS_DISABLE_ADO}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_INTERBASE}/{$DEFINE ZEOS_DISABLE_INTERBASE}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_SQLITE}/{$DEFINE ZEOS_DISABLE_SQLITE}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_ORACLE}/{$DEFINE ZEOS_DISABLE_ORACLE}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_ASA}/{$DEFINE ZEOS_DISABLE_ASA}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_POOLED}/{$DEFINE ZEOS_DISABLE_POOLED}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_OLEDB}/{$DEFINE ZEOS_DISABLE_OLEDB}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_ODBC}/{$DEFINE ZEOS_DISABLE_ODBC}/' Zeos.inc
 
 # copy ZEOS files which are needed for mORMot
 cp Zeos.inc ../mORMot/Zeos.inc

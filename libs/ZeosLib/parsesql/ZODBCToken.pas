@@ -1,13 +1,16 @@
 {*********************************************************}
 {                                                         }
 {                 Zeos Database Objects                   }
-{ Constant property names used by all connections and     }
-{ other utilities on core and plain levels                }
+{           String tokenizing classes for OleDB           }
+{                                                         }
+{         Originally written by Sergey Seroukhov          }
+{                                                         }
+{         unit Originally written by EgonHugeist          }
 {                                                         }
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2017 Zeos Development Group       }
+{    Copyright (c) 1999-2012 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -48,89 +51,74 @@
 {                                 Zeos Development Group. }
 {********************************************************@}
 
-unit ZConnProperties;
+unit ZODBCToken;
 
 interface
 
-{$I ZCore.inc}
+{$I ZParseSql.inc}
 
-{ WARNING! Some of the parameter values are used directly in DBC API, so they
-  must not be changed. }
+{$IF defined(ZEOS_DISABLE_ODBC) and defined(ZEOS_DISABLE_ADO) and defined(ZEOS_DISABLE_OLEDB)}
+  {$DEFINE ZEOS_DISABLE_ODBC}
+{$ELSE}
+  {$UNDEF ZEOS_DISABLE_ODBC}
+{$IFEND}
 
-{ Types of parameters:
-    BOOLEAN - 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0 in any case to enable, any other
-      value to disable (StrToBoolEx is used to convert)
-    INT     - number
-    STR     - string }
+{$IFNDEF ZEOS_DISABLE_ODBC}
+uses
+  Classes, SysUtils, ZTokenizer, ZGenericSqlToken;
 
-const
-  { Parameters common for all DBC's }
+type
+  {** Implements a quote string state object. }
+  TZODBCQuoteState = TZGenericSQLBracketQuoteState;
 
-  // Type: STR
-  // Same as User property
-  ConnProps_UID = 'UID';
-  ConnProps_Username = 'username';
-  // Type: STR
-  // Same as Password property
-  ConnProps_PWD = 'PWD';
-  ConnProps_Password = 'password';
-  // Type: STR
-  // Same as LibraryLocation property, path to client lib
-  ConnProps_LibLocation = 'LibLocation';
-  // Type: STR, like CP_UTF8
-  // Codepage to interact with driver
-  ConnProps_CodePage = 'codepage';
-  // Type: BOOLEAN
-  // Same as AutoEncodeStrings property
-  ConnProps_AutoEncodeStrings = 'AutoEncodeStrings';
-  // Type: CP_UTF16 | CP_UTF8 | GET_ACP
-  // Same as ControlsCodePage property
-  ConnProps_ControlsCP = 'controls_cp';
-  // Type: INT
-  // The login timeout to use in seconds.
-  ConnProps_Timeout = 'timeout';
-  // Type: STR
-  // Format to display date, like YYYY-MM-DD
-  ConnProps_DateDisplayFormat = 'DateDisplayFormat';
-  // Type: STR
-  // Format to read date
-  ConnProps_DateReadFormat = 'DateReadFormat';
-  // Type: STR
-  // Format to write date
-  ConnProps_DateWriteFormat = 'DateWriteFormat';
-  // Type: STR, like HH:MM:SS
-  // Format to display time
-  ConnProps_TimeDisplayFormat = 'TimeDisplayFormat';
-  // Type: STR
-  // Format to read time
-  ConnProps_TimeReadFormat = 'TimeReadFormat';
-  // Type: STR
-  // Format to write time
-  ConnProps_TimeWriteFormat = 'TimeWriteFormat';
-  // Type: STR
-  // Format to display date & time
-  ConnProps_DateTimeDisplayFormat = 'DatetimeDisplayFormat';
-  // Type: STR
-  // Format to read date & time
-  ConnProps_DateTimeReadFormat = 'DatetimeReadFormat';
-  // Type: STR
-  // Format to write date & time
-  ConnProps_DateTimeWriteFormat = 'DatetimeWriteFormat';
-  // Type: STR
-  // Sets TZAbstractDatabaseInfo.IdentifierQuotes property, refer to Zeos manual for details
-  ConnProps_IdentifierQuotes = 'identifier_quotes';
+  {** Implements a default tokenizer object. }
+  TZODBCTokenizer = class (TZGenericSQLTokenizer)
+  protected
+    procedure CreateTokenStates; override;
+  end;
 
-  { Parameters specific to a single DBC }
-  
-{$IFDEF ENABLE_MYSQL}
-  // Type: STR
-  // Refer to MySql manual for details
-  ConnProps_Datadir = '--datadir';
-  // Type: STR
-  // Path to library
-  ConnProps_Library = 'Library';
-{$ENDIF}
+{$ENDIF ZEOS_DISABLE_ODBC}
 
 implementation
+
+{$IFNDEF ZEOS_DISABLE_ODBC}
+
+{ TZODBCTokenizer }
+
+{**
+  Constructs a default state table (as described in the class comment).
+}
+procedure TZODBCTokenizer.CreateTokenStates;
+begin
+  NumberState := TZNumberState.Create;
+  QuoteState := TZODBCQuoteState.Create;
+  WhitespaceState := TZWhitespaceState.Create;
+  CommentState := TZCppCommentState.Create;
+
+  SymbolState := TZGenericSQLSymbolState.Create;
+  WordState := TZGenericSQLWordState.Create;
+
+  SetCharacterState(#0, #32, WhitespaceState);
+  SetCharacterState(#33, #191, SymbolState);
+  SetCharacterState(#192, High(Char), WordState);
+
+  SetCharacterState('a', 'z', WordState);
+  SetCharacterState('A', 'Z', WordState);
+  SetCharacterState('_', '_', WordState);
+  SetCharacterState('$', '$', WordState);
+  SetCharacterState('@', '@', WordState);
+
+  SetCharacterState('0', '9', NumberState);
+  SetCharacterState('.', '.', NumberState);
+
+  SetCharacterState('"', '"', QuoteState);
+  SetCharacterState(#39, #39, QuoteState);
+  SetCharacterState('[', '[', QuoteState);
+  SetCharacterState(']', ']', QuoteState);
+
+  SetCharacterState('/', '/', CommentState);
+end;
+
+{$ENDIF ZEOS_DISABLE_ODBC}
 
 end.
