@@ -47,16 +47,16 @@
 
 // Uncomment these defines to disable some DB drivers (reduce binary size)
 {.$DEFINE ZEOS_DISABLE_MYSQL}
-{.$DEFINE ZEOS_DISABLE_POSTGRESQL}
-{.$DEFINE ZEOS_DISABLE_DBLIB}
-{.$DEFINE ZEOS_DISABLE_ADO}
-{.$DEFINE ZEOS_DISABLE_INTERBASE}
-{.$DEFINE ZEOS_DISABLE_SQLITE}
-{.$DEFINE ZEOS_DISABLE_ORACLE}
-{.$DEFINE ZEOS_DISABLE_ASA}
-{.$DEFINE ZEOS_DISABLE_POOLED}
-{.$DEFINE ZEOS_DISABLE_OLEDB}
-{.$DEFINE ZEOS_DISABLE_ODBC}
+{$DEFINE ZEOS_DISABLE_POSTGRESQL}
+{$DEFINE ZEOS_DISABLE_DBLIB}
+{$DEFINE ZEOS_DISABLE_ADO}
+{$DEFINE ZEOS_DISABLE_INTERBASE}
+{$DEFINE ZEOS_DISABLE_SQLITE}
+{$DEFINE ZEOS_DISABLE_ORACLE}
+{$DEFINE ZEOS_DISABLE_ASA}
+{$DEFINE ZEOS_DISABLE_POOLED}
+{$DEFINE ZEOS_DISABLE_OLEDB}
+{$DEFINE ZEOS_DISABLE_ODBC}
 
 {.$DEFINE USE_SYNCOMMONS} //enable JSON content support by using SynCommons.pas from Synopse project 
 {.$DEFINE WITH_ZSTRINGFIELDS}
@@ -203,6 +203,9 @@
                   {$DEFINE WITH_TOBJECTLIST_REQUIRES_CLASSES}       //TObjectList.Remove, add ... are inlined need unit classes
 
                   {$IF CompilerVersion >= 23} //Delphi XE2+
+                    {$IFNDEF MSWINDOWS}
+                      {$DEFINE HAVE_GetProcAddressW} //GetProcAddress uses a PWideChar 
+                    {$ENDIF}
                     {$IFNDEF WIN32}
                       {$UNDEF WITH_DBTABLES} //BDE unit DBTables (TestSuites) isn't supported on CPU64
                       {$IFNDEF PUREPASCAL}
@@ -230,7 +233,6 @@
                         {$UNDEF WITH_ASANSISTRING}
                         {$UNDEF WITH_UNITANSISTRINGS}
                         {$UNDEF WITH_WIDESTRUTILS}
-                        {$DEFINE WITH_UNIT_FMX_TYPES}
                         {$DEFINE TLIST_IS_DEPRECATED}
                         {$DEFINE NO_INLINE_SIZE_CHECK}
                         {$DEFINE NO_ANSISTRING}
@@ -252,8 +254,6 @@
                           {$UNDEF WITH_RAWBYTESTRING}
                           {$DEFINE WITH_TBYTES_AS_RAWBYTESTRING} //this compiler is buggy: _RawByteString is declared but skope is in System.pas only (UTF8Encode returns a unusable value f.e.)
                         {$IFEND}
-                      {$ELSE}
-                        {$DEFINE WITH_VCL_PREFIX}
                       {$ENDIF}
                       {$IF CompilerVersion >= 25} //Delphi XE4+
                         {$DEFINE WITH_VAR_TVALUEBUFFER}	        //GetFieldata overloads using !var! Buffer: TValueBuffer
@@ -410,8 +410,12 @@
 {$ENDIF}
 
 // Enables ADO support in TZConnection/TZDataset
-{$IF not defined(ZEOS_DISABLE_ADO) and defined(MSWINDOWS)}
-  {$DEFINE ENABLE_ADO}
+{$IF defined(MSWINDOWS)}
+  {$IF not defined(ZEOS_DISABLE_ADO)}	
+    {$DEFINE ENABLE_ADO}
+  {$IFEND}
+{$ELSE}
+  {$DEFINE ZEOS_DISABLE_ADO}
 {$IFEND}
 
 // Enables Interbase/Firebird support in TZConnection/TZDataset
@@ -435,8 +439,12 @@
 {$ENDIF}
 
 // Enables OleDB support in TZConnection/TZDataset
-{$IF not defined(ZEOS_DISABLE_OLEDB) and defined(MSWINDOWS)}
-  {$DEFINE ENABLE_OLEDB}
+{$IF defined(MSWINDOWS)}
+  {$IF not defined(ZEOS_DISABLE_OLEDB)}	
+    {$DEFINE ENABLE_OLEDB}
+  {$IFEND}
+{$ELSE}
+  {$DEFINE ZEOS_DISABLE_OLEDB}
 {$IFEND}
 
 // Enables ODBC support in TZConnection/TZDataset
