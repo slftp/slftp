@@ -35,7 +35,6 @@ procedure dbaddpreUnInit;
 
 function getPretime(const rlz: String): TPretimeResult;
 
-//function ReadPretime(rlz: string): TDateTime;
 function ReadPretimeOverHTTP(const rls: String): TDateTime;
 function ReadPretimeOverMYSQL(const rls: String): TDateTime;
 function ReadPretimeOverSQLITE(const rls: String): TDateTime;
@@ -238,7 +237,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
+          Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverSQLITE: %s', [e.Message]));
           exit;
         end;
       end;
@@ -333,48 +332,6 @@ begin
 
 end;
 
-function ReadPretime(rlz: String): TDateTime;
-begin
-  Result := UnixToDateTime(0);
-
-  if rlz = '' then
-    irc_adderror('GETPRETIME --> No RLZ value!');
-
-  case dbaddpre_plm1 of
-    plmNone: Exit;
-    plmHTTP: Result := ReadPretimeOverHTTP(rlz);
-    plmMYSQL: Result := ReadPretimeOverMYSQL(rlz);
-    plmSQLITE: Result := ReadPretimeOverSQLITE(rlz);
-  else
-    begin
-      Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d',
-        [config.ReadInteger('taskpretime', 'mode', 0)]);
-      Result := UnixToDateTime(0);
-    end;
-  end;
-
-  if ((Result = UnixToDateTime(0)) and (dbaddpre_plm2 <> plmNone)) then
-  begin
-    case dbaddpre_plm2 of
-      plmNone: Exit;
-      plmHTTP: Result := ReadPretimeOverHTTP(rlz);
-      plmMYSQL: Result := ReadPretimeOverMYSQL(rlz);
-      plmSQLITE: Result := ReadPretimeOverSQLITE(rlz);
-    else
-      begin
-        Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d',
-          [config.ReadInteger('taskpretime', 'mode_2', 0)]);
-        Result := UnixToDateTime(0);
-      end;
-    end;
-  end;
-
-  if (Result <> UnixToDateTime(0)) then
-  begin
-    Result := UnixToDateTime(PrepareTimestamp(DateTimeToUnix(Result)));
-  end;
-end;
-
 function kb_Add_addpre(rls, section: String; event: String): integer;
 var
   rls_section: String;
@@ -456,8 +413,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s',
-              [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
             Result := UnixToDateTime(0);
             exit;
           end;
