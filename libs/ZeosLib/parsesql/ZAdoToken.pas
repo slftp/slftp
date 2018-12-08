@@ -1,13 +1,14 @@
 {*********************************************************}
 {                                                         }
 {                 Zeos Database Objects                   }
-{ Constant property names used by all connections and     }
-{ other utilities on core and plain levels                }
+{           String tokenizing classes for MySQL           }
+{                                                         }
+{         Originally written by Sergey Seroukhov          }
 {                                                         }
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2017 Zeos Development Group       }
+{    Copyright (c) 1999-2012 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -48,88 +49,29 @@
 {                                 Zeos Development Group. }
 {********************************************************@}
 
-unit ZConnProperties;
+unit ZAdoToken;
 
 interface
 
-{$I ZCore.inc}
+{$I ZParseSql.inc}
 
-{ WARNING! Some of the parameter values are used directly in DBC API, so they
-  must not be changed. }
+{$IF not defined(MSWINDOWS)}
+  {$DEFINE ZEOS_DISABLE_ADO}
+{$IFEND}
 
-{ Types of parameters:
-    BOOLEAN - 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0 in any case to enable, any other
-      value to disable (StrToBoolEx is used to convert)
-    INT     - number
-    STR     - string }
+{$IFNDEF ZEOS_DISABLE_ADO}
 
-const
-  { Parameters common for all DBC's }
+uses
+  ZODBCToken;
 
-  // Type: STR
-  // Same as User property
-  ConnProps_UID = 'UID';
-  ConnProps_Username = 'username';
-  // Type: STR
-  // Same as Password property
-  ConnProps_PWD = 'PWD';
-  ConnProps_Password = 'password';
-  // Type: STR
-  // Same as LibraryLocation property, path to client lib
-  ConnProps_LibLocation = 'LibLocation';
-  // Type: STR, like CP_UTF8
-  // Codepage to interact with driver
-  ConnProps_CodePage = 'codepage';
-  // Type: BOOLEAN
-  // Same as AutoEncodeStrings property
-  ConnProps_AutoEncodeStrings = 'AutoEncodeStrings';
-  // Type: CP_UTF16 | CP_UTF8 | GET_ACP
-  // Same as ControlsCodePage property
-  ConnProps_ControlsCP = 'controls_cp';
-  // Type: INT
-  // The login timeout to use in seconds.
-  ConnProps_Timeout = 'timeout';
-  // Type: STR
-  // Format to display date, like YYYY-MM-DD
-  ConnProps_DateDisplayFormat = 'DateDisplayFormat';
-  // Type: STR
-  // Format to read date
-  ConnProps_DateReadFormat = 'DateReadFormat';
-  // Type: STR
-  // Format to write date
-  ConnProps_DateWriteFormat = 'DateWriteFormat';
-  // Type: STR, like HH:MM:SS
-  // Format to display time
-  ConnProps_TimeDisplayFormat = 'TimeDisplayFormat';
-  // Type: STR
-  // Format to read time
-  ConnProps_TimeReadFormat = 'TimeReadFormat';
-  // Type: STR
-  // Format to write time
-  ConnProps_TimeWriteFormat = 'TimeWriteFormat';
-  // Type: STR
-  // Format to display date & time
-  ConnProps_DateTimeDisplayFormat = 'DatetimeDisplayFormat';
-  // Type: STR
-  // Format to read date & time
-  ConnProps_DateTimeReadFormat = 'DatetimeReadFormat';
-  // Type: STR
-  // Format to write date & time
-  ConnProps_DateTimeWriteFormat = 'DatetimeWriteFormat';
-  // Type: STR
-  // Sets TZAbstractDatabaseInfo.IdentifierQuotes property, refer to Zeos manual for details
-  ConnProps_IdentifierQuotes = 'identifier_quotes';
+type
+  {** Implements a quote string state object. }
+  TZAdoSQLQuoteState = TZODBCQuoteState;
 
-  { Parameters specific to a single DBC }
-  
-{$IFDEF ENABLE_MYSQL}
-  // Type: STR
-  // Refer to MySql manual for details
-  ConnProps_Datadir = '--datadir';
-  // Type: STR
-  // Path to library
-  ConnProps_Library = 'Library';
-{$ENDIF}
+  {** Implements a default tokenizer object. }
+  TZAdoSQLTokenizer = TZODBCTokenizer;
+
+{$ENDIF ZEOS_DISABLE_ADO}
 
 implementation
 
