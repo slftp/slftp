@@ -146,7 +146,7 @@ begin
 
   //< initialize global SQLite3 object for API calls (only load from current dir)
   try
-    sqlite3 := TSQLite3LibraryDynamic.Create('./' + 'libsqlite3.so');
+    sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
   except
     on e: Exception do
     begin
