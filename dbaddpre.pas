@@ -54,8 +54,7 @@ implementation
 
 uses
   DateUtils, SysUtils, configunit, mystrings, console, sitesunit, regexpr,
-  debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB,
-  mysqlutilunit, slmysql2, http;
+  debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
 
 const
   section = 'dbaddpre';
@@ -251,37 +250,35 @@ end;
 
 function ReadPretimeOverMYSQL(const rls: String): TDateTime;
 var
-  q, mysql_result: String;
+  fQuery: TQuery;
+  fTimeField: String;
 begin
   Result := UnixToDateTime(0);
+  if rls = '' then
+    irc_adderror('No Releasename as parameter!');
 
-  if mysqldb = nil then
-  begin
-    Debug(dpError, section, 'MySQL predb is not available! Check your mysql connections settings in slftp.ini.');
-    exit;
-  end;
+  fTimeField := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
 
+  fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
   try
-    mysql_lock.Enter;
+    fQuery.SQL.Text := 'SELECT :time_field FROM :tablename WHERE :release_field = :release';
+    fQuery.ParamByName('time_field').AsString := fTimeField;
+    fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+    fQuery.ParamByName('release_field').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
+    fQuery.ParamByName('release').AsString := rls;
     try
-      q := Format('SELECT `%s` FROM `%s` WHERE `%s`',
-        [SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-          ';', 1), config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-        SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-          ';', 1)]);
-      q := q + ' = ''%s'';';
-      mysql_result := gc(mysqldb, q, [rls]);
-      if mysql_result <> '' then
-        Result := UnixToDateTime(StrToIntDef(mysql_result, 0));
-    finally
-      mysql_lock.Leave;
+      fQuery.Open;
+      if not fQuery.IsEmpty then
+        Result := UnixToDateTime(fQuery.FieldByName(fTimeField).AsInteger);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverMYSQL: %s', [e.Message]));
+        exit;
+      end;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverMYSQL: %s', [e.Message]));
-      exit;
-    end;
+  finally
+    fQuery.free;
   end;
 end;
 
@@ -425,7 +422,7 @@ begin
       end;
     apmMYSQL:
       begin
-        ReadPretimeOverMYSQL(rls);
+        Result := ReadPretimeOverMYSQL(rls);
       end;
   end;
 end;
@@ -504,46 +501,45 @@ begin
       end;
     apmMYSQL:
       begin
+        fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
-
           if config.ReadString('taskmysqlpretime', 'source_field', '-1') = '-1' then
           begin
-
-            sql := Format('INSERT IGNORE INTO `%s` (`%s`, `%s`, `%s`) ',
-              [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-              SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-                ';', 1), SubString(config.ReadString('taskmysqlpretime',
-                'section_field', 'section;1'), ';', 1),
-                SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-                ';', 1)]);
-
-            //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-            sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()));';
+            fQuery.SQL.Text := 'INSERT IGNORE INTO :tablename (:rlsnamefield, :sectionfield, :timefield) VALUES (:release, :section, :timestamp);';
+            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+            fQuery.ParamByName('rlsnamefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
+            fQuery.ParamByName('sectionfield').AsString := SubString(config.ReadString('taskmysqlpretime', 'section_field', 'section;1'), ';', 1);
+            fQuery.ParamByName('timefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
           end
           else
           begin
-            sql := Format('INSERT IGNORE INTO %s (`%s`, `%s`, `%s`, `%s`) ',
-              [config.ReadString('taskmysqlpretime', 'tablename', 'addpre'),
-              SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'),
-                ';', 1), SubString(config.ReadString('taskmysqlpretime',
-                'section_field', 'section;1'), ';', 1),
-                SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'),
-                ';', 1), SubString(config.ReadString('taskmysqlpretime',
-                'source_field', 'source;4'), ';', 1)]);
+            fQuery.SQL.Text := 'INSERT IGNORE INTO :tablename (:rlsnamefield, :sectionfield, :timefield, :sourcefield) VALUES (:release, :section, :timestamp, :source);';
+            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+            fQuery.ParamByName('rlsnamefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
+            fQuery.ParamByName('sectionfield').AsString := SubString(config.ReadString('taskmysqlpretime', 'section_field', 'section;1'), ';', 1);
+            fQuery.ParamByName('timefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
+            fQuery.ParamByName('sourcefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'source_field', 'source;4'), ';', 1);
 
-            //        'INSERT IGNORE INTO addpre(rls, section, ts, source) VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
-            sql := sql + 'VALUES (''%s'',''%s'', UNIX_TIMESTAMP(NOW()), ''%s'');';
+            fQuery.ParamByName('source').AsString := Source;
           end;
-          MySQLInsertQuery(sql, [rls, rls_section, Source]);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
-            Result := False;
-            exit;
+
+          fQuery.ParamByName('release').AsString := rls;
+          fQuery.ParamByName('section').AsString := rls_section;
+          fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
+
+          try
+            fQuery.ExecSQL;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+              Result := False;
+              exit;
+            end;
           end;
+        finally
+          fQuery.free;
         end;
-
       end;
   end;
 
@@ -584,15 +580,20 @@ begin
       end;
     apmMYSQL:
       begin
-        mysql_lock.Enter;
-        try
-          q := 'SELECT count(*) as count FROM ' + config.ReadString(
-            'taskmysqlpretime', 'tablename', 'addpre') + ';';
-          res := gc(mysqldb, q, []);
-          Result := StrToIntDef(res, 0);
-        finally
-          mysql_lock.Leave;
-        end;
+          fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
+          try
+            fQuery.SQL.Text := 'SELECT count(*) FROM :tablename';
+            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre') + ';';
+            fQuery.Open;
+
+            if fQuery.IsEmpty then
+              Result := 0
+            else
+              Result := fQuery.Fields[0].AsInteger;
+
+          finally
+            fQuery.Free;
+          end;
       end;
   end;
 end;
@@ -713,7 +714,7 @@ begin
   case Integer(dbaddpre_mode) of
     0: Console_Addline('', 'Memory PreDB started...');
     1: Console_Addline('', 'SQLite PreDB started...');
-    2: Console_Addline('', 'MySQL PreDB started...');
+    2: Console_Addline('', 'MySQL/Maria PreDB started...');
     //3: Exit;
   end;
 end;

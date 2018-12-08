@@ -49,11 +49,11 @@ var
 implementation
 
 uses
-  ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
-  taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF} StrUtils, news, SynSQLite3;
+  taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF} StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB;
 
 {$I slftp.inc}
 
@@ -76,6 +76,8 @@ begin
 end;
 
 function Main_Init: String;
+var
+  fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
 begin
   Result := '';
 
@@ -84,6 +86,7 @@ begin
     Result := 'Couldnt init TCP library! TCP Error: ' + sltcp_error;
     exit;
   end;
+
 
   if not slssl_inited then
   begin
@@ -130,20 +133,6 @@ begin
   // TODO: add a check for OpenSSL version
 
 
-  if config.ReadString('mysql', 'host', '0') <> '0' then
-  begin
-    if InitialiseMysql then
-    begin
-      Debug(dpSpam, section, 'MYSQL libs initialised..');
-    end
-    else
-    begin
-      Debug(dpError, section, 'Could not initialize MYSQL libs!');
-      Result := 'Cant initialize MYSQL libs!';
-      Exit;
-    end;
-  end;
-
   //< initialize global SQLite3 object for API calls (only load from current dir)
   try
     sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
@@ -161,6 +150,52 @@ begin
     exit;
   end;
 
+
+  // initialize global MySQL/MariaD object
+  fHost := config.ReadString('mysql', 'host', '0');
+  if fHost <> '0' then
+  begin
+    fPort := IntToStr(config.ReadInteger('mysql', 'port', 0));
+    fUser := config.ReadString('mysql', 'user', '');
+    fPass := config.ReadString('mysql', 'pass', '');
+    fDbName := config.ReadString('mysql', 'dbname', '');
+    fDBMS := UpperCase(config.ReadString('mysql', 'dbms', ''));
+
+    try
+      // differentiate between db software, maybe not compatible in future
+      if fDBMS = 'MYSQL' then
+      begin
+        fLibName := {$IFDEF MSWINDOWS}WINDOWS_DLL_LOCATION{$ELSE}LINUX_DLL_LOCATION{$ENDIF};
+        MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fPort, fLibName), fDbName, fUser, fPass);
+      end
+      else if fDBMS = 'MARIADB' then
+      begin
+        fLibName := MARIADB_LOCATION;
+        MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fPort, fLibName), fDbName, fUser, fPass);
+      end
+      else
+      begin
+        Result := Format('Please set a DBMS entry for MySQL/MariaDB.', []);
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, e.Message]);
+        exit;
+      end;
+    end;
+
+    if not Assigned(MySQLCon) then
+    begin
+      Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, fLibName]);
+      exit;
+    end;
+
+    Debug(dpSpam, section, 'MySQL/MariaDB library initialised.');
+  end;
+
+
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
     begin
@@ -168,6 +203,7 @@ begin
       exit;
     end;
   {$ENDIF}
+
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
@@ -185,7 +221,6 @@ begin
   MyCryptoInit;
 
   InitProxys;
-  MySQLInit;
   SLLanguages_Init;
   InitmRdOHConfigFiles;
 
@@ -413,7 +448,6 @@ begin
   kb_Start();
   indexerStart;
   StatsStart;
-  MySQLInit;
   SitesStart;
   IrcStart();
   PrecatcherStart();
@@ -438,7 +472,6 @@ begin
   kb_Save();
   kb_Stop;
   QueueFire();
-  MySQLUninit();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 
@@ -460,6 +493,10 @@ begin
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then
     sqlite3.Free;
+
+  // MySQL/MariaDB connection
+  if Assigned(MySQLCon) then
+    MySQLCon.Free;
 
   ConsoleUnInit;
   UninitXMLWeapper;
@@ -490,7 +527,6 @@ begin
   IndexerUnInit;
   StatsUninit;
   AutoCrawlerUnInit;
-  //  nWoMYSQLUNinit;
   UnInitProxys;
   UninitmRdOHConfigFiles;
   SLLanguages_Uninit;

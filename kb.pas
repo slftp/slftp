@@ -305,7 +305,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
-  slvision, tasksitenfo, RegExpr, taskpretime, mysqlutilunit, taskgame,
+  slvision, tasksitenfo, RegExpr, taskpretime, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks
 {$IFDEF MSWINDOWS}, Windows{$ENDIF};

@@ -654,7 +654,7 @@ uses sltcp, SysUtils, SyncObjs, Contnrs, DateUtils, Math, versioninfo, knowngrou
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
   RegExpr, mslproxys, http, strUtils, inifiles, rcmdline,
-  mysqlutilunit, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
+  backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers, IdGlobal;
 
@@ -10183,6 +10183,7 @@ begin
   Result := True;
 end;
 
+{
 function IrcSetMYSQLData(const Netname, Channel: String; params: String): boolean;
 var
   fhostport, fhost, fport, fuser, fpassw, fdbname, ftable: String;
@@ -10223,6 +10224,7 @@ function IrcMYSQLStatus(const Netname, Channel: String; params: String): boolean
 begin
   Result := False;
 end;
+}
 
 function IrcCreateBackup(const Netname, Channel: String; params: String): boolean;
 var
