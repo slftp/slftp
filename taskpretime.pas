@@ -3,7 +3,7 @@ unit taskpretime;
 interface
 
 uses
-  kb, Classes, pazo, tasksunit, taskrace, mysqlutilunit;
+  kb, Classes, pazo, tasksunit, taskrace;
 
 type
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
@@ -14,7 +14,7 @@ type
     vctime: int64;
     url: String;
     function FetchTimeFromPHP: boolean;
-    //    function FetchTimeFromMYSQL:boolean;
+    //function FetchTimeFromMYSQL: boolean;
   public
     constructor Create(const netname, channel: String; site: String; pazo: TPazo; attempt: integer);
     function Execute(slot: Pointer): boolean; override;
@@ -75,7 +75,7 @@ begin
   case plm of
     plmNone: Result := True;
     plmHTTP: Result := FetchTimeFromPHP;
-    //  plmMYSQL:result:=FetchTimeFromMYSQL ;
+    //plmMYSQL: Result := FetchTimeFromMYSQL;
   end;
 
   if not Result then
@@ -158,10 +158,12 @@ begin
   end;
 end;
 
+{
 function FetchTimeFromMYSQL(rls: TRelease): boolean;
 begin
   Result := True;
 end;
+}
 
 function TPazoPretimeLookupTask.Name: String;
 begin

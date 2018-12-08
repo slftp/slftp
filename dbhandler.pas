@@ -3,13 +3,16 @@ unit dbhandler;
 interface
 
 uses
-  SynDBSQLite3;
+  SynDBSQLite3, SynDBZeos;
 
 { Creates an initialized instance of TSQLDBSQLite3ConnectionProperties for further use of given SQLite3 database
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
   @returns(Initialized TSQLDBSQLite3ConnectionProperties instance, returns exception and nil on failure) }
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+
+var
+  MySQLCon: TSQLDBZEOSConnectionProperties = nil; //< global connection to a MySQL/MariaDb server
 
 implementation
 
@@ -39,4 +42,3 @@ begin
 end;
 
 end.
-
