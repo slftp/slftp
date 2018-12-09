@@ -155,10 +155,10 @@ begin
   fHost := config.ReadString('mysql', 'host', '0');
   if fHost <> '0' then
   begin
-    fPort := IntToStr(config.ReadInteger('mysql', 'port', 0));
-    fUser := config.ReadString('mysql', 'user', '');
-    fPass := config.ReadString('mysql', 'pass', '');
-    fDbName := config.ReadString('mysql', 'dbname', '');
+    fPort := IntToStr(config.ReadInteger('mysql', 'port', 3306));
+    fUser := config.ReadString('mysql', 'user', 'dbuser');
+    fPass := config.ReadString('mysql', 'pass', 'dbpass');
+    fDbName := config.ReadString('mysql', 'dbname', 'slftp-addpre');
     fDBMS := UpperCase(config.ReadString('mysql', 'dbms', ''));
 
     try
@@ -166,18 +166,19 @@ begin
       if fDBMS = 'MYSQL' then
       begin
         fLibName := {$IFDEF MSWINDOWS}WINDOWS_DLL_LOCATION{$ELSE}LINUX_DLL_LOCATION{$ENDIF};
-        MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fPort, fLibName), fDbName, fUser, fPass);
       end
       else if fDBMS = 'MARIADB' then
       begin
         fLibName := MARIADB_LOCATION;
-        MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fPort, fLibName), fDbName, fUser, fPass);
       end
       else
       begin
-        Result := Format('Please set a DBMS entry for MySQL/MariaDB.', []);
+        Result := 'Please set DBMS entry for MySQL/MariaDB in config.';
         exit;
       end;
+
+      // create connection
+      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fHost + ':' + fPort, fLibName), fDbName, fUser, fPass);
     except
       on e: Exception do
       begin

@@ -251,20 +251,19 @@ end;
 function ReadPretimeOverMYSQL(const rls: String): TDateTime;
 var
   fQuery: TQuery;
-  fTimeField: String;
+  fTimeField, fTableName, fReleaseField: String;
 begin
   Result := UnixToDateTime(0);
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  fTimeField := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
+  fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
+  fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+  fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
 
   fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.SQL.Text := 'SELECT :time_field FROM :tablename WHERE :release_field = :release';
-    fQuery.ParamByName('time_field').AsString := fTimeField;
-    fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-    fQuery.ParamByName('release_field').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
+    fQuery.SQL.Text := 'SELECT ' + fTimeField + ' FROM ' + fTableName + ' WHERE ' + fReleaseField + ' = :release';
     fQuery.ParamByName('release').AsString := rls;
     try
       fQuery.Open;
@@ -434,6 +433,7 @@ var
   pretime: TDateTime;
   addpredata: TDbAddPre;
   fQuery: TQuery;
+  fTableName, fReleaseField, fSectionField, fTimeField, fSourceField: String;
 begin
   Result := False;
 
@@ -503,30 +503,25 @@ begin
       begin
         fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
-          if config.ReadString('taskmysqlpretime', 'source_field', '-1') = '-1' then
+          fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+          fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
+          fSectionField := config.ReadString('taskmysqlpretime', 'section_field', 'section');
+          fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
+          fSourceField := config.ReadString('taskmysqlpretime', 'source_field', '-1');
+
+          if fSourceField = '-1' then
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO :tablename (:rlsnamefield, :sectionfield, :timefield) VALUES (:release, :section, :timestamp);';
-            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fQuery.ParamByName('rlsnamefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
-            fQuery.ParamByName('sectionfield').AsString := SubString(config.ReadString('taskmysqlpretime', 'section_field', 'section;1'), ';', 1);
-            fQuery.ParamByName('timefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
+            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ') VALUES (:release, :section, :timestamp);';
           end
           else
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO :tablename (:rlsnamefield, :sectionfield, :timefield, :sourcefield) VALUES (:release, :section, :timestamp, :source);';
-            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fQuery.ParamByName('rlsnamefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz;0'), ';', 1);
-            fQuery.ParamByName('sectionfield').AsString := SubString(config.ReadString('taskmysqlpretime', 'section_field', 'section;1'), ';', 1);
-            fQuery.ParamByName('timefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts;3'), ';', 1);
-            fQuery.ParamByName('sourcefield').AsString := SubString(config.ReadString('taskmysqlpretime', 'source_field', 'source;4'), ';', 1);
-
+            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ', ' + fSourceField + ') VALUES (:release, :section, :timestamp, :source);';
             fQuery.ParamByName('source').AsString := Source;
           end;
 
           fQuery.ParamByName('release').AsString := rls;
           fQuery.ParamByName('section').AsString := rls_section;
           fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
-
           try
             fQuery.ExecSQL;
           except
@@ -548,8 +543,8 @@ end;
 
 function dbaddpre_GetCount: integer;
 var
-  q, res: String;
   fQuery: TQuery;
+  fTableName: String;
 begin
   Result := 0;
   case dbaddpre_mode of
@@ -582,8 +577,8 @@ begin
       begin
           fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
           try
-            fQuery.SQL.Text := 'SELECT count(*) FROM :tablename';
-            fQuery.ParamByName('tablename').AsString := config.ReadString('taskmysqlpretime', 'tablename', 'addpre') + ';';
+            fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+            fQuery.SQL.Text := 'SELECT count(*) FROM ' + fTableName;
             fQuery.Open;
 
             if fQuery.IsEmpty then
