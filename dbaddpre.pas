@@ -501,7 +501,7 @@ begin
       end;
     apmMYSQL:
       begin
-        fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+        fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
         try
           fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
           fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
@@ -683,7 +683,7 @@ begin
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
 
-  if dbaddpre_mode = apmSQLITE then
+  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
     SQLite3Lock := TCriticalSection.Create;
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
