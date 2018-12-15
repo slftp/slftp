@@ -1,6 +1,7 @@
 unit pazo;
 
 // EZTA Z UNITOT CSAK A QUEUE_LOCK ZARASA UTAN SZABAD HIVNI!
+// THIS ONLY ON THE QUEUE_LOCK CLOSING is FREE to call!
 interface
 
 uses
@@ -26,11 +27,21 @@ type
     dir: String;
     filename: String;
     filesize: Int64;
-    constructor Create(dir, filename: String; filesize: Int64);
+    constructor Create(const dir, filename: String; const filesize: Int64);
     destructor Destroy; override;
   end;
 
   TPazo = class;
+
+  {
+  @value(rssNotAllowed release is not allowed on this site)
+  @value(rssNotAllowedButItsThere release is not allowed on this site but it's there)
+  @value(rssAllowed release is allowed on this site)
+  @value(rssShouldPre release should be pred on this site but wasn't pred on it)
+  @value(rssRealPre release was a pre on this site)
+  @value(rssComplete release is complete on this site)
+  @value(rssNuked release got nuked on this site)
+  }
   TRlsSiteStatus = (rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked);
 
   TPazoSite = class
@@ -86,16 +97,16 @@ type
     procedure RemoveMkdir;
     procedure MarkSiteAsFailed(echomsg: boolean = False);
 
-    function ParseDirlist(const netname, channel: String; dir, liststring: String; pre: boolean = False): boolean;
+    function ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
     function MkdirReady(const dir: String): boolean;
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(ps: TPazoSite; const rank: integer): boolean; overload;
     constructor Create(pazo: TPazo; const Name, maindir: String);
     destructor Destroy; override;
-    procedure ParseXdupe(const netname, channel: String; dir, resp: String; added: boolean = False);
-    function ParseDupe(const netname, channel: String; dir, filename: String; byme: boolean): boolean; overload;
-    function ParseDupe(const netname, channel: String; dl: TDirlist; dir, filename: String; byme: boolean): boolean; overload;
+    procedure ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
+    function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
+    function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean; overload;
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
     function Allfiles: String;
@@ -104,7 +115,7 @@ type
     procedure Clear;
   private
     cds: String;
-    function Tuzelj(const netname, channel: String; dir: String; de: TDirListEntry): boolean;
+    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
   end;
 
   TPazo = class
@@ -113,9 +124,7 @@ type
     lastannounceirc: String;
     lastannounceroutes: String;
     procedure QueueEvent(Sender: TObject; Value: integer);
-
     function StatsAllFiles: integer;
-
   public
     pazo_id: integer;
 
@@ -197,7 +206,7 @@ var
 
 
 { TCacheFile }
-constructor TCacheFile.Create(dir, filename: String; filesize: Int64);
+constructor TCacheFile.Create(const dir, filename: String; const filesize: Int64);
 begin
   self.dir := dir;
   self.filename := filename;
@@ -407,7 +416,7 @@ begin
   Debug(dpSpam, section, 'Uninit2');
 end;
 
-function TPazoSite.Tuzelj(const netname, channel: String; dir: String; de: TDirListEntry): boolean;
+function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
@@ -1428,7 +1437,7 @@ begin
   Result := True;
 end;
 
-function TPazoSite.ParseDirlist(const netname, channel: String; dir, liststring: String; pre: boolean = False): boolean;
+function TPazoSite.ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
 var
   d: TDirList;
   i: integer;
@@ -1578,7 +1587,7 @@ begin
   end;
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean;
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
@@ -1668,7 +1677,7 @@ begin
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean;
 var
   dl: TDirList;
 
@@ -1698,7 +1707,7 @@ begin
   end;
 end;
 
-procedure TPazoSite.ParseXdupe(const netname, channel: String; dir, resp: String; added: boolean = False);
+procedure TPazoSite.ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
 var
   s: String;
   dl: TDirList;

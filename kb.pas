@@ -79,13 +79,13 @@ type
 
     knowngroup: TKnownGroup;
 
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
 
     function ExtraInfo: String; virtual;
 
-    function Aktualizald(extrainfo: String): boolean; virtual;
+    function Aktualizald(const extrainfo: String): boolean; virtual;
 
     function AsText(pazo_id: integer = -1): String; virtual;
 
@@ -100,7 +100,7 @@ type
   T0DayRelease = class(TRelease)
   public
     nulldaysource: String;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     class function Name: String; override;
     class function DefaultSections: String; override;
@@ -123,12 +123,12 @@ type
     mp3_va: boolean;
 
     function Bootleg: boolean;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     //    destructor Destroy; override;
     function ExtraInfo: String; override;
 
-    function Aktualizald(extrainfo: String): boolean; override;
+    function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Numdisks: integer;
     function Aktualizal(p: TObject): boolean; override;
@@ -137,18 +137,17 @@ type
     class function DefaultSections: String; override;
   private
     function Evszam(s: String): boolean;
-    procedure AddSource(src: String);
-    procedure NumberOfDisksTag(tag: String; var Source: String; var disks:
-      integer);
+    procedure AddSource(const src: String);
+    procedure NumberOfDisksTag(const tag: String; var Source: String; var disks: integer);
   end;
 
   TNFORelease = class(TRelease)
     nfogenre: String;
     function ExtraInfo: String; override;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     //    destructor Destroy; override;
-    function Aktualizald(extrainfo: String): boolean; override;
+    function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
@@ -173,9 +172,9 @@ type
 
     function ExtraInfo: String; override;
     destructor Destroy; override;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
-    function Aktualizald(extrainfo: String): boolean; override;
+    function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
@@ -209,10 +208,10 @@ type
     tvlanguage:String;
     //    currentAir:boolean;
     function ExtraInfo: String; override;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
     destructor Destroy; override;
-    function Aktualizald(extrainfo: String): boolean; override;
+    function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
@@ -233,11 +232,11 @@ type
     mvid_year: integer;
     function ExtraInfo: String; override;
     destructor Destroy; override;
-    constructor Create(rlsname, section: String; FakeChecking: boolean = True;
+    constructor Create(const rlsname, section: String; FakeChecking: boolean = True;
       SavedPretime: int64 = -1); override;
-    //    constructor Create(rlsname, section: string; FakeChecking: Boolean = True); override;
-    //    constructor CustomCreate(rlsname, section: string; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
-    function Aktualizald(extrainfo: String): boolean; override;
+    //    constructor Create(const rlsname, section: String; FakeChecking: Boolean = True); override;
+    //    constructor CustomCreate(const rlsname, section: String; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
+    function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
@@ -260,10 +259,9 @@ type
 
   //function kb_pretime(rlsname:string):TDateTime;
 
-function renameCheck(pattern, i, len: integer; rls: String): boolean;
-function kb_Add(const netname, channel: String;
-  sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False;
-  forceFire: boolean = False; ts: TDateTime = 0): integer;
+function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
+function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 
 function FindSectionHandler(const section: String): TCRelease;
 
@@ -414,7 +412,7 @@ begin
   end;
 end;
 
-function renameCheck(pattern, i, len: integer; rls: String): boolean;
+function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 var
   ss: String;
 begin
@@ -463,9 +461,8 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel: String;
-  sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False;
-  forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre, event, rls, cdno: String;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
 var
   i, j, len: integer;
@@ -1126,9 +1123,8 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel: String;
-  sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False;
-  forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 //forceRebuild: Boolean = False;
 begin
   Result := 0;
@@ -1178,7 +1174,7 @@ begin
   Result := False;
 end;
 
-function TRelease.Aktualizald(extrainfo: String): boolean;
+function TRelease.Aktualizald(const extrainfo: String): boolean;
 begin
   aktualizalva := False;
   Result := False;
@@ -1225,7 +1221,7 @@ begin
   end;
 end;
 
-constructor TRelease.Create(rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   vlang, s: String;
   i, j: integer;
@@ -1526,8 +1522,9 @@ begin
   end;
 end;
 
-procedure TMP3Release.AddSource(src: String);
+procedure TMP3Release.AddSource(const src: String);
 begin
+  // TODO: find out what it does, maybe mp3source + src is better?
   if mp3source = '' then
     mp3source := src;
   (*
@@ -1538,7 +1535,7 @@ begin
   end;*)
 end;
 
-procedure TMP3Release.NumberOfDisksTag(tag: String; var Source: String;
+procedure TMP3Release.NumberOfDisksTag(const tag: String; var Source: String;
   var disks: integer);
 var
   i: integer;
@@ -1575,7 +1572,7 @@ begin
   end;
 end;
 
-constructor TMP3Release.Create(rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMP3Release.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
   kotojelekszama: integer;
@@ -1705,7 +1702,7 @@ begin
     FakeCheck(self);
 end;
 
-function TMP3Release.Aktualizald(extrainfo: String): boolean;
+function TMP3Release.Aktualizald(const extrainfo: String): boolean;
 begin
   Result := False;
   if length(extrainfo) > length(mp3genre) then
@@ -1849,7 +1846,7 @@ begin
   end;
 end;
 
-function TNFORelease.Aktualizald(extrainfo: String): boolean;
+function TNFORelease.Aktualizald(const extrainfo: String): boolean;
 begin
   Result := False;
   if length(extrainfo) > length(nfogenre) then
@@ -1873,7 +1870,7 @@ begin
   end;
 end;
 
-constructor TNFORelease.Create(rlsname, section: String;
+constructor TNFORelease.Create(const rlsname, section: String;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -1961,7 +1958,7 @@ begin
   Result := True;
 end;
 
-function TTVRelease.Aktualizald(extrainfo: String): boolean;
+function TTVRelease.Aktualizald(const extrainfo: String): boolean;
 begin
   aktualizalva := True;
   Result := False;
@@ -2004,7 +2001,7 @@ begin
   end;
 end;
 
-constructor TTVRelease.Create(rlsname: String; section: String;
+constructor TTVRelease.Create(const rlsname, section: String;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   c_episode: int64;
@@ -2071,7 +2068,7 @@ begin
   end;
 end;
 
-constructor T0DayRelease.Create(rlsname: String; section: String;
+constructor T0DayRelease.Create(const rlsname, section: String;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   i, j: integer;
@@ -2210,7 +2207,7 @@ begin
 
 end;
 
-function TIMDBRelease.Aktualizald(extrainfo: String): boolean;
+function TIMDBRelease.Aktualizald(const extrainfo: String): boolean;
 begin
   Result := False;
 end;
@@ -2242,7 +2239,7 @@ begin
   end;
 end;
 
-constructor TIMDBRelease.Create(rlsname: String; section: String;
+constructor TIMDBRelease.Create(const rlsname, section: String;
   FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
@@ -2320,12 +2317,12 @@ begin
   end;
 end;
 
-function TMVIDRelease.Aktualizald(extrainfo: String): boolean;
+function TMVIDRelease.Aktualizald(const extrainfo: String): boolean;
 begin
   Result := False;
 end;
 
-constructor TMVIDRelease.Create(rlsname: String; section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TMVIDRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   mvrx: TRegexpr;
 begin

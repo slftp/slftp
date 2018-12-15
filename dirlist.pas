@@ -5,7 +5,19 @@ interface
 uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
 
 type
+  {
+  @value(dlSFVUnknown unknown SFV status (default))
+  @value(dlSFVNoNeed SFV file not needed)
+  @value(dlSFVFound SFV file found and needed)
+  @value(dlSFVNotFound SFV file not found but needed)
+  }
   TdlSFV = (dlSFVUnknown, dlSFVNoNeed, dlSFVFound, dlSFVNotFound);
+  {
+  @value(NotComplete release is still incomplete)
+  @value(FromIrc COMPLETE announce fetched from IRC)
+  @value(FromFtpd COMPLETE announce fetched from FTP dirlist)
+  @value(FromFtpdAndIrc COMPLETE announce fetched from IRC and FTP dirlist)
+  }
   TCompleteInfo = (NotComplete = 0, FromIrc = 4, FromFtpd = 5, FromFtpdAndIrc = 9);
 
   TDirlist = class;
@@ -74,7 +86,7 @@ type
     _completeInfo: TCompleteInfo;
 
     procedure SetSkiplists;
-    procedure SetLastChanged(value: TDateTime);
+    procedure SetLastChanged(const value: TDateTime);
     class function Timestamp(ts: String): TDateTime;
 
     procedure SetCompleteInfo(info : TCompleteInfo);
@@ -205,7 +217,10 @@ begin
     //Result := True;
     //cache_completed := Result;
     //exit;
-    Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
+    if parent <> nil then
+      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString])
+    else
+      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s', [site_name, full_path]);
   end;
 
   if parent <> nil then
@@ -554,7 +569,7 @@ end;
 
 class function TDirlist.Timestamp(ts: String): TDateTime;
 const
-  Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+  Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
 var
   s1,s2,s3: String;
   l, ev, ora,perc, honap, nap, i: Integer;
@@ -1250,11 +1265,11 @@ begin
   end;
 end;
 
-procedure TDirList.SetLastChanged(value: TDateTime);
+procedure TDirList.SetLastChanged(const value: TDateTime);
 begin
-  fLastChanged:= Max(value, fLastChanged);
+  fLastChanged := Max(value, fLastChanged);
   if parent <> nil then
-    parent.dirlist.LastChanged:= fLastChanged;
+    parent.dirlist.LastChanged := fLastChanged;
 end;
 
 function TDirList.FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
