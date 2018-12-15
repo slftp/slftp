@@ -27,3 +27,6 @@ find * -iname "*.res" -type f -delete
 find * -iname "*.bmp" -type f -delete
 find * -iname "*.cfg*" -type f -delete
 find * -iname "*.json*" -type f -delete
+find * -iname "*.lpi*" -type f -delete
+find * -iname "*.dpr*" -type f -delete
+find * -iname "*.png*" -type f -delete
