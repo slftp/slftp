@@ -23,14 +23,14 @@ type
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
-procedure QueueEmpty(sitename: String);
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
+procedure QueueEmpty(const sitename: String);
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
-function RemovePazo(pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer): boolean;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
+procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
+procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
 procedure QueueInit;
 procedure QueueUninit;
 
@@ -782,7 +782,7 @@ begin
 end;
 
 // EZT IS CSAK ZAROLVA SZABAD HIVNI
-procedure QueueEmpty(sitename: String);
+procedure QueueEmpty(const sitename: String);
 var
   i: integer;
   t: TTask;
@@ -998,7 +998,7 @@ begin
   Console_QueueAdd(t.UidText, Format('%s', [tname]));
 end;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
+procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
@@ -1037,7 +1037,7 @@ begin
   end;
 end;
 
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
+procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
 var
   i:   integer;
   ttp: TPazoDirlistTask;
@@ -1076,7 +1076,7 @@ begin
   end;
 end;
 
-function RemovePazo(pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer): boolean;
 var
   i: integer;
   t: TPazoTask;
@@ -1118,7 +1118,7 @@ begin
 end;
 
 
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 var
   i:   integer;
   ttp: TPazoMkdirTask;
@@ -1160,7 +1160,7 @@ begin
   end;
 end;
 
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
+procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;

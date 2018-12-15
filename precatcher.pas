@@ -34,13 +34,13 @@ type
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(sitename: String): boolean;
-procedure Precatcher_DelSiteChans(sitename: String);
+function Precatcher_Sitehasachan(const sitename: String): boolean;
+procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload:String;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: String);
-procedure PrecatcherProcess(net, chan, nick, Data: String);
+procedure PrecatcherProcess(const net, chan, nick, Data: String);
 function precatcher_logfilename: String;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
@@ -90,7 +90,7 @@ var
     '/', ':', ';', ' '];
   StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
-procedure mydebug(s: String); overload;
+procedure mydebug(const s: String); overload;
 var
   nowstr: String;
 begin
@@ -120,7 +120,7 @@ begin
   end;
 end;
 
-procedure mydebug(s: String; args: array of const); overload;
+procedure mydebug(const s: String; args: array of const); overload;
 begin
   myDebug(Format(s, args));
 end;
@@ -680,7 +680,7 @@ begin
   end;
 end;
 
-procedure PrecatcherProcess(net, chan, nick, Data: String);
+procedure PrecatcherProcess(const net, chan, nick, Data: String);
 begin
   if not precatcherauto then
     Exit;
@@ -1004,7 +1004,7 @@ begin
   end;
 end;
 
-function Precatcher_Sitehasachan(sitename: String): boolean;
+function Precatcher_Sitehasachan(const sitename: String): boolean;
 var
   i: integer;
   sc: TSiteChan;
@@ -1021,7 +1021,7 @@ begin
   end;
 end;
 
-procedure Precatcher_DelSiteChans(sitename: String);
+procedure Precatcher_DelSiteChans(const sitename: String);
 var
   i: integer;
   s: String;
