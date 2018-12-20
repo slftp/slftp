@@ -4286,27 +4286,25 @@ begin
   end;
   if (Flags and 4) <> 0 then begin {Hex = True}
     Flags := Flags and (not 1); {Valid := False}
-    while true do
-      begin
-        case Ord(P^) of
-          Ord('0')..Ord('9'): Digit := Ord(P^) - Ord('0');
-          Ord('a')..Ord('f'): Digit := Ord(P^) - AdjustLowercase;
-          Ord('A')..Ord('F'): Digit := Ord(P^) - AdjustUppercase;
-          else      Break;
-        end;
-        if UInt64(Result) > (HighInt64 shr 3) then
-          Break;
-        if UInt64(Result) < (MaxInt div 16)-15 then
-          begin {Use Integer Math instead of Int64}
-            I := Result;
-            I := (I shl 4) + Digit;
-            Result := I;
-          end
-        else
-          Result := (Result shl 4) + Digit;
-        Flags := Flags or 1; {Valid := True}
-        Inc(P);
+    while true do begin
+      case Ord(P^) of
+        Ord('0')..Ord('9'): Digit := Ord(P^) - Ord('0');
+        Ord('a')..Ord('f'): Digit := Ord(P^) - AdjustLowercase;
+        Ord('A')..Ord('F'): Digit := Ord(P^) - AdjustUppercase;
+        else      Break;
       end;
+      if UInt64(Result) > (HighInt64 shr 3) then
+        Break;
+      if UInt64(Result) < (MaxInt div 16)-15 then begin {Use Integer Math instead of Int64}
+          I := Result;
+          I := (I shl 4) + Digit;
+          Result := I;
+        end
+      else
+        Result := (Result shl 4) + Digit;
+      Flags := Flags or 1; {Valid := True}
+      Inc(P);
+    end;
   end else begin
     while true do begin
       if ( not (Ord(P^) in [Ord('0')..Ord('9')]) ) or
@@ -4328,7 +4326,7 @@ begin
       if ((Flags and 2) = 0) or (UInt64(Result) <> UInt64(Int64($8000000000000000))) then
     {$ELSE}
     if UInt64(Result) >= $8000000000000000 then {Possible Overflow}
-      if ((Flags and 2) = 0) or (Result <> $8000000000000000) then
+      if ((Flags and 2) = 0) or (UInt64(Result) <> $8000000000000000) then
     {$ENDIF}
         begin {Overflow}
           if ((Flags and 2) <> 0) then {Neg=True}
@@ -4871,7 +4869,7 @@ begin
       Inc(P);
     end;
     if UInt64(Result) >= {$IFDEF FPC}HighInt64{$ELSE}$8000000000000000{$ENDIF} then {Possible Overflow}
-      if ((Flags and 2) = 0) or (Result <> {$IFDEF FPC}HighInt64{$ELSE}$8000000000000000{$ENDIF}) then begin {Overflow}
+      if ((Flags and 2) = 0) or (UInt64(Result) <> {$IFDEF FPC}HighInt64{$ELSE}$8000000000000000{$ENDIF}) then begin {Overflow}
         if ((Flags and 2) <> 0) then {Neg=True}
           Result := -Result;
         Code := P-S;
