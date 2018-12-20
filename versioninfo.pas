@@ -4,13 +4,13 @@ interface
 
 { Builds a slftp version string in the format 'slFtp v[VERSION.NUMBER]'
   @returns(slftp version string) }
-function GetFullVersionString: String; overload;
+function GetFullVersionString: String;
 { Gets the slftp version string in the format '[VERSION.NUMBER]'
   @returns(slftp version number as string) }
 function GetVersionOnlyString: String;
 { Gets the slftp version string in the format '[VERSION.NUMBER]' and appends custom title if set
   @returns(console title string) }
-function GetConsoleTitle: String;
+function GetSLConsoleTitle: String;
 
 implementation
 
@@ -40,7 +40,7 @@ begin
   Result := mystrings.RightStr(src, Pos('v', src));
 end;
 
-function GetConsoleTitle: String;
+function GetSLConsoleTitle: String;
 var
   s: String;
 begin
