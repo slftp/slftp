@@ -25,7 +25,7 @@
 
   Contributor(s):
    Alfred Glaenzer (alf)
-  
+
   Alternatively, the contents of this file may be used under the terms of
   either the GNU General Public License Version 2 or later (the "GPL"), or
   the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
@@ -107,7 +107,7 @@
 // define this if you compile the unit within a Delphi package
 // - it will avoid error like "[DCC Error] E2201 Need imported data reference ($G)
 //   to access 'VarCopyProc' from unit 'SynCommons'"
-// - shall be set at the package options level, and left untouched by default 
+// - shall be set at the package options level, and left untouched by default
 
 {$define WITHLOG}
 // if defined, logging will be supported via the TSQLLog family
@@ -149,7 +149,7 @@
 
 {.$define WITH_ERMS}
 // you may define this to enable REP MOVSB/STOSB for Fillchar/Move if cfERMS
-// flag is available in Intel's CpuFeatures 
+// flag is available in Intel's CpuFeatures
 // -> disabled by default, since in practice it is much slower for small blocks
 
 {.$define NOXPOWEREDNAME}
@@ -200,7 +200,7 @@
   {$define HASUINT64}
   {$define HASINLINENOTX86}
   {$define NODELPHIASM}   // ignore low-level System.@LStrFromPCharLen calls
-  {$define HASAESNI}
+  {$define HASAESNI} // should be commented to test project with valgrind
   {$define HASTTHREADSTART}
   {$define HASINTERFACEASTOBJECT}
   {$define EXTENDEDTOSTRING_USESTR} // FloatToText uses str() in FPC
@@ -442,6 +442,9 @@
         {$define HASINLINENOTX86}
         {$define HASREGION}
         {$define HASFASTMM4}
+        // you can define this so that GetMemoryInfo/TSynMonitorMemory returns
+        // low-level FastMM4 information
+        {.$define WITH_FASTMM4STATS}
       {$ifend}
       {$ifdef VER180}
         {$define ISDELPHI20062007} // to circumvent some specific bugs
@@ -490,7 +493,7 @@
         {$define ISDELPHIXE5}
         {$define PUBLISHRECORD}
         // if defined, will handle RTTI available only since Delphi XE5 for
-        // record published properties 
+        // record published properties
       {$ifend}
       {$if CompilerVersion >= 27.0}
         {$define ISDELPHIXE6}
@@ -516,6 +519,9 @@
           {$define HASINLINENOTX86}
         {$endif}
         {$endif}
+      {$ifend}
+      {$if CompilerVersion >= 33.0}
+        {$define ISDELPHI103}
       {$ifend}
     {$ifend CompilerVersion >= 17}
     {$ifopt O-} // if we don't expect fast code, don't optimize the framework
@@ -595,7 +601,7 @@
 {$endif}
 
 {$ifdef NOSQLITE3STATIC}
-  // our proprietary crypto expects a statically linked custom sqlite3.c 
+  // our proprietary crypto expects a statically linked custom sqlite3.c
   {$define NOSQLITE3ENCRYPT}
 {$endif}
 
@@ -612,5 +618,4 @@
     // static libraries and force USELIBCURL in the project conditionals
   {$endif}
 {$endif}
-
 

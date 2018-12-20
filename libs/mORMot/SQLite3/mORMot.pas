@@ -2198,7 +2198,7 @@ function SelectInClause(const PropName: RawUTF8; const Values: array of RawUTF8;
 /// compute 'PropName in (...)' where clause for a SQL statement
 // - if Values has no value, returns ''
 // - if Values has a single value, returns 'PropName=Values0' or inlined
-// 'PropName=:(Values0):' if ValuesInlined is true
+// 'PropName=:(Values0):' if ValuesInlined is bigger than 1
 // - if Values has more than one value, returns 'PropName in (Values0,Values1,...)'
 // or 'PropName in (:(Values0):,:(Values1):,...)' if length(Values)<ValuesInlinedMax
 // - PropName can be used as a prefix to the 'in ()' clause, in conjunction
@@ -4195,7 +4195,7 @@ type
       Options: TTextWriterWriteObjectOptions=[woDontStoreDefault]); override;
     /// override method, handling IncludeUnitName option
     procedure AddInstancePointer(Instance: TObject; SepChar: AnsiChar;
-      IncludeUnitName: boolean); override;
+      IncludeUnitName, IncludePointer: boolean); override;
     /// customize TSQLRecord.GetJSONValues serialization process
     // - jwoAsJsonNotAsString will force TSQLRecord.GetJSONValues to serialize
     // nested property instances as a JSON object/array, not a JSON string:
@@ -4226,6 +4226,8 @@ type
     // - any aClassField[] property name will be serialized using aJsonFields[]
     // - if any aJsonFields[] equals '', this published property will be
     // excluded from the serialization object
+    // - aJsonFields[] is expected to be only plain pascal identifier, i.e.
+    // A-Z a-z 0-9 and _ characters, up to 63 in length
     // - setting both aClassField=aJsonFields=[] will return back to the default
     // class serialization (i.e. serialization with published properties names)
     // - by design, this customization excludes RegisterCustomSerializer() with
@@ -5000,7 +5002,7 @@ type
     Kind: TSynMonitorType;
     Name: RawUTF8;
     Values: array[mugHour..mugYear] of TInt64DynArray;
-    CumulativeLast: Int64;
+    ValueLast: Int64;
   end;
   TSynMonitorUsageTrackPropDynArray = array of TSynMonitorUsageTrackProp;
   TSynMonitorUsageTrack = record
@@ -5051,10 +5053,10 @@ type
     // stay available during the whole TSynMonitorUsage process
     procedure Track(const Instances: array of TSynMonitor); overload;
     /// to be called when tracked properties changed on a tracked class instance
-    procedure Modified(Instance: TObject); overload;
+    function Modified(Instance: TObject): integer; overload;
     /// to be called when tracked properties changed on a tracked class instance
-    procedure Modified(Instance: TObject; const PropNames: array of RawUTF8;
-      ModificationTime: TTimeLog=0); overload; virtual;
+    function Modified(Instance: TObject; const PropNames: array of RawUTF8;
+      ModificationTime: TTimeLog=0): integer; overload; virtual;
     /// some custom text, associated with the current stored state
     // - will be persistented by Save() methods
     property Comment: RawUTF8 read fComment write fComment;
@@ -7171,6 +7173,9 @@ type
   // - BLOB fields are decoded to auto-freeing TSQLRawBlob properties
   // - any published property defined as a T*ObjArray dynamic array storage
   // of persistents (via TJSONSerializer.RegisterObjArrayForJSON) will be freed
+  // - consider inherit from TSQLRecordNoCase and TSQLRecordNoCaseExtended if
+  // you expect regular NOCASE collation and smaller (but not standard JSON)
+  // variant fields persistence
   TSQLRecord = class(TObject)
   { note that every TSQLRecord has an Instance size of 20 bytes for private and
     protected fields (such as fID or fProps e.g.) }
@@ -13617,7 +13622,7 @@ type
   // values at either Client or Server level (like configuration settings)
   // - only caching synchronization is about the following RESTful basic commands:
   // RETRIEVE, ADD, DELETION and UPDATE (that is, a complex direct SQL UPDATE
-  // or via TSQLRecordMany pattern won't be taken in account)
+  // or via TSQLRecordMany pattern won't be taken into account)
   // - only Simple fields are cached: e.g. the BLOB fields are not stored
   // - this cache is thread-safe (access is locked per table)
   // - this caching will be located at the TSQLRest level, that is no automated
@@ -14847,7 +14852,7 @@ type
     // configuration for this particular TSQLRest instance
     // - only caching synchronization is about the direct RESTful/CRUD commands:
     // RETRIEVE, ADD, UPDATE and DELETE (that is, a complex direct SQL UPDATE or
-    // via TSQLRecordMany pattern won't be taken in account - only exception is
+    // via TSQLRecordMany pattern won't be taken into account - only exception is
     // TSQLRestStorage tables accessed as SQLite3 virtual table)
     // - this caching will be located at the TSQLRest level, that is no automated
     // synchronization is implemented between TSQLRestClient and TSQLRestServer -
@@ -15049,7 +15054,7 @@ type
     {$endif ISDELPHI2010}
 
     /// you can call this method in TThread.Execute to ensure that
-    // the thread will be taken in account during process
+    // the thread will be taken into account during process
     // - this abstract method won't do anything, but TSQLRestServer's will
     procedure BeginCurrentThread(Sender: TThread); virtual;
     /// you can call this method just before a thread is finished to ensure
@@ -16730,24 +16735,27 @@ type
   end;
 
   /// ORM table used to store TSynMonitorUsage information in TSynMonitorUsageRest
-  // - the ID primary field is the TSynMonitorUsageID shifted by 16 bits
-  TSQLMonitorUsage = class(TSQLRecord)
+  // - the ID primary field is the TSynMonitorUsageID (accessible from UsageID
+  // public property) shifted by 16 bits (by default) to include a
+  // TSynUniqueIdentifierProcess value
+  TSQLMonitorUsage = class(TSQLRecordNoCaseExtended)
   protected
     fGran: TSynMonitorUsageGranularity;
-    fProcess: TSynUniqueIdentifierProcess;
+    fProcess: Int64;
     fInfo: variant;
     fComment: RawUTF8;
-    function GetUsageID: integer;
-    procedure SetUsageID(Value: integer);
   public
-    /// compute the corresponding TSynMonitorUsageID.Value
-    // - according to the stored Process field
-    property UsageID: integer read GetUsageID write SetUsageID;
+    /// compute the corresponding 23 bit TSynMonitorUsageID.Value time slice
+    // - according to the stored Process field, after bit shift
+    // - allows a custom aProcessIDShift if it is not set as default 16 bits
+    function UsageID(aProcessIDShift: integer=16): integer;
   published
     /// the granularity of the statistics of this entry
     property Gran: TSynMonitorUsageGranularity read fGran write fGran;
     /// identify which application is monitored
-    property Process: TSynUniqueIdentifierProcess read fProcess write fProcess;
+    // - match the lower bits of each record ID
+    // - by default, is expected to be a TSynUniqueIdentifierProcess 16-bit value
+    property Process: Int64 read fProcess write fProcess;
     /// the actual statistics information, stored as a TDocVariant JSON object
     property Info: variant read fInfo write fInfo;
     /// a custom text, which may be used e.g. by support or developpers
@@ -16757,31 +16765,42 @@ type
   TSQLMonitorUsageClass = class of TSQLMonitorUsage;
 
   /// will store TSynMonitorUsage information in TSQLMonitorUsage ORM tables
-  // - the TSQLRecord.ID will be the TSynMonitorUsageID shifted by 16 bits
+  // - TSQLRecord.ID will be the TSynMonitorUsageID shifted by ProcessIDShift bits
   TSynMonitorUsageRest = class(TSynMonitorUsage)
   protected
     fStorage: TSQLRest;
-    fProcessID: TSynUniqueIdentifierProcess;
+    fProcessID: Int64;
+    fProcessIDShift: integer;
     fStoredClass: TSQLMonitorUsageClass;
     fStoredCache: array[mugHour..mugYear] of TSQLMonitorUsage;
+    fSaveBatch: TSQLRestBatch;
     function SaveDB(ID: integer; const Track: variant; Gran: TSynMonitorUsageGranularity): boolean; override;
     function LoadDB(ID: integer; Gran: TSynMonitorUsageGranularity; out Track: variant): boolean; override;
   public
     /// initialize storage via ORM
-    // - if a TSynUniqueIdentifierProcess is supplied, it will be used to
+    // - if a 16-bit TSynUniqueIdentifierProcess is supplied, it will be used to
     // identify the generating process by shifting TSynMonitorUsageID values
+    // by aProcessIDShift bits (default 16 but you may increase it up to 40 bits)
     // - will use TSQLMonitorUsage table, unless another one is specified
-    constructor Create(aStorage: TSQLRest; aProcessID: TSynUniqueIdentifierProcess;
-      aStoredClass: TSQLMonitorUsageClass=nil); reintroduce; virtual;
-    /// finalize the process
+    constructor Create(aStorage: TSQLRest; aProcessID: Int64;
+      aStoredClass: TSQLMonitorUsageClass=nil; aProcessIDShift: integer=16); reintroduce; virtual;
+    /// finalize the process, saving pending changes
     destructor Destroy; override;
+    /// you can set an optional Batch instance to speed up DB writing
+    // - when calling the Modified() method
+    property SaveBatch: TSQLRestBatch read fSaveBatch write fSaveBatch;
   published
     /// the actual ORM class used for persistence
     property StoredClass: TSQLMonitorUsageClass read fStoredClass;
     /// how the information could be stored for several processes
     // - e.g. when several SOA nodes gather monitoring information in a
     // shared (MongoDB) database
-    property ProcessID: TSynUniqueIdentifierProcess read fProcessID;
+    // - is by default a TSynUniqueIdentifierProcess value, but may be
+    // any integer up to ProcessIDShift bits as set in Create()
+    property ProcessID: Int64 read fProcessID;
+    /// how process ID are stored within the mORMot TSQLRecord.ID
+    // - equals 16 bits by default, to match TSynUniqueIdentifierProcess resolution
+    property ProcessIDShift: integer read fProcessIDShift;
   end;
 
   /// the flags used for TSQLRestServer.AddStats
@@ -17610,7 +17629,7 @@ type
     // unit will call TSQLDataBase.CacheFlush method
     procedure FlushInternalDBCache; virtual;
     /// you can call this method in TThread.Execute to ensure that
-    // the thread will be taken in account during process
+    // the thread will be taken into account during process
     // - caller must specify the TThread instance running
     // - used e.g. for optExecInMainThread option in TServiceMethodExecute
     // - this default implementation will call the methods of all its internal
@@ -18097,7 +18116,7 @@ type
     // - e.g. protected with a try ... finally StorageUnLock; end section
     procedure StorageUnLock; virtual;
     /// you can call this method in TThread.Execute to ensure that
-    // the thread will be taken in account during process
+    // the thread will be taken into account during process
     // - this overridden method will do nothing (should have been already made
     // at TSQLRestServer caller level)
     // - children classes may inherit from this method to notify e.g.
@@ -24677,6 +24696,8 @@ begin
     result := smvCount else
   if typ=TypeInfo(TSynMonitorCount64) then
     result := smvCount64 else
+  if typ=TypeInfo(TSynMonitorOneCount) then
+    result := smvOneCount else
     result := smvUndefined;
 end;
 
@@ -24705,8 +24726,7 @@ function TSynMonitorUsage.Track(Instance: TObject; const Name: RawUTF8): integer
             ToText(parent,p^.Name); // meaningful property name
           for g := low(p^.Values) to high(p^.Values) do
             SetLength(p^.Values[g],USAGE_VALUE_LEN[g]);
-          if k in SYNMONITORVALUE_CUMULATIVE then
-            p^.CumulativeLast := nfo^.GetInt64Value(Instance);
+          p^.ValueLast := nfo^.GetInt64Value(Instance);
           inc(n);
         end;
         nfo := nfo^.Next;
@@ -24791,10 +24811,11 @@ const
   AS_MONTHS = not TL_MASK_DAYS;
   AS_YEARS = not TL_MASK_MONTHS;
 
-procedure TSynMonitorUsage.Modified(Instance: TObject);
+function TSynMonitorUsage.Modified(Instance: TObject): integer;
 begin
   if self<>nil then
-    Modified(Instance,[]);
+    result := Modified(Instance,[]) else
+    result := 0;
 end;
 
 procedure TSynMonitorUsage.SetCurrentUTCTime(out minutes: TTimeLogBits);
@@ -24802,8 +24823,8 @@ begin
   minutes.FromUTCTime;
 end;
 
-procedure TSynMonitorUsage.Modified(Instance: TObject;
-  const PropNames: array of RawUTF8; ModificationTime: TTimeLog);
+function TSynMonitorUsage.Modified(Instance: TObject;
+  const PropNames: array of RawUTF8; ModificationTime: TTimeLog): integer;
   procedure save(const track: TSynMonitorUsageTrack);
     function scope({$ifndef CPU64}var{$endif} prev,current: Int64): TSynMonitorUsageGranularity;
     begin
@@ -24838,22 +24859,24 @@ procedure TSynMonitorUsage.Modified(Instance: TObject;
       with track.Props[j] do
       if (high(PropNames)<0) or (FindPropName(PropNames,Name)>=0) then begin
         v := Info^.GetInt64Value(Instance);
-        if Kind in SYNMONITORVALUE_CUMULATIVE then begin
-          diff := v-CumulativeLast;
-          if diff<>0 then begin
-            CumulativeLast := v;
+        diff := v-ValueLast;
+        if diff<>0 then begin
+          inc(result);
+          ValueLast := v;
+          if Kind in SYNMONITORVALUE_CUMULATIVE then begin
             inc(Values[mugHour][min],diff);
             inc(Values[mugDay][time.Hour],diff); // propagate
             inc(Values[mugMonth][time.Day-1],diff);
             inc(Values[mugYear][time.Month-1],diff);
-          end;
-        end else
-          for k := min to 59 do // make instant values continuous
-            Values[mugHour][min] := v;
+          end else
+            for k := min to 59 do // make instant values continuous
+              Values[mugHour][k] := v;
+        end;
       end;
   end;
 var i: integer;
 begin
+  result := 0;
   if Instance=nil then
     exit;
   fSafe.Lock;
@@ -29397,6 +29420,7 @@ end;
 procedure TPropInfo.GetVariant(Instance: TObject; var Dest: variant);
 var i: PtrInt;
     U: RawUTF8;
+    p: Pointer;
 begin
   if (Instance<>nil) and (@self<>nil) then
   case PropType^.Kind of
@@ -29426,8 +29450,10 @@ begin
   tkFloat: Dest := GetFloatProp(Instance);
   tkVariant: GetVariantProp(Instance,Dest);
   tkClass: ObjectToVariant(GetObjProp(Instance),Dest);
-  tkDynArray: TDocVariantData(Dest).InitArrayFromObjArray(
-    pointer(GetOrdProp(Instance))^,JSON_OPTIONS_FAST);
+  tkDynArray: begin
+    p := pointer(GetOrdProp(Instance));
+    TDocVariantData(Dest).InitArrayFromObjArray(p,JSON_OPTIONS_FAST);
+  end
   else VarClear(Dest);
   end;
 end;
@@ -42867,7 +42893,7 @@ begin // called by root/Timestamp/info REST method
       'exe',ExeVersion.ProgramName, 'version',ExeVersion.Version.DetailedOrVoid,
       'host',ExeVersion.Host, 'cpu',cpu, {$ifdef MSWINDOWS}'mem',mem,{$endif}
       'memused',KB(m.AllocatedUsed.Bytes), 'memfree',free,
-      'diskfree',TSynMonitorDisk.FreeAsText, 'exception',GetLastExceptions(10)]);
+      'disk',GetDiskPartitionsText(false,true), 'exception',GetLastExceptions(10)]);
   finally
     m.Free;
   end;
@@ -45356,28 +45382,26 @@ end;
 
 { TSQLMonitorUsage }
 
-const
-  SQLMONITORSHIFT = 16; // see TSynUniqueIdentifierProcess
-
-function TSQLMonitorUsage.GetUsageID: integer;
+function TSQLMonitorUsage.UsageID(aProcessIDShift: integer): integer;
 begin
-  result := fID shr SQLMONITORSHIFT;
-end;
-
-procedure TSQLMonitorUsage.SetUsageID(Value: integer);
-begin
-  fID := (Int64(Value) shl SQLMONITORSHIFT) or Int64(fProcess);
+  result := fID shr aProcessIDShift;
 end;
 
 
 { TSynMonitorUsageRest }
 
 constructor TSynMonitorUsageRest.Create(aStorage: TSQLRest;
-  aProcessID: TSynUniqueIdentifierProcess; aStoredClass: TSQLMonitorUsageClass);
+  aProcessID: Int64; aStoredClass: TSQLMonitorUsageClass;
+  aProcessIDShift: integer);
 var g: TSynMonitorUsageGranularity;
 begin
   if aStorage=nil then
     raise ESynException.CreateUTF8('%.Create(nil)',[self]);
+  if aProcessIDShift<0 then
+    aProcessIDShift := 16 { see TSynUniqueIdentifierProcess } else
+  if aProcessIDShift>40 then
+    aProcessIDShift := 40;
+  fProcessIDShift := aProcessIDShift;
   if aStoredClass=nil then
     fStoredClass := TSQLMonitorUsage else
     fStoredClass := aStoredClass;
@@ -45409,7 +45433,7 @@ begin
     exit;
   end;
   rec := fStoredCache[Gran];
-  recid := (Int64(ID) shl SQLMONITORSHIFT) or Int64(fProcessID);
+  recid := (Int64(ID) shl fProcessIDShift) or Int64(fProcessID);
   if rec.IDValue=recid then
     result := true else
   if fStorage.Retrieve(recid,rec) then begin // may use REST cache
@@ -45437,7 +45461,7 @@ begin
     exit;
   end;
   rec := fStoredCache[Gran];
-  recid := (Int64(ID) shl SQLMONITORSHIFT) or Int64(fProcessID);
+  recid := (Int64(ID) shl fProcessIDShift) or Int64(fProcessID);
   if rec.IDValue=recid then // already available
     update := true else begin
     update := fStorage.Retrieve(recid,rec); // may use REST cache
@@ -45448,9 +45472,13 @@ begin
   if Gran=mugHour then
     rec.Comment := fComment;
   rec.Info := Track;
-  if update then
-    result := fStorage.Update(rec) else
-    result := fStorage.Add(rec,true,true)=recid;
+  if fSaveBatch<>nil then
+    if update then
+      result := fSaveBatch.Update(rec)>=0 else
+      result := fSaveBatch.Add(rec,true,true)>=0 else
+    if update then
+      result := fStorage.Update(rec) else
+      result := fStorage.Add(rec,true,true)=recid;
 end;
 
 
@@ -47834,14 +47862,11 @@ begin
   if aServer<>nil then begin
     fOwner := aServer;
     fModel := aServer.Model;
-    fStoredClassProps := fModel.Props[aClass];
-  end else
-    // if no server is defined, simply use the first model using this class
-    if fStoredClassRecordProps.fModel<>nil then
-    with fStoredClassRecordProps.fModel[0] do begin
-      fModel := Model;
-      fStoredClassProps := Properties;
-    end;
+   end else begin // fallback to an owned model instance
+     fModel := TSQLModel.Create([aClass]);
+     fModel.Owner := self;
+   end;
+  fStoredClassProps := fModel.Props[aClass];
   fIsUnique := fStoredClassRecordProps.IsUniqueFieldsBits;
   fBasicSQLCount := 'SELECT COUNT(*) FROM '+fStoredClassRecordProps.SQLTableName;
   fBasicSQLHasRows[false] := 'SELECT RowID FROM '+fStoredClassRecordProps.SQLTableName+' LIMIT 1';
@@ -49039,11 +49064,13 @@ type
      oUtfs, oStrings, oSQLRecord, oSQLMany, oPersistent, oSynAutoCreateFields,
      oSynPersistentWithPassword, oSynMonitor, oSQLTable,
      oCustomReaderWriter, oCustomPropName);
+  TShort63 = string[63];
+  TShort63DynArray = array of TShort63;
   TJSONCustomParser = record
     Reader: TJSONSerializerCustomReader;
     Writer: TJSONSerializerCustomWriter;
     Props: PPropInfoDynArray;
-    Fields: PShortStringDynArray; // match Props[] order
+    Fields: TShort63DynArray; // match Props[] order
     Kind: TJSONObject;
   end;
   TJSONCustomParsers = array of TJSONCustomParser;
@@ -49133,7 +49160,7 @@ var i: integer;
 begin
   if Parser^.Props<>nil then begin // search from RegisterCustomSerializerFieldNames()
     for i := 0 to length(Parser^.Fields)-1 do
-      if IdemPropNameU(Parser^.Fields[i]^,PropName,PropNameLen) then begin
+      if IdemPropName(Parser^.Fields[i],PropName,PropNameLen) then begin
         result := Parser^.Props[i];
         exit;
       end;
@@ -49145,7 +49172,7 @@ end;
 class procedure TJSONSerializer.RegisterCustomSerializerFieldNames(aClass: TClass;
   const aClassFields, aJsonFields: array of ShortString);
 var prop: PPropInfoDynArray;
-    field: PShortStringDynArray;
+    field: TShort63DynArray;
     n,p,f: integer;
     found: boolean;
     parser: PJSONCustomParser;
@@ -49164,7 +49191,7 @@ begin
     for f := 0 to high(aClassFields) do // check customized field name
       if IdemPropName(prop[p].Name,aClassFields[f]) then begin
         if aJsonFields[f]<>'' then begin // '' to ignore this property
-          field[n] := @aJsonFields[f];
+          field[n] := aJsonFields[f];
           prop[n] := prop[p];
           inc(n);
         end;
@@ -49172,7 +49199,7 @@ begin
         break;
       end;
     if not found then begin // default serialization of published property
-      field[n] := @prop[p].Name;
+      field[n] := prop[p].Name;
       prop[n] := prop[p];
       inc(n);
     end;
@@ -52217,7 +52244,9 @@ var Added: boolean;
               Add('"');
             AddDateTime(D64);
             if woDateTimeWithZSuffix in Options then
-              Add('Z');
+              if frac(D64)=0 then // FireFox can't decode short form "2017-01-01Z"
+                AddShort('T00:00Z') else
+                Add('Z');
             Add('"');
           end;
         end else begin
@@ -52472,7 +52501,7 @@ begin
         raise EParsingException.CreateUTF8('%.WriteObject woDontStoreInherited '+
           'after RegisterCustomSerializerFieldNames(%)', [self,aClassType]) else
         for i := 0 to length(parser^.Props)-1 do begin
-          CustomPropName := parser^.Fields[i];
+          CustomPropName := @parser^.Fields[i];
           WriteProp(parser^.Props[i]);
         end;
   end else
@@ -52486,7 +52515,7 @@ begin
 end;
 
 procedure TJSONSerializer.AddInstancePointer(Instance: TObject; SepChar: AnsiChar;
-  IncludeUnitName: boolean);
+  IncludeUnitName, IncludePointer: boolean);
 var info: PTypeInfo;
 begin
   if IncludeUnitName then begin
@@ -52497,7 +52526,7 @@ begin
       Add('.');
     end;
   end;
-  inherited AddInstancePointer(Instance,SepChar,IncludeUnitName);
+  inherited AddInstancePointer(Instance,SepChar,IncludeUnitName,IncludePointer);
 end;
 
 procedure TJSONSerializer.SetSQLRecordOptions(Value: TJSONSerializerSQLRecordOptions);
@@ -59620,7 +59649,7 @@ end;
 procedure TServiceFactoryServer.OnLogRestExecuteMethod(Sender: TServiceMethodExecute;
   Step: TServiceMethodExecuteEventStep);
 var W: TTextWriter;
-    a: integer;
+    a, len: integer;
 begin
   W := Sender.TempTextWriter;
   with Sender.Method^ do
@@ -59646,28 +59675,34 @@ begin
     end;
     smsAfter: begin
       W.AddShort('},Output:{');
-      if fExcludeServiceLogCustomAnswer and ArgsResultIsServiceCustomAnswer then
-        with PServiceCustomAnswer(Sender.Values[ArgsResultIndex])^ do begin
-          W.AddShort('len:');
-          W.Add(length(Content));
-          if (Status<>0) and (Status<>HTTP_SUCCESS) then begin
-            W.AddShort(',status:');
-            W.Add(Status);
-          end;
-        end else
-      if not (optNoLogOutput in Sender.fOptions) then begin
-        for a := ArgsOutFirst to ArgsOutLast do
-        with Args[a] do
-        if (ValueDirection in [smdVar,smdOut,smdResult]) and
-           not IsDefault(Sender.Values[a]) then begin
-          W.AddShort(ParamName^);
-          W.Add(':');
-          if vIsSPI in ValueKindAsm then
-            W.AddShort('"****",') else
-            AddJSON(W,Sender.Values[a],SERVICELOG_WRITEOPTIONS);
+      if not (optNoLogOutput in Sender.fOptions) then
+        if ArgsResultIsServiceCustomAnswer then
+          with PServiceCustomAnswer(Sender.Values[ArgsResultIndex])^ do begin
+            len := length(Content);
+            W.AddShort('len:');
+            W.AddU(len);
+            if (Status<>0) and (Status<>HTTP_SUCCESS) then begin
+              W.AddShort(',status:');
+              W.AddU(Status);
+            end;
+            if not fExcludeServiceLogCustomAnswer and (len>0) and (len<=1024) then begin
+              W.AddShort(',result:"');
+              W.WrBase64(pointer(content),len,false); // up to 1KB of base-64
+              W.Add('"');
+            end;
+          end else begin
+          for a := ArgsOutFirst to ArgsOutLast do
+            with Args[a] do
+              if (ValueDirection in [smdVar,smdOut,smdResult]) and
+                 not IsDefault(Sender.Values[a]) then begin
+                W.AddShort(ParamName^);
+                W.Add(':');
+                if vIsSPI in ValueKindAsm then
+                  W.AddShort('"****",') else
+                  AddJSON(W,Sender.Values[a],SERVICELOG_WRITEOPTIONS);
+              end;
+          W.CancelLastComma;
         end;
-        W.CancelLastComma;
-      end;
     end;
     smsError: begin
       W.AddShort('},Output:{');

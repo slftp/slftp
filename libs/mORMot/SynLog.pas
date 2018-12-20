@@ -428,7 +428,8 @@ type
 
   /// callback signature used by TSynLogFamilly.OnBeforeException
   // - should return false to log the exception, or true to ignore it
-  TSynLogOnBeforeException = function(aExceptionContext: TSynLogExceptionContext): boolean of object;
+  TSynLogOnBeforeException = function(aExceptionContext: TSynLogExceptionContext;
+    const aThreadName: RawUTF8): boolean of object;
 
   /// store simple log-related settings
   // - see also TDDDLogSettings in dddInfraSettings.pas and TSynDaemonSettings
@@ -497,6 +498,7 @@ type
     fHRTimestamp: boolean;
     fLocalTimestamp: boolean;
     fWithUnitName: boolean;
+    fWithInstancePointer: boolean;
     fNoFile: boolean;
     fAutoFlush: cardinal;
     {$ifdef MSWINDOWS}
@@ -566,6 +568,7 @@ type
     property ExceptionIgnore: TList read fExceptionIgnore;
     /// you can let exceptions be ignored from a callback
     // - if set and returns true, the given exception won't be logged
+    // - execution of this event handler is protected via the logs global lock
     // - may be handy e.g. when working with code triggerring a lot of
     // exceptions (e.g. Indy), where ExceptionIgnore could be refined
     property OnBeforeException: TSynLogOnBeforeException
@@ -671,6 +674,9 @@ type
     // - unit name is available from RTTI if the class has published properties
     // - set to TRUE by default, for better debugging experience
     property WithUnitName: boolean read fWithUnitName write fWithUnitName;
+    /// if TRUE, will log the pointer with an object instance class if available
+    // - set to TRUE by default, for better debugging experience
+    property WithInstancePointer: boolean read fWithInstancePointer write fWithInstancePointer;
     /// the time (in seconds) after which the log content must be written on
     // disk, whatever the current content size is
     // - by default, the log file will be written for every 4 KB of log (see
@@ -869,7 +875,7 @@ type
   public
     /// intialize for a TSynLog class instance
     // - WARNING: not to be called directly! Use Enter or Add class function instead
-    constructor Create(aFamily: TSynLogFamily=nil);
+    constructor Create(aFamily: TSynLogFamily=nil); virtual;
     /// release all memory and internal handles
     destructor Destroy; override;
     /// flush all log content to file
@@ -2628,7 +2634,8 @@ procedure SynLogException(const Ctxt: TSynLogExceptionContext);
   end;
 var SynLog: TSynLog;
     info: ^TSynLogExceptionInfo;
-    {$ifdef FPC}i: integer;{$endif}
+    locked: boolean;
+    {$ifdef FPC}i: PtrInt;{$endif}
 label adr,fin;
 begin
   {$ifdef CPU64DELPHI} // Delphi<XE6 in System.pas to retrieve x64 dll exit code
@@ -2645,62 +2652,71 @@ begin
   if (SynLog=nil) or not (Ctxt.ELevel in SynLog.fFamily.Level) then
     exit;
   if (Ctxt.EClass=ESynLogSilent) or
-     (SynLog.fFamily.ExceptionIgnore.IndexOf(Ctxt.EClass)>=0) or
-     (Assigned(SynLog.fFamily.OnBeforeException) and
-      SynLog.fFamily.OnBeforeException(Ctxt)) then
+     (SynLog.fFamily.ExceptionIgnore.IndexOf(Ctxt.EClass)>=0) then
     exit;
-  if SynLog.LogHeaderLock(Ctxt.ELevel,false) then
+  locked := false;
   try
-    if GlobalLastExceptionIndex=MAX_EXCEPTHISTORY then
-      GlobalLastExceptionIndex := 0 else
-      inc(GlobalLastExceptionIndex);
-    info := @GlobalLastException[GlobalLastExceptionIndex];
-    info^.Context := Ctxt;
-    {$ifdef FPC}
-    if @BackTraceStrFunc<>@SysBackTraceStr then
-      ShortStringToAnsi7String(BackTraceStrFunc(pointer(Ctxt.EAddr)),info^.Addr) else
-    {$endif FPC}
-      info^.Addr := '';
-    if (Ctxt.ELevel=sllException) and (Ctxt.EInstance<>nil) then begin
-      info^.Message := Ctxt.EInstance.Message;
-      if Ctxt.EInstance.InheritsFrom(ESynException) then begin
-        ESynException(Ctxt.EInstance).RaisedAt := pointer(Ctxt.EAddr);
-        if ESynException(Ctxt.EInstance).CustomLog(SynLog.fWriter,Ctxt) then
-          goto fin;
-        goto adr;
-      end;
-    end else
-      info^.Message := '';
-    if Assigned(DefaultSynLogExceptionToStr) and
-       DefaultSynLogExceptionToStr(SynLog.fWriter,Ctxt) then
-      goto fin;
-adr:SynLog.fWriter.AddShort(' at ');
-    {$ifdef FPC} // note: BackTraceStrFunc is slower than TSynMapFile.Log
-    with SynLog.fWriter do
-    if @BackTraceStrFunc=@SysBackTraceStr then begin // no debug information
-      AddPointer(Ctxt.EAddr); // write addresses as hexa
-      for i := 0 to Ctxt.EStackCount-1 do
-        if (i=0) or (Ctxt.EStack[i]<>Ctxt.EStack[i-1]) then begin
-          Add(' ');
-          AddPointer(Ctxt.EStack[i]);
-        end;
-    end else begin
-      AddString(info^.Addr);
-      for i := 0 to Ctxt.EStackCount-1 do
-        if (i=0) or (Ctxt.EStack[i]<>Ctxt.EStack[i-1]) then
-          AddShort(BackTraceStrFunc(pointer(Ctxt.EStack[i])));
+    if Assigned(SynLog.fFamily.OnBeforeException) then begin
+      SynLog.LockAndGetThreadContext; // protect and set fThreadContext
+      locked := true;
+      if SynLog.fFamily.OnBeforeException(Ctxt,SynLog.fThreadContext^.ThreadName) then
+        exit;
     end;
-    {$else}
-    TSynMapFile.Log(SynLog.fWriter,Ctxt.EAddr,true);
-    {$ifndef WITH_VECTOREXCEPT} // stack frame OK for RTLUnwindProc by now
-    SynLog.AddStackTrace(Ctxt.EStack);
-    {$endif}
-    {$endif FPC}
-fin:SynLog.fWriter.AddEndOfLine(SynLog.fCurrentLevel);
-    SynLog.fWriter.FlushToStream; // we expect exceptions to be available on disk
+    if SynLog.LogHeaderLock(Ctxt.ELevel,locked) then begin
+      locked := true;
+      if GlobalLastExceptionIndex=MAX_EXCEPTHISTORY then
+        GlobalLastExceptionIndex := 0 else
+        inc(GlobalLastExceptionIndex);
+      info := @GlobalLastException[GlobalLastExceptionIndex];
+      info^.Context := Ctxt;
+      {$ifdef FPC}
+      if @BackTraceStrFunc<>@SysBackTraceStr then
+        ShortStringToAnsi7String(BackTraceStrFunc(pointer(Ctxt.EAddr)),info^.Addr) else
+      {$endif FPC}
+        info^.Addr := '';
+      if (Ctxt.ELevel=sllException) and (Ctxt.EInstance<>nil) then begin
+        info^.Message := Ctxt.EInstance.Message;
+        if Ctxt.EInstance.InheritsFrom(ESynException) then begin
+          ESynException(Ctxt.EInstance).RaisedAt := pointer(Ctxt.EAddr);
+          if ESynException(Ctxt.EInstance).CustomLog(SynLog.fWriter,Ctxt) then
+            goto fin;
+          goto adr;
+        end;
+      end else
+        info^.Message := '';
+      if Assigned(DefaultSynLogExceptionToStr) and
+         DefaultSynLogExceptionToStr(SynLog.fWriter,Ctxt) then
+        goto fin;
+adr:  SynLog.fWriter.Add(' [%] at ',[SynLog.fThreadContext^.ThreadName],twOnSameLine);
+      {$ifdef FPC} // note: BackTraceStrFunc is slower than TSynMapFile.Log
+      with SynLog.fWriter do
+      if @BackTraceStrFunc=@SysBackTraceStr then begin // no debug information
+        AddPointer(Ctxt.EAddr); // write addresses as hexa
+        for i := 0 to Ctxt.EStackCount-1 do
+          if (i=0) or (Ctxt.EStack[i]<>Ctxt.EStack[i-1]) then begin
+            Add(' ');
+            AddPointer(Ctxt.EStack[i]);
+          end;
+      end else begin
+        AddString(info^.Addr);
+        for i := 0 to Ctxt.EStackCount-1 do
+          if (i=0) or (Ctxt.EStack[i]<>Ctxt.EStack[i-1]) then
+            AddShort(BackTraceStrFunc(pointer(Ctxt.EStack[i])));
+      end;
+      {$else}
+      TSynMapFile.Log(SynLog.fWriter,Ctxt.EAddr,true);
+      {$ifndef WITH_VECTOREXCEPT} // stack frame OK for RTLUnwindProc by now
+      SynLog.AddStackTrace(Ctxt.EStack);
+      {$endif}
+      {$endif FPC}
+fin:  SynLog.fWriter.AddEndOfLine(SynLog.fCurrentLevel);
+      SynLog.fWriter.FlushToStream; // we expect exceptions to be available on disk
+    end;
   finally
-    GlobalCurrentHandleExceptionSynLog := SynLog.fThreadHandleExceptionBackup;
-    LeaveCriticalSection(GlobalThreadLock);
+    if locked then begin
+      GlobalCurrentHandleExceptionSynLog := SynLog.fThreadHandleExceptionBackup;
+      LeaveCriticalSection(GlobalThreadLock);
+    end;
   end;
 end;
 
@@ -3189,6 +3205,7 @@ begin
   fBufferSize := 4096;
   fStackTraceLevel := 30;
   fWithUnitName := true;
+  fWithInstancePointer := true;
   {$ifndef FPC}
   if DebugHook<>0 then // never let stManualAndAPI trigger AV within the IDE
     fStackTraceUse := stOnlyAPI;
@@ -3688,7 +3705,7 @@ procedure TSynLog.ThreadContextRehash;
 var i: integer;
     id, hash: PtrUInt;
     secondpass: boolean;
-    ctxt: ^TSynLogThreadContext;
+    ctxt: PSynLogThreadContext;
 begin // should match TSynLog.GetThreadContextInternal
   if fFamily.fPerThreadLog=ptNoThreadProcess then
     exit;
@@ -4237,7 +4254,7 @@ begin
     Add.LogInternal(Level,Msg,nil,maxInt);
     {$ifdef MSWINDOWS}
     {$ifndef FPC} // external exception :(
-    OutputDebugStringA(pointer(CurrentAnsiConvert.UTF8ToAnsi(Msg)));
+    //OutputDebugStringA(pointer(CurrentAnsiConvert.UTF8ToAnsi(Msg)));
     {$endif FPC}
     {$else}
     {$I-}
@@ -4504,7 +4521,7 @@ begin
   if LogHeaderLock(Level,false) then
   try
     if Instance<>nil then
-      fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName);
+      fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName,fFamily.WithInstancePointer);
     fWriter.Add(TextFmt,TextArgs,twOnSameLine,
       [woDontStoreDefault,woDontStoreEmptyString,woDontStore0,woFullExpand]);
     if LastError<>0 then
@@ -4539,7 +4556,7 @@ begin
           fWriter.WriteObject(Instance,[woFullExpand]);
     end else begin
       if Instance<>nil then
-        fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName);
+        fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName,fFamily.WithInstancePointer);
       if length(Text)>TextTruncateAtLength then begin
         fWriter.AddOnSameLine(pointer(Text),TextTruncateAtLength);
         fWriter.AddShort('... (truncated) length=');
@@ -4562,7 +4579,7 @@ begin
   if LogHeaderLock(Level,false) then
   try
     if Instance<>nil then
-      fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName);
+      fWriter.AddInstancePointer(Instance,' ',fFamily.WithUnitName,fFamily.WithInstancePointer);
     fWriter.AddOnSameLine(pointer(aName));
     fWriter.Add('=');
     fWriter.AddTypedJSON(aTypeInfo,aValue);
@@ -4683,7 +4700,7 @@ begin // aLevel = sllEnter,sllLeave or sllNone
   with Recursion[aIndex] do begin
     if aLevel<>sllLeave then begin
       if Instance<>nil then
-        fWriter.AddInstancePointer(Instance,'.',fFamily.WithUnitName);
+        fWriter.AddInstancePointer(Instance,'.',fFamily.WithUnitName,fFamily.WithInstancePointer);
       if MethodName<>nil then begin
         if MethodNameLocal<>mnLeave then begin
           fWriter.AddNoJSONEscape(MethodName);

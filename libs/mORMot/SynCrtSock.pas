@@ -431,6 +431,7 @@ type
     // - expects the port to be specified as Ansi string, e.g. '1234'
     // - you can optionally specify a server address to bind to, e.g.
     // '1.2.3.4:1234'
+    // - for unix domain socket use unix:/path/to/file
     constructor Bind(const aPort: SockString; aLayer: TCrtSocketLayer=cslTCP);
     /// low-level internal method called by Open() and Bind() constructors
     // - raise an ECrtSocket exception on error
@@ -733,6 +734,7 @@ type
     fURL: SockString;
     fKeepAliveClient: boolean;
     fRemoteIP: SockString;
+    fRemoteConnectionID: Int64;
     fServer: THttpServer;
   public
     /// create the socket according to a server
@@ -759,8 +761,10 @@ type
     // support persistent connections MUST include the "close" connection option
     // in every message"
     property KeepAliveClient: boolean read fKeepAliveClient write fKeepAliveClient;
-    /// the recognized client IP, after a call to InitRequest()
+    /// the recognized client IP, after a call to GetRequest()
     property RemoteIP: SockString read fRemoteIP;
+    /// the recognized connection ID, after a call to GetRequest()
+    property RemoteConnectionID: Int64 read fRemoteConnectionID;
   end;
 
   /// Socket API based REST and HTTP/1.1 compatible client class
@@ -1165,6 +1169,7 @@ type
     fCurrentConnectionID: integer;
     fCanNotifyCallback: boolean;
     fRemoteIPHeader, fRemoteIPHeaderUpper: SockString;
+    fRemoteConnIDHeader, fRemoteConnIDHeaderUpper: SockString;
     function GetAPIVersion: string; virtual; abstract;
     procedure SetServerName(const aName: SockString); virtual;
     procedure SetOnRequest(const aRequest: TOnHttpServerRequest); virtual;
@@ -1173,7 +1178,8 @@ type
     procedure SetOnAfterRequest(const aEvent: TOnHttpServerRequest); virtual;
     procedure SetOnAfterResponse(const aEvent: TOnHttpServerRequest); virtual;
     procedure SetMaximumAllowedContentLength(aMax: cardinal); virtual;
-    procedure SetRemoteIPHeader(const aHeader: SockString);
+    procedure SetRemoteIPHeader(const aHeader: SockString); virtual;
+    procedure SetRemoteConnIDHeader(const aHeader: SockString); virtual;
     function GetHTTPQueueLength: Cardinal; virtual; abstract;
     procedure SetHTTPQueueLength(aValue: Cardinal); virtual; abstract;
     function DoBeforeRequest(Ctxt: THttpServerRequest): cardinal;
@@ -1290,6 +1296,7 @@ type
     // $       proxy_set_header        Host            $host;
     // $       proxy_set_header        X-Real-IP       $remote_addr;
     // $       proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+    // $       proxy_set_header        X-Conn-ID       $connection
     // $ }
     // see https://synopse.info/forum/viewtopic.php?pid=28174#p28174
     property HTTPQueueLength: cardinal read GetHTTPQueueLength write SetHTTPQueueLength;
@@ -1302,6 +1309,13 @@ type
     // define here the HTTP header name which indicates the true remote client
     // IP value, mostly as 'X-Real-IP' or 'X-Forwarded-For'
     property RemoteIPHeader: SockString read fRemoteIPHeader write SetRemoteIPHeader;
+    /// the value of a custom HTTP header containing the real client connection ID
+    // - by default, the Ctxt.ConnectionID information will be retrieved from the socket
+    // layer - but if the server runs behind some proxy service, you should
+    // define here the HTTP header name which indicates the true remote connection
+    // ID value, for example as 'X-Conn-ID', setting in nginx config:
+    //  $ proxy_set_header      X-Conn-ID       $connection
+    property RemoteConnIDHeader: SockString read fRemoteConnIDHeader write SetRemoteConnIDHeader;
   published
     /// returns the API version used by the inherited implementation
     property APIVersion: string read GetAPIVersion;
@@ -1411,6 +1425,8 @@ type
     procedure SetOnAfterRequest(const aEvent: TOnHttpServerRequest); override;
     procedure SetOnAfterResponse(const aEvent: TOnHttpServerRequest); override;
     procedure SetMaximumAllowedContentLength(aMax: cardinal); override;
+    procedure SetRemoteIPHeader(const aHeader: SockString); override;
+    procedure SetRemoteConnIDHeader(const aHeader: SockString); override;
     procedure SetLoggingServiceName(const aName: SockString);
     /// server main loop - don't change directly
     // - will call the Request public virtual method with the appropriate
@@ -1901,8 +1917,8 @@ type
     // - expects the port to be specified as string, e.g. '1234'; you can
     // optionally specify a server address to bind to, e.g. '1.2.3.4:1234'
     // - you can specify a number of threads to be initialized to handle
-    // incoming connections (default is 32, which may be sufficient for most
-    // cases, maximum is 256) - if you set 0, the thread pool will be disabled
+    // incoming connections. Default is 32, which may be sufficient for most
+    // cases, maximum is 256. If you set 0, the thread pool will be disabled
     // and one thread will be created for any incoming connection
     // - you can also tune (or disable with 0) HTTP/1.1 keep alive delay
     constructor Create(const aPort: SockString; OnStart,OnStop: TNotifyThreadEvent;
@@ -2000,6 +2016,9 @@ type
     /// the resource address
     // - e.g. '/category/name/10?param=1'
     Address: SockString;
+    /// cslUnix for unix socket URI
+    // http://unix:/path/to/socket.sock:/url/path
+    Layer: TCrtSocketLayer;
     /// fill the members from a supplied URI
     function From(aURI: SockString; const DefaultPort: SockString=''): boolean;
     /// compute the whole normalized URI
@@ -2044,6 +2063,7 @@ type
     fProxyByPass: SockString;
     fPort: cardinal;
     fHttps: boolean;
+    fLayer: TCrtSocketLayer;
     fKeepAlive: cardinal;
     fUserAgent: SockString;
     fExtendedOptions: THttpRequestExtendedOptions;
@@ -2084,7 +2104,8 @@ type
     // - *TimeOut parameters are currently ignored by TCurlHttp
     constructor Create(const aServer, aPort: SockString; aHttps: boolean;
       const aProxyName: SockString=''; const aProxyByPass: SockString='';
-      ConnectionTimeOut: DWORD=0; SendTimeout: DWORD=0; ReceiveTimeout: DWORD=0); overload; virtual;
+      ConnectionTimeOut: DWORD=0; SendTimeout: DWORD=0; ReceiveTimeout: DWORD=0;
+      aLayer: TCrtSocketLayer=cslTCP); overload; virtual;
     /// connect to the supplied URI
     // - is just a wrapper around TURI and the overloaded Create() constructor
     constructor Create(const aURI: SockString;
@@ -2337,7 +2358,7 @@ type
     constructor Create(const aServer, aPort: SockString; aHttps: boolean;
       const aProxyName: SockString=''; const aProxyByPass: SockString='';
       ConnectionTimeOut: DWORD=0; SendTimeout: DWORD=0;
-      ReceiveTimeout: DWORD=0); override;
+      ReceiveTimeout: DWORD=0; aLayer: TCrtSocketLayer=cslTCP); override;
   end;
 
   /// WebSocket client implementation
@@ -2469,7 +2490,8 @@ function Open(const aServer, aPort: SockString; aTLS: boolean=false): TCrtSocket
 
 /// create a THttpClientSocket, returning nil on error
 // - useful to easily catch socket error exception ECrtSocket
-function OpenHttp(const aServer, aPort: SockString; aTLS: boolean=false): THttpClientSocket; overload;
+function OpenHttp(const aServer, aPort: SockString; aTLS: boolean=false;
+  aLayer: TCrtSocketLayer = cslTCP): THttpClientSocket; overload;
 
 /// create a THttpClientSocket, returning nil on error
 // - useful to easily catch socket error exception ECrtSocket
@@ -2479,7 +2501,8 @@ function OpenHttp(const aURI: SockString; aAddress: PSockString=nil): THttpClien
 // - this method will use a low-level THttpClientSock socket: if you want
 // something able to use your computer proxy, take a look at TWinINet.Get()
 function HttpGet(const server, port: SockString; const url: SockString;
-  const inHeaders: SockString; outHeaders: PSockString=nil): SockString; overload;
+  const inHeaders: SockString; outHeaders: PSockString=nil;
+  aLayer: TCrtSocketLayer = cslTCP): SockString; overload;
 
 /// retrieve the content of a web page, using the HTTP/1.1 protocol and GET method
 // - this method will use a low-level THttpClientSock socket for plain http URI,
@@ -4310,10 +4333,12 @@ const
 
 const
   DEFAULT_PORT: array[boolean] of SockString = ('80','443');
+  UNIX_LOW = ord('u')+ord('n')shl 8+ord('i')shl 16+ord('x')shl 24;
 
 procedure TURI.Clear;
 begin
   Https := false;
+  Layer := cslTCP;
   Finalize(self);
 end;
 
@@ -4335,7 +4360,13 @@ begin
     P := S+3;
   end;
   S := P;
-  while not (S^ in [#0,':','/']) do inc(S);
+  if (PInteger(S)^ = UNIX_LOW) and (S[4] = ':') then begin //http://unix:...:/path
+    Inc(S, 5);
+    Inc(P, 5);
+    Layer := cslUNIX;
+    while not (S^ in [#0,':']) do inc(S);
+  end else
+    while not (S^ in [#0,':','/']) do inc(S);
   SetString(Server,P,S-P);
   if S^=':' then begin
     inc(S);
@@ -4450,9 +4481,9 @@ function CallServer(const Server, Port: SockString; doBind: boolean;
    aLayer: TCrtSocketLayer; ConnectTimeout: DWORD): TSocket;
 var sin: TVarSin;
     IP: SockString;
-    socktype, ipproto: integer;
+    socktype, ipproto, family: integer;
     {$ifndef MSWINDOWS}
-    serveraddr: TSockAddr;
+    //serveraddr: sockaddr_un;
     {$endif}
 begin
   result := -1;
@@ -4468,36 +4499,27 @@ begin
     cslUNIX: begin
       {$ifdef MSWINDOWS}
       exit; // not handled under Win32
-      {$else} // special version for UNIX sockets
+      {$else}
       socktype := SOCK_STREAM;
       ipproto := 0;
-      result := socket(AF_UNIX,socktype,ipproto);
-      if result<0 then
-        exit;
-      if doBind then begin
-        fillchar(serveraddr,sizeof(serveraddr),0);
-        //http://publib.boulder.ibm.com/infocenter/iseries/v5r3/index.jsp?topic=/rzab6/rzab6uafunix.htm
-        {$ifdef KYLIX3}
-        if (Libc.bind(result,serveraddr,sizeof(serveraddr))<0) or
-           (Libc.listen(result,SOMAXCONN)<0) then begin
-        {$else}
-        if (fpbind(result,@serveraddr,sizeof(serveraddr))<0) or
-           (fplisten(result,SOMAXCONN)<0) then begin
-        {$endif}
-          result := -1;
-        end;
-      end;
-      exit;
       {$endif}
     end;
     else exit;
   end;
   if SameText(Server,'localhost')
     {$ifndef MSWINDOWS}or ((Server='') and not doBind){$endif} then
-    IP := cLocalHost else
+    IP := cLocalHost
+  else if (aLayer=cslUNIX) then
+    IP := Server
+  else
     IP := ResolveName(Server,AF_INET,ipproto,socktype);
   // use AF_INET instead of AF_UNSPEC: IP6 is buggy!
-  if SetVarSin(sin,IP,Port,AF_INET,ipproto,socktype,false)<>0 then
+  {$ifdef UNIX}
+  if (aLayer=cslUNIX) then
+    family := AF_UNIX else
+  {$endif}
+    family := AF_INET;
+  if SetVarSin(sin,IP,Port,family,ipproto,socktype,false)<>0 then
     exit;
   result := Socket(integer(sin.AddressFamily),socktype,ipproto);
   if result=-1 then
@@ -4637,6 +4659,12 @@ begin
     s := '0.0.0.0';
     p := aPort;
   end;
+  {$ifdef UNIX}
+  if s = 'unix' then begin
+    aLayer := cslUNIX;
+    s := p; p := '';
+  end;
+  {$endif}
   OpenBind(s,p,true,-1,aLayer); // raise an ECrtSocket exception on error
 end;
 
@@ -4687,7 +4715,7 @@ end;
 procedure TCrtSocket.AcceptRequest(aClientSock: TSocket; aRemoteIP: PSockString);
 begin
   CreateSockIn; // use SockIn by default if not already initialized: 2x faster
-  OpenBind('','',false,aClientSock); // set the ACCEPTed aClientSock
+  OpenBind('','',false,aClientSock, fSocketLayer); // set the ACCEPTed aClientSock
   Linger := 5; // should remain open for 5 seconds after a closesocket() call
   if aRemoteIP<>nil then
     aRemoteIP^ := GetRemoteIP(aClientSock);
@@ -4701,7 +4729,7 @@ const BINDTXT: array[boolean] of string[4] = ('open','bind');
 begin
   fSocketLayer := aLayer;
   if aSock<0 then begin
-    if aPort='' then
+    if (aPort='') and (aLayer<>cslUNIX) then
       fPort := DEFAULT_PORT[aTLS] else // default port is 80/443 (HTTP/S)
       fPort := aPort;
     fServer := aServer;
@@ -5417,10 +5445,11 @@ begin
   end;
 end;
 
-function OpenHttp(const aServer, aPort: SockString; aTLS: boolean): THttpClientSocket;
+function OpenHttp(const aServer, aPort: SockString; aTLS: boolean;
+  aLayer: TCrtSocketLayer): THttpClientSocket;
 begin
   try
-    result := THttpClientSocket.Open(aServer,aPort,cslTCP,0,aTLS); // HTTP_DEFAULT_RECEIVETIMEOUT
+    result := THttpClientSocket.Open(aServer,aPort,aLayer,0,aTLS); // HTTP_DEFAULT_RECEIVETIMEOUT
   except
     on ECrtSocket do
       result := nil;
@@ -5432,18 +5461,19 @@ var URI: TURI;
 begin
   result := nil;
   if URI.From(aURI) then begin
-    result := OpenHttp(URI.Server,URI.Port,URI.Https);
+    result := OpenHttp(URI.Server,URI.Port,URI.Https,URI.Layer);
     if aAddress <> nil then
       aAddress^ := URI.Address;
   end;
 end;
 
 function HttpGet(const server, port: SockString; const url: SockString;
-  const inHeaders: SockString; outHeaders: PSockString): SockString;
+  const inHeaders: SockString; outHeaders: PSockString;
+  aLayer: TCrtSocketLayer): SockString;
 var Http: THttpClientSocket;
 begin
   result := '';
-  Http := OpenHttp(server,port);
+  Http := OpenHttp(server,port,false,aLayer);
   if Http<>nil then
   try
     if Http.Get(url,0,inHeaders) in [STATUS_SUCCESS..STATUS_PARTIALCONTENT] then begin
@@ -5475,7 +5505,7 @@ begin
       raise ECrtSocket.CreateFmt('https is not supported by HttpGet(%s)',[aURI]) else
       {$endif}
       {$endif USEWININET}
-      result := HttpGet(URI.Server,URI.Port,URI.Address,inHeaders,outHeaders) else
+      result := HttpGet(URI.Server,URI.Port,URI.Address,inHeaders,outHeaders,URI.Layer) else
     result := '';
   {$ifdef LINUX_RAWDEBUGVOIDHTTPGET}
   if result='' then
@@ -5791,6 +5821,12 @@ procedure THttpServerGeneric.SetRemoteIPHeader(const aHeader: SockString);
 begin
   fRemoteIPHeader := aHeader;
   fRemoteIPHeaderUpper := UpperCase(aHeader);
+end;
+
+procedure THttpServerGeneric.SetRemoteConnIDHeader(const aHeader: SockString);
+begin
+  fRemoteConnIDHeader := aHeader;
+  fRemoteConnIDHeaderUpper := UpperCase(aHeader);
 end;
 
 function THttpServerGeneric.NextConnectionID: integer;
@@ -6209,7 +6245,10 @@ begin
   finally
     LeaveCriticalSection(fServer.fProcessCS);
   end;
-  fConnectionID := fServer.NextConnectionID;
+  if (aServerSock.RemoteConnectionID <> 0) then
+    fConnectionID := aServerSock.RemoteConnectionID
+  else
+    fConnectionID := fServer.NextConnectionID;
   FreeOnTerminate := true;
   inherited Create(false);
 end;
@@ -6548,6 +6587,7 @@ begin
     fServer := aServer;
     fCompress := aServer.fCompress;
     fCompressAcceptEncoding := aServer.fCompressAcceptEncoding;
+    fSocketLayer:=aServer.Sock.SocketLayer;
     TCPPrefix := aServer.TCPPrefix;
   end;
 end;
@@ -6561,6 +6601,7 @@ function THttpServerSocket.GetRequest(withBody: boolean=true): boolean;
 var P: PAnsiChar;
     i, L: integer;
     H: ^PAnsiChar;
+    pH: PAnsiChar;
     maxtix, status: cardinal;
     reason: SockString;
 begin
@@ -6590,6 +6631,18 @@ begin
           repeat inc(L) until H^[L]<>' ';
           if H^[L]<>#0 then
             fRemoteIP := H^+L;
+          break;
+        end else
+          inc(H);
+      end;
+      // remote connection ID
+      L := length(fServer.fRemoteConnIDHeaderUpper);
+      if L<>0 then  begin
+        H := pointer(Headers);
+        for i := 1 to length(Headers) do
+        if IdemPChar(H^,pointer(fServer.fRemoteConnIDHeaderUpper)) and (H^[L]=':') then begin
+          pH := H^+L+1; while (pH^=' ') do inc(pH);
+          fRemoteConnectionID := GetNextItemUInt64(pH);
           break;
         end else
           inc(H);
@@ -6997,7 +7050,7 @@ begin
         // no Keep Alive = multi-connection -> process in the Thread Pool
         ServerSock.GetBody; // we need to get it now
         // multi-connection -> ID=0
-        fServer.Process(ServerSock,0,aCaller);
+        fServer.Process(ServerSock,ServerSock.RemoteConnectionID,aCaller);
         fServer.OnDisconnect;
         // no Shutdown here: will be done client-side
         InterlockedIncrement(fBodyProcessed);
@@ -8319,6 +8372,8 @@ begin
   if From.fLogData<>nil then
     fLogData := pointer(fLogDataStorage);
   SetServerName(From.fServerName);
+  SetRemoteIPHeader(From.RemoteIPHeader);
+  SetRemoteConnIDHeader(From.RemoteConnIDHeader);
   fLoggingServiceName := From.fLoggingServiceName;
 end;
 
@@ -8421,9 +8476,10 @@ const
     'MOVE','COPY','PROPFIND','PROPPATCH','MKCOL','LOCK','UNLOCK','SEARCH');
 var Req: PHTTP_REQUEST;
     ReqID: HTTP_REQUEST_ID;
-    ReqBuf, RespBuf, RemoteIP: SockString;
+    ReqBuf, RespBuf, RemoteIP, RemoteConn: SockString;
     ContentRange: shortstring;
-    i: integer;
+    i, L: integer;
+    P: PHTTP_UNKNOWN_HEADER;
     flags, bytesRead, bytesSent: cardinal;
     Err: HRESULT;
     InCompressAccept: THttpSocketCompressSet;
@@ -8629,6 +8685,20 @@ begin
         InCompressAccept := ComputeContentEncoding(fCompress,pointer(InAcceptEncoding));
         Context.fUseSSL := Req^.pSslInfo<>nil;
         Context.fInHeaders := RetrieveHeaders(Req^,fRemoteIPHeaderUpper,RemoteIP);
+        // compute remote connection ID
+        L := length(fRemoteConnIDHeaderUpper);
+        if L<>0 then begin
+          P := Req^.Headers.pUnknownHeaders;
+          if P<>nil then
+          for i := 1 to Req^.Headers.UnknownHeaderCount do
+            if (P^.NameLength=L) and IdemPChar(P^.pName,Pointer(fRemoteConnIDHeaderUpper)) then begin
+              SetString(RemoteConn,p^.pRawValue,p^.RawValueLength); // need #0 end
+              R := pointer(RemoteConn);
+              Context.fConnectionID := GetNextItemUInt64(R);
+              break;
+            end else
+            inc(P);
+        end;
         // retrieve any SetAuthenticationSchemes() information
         if byte(fAuthenticationSchemes)<>0 then // set only with HTTP API 2.0
           for i := 0 to Req^.RequestInfoCount-1 do
@@ -9031,6 +9101,24 @@ begin
   if fClones<>nil then // parameter is shared by all clones
     for i := 0 to fClones.Count-1 do
       THttpApiServer(fClones.List{$ifdef FPC}^{$endif}[i]).SetMaximumAllowedContentLength(aMax);
+end;
+
+procedure THttpApiServer.SetRemoteIPHeader(const aHeader: SockString);
+var i: integer;
+begin
+  inherited SetRemoteIPHeader(aHeader);
+  if fClones<>nil then // parameter is shared by all clones
+    for i := 0 to fClones.Count-1 do
+      THttpApiServer(fClones.List{$ifdef FPC}^{$endif}[i]).SetRemoteIPHeader(aHeader);
+end;
+
+procedure THttpApiServer.SetRemoteConnIDHeader(const aHeader: SockString);
+var i: integer;
+begin
+  inherited SetRemoteConnIDHeader(aHeader);
+  if fClones<>nil then // parameter is shared by all clones
+    for i := 0 to fClones.Count-1 do
+      THttpApiServer(fClones.List{$ifdef FPC}^{$endif}[i]).SetRemoteConnIDHeader(aHeader);
 end;
 
 procedure THttpApiServer.SetLoggingServiceName(const aName: SockString);
@@ -10228,13 +10316,17 @@ end;
 
 constructor THttpRequest.Create(const aServer, aPort: SockString;
   aHttps: boolean; const aProxyName,aProxyByPass: SockString;
-  ConnectionTimeOut,SendTimeout,ReceiveTimeout: DWORD);
+  ConnectionTimeOut,SendTimeout,ReceiveTimeout: DWORD;
+  aLayer: TCrtSocketLayer);
 begin
-  fPort := GetCardinal(pointer(aPort));
-  if fPort=0 then
-    if aHttps then
-      fPort := 443 else
-      fPort := 80;
+  fLayer := aLayer;
+  if (fLayer <> cslUNIX) then begin
+    fPort := GetCardinal(pointer(aPort));
+    if fPort=0 then
+      if aHttps then
+        fPort := 443 else
+        fPort := 80;
+  end;
   fServer := aServer;
   fHttps := aHttps;
   fProxyName := aProxyName;
@@ -10255,9 +10347,9 @@ var URI: TURI;
 begin
   if not URI.From(aURI) then
     raise ECrtSocket.CreateFmt('%.Create: invalid aURI=%', [ClassName, aURI]);
-  Create(URI.Server,URI.Port,URI.Https,aProxyName,aProxyByPass,
-    ConnectionTimeOut,SendTimeout,ReceiveTimeout);
   IgnoreSSLCertificateErrors := aIgnoreSSLCertificateErrors;
+  Create(URI.Server,URI.Port,URI.Https,aProxyName,aProxyByPass,
+    ConnectionTimeOut,SendTimeout,ReceiveTimeout,URI.Layer);
 end;
 
 class function THttpRequest.InternalREST(const url,method,data,header: SockString;
@@ -10269,7 +10361,7 @@ begin
   with URI do
   if From(url) then
     try
-      with self.Create(Server,Port,Https,'','') do
+      with self.Create(Server,Port,Https,'','',0,0,0,Layer) do
       try
         IgnoreSSLCertificateErrors := aIgnoreSSLCertificateErrors;
         Request(Address,method,0,header,data,'',oh,result);
@@ -11003,7 +11095,8 @@ end;
 
 constructor TWinHTTPUpgradeable.Create(const aServer, aPort: SockString;
   aHttps: boolean; const aProxyName, aProxyByPass: SockString;
-  ConnectionTimeOut, SendTimeout, ReceiveTimeout: DWORD);
+  ConnectionTimeOut, SendTimeout, ReceiveTimeout: DWORD;
+  aLayer: TCrtSocketLayer);
 begin
   inherited;
   fSocket := nil;
@@ -11219,6 +11312,7 @@ type
     coSourceQuote          = 10133,
     coFTPAccount           = 10134,
     coCookieList           = 10135,
+    coUnixSocketPath       = 10231,
     coWriteFunction        = 20011,
     coReadFunction         = 20012,
     coProgressFunction     = 20056,
@@ -11423,7 +11517,9 @@ begin
   if not IsAvailable then
     raise ECrtSocket.CreateFmt('No available %s',[LIBCURL_DLL]);
   fHandle := curl.easy_init;
-  fRootURL := AnsiString(Format('http%s://%s:%d',[HTTPS[fHttps],fServer,fPort]));
+  if (fLayer = cslUNIX) then
+    fRootURL := 'http://localhost' else // see CURLOPT_UNIX_SOCKET_PATH doc
+    fRootURL := AnsiString(Format('http%s://%s:%d',[HTTPS[fHttps],fServer,fPort]));
 end;
 
 destructor TCurlHTTP.Destroy;
@@ -11447,6 +11543,9 @@ const CERT_PEM: SockString = 'PEM';
 var url: SockString;
 begin
   url := fRootURL+aURL;
+  //curl.easy_setopt(fHandle,coTCPNoDelay,0); // disable Nagle
+  if fLayer=cslUNIX then
+    curl.easy_setopt(fHandle,coUnixSocketPath, pointer(fServer));
   curl.easy_setopt(fHandle,coURL,pointer(url));
   if fProxyName<>'' then
     curl.easy_setopt(fHandle,coProxy,pointer(fProxyName));
@@ -11471,7 +11570,9 @@ begin
   curl.easy_setopt(fHandle,coWriteFunction,@CurlWriteRawByteString);
   curl.easy_setopt(fHandle,coHeaderFunction,@CurlWriteRawByteString);
   fIn.Method := UpperCase(method);
-  fIn.Headers := nil;
+  if fIn.Method = 'GET' then
+    fIn.Headers := nil else // disable Expect 100 continue in libcurl
+    fIn.Headers := curl.slist_append(nil,'Expect:');
   Finalize(fOut);
 end;
 

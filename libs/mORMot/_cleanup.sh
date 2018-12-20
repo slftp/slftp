@@ -30,3 +30,4 @@ find * -iname "*.json*" -type f -delete
 find * -iname "*.lpi*" -type f -delete
 find * -iname "*.dpr*" -type f -delete
 find * -iname "*.png*" -type f -delete
+find * -iname "*.bat*" -type f -delete
