@@ -82,7 +82,7 @@ function TVInfoDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, Math, configunit, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks,
+  DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks,
   http, regexpr, debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, SynDBSQLite3, SynDB;
 
 const
@@ -96,17 +96,17 @@ var
 function replaceTVShowChars(name: String; forWebFetch: boolean = false): String;
 begin
   //this is a protction!!!!  Dispatches will not end up in Disp@ches
-  name := Csere(name, ' ', '.');
-  name := Csere(name, '.and.', '.&.');
-  name := Csere(name, '.at.', '.@.');
-  name := Csere(name, '_and_', '_&_');
-  name := Csere(name, '_at_', '_@_');
-  name := Csere(name, '', Chr(39));
+  name := ReplaceText(name, ' ', '.');
+  name := ReplaceText(name, '.and.', '.&.');
+  name := ReplaceText(name, '.at.', '.@.');
+  name := ReplaceText(name, '_and_', '_&_');
+  name := ReplaceText(name, '_at_', '_@_');
+  name := ReplaceText(name, '', Chr(39));
   if forWebFetch then
   begin
-    name := Csere(name, ' ', '+');
-    name := Csere(name, '.', '+');
-    name := Csere(name, '_', '+');
+    name := ReplaceText(name, ' ', '+');
+    name := ReplaceText(name, '.', '+');
+    name := ReplaceText(name, '_', '+');
   end;
   if name[Length(name)] = '+' then
     Delete(name,Length(name),1);
@@ -916,8 +916,8 @@ begin
   Result := nil;
   showname := aRLS;
   getShowValues(aRLS, showname);
-  showname := Csere(showname, '.', ' ');
-  showname := Csere(showname, '_', ' ');
+  showname := ReplaceText(showname, '.', ' ');
+  showname := ReplaceText(showname, '_', ' ');
 
   if (showname <> '') then
   begin

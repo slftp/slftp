@@ -15,9 +15,10 @@ type
 
 implementation
 
-uses SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
-  precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
-  debugunit, RegExpr, IdGlobal;
+uses
+  SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
+  precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
+  mystrings, IdGlobal;
 
 const
   rsections = 'autodirlist';
@@ -55,8 +56,8 @@ begin
   //2009-05-11_
   releasenametofind := releasename;
   datum := Copy(releasenametofind, 1, 10);
-  datum := Csere(datum, '-', '');
-  datum := Csere(datum, '_', '');
+  datum := ReplaceText(datum, '-', '');
+  datum := ReplaceText(datum, '_', '');
   if StrToIntDef(datum, -1) <> -1 then
   begin
     releasenametofind := Copy(releasenametofind, 12, 1000);
@@ -85,7 +86,7 @@ begin
       begin
         // lolka fel van toltve helyben.  -- Lolka is charged on site.
         ss := x.Values[x.Names[i]];
-        ss := Csere(ss, '/', '_');
+        ss := ReplaceText(ss, '/', '_');
 
         if not s.Cwd(maindir, True) then
           Break;
@@ -227,7 +228,7 @@ begin
     sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-      sectiondir := todaycsere(sectiondir);
+      sectiondir := DatumIdentifierReplace(sectiondir);
 
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin

@@ -1147,7 +1147,7 @@ begin
           begin
             if (s.IsPretimeOk(rls.section, rls.pretime)) then
             begin
-              sectiondir := TodayCsere(sectiondir);
+              sectiondir := DatumIdentifierReplace(sectiondir);
 
               Result := True;
               //ps:= AddSite(s.name, sectiondir);
@@ -1166,7 +1166,7 @@ begin
         end
         else
         begin
-          sectiondir := TodayCsere(sectiondir);
+          sectiondir := DatumIdentifierReplace(sectiondir);
 
           Result := True;
           //ps:= AddSite(s.name, sectiondir);
@@ -1211,7 +1211,7 @@ begin
     sectiondir := s.sectiondir[rls.section];
     if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
     begin
-      sectiondir := TodayCsere(sectiondir);
+      sectiondir := DatumIdentifierReplace(sectiondir);
       Result := True;
       //ps:= AddSite(s.name, sectiondir);
       ps := TPazoSite.Create(self, s.Name, sectiondir);

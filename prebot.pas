@@ -706,9 +706,9 @@ begin
         Continue;
 
       precmd := s.sectionprecmd[section];
-      precmd := Csere(precmd, '<rlsname>', dir);
-      precmd := Csere(precmd, '<ripper>', ripper);
-      precmd := Csere(precmd, '<section>', sectiontype);
+      precmd := ReplaceText(precmd, '<rlsname>', dir);
+      precmd := ReplaceText(precmd, '<ripper>', ripper);
+      precmd := ReplaceText(precmd, '<section>', sectiontype);
 
       rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.predir), precmd);
       rr.wantedslot := sr.slotname;
@@ -843,15 +843,15 @@ begin
       DecimalSeparator:= '.';
       addcmd:= config.ReadString('prebot', 'cmd', '');
 {      if addcmd <> '' then begin
-        addcmd:= Csere(addcmd, '<date>', FormatDateTime('yyyy-mm-dd',Now));
-        addcmd:= Csere(addcmd, '<ripper>', ripper);
-        addcmd:= Csere(addcmd, '<rls>', dir);
-        addcmd:= Csere(addcmd, '<files>', IntToStr(osszesfajl));
-        addcmd:= Csere(addcmd, '<size>', IntToStr(osszesmeret));
+        addcmd:= ReplaceText(addcmd, '<date>', FormatDateTime('yyyy-mm-dd',Now));
+        addcmd:= ReplaceText(addcmd, '<ripper>', ripper);
+        addcmd:= ReplaceText(addcmd, '<rls>', dir);
+        addcmd:= ReplaceText(addcmd, '<files>', IntToStr(osszesfajl));
+        addcmd:= ReplaceText(addcmd, '<size>', IntToStr(osszesmeret));
         osszesmeretf:= osszesmeret;
-        addcmd:= Csere(addcmd, '<size_mb>', Format('%.1f',[osszesmeretf / 1024 / 1024]));
-        addcmd:= Csere(addcmd, '<genre>', genre);
-        addcmd:= Csere(addcmd, '<group>', group);
+        addcmd:= ReplaceText(addcmd, '<size_mb>', Format('%.1f',[osszesmeretf / 1024 / 1024]));
+        addcmd:= ReplaceText(addcmd, '<genre>', genre);
+        addcmd:= ReplaceText(addcmd, '<group>', group);
 
 //        irc_Addtext_by_key('GROUP',config.ReadString('prebot', 'nick', 'xxx'))
 //        irc_addText(config.ReadString('regpredb', 'net', 'xxx'), config.ReadString('regpredb', 'nick', 'xxx'), addcmd);
@@ -901,12 +901,12 @@ begin
       exit;
     end;
 
-    command := Csere(s.sectionprecmd[section], '<rlsname>', dir);
+    command := ReplaceText(s.sectionprecmd[section], '<rlsname>', dir);
     sectiontype := Copy(section, 4, 1000);
     if sectiontype = '' then
       sectiontype := 'MP3';
 
-    command := Csere(command, '<section>', sectiontype);
+    command := ReplaceText(command, '<section>', sectiontype);
   finally
     queue_lock.Leave;
   end;
