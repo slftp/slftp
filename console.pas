@@ -34,12 +34,14 @@ var
 
 implementation
 
-uses slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
-     Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-     kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs
-     {$IFDEF MSWINDOWS},Windows {$ENDIF};
+uses
+  slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
+  Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
+  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs
+  {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
-const section = 'console';
+const
+  section = 'console';
 
 type
   TSiteStatTask = class(TslRemoveEarlierTask)
@@ -153,7 +155,8 @@ type
     function KeyEvent(c: Char; extended: Boolean): Boolean; override;
   end;
 
-var app: TMySlApp;
+var
+  app: TMySlApp;
   add_time_stamp: Boolean;
 
 procedure ConsoleInit;
@@ -673,7 +676,7 @@ ujra:
   DebugInit;
 
   slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-  vl.Caption := GetConsoleTitle;
+  vl.Caption := GetSLConsoleTitle;
 
   if not ReadSites then
   begin
