@@ -16169,15 +16169,15 @@ _des_cblock = DES_cblock
     read_mac_secret : array [0..EVP_MAX_MD_SIZE -1] of TIdAnsiChar;
     write_sequence : array [0..7] of TIdAnsiChar;
     write_mac_secret_size : TIdC_INT;
-    write_mac_secret : array [0..EVP_MAX_MD_SIZE] of TIdAnsiChar;
+    write_mac_secret : array [0..EVP_MAX_MD_SIZE - 1] of TIdAnsiChar;
     server_random : array [0..SSL3_RANDOM_SIZE - 1] of TIdAnsiChar;
     client_random : array [0..SSL3_RANDOM_SIZE -1] of TIdAnsiChar;
     // flags for countermeasure against known-IV weakness
     need_empty_fragments : TIdC_INT;
     empty_fragment_done : TIdC_INT;
 
-  	//* The value of 'extra' when the buffers were initialized */
-	  init_extra : TIdC_INT;
+    //* The value of 'extra' when the buffers were initialized */
+    init_extra : TIdC_INT;
     rbuf : PSSL3_BUFFER;    //* read IO goes into here */
     wbuf : PSSL3_BUFFER;	//* write IO goes into here */
     rrec : PSSL3_RECORD;    //* each decoded record goes in here */
@@ -16196,10 +16196,10 @@ _des_cblock = DES_cblock
     wpend_buf : PByte;
     // used during startup, digest all incoming/outgoing packets */
     handshake_buffer : PBIO;
-	//* When set of handshake digests is determined, buffer is hashed
-	// * and freed and MD_CTX-es for all required digests are stored in
-	// * this array */
-	  handshake_dgst : PPEVP_MD_CTX;
+    //* When set of handshake digests is determined, buffer is hashed
+    // * and freed and MD_CTX-es for all required digests are stored in
+    // * this array */
+    handshake_dgst : PPEVP_MD_CTX;
 
     finish_dgst2 : PEVP_MD_CTX;
     // this is set whenerver we see a change_cipher_spec message
@@ -16209,8 +16209,8 @@ _des_cblock = DES_cblock
     fatal_alert : TIdC_INT;
     // we allow one fatal and one warning alert to be outstanding,
     // send close alert via the warning alert */
-     alert_dispatch : TIdC_INT;
-     send_alert : array [0..1] of TIdAnsiChar;
+    alert_dispatch : TIdC_INT;
+    send_alert : array [0..1] of TIdAnsiChar;
     // This flag is set when we should renegotiate ASAP, basically when
     // there is no more data in the read or write buffers
     renegotiate : TIdC_INT;
@@ -16218,13 +16218,13 @@ _des_cblock = DES_cblock
     num_renegotiations : TIdC_INT;
     in_read_app_data : TIdC_INT;
 
-	//* Opaque PRF input as used for the current handshake.
-	// * These fields are used only if TLSEXT_TYPE_opaque_prf_input is defined
-	// * (otherwise, they are merely present to improve binary compatibility) */
-	  client_opaque_prf_input : Pointer;
-  	client_opaque_prf_input_len : size_t;
-	  server_opaque_prf_input : Pointer;
-	  server_opaque_prf_input_len : size_t;
+    //* Opaque PRF input as used for the current handshake.
+    // * These fields are used only if TLSEXT_TYPE_opaque_prf_input is defined
+    // * (otherwise, they are merely present to improve binary compatibility) */
+    client_opaque_prf_input : Pointer;
+    client_opaque_prf_input_len : size_t;
+    server_opaque_prf_input : Pointer;
+    server_opaque_prf_input_len : size_t;
     // actually only needs to be 16+20
     tmp_cert_verify_md: array [0..(EVP_MAX_MD_SIZE*2)-1] of TIdAnsiChar;
     // actually only need to be 16+20 for SSLv3 and 12 for TLS
@@ -16265,14 +16265,14 @@ _des_cblock = DES_cblock
     tmp_cert_request : TIdC_INT;
 
     //* Connection binding to prevent renegotiation attacks */
-        previous_client_finished : array [0..EVP_MAX_MD_SIZE - 1] of TIdAnsiChar;
-        previous_client_finished_len : Byte;
-        previous_server_finished : array [0..EVP_MAX_MD_SIZE - 1] of TIdAnsiChar;
-        previous_server_finished_len : Byte;
-        send_connection_binding : TIdC_INT; //* TODOEKR */
+    previous_client_finished : array [0..EVP_MAX_MD_SIZE - 1] of TIdAnsiChar;
+    previous_client_finished_len : Byte;
+    previous_server_finished : array [0..EVP_MAX_MD_SIZE - 1] of TIdAnsiChar;
+    previous_server_finished_len : Byte;
+    send_connection_binding : TIdC_INT; //* TODOEKR */
 {$ifndef OPENSSL_NO_NEXTPROTONEG}
-	//* Set if we saw the Next Protocol Negotiation extension from our peer. */
-	  next_proto_neg_seen : TIdC_INT;
+    //* Set if we saw the Next Protocol Negotiation extension from our peer. */
+    next_proto_neg_seen : TIdC_INT;
 {$endif}
   end;
   {$ENDIF}
@@ -16740,6 +16740,8 @@ var
   {$EXTERNALSYM _PEM_read_bio_NETSCAPE_CERT_SEQUENCE}
   _PEM_read_bio_NETSCAPE_CERT_SEQUENCE : function(bp : PBIO; x : PPNETSCAPE_CERT_SEQUENCE;
     cb : ppem_password_cb; u : Pointer) : PNETSCAPE_CERT_SEQUENCE cdecl = nil;
+  {$EXTERNALSYM _PEM_read_bio_PUBKEY}
+  _PEM_read_bio_PUBKEY : function(bp : PBIO; x : PPEVP_PKEY; cb : ppem_password_cb; u : Pointer) : PEVP_PKEY cdecl = nil;
   {$EXTERNALSYM _PEM_write_bio_X509}
   _PEM_write_bio_X509 : function(b: PBIO; x: PX509): TIdC_INT cdecl = nil;
   {$EXTERNALSYM _PEM_write_bio_X509_REQ}
@@ -16769,6 +16771,8 @@ var
   {$EXTERNALSYM _PEM_write_bio_PKCS8PrivateKey}
   _PEM_write_bio_PKCS8PrivateKey : function(bp: PBIO; key: PEVP_PKEY; enc: PEVP_CIPHER;
       kstr: PIdAnsiChar; klen: TIdC_INT; cb: ppem_password_cb; u: Pointer): TIdC_INT cdecl = nil;
+  {$EXTERNALSYM _PEM_write_bio_PUBKEY}
+  _PEM_write_bio_PUBKEY : function(bp: PBIO; x: PEVP_PKEY): TIdC_INT cdecl = nil;
     {$ENDIF}
   {$ELSE}
     {$IFNDEF OPENSSL_NO_BIO}
@@ -16781,7 +16785,7 @@ var
       x: PPointer; cb: ppem_password_cb; u:Pointer): Pointer cdecl = nil;
     {$ENDIF}
   {$ENDIF}
-    {$EXTERNALSYM PEM_X509_INFO_read_bio}
+  {$EXTERNALSYM PEM_X509_INFO_read_bio}
   PEM_X509_INFO_read_bio : function (bp : PBIO; sk : PSTACK_OF_X509_INFO;
     cb : ppem_password_cb; u : Pointer) : PSTACK_OF_X509_INFO cdecl = nil;
   {$EXTERNALSYM PEM_read_bio_X509_AUX}
@@ -16919,6 +16923,15 @@ var
   EVP_MD_CTX_init : procedure(ctx : PEVP_MD_CTX) cdecl = nil;
   {$EXTERNALSYM EVP_MD_CTX_cleanup}
   EVP_MD_CTX_cleanup : function(ctx : PEVP_MD_CTX) : TIdC_Int cdecl = nil;
+  {$EXTERNALSYM EVP_MD_CTX_create}
+  EVP_MD_CTX_create: function : PEVP_MD_CTX cdecl = nil;
+  {$EXTERNALSYM EVP_MD_CTX_destroy}
+  EVP_MD_CTX_destroy : procedure(ctx : PEVP_MD_CTX) cdecl = nil;
+  {$EXTERNALSYM EVP_MD_CTX_copy}
+  EVP_MD_CTX_copy : function(_out : PEVP_MD_CTX; _in: PEVP_MD_CTX): TIdC_INT cdecl = nil;
+  {$EXTERNALSYM EVP_MD_CTX_copy_ex}
+  EVP_MD_CTX_copy_ex : function (_out : PEVP_MD_CTX; const _in: PEVP_MD_CTX): TIdC_INT cdecl = nil;
+
   {$IFNDEF OPENSSL_NO_DES}
   {$EXTERNALSYM EVP_des_ede3_cbc}
   EVP_des_ede3_cbc : function: PEVP_CIPHER cdecl = nil;
@@ -17036,6 +17049,10 @@ var
   i2d_NETSCAPE_CERT_SEQUENCE : function(x: PNETSCAPE_CERT_SEQUENCE; buf: PPByte): TIdC_INT cdecl = nil;
   {$EXTERNALSYM d2i_NETSCAPE_CERT_SEQUENCE}
   d2i_NETSCAPE_CERT_SEQUENCE : function(pr : PNETSCAPE_CERT_SEQUENCE; _in : PPByte; len : TIdC_INT): PNETSCAPE_CERT_SEQUENCE cdecl = nil;
+  {$EXTERNALSYM i2d_PUBKEY}
+  i2d_PUBKEY : function(x: PEVP_PKEY; buf: PPByte): TIdC_INT cdecl = nil;
+  {$EXTERNALSYM d2i_PUBKEY}
+  d2i_PUBKEY : function(pr : PEVP_PKEY; _in : PPByte; len : TIdC_INT): PEVP_PKEY cdecl = nil;
 
   {$IFNDEF OPENSSL_NO_BIO}
   {$EXTERNALSYM d2i_X509_bio}
@@ -18593,7 +18610,8 @@ function PEM_read_bio_DSAparams(bp : PBIO; x : PPDSA; cb : ppem_password_cb; u :
  {$EXTERNALSYM PEM_read_bio_NETSCAPE_CERT_SEQUENCE}
 function PEM_read_bio_NETSCAPE_CERT_SEQUENCE(bp : PBIO; x : PPNETSCAPE_CERT_SEQUENCE;
   cb : ppem_password_cb; u : Pointer) : PNETSCAPE_CERT_SEQUENCE;
-
+ {$EXTERNALSYM PEM_read_bio_PUBKEY}
+function PEM_read_bio_PUBKEY(bp : PBIO; x : PPEVP_PKEY; cb : ppem_password_cb; u : Pointer) : PEVP_PKEY;
  {$EXTERNALSYM PEM_write_bio_X509}
 function PEM_write_bio_X509(bp: PBIO; x: PX509): TIdC_INT;
  {$EXTERNALSYM PEM_write_bio_X509_REQ}
@@ -18608,17 +18626,19 @@ function PEM_write_bio_RSAPublicKey(bp : PBIO; x : PRSA) : TIdC_INT;
  {$EXTERNALSYM PEM_write_bio_DSAPrivateKey}
 function PEM_write_bio_DSAPrivateKey( bp : PBIO; x : PDSA; const enc : PEVP_CIPHER;
   kstr : PIdAnsiChar; klen : TIdC_INT; cb : Ppem_password_cb; u : Pointer) : TIdC_INT;
- {$EXTERNALSYM PEM_write_bio_PrivateKey}  
+ {$EXTERNALSYM PEM_write_bio_PrivateKey}
 function PEM_write_bio_PrivateKey(bp : PBIO; x : PEVP_PKEY; const enc : PEVP_CIPHER;
   kstr : PIdAnsiChar; klen : TIdC_INT; cb : Ppem_password_cb; u : Pointer) : TIdC_INT;
  {$EXTERNALSYM PEM_write_bio_PKCS7}
 function PEM_write_bio_PKCS7(bp : PBIO; x : PPKCS7) : TIdC_INT;
- {$EXTERNALSYM PEM_write_bio_DHparams} 
+ {$EXTERNALSYM PEM_write_bio_DHparams}
 function PEM_write_bio_DHparams(bp : PBIO; x : PDH): TIdC_INT;
- {$EXTERNALSYM PEM_write_bio_DSAparams} 
+ {$EXTERNALSYM PEM_write_bio_DSAparams}
 function PEM_write_bio_DSAparams(bp : PBIO; x : PDSA) : TIdC_INT;
- {$EXTERNALSYM PEM_write_bio_NETSCAPE_CERT_SEQUENCE} 
+ {$EXTERNALSYM PEM_write_bio_NETSCAPE_CERT_SEQUENCE}
 function PEM_write_bio_NETSCAPE_CERT_SEQUENCE(bp : PBIO; x : PDSA) : TIdC_INT;
+ {$EXTERNALSYM PEM_write_bio_PUBKEY}
+function PEM_write_bio_PUBKEY(bp : PBIO; x : PEVP_PKEY) : TIdC_INT;
 
  {$EXTERNALSYM OPENSSL_malloc} 
 function OPENSSL_malloc(aSize:TIdC_INT):Pointer;
@@ -21735,6 +21755,8 @@ them in case we use them later.}
   {CH fn_d2i_NETSCAPE_SPKAC = 'd2i_NETSCAPE_SPKAC'; }  {Do not localize}
    fn_i2d_NETSCAPE_CERT_SEQUENCE = 'i2d_NETSCAPE_CERT_SEQUENCE';   {Do not localize}
    fn_d2i_NETSCAPE_CERT_SEQUENCE = 'd2i_NETSCAPE_CERT_SEQUENCE';   {Do not localize}
+   fn_i2d_PUBKEY = 'i2d_PUBKEY';   {Do not localize}
+   fn_d2i_PUBKEY = 'd2i_PUBKEY';   {Do not localize}
 
   {CH fn_NETSCAPE_CERT_SEQUENCE_new = 'NETSCAPE_CERT_SEQUENCE_new'; }  {Do not localize}
   {CH fn_NETSCAPE_CERT_SEQUENCE_free = 'NETSCAPE_CERT_SEQUENCE_free'; }  {Do not localize}
@@ -21913,6 +21935,8 @@ them in case we use them later.}
   fn_PEM_read_bio_PrivateKey = 'PEM_read_bio_PrivateKey';  {Do not localize}
   fn_PEM_write_bio_PrivateKey = 'PEM_write_bio_PrivateKey';   {Do not localize}
   fn_PEM_write_bio_PKCS8PrivateKey = 'PEM_write_bio_PKCS8PrivateKey';  {Do not localize}
+  fn_PEM_read_bio_PUBKEY = 'PEM_read_bio_PUBKEY';  {Do not localize}
+  fn_PEM_write_bio_PUBKEY = 'PEM_write_bio_PUBKEY';  {Do not localize}
     {$ENDIF}
   {$ENDIF}
   fn_PEM_read_bio_X509_AUX = 'PEM_read_bio_X509_AUX';  {Do not localize}
@@ -23049,6 +23073,8 @@ we have to handle both cases.
   @d2i_DHparams := LoadFunctionCLib(fn_d2i_DHparams);  //Used by Indy
   @i2d_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_i2d_NETSCAPE_CERT_SEQUENCE,False);
   @d2i_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_i2d_NETSCAPE_CERT_SEQUENCE);  //Indy by Indy
+  @i2d_PUBKEY := LoadFunctionCLib(fn_i2d_PUBKEY,False);
+  @d2i_PUBKEY := LoadFunctionCLib(fn_i2d_PUBKEY,False);
 
   //X509
   @X509_get_default_cert_file := LoadFunctionCLib(fn_X509_get_default_cert_file); //Used by Indy
@@ -23084,6 +23110,7 @@ we have to handle both cases.
   @_PEM_read_bio_DHparams := LoadFunctionCLib(fn_PEM_read_bio_DHparams, False);
   @_PEM_read_bio_DSAparams := LoadFunctionCLib(fn_PEM_read_bio_DSAparams, False);
   @_PEM_read_bio_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_PEM_read_bio_NETSCAPE_CERT_SEQUENCE,False);
+  @_PEM_read_bio_PUBKEY := LoadFunctionCLib(fn_PEM_read_bio_PUBKEY,False);
   @_PEM_write_bio_X509 := LoadFunctionCLib(fn_PEM_write_bio_X509,False);
   @_PEM_write_bio_X509_REQ := LoadFunctionCLib(fn_PEM_write_bio_X509_REQ,False);
   @_PEM_write_bio_X509_CRL := LoadFunctionCLib( fn_PEM_write_bio_X509_CRL,False);
@@ -23096,6 +23123,7 @@ we have to handle both cases.
   @_PEM_write_bio_DSAparams := LoadFunctionCLib(fn_PEM_write_bio_DSAparams,False);
   @_PEM_write_bio_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_PEM_write_bio_NETSCAPE_CERT_SEQUENCE,False);
   @_PEM_write_bio_PKCS8PrivateKey := LoadFunctionCLib(fn_PEM_write_bio_PKCS8PrivateKey,False);
+  @_PEM_write_bio_PUBKEY := LoadFunctionCLib(fn_PEM_write_bio_PUBKEY,False);
   {$ELSE}
   @PEM_ASN1_write_bio := LoadFunctionCLib(fn_PEM_ASN1_write_bio,False);
   @PEM_ASN1_read_bio := LoadFunctionCLib(fn_PEM_ASN1_read_bio,False);
@@ -23284,19 +23312,25 @@ we have to handle both cases.
   {$endif}
 
   @EVP_MD_CTX_init := LoadFunctionCLib(fn_EVP_MD_CTX_init);
+  @EVP_MD_CTX_cleanup := LoadFunctionCLib(fn_EVP_MD_CTX_cleanup);
+  @EVP_MD_CTX_create := LoadFunctionCLib(fn_EVP_MD_CTX_create, False);
+  @EVP_MD_CTX_destroy := LoadFunctionCLib(fn_EVP_MD_CTX_destroy, False);
+  @EVP_MD_CTX_copy := LoadFunctionCLib(fn_EVP_MD_CTX_copy, False);
+  @EVP_MD_CTX_copy_ex := LoadFunctionCLib(fn_EVP_MD_CTX_copy_ex, False);
+  //@EVP_MD_CTX_set_flags := LoadFunctionCLib(fn_EVP_MD_CTX_set_flags, False);
+  //@EVP_MD_CTX_clear_flags := LoadFunctionCLib(fn_EVP_MD_CTX_clear_flags, False);
+  //@EVP_MD_CTX_test_flags := LoadFunctionCLib(fn_EVP_MD_CTX_test_flags, False);
+
   @EVP_DigestInit := LoadFunctionCLib(fn_EVP_DigestInit);
   @EVP_DigestInit_ex := LoadFunctionCLib(fn_EVP_DigestInit_ex);
   @EVP_DigestUpdate := LoadFunctionCLib(fn_EVP_DigestUpdate);
   @EVP_DigestFinal_ex := LoadFunctionCLib(fn_EVP_DigestFinal_ex);
-
 
   @EVP_EncryptInit := LoadFunctionCLib(fn_EVP_EncryptInit,False);
   @EVP_EncryptInit_ex := LoadFunctionCLib(fn_EVP_EncryptInit_ex,False);
   @EVP_EncryptUpdate := LoadFunctionCLib(fn_EVP_EncryptUpdate);
   @EVP_EncryptFinal_ex := LoadFunctionCLib(fn_EVP_EncryptFinal_ex,False);
   @EVP_EncryptFinal := LoadFunctionCLib(fn_EVP_EncryptFinal,False);
-
-
 
   @EVP_DecryptInit := LoadFunctionCLib(fn_EVP_DecryptInit,False);
   @EVP_DecryptInit_ex := LoadFunctionCLib(fn_EVP_DecryptInit_ex,False);
@@ -23320,7 +23354,6 @@ we have to handle both cases.
   @EVP_SealFinal := LoadFunctionCLib(fn_EVP_SealFinal,False);
 
   @EVP_EncodeInit := LoadFunctionCLib(fn_EVP_EncodeInit,False);
-
   @EVP_EncodeUpdate := LoadFunctionCLib(fn_EVP_EncodeUpdate,False);
   @EVP_EncodeFinal := LoadFunctionCLib(fn_EVP_EncodeFinal,False);
   @EVP_EncodeBlock := LoadFunctionCLib(fn_EVP_EncodeBlock,False);
@@ -23330,7 +23363,6 @@ we have to handle both cases.
   @EVP_DecodeBlock:= LoadFunctionCLib(fn_EVP_DecodeBlock,False);
 
   @EVP_CIPHER_CTX_init:= LoadFunctionCLib(fn_EVP_CIPHER_CTX_init,False);
-
   @EVP_CIPHER_CTX_cleanup:= LoadFunctionCLib(fn_EVP_CIPHER_CTX_cleanup,False);
   @EVP_CIPHER_CTX_new:= LoadFunctionCLib(fn_EVP_CIPHER_CTX_new,False);
   @EVP_CIPHER_CTX_free:= LoadFunctionCLib(fn_EVP_CIPHER_CTX_free,False);
@@ -23346,8 +23378,6 @@ we have to handle both cases.
   @BIO_f_reliable :=LoadFunctionCLib(fn_BIO_f_reliable,False);
   @BIO_set_cipher :=LoadFunctionCLib(fn_BIO_set_cipher,False);
 {$endif}
-
-  @EVP_MD_CTX_cleanup := LoadFunctionCLib(fn_EVP_MD_CTX_cleanup,False);
 
   @EVP_PKEY_type := LoadFunctionCLib(fn_EVP_PKEY_type);
   @EVP_PKEY_new := LoadFunctionCLib(fn_EVP_PKEY_new);
@@ -23808,6 +23838,8 @@ begin
   @d2i_DHparams := nil;
   @i2d_NETSCAPE_CERT_SEQUENCE := nil;
   @d2i_NETSCAPE_CERT_SEQUENCE := nil;
+  @i2d_PUBKEY := nil;
+  @d2i_PUBKEY := nil;
   //X509
   @X509_get_default_cert_file := nil;
   @X509_get_default_cert_file_env := nil;
@@ -23838,6 +23870,7 @@ begin
   @_PEM_read_bio_DHparams := nil;
   @_PEM_read_bio_DSAparams := nil;
   @_PEM_read_bio_NETSCAPE_CERT_SEQUENCE := nil;
+  @_PEM_read_bio_PUBKEY := nil;
   @_PEM_write_bio_X509 := nil;
   @_PEM_write_bio_X509_REQ := nil;
   @_PEM_write_bio_X509_CRL := nil;
@@ -23849,9 +23882,8 @@ begin
   @_PEM_write_bio_DHparams := nil;
   @_PEM_write_bio_DSAparams := nil;
   @_PEM_write_bio_NETSCAPE_CERT_SEQUENCE := nil;
-
   @_PEM_write_bio_PKCS8PrivateKey := nil;
-
+  @_PEM_write_bio_PUBKEY := nil;
   {$ELSE}
   @PEM_ASN1_write_bio := nil;
   @PEM_ASN1_read_bio := nil;
@@ -24041,6 +24073,15 @@ begin
   {$endif}
 
   @EVP_MD_CTX_init := nil;
+  @EVP_MD_CTX_cleanup := nil;
+  @EVP_MD_CTX_create := nil;
+  @EVP_MD_CTX_destroy := nil;
+  @EVP_MD_CTX_copy := nil;
+  @EVP_MD_CTX_copy_ex := nil;
+  //@EVP_MD_CTX_set_flags := nil;
+  //@EVP_MD_CTX_clear_flags := nil;
+  //@EVP_MD_CTX_test_flags := nil;
+
   @EVP_DigestInit := nil;
   @EVP_DigestInit_ex := nil;
   @EVP_DigestUpdate := nil;
@@ -24231,7 +24272,6 @@ begin
   BIO_f_reliable := nil;
   BIO_set_cipher := nil;
 {$endif}
-  @EVP_MD_CTX_cleanup := nil;
   @EVP_PKEY_type := nil;
   @EVP_PKEY_new := nil;
   @EVP_PKEY_free := nil;
@@ -25729,6 +25769,11 @@ begin
   Result := PEM_ASN1_read_bio( d2i_of_void(d2i_NETSCAPE_CERT_SEQUENCE),PEM_STRING_X509,bp,Pointer(x),cb, u);
 end;
 
+function PEM_read_bio_PUBKEY(bp : PBIO; x: PPEVP_PKEY; cb: ppem_password_cb; u: Pointer): PEVP_PKEY;
+begin
+  Result := PEM_ASN1_read_bio( d2i_of_void(d2i_PUBKEY),PEM_STRING_PUBLIC,bp,Pointer(x),cb, u);
+end;
+
 function PEM_write_bio_X509(bp: PBIO; x: PX509): TIdC_INT;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
 begin
@@ -25826,6 +25871,14 @@ begin
   Assert(Result<>0);
 end;
 
+function PEM_write_bio_PUBKEY(bp: PBIO; x : PEVP_PKEY): TIdC_INT;
+begin
+  Assert(bp<>nil);
+  Assert(x<>nil);
+  Result := PEM_ASN1_write_bio(i2d_of_void(i2d_PUBKEY), PEM_STRING_PUBLIC, bp, PIdAnsiChar(x), nil, nil, 0, nil, nil);
+  Assert(Result<>0);
+end;
+
 {$ELSE}
 
 function PEM_read_bio_X509(bp: PBIO; x: PPX509; cb: ppem_password_cb; u: Pointer): PX509;
@@ -25893,6 +25946,12 @@ function PEM_read_bio_NETSCAPE_CERT_SEQUENCE(bp : PBIO; x : PPNETSCAPE_CERT_SEQU
 {$IFDEF USE_INLINE} inline; {$ENDIF}
 begin
   Result := _PEM_read_bio_NETSCAPE_CERT_SEQUENCE(bp, x, cb, u);
+end;
+
+function PEM_read_bio_PUBKEY(bp : PBIO; x : PPEVP_PKEY; cb : ppem_password_cb; u : Pointer) : PEVP_PKEY;
+{$IFDEF USE_INLINE} inline; {$ENDIF}
+begin
+  Result := _PEM_read_bio_PUBKEY(bp, x, cb, u);
 end;
 
 function PEM_write_bio_X509(bp: PBIO; x: PX509): TIdC_INT;
@@ -25963,6 +26022,13 @@ function PEM_write_bio_NETSCAPE_CERT_SEQUENCE(bp : PBIO; x : PDSA) : TIdC_INT;
 begin
   Result := _PEM_write_bio_NETSCAPE_CERT_SEQUENCE(bp, x);
 end;
+
+function PEM_write_bio_PUBKEY(bp : PBIO; x : PEVP_PKEY): TIdC_INT;
+{$IFDEF USE_INLINE} inline; {$ENDIF}
+begin
+  Result := _PEM_write_bio_PUBKEY(bp, x);
+end;
+
 {$ENDIF}
 
 function OPENSSL_malloc(aSize:TIdC_INT):Pointer;
