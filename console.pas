@@ -559,7 +559,7 @@ begin
 
   OnExit := MyOnexit;
   OnShow := MyOnShow;
-  vl := TslLabel.Create(Get_VersionString(ParamStr(0)), menubartop);
+  vl := TslLabel.Create(GetFullVersionString, menubartop);
 
   m := TslMutualVisibilityControl.Create(self);
 
@@ -673,7 +673,7 @@ ujra:
   DebugInit;
 
   slscreen.SetResolution(config.ReadInteger(section, 'width', 80), config.ReadInteger(section, 'height', 25));
-  vl.Caption := cmod_VersionString;
+  vl.Caption := GetConsoleTitle;
 
   if not ReadSites then
   begin
@@ -703,7 +703,7 @@ ujra:
   cw.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
   cw.commandedit.maxcommands := config.ReadInteger(section, 'history_maxlines', 100);
 
-  irc_Addtext('', '', '%s started', [Get_VersionString(ParamStr(0))]);
+  irc_Addtext('', '', '%s started', [GetFullVersionString]);
 
   Main_Run;
   main_timer.Interval := 100;

@@ -150,7 +150,7 @@ begin
           mp3genre:= mp3genres[i];
           if i > 0 then
           begin
-            ss:= Csere(mp3genres[i-1], ' ', '');
+            ss:= ReplaceText(mp3genres[i-1], ' ', '');
             if (0 = AnsiCompareText(ss, mp3genre)) then
             begin
               mp3genre:= mp3genres[i-1];

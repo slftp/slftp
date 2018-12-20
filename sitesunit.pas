@@ -1167,7 +1167,7 @@ begin
 
   if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
   begin
-    if (not Send('CLNT %s', [Get_VersionString(ParamStr(0))])) then
+    if (not Send('CLNT %s', [GetFullVersionString])) then
       exit;
     if not Read('CLNT') then
       exit;

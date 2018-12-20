@@ -353,7 +353,7 @@ begin
 
   }
 
-    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
+    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(ReplaceText(mp3genres[i], ' ', ''), text)) then
     begin
       Result := mp3genres[i];
       break;
@@ -373,7 +373,7 @@ begin
     for i := 0 to replacefrom.Count - 1 do
     begin
       MyDebug('ProcessDoReplace %s to %s', [replacefrom[i], replaceto[i]]);
-      rep_s := Csere(rep_s, replacefrom[i], replaceto[i]);
+      rep_s := ReplaceText(rep_s, replacefrom[i], replaceto[i]);
     end;
   end
   else
@@ -589,9 +589,9 @@ begin
 
 
       // do the [replace] from slftp.precatcher
-      s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
+      s := ReplaceText(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
       s := ProcessDoReplace(s);
-      s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
+      s := ReplaceText(s, '${RELEASENAMEPLACEHOLDER}$', rls);
       ts_data.DelimitedText := s;
 
       MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
@@ -891,7 +891,7 @@ begin
   else if (SubString(s, '=', 1) = 'replaceto') then
   begin
     replacetoline := trim(SubString(s, '=', 2));
-    replacetoline := Csere(replacetoline, '[:space:]', ' ');
+    replacetoline := ReplaceText(replacetoline, '[:space:]', ' ');
     db := Count(';', replacefromline);
     for i := 1 to db + 1 do
     begin

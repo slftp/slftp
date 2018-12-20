@@ -893,7 +893,7 @@ begin
       end
       else if ctcp_event = 'VERSION' then
       begin
-        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s%s', [nick, #1, Get_VersionOnlyString, #1]));
+        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s%s', [nick, #1, GetVersionOnlyString, #1]));
       end
       else if ctcp_event = 'TIME' then
       begin

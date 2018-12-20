@@ -653,7 +653,7 @@ uses sltcp, SysUtils, SyncObjs, Contnrs, DateUtils, Math, versioninfo, knowngrou
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
   taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-  RegExpr, mslproxys, http, strUtils, inifiles, rcmdline,
+  RegExpr, mslproxys, http, StrUtils, inifiles, rcmdline,
   backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers, IdGlobal;
@@ -1417,7 +1417,7 @@ begin
     exit;
   end;
 
-  sectiondir := todaycsere(sectiondir);
+  sectiondir := DatumIdentifierReplace(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, MyIncludeTrailingSlash(sectiondir) + dir);
   try
@@ -1475,7 +1475,7 @@ begin
     exit;
   end;
 
-  sectiondir := todaycsere(sectiondir);
+  sectiondir := DatumIdentifierReplace(sectiondir);
 
   d := DirlistB(Netname, Channel, sitename, sectiondir);
   try
@@ -5506,9 +5506,9 @@ begin
         //s := trim(s);
         if s <> '' then
         begin
-          s := Csere(s, '<prefix>', irccmdprefix);
-          s := Csere(s, '<cmdprefix>', irccmdprefix);
-          s := Csere(s, '<cmd>', irccmdprefix + filename);
+          s := ReplaceText(s, '<prefix>', irccmdprefix);
+          s := ReplaceText(s, '<cmdprefix>', irccmdprefix);
+          s := ReplaceText(s, '<cmd>', irccmdprefix + filename);
           irc_addtext(Netname, Channel, s);
         end;
       end;
@@ -5645,9 +5645,9 @@ begin
           s := trim(s);
           if s <> '' then
           begin
-            s := Csere(s, '<prefix>', irccmdprefix);
-            s := Csere(s, '<cmdprefix>', irccmdprefix);
-            s := Csere(s, '<cmd>', irccmdprefix + params);
+            s := ReplaceText(s, '<prefix>', irccmdprefix);
+            s := ReplaceText(s, '<cmdprefix>', irccmdprefix);
+            s := ReplaceText(s, '<cmd>', irccmdprefix + params);
             irc_addtext(Netname, Channel, s);
           end;
         end;
@@ -8602,8 +8602,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   d := 0;
   sectionfilter := '';
@@ -8661,8 +8661,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   d := 0;
   sectionfilter := '';
@@ -8723,8 +8723,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   d := 0;
   sectionfilter := '';
@@ -8787,8 +8787,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   d := 0;
   sectionfilter := '';
@@ -8846,8 +8846,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   sitename := UpperCase(SubString(params, ' ', 1));
   sitefilter := ' AND sitename like ''' + sitename + ''' ' + #13#10;
@@ -8909,8 +8909,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   d := 0;
   sectionfilter := '';
@@ -8968,8 +8968,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   sitename := UpperCase(SubString(params, ' ', 1));
   sitefilter := ' AND sitename like ''' + sitename + ''' ' + #13#10;
@@ -9032,8 +9032,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   groupname := UpperCase(SubString(params, ' ', 1));
   groupfilter := ' AND groupname like ''' + groupname + ''' ' + #13#10;
@@ -9097,8 +9097,8 @@ var
   d: integer;
 begin
   // stupid and safe anti sql injection
-  params := Csere(params, '"', '');
-  params := Csere(params, '''', '');
+  params := ReplaceText(params, '"', '');
+  params := ReplaceText(params, '''', '');
 
   groupname := UpperCase(SubString(params, ' ', 1));
   groupfilter := ' AND groupname like ''' + groupname + ''' ' + #13#10;
@@ -11378,7 +11378,7 @@ begin
     {$ENDIF}
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [Get_VersionString, cpuversion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, cpuversion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;

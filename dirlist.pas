@@ -1141,7 +1141,7 @@ function DirListModSorter(Item1, Item2: Pointer): Integer;
 var i1, i2: TDirlistEntry;
 begin
   // compare: -1 bekenhagyas, jo a sorrend     ~ good order
-  // compare:  1 csere
+  // compare:  1 exchange
   i1 := TDirlistEntry(Item1);
   i2 := TDirlistEntry(Item2);
 
@@ -1813,9 +1813,9 @@ var
   i: Integer;
 begin
 
-  s := Csere(filenamelc, ' ', '');
-  s := Csere(s, '_', '');
-  s := Csere(s, '-', '');
+  s := ReplaceText(filenamelc, ' ', '');
+  s := ReplaceText(s, '_', '');
+  s := ReplaceText(s, '-', '');
 
   for i := 1 to 4 do
   begin

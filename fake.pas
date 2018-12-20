@@ -310,9 +310,9 @@ begin
   end;
 
   s := LowerCase(r.rlsname);
-  s := Csere(s, '3', 'e');
-  s := Csere(s, '1', 'i');
-  s := Csere(s, '4', 'a');
+  s := ReplaceText(s, '3', 'e');
+  s := ReplaceText(s, '1', 'i');
+  s := ReplaceText(s, '4', 'a');
 
   //kiszedjuk ismetlodo botuket
   //Extraction is repeated botuket <-- wtf is 'botuket'?

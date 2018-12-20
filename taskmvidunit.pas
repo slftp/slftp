@@ -119,7 +119,7 @@ begin
 
   while(true) do
   begin
-    s:= Csere(Result, '  ', ' ');
+    s:= ReplaceText(Result, '  ', ' ');
     if s = Result then Break;
     Result:= s;
   end;

@@ -14,7 +14,7 @@ type TAutoNukeTask = class(TTask)
 implementation
 
 uses
-  Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings,
+  Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, StrUtils,
   dateutils, dirlist, SysUtils, irc, debugunit, nuke;
 
 const
@@ -95,10 +95,10 @@ TryAgain:
       ss := s.site.sectiondir[n.section];
       if ss <> '' then
       begin
-        ss := Csere(ss, '<yyyy>', n.yyyy);
-        ss := Csere(ss, '<yy>', n.yy);
-        ss := Csere(ss, '<mm>', n.mm);
-        ss := Csere(ss, '<dd>', n.dd);
+        ss := ReplaceText(ss, '<yyyy>', n.yyyy);
+        ss := ReplaceText(ss, '<yy>', n.yy);
+        ss := ReplaceText(ss, '<mm>', n.mm);
+        ss := ReplaceText(ss, '<dd>', n.dd);
         if s.Cwd(ss, True) then
         begin
           if n.multiplier >= 0 then

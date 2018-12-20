@@ -367,11 +367,11 @@ var
   x: TStringList;
   g, s: String;
 begin
-  s := Csere(rlz, '(', '');
-  s := Csere(s, ')', '');
-  s := Csere(s, '.', ' ');
-  s := Csere(s, '-', ' ');
-  s := Csere(s, '_', ' ');
+  s := ReplaceText(rlz, '(', '');
+  s := ReplaceText(s, ')', '');
+  s := ReplaceText(s, '.', ' ');
+  s := ReplaceText(s, '-', ' ');
+  s := ReplaceText(s, '_', ' ');
 
   x := TStringList.Create;
   try
@@ -385,7 +385,7 @@ begin
     x.Free;
   end;
 
-  Result := Csere(rlz, g, '');
+  Result := ReplaceText(rlz, g, '');
 end;
 
 function GotGroupname(const rlz: String): String;
@@ -393,11 +393,11 @@ var
   x: TStringList;
   s: String;
 begin
-  s := Csere(rlz, '(', '');
-  s := Csere(s, ')', '');
-  s := Csere(s, '.', ' ');
-  s := Csere(s, '-', ' ');
-  s := Csere(s, '_', ' ');
+  s := ReplaceText(rlz, '(', '');
+  s := ReplaceText(s, ')', '');
+  s := ReplaceText(s, '.', ' ');
+  s := ReplaceText(s, '-', ' ');
+  s := ReplaceText(s, '_', ' ');
 
   x := TStringList.Create;
   try
@@ -1266,11 +1266,11 @@ begin
     words.Delimiter := ' ';
     words.CaseSensitive := False;
 
-    s := Csere(rlsname, '(', '');
-    s := Csere(s, ')', '');
-    s := Csere(s, '.', ' ');
-    s := Csere(s, '-', ' ');
-    s := Csere(s, '_', ' ');
+    s := ReplaceText(rlsname, '(', '');
+    s := ReplaceText(s, ')', '');
+    s := ReplaceText(s, '.', ' ');
+    s := ReplaceText(s, '-', ' ');
+    s := ReplaceText(s, '_', ' ');
 
     tags.DelimitedText := s;
 
@@ -1969,7 +1969,7 @@ begin
   Result := inherited AsText(pazo_id);
   try
     Result := Result + 'Show name: ' + showname + #13#10;
-    Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(Csere(showname, ' ', '-')) + #13#10;
+    Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(ReplaceText(showname, ' ', '-')) + #13#10;
     Result := Result + 'Season: ' + IntToStr(season) + #13#10;
     Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
     if premier_year <> -1 then
@@ -2018,8 +2018,8 @@ begin
   getShowValues(rlsname, showname, season, c_episode);
   episode := c_episode;
 
-  showname := Csere(showname, '.', ' ');
-  showname := Csere(showname, '_', ' ');
+  showname := ReplaceText(showname, '.', ' ');
+  showname := ReplaceText(showname, '_', ' ');
 
   for i:= 1 to tags.Count -1 do
   begin
@@ -2669,7 +2669,7 @@ begin
   i := 0;
   while (i < mp3genres.Count) do
   begin
-    ss := Csere(mp3genres[i], ' ', '');
+    ss := ReplaceText(mp3genres[i], ' ', '');
     if ss <> mp3genres[i] then
     begin
       mp3genres.Insert(i + 1, ss);
@@ -2717,7 +2717,7 @@ begin
 
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
-  kb_languages.DelimitedText := Csere(Csere(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ''), #10, '');
+  kb_languages.DelimitedText := ReplaceText(ReplaceText(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ''), #10, '');
 
   //sectionhelper:= THashedStringList.Create;
 

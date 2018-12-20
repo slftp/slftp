@@ -40,13 +40,14 @@ uses Classes;
   @param(S String which should be cleaned)
   @returns(String which only contains characters as [a-z] or [A-Z]) }
 function onlyEnglishAlpha(const S: String): String;
-
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 
-function LeftStr(const Source: String; Count: integer): String;
+{
+  Normal RTL function RightStr('Hello, world!', 5): 'orld!''
+  This function RightStr('Hello, world!', 5): ', world!'
+}
 function RightStr(const Source: String; Count: integer): String;
 function SubString(const s, seperator: String; index: integer): String;
-function Csere(const Source, old, new: String): String;
 function Count(const mi, miben: String): integer;
 function RPos(const SubStr: Char; const Str: String): integer;
 function MyStrToTime(const x: String): TDateTime;
@@ -94,18 +95,22 @@ function OccurrencesOfNumbers(const S: string): Integer;
 function GetFileContents(const fn: String): String;
 function FetchSL(var osszes: String; const Args: array of Char): String;
 function Elsosor(var osszes: String): String;
-function todaycsere(const s: String; datum: TDateTime = 0): String;
 
+{ Replaces datum identifiers like <yyyy>, <mm> or <dd> with the given value for aDatum (if zero, uses current time)
+  @param(aSrcString source string with <yyyy>, <yy>, <mm>, <dd> or <ww>)
+  @param(aDatum datetime value or if zero, uses Now() to create current time value)
+  @returns(replaced datum identifier string with given paramters) }
+function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0): String;
 procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
 implementation
 
 uses
-  SysUtils, Math
+  SysUtils, Math, StrUtils,
   {$IFDEF MSWINDOWS}
-    , registry, Windows
+    registry, Windows,
   {$ENDIF}
-  , DateUtils, IdGlobal;
+  DateUtils, IdGlobal;
 
 function Count(const mi, miben: String): integer;
 var
@@ -125,15 +130,6 @@ begin
   end;
 end;
 
-function LeftStr(const Source: String; Count: integer): String;
-var
-  i: integer;
-begin
-  Result := '';
-  for i := 1 to Count do
-    Result := Result + Source[i];
-end;
-
 function RightStr(const Source: String; Count: integer): String;
 var
   i: integer;
@@ -142,39 +138,6 @@ begin
   for i := Count + 1 to length(Source) do
     Result := Result + Source[i];
 end;
-
-
-(*
-function SubString (const s, seperator: string; index: integer): string;
-var ok: boolean;
-    i: integer;
-    szamlalo: integer;
-begin
-  ok:= false; i:= 0; Result:= ''; szamlalo:= 0;
-
-  while not ok do
-  begin
-    if i = length(s) then ok:= True
-    else
-    begin
-      inc (i);
-      Result:= Result + s[i];
-      if ((length(Result) - length(Seperator)+1) <> 0) and (length(Result) - length(Seperator) +1 = Pos (Seperator, Result)) then //szoveg vegen
-      begin
-        inc (szamlalo);
-        if szamlalo = index then
-        begin
-          ok:= True;
-          Delete (Result, (length(Result) - length(Seperator)+1),length(Seperator));
-        end else
-          Result:= '';
-      end;
-    end;
-  end;
-
-end;
-*)
-
 function SubString(const s, seperator: String; index: integer): String;
 var
   akts: String;
@@ -207,11 +170,6 @@ begin
       exit;
     end;
   until False;
-end;
-
-function Csere(const Source, old, new: String): String;
-begin
-  Result := StringReplace(Source, old, new, [rfReplaceAll, rfIgnoreCase]);
 end;
 
 function MyDateToStr(x: TDateTime): String;
@@ -251,7 +209,7 @@ begin
   Result := def;
   if s = '' then
     exit;
-  s := Csere(s, ',', '.');
+  s := ReplaceText(s, ',', '.');
   d := Count('.', s);
   if (d <= 1) then
   begin
@@ -448,7 +406,6 @@ begin
       ReadLn(x, s);
       Result := Result + s + #13#10;
     end;
-
   end
   else
     Result := '';
@@ -496,27 +453,25 @@ begin
   Result := FetchSL(osszes, [#13, #10]);
 end;
 
-
-function todaycsere(const s: String; datum: TDateTime = 0): String;
+function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0): String;
 var
   yyyy, yy, mm, dd, ww: String;
 begin
-  if datum = 0 then
-    datum := Now();
+  if aDatum = 0 then
+    aDatum := Now();
 
-  yyyy := Format('%.4d', [YearOf(datum)]);
+  yyyy := Format('%.4d', [YearOf(aDatum)]);
   yy   := Copy(yyyy, 3, 2);
-  mm   := Format('%.2d', [MonthOf(datum)]);
-  dd   := Format('%.2d', [DayOf(datum)]);
-  ww   := Format('%.2d', [WeekOf(datum)]);
+  mm   := Format('%.2d', [MonthOf(aDatum)]);
+  dd   := Format('%.2d', [DayOf(aDatum)]);
+  ww   := Format('%.2d', [WeekOf(aDatum)]);
 
-
-  Result := s;
-  Result := Csere(Result, '<yyyy>', yyyy);
-  Result := Csere(Result, '<yy>', yy);
-  Result := Csere(Result, '<mm>', mm);
-  Result := Csere(Result, '<dd>', dd);
-  Result := Csere(Result, '<ww>', ww);
+  Result := aSrcString;
+  Result := ReplaceText(Result, '<yyyy>', yyyy);
+  Result := ReplaceText(Result, '<yy>', yy);
+  Result := ReplaceText(Result, '<mm>', mm);
+  Result := ReplaceText(Result, '<dd>', dd);
+  Result := ReplaceText(Result, '<ww>', ww);
 end;
 
 {$WARNINGS OFF}
