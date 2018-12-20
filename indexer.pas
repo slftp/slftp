@@ -16,7 +16,7 @@ implementation
 
 uses
   configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  mystrings, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
+  StrUtils, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
 
 const
   section = 'indexer';
@@ -238,8 +238,8 @@ var
 begin
   Result := '';
 
-  aRls := Csere(aRls, '_', '%');
-  aRls := Csere(aRls, ' ', '%');
+  aRls := ReplaceText(aRls, '_', '%');
+  aRls := ReplaceText(aRls, ' ', '%');
   aRls := '%' + aRls + '%';
 
   SQLite3Lock.Enter;

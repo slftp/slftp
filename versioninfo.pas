@@ -2,20 +2,22 @@ unit versioninfo;
 
 interface
 
-function Get_VersionString(const exename: String): String; overload;
-function Get_VersionString: String; overload;
-function Get_VersionOnlyString: String;
-function cmod_VersionString: String;
-
-
-//Change the inc file to mod the version
-
-{$I slftp.inc}
+{ Builds a slftp version string in the format 'slFtp v[VERSION.NUMBER]'
+  @returns(slftp version string) }
+function GetFullVersionString: String; overload;
+{ Gets the slftp version string in the format '[VERSION.NUMBER]'
+  @returns(slftp version number as string) }
+function GetVersionOnlyString: String;
+{ Gets the slftp version string in the format '[VERSION.NUMBER]' and appends custom title if set
+  @returns(console title string) }
+function GetConsoleTitle: String;
 
 implementation
 
 uses
   configunit, SysUtils, mystrings;
+
+{$I slftp.inc}
 
 function ShowSLFTPVerison: String;
 begin
@@ -25,18 +27,12 @@ begin
     Result := Format('slFtp v%s (git# %s)',[SL_VERSION, SL_REV]);
 end;
 
-
-function Get_VersionString(const exename: String): String;
-begin
-  result := ShowSLFTPVerison;
-end;
-
-function Get_VersionString: String;
+function GetFullVersionString: String;
 begin
   Result := ShowSLFTPVerison;
 end;
 
-function Get_VersionOnlyString: String;
+function GetVersionOnlyString: String;
 var
   src: String;
 begin
@@ -44,16 +40,15 @@ begin
   Result := mystrings.RightStr(src, Pos('v', src));
 end;
 
-function cmod_VersionString: String;
+function GetConsoleTitle: String;
 var
   s: String;
 begin
-  s := config.ReadString('console','customtitle','');
+  s := config.ReadString('console', 'customtitle', '');
   if s <> '' then
-    result := Format('%s %s',[ShowSLFTPVerison,s])
+    result := Format('%s %s', [ShowSLFTPVerison, s])
   else
     result := ShowSLFTPVerison;
 end;
-
 
 end.

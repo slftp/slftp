@@ -400,7 +400,7 @@ end;
 
 procedure Main_Run;
 begin
-  Debug(dpError, section, '%s started', [Get_VersionString(ParamStr(0))]);
+  Debug(dpError, section, '%s started', [GetFullVersionString]);
 
 
   Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));

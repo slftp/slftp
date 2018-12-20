@@ -19,8 +19,9 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     console, configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo;
+uses
+  SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  console, configunit, tasksunit, dirlist, sitesunit, dbaddnfo, mystrings;
 
 const
   section = 'taskgenrenfo';
@@ -58,7 +59,7 @@ begin
 
   while(true) do
   begin
-    s:= Csere(Result, '  ', ' ');
+    s:= ReplaceText(Result, '  ', ' ');
     if s = Result then Break;
     Result:= s;
   end;

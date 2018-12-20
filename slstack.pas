@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  IdSSLOpenSSLHeaders, debugunit, mystrings,
+  IdSSLOpenSSLHeaders, debugunit, StrUtils,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -353,7 +353,7 @@ end;
 function slConvertIp(host: String): String;
 var lip:LongWord;
 begin
-  host:=Csere(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
+  host:=ReplaceText(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
   lip:=StrToInt64Def(host, -1);
   Result := Format('%d.%d.%d.%d', [(lip shr 24), (lip shr 16) and $FF,(lip shr 8) and $FF, lip and $FF]);
 end;
