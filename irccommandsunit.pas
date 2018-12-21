@@ -4818,7 +4818,7 @@ begin
   b := FindIrcBlowfish(nn, blowchannel, False);
   if b <> nil then
   begin
-    b.UpdateKey(key);
+    b.UpdateKey(key, cbc);
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'blowkey', key);
     sitesdat.WriteBool('channel-' + nn + '-' + blowchannel, 'cbc', cbc);
   end
