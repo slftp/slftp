@@ -6,7 +6,7 @@ procedure indexerStart;
 procedure indexerInit;
 procedure indexerUninit;
 function indexerQuery(var aRls: String): String;
-function indexerQueryPartially(var aRls: String): String;
+function indexerQueryPartially(var aRls: String; const aLimit: Integer): String;
 function indexerStat: String;
 procedure indexerAddRelease(const rls, site, section, path: String);
 procedure indexerRemoveSiteSection(const site, section: String);
@@ -232,7 +232,7 @@ begin
   end;
 end;
 
-function indexerQueryPartially(var aRls: String): String;
+function indexerQueryPartially(var aRls: String; const aLimit: Integer): String;
 var
   fQuery: TQuery;
 begin
@@ -246,8 +246,9 @@ begin
   try
     fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls LIKE :name ORDER BY rls LIMIT 20';
+      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls LIKE :name ORDER BY rls LIMIT :limit';
       fQuery.ParamByName('name').AsString := aRls;
+      fQuery.ParamByName('limit').AsInteger := aLimit;
       try
         fQuery.Open;
 

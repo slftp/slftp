@@ -1029,7 +1029,6 @@ begin
 
   // Parse the params
   rcmd := TCommandLineReader.create();
-
   try
     try
       rcmd.allowDOSStyle := True;
@@ -1044,7 +1043,6 @@ begin
 
       rcmd.addAbbreviation('b', 'back');
       rcmd.parse(params);
-
     except
       on e: Exception do
       begin
@@ -1063,11 +1061,6 @@ begin
     sw2 := rcmd.readString('sw2');
     apply := rcmd.readFlag('apply');
     back := rcmd.readFlag('back');
-
-    // debug shit to be removed
-    //irc_addtext(Netname, Channel, '[debug] source: %s | dest: %s | speed :%d | c1: %s | c2: %s | sw1: %s | sw2: %s | backroute: %s | apply: %s',
-    //  [source, dest, speed, c1, c2, sw1, sw2, BoolToStr(back, True), BoolToStr(apply, True)]);
-
   finally
     rcmd.Free;
   end;
@@ -8519,9 +8512,43 @@ end;
 
 function IrcIndexQuery(const Netname, Channel: String; params: String): boolean;
 var
-  s, ss: String;
+  fSearchName, s, ss: String;
+  i, fQueryLimit: Integer;
+  fCLReader: TCommandLineReader;
 begin
-  s := indexerQueryPartially(params);
+  Result := False;
+  fSearchName := '';
+
+  fCLReader := TCommandLineReader.Create;
+  try
+    try
+      fCLReader.allowDOSStyle := True;
+      fCLReader.automaticalShowError := False;
+      fCLReader.declareString('limit', '', '');
+      fCLReader.addAbbreviation('l', 'limit');
+      fCLReader.parse(params);
+    except
+      on e: Exception do
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>%s</b></c>', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] IrcIndexQuery(TCommandLineReader.parse): %s', [e.Message]);
+        exit;
+      end;
+    end;
+
+    for i := 0 to High(fCLReader.readNamelessString()) do
+    begin
+      fSearchName := fSearchName + fCLReader.readNamelessString()[i] + ' ';
+    end;
+    // remove last whitespace
+    SetLength(fSearchName, Length(fSearchName) - 1);
+    // use 10 query outputs as default
+    fQueryLimit := StrToIntDef(fCLReader.readString('limit'), 10);
+  finally
+    fCLReader.Free;
+  end;
+
+  s := indexerQueryPartially(fSearchName, fQueryLimit);
 
   if s <> '' then
   begin
@@ -8535,17 +8562,16 @@ begin
     end;
   end
   else
-    irc_addtext(Netname, Channel, 'Cant find rip %s indexed.', [params]);
+    irc_addtext(Netname, Channel, 'Cant find rip %s indexed.', [fSearchName]);
+
   Result := True;
 end;
 
-function IrcIndexDropSection(const Netname, Channel: String; params: String):
-  boolean;
+function IrcIndexDropSection(const Netname, Channel: String; params: String): boolean;
 begin
   params := UpperCase(params);
 
-  indexerRemoveSiteSection(SubString(params, ' ', 1),
-    SubString(params, ' ', 2));
+  indexerRemoveSiteSection(SubString(params, ' ', 1), SubString(params, ' ', 2));
 
   Result := True;
 end;
