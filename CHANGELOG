@@ -41,11 +41,14 @@
       parse_boxofficemojo_exact=0
       parse_boxofficemojo_always=0
       new_news_announce_interval=3
+      complete sections [http], [news] added/changed
+      dbms=
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
     3. delete your old slftp.news file (if existing)
     4. delete your old stats.db file due to a wrong UNIQUE INDEX (if existing)
+    5. if you have problems with resuing existing databases, delete all .db files
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -54,8 +57,8 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
-      ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2 Tokyo - ON WINDOWS! **
-  ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.1.1 or newer - ON LINUX! **
+ ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2.3 Tokyo or newer - ON WINDOWS! **
+  ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
   
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
@@ -72,6 +75,7 @@
     {+} !fetchuser cmd to fetch some information about site settings + basic recommendation (#51)
     {+} Support for wildcards in !batch (#222)                                  --- some more work + testing needed ---
     {+} Completely new SQLite engine
+    {+} Completely new MySQL/MariaDB engine
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -96,7 +100,7 @@
     {^} taskdirlist shows sitename on 'can not dirlist' announce (#227)
     {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
-    {-} Support for older FPC compilers (at least version 3.0.4 needed!)
+    {-} Support for older FPC compilers (at least version 3.2.0 needed!)
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
@@ -170,7 +174,7 @@
     {^} Improvement of autodirlist announces
     {^} MVID Year regex changed from \-(\d{4})\- to \-((19|20)\d{2})\-
     {^} PermDown check on all irc commands with sitename = '*', means no setting changing for PermDown sites when using '*'
-    {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)                                   ---- guess still no drop on mp3genre rule if not found ----
+    {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)
     {^} Update to latest LibTar 2.1.2
     {^} Several improvements for tags (COMPLETE/INCOMPLETE detection):
         - no more constant regexp initialization/freeing; instead using an unique one at startup (much faster!)
