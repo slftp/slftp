@@ -2147,7 +2147,6 @@ destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   QueueEmpty(Name);
-  // crash on !die
   slots.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;

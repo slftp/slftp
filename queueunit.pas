@@ -781,38 +781,30 @@ begin
   end;
 end;
 
-// EZT IS CSAK ZAROLVA SZABAD HIVNI
+// IT IS ONLY GIVEN TO CALL
 procedure QueueEmpty(const sitename: String);
 var
   i: integer;
   t: TTask;
-
 begin
-  Debug(dpSpam, section, 'QueueEmpty ' + sitename);
+  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
 
-  queueth.main_lock.Enter;
+  for i := tasks.Count - 1 downto 0 do
+  begin
+    if i < 0 then 
+      Break;
+    try
+      t := TTask(tasks[i]);
+      if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+        t.readyerror := True;
 
-  try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then Break;
-      except
-        Break;
-      end;
-      try
-        t := TTask(tasks[i]);
-        if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
-          t.readyerror := True;
-
-        if (t is TPazoTask) then TPazoTask(t).mainpazo.SiteDown(sitename);
-      except
-        Continue;
-      end;
+      if (t is TPazoTask) then
+        TPazoTask(t).mainpazo.SiteDown(sitename);
+    except
+      Continue;
     end;
-  finally
-    queueth.main_lock.Leave;
   end;
+  Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
 function TaskAlreadyInQueue(t: TTask): boolean;
