@@ -24,9 +24,6 @@ type
     procedure Execute; override;
   end;
 
-procedure IrcCommandInit;
-procedure IrcCommandUninit;
-
 function IrcNope(const netname, channel: String; params: String): boolean;
 function IrcHelpHeader(const netname, channel: String; params: String): boolean;
 function IrcHelpSeperator(const netname, channel: String; params: String): boolean;
@@ -12448,18 +12445,6 @@ begin
       Debug(dpError, section, Format('[EXCEPTION] TIRCCommandThread.Execute: %s (%s %s %s %s)', [E.Message, Netname, Channel, cmd, params]));
     end;
   end;
-end;
-
-procedure IrcCommandInit;
-begin
-  // genres:= TStringList.Create;
-end;
-
-procedure IrcCommandUnInit;
-begin
-  Debug(dpSpam, section, 'Uninit1');
-  // genres.Free;
-  Debug(dpSpam, section, 'Uninit2');
 end;
 
 {   Help section Handler    }

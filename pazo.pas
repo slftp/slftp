@@ -187,7 +187,6 @@ function FindPazoByName(const section, rlsname: String): TPazo;
 function FindPazoByRls(const rlsname: String): TPazo;
 function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
 procedure PazoInit;
-procedure PazoUninit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
@@ -408,12 +407,6 @@ end;
 procedure PazoInit;
 begin
   local_pazo_id := 0;
-end;
-
-procedure PazoUnInit;
-begin
-  Debug(dpSpam, section, 'Uninit1');
-  Debug(dpSpam, section, 'Uninit2');
 end;
 
 function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;

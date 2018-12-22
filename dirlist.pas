@@ -170,8 +170,7 @@ type
     property LastChanged: TDateTime read fLastChanged write SetLastChanged;
   end;
 
-procedure  DirlistInit;
-procedure  DirlistUninit;
+procedure DirlistInit;
 
 // make it global to use it in other units with those variables
 var
@@ -1963,16 +1962,10 @@ begin
   end;
 end;
 
-
 procedure DirlistInit;
 begin
   global_skip := config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)');
   useful_skip := config.ReadString(section, 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
-end;
-
-procedure DirlistUninit;
-begin
-
 end;
 
 end.
