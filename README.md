@@ -28,17 +28,17 @@
     * multiple networks
     * multiple chans
     * SSL
-    * blowfish
+    * blowfish (ECB & CBC)
 - Highly configurable precatcher
 - Genre support for MP3 
     * IRC based and dirlist based
-- Genre support for MDVDR/MV 
+- Genre support for MDVDR/MVID
     * by fetching and parsing nfo file
-- Fake checking with many builtin rules.
-- Affil lists, site value, more more more.
-- Text mode user interface.
-- IRC admin backend.
-- Multi-SOCKS5 support. 
+- Fake checking with many builtin rules
+- Affil lists, site infos, racing stats and more
+- Text mode user interface
+- IRC admin backend
+- Multi-SOCKS5 support
     * with anonymous and username/password based authentication
 - Ident server support **Windows only!**
 - And many many more!
