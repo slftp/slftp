@@ -50,7 +50,7 @@ implementation
 
 uses
   ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
-  sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
+  sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
   taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF} StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB;
@@ -244,7 +244,6 @@ begin
   MidnightInit;
   IrcInit;
   IrcblowfishInit;
-  IrcCommandInit;
   NotifyInit;
   PazoInit;
   PrebotInit;
@@ -258,12 +257,8 @@ begin
   SpeedStatsInit;
   RanksInit;
   SpeedTestInit;
-
   TaskHttpImdbInit;
-
   Initglobalskiplist;
-  //  DupeDBInit;
-  //  RehashIrcColor;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -401,12 +396,8 @@ end;
 procedure Main_Run;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
-
-
   Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));
-
   Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
-
   {$IFNDEF MSWINDOWS}
     Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
   {$ENDIF}
@@ -461,8 +452,8 @@ end;
 
 procedure Main_Stop;
 begin
-  // ez a fuggveny csak kiadja a megfelelo tobbszalu szaroknak a kilepesre vonatkozo dolgokat,
-  // a tenyleges felszabaditasok/uninicializaciok a main_uninitben lesznek
+  // this is just a matter of putting the right shit on the kitty,
+  // uninitialization will be in Main_Uninit
   Debug(dpSpam, section, 'Main_Stop begin');
   AutoCrawlerStop;
   NukeSave;
@@ -490,15 +481,6 @@ begin
       do Sleep(500);
     Debug(dpSpam, section, 'Uninit2');
   *)
-
-  // TSQLite3LibraryDynamic
-  if Assigned(sqlite3) then
-    sqlite3.Free;
-
-  // MySQL/MariaDB connection
-  if Assigned(MySQLCon) then
-    MySQLCon.Free;
-
   ConsoleUnInit;
   UninitXMLWeapper;
   RanksUnInit;
@@ -510,13 +492,10 @@ begin
   RulesUnInit;
   Precatcher_UnInit;
   PrebotUnInit;
-  PazoUnInit;
   NotifyUnInit;
-  IrcCommandUnInit;
   IrcblowfishUnInit;
   IrcUnInit;
   FakesUnInit;
-  DirlistUnInit;
   kb_UnInit;
   taskidleuninit;
   SitesUnInit;
@@ -524,7 +503,6 @@ begin
   KnowngroupsUnInit;
   MidnightUninit;
   Tasks_UnInit;
-  MyCryptoUnInit;
   IndexerUnInit;
   StatsUninit;
   AutoCrawlerUnInit;
@@ -532,10 +510,7 @@ begin
   UninitmRdOHConfigFiles;
   SLLanguages_Uninit;
   UnInitglobalskiplist;
-  //  DupeDBUninit;
-
   TaskHttpImdbUnInit;
-
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
@@ -543,6 +518,14 @@ begin
   dbaddimdbUnInit;
   dbtvinfoUnInit;
   NewsUnInit;
+
+  // TSQLite3LibraryDynamic
+  if Assigned(sqlite3) then
+    sqlite3.Free;
+
+  // MySQL/MariaDB connection
+  if Assigned(MySQLCon) then
+    MySQLCon.Free;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
