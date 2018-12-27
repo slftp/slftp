@@ -2,31 +2,38 @@ unit taskcwd;
 
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
-type TCWDTask = class(TTask)
-       dir: String;
-       constructor Create(const netname, channel: String; site, dir: String);
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: String; override;
-     end;
+type
+  TCWDTask = class(TTask)
+      dir: String;
+      constructor Create(const netname, channel, site, dir: String);
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
+  end;
 
 implementation
 
-uses sitesunit, SysUtils, mystrings, DebugUnit;
+uses
+  sitesunit, SysUtils, DebugUnit;
 
-const section = 'cwd';
+const
+  section = 'cwd';
 
-{ TLoginTask }
-constructor TCWDTask.Create(const netname, channel: String; site, dir: String);
+{ TCWDTask }
+
+constructor TCWDTask.Create(const netname, channel, site, dir: String);
 begin
   self.dir := dir;
   inherited Create(netname, channel, site);
 end;
 
 function TCWDTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
+label
+  ujra;
+var
+  s: TSiteSlot;
 begin
   Result := False;
   s := slot;
@@ -64,4 +71,3 @@ begin
 end;
 
 end.
-
