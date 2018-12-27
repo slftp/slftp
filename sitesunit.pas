@@ -2,9 +2,10 @@ unit sitesunit;
 
 interface
 
-uses Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
-  taskautodirlist, taskautocrawler, taskautonuke, taskautoindex,
-  tasklogin, tasksunit, taskrules;
+uses
+  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
+  taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
+  taskrules;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -171,7 +172,6 @@ type
     function FetchAutoBnctest: TLoginTask;
     function FetchAutoRules: TRulesTask;
     function FetchAutoDirlist: TAutoDirlistTask;
-    function FetchAutoCrawler: TAutoCrawlerTask;
     function FetchAutoNuke: TAutoNukeTask;
     procedure SetNumDn(const Value: integer);
     procedure SetNumUp(const Value: integer);
@@ -258,12 +258,10 @@ type
     procedure RemoveAutoRules;
     procedure RemoveAutoNuke;
     procedure RemoveAutoDirlist;
-    procedure RemoveAutoCrawler;
 
     procedure AutoBnctest;
     procedure AutoRules;
     procedure AutoDirlist;
-    procedure AutoCrawler;
     procedure AutoNuke;
     procedure AutoIndex;
     procedure Auto;
@@ -2234,7 +2232,6 @@ begin
       //    RemoveAutoRules;
       //    RemoveAutoNuke;
       //    RemoveAutoDirlist;
-      //    RemoveAutoCrawler;
     end;
 
     SiteStat;
@@ -2897,33 +2894,6 @@ begin
   end;
 end;
 
-procedure TSite.AutoCrawler;
-//var t: TAutoCrawlerTask;
-begin
-
-  //there is no code for this stuff so wie can remiove it or?
-
-  Exit;
-
-  (*
-    t:= FetchAutoCrawler;
-    if t <> nil then exit;
-    if PermDown then Exit;
-    // nincs, addolni kell.
-    t:= TAutoCrawlerTask.Create('', '', name);
-    t.startat:= RcDateTime('nextautocrawler', 0);
-    t.dontremove:= True;
-    try
-      AddTask(t);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TSite.AutoCrawler AddTask: %s', [e.Message]));
-      end;
-    end;
-  *)
-end;
-
 procedure TSite.AutoNuke;
 var
   t: TAutoNukeTask;
@@ -2991,30 +2961,6 @@ begin
       if (tasks[i] is TAutoDirlistTask) then
       begin
         t := TAutoDirlistTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
-end;
-
-function TSite.FetchAutoCrawler: TAutoCrawlerTask;
-var
-  i: integer;
-  t: TAutoCrawlerTask;
-begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoCrawlerTask) then
-      begin
-        t := TAutoCrawlerTask(tasks[i]);
         if (t.site1 = Name) then
         begin
           Result := t;
@@ -3146,15 +3092,6 @@ begin
     t.ready := True;
 end;
 
-procedure TSite.RemoveAutoCrawler;
-var
-  t: TAutoCrawlerTask;
-begin
-  t := FetchAutoCrawler;
-  if ((t <> nil) and (t.slot1 = nil)) then
-    t.ready := True;
-end;
-
 procedure TSite.Auto;
 begin
   if PermDown then
@@ -3174,9 +3111,6 @@ begin
 
   if RCInteger('autoindex', 0) > 0 then
     AutoIndex;
-
-  if RCInteger('autocrawler', 0) > 0 then
-    AutoCrawler;
 end;
 
 procedure SiteAutoStart;

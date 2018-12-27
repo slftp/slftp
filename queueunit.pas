@@ -53,7 +53,7 @@ var
 implementation
 
 uses
-  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
+  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautodirlist, taskautoindex,
   tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
 
 const
@@ -1787,8 +1787,7 @@ begin
         Inc(t_race)
       else if ((tasks[i].ClassType = TPazoDirlistTask)) then
         Inc(t_dir)
-      else if ((tasks[i].ClassType = TAutoNukeTask) or
-        (tasks[i].ClassType = TAutoCrawlerTask) or (tasks[i].ClassType = TAutoDirlistTask) or
+      else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or
         (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or
         (tasks[i].ClassType = TRulesTask)) then
         Inc(t_auto)
