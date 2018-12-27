@@ -154,15 +154,11 @@ function IrcFindCountry(const netname, channel: String; params: String): boolean
 function IrcFindSection(const netname, channel: String; params: String): boolean;
 function IrcFindUser(const netname, channel: String; params: String): boolean;
 function IrcAuto(const netname, channel: String; params: String): boolean;
-//function IrcCrawler(const netname, channel: String; params: String): boolean;
-//function IrcConfirmerAnnounce(const netname, channel: String; params: String): boolean;
-//function IrcCrawl(const netname, channel: String; params: String): boolean;
 function IrcAutoLogin(const netname, channel: String; params: String): boolean;
 function IrcAutoBncTest(const netname, channel: String; params: String): boolean;
 function IrcAutoRules(const netname, channel: String; params: String): boolean;
 function IrcAutoNuke(const netname, channel: String; params: String): boolean;
 function IrcAutoDirlist(const netname, channel: String; params: String): boolean;
-//function IrcAutoCrawler(const netname, channel: String; params: String): boolean;
 function IrcAutoIndex(const netname, channel: String; params: String): boolean;
 function IrcKbShow(const netname, channel: String; params: String): boolean;
 function IrcKbList(const netname, channel: String; params: String): boolean;
@@ -649,9 +645,8 @@ uses sltcp, SysUtils, SyncObjs, Contnrs, DateUtils, Math, versioninfo, knowngrou
   debugunit, queueunit, tasksunit, mystrings, notify, taskraw, tasklogin,
   indexer, taskdirlist, taskdel, tasklame, taskcwd, taskrace, pazo, configunit, console,
   slconsole, uintlist, nuke, kb, helper, ircblowfish, precatcher, rulesunit, mainthread,
-  taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, taskautocrawler,
-  RegExpr, mslproxys, http, StrUtils, inifiles, rcmdline,
-  backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
+  taskspeedtest, taskfilesize, statsunit, skiplists, slssl, ranksunit, RegExpr, mslproxys, http, StrUtils,
+  inifiles, rcmdline, backupunit, sllanguagebase, irccolorunit, mrdohutils, fake, taskpretime,
   dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, globalskipunit, xmlwrapper,
   tasktvinfolookup, uLkJSON, TypInfo, globals, news {$IFDEF FPC}, process {$ENDIF}, CompVers, IdGlobal;
 
@@ -4263,7 +4258,6 @@ begin
   s.RemoveAutoNuke;
   s.RemoveAutoDirlist;
   s.RemoveAutoRules;
-  // s.RemoveAutoCrawler;
 
   if s.RCInteger('autonuke', 0) <> 0 then
     s.AutoNuke;
@@ -6588,159 +6582,6 @@ begin
 
   Result := True;
 end;
-(*
-TODO: Maybe remove this? Or for what is this??
-
-function IrcAutoCrawler(const Netname, Channel: String; params: String):
-  boolean;
-var
-  sitename: String;
-  status: integer;
-  s: TSite;
-  kell: boolean;
-  sections: String;
-  ss: String;
-  i: integer;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  status := StrToIntDef(SubString(params, ' ', 2), -1);
-  sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1 +
-    length(IntToStr(status)) + 1));
-
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
-    exit;
-  end;
-  if (s.PermDown) then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s is set as PermDown', [sitename]);
-    Exit;
-  end;
-  if ((status > -1) and (status <> 0)) then
-  begin
-    // hitelesitjuk a szekciokat
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(sections, ' ', i);
-      if ss = '' then
-        break;
-
-      if s.sectiondir[ss] = '' then
-      begin
-        irc_addtext(Netname, Channel, 'Site %s has no %s section',
-          [sitename, ss]);
-        exit;
-      end;
-    end;
-  end;
-
-  kell := False;
-  if status > -1 then
-  begin
-    if status <> 0 then
-    begin
-      if s.RCInteger('autocrawler', 0) <= 0 then
-        kell := True;
-      s.WCInteger('autocrawler', status);
-      s.WCString('autocrawlersections', sections);
-    end
-    else
-    begin
-      s.DeleteKey('autocrawler');
-      s.DeleteKey('autocrawlersections');
-      s.DeleteKey('nextautocrawler');
-      s.RemoveAutoCrawler;
-    end;
-  end;
-  irc_addtext(Netname, Channel, 'Autocrawler of %s is: %d (%s)',
-    [sitename, s.RCInteger('autocrawler', 0), s.RCString('autocrawlersections',
-      '')]);
-
-  if kell then
-    s.AutoCrawler;
-
-  Result := True;
-end;
-
-function IrcCrawler(const Netname, Channel: String; params: String): boolean;
-begin
-  if params <> '' then
-  begin
-    crawler_enabled := boolean(StrToIntDef(params, 0));
-    sitesdat.WriteBool('crawler', 'enabled', crawler_enabled);
-  end;
-  irc_addtext(Netname, Channel, 'Crawler is: ' +
-    IntToStr(integer(crawler_enabled)));
-
-  Result := True;
-end;
-
-function IrcConfirmerAnnounce(const Netname, Channel: String; params: String):
-  boolean;
-begin
-  if params <> '' then
-  begin
-    confirmer_announce := boolean(StrToIntDef(params, 0));
-    sitesdat.WriteBool('crawler', 'confirmer_announce', confirmer_announce);
-  end;
-  irc_addtext(Netname, Channel, 'Confirmer announce is: ' +
-    IntToStr(integer(confirmer_announce)));
-
-  Result := True;
-end;
-
-function IrcCrawl(const Netname, Channel: String; params: String): boolean;
-var
-  y, m, d: integer;
-  dd: TDateTime;
-  sitename, section: String;
-  i: integer;
-  s: TSite;
-  asc, sc: String;
-begin
-  Result := False;
-
-  y := StrToIntDef(SubString(params, ' ', 1), -1);
-  m := StrToIntDef(SubString(params, ' ', 2), -1);
-  d := StrToIntDef(SubString(params, ' ', 3), -1);
-
-  if not TryEncodeDate(y, m, d, dd) then
-  begin
-    irc_addtext(Netname, Channel, 'Invalid date');
-    exit;
-  end;
-
-  sitename := UpperCase(SubString(params, ' ', 4));
-  section := UpperCase(SubString(params, ' ', 5));
-
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-    if (sitename = '') or (sitename = s.Name) then
-    begin
-      sc := s.RCString('autocrawlersections', '');
-      while (True) do
-      begin
-        asc := Fetch(sc, ' ', True, False);
-        if ((asc = '') and (sc = '')) then
-          break;
-
-        if ((section = '') or (section = asc)) then
-        begin
-          // task hozzaadasa
-          AddTask(TAutoCrawlerTask.Create(Netname, Channel, sitename,
-            section, dd));
-        end;
-      end;
-    end;
-  end;
-
-  Result := True;
-end;
-*)
 
 function IrcAutoLogin(const Netname, Channel: String; params: String): boolean;
 var
@@ -11013,7 +10854,6 @@ begin
       s.RemoveAutoRules;
       s.RemoveAutoNuke;
       s.RemoveAutoDirlist;
-      s.RemoveAutoCrawler;
     except
       on E: Exception do
         irc_AddText(Netname, Channel, '<c4>[Exception]</c> in remove auto tasks: %s',
@@ -11097,7 +10937,6 @@ begin
       s.AutoRules;
       s.AutoNuke;
       s.AutoDirlist;
-      s.AutoCrawler;
     except
       on E: Exception do
         irc_AddText(Netname, Channel,
