@@ -623,7 +623,7 @@ begin
       for I := 0 to js.Field['genres'].Count - 1 do
         tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
     end;
-    Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
+    Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Genres: %s URL: %s', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
     TryEncodeDateTime(2018,5,30,0,0,0,0,endOftvdbAPIDate);
     // just a hotfix to be ready when the API is down (October 1st, 2017)
