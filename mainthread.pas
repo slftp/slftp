@@ -52,7 +52,7 @@ uses
   ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
-  dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
+  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo,
   taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF} StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB;
 
 {$I slftp.inc}
@@ -212,7 +212,6 @@ begin
   end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
-  //  AutoCrawlerInit;
 
   InitXMLWeapper;
 
@@ -445,7 +444,6 @@ begin
   PrecatcherStart();
   //  EPrecatcherStart();
   SiteAutoStart;
-  AutoCrawlerStart;
   slshutdown := False;
   QueueStart();
 end;
@@ -455,7 +453,6 @@ begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
   Debug(dpSpam, section, 'Main_Stop begin');
-  AutoCrawlerStop;
   NukeSave;
   SpeedStatsSave;
   //  EPrecatcherStop;
@@ -505,7 +502,6 @@ begin
   Tasks_UnInit;
   IndexerUnInit;
   StatsUninit;
-  AutoCrawlerUnInit;
   UnInitProxys;
   UninitmRdOHConfigFiles;
   SLLanguages_Uninit;
