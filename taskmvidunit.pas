@@ -2,42 +2,43 @@ unit taskmvidunit;
 
 interface
 
-uses Classes, pazo, taskrace, sltcp;
+uses
+  Classes, pazo, taskrace, sltcp;
 
 type
   TPazoMVIDTask = class(TPazoPlainTask)
-  private
-    ss: TStringStream;
-    ss1: TStringStream;
-    attempt: Integer;
-    function FetchGenre(text: String): String;
-//    function GetVideoSource(text:string):string;
-//    function GetFileCount(text:string):integer;
-    function GetVideoRegion(text:String):String;
-  public
-    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
-    destructor Destroy; override;
-    function Execute(slot: Pointer): Boolean; override;
-    function Name: String; override;
+    private
+      ss: TStringStream;
+      ss1: TStringStream;
+      attempt: Integer;
+      function FetchGenre(const text: String): String;
+      //function GetVideoSource(text:string): String;
+      //function GetFileCount(text:string): Integer;
+      function GetVideoRegion(const text:String): String;
+    public
+      constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
+      destructor Destroy; override;
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
   end;
-
 
 implementation
 
-uses SysUtils, SyncObjs, Contnrs, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr;
+uses
+  SysUtils, SyncObjs, Contnrs, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr;
 
 const
   section = 'taskmvid';
 
-//  TPazoMVIDTask
+{ TPazoMVIDTask }
 
-constructor TPazoMVIDTask.Create(const netname: String; const channel: String; site: String; pazo: TPazo; attempt: Integer);
+constructor TPazoMVIDTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
 begin
-  ss:= TStringStream.Create('');
-  ss1:= TStringStream.Create('');
-  self.attempt:= attempt;
-  self.wanted_dn:= True;
+  ss := TStringStream.Create('');
+  ss1 := TStringStream.Create('');
+  self.attempt := attempt;
+  self.wanted_dn := True;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -48,41 +49,40 @@ begin
   inherited;
 end;
 
-function TPazoMVIDTask.GetVideoRegion(text: String): String;
+function TPazoMVIDTask.GetVideoRegion(const text: String): String;
 var
-  rrx:TRegexpr;
+  rrx: TRegexpr;
 begin
   result := '-1';
   rrx := TRegexpr.Create;
   try
-  rrx.ModifierI := True;
+    rrx.ModifierI := True;
 
-  rrx.Expression := '(NTSC|PAL)';
-  if rrx.Exec(text) then
-  begin
-  result := rrx.Match[0];
-  exit;
-  end;
+    rrx.Expression := '(NTSC|PAL)';
+    if rrx.Exec(text) then
+    begin
+      result := rrx.Match[0];
+      exit;
+    end;
 
-  rrx.Expression := '(23\.976|29\.970?|59\.940?)\s?FPS';
-  if rrx.Exec(text) then
-  begin
-  result := 'NTSC';
-  exit;
-  end;
+    rrx.Expression := '(23\.976|29\.970?|59\.940?)\s?FPS';
+    if rrx.Exec(text) then
+    begin
+      result := 'NTSC';
+      exit;
+    end;
 
-  rrx.Expression := '(25\.000)\s?FPS';
-  if rrx.Exec(text) then
-  begin
-  result := 'PAL';
-  exit;
-  end;
-
+    rrx.Expression := '(25\.000)\s?FPS';
+    if rrx.Exec(text) then
+    begin
+      result := 'PAL';
+      exit;
+    end;
   finally
     rrx.Free;
   end;
-
 end;
+
 (*
 function TPazoMVIDTask.GetVideoSource(text: string):string;
 var
@@ -96,34 +96,29 @@ rrx.free;
 end;
 *)
 
-function TPazoMVIDTask.FetchGenre(text: String):String;
-var i: Integer;
-    s: String;
-//    rrx:TRegexpr;
+function TPazoMVIDTask.FetchGenre(const text: String): String;
+var
+  i: Integer;
+  s: String;
 begin
-  Result:= '';
-  i:= Pos('genre', LowerCase(text));
+  Result := '';
+  i := Pos('genre', LowerCase(text));
   if i = 0 then exit;
 
-  Result:= Copy(text, i + 5, 100);
-  for i:= 1 to length(Result) do
+  Result := Copy(text, i + 5, 100);
+  for i := 1 to length(Result) do
   begin
     if Result[i] in [#13,#10] then
     begin
-      Result:= Copy(Result, 1, i-1);
+      Result := Copy(Result, 1, i - 1);
       Break;
     end;
-    if (not (Result[i] in ['a'..'z','A'..'Z'])) then
-      Result[i]:= ' ';
+    if not (IsALetter(Result[i])) then
+      Result[i] := ' ';
   end;
 
-  while(true) do
-  begin
-    s:= ReplaceText(Result, '  ', ' ');
-    if s = Result then Break;
-    Result:= s;
-  end;
-  Result:= Trim(Result);
+  Result := ReplaceText(Result, '  ', ' ');
+  Result := Trim(Result);
 end;
 
 (*
@@ -150,8 +145,10 @@ rrx.Free;
 y.free;
 end;
 *)
-function TPazoMVIDTask.Execute(slot: Pointer):boolean;
-label ujra;
+
+function TPazoMVIDTask.Execute(slot: Pointer): boolean;
+label
+  ujra;
 var
   s: TSiteSlot;
   filecount, i, j, k: Integer;
@@ -159,34 +156,32 @@ var
   r: TPazoMVIDTask;
   d: TDirList;
   regiono, nfofile, genre: String;
-    mvr:TMVIDRelease;
+  mvr: TMVIDRelease;
 begin
-  Result:= False;
-
-  s:= slot;
+  Result := False;
+  s := slot;
 
   if mainpazo.stopped then
   begin
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
 
   Debug(dpMessage, section, Name);
 
-
 ujra:
   if s.status <> ssOnline then
     if not s.ReLogin then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
 
-    if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir)+ MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
+    if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
     begin
       if s.status = ssDown then
         goto ujra;
-      readyerror:= True; // <- nincs meg a dir...
+      readyerror := True; // <- there is no dir ...
       exit;
     end;
 
@@ -196,21 +191,21 @@ ujra:
     d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
     d.dirlist_lock.Enter;
     try
-      for i:= 0 to d.entries.Count-1 do
+      for i := 0 to d.entries.Count - 1 do
       begin
-        de:= TDirlistEntry(d.entries[i]);
-        if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
-          nfofile:= de.filename;
+        de := TDirlistEntry(d.entries[i]);
+        if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // With a 32kb higher nfo, there is no one
+          nfofile := de.filename;
 
         if ((de.Directory) or (de.filesize = 0)) then
         begin
-          k:= TagComplete(de.filenamelc);
-          if j = 0 then j:= k;
-          if k = 1 then j:= k;
+          k := TagComplete(de.filenamelc);
+          if j = 0 then j := k;
+          if k = 1 then j := k;
         end;
 
-        if ((not de.Directory) and (de.filesize > 0) and (de.Extension <> '.jpg') and (de.Extension <> '.gif') and (de.Extension <> '.nfo') and (de.Extension <> '.sfv'))  then
-        inc(filecount);
+        if ((not de.Directory) and (de.filesize > 0) and (de.Extension <> '.jpg') and (de.Extension <> '.gif') and (de.Extension <> '.nfo') and (de.Extension <> '.sfv')) then
+          inc(filecount);
       end;
 
     finally
@@ -222,51 +217,55 @@ ujra:
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
-      Debug(dpSpam, section, 'READD: nincs meg az nfo/sfv file...');
-
-      r:= TPazoMVIDTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-      r.startat:= IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      Debug(dpSpam, section, 'READD: it is not a nfo/sfv file...');
+      r := TPazoMVIDTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
       AddTask(r);
-    end else
+    end
+    else
     begin
-      mainpazo.rls.aktualizalasfailed:= True;
-      Debug(dpSpam, section, 'READD: nincs tobb readd...');
+      mainpazo.rls.aktualizalasfailed := True;
+      Debug(dpSpam, section, 'READD: no more readd...');
     end;
 
-    ready:= True;
-    Result:= True;
+    ready := True;
+    Result := True;
     exit;
   end;
 
   // trying to get the nfo
-  s.downloadingfrom:= True;
+  s.downloadingfrom := True;
   i := s.LeechFile(ss, nfofile);
-
   if (i < 0)  then
   begin
-    readyerror:= true;
+    readyerror := true;
     exit;
   end;
   if i = 0 then goto ujra;
-genre:= FetchGenre(ss.DataString);
-regiono:=GetVideoRegion(ss.DataString);
 
-mvr:=TMVIDRelease(mainpazo.rls);
+  genre := FetchGenre(ss.DataString);
+  regiono :=GetVideoRegion(ss.DataString);
 
-mvr.FileCount:=filecount;
-mvr.mvid_Genre.add(Genre);
-if regiono = 'PAL' then mvr.mvid_pal:=True;
-if regiono = 'NTSC' then mvr.mvid_ntsc:=True;
+  mvr := TMVIDRelease(mainpazo.rls);
 
-kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'NEWDIR', mainpazo.rls.rlsname, '');
+  mvr.FileCount := filecount;
+  mvr.mvid_Genre.add(Genre);
+  if regiono = 'PAL' then mvr.mvid_pal := True;
+  if regiono = 'NTSC' then mvr.mvid_ntsc := True;
 
-Result:= True;
-ready:= True;
+  kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'NEWDIR', mainpazo.rls.rlsname, '');
+
+  Result := True;
+  ready := True;
 end;
 
-function TPazoMVIDTask.Name:String;
+function TPazoMVIDTask.Name: String;
 begin
-  Result:= 'PMVID '+IntToStr(pazo_id);
+  try
+    Result := Format('MVID <b>%s : %s</b>: %d',[site1, slot1name, pazo_id]);
+  except
+    Result := 'MVID';
+  end;
 end;
 
 end.

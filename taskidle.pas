@@ -2,21 +2,26 @@ unit taskidle;
 
 interface
 
-uses tasksunit, Math;
+uses
+  tasksunit, Math;
 
-type TIdleTask = class(TTask)
-  idlecmd: String;
-  constructor Create(const netname, channel: String; const site: String);
-  function Execute(slot: Pointer): Boolean; override;
-  function Name: String; override;
-end;
+type
+  TIdleTask = class(TTask)
+    private
+      idlecmd: String;
+    public
+      constructor Create(const netname, channel, site: String);
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
+  end;
 
 procedure TaskIdleInit;
 procedure TaskIdleUninit;
 
 implementation
 
-uses Classes, SysUtils, sitesunit, mystrings, configunit, DebugUnit, irc;
+uses
+  Classes, SysUtils, sitesunit, mystrings, configunit, DebugUnit, irc;
 
 const
   section = 'taskidle';
@@ -25,7 +30,8 @@ var
   idlecommands: TStringList;
 
 { TIdleTask }
-constructor TIdleTask.Create(const netname, channel: String; const site: String);
+
+constructor TIdleTask.Create(const netname, channel, site: String);
 begin
   idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);

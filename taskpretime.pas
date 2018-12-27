@@ -9,27 +9,27 @@ type
   TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
 
   TPazoPretimeLookupTask = class(TPazoPlainTask)
-  private
-    attempt: integer;
-    vctime: int64;
-    url: String;
-    function FetchTimeFromPHP: boolean;
-    //function FetchTimeFromMYSQL: boolean;
-  public
-    constructor Create(const netname, channel: String; site: String; pazo: TPazo; attempt: integer);
-    function Execute(slot: Pointer): boolean; override;
-    function Name: String; override;
+    private
+      attempt: integer;
+      vctime: int64;
+      url: String;
+      function FetchTimeFromPHP: boolean;
+      //function FetchTimeFromMYSQL: boolean;
+    public
+      constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: integer);
+      function Execute(slot: Pointer): boolean; override;
+      function Name: String; override;
   end;
 
   TSLOffset = class
-  private
-    fNewtime, fOldtime: int64;
-    fvalue: String;
-  public
-    constructor Create;
-    function ReCalcTimeStamp(const oldtime: int64): boolean;
-    property NewTimeStamp: int64 read fNewtime;
-    property OldTimeStamp: int64 read fOldtime;
+    private
+      fNewtime, fOldtime: int64;
+      fvalue: String;
+    public
+      constructor Create;
+      function ReCalcTimeStamp(const oldtime: int64): boolean;
+      property NewTimeStamp: int64 read fNewtime;
+      property OldTimeStamp: int64 read fOldtime;
   end;
 
 function PrepareTimestamp(const TimeStamp: int64): int64; overload;
@@ -38,7 +38,7 @@ function PrepareTimestamp(const DateTime: TDateTime): TDateTime; overload;
 implementation
 
 uses
-  DateUtils, SysUtils, queueunit, debugunit, configunit, mystrings,
+  DateUtils, SysUtils, queueunit, debugunit, configunit,
   sltcp, http, RegExpr, irc, mrdohutils;
 
 const
@@ -58,7 +58,7 @@ end;
 
 { TPazoPretimeLookup }
 
-constructor TPazoPretimeLookupTask.Create(const netname, channel: String; site: String; pazo: TPazo; attempt: integer);
+constructor TPazoPretimeLookupTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: integer);
 begin
   self.attempt := attempt;
   inherited Create(netname, channel, site, '', pazo);
@@ -168,9 +168,9 @@ end;
 function TPazoPretimeLookupTask.Name: String;
 begin
   try
-    Result := Format('<b>::PRETIME:</b> %s [ID:%d] [Round:%d]', [mainpazo.rls.rlsname, mainpazo.pazo_id, attempt]);
+    Result := Format('<b>.:PRETIME:.</b> %s [ID: %d] [Round: %d]', [mainpazo.rls.rlsname, mainpazo.pazo_id, attempt]);
   except
-    Result := 'PRETIME';
+    Result := '.:PRETIME:.';
   end;
 end;
 
@@ -242,4 +242,3 @@ begin
 end;
 
 end.
-

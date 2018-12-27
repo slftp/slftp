@@ -2,25 +2,29 @@ unit taskraw;
 
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
 type
   TRawTask = class(TTask)
-   cmd: String;
-   dir: String;
-   constructor Create(const netname, channel: String;site: String; dir: String; cmd: String);
-   function Execute(slot: Pointer): Boolean; override;
-   function Name: String; override;
+    private
+      cmd: String;
+      dir: String;
+    public
+      constructor Create(const netname, channel, site, dir, cmd: String);
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
   end;
 
 implementation
 
-uses sitesunit, SysUtils, mystrings, DebugUnit;
+uses
+  sitesunit, SysUtils, mystrings, DebugUnit;
 
 const
   section = 'raw';
 
-constructor TRawTask.Create(const netname, channel: String;site: String; dir: String; cmd: String);
+constructor TRawTask.Create(const netname, channel, site, dir, cmd: String);
 begin
   self.cmd := cmd;
   self.dir := dir;
@@ -50,10 +54,9 @@ ujra:
 
   if (not s.Send(cmd)) then goto ujra;
   if (not s.Read(cmd)) then goto ujra;
+
   ido := Now();
-
   response := s.lastResponse;
-
 
   Result := True;
   ready := True;
@@ -62,11 +65,10 @@ end;
 function TRawTask.Name: String;
 begin
   try
-    Result := 'RAW ' + site1 + ' -> ' + cmd;
+    Result := Format('RAW <b>%s</b> -> %s', [site1, cmd]);
   except
     Result := 'RAW';
   end;
 end;
 
 end.
-

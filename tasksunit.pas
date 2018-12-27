@@ -45,11 +45,9 @@ type
 
     TryToAssign : Integer;
 
-    constructor Create(const netname, channel: String; const site1: String); overload;
-    constructor Create(const netname, channel: String; const site1, site2: String); overload;
+    constructor Create(const netname, channel, site1: String); overload;
+    constructor Create(const netname, channel, site1, site2: String); overload;
     destructor Destroy; override;
-
-
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -77,12 +75,12 @@ var
   uidg: Integer = 1;
   uid_lock: TCriticalSection;
 
-constructor TTask.Create(const netname, channel: String; const site1: String);
+constructor TTask.Create(const netname, channel, site1: String);
 begin
   Create(netname, channel, site1, '');
 end;
 
-constructor TTask.Create(const netname, channel: String; const site1, site2: String);
+constructor TTask.Create(const netname, channel, site1, site2: String);
 begin
   created := Now();
   assigned := 0;

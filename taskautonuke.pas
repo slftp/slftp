@@ -2,14 +2,16 @@ unit taskautonuke;
 
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
-type TAutoNukeTask = class(TTask)
-     private
-     public
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: String; override;
-     end;
+type
+  TAutoNukeTask = class(TTask)
+    private
+    public
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
+  end;
 
 implementation
 
@@ -20,7 +22,7 @@ uses
 const
   rsections = 'autonuke';
 
-{ TAutoSectionTask }
+{ TAutoNukeTask }
 
 function TAutoNukeTask.Execute(slot: Pointer): Boolean;
 label

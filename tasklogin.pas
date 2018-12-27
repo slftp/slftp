@@ -4,25 +4,29 @@ interface
 
 uses tasksunit;
 
-type TLoginTask = class(TTask)
-     private
-       kill: Boolean;
-     public
-       noannounce: Boolean;
-       readd: Boolean; // used for autobnctest
-       constructor Create(const netname, channel: String; site: String; kill: Boolean; readd: Boolean);
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: String; override;
-     end;
+type
+  TLoginTask = class(TTask)
+    private
+      kill: Boolean;
+    public
+      noannounce: Boolean;
+      readd: Boolean; // used for autobnctest
+      constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
+  end;
 
 implementation
 
-uses sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
+uses
+  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
 
-const section = 'login';
+const
+  section = 'login';
 
 { TLoginTask }
-constructor TLoginTask.Create(const netname, channel: String; site: String; kill: Boolean; readd: Boolean);
+
+constructor TLoginTask.Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
 begin
   self.kill := kill;
   self.readd := readd;
@@ -30,14 +34,16 @@ begin
 end;
 
 function TLoginTask.Execute(slot: Pointer): Boolean;
-label autobnctest;
-var s: TSiteSlot;
-    i: Integer;
-    l: TLoginTask;
+label
+  autobnctest;
+var
+  s: TSiteSlot;
+  i: Integer;
+  l: TLoginTask;
 begin
   Result := False;
   s := slot;
-  debugunit.Debug(dpSpam, section, '-->'+Name);
+  debugunit.Debug(dpSpam, section, '-->' + Name);
 
   if readd then
   begin
@@ -55,7 +61,6 @@ begin
     // site is up, we have to try to login
     goto autobnctest;
   end;
-
 
   try
     if ((not readd) or (not s.site.markeddown)) then
@@ -85,7 +90,7 @@ autobnctest:
   generates an high CPU load when a sites has autobnctest value = 0 
 }
 
-    i:= s.RCInteger('autobnctest', 0);
+    i := s.RCInteger('autobnctest', 0);
     if i > 0 then
     begin
       try
@@ -102,7 +107,7 @@ autobnctest:
     end;
   end;
 
-  debugunit.Debug(dpSpam, section, '<--'+Name);
+  debugunit.Debug(dpSpam, section, '<--' + Name);
   ready := True;
 end;
 
@@ -112,10 +117,10 @@ begin
   try
     if readd then
     begin
-    Result := 'AUTO';
+      Result := 'AUTO';
     end;
 
-    Result := Result + 'LOGIN '+site1+' '+ScheduleText;
+    Result := Result + Format('LOGIN <b>%s</b> %s', [site1, ScheduleText]);
   except
     Result := 'LOGIN';
   end;
