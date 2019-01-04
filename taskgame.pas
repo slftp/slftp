@@ -2,16 +2,17 @@ unit taskgame;
 
 interface
 
-uses Classes, pazo, taskrace, sltcp;
+uses
+  Classes, pazo, taskrace, sltcp;
 
 type
   TPazoGameTask = class(TPazoPlainTask)
   private
     ss: TStringStream;
     attempt: Integer;
-    function Parse(text: String): Boolean;
+    function Parse(const text: String): Boolean;
   public
-    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -19,20 +20,21 @@ type
 
 implementation
 
-uses SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr,
-     sllanguagebase;
+uses
+  SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr, sllanguagebase;
 
 const
   section = 'taskgame';
 
+{ TPazoGameTask }
 
-constructor TPazoGameTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
+constructor TPazoGameTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
 begin
-  ss:= TStringStream.Create('');
-  self.attempt:= attempt;
-  self.wanted_dn:= True;
   inherited Create(netname, channel, site, '', pazo);
+  ss := TStringStream.Create('');
+  self.attempt := attempt;
+  wanted_dn := True;
 end;
 
 destructor TPazoGameTask.Destroy;
@@ -41,12 +43,15 @@ begin
   inherited;
 end;
 
-function TPazoGameTask.Parse(text: String):boolean;
-//var pgrx2,pgrx1,pgrx,pgrg:TRegExpr;
-//ss,s:string;
-//rg:TGameRelease;
+function TPazoGameTask.Parse(const text: String): Boolean;
+{
+var
+  pgrx2, pgrx1, pgrx, pgrg: TRegExpr;
+  ss, s: String;
+  rg: TGameRelease;
+}
 begin
-result:=False;
+  Result := False;
 (*
 pgrx:=TRegExpr.Create;
 pgrx.ModifierI:=True;
@@ -101,21 +106,23 @@ pgrx2.Free;
 *)
 end;
 
-function TPazoGameTask.Execute(slot: Pointer):boolean;
-label ujra;
-var s: TSiteSlot;
-    i, j, k: Integer;
-    de: TDirListEntry;
-    r: TPazoGameTask;
-    d: TDirList;
-    event, nfofile: String;
+function TPazoGameTask.Execute(slot: Pointer): boolean;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  i, j, k: Integer;
+  de: TDirListEntry;
+  r: TPazoGameTask;
+  d: TDirList;
+  event, nfofile: String;
 begin
-  Result:= False;
-  s:= slot;
+  Result := False;
+  s := slot;
 
   if mainpazo.stopped then
   begin
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
 
@@ -125,38 +132,36 @@ ujra:
   if s.status <> ssOnline then
     if not s.ReLogin then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
 
-    if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir)+ MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
+    if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
     begin
       if s.status = ssDown then
         goto ujra;
-      readyerror:= True; // <- nincs meg a dir...
+      readyerror := True; // <- nincs meg a dir...
       exit;
     end;
-
 
     j := 0;
     nfofile := '';
     d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
     d.dirlist_lock.Enter;
     try
-      for i:= 0 to d.entries.Count-1 do
+      for i := 0 to d.entries.Count - 1 do
       begin
-        de:= TDirlistEntry(d.entries[i]);
+        de := TDirlistEntry(d.entries[i]);
         if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
-          nfofile:= de.filename;
+          nfofile := de.filename;
 
         if ((de.Directory) or (de.filesize = 0)) then
         begin
-          k:= TagComplete(de.filenamelc);
-          if j = 0 then j:= k;
-          if k = 1 then j:= k;
+          k := TagComplete(de.filenamelc);
+          if j = 0 then j := k;
+          if k = 1 then j := k;
         end;
       end;
-
     finally
       d.dirlist_lock.Leave;
       d.Free;
@@ -168,25 +173,26 @@ ujra:
     begin
       Debug(dpSpam, section, 'READD: nincs meg az nfo file...');
 
-      r:= TPazoGameTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-      r.startat:= IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      r := TPazoGameTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
+      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
       AddTask(r);
-    end else
+    end
+    else
     begin
       Debug(dpSpam, section, 'READD: nincs tobb readd...');
     end;
-    ready:= True;
-    Result:= True;
+    ready := True;
+    Result := True;
     exit;
   end;
 
   // try to get the nfo file
-  s.downloadingfrom:= True;
+  s.downloadingfrom := True;
   i := s.LeechFile(ss, nfofile);
 
   if i < 0 then
   begin
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
   if i = 0 then
@@ -195,19 +201,26 @@ ujra:
 
   if Parse(ss.DataString) then
   begin
-    if j = 1 then event:= 'COMPLETE' else event:= 'NEWDIR';
+    if j = 1 then
+      event := 'COMPLETE'
+    else
+      event := 'NEWDIR';
+
     kb_add(netname, channel, ps1.name, mainpazo.rls.section, '', event, mainpazo.rls.rlsname, '');
   end;// else
 //    debug(dpMessage, section, 'Couldnt find imdb url in nfo '+nfofile);
 
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
 end;
 
 function TPazoGameTask.Name: String;
 begin
-//Result:=Format('PGAME %d ROUND:%d',[pazo_id,attempt]);
-Result:=Format('PGAME (PazoID:%d) %s [Count:%d]',[pazo_id,mainpazo.rls.rlsname,attempt]);
+  try
+    Result := Format('GameTask: %s (PazoID: %d) [Count: %d]', [mainpazo.rls.rlsname, pazo_id, attempt]);
+  except
+    Result := 'GameTask';
+  end;
 end;
 
 end.
