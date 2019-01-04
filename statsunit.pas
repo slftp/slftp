@@ -234,7 +234,8 @@ begin
             // release the SQL statement, results and bound parameters before reopen
             fQuery.Close;
 
-            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(now, :period)';
+            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period)';
+            fQuery.ParamByName('timestring').AsString := 'now';
             fQuery.ParamByName('sitesrc').AsString := TSite(sites.Items[i]).Name;
             fQuery.ParamByName('period').AsString := sql_period;
             fQuery.Open;
@@ -256,7 +257,8 @@ begin
             // release the SQL statement, results and bound parameters before reopen
             fQuery.Close;
 
-            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(now, :period)';
+            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period)';
+            fQuery.ParamByName('timestring').AsString := 'now';
             fQuery.ParamByName('sitedst').AsString := TSite(sites.Items[i]).Name;
             fQuery.ParamByName('period').AsString := sql_period;
             fQuery.Open;
@@ -283,7 +285,8 @@ begin
         begin
           irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [period, sitename]));
 
-          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(now, :period)';
+          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period)';
+          fQuery.ParamByName('timestring').AsString := 'now';
           fQuery.ParamByName('sitesrc').AsString := sitename;
           fQuery.ParamByName('period').AsString := sql_period;
           fQuery.Open;
@@ -302,7 +305,8 @@ begin
           // release the SQL statement, results and bound parameters before reopen
           fQuery.Close;
 
-          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(now, :period)';
+          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period)';
+          fQuery.ParamByName('timestring').AsString := 'now';
           fQuery.ParamByName('sitedst').AsString := sitename;
           fQuery.ParamByName('period').AsString := sql_period;
           fQuery.Open;
@@ -326,7 +330,8 @@ begin
           // release the SQL statement, results and bound parameters before reopen
           fQuery.Close;
 
-          fQuery.SQL.Text := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(now, :period) GROUP BY sitedst ORDER BY size';
+          fQuery.SQL.Text := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period) GROUP BY sitedst ORDER BY size';
+          fQuery.ParamByName('timestring').AsString := 'now';
           fQuery.ParamByName('sitesrc').AsString := sitename;
           fQuery.ParamByName('period').AsString := sql_period;
           fQuery.Open;
@@ -345,7 +350,8 @@ begin
           // release the SQL statement, results and bound parameters before reopen
           fQuery.Close;
 
-          fQuery.SQL.Text := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(now, :period) GROUP BY sitesrc ORDER BY size';
+          fQuery.SQL.Text := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period) GROUP BY sitesrc ORDER BY size';
+          fQuery.ParamByName('timestring').AsString := 'now';
           fQuery.ParamByName('sitedst').AsString := sitename;
           fQuery.ParamByName('period').AsString := sql_period;
           fQuery.Open;
