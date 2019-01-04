@@ -33,8 +33,8 @@ var
 
 constructor TIdleTask.Create(const netname, channel, site: String);
 begin
-  idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);
+  idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
 end;
 
 function TIdleTask.Execute(slot: Pointer): Boolean;

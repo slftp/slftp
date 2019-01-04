@@ -6,16 +6,17 @@ uses tasksunit;
 
 type
   TAutoIndexTask = class(TTask)
+  private
+    function DoIndexing(slot: Pointer; const sectionname, path: String; const aktszint: Integer): Integer;
+  public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
-  private
-    function DoIndexing(slot: Pointer; const sectionname, path: String;
-      const aktszint: Integer): Integer;
   end;
 
 implementation
 
-uses SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
+uses
+  SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
   dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
 
 const
@@ -26,7 +27,6 @@ const
 function IndexFindNfo(dl: TDirList): TDirListEntry;
 var
   de: TDirlistEntry;
-  //i: Integer;
   rx: TRegexpr;
 begin
   Result := nil;
@@ -43,7 +43,6 @@ begin
           exit;
         end;
       end;
-
     except
       on e: Exception do
       begin
@@ -51,7 +50,6 @@ begin
         Result := nil;
       end;
     end;
-
   finally
     rx.free;
   end;
@@ -279,4 +277,3 @@ begin
 end;
 
 end.
-

@@ -7,7 +7,7 @@ uses tasksunit;
 type
   TAutoDirlistTask = class(TTask)
   private
-    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
+    procedure ProcessRequest(slot: Pointer; const secdir, reqdir, releasename: String);
   public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -30,12 +30,13 @@ type
     secdir: String;
     rlsname: String;
   public
-    constructor Create(p: Tpazo; secdir, rlsname: String);
+    constructor Create(p: Tpazo; const secdir, rlsname: String);
     procedure Execute; override;
   end;
 
-{ TAutoSectionTask }
-procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
+{ TAutoDirlistTask }
+
+procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; const secdir, reqdir, releasename: String);
 var
   x: TStringList;
   i, db: Integer;
@@ -303,7 +304,7 @@ end;
 
 { TReqFillerThread }
 
-constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: String);
+constructor TReqFillerThread.Create(p: Tpazo; const secdir, rlsname: String);
 begin
   self.p := p;
   self.secdir := secdir;
@@ -350,4 +351,3 @@ begin
 end;
 
 end.
-

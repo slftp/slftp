@@ -105,7 +105,7 @@ begin
     Result := ReplaceText(Result, '...', '');
 end;
 
-  { TPazoHTTPImdbTask }
+{ TPazoHTTPImdbTask }
 
 constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
 begin

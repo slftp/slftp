@@ -7,10 +7,12 @@ uses
 
 type
   TCWDTask = class(TTask)
-      dir: String;
-      constructor Create(const netname, channel, site, dir: String);
-      function Execute(slot: Pointer): Boolean; override;
-      function Name: String; override;
+  private
+    dir: String;
+  public
+    constructor Create(const netname, channel, site, dir: String);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -25,8 +27,8 @@ const
 
 constructor TCWDTask.Create(const netname, channel, site, dir: String);
 begin
-  self.dir := dir;
   inherited Create(netname, channel, site);
+  self.dir := dir;
 end;
 
 function TCWDTask.Execute(slot: Pointer): Boolean;
