@@ -461,9 +461,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre, event, rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
-//forceRebuild: Boolean = False;
+function kb_AddB(const netname, channel, sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -477,10 +475,81 @@ var
   rlz, grp: String;
   dlt: TPazoDirlistTask;
   l: TLoginTask;
+
+  { Removes the oldest knowledge base entries }
+  procedure KbListsCleanUp;
+  begin
+    try
+      i := kb_trimmed_rls.Count - 1;
+      if i > 200 then
+      begin
+        while i > 150 do
+        begin
+          kb_trimmed_rls.Delete(0);
+          i := kb_trimmed_rls.Count - 1;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_trimmed_rls : %s', [e.Message]);
+      end;
+    end;
+
+    try
+      i := kb_groupcheck_rls.Count - 1;
+      if i > 200 then
+      begin
+        while i > 150 do
+        begin
+          kb_groupcheck_rls.Delete(0);
+          i := kb_groupcheck_rls.Count - 1;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_groupcheck_rls : %s', [e.Message]);
+      end;
+    end;
+
+    try
+      i := kb_latest.Count - 1;
+      if i > 200 then
+      begin
+        while i > 150 do
+        begin
+          kb_latest.Delete(i);
+          i := kb_latest.Count - 1;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_latest : %s', [e.Message]);
+      end;
+    end;
+
+    try
+      i := kb_skip.Count - 1;
+      if i > 300 then
+      begin
+        while i > 250 do
+        begin
+          kb_skip.Delete(i);
+          i := kb_skip.Count - 1;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_skip : %s', [e.Message]);
+      end;
+    end;
+  end;
+
 begin
-  debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d',
-    [sitename, section, event, rls, cdno, integer(dontFire),
-    integer(forceFire)]);
+  debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, event, rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
 
@@ -590,79 +659,7 @@ begin
     end;
 
     // Start cleanup lists
-    try
-      i := kb_trimmed_rls.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
-        begin
-          kb_trimmed_rls.Delete(0);
-          i := kb_trimmed_rls.Count - 1;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections,
-          '[EXCEPTION] kb_AddB clean kb_trimmed_rls : %s',
-          [e.Message]);
-      end;
-    end;
-
-    try
-      i := kb_groupcheck_rls.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
-        begin
-          kb_groupcheck_rls.Delete(0);
-          i := kb_groupcheck_rls.Count - 1;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections,
-          '[EXCEPTION] kb_AddB clean kb_groupcheck_rls : %s',
-          [e.Message]);
-      end;
-    end;
-
-    try
-      i := kb_latest.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
-        begin
-          kb_latest.Delete(i);
-          i := kb_latest.Count - 1;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_latest : %s',
-          [e.Message]);
-      end;
-    end;
-
-    try
-      i := kb_skip.Count - 1;
-      if i > 300 then
-      begin
-        while i > 250 do
-        begin
-          kb_skip.Delete(i);
-          i := kb_skip.Count - 1;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_skip : %s',
-          [e.Message]);
-      end;
-    end;
+    KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
 
   finally
     kb_lock.Leave;
@@ -699,7 +696,8 @@ begin
       rc := FindSectionHandler(section);
       if event = 'PRE' then
       begin
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now())); // no fakecheck needed, it's a pre from one of our sites
+        // no fakecheck needed, it's a pre from one of our sites
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
         irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
@@ -708,8 +706,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s',
-                [e.Message]);
+              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
             end;
           end;
         end;
@@ -1123,9 +1120,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
-//forceRebuild: Boolean = False;
+function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
