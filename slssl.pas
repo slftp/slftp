@@ -697,6 +697,12 @@ begin
 
   if @slENGINE_load_builtin_engines <> nil then
     slENGINE_load_builtin_engines();
+    {
+      * might miss a ENGINE_cleanup() call on uninit
+      If no engine API functions are called at all in an application, then there are no inherent memory leaks to worry about from the engine functionality,
+      however if any ENGINEs are loaded, even if they are never registered or used, it is necessary to use the ENGINE_cleanup() function to correspondingly
+      cleanup before program exit, if the caller wishes to avoid memory leaks.
+    }
 
   slOpenSSL_add_all_digests();
   slOpenSSL_add_all_ciphers();

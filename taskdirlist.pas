@@ -7,12 +7,14 @@ uses
 
 type
   TDirlistTask = class(TTask)
-   forcecwd: Boolean;
-   dir: String;
-   constructor Create(const netname, channel: String; const site: String; const dir: String; forcecwd: Boolean = False);
-   function Execute(slot: Pointer): Boolean; override;
-   function Name: String; override;
- end;
+  private
+    forcecwd: Boolean;
+    dir: String;
+  public
+    constructor Create(const netname, channel, site, dir: String; forcecwd: Boolean = False);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
 
 implementation
 
@@ -24,11 +26,11 @@ const
 
 { TDirlistTask }
 
-constructor TDirlistTask.Create(const netname, channel: String; const site: String; const dir: String; forcecwd: Boolean = False);
+constructor TDirlistTask.Create(const netname, channel, site, dir: String; forcecwd: Boolean = False);
 begin
+  inherited Create(netname, channel, site);
   self.dir := dir;
   self.forcecwd := forcecwd;
-  inherited Create(netname, channel, site);
 end;
 
 function TDirlistTask.Execute(slot: Pointer): Boolean;
@@ -79,11 +81,10 @@ end;
 function TDirlistTask.Name: String;
 begin
   try
-    Result := Format('<b>DIRLIST:</b> %s @ %s',[dir, site1]);
+    Result := Format('<b>DIRLIST:</b> %s @ %s', [dir, site1]);
   except
     Result := 'DIRLIST';
   end;
 end;
 
 end.
-

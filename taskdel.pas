@@ -30,14 +30,14 @@ const
 
 constructor TDelReleaseTask.Create(const netname, channel, site, dir: String);
 begin
+  inherited Create(netname, channel, site);
   self.dir := dir;
   devent := TEvent.Create(nil, true, false, 'DEL_' + site + '-' + dir);
-  inherited Create(netname, channel, site);
 end;
 
 destructor TDelReleaseTask.Destroy;
 begin
-  devent.free;
+  devent.Free;
   inherited;
 end;
 

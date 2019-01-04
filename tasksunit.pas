@@ -35,7 +35,7 @@ type
     readydel: Boolean;
     readydelat: TDateTime;
 
-    uid: Integer;
+    uid: UInt64;
     ido: TDateTime;
 
     dependencies: TStringList;
@@ -72,7 +72,7 @@ const
   section = 'tasks';
 
 var
-  uidg: Integer = 1;
+  uidg: UInt64 = 1;
   uid_lock: TCriticalSection;
 
 constructor TTask.Create(const netname, channel, site1: String);
@@ -126,18 +126,15 @@ begin
   end;
 end;
 
-
+destructor TTask.Destroy;
+begin
+  dependencies.Free;
+  inherited;
+end;
 
 procedure TTask.DebugTask;
 begin
   Debug(dpSpam, section, '%s', [Fullname]);
-end;
-
-destructor TTask.Destroy;
-begin
-  dependencies.Free;
-
-  inherited;
 end;
 
 function TTask.Fullname: String;
