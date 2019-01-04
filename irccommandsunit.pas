@@ -6175,7 +6175,7 @@ begin
     exit;
   end;
 
-  if CheckForBadAssGroup(dir) then
+  if CheckIfGlobalSkippedGroup(dir) then
     irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Skipped group found...');
 
   try

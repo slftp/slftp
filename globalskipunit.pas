@@ -2,35 +2,45 @@ unit globalskipunit;
 
 interface
 
-uses classes, Regexpr;
+uses
+  IniFiles;
 
+{ Just a helper function to initialize @value(globalgroupskip) and calls Rehashglobalskiplist afterwards }
 procedure Initglobalskiplist;
+
+{ Just a helper function to free @value(globalgroupskip) }
 procedure Uninitglobalskiplist;
 
+{ Reloads entries from skipgroups file and sets it to @value(globalgroupskip)
+  @returns(@true on success, @false otherwise) }
 function Rehashglobalskiplist: boolean;
 
-function CheckForBadAssGroup(const rls: String): boolean;
+{ Extracts groupname from @value(rls) and checks if it's in global skipped group list
+  @param(rls Releasename which should be checked against skipped group lists)
+  @returns(@true if in global skipped group list, @false otherwise) }
+function CheckIfGlobalSkippedGroup(const rls: String): boolean;
 
 var
-  globalgroupskip: TStringlist;
+  globalgroupskip: THashedStringList; //< hashed list of all global skipped groups
 
 implementation
 
-uses debugunit, sysutils;
+uses
+  SysUtils, Classes, debugunit, Regexpr;
 
 const
   section = 'globalskip';
 
 procedure Initglobalskiplist;
 begin
-  Debug(dpSpam, section, 'Loading up Global group skiplist..');
-  globalgroupskip := TStringlist.Create;
+  Debug(dpSpam, section, 'Loading up global group skiplist...');
+  globalgroupskip := THashedStringList.Create;
   Rehashglobalskiplist;
 end;
 
 procedure Uninitglobalskiplist;
 begin
-  if globalgroupskip <> nil then
+  if Assigned(globalgroupskip) then
   begin
     FreeAndNil(globalgroupskip);
   end;
@@ -59,7 +69,7 @@ begin
   end;
 end;
 
-function CheckForBadAssGroup(const rls: String): boolean;
+function CheckIfGlobalSkippedGroup(const rls: String): boolean;
 var
   r: TRegexpr;
 begin
@@ -80,4 +90,3 @@ begin
 end;
 
 end.
-

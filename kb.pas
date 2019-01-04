@@ -305,8 +305,8 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks
-{$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks,
+  globalskipunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
   TSectionRelease = record
@@ -847,6 +847,13 @@ begin
   Result := p.pazo_id;
   if p.sites.Count = 0 then
     exit;
+
+  if CheckIfGlobalSkippedGroup(rls) then
+  begin
+    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a global skipped group!', [grp, rls]));
+    debug(dpSpam, rsections, 'Group %s pred %s in %s but it is a global skipped group', [grp, rls, section]);
+    exit;
+  end;
 
   if (event <> 'ADDPRE') then
   begin
