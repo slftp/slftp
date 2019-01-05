@@ -6,7 +6,7 @@ unit SynCrtSock;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2018 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynCrtSock;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2018
+  Portions created by the Initial Developer are Copyright (C) 2019
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -2016,8 +2016,8 @@ type
     /// the resource address
     // - e.g. '/category/name/10?param=1'
     Address: SockString;
-    /// cslUnix for unix socket URI
-    // http://unix:/path/to/socket.sock:/url/path
+    /// either cslTcp or cslUnix for unix socket URI
+    // - e.g. 'http://unix:/path/to/socket.sock:/url/path'
     Layer: TCrtSocketLayer;
     /// fill the members from a supplied URI
     function From(aURI: SockString; const DefaultPort: SockString=''): boolean;
@@ -2410,18 +2410,14 @@ type
     fRootURL: SockString;
     fIn: record
       Headers: pointer;
-      Method: SockString;
-      Data: SockString;
       DataOffset: integer;
+      URL, Method, Data: SockString;
     end;
     fOut: record
       Header, Encoding, AcceptEncoding, Data: SockString;
     end;
     fSSL: record
-      CertFile: SockString;
-      CACertFile: SockString;
-      KeyName: SockString;
-      PassPhrase: SockString;
+      CertFile, CACertFile, KeyName, PassPhrase: SockString;
     end;
     procedure InternalConnect(ConnectionTimeOut,SendTimeout,ReceiveTimeout: DWORD); override;
     procedure InternalCreateRequest(const method, aURL: SockString); override;
@@ -3245,12 +3241,13 @@ begin
   ReasonCache[Hi,Lo] := result;
 end;
 
-function Hex2Dec(c: AnsiChar): integer; {$ifdef HASINLINE}inline;{$endif}
+function Hex2Dec(c: integer): integer; {$ifdef HASINLINE}inline;{$endif}
 begin
+  result := c;
   case c of
-  'A'..'Z': result := Ord(c) - (Ord('A') - 10);
-  'a'..'z': result := Ord(c) - (Ord('a') - 10);
-  '0'..'9': result := Ord(c) - Ord('0');
+    ord('A')..ord('Z'): dec(result,(ord('A') - 10));
+    ord('a')..ord('z'): dec(result,(ord('a') - 10));
+    ord('0')..ord('9'): dec(result,ord('0'));
   else result := -1;
   end;
 end;
@@ -3403,40 +3400,50 @@ begin
       exit;
 end;
 
-function IdemPChar(p, up: pAnsiChar): boolean;
-// if the beginning of p^ is same as up^ (ignore case - up^ must be already Upper)
-var c: AnsiChar;
+type
+  TNormToUpper = array[byte] of byte;
+var
+  NormToUpper: TNormToUpper;
+
+function IdemPCharUp(p: PByteArray; up: PByte; toup: PByteArray): boolean; {$ifdef HASINLINE}inline;{$endif}
+var u: cardinal;
 begin
   result := false;
-  if p=nil then
-    exit;
-  if (up<>nil) and (up^<>#0) then
-    repeat
-      c := p^;
-      if up^<>c then
-        if c in ['a'..'z'] then begin
-          dec(c,32);
-          if up^<>c then
-            exit;
-        end else exit;
-      inc(up);
-      inc(p);
-    until up^=#0;
+  dec(PtrUInt(p), PtrUInt(up));
+  repeat
+    u := up^;
+    if u=0 then
+      break;
+    if toup[p[PtrUInt(up)]]<>u then
+      exit;
+    inc(up);
+  until false;
   result := true;
+end;
+
+function IdemPChar(p, up: pAnsiChar): boolean;
+// if the beginning of p^ is same as up^ (ignore case - up^ must be already Upper)
+begin
+  if p=nil then
+    result := false else
+  if up=nil then
+    result := true else
+    result := IdemPCharUp(pointer(p),pointer(up),@NormToUpper);
 end;
 
 function IdemPCharArray(p: PAnsiChar; const upArray: array of PAnsiChar): integer;
 var w: word;
+    toup: PByteArray;
+    up: ^PAnsiChar;
 begin
   if p<>nil then begin
-    w := ord(p[0])+ord(p[1])shl 8;
-    if p[0] in ['a'..'z'] then
-      dec(w,32);
-    if p[1] in ['a'..'z'] then
-      dec(w,32 shl 8);
+    toup := @NormToUpper;
+    w := toup[ord(p[0])]+toup[ord(p[1])]shl 8;
+    up := @upArray[0];
     for result := 0 to high(upArray) do
-      if (PWord(upArray[result])^=w) and IdemPChar(p+2,upArray[result]+2) then
-        exit;
+      if (PWord(up^)^=w) and IdemPCharUp(pointer(@p[2]),pointer(@up^[2]),toup) then
+        exit else
+        inc(up);
   end;
   result := -1;
 end;
@@ -3459,22 +3466,14 @@ end;
 
 function SameText(const a,b: SockString): boolean;
 var n,i: integer;
-    c,d: AnsiChar;
 begin
   result := false;
   n := length(a);
   if length(b)<>n then
     exit;
-  for i := 1 to n do begin
-    c := a[i];
-    if c in ['a'..'z'] then
-      dec(c,32);
-    d := b[i];
-    if d in ['a'..'z'] then
-      dec(d,32);
-    if c<>d then
+  for i := 1 to n do
+    if NormToUpper[ord(a[i])]<>NormToUpper[ord(b[i])] then
       exit;
-  end;
   result := true;
 end;
 
@@ -3492,13 +3491,13 @@ begin
     until false;
 end; // P^ will point to the first non digit char
 
-function GetNextLine(var P: PAnsiChar): SockString;
+procedure GetNextLine(var P: PAnsiChar; var result: SockString);
 var S: PAnsiChar;
 begin
   if P=nil then
     result := '' else begin
     S := P;
-    while S^>=' ' do
+    while S^>=' ' do // break on any control char
       inc(S);
     SetString(result,P,S-P);
     while (S^<>#0) and (S^<' ') do inc(S); // ignore e.g. #13 or #10
@@ -3608,20 +3607,17 @@ asm  // fast implementation by John O'Harrow
 end;
 {$endif}
 
-function UpperCase(const S: SockString): SockString;
-procedure Upper(Source, Dest: PAnsiChar; L: cardinal);
-var Ch: AnsiChar; // this sub-call is shorter and faster than 1 plain proc
+procedure UpperMove(Source, Dest, ToUp: PByte; L: cardinal);
 begin
   repeat
-    Ch := Source^;
-    if (Ch>='a') and (Ch<='z') then
-      dec(Ch,32);
-    Dest^ := Ch;
+    Dest^ := ToUp[Source^];
     dec(L);
     inc(Source);
     inc(Dest);
   until L=0;
 end;
+
+function UpperCase(const S: SockString): SockString;
 var L: cardinal;
 begin
   result := '';
@@ -3629,7 +3625,7 @@ begin
   if L=0 then
     exit;
   SetLength(result, L);
-  Upper(pointer(S),pointer(result),L);
+  UpperMove(pointer(S),pointer(result),@NormToUpper,L);
 end;
 
 {$endif HASCODEPAGE}
@@ -3688,9 +3684,9 @@ begin
   if p<>nil then begin
     while p^=' ' do inc(p);
     repeat
-      v0 := Hex2Dec(p[0]);
+      v0 := Hex2Dec(ord(p[0]));
       if v0<0 then break; // not in '0'..'9','a'..'f'
-      v1 := Hex2Dec(p[1]);
+      v1 := Hex2Dec(ord(p[1]));
       inc(p);
       if v1<0 then begin
         result := (result shl 4) or v0; // only one char left
@@ -4360,19 +4356,19 @@ begin
     P := S+3;
   end;
   S := P;
-  if (PInteger(S)^ = UNIX_LOW) and (S[4] = ':') then begin //http://unix:...:/path
-    Inc(S, 5);
-    Inc(P, 5);
+  if (PInteger(S)^=UNIX_LOW) and (S[4]=':') then begin
+    Inc(S,5); // 'http://unix:/path/to/socket.sock:/url/path'
+    Inc(P,5);
     Layer := cslUNIX;
-    while not (S^ in [#0,':']) do inc(S);
+    while not(S^ in [#0,':']) do inc(S);
   end else
-    while not (S^ in [#0,':','/']) do inc(S);
+    while not(S^ in [#0,':','/']) do inc(S);
   SetString(Server,P,S-P);
   if S^=':' then begin
     inc(S);
     P := S;
-    while not (S^ in [#0,'/']) do inc(S);
-    SetString(Port,P,S-P);
+    while not(S^ in [#0,'/']) do inc(S);
+    SetString(Port,P,S-P); // Port='' for cslUnix
   end else
     if DefaultPort<>'' then
       Port := DefaultPort else
@@ -4387,17 +4383,16 @@ end;
 function TURI.URI: SockString;
 const Prefix: array[boolean] of SockString = ('http://','https://');
 begin
-  if (Port='') or (Port='0') or (Port=DEFAULT_PORT[Https]) then
-    result := Prefix[Https]+Server+'/'+Address else
-    result := Prefix[Https]+Server+':'+Port+'/'+Address;
+  if Layer=cslUNIX then
+    result := 'http://unix:'+Server+':/'+Address else
+    if (Port='') or (Port='0') or (Port=DEFAULT_PORT[Https]) then
+      result := Prefix[Https]+Server+'/'+Address else
+      result := Prefix[Https]+Server+':'+Port+'/'+Address;
 end;
 
 function TURI.PortInt: integer;
-var err: integer;
 begin
-  Val(string(Port),result,err);
-  if err<>0 then
-    result := 0;
+  result := GetCardinal(pointer(port));
 end;
 
 function TURI.Root: SockString;
@@ -4508,16 +4503,15 @@ begin
   end;
   if SameText(Server,'localhost')
     {$ifndef MSWINDOWS}or ((Server='') and not doBind){$endif} then
-    IP := cLocalHost
-  else if (aLayer=cslUNIX) then
-    IP := Server
-  else
-    IP := ResolveName(Server,AF_INET,ipproto,socktype);
-  // use AF_INET instead of AF_UNSPEC: IP6 is buggy!
-  {$ifdef UNIX}
-  if (aLayer=cslUNIX) then
+    IP := cLocalHost else
+    if aLayer=cslUNIX then
+      IP := Server else
+      IP := ResolveName(Server,AF_INET,ipproto,socktype);
+  {$ifndef MSWINDOWS}
+  if aLayer=cslUNIX then
     family := AF_UNIX else
   {$endif}
+    // use AF_INET instead of AF_UNSPEC: IP6 is buggy!
     family := AF_INET;
   if SetVarSin(sin,IP,Port,family,ipproto,socktype,false)<>0 then
     exit;
@@ -4659,10 +4653,11 @@ begin
     s := '0.0.0.0';
     p := aPort;
   end;
-  {$ifdef UNIX}
-  if s = 'unix' then begin
+  {$ifndef MSWINDOWS}
+  if s='unix' then begin
     aLayer := cslUNIX;
-    s := p; p := '';
+    s := p;
+    p := '';
   end;
   {$endif}
   OpenBind(s,p,true,-1,aLayer); // raise an ECrtSocket exception on error
@@ -5577,20 +5572,20 @@ end;
 function SendEmail(const Server, From, CSVDest, Subject, Text, Headers,
   User, Pass, Port, TextCharSet: SockString; aTLS: boolean): boolean;
 var TCP: TCrtSocket;
-procedure Expect(const Answer: SockString);
-var Res: SockString;
-begin
-  repeat
-    readln(TCP.SockIn^,Res);
-  until (Length(Res)<4)or(Res[4]<>'-');
-  if not IdemPChar(pointer(Res),pointer(Answer)) then
-    raise ECrtSocket.Create(string(Res));
-end;
-procedure Exec(const Command, Answer: SockString);
-begin
-  writeln(TCP.SockOut^,Command);
-  Expect(Answer)
-end;
+  procedure Expect(const Answer: SockString);
+  var Res: SockString;
+  begin
+    repeat
+      readln(TCP.SockIn^,Res);
+    until (Length(Res)<4)or(Res[4]<>'-');
+    if not IdemPChar(pointer(Res),pointer(Answer)) then
+      raise ECrtSocket.Create(string(Res));
+  end;
+  procedure Exec(const Command, Answer: SockString);
+  begin
+    writeln(TCP.SockOut^,Command);
+    Expect(Answer)
+  end;
 var P: PAnsiChar;
     rec, ToList, head: SockString;
 begin
@@ -6108,7 +6103,7 @@ var ctxt: THttpServerRequest;
     // 2.1. custom headers from Request() method
     P := pointer(ctxt.fOutCustomHeaders);
     while P<>nil do begin
-      s := GetNextLine(P);
+      GetNextLine(P,s);
       if s<>'' then begin // no void line (means headers ending)
         ClientSock.SockSend(s);
         if IdemPChar(pointer(s),'CONTENT-ENCODING:') then
@@ -6435,7 +6430,7 @@ begin
     if s='' then
       break; // headers end with a void line
     if length(Headers)<=n then
-      SetLength(Headers,n+10);
+      SetLength(Headers,n+n shr 3+10);
     Headers[n] := s;
     inc(n);
     P := pointer(s);
@@ -6600,8 +6595,8 @@ end;
 function THttpServerSocket.GetRequest(withBody: boolean=true): boolean;
 var P: PAnsiChar;
     i, L: integer;
-    H: ^PAnsiChar;
-    pH: PAnsiChar;
+    H: ^PByteArray;
+    up: PByteArray;
     maxtix, status: cardinal;
     reason: SockString;
 begin
@@ -6623,29 +6618,34 @@ begin
     // get headers and content
     GetHeader;
     if fServer<>nil then begin // e.g. =nil from TRTSPOverHTTPServer
+      up := pointer(@NormToUpper);
       L := length(fServer.fRemoteIPHeaderUpper);
-      if L<>0 then  begin
+      if L<>0 then begin
         H := pointer(Headers);
         for i := 1 to length(Headers) do
-        if IdemPChar(H^,pointer(fServer.fRemoteIPHeaderUpper)) and (H^[L]=':') then begin
-          repeat inc(L) until H^[L]<>' ';
-          if H^[L]<>#0 then
-            fRemoteIP := H^+L;
-          break;
-        end else
-          inc(H);
+          if IdemPCharUp(H^,pointer(fServer.fRemoteIPHeaderUpper),up) and
+             (H^[L]=ord(':')) then begin
+            P := pointer(@H^[L]);
+            repeat inc(P) until P^<>' ';
+            if P^<>#0 then
+              fRemoteIP := P^;
+            break;
+          end else
+            inc(H);
       end;
       // remote connection ID
       L := length(fServer.fRemoteConnIDHeaderUpper);
-      if L<>0 then  begin
+      if L<>0 then begin
         H := pointer(Headers);
         for i := 1 to length(Headers) do
-        if IdemPChar(H^,pointer(fServer.fRemoteConnIDHeaderUpper)) and (H^[L]=':') then begin
-          pH := H^+L+1; while (pH^=' ') do inc(pH);
-          fRemoteConnectionID := GetNextItemUInt64(pH);
-          break;
-        end else
-          inc(H);
+          if IdemPCharUp(H^,pointer(fServer.fRemoteConnIDHeaderUpper),up) and
+             (H^[L]=ord(':')) then begin
+            P := pointer(@H^[L]);
+            repeat inc(P) until P^<>' ';
+            fRemoteConnectionID := GetNextItemUInt64(P);
+            break;
+          end else
+            inc(H);
       end;
     end;
     if ConnectionClose then
@@ -10320,7 +10320,7 @@ constructor THttpRequest.Create(const aServer, aPort: SockString;
   aLayer: TCrtSocketLayer);
 begin
   fLayer := aLayer;
-  if (fLayer <> cslUNIX) then begin
+  if fLayer<>cslUNIX then begin
     fPort := GetCardinal(pointer(aPort));
     if fPort=0 then
       if aHttps then
@@ -11327,16 +11327,16 @@ type
   );
   TCurlResult = (
     crOK, crUnsupportedProtocol, crFailedInit, crURLMalformat, crURLMalformatUser,
-    crCouldntResolveProxy, crCouldntResolveHost, crCouldntConnect,
+    crCouldNotResolveProxy, crCouldNotResolveHost, crCouldNotConnect,
     crFTPWeirdServerReply, crFTPAccessDenied, crFTPUserPasswordIncorrect,
     crFTPWeirdPassReply, crFTPWeirdUserReply, crFTPWeirdPASVReply,
-    crFTPWeird227Format, crFTPCantGetHost, crFTPCantReconnect, crFTPCouldntSetBINARY,
-    crPartialFile, crFTPCouldntRetrFile, crFTPWriteError, crFTPQuoteError,
-    crHTTPReturnedError, crWriteError, crMalFormatUser, crFTPCouldntStorFile,
+    crFTPWeird227Format, crFTPCantGetHost, crFTPCantReconnect, crFTPCouldNotSetBINARY,
+    crPartialFile, crFTPCouldNotRetrFile, crFTPWriteError, crFTPQuoteError,
+    crHTTPReturnedError, crWriteError, crMalFormatUser, crFTPCouldNotStorFile,
     crReadError, crOutOfMemory, crOperationTimeouted,
-    crFTPCouldntSetASCII, crFTPPortFailed, crFTPCouldntUseREST, crFTPCouldntGetSize,
+    crFTPCouldNotSetASCII, crFTPPortFailed, crFTPCouldNotUseREST, crFTPCouldNotGetSize,
     crHTTPRangeError, crHTTPPostError, crSSLConnectError, crBadDownloadResume,
-    crFileCouldntReadFile, crLDAPCannotBind, crLDAPSearchFailed,
+    crFileCouldNotReadFile, crLDAPCannotBind, crLDAPSearchFailed,
     crLibraryNotFound, crFunctionNotFound, crAbortedByCallback,
     crBadFunctionArgument, crBadCallingOrder, crInterfaceFailed,
     crBadPasswordEntered, crTooManyRedirects, crUnknownTelnetOption,
@@ -11517,7 +11517,7 @@ begin
   if not IsAvailable then
     raise ECrtSocket.CreateFmt('No available %s',[LIBCURL_DLL]);
   fHandle := curl.easy_init;
-  if (fLayer = cslUNIX) then
+  if fLayer=cslUNIX then
     fRootURL := 'http://localhost' else // see CURLOPT_UNIX_SOCKET_PATH doc
     fRootURL := AnsiString(Format('http%s://%s:%d',[HTTPS[fHttps],fServer,fPort]));
 end;
@@ -11540,13 +11540,12 @@ end;
 
 procedure TCurlHTTP.InternalCreateRequest(const method, aURL: SockString);
 const CERT_PEM: SockString = 'PEM';
-var url: SockString;
 begin
-  url := fRootURL+aURL;
+  fIn.URL := fRootURL+aURL;
   //curl.easy_setopt(fHandle,coTCPNoDelay,0); // disable Nagle
   if fLayer=cslUNIX then
     curl.easy_setopt(fHandle,coUnixSocketPath, pointer(fServer));
-  curl.easy_setopt(fHandle,coURL,pointer(url));
+  curl.easy_setopt(fHandle,coURL,pointer(fIn.URL));
   if fProxyName<>'' then
     curl.easy_setopt(fHandle,coProxy,pointer(fProxyName));
   if fHttps then
@@ -11570,6 +11569,8 @@ begin
   curl.easy_setopt(fHandle,coWriteFunction,@CurlWriteRawByteString);
   curl.easy_setopt(fHandle,coHeaderFunction,@CurlWriteRawByteString);
   fIn.Method := UpperCase(method);
+  if fIn.Method = '' then
+    fIn.Method := 'GET';
   if fIn.Method = 'GET' then
     fIn.Headers := nil else // disable Expect 100 continue in libcurl
     fIn.Headers := curl.slist_append(nil,'Expect:');
@@ -11577,13 +11578,14 @@ begin
 end;
 
 procedure TCurlHTTP.InternalAddHeader(const hdr: SockString);
-var P,H: PAnsiChar;
+var P: PAnsiChar;
+    s: SockString;
 begin
   P := pointer(hdr);
   while P<>nil do begin
-    H := pointer(GetNextLine(P));
-    if H<>nil then // nil would reset the whole list
-      fIn.Headers := curl.slist_append(fIn.Headers,H);
+    GetNextLine(P,s);
+    if s<>'' then // nil would reset the whole list
+      fIn.Headers := curl.slist_append(fIn.Headers,pointer(s));
   end;
 end;
 
@@ -11603,9 +11605,7 @@ begin // see http://curl.haxx.se/libcurl/c/CURLOPT_CUSTOMREQUEST.html
   if fIn.Method='HEAD' then // the only verb what do not expect body in answer is HEAD
     curl.easy_setopt(fHandle,coNoBody,1) else
     curl.easy_setopt(fHandle,coNoBody,0);
-  if (fIn.Method='') then
-    curl.easy_setopt(fHandle,coCustomRequest,PAnsiChar('GET')) else
-    curl.easy_setopt(fHandle,coCustomRequest,pointer(fIn.Method));
+  curl.easy_setopt(fHandle,coCustomRequest,pointer(fIn.Method));
   curl.easy_setopt(fHandle,coPostFields,pointer(aData));
   curl.easy_setopt(fHandle,coPostFieldSize,length(aData));
   curl.easy_setopt(fHandle,coHTTPHeader,fIn.Headers);
@@ -11615,16 +11615,16 @@ end;
 
 const CURL_RESULT_STR: array[TCurlResult] of string = ( // mORMot rtti not accessible here
   'OK', 'UnsupportedProtocol', 'FailedInit', 'URLMalformat', 'URLMalformatUser',
-  'CouldntResolveProxy', 'CouldntResolveHost', 'CouldntConnect',
+  'CouldNotResolveProxy', 'CouldNotResolveHost', 'CouldNotConnect',
   'FTPWeirdServerReply', 'FTPAccessDenied', 'FTPUserPasswordIncorrect',
   'FTPWeirdPassReply', 'FTPWeirdUserReply', 'FTPWeirdPASVReply',
-  'FTPWeird227Format', 'FTPCantGetHost', 'FTPCantReconnect', 'FTPCouldntSetBINARY',
-  'PartialFile', 'FTPCouldntRetrFile', 'FTPWriteError', 'FTPQuoteError',
-  'HTTPReturnedError', 'WriteError', 'MalFormatUser', 'FTPCouldntStorFile',
+  'FTPWeird227Format', 'FTPCantGetHost', 'FTPCantReconnect', 'FTPCouldNotSetBINARY',
+  'PartialFile', 'FTPCouldNotRetrFile', 'FTPWriteError', 'FTPQuoteError',
+  'HTTPReturnedError', 'WriteError', 'MalFormatUser', 'FTPCouldNotStorFile',
   'ReadError', 'OutOfMemory', 'OperationTimeouted',
-  'FTPCouldntSetASCII', 'FTPPortFailed', 'FTPCouldntUseREST', 'FTPCouldntGetSize',
+  'FTPCouldNotSetASCII', 'FTPPortFailed', 'FTPCouldNotUseREST', 'FTPCouldNotGetSize',
   'HTTPRangeError', 'HTTPPostError', 'SSLConnectError', 'BadDownloadResume',
-  'FileCouldntReadFile', 'LDAPCannotBind', 'LDAPSearchFailed',
+  'FileCouldNotReadFile', 'LDAPCannotBind', 'LDAPSearchFailed',
   'LibraryNotFound', 'FunctionNotFound', 'AbortedByCallback',
   'BadFunctionArgument', 'BadCallingOrder', 'InterfaceFailed',
   'BadPasswordEntered', 'TooManyRedirects', 'UnknownTelnetOption',
@@ -11646,7 +11646,8 @@ var res: TCurlResult;
 begin
   res := curl.easy_perform(fHandle);
   if res<>crOK then
-    raise ECurlHTTP.CreateFmt('libcurl error (%d) %s', [ord(res), CURL_RESULT_STR[res]]);
+    raise ECurlHTTP.CreateFmt('libcurl error %d (%s) on %s %s',
+      [ord(res), CURL_RESULT_STR[res], fIn.Method, fIn.URL]);
   curl.easy_getinfo(fHandle,ciResponseCode,rc);
   result := rc;
   Header := Trim(fOut.Header);
@@ -11658,7 +11659,7 @@ begin
   end;
   P := pointer(Header);
   while P<>nil do begin
-    s := GetNextLine(P);
+    GetNextLine(P,s);
     if IdemPChar(pointer(s),'ACCEPT-ENCODING:') then
       AcceptEncoding := trim(copy(s,17,100)) else
     if IdemPChar(pointer(s),'CONTENT-ENCODING:') then
@@ -12599,6 +12600,15 @@ begin
   _MainHttpClass := aClass;
 end;
 
+procedure Initialize;
+var i: integer;
+begin
+  for i := 0 to high(NormToUpper) do
+    NormToUpper[i] := i;
+  for i := ord('a') to ord('z') do
+    dec(NormToUpper[i], 32);
+end;
+
 initialization
   {$ifdef MSWINDOWS}
   Assert(
@@ -12627,6 +12637,7 @@ initialization
   FillChar(WinHttpAPI, SizeOf(WinHttpAPI), 0);
   WinHttpAPIInitialize;
   {$endif MSWINDOWS}
+  Initialize;
   if InitSocketInterface then
     WSAStartup(WinsockLevel, WsaDataOnce) else
     fillchar(WsaDataOnce,sizeof(WsaDataOnce),0);
