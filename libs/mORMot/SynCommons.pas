@@ -6,7 +6,7 @@ unit SynCommons;
 (*
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2018 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynCommons;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2018
+  Portions created by the Initial Developer are Copyright (C) 2019
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -767,6 +767,9 @@ type
   // - could be used e.g. to make a temporary copy when JSON is parsed in-place
   // - call one of the Init() overloaded methods, then Done to release its memory
   // - will avoid temporary memory allocation via the heap for up to 4KB of data
+  // - all Init() methods will allocate 16 more bytes, for a trailing #0 and
+  // to ensure our fast JSON parsing won't trigger any GPF (since it may read
+  // up to 4 bytes ahead via its PInteger() trick) or any SSE4.2 function
   {$ifdef UNICODE}TSynTempBuffer = record{$else}TSynTempBuffer = object{$endif}
   public
     /// the text/binary length, in bytes, excluding the trailing #0
@@ -782,7 +785,7 @@ type
     /// initialize a temporary copy of the supplied text buffer
     procedure Init(Source: pointer; SourceLen: integer); overload;
     /// initialize a new temporary buffer of a given number of bytes
-    function Init(SourceLen: integer): pointer; overload;
+    function Init(SourceLen: integer): pointer; overload; {$ifdef HASINLINE}inline;{$endif}
     /// initialize the buffer returning the internal buffer size (4095 bytes)
     // - could be used e.g. for an API call, first trying with plain temp.Init
     // and using temp.buf and temp.len safely in the call, only calling
@@ -1647,7 +1650,8 @@ function FormatUTF8(const Format: RawUTF8; const Args, Params: array of const;
 /// read and store text into values[] according to fmt specifiers
 // - %d as PInteger, %D as PInt64, %u as PCardinal, %U as PQWord, %f as PDouble,
 // %F as PCurrency, %x as 8 hexa chars to PInteger, %X as 16 hexa chars to PInt64,
-// %s as PShortString (UTF-8 encoded), %S as PRawUTF8
+// %s as PShortString (UTF-8 encoded), %S as PRawUTF8, %L as PRawUTF8 (getting
+// all text until the end of the line)
 // - optionally, specifiers and any whitespace separated identifiers may be
 // extracted and stored into the ident[] array, e.g. '%dFirstInt %s %DOneInt64'
 // will store ['dFirstInt','s','DOneInt64'] into ident
@@ -12269,6 +12273,8 @@ type
     // - e.g. append '20110325 19241502 '
     // - as called by TTextWriter.AddCurrentLogTime()
     procedure AddLogTime(WR: TTextWriter);
+    /// convert the stored time into a TDateTime
+    function ToDateTime: TDateTime;
   end;
   PSynSystemTime = ^TSynSystemTime;
 
@@ -15875,6 +15881,7 @@ type
     // - typical use is to declare a fTimeElapsed: TPrecisionTimer protected
     // member, then call fTimeElapsed.ProfileCurrentMethod at the beginning of
     // all process expecting some timing, then log/save fTimeElapsed.Stop content
+    // - FPC TIP: result should be assigned to a local variable of IUnknown type
     function ProfileCurrentMethod: IUnknown;
     /// low-level method to force values settings to allow thread safe timing
     // - by default, this timer is not thread safe: you can use this method to
@@ -18770,76 +18777,63 @@ end;
 
 procedure TSynTempBuffer.Init(const Source: RawByteString);
 begin
-  len := length(Source);
-  if len=0 then
-    buf := nil else begin
-    if len<SizeOf(tmp) then
-      buf := @tmp else
-      GetMem(buf,len+1); // +1 to include trailing #0
-    MoveFast(pointer(Source)^,buf^,len+1); // +1 to include trailing #0
-  end;
+  Init(pointer(Source),length(Source));
 end;
 
 function TSynTempBuffer.Init(Source: PUTF8Char): PUTF8Char;
 begin
-  len := StrLen(Source);
-  if len=0 then
-    buf := nil else begin
-    if len<SizeOf(tmp) then
-      buf := @tmp else
-      GetMem(buf,len+1); // +1 to include trailing #0
-    MoveFast(Source^,buf^,len+1);
-  end;
+  Init(Source,StrLen(Source));
+  result := buf;
+end;
+
+function TSynTempBuffer.Init(SourceLen: integer): pointer;
+begin
+  Init(nil,SourceLen);
   result := buf;
 end;
 
 procedure TSynTempBuffer.Init(Source: pointer; SourceLen: integer);
 begin
   len := SourceLen;
-  if len=0 then
+  if len<=0 then
     buf := nil else begin
-    if len<SizeOf(tmp) then
+    if len<=SizeOf(tmp)-16 then
       buf := @tmp else
-      GetMem(buf,len+1); // +1 to include trailing #0
-    MoveFast(Source^,buf^,len+1);
+      GetMem(buf,len+16); // +16 for trailing #0 and for PInteger() parsing
+    if Source<>nil then begin
+      MoveFast(Source^,buf^,len);
+      PPtrInt(PAnsiChar(buf)+len)^ := 0; // init last 4/8 bytes (makes valgrid happy)
+    end;
   end;
-end;
-
-function TSynTempBuffer.Init(SourceLen: integer): pointer;
-begin
-  len := SourceLen;
-  if len=0 then
-    buf := nil else
-    if len<SizeOf(tmp) then
-      buf := @tmp else
-      GetMem(buf,len+1); // +1 to include trailing #0
-  result := buf;
 end;
 
 function TSynTempBuffer.Init: integer;
 begin
   buf := @tmp;
-  result := SizeOf(tmp)-1;
+  result := SizeOf(tmp)-16;
   len := result;
 end;
 
 function TSynTempBuffer.InitRandom(RandomLen: integer): pointer;
 begin
-  result := Init(RandomLen+3);
+  Init(nil,RandomLen);
   if RandomLen>0 then
-    FillRandom(result,(RandomLen shr 2)+1);
+    FillRandom(buf,(RandomLen shr 2)+1);
+  result := buf;     
 end;
 
 function TSynTempBuffer.InitIncreasing(Count, Start: integer): PIntegerArray;
 begin
-  result := Init((Count-Start)*4);
-  FillIncreasing(result,Start,Count);
+  Init(nil,(Count-Start)*4);
+  FillIncreasing(buf,Start,Count);
+  result := buf;     
 end;
 
 function TSynTempBuffer.InitZero(ZeroLen: integer): pointer;
 begin
-  result := Init(ZeroLen);
-  FillCharFast(result^,ZeroLen,0);
+  Init(nil,ZeroLen-16);
+  FillCharFast(buf^,ZeroLen,0);
+  result := buf;     
 end;
 
 procedure TSynTempBuffer.Done;
@@ -18863,7 +18857,7 @@ end;
 procedure TSynTempWriter.Init(maxsize: integer);
 begin
   if maxsize<=0 then
-    maxsize := SizeOf(tmp.tmp)-1; // -1 for trailing #0
+    maxsize := SizeOf(tmp.tmp)-16; // TSynTempBuffer allocates +16
   pos := tmp.Init(maxsize);
 end;
 
@@ -23370,7 +23364,7 @@ begin // here p and up are expected to be <> nil
     u := up^;
     if u=#0 then
       break;
-    if u<>table^[up[PtrUInt(p)]] then
+    if table^[up[PtrUInt(p)]]<>u then
       exit;
     inc(up);
   until false;
@@ -24362,6 +24356,7 @@ function ScanUTF8(P: PUTF8Char; PLen: integer; const fmt: RawUTF8;
 var
   v,w: PtrInt;
   F,FEnd,PEnd: PUTF8Char;
+label next;
 begin
   result := 0;
   if (fmt='') or (P=nil) or (PLen<=0) or (high(values)<0) then
@@ -24409,6 +24404,13 @@ begin
         inc(P,w);
         while (P^<=' ') and (P^<>#0) and (P<=PEnd) do inc(P);
       end;
+      'L': begin
+        w := 0;
+        while not(P[w] in [#0,#10,#13]) and (P+w<=PEnd) do inc(w);
+        SetString(PRawUTF8(values[v])^,PAnsiChar(P),w);
+        inc(P,w);
+      end;
+      '%': goto next;
       else raise ESynException.CreateUTF8('ScanUTF8: unknown ''%'' specifier [%]',[F^,fmt]);
       end;
       inc(result);
@@ -24424,7 +24426,7 @@ begin
         exit;
       break;
     end else begin
-      while (P^<>F^) and (P<=PEnd) do inc(P);
+next: while (P^<>F^) and (P<=PEnd) do inc(P);
       inc(F);
       inc(P);
       if (F>=FEnd) or (P>=PEnd) then
@@ -27473,7 +27475,7 @@ end;
 
 {$ifdef USENORMTOUPPER}
 
-function AnsiICompW(u1, u2: PWideChar): PtrInt;
+function AnsiICompW(u1, u2: PWideChar): PtrInt; {$ifdef HASINLINE}inline;{$endif}
 begin
   if u1<>u2 then
     if u1<>nil then
@@ -27765,7 +27767,7 @@ end;
 function AnsiIComp(Str1, Str2: PWinAnsiChar): integer;
 {$ifdef PUREPASCAL}
 begin
-  result := StrIComp(Str1,Str2); // fast enough
+  result := StrIComp(Str1,Str2); // fast enough, especially since inlined
 end;
 {$else}
 asm
@@ -32250,7 +32252,7 @@ function GetExtended(P: PUTF8Char; out err: integer): TSynExtended;
     1E-6,1E-5,1E-4,1E-3,1E-2,1E-1,1E0,1E1,1E2,1E3,1E4,1E5,1E6,1E7,1E8,1E9,1E10,
     1E11,1E12,1E13,1E14,1E15,1E16,1E17,1E18,1E19,1E20,1E21,1E22,1E23,1E24,1E25,
     1E26,1E27,1E28,1E29,1E30,1E31);
-  function IntPower(Exponent: Integer): TSynExtended;
+  function IntPower(Exponent: Integer): TSynExtended; {$ifdef HASINLINE}inline;{$endif}
   var Y: Cardinal;
       LBase: Int64;
   begin
@@ -32898,7 +32900,7 @@ begin
   end;
 end;
 
-{$WARNINGS OFF} // some Delphi compilers do not analyse well code below
+{$WARNINGS OFF} // some Delphi compilers do not analyze well code below
 function GotoNextLine(source: PUTF8Char): PUTF8Char;
 begin
   if source<>nil then
@@ -36720,6 +36722,15 @@ begin
   WR.B := P+16;
 end;
 
+function TSynSystemTime.ToDateTime: TDateTime;
+var time: TDateTime;
+begin
+  if TryEncodeDate(Year,Month,Day,result) then
+    if TryEncodeTime(Hour,Minute,Second,MilliSecond,time) then
+      result := result+time else
+      result := 0 else
+    result := 0;
+end;
 
 { TTimeZoneData }
 
@@ -42080,6 +42091,7 @@ var wasString, wasValid: boolean;
     Reader: TDynArrayJSONCustomReader;
     FirstChar,EndOfObj: AnsiChar;
     Val: PUTF8Char;
+    ValLen: integer;
 begin // code below must match TTextWriter.AddRecordJSON
   result := nil; // indicates error
   if JSON=nil then
@@ -42091,10 +42103,10 @@ begin // code below must match TTextWriter.AddRecordJSON
     if not (PTypeKind(TypeInfo)^ in tkRecordTypes) then
       raise ESynException.CreateUTF8('RecordLoadJSON(%/%)',
         [PShortString(@PTypeInfo(TypeInfo).NameLen)^,ToText(PTypeKind(TypeInfo)^)^]);
-    Val := GetJSONField(JSON,JSON,@wasString,@EndOfObj);
-    if (Val=nil) or not wasString or
+    Val := GetJSONField(JSON,JSON,@wasString,@EndOfObj,@ValLen);
+    if (Val=nil) or not wasString or (ValLen<3) or
        (PInteger(Val)^ and $00ffffff<>JSON_BASE64_MAGIC) or
-       (RecordLoad(Rec,pointer(Base64ToBin(Val+3)),TypeInfo)=nil) then
+       (RecordLoad(Rec,pointer(Base64ToBin(PAnsiChar(Val)+3,ValLen-3)),TypeInfo)=nil) then
       exit; // invalid content
   end else begin
     if not GlobalJSONCustomParsers.RecordSearch(TypeInfo,Reader) then
@@ -47345,7 +47357,7 @@ end;
 function SortDynArrayString(const A,B): integer;
 begin
   {$ifdef UNICODE}
-  result := SysUtils.StrComp(PChar(A),PChar(B));
+  result := StrCompW(PWideChar(A),PWideChar(B));
   {$else}
   result := StrComp(PUTF8Char(A),PUTF8Char(B));
   {$endif}
@@ -47755,7 +47767,7 @@ begin
       end;
     end;
     4: begin
-      // optimized version for TIntegerDynArray + TRawUTF8DynArray and such
+      // optimized version for TIntegerDynArray and such
       P2 := P1+n*SizeOf(Integer);
       while P1<P2 do begin
         tmp := PInteger(P1)^;
@@ -53326,7 +53338,7 @@ begin
   L := length(s);
   if L=0 then
     exit;
-  if PInteger(s)^ and $ffffff=JSON_BASE64_MAGIC then begin
+  if (L>2) and (PInteger(s)^ and $ffffff=JSON_BASE64_MAGIC) then begin
     AddNoJSONEscape(pointer(s),L); // identified as a BLOB content
     exit;
   end;
@@ -54001,33 +54013,38 @@ end;
 
 procedure TTextWriter.CancelLastChar;
 begin
-  dec(B);
+  if B>=fTempBuf then // Add() methods append at B+1
+    dec(B);
 end;
 
 function TTextWriter.LastChar: AnsiChar;
 begin
-  result := B^;
+  if B>=fTempBuf then
+    result := B^ else
+    result := #0; // returns #0 if no char has been written yet
 end;
 
 procedure TTextWriter.CancelLastChar(aCharToCancel: AnsiChar);
 begin
-  if B^=aCharToCancel then
+  if (B>=fTempBuf) and (B^=aCharToCancel) then
     dec(B);
 end;
 
 function TTextWriter.PendingBytes: PtrUInt;
 begin
-  result := B-fTempBuf;
+  result := B-fTempBuf+1;
 end;
 
 procedure TTextWriter.CancelLastComma;
 begin
-  if B^=',' then
+  if (B>=fTempBuf) and (B^=',') then
     dec(B);
 end;
 
 procedure TTextWriter.SetBuffer(aBuf: pointer; aBufSize: integer);
 begin
+  if aBufSize<=16 then
+    raise ESynException.CreateUTF8('%.SetBuffer(size=%)',[self,aBufSize]);
   if aBuf=nil then
     GetMem(fTempBuf,aBufSize) else begin
     fTempBuf := aBuf;
@@ -54035,7 +54052,7 @@ begin
   end;
   fTempBufSize := aBufSize;
   B := fTempBuf-1; // Add() methods will append at B+1
-  BEnd := fTempBuf+fTempBufSize-16; // -2 made reports with FPC heaptrc tooling
+  BEnd := fTempBuf+fTempBufSize-16; // -16 to avoid buffer overwrite/overread
   if DefaultTextWriterTrimEnum then
     Include(fCustomOptions,twoTrimLeftEnumSets);
 end;
@@ -54130,6 +54147,8 @@ begin
     fEchoStart := 0;
   end;
   i := B-fTempBuf+1;
+  if i<=0 then
+    exit;
   fStream.WriteBuffer(fTempBuf^,i);
   inc(fTotalFileSize,i);
   if not (twoFlushToStreamNoAutoResize in fCustomOptions) and

@@ -6,7 +6,7 @@ unit SynMongoDB;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2018 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynMongoDB;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2018
+  Portions created by the Initial Developer are Copyright (C) 2019
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -1359,6 +1359,8 @@ type
     // - FullCollectionName is e.g. 'dbname.collectionname'
     // - JSONDocuments is an array of JSON objects
     // - there is no response to an opInsert message
+    // - warning: JSONDocuments[] buffer will be modified in-place during
+    // parsing, so a private copy may have to be made by the caller
     constructor Create(const FullCollectionName: RawUTF8;
       const JSONDocuments: array of PUTF8Char; Flags: TMongoInsertFlags=[]); reintroduce; overload;
   end;
