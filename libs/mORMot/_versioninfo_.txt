@@ -1,3 +1,3 @@
-cc0a7233079e086e44a2b0a24fd815a5ed09249b
+54dd708d25586008260f2012674361a3a5c6c1e4
 
-fixed SortDynArrayString on Delphi 2009+ (circumvent RTL's SysUtils.StrComp bug)
+enhanced TExprParserAbstract and TExprParserMatch implementation
