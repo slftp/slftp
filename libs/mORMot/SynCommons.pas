@@ -2787,7 +2787,11 @@ function ConvertCaseUTF8(P: PUTF8Char; const Table: TNormTableByte): PtrInt;
 
 /// check if the supplied text has some case-insentitive 'a'..'z','A'..'Z' chars
 // - will therefore be correct with true UTF-8 content, but only for 7 bit
-function IsCaseSensitive(const S: RawUTF8): boolean;
+function IsCaseSensitive(const S: RawUTF8): boolean; overload;
+
+/// check if the supplied text has some case-insentitive 'a'..'z','A'..'Z' chars
+// - will therefore be correct with true UTF-8 content, but only for 7 bit
+function IsCaseSensitive(P: PUTF8Char; PLen: integer): boolean; overload;
 
 /// fast conversion of the supplied text into uppercase
 // - this will only convert 'a'..'z' into 'A'..'Z' (no NormToUpper use), and
@@ -13161,7 +13165,7 @@ type
     wSeven, wSeven_64, wServer2008_R2, wServer2008_R2_64,
     wEight, wEight_64, wServer2012, wServer2012_64,
     wEightOne, wEightOne_64, wServer2012R2, wServer2012R2_64,
-    wTen, wTen_64, wServer2016, wServer2016_64);
+    wTen, wTen_64, wServer2016, wServer2016_64, wServer2019_64);
   /// the running Operating System, encoded as a 32-bit integer
   TOperatingSystemVersion = packed record
     case os: TOperatingSystem of
@@ -13179,7 +13183,7 @@ const
     '7', '7 64bit', 'Server 2008 R2', 'Server 2008 R2 64bit',
     '8', '8 64bit', 'Server 2012', 'Server 2012 64bit',
     '8.1', '8.1 64bit', 'Server 2012 R2', 'Server 2012 R2 64bit',
-    '10', '10 64bit', 'Server 2016', 'Server 2016 64bit');
+    '10', '10 64bit', 'Server 2016', 'Server 2016 64bit', 'Server 2019 64bit');
 
   /// the compiler family used
   COMP_TEXT = {$ifdef FPC}'Fpc'{$else}'Delphi'{$endif};
@@ -17986,7 +17990,7 @@ begin
 end;
 
 // UTF-8 is AT MOST 50% bigger than UTF-16 in bytes in range U+0800..U+FFFF
-// see http://stackoverflow.com/a/7008095/458259 -> WideCharCount*3 below
+// see http://stackoverflow.com/a/7008095 -> WideCharCount*3 below
 
 procedure TSynAnsiConvert.InternalAppendUTF8(Source: PAnsiChar; SourceChars: Cardinal;
   DestTextWriter: TObject; Escape: TTextWriterKind);
@@ -21530,14 +21534,14 @@ var r: PAnsiChar;
     sr: PStrRec;
 begin
   if len>0 then begin
-    GetMem(r,len+(STRRECSIZE+2));
+    GetMem(r,len+(STRRECSIZE+4));
     sr := pointer(r);
     sr^.codePage := CP_UTF8;
     sr^.elemSize := 1;
     sr^.refCnt := 1;
     sr^.length := len;
     inc(sr);
-    PWord(PAnsiChar(sr)+len)^ := 0;
+    PCardinal(PAnsiChar(sr)+len)^ := 0;
     r := pointer(sr);
     if p<>nil then
       MoveFast(p^,sr^,len);
@@ -26833,9 +26837,13 @@ begin
     10: Vers := wTen;
   end;
   if Vers>=wVista then begin
-    if OSVersionInfo.wProductType<>VER_NT_WORKSTATION then
+    if OSVersionInfo.wProductType<>VER_NT_WORKSTATION then begin // Server edition
       inc(Vers,2); // e.g. wEight -> wServer2012
-    if SystemInfo.wProcessorArchitecture=PROCESSOR_ARCHITECTURE_AMD64 then
+      if (Vers=wServer2016) and (OSVersionInfo.dwBuildNumber>=17763) then
+        Vers := wServer2019_64; // https://stackoverflow.com/q/53393150
+    end;
+    if (SystemInfo.wProcessorArchitecture=PROCESSOR_ARCHITECTURE_AMD64) and
+       (Vers < wServer2019_64) then
       inc(Vers);   // e.g. wEight -> wEight64
     OpenProcessAccess := PROCESS_QUERY_LIMITED_INFORMATION;
   end else
@@ -28762,14 +28770,20 @@ begin
 end;
 
 function IsCaseSensitive(const S: RawUTF8): boolean;
-var i: PtrInt;
-    up: PByteArray; // better x86-64 / PIC asm generation
 begin
-  up := @NormToUpperAnsi7Byte;
+  result := IsCaseSensitive(pointer(S),length(S));
+end;
+
+function IsCaseSensitive(P: PUTF8Char; PLen: integer): boolean;
+begin
   result := true;
-  for i := 0 to length(S)-1 do
-    if up[PByteArray(S)[i]]<>PByteArray(S)[i] then
-      exit;
+  if (P<>nil) and (PLen>0) then
+    repeat
+      if ord(P^) in [ord('a')..ord('z'), ord('A')..ord('Z')] then
+        exit;
+      inc(P);
+      dec(PLen);
+    until PLen=0;
   result := false;
 end;
 
@@ -63723,7 +63737,7 @@ end;
 
 {$ifdef KYLIX3}
 type
-  // see http://stackoverflow.com/a/3085509/458259 about this known Kylix bug
+  // see http://stackoverflow.com/a/3085509 about this known Kylix bug
   TEventHack = class(THandleObject) // should match EXACTLY SyncObjs.pas source!
   private
     FEvent: TSemaphore;
