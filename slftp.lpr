@@ -38,13 +38,15 @@
 
 program slftp;
 
-{$MODE Delphi} //< delphi compatible mode
-
 {$IFDEF FPC}
   {$if FPC_FULLVERSION < 30200}
     {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
   {$endif}
 {$ENDIF}
+
+{$MODE Delphi} //< delphi compatible mode
+
+{$I libs/mORMot/Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
 
 {$IFDEF WINDOWS}
   {$APPTYPE CONSOLE}
