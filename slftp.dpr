@@ -45,8 +45,6 @@ program slftp;
   {$MESSAGE Fatal 'Please upgrade your compiler to at least Delphi 10.2 Tokyo Release 3 (10.2.3)'}
 {$endif}
 
-{$I libs/mORMot/Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
-
 uses
   FastMM4,
   console;
