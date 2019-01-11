@@ -63,6 +63,8 @@ procedure Tasks_Init;
 procedure Tasks_Uninit;
 function FindTaskByUidText(const uidtext: String): TTask;
 
+const
+  MaxNumberErrors = 3;
 
 implementation
 

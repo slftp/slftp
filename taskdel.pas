@@ -7,15 +7,15 @@ uses
 
 type
   TDelReleaseTask = class(TTask)
-    private
-      dir: String;
-      devent: TEvent;
-      function RemoveDir(slot: Pointer; const dir: String): Boolean;
-    public
-      constructor Create(const netname, channel, site, dir: String);
-      destructor Destroy;override;
-      function Execute(slot: Pointer): Boolean; override;
-      function Name: String; override;
+  private
+    dir: String;
+    devent: TEvent;
+    function RemoveDir(slot: Pointer; const dir: String): Boolean;
+  public
+    constructor Create(const netname, channel, site, dir: String);
+    destructor Destroy;override;
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
   end;
 
 implementation
@@ -101,35 +101,46 @@ begin
 end;
 
 function TDelReleaseTask.Execute(slot: Pointer): Boolean;
-label
-  ujra;
 var
   s: TSiteSlot;
+  fNumErrors: Integer;
 begin
   Result := False;
+  Debug(dpMessage, section, '-->' + Name);
   s := slot;
-  Debug(dpMessage, section, Name);
-
-ujra:
-  if s.status <> ssOnline then
-    if not s.ReLogin then
+  dir := MyIncludeTrailingSlash(dir);
+  
+  for fNumErrors := 1 to MaxNumberErrors do
+  begin
+    if s.status <> ssOnline then
     begin
-      readyerror := True;
-      exit;
+      if not s.ReLogin(1) then
+      begin
+        readyerror := True;
+        exit;
+      end;
     end;
 
-  dir := MyIncludeTrailingSlash(dir);
-  if (not RemoveDir(s, dir)) then goto ujra;
+    if (RemoveDir(s, dir)) then
+      break;
+  end;
 
-  Result := True;
+  if (fNumErrors = MaxNumberErrors) then
+  begin
+    readyerror := True;
+    exit;
+  end;
+
   ready := True;
   devent.setevent;
+  Debug(dpMessage, section, '<--' + Name);
+  Result := True;
 end;
 
 function TDelReleaseTask.Name: String;
 begin
   try
-    Result := Format('DELETE %s - %s',[site1, dir]);
+    Result := Format('DELETE %s - %s', [site1, dir]);
   except
     Result := 'DELETE';
   end;
