@@ -232,7 +232,7 @@ begin
       try
         fQuery.Open;
         if not fQuery.IsEmpty then
-          Result := UnixToDateTime(fQuery.FieldByName('ts').AsInteger);
+          Result := UnixToDateTime(fQuery.FieldByName('ts').AsInt64);
       except
         on e: Exception do
         begin
@@ -268,7 +268,7 @@ begin
     try
       fQuery.Open;
       if not fQuery.IsEmpty then
-        Result := UnixToDateTime(fQuery.FieldByName(fTimeField).AsInteger);
+        Result := UnixToDateTime(fQuery.FieldByName(fTimeField).AsInt64);
     except
       on e: Exception do
       begin
@@ -480,7 +480,7 @@ begin
             fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
             fQuery.ParamByName('release').AsString := rls;
             fQuery.ParamByName('section').AsString := rls_section;
-            fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
+            fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now());
             fQuery.ParamByName('source').AsString := Source;
             try
               fQuery.ExecSQL;
@@ -521,7 +521,7 @@ begin
 
           fQuery.ParamByName('release').AsString := rls;
           fQuery.ParamByName('section').AsString := rls_section;
-          fQuery.ParamByName('timestamp').AsInteger := DateTimeToUnix(Now());
+          fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now());
           try
             fQuery.ExecSQL;
           except
