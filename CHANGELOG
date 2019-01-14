@@ -86,6 +86,7 @@
     {#} !batch looses sites in bnctest output over time (#216)
     {#} !prelist parameter count (#212)
     {#} Wrong mp3genre detected on IRC announce (#114)
+    {#} !raw command timeout/error handling (#225)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
