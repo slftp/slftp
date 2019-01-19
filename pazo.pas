@@ -1769,6 +1769,9 @@ function TPazoSite.Stats: String;
 var
   fsize: double;
   fsname, fsizetrigger: String;
+  i: integer;
+  de: TDirlistEntry;
+  sum: Int64;
 begin
   fsname := Name;
 
@@ -1795,10 +1798,37 @@ begin
       Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
 
       // TODO: Find out why it is negative sometimes + try to fix
+      // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
       if fsize < 0 then
       begin
-        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
-        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s',
+          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+
+        // get more infos about dirlist entries
+        sum := 0;
+        dirlist.dirlist_lock.Enter;
+        try
+          for i := dirlist.entries.Count - 1 downto 0 do
+          begin
+            if i < 0 then Break;
+            try
+              de := TDirlistEntry(dirlist.entries[i]);
+              if (de.racedbyme and de.Useful) then inc(sum, de.filesize);
+              //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d (sum: %d)',
+                [i, fsname, de.filename, de.filesize, sum]));
+            except
+              on E: Exception do
+              begin
+                Continue;
+              end;
+            end;
+          end;
+        finally
+          dirlist.dirlist_lock.Leave;
+        end;
+
       end;
     end
     else

@@ -301,7 +301,7 @@ type
     function SetLeechers(const users: String; remove: boolean): String;
     function SetTraders(const users: String; remove: boolean): String;
     function IsSection(const section: String): boolean;
-    function IsAffil(affil: String): boolean;
+    function IsAffil(const aAffil: String): boolean;
     function AddAffil(const affil: String): boolean;
     // TODO function DelAffil(affil: string): Boolean;
 //    function SetAffils(affils: String): String;
@@ -2534,28 +2534,16 @@ begin
     Result := Format('%2.2d Sec', [sec_pretime mod 60]);
 end;
 
-function TSite.IsAffil(affil: String): boolean;
+function TSite.IsAffil(const aAffil: String): boolean;
 var
   x: TStringList;
-  i: integer;
 begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-
-
-    i := x.IndexOf(RemoveINT(affil));
-    if i <> -1 then
-    begin
-      // for testing purpose, some ppl have problems with slftp as it tries to race affilgroups to site
-      Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
-    end;
-    Result := i <> -1;
-
-
-    //Result := x.IndexOf(RemoveINT(affil)) <> -1;
+    Result := x.IndexOf(RemoveINT(aAffil)) <> -1;
   finally
     x.Free;
   end;
