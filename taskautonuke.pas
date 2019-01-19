@@ -29,7 +29,7 @@ label
   TryAgain;
 var
   s: TSiteSlot;
-  i: Integer;
+  i, fInterval: Integer;
   ss: String;
   l: TAutoNukeTask;
   n: TNukeQueueItem;
@@ -37,17 +37,15 @@ var
 
   procedure RetryNextTime;
   begin
-    // If value of autonuke is bigger zero, feature is still enabled and slftp need
-    // to add a new task which will be executed in i seconds
-    i := s.RCInteger('autonuke', 0); // TODO: add property to TSite
-    if i > 0 then
+    // fInterval > 0: feature is enabled and new task will be executed in fInterval seconds
+    if fInterval > 0 then
     begin
       try
         l := TAutoNukeTask.Create(netname, channel, site1);
-        l.startat := IncSecond(Now, i);
+        l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
         AddTask(l);
-        s.site.WCDateTime('nextautonuke', l.startat);
+        s.site.NextAutoNukeDateTime := l.startat;
       except
         on e: Exception do
         begin
@@ -60,10 +58,11 @@ var
 begin
   Result := False;
   s := slot;
-  debugunit.Debug(dpMessage, rsections, Name);
+  Debug(dpSpam, rsections, '-->' + Name);
 
-  // autonuke=0 means that the feature isn't in use anymore -> exit
-  if s.RCInteger('autonuke', 0) = 0 then
+  fInterval := s.site.AutoNukeInterval;
+  // fInterval = 0: feature disabled
+  if fInterval = 0 then
   begin
     ready := True;
     Result := True;
@@ -131,13 +130,14 @@ TryAgain:
 
   RetryNextTime();
 
-  Result := True;
   ready := True;
+  Debug(dpSpam, rsections, '<--' + Name);
+  Result := True;
 end;
 
 function TAutoNukeTask.Name: String;
 begin
-  Result := 'AUTONUKE ' + site1 + ScheduleText;
+  Result := Format('AUTONUKE %s %s', [site1, ScheduleText]);
 end;
 
 end.
