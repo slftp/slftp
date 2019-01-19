@@ -3275,17 +3275,15 @@ begin
           begin
 
             //           if ((not p.completezve) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
-            if ((not p.completezve) and (not p.stopped) and
-              (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+            if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
             begin
               RemovePazo(p.pazo_id);
-              while (not (p.queuenumber.ActValue <= 0)) do
+              while (not (p.queuenumber.Value <= 0)) do
               begin
                 p.queuenumber.Decrease;
               end;
               p.completezve := True;
-              Debug(dpSpam, rsections, 'Looking for incomplete sites of %s',
-                [p.rls.rlsname]);
+              Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
               AddCompleteTransfers(p);
             end;
           end;
@@ -3300,9 +3298,7 @@ begin
             except
               on E: Exception do
               begin
-                Debug(dpError, rsections,
-                  Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s',
-                  [e.Message]));
+                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
               end;
             end;
 

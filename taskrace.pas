@@ -109,22 +109,22 @@ constructor TPazoTask.Create(const netname, channel: String; site1: String;
   site2: String; pazo: TPazo);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
-  mainpazo.queuenumber.increase;
+  mainpazo.queuenumber.Increase;
 
   if ClassType = TPazoRaceTask then
   begin
-    mainpazo.racetasks.Increase;
-    ps1.s_racetasks.Increase;
+    mainpazo.racetasks.Increment;
+    ps1.s_racetasks.Increment;
   end;
   if ClassType = TPazoMkdirTask then
   begin
-    mainpazo.mkdirtasks.Increase;
-    ps1.s_mkdirtasks.Increase;
+    mainpazo.mkdirtasks.Increment;
+    ps1.s_mkdirtasks.Increment;
   end;
   if ClassType = TPazoDirlistTask then
   begin
-    mainpazo.dirlisttasks.Increase;
-    ps1.s_dirlisttasks.Increase;
+    mainpazo.dirlisttasks.Increment;
+    ps1.s_dirlisttasks.Increment;
   end;
 end;
 
@@ -134,18 +134,18 @@ begin
 
   if ClassType = TPazoRaceTask then
   begin
-    mainpazo.racetasks.Decrease;
-    ps1.s_racetasks.Decrease;
+    mainpazo.racetasks.Decrement;
+    ps1.s_racetasks.Decrement;
   end;
   if ClassType = TPazoMkdirTask then
   begin
-    mainpazo.mkdirtasks.Decrease;
-    ps1.s_mkdirtasks.Decrease;
+    mainpazo.mkdirtasks.Decrement;
+    ps1.s_mkdirtasks.Decrement;
   end;
   if ClassType = TPazoDirlistTask then
   begin
-    mainpazo.dirlisttasks.Decrease;
-    ps1.s_dirlisttasks.Decrease;
+    mainpazo.dirlisttasks.Decrement;
+    ps1.s_dirlisttasks.Decrement;
   end;
 
   inherited;

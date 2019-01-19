@@ -7068,13 +7068,12 @@ var
   i, db: integer;
   section: String;
   hits: integer;
-
 begin
   section := SubString(params, ' ', 1);
 
   if kb_list.Count <= 0 then
   begin
-    irc_addtext(Netname, Channel, 'No Infos in knowbase!');
+    irc_addtext(Netname, Channel, 'No Infos in knowledge base!');
     Result := True;
     exit;
   end;
@@ -7107,15 +7106,13 @@ begin
         irc_addtext(Netname, Channel,
           '#%d %s %s %s [QueueNumber: %d (R:%d D:%d M:%d)]',
           [p.pazo_id, p.rls.section, p.rls.rlsname, p.rls.ExtraInfo,
-          p.queuenumber.ActValue, p.racetasks.ActValue, p.dirlisttasks.ActValue,
-            p.mkdirtasks.ActValue]);
+          p.queuenumber.Value, p.racetasks.Value, p.dirlisttasks.Value, p.mkdirtasks.Value]);
         Inc(db);
       end;
     end
     else
     begin
-      irc_addtext(Netname, Channel,
-        'Whops, Pazo is nil! anythingh screwed up!');
+      irc_addtext(Netname, Channel, 'Whops, Pazo is nil! Anything screwed up!');
     end;
   end;
 
