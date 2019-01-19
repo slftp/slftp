@@ -4259,14 +4259,14 @@ begin
   s.RemoveAutoDirlist;
   s.RemoveAutoRules;
 
-  if s.RCInteger('autonuke', 0) <> 0 then
+  if s.AutoNukeInterval <> 0 then
     s.AutoNuke;
-  if s.RCInteger('autoindex', 0) <> 0 then
+  if s.AutoIndexInterval <> 0 then
     s.AutoIndex;
   if s.AutoRulesStatus <> 0 then
     s.AutoRules;
   // if s.RCString('autologin','-1') <> '-1' then
-  if s.RCInteger('autobnctest', 0) <> 0 then
+  if s.AutoBncTestInterval <> 0 then
     s.AutoBnctest;
 
   RemoveTN(tn);
@@ -6648,7 +6648,6 @@ begin
   Result := True;
 end;
 
-// TODO: add a property in TSite for autobnctest
 function IrcAutoBnctest(const Netname, Channel: String; params: String): boolean;
 var
   sitename: String;
@@ -6676,10 +6675,10 @@ begin
       begin
         if status <> 0 then
         begin
-          if TSite(sites.Items[i]).RCInteger('autobnctest', 0) <= 0 then
+          if TSite(sites.Items[i]).AutoBncTestInterval <= 0 then
             enableAutobnctest := True;
 
-          TSite(sites.Items[i]).WCInteger('autobnctest', status);
+          TSite(sites.Items[i]).AutoBncTestInterval := status;
         end
         else
         begin
@@ -6688,7 +6687,7 @@ begin
         end;
       end;
 
-      irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).RCInteger('autobnctest', 0)]);
+      irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [TSite(sites.Items[i]).Name, TSite(sites.Items[i]).AutoBncTestInterval]);
 
       if enableAutobnctest then
         TSite(sites.Items[i]).AutoBnctest;
@@ -6719,10 +6718,10 @@ begin
         begin
           if status <> 0 then
           begin
-            if s.RCInteger('autobnctest', 0) <= 0 then
+            if s.AutoBncTestInterval <= 0 then
               enableAutobnctest := True;
 
-            s.WCInteger('autobnctest', status);
+            s.AutoBncTestInterval := status;
           end
           else
           begin
@@ -6731,7 +6730,7 @@ begin
           end;
         end;
 
-        irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [sitename, s.RCInteger('autobnctest', 0)]);
+        irc_addtext(Netname, Channel, 'Autobnctest of %s is: %d', [sitename, s.AutoBncTestInterval]);
 
         if enableAutobnctest then
           s.AutoBnctest;
@@ -6889,10 +6888,11 @@ begin
   begin
     if status <> 0 then
     begin
-      if s.RCInteger('autodirlist', 0) <= 0 then
+      if s.AutoDirlistInterval <= 0 then
         fNeedTaskCreate := True;
-      s.WCInteger('autodirlist', status);
-      s.WCString('autodirlistsections', sections);
+
+      s.AutoDirlistInterval := status;
+      s.AutoDirlistSections := sections;
     end
     else
     begin
@@ -6902,8 +6902,7 @@ begin
       s.RemoveAutoDirlist;
     end;
   end;
-  irc_addtext(Netname, Channel, 'Autodirlist of %s is: %d (%s)',
-    [sitename, s.RCInteger('autodirlist', 0), s.RCString('autodirlistsections', '')]);
+  irc_addtext(Netname, Channel, 'Autodirlist of %s is: %d (%s)', [sitename, s.AutoDirlistInterval, s.AutoDirlistSections]);
 
   if fNeedTaskCreate then
     s.AutoDirlist;
@@ -6961,10 +6960,10 @@ begin
   begin
     if status <> 0 then
     begin
-      if s.RCInteger('autoindex', 0) <= 0 then
+      if s.AutoIndexInterval <= 0 then
         kell := True;
-      s.WCInteger('autoindex', status);
-      s.WCString('autoindexsections', sections);
+      s.AutoIndexInterval := status;
+      s.AutoIndexSections := sections;
     end
     else
     begin
@@ -6974,9 +6973,7 @@ begin
       s.RemoveAutoIndex;
     end;
   end;
-  irc_addtext(Netname, Channel, 'Autoindex of %s is: %d (%s)',
-    [sitename, s.RCInteger('autoindex', 0), s.RCString('autoindexsections',
-      '')]);
+  irc_addtext(Netname, Channel, 'Autoindex of %s is: %d (%s)', [sitename, s.AutoIndexInterval, s.AutoIndexSections]);
 
   if kell then
     s.AutoIndex;
@@ -7012,9 +7009,9 @@ begin
   begin
     if status <> 0 then
     begin
-      if s.RCInteger('autonuke', 0) <= 0 then
+      if s.AutoNukeInterval <= 0 then
         kell := True;
-      s.WCInteger('autonuke', status);
+      s.AutoNukeInterval := status;
     end
     else
     begin
@@ -7023,8 +7020,7 @@ begin
       s.RemoveAutoNuke;
     end;
   end;
-  irc_addtext(Netname, Channel, 'Autonuke of %s is: %d',
-    [sitename, s.RCInteger('autonuke', 0)]);
+  irc_addtext(Netname, Channel, 'Autonuke of %s is: %d', [sitename, s.AutoNukeInterval]);
 
   if kell then
     s.AutoNuke;
@@ -10871,11 +10867,11 @@ begin
     end;
     try
       // rewrite config value
-      s.WCInteger('disabled_autonuke', s.RCInteger('autonuke', 0));
-      s.WCInteger('disabled_autoindex', s.RCInteger('autoindex', 0));
-      s.WCInteger('disabled_autobnctest', s.RCInteger('autobnctest', 0));
+      s.WCInteger('disabled_autonuke', s.AutoNukeInterval);
+      s.WCInteger('disabled_autoindex', s.AutoIndexInterval);
+      s.WCInteger('disabled_autobnctest', s.AutoBncTestInterval);
       s.WCInteger('disabled_autorules', s.AutoRulesStatus);
-      s.WCInteger('disabled_autodirlist', s.RCInteger('autodirlist', 0));
+      s.WCInteger('disabled_autodirlist', s.AutoDirlistInterval);
       // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
     except
       on E: Exception do
@@ -10902,11 +10898,11 @@ begin
 
     try
       // rewrite config value
-      s.WCInteger('autonuke', s.RCInteger('disabled_autonuke', 0));
-      s.WCInteger('autoindex', s.RCInteger('disabled_autoindex', 0));
-      s.WCInteger('autobnctest', s.RCInteger('disabled_autobnctest', 0));
+      s.AutoNukeInterval := s.RCInteger('disabled_autonuke', 0);
+      s.AutoIndexInterval := s.RCInteger('disabled_autoindex', 0);
+      s.AutoBncTestInterval := s.RCInteger('disabled_autobnctest', 0);
       s.AutoRulesStatus := s.RCInteger('disabled_autorules', 0);
-      s.WCInteger('autodirlist', s.RCInteger('disabled_autodirlist', 0));
+      s.AutoDirlistInterval := s.RCInteger('disabled_autodirlist', 0);
       // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
     except
       on E: Exception do
@@ -10936,8 +10932,7 @@ begin
       s.AutoDirlist;
     except
       on E: Exception do
-        irc_AddText(Netname, Channel,
-          format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
+        irc_AddText(Netname, Channel, Format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
     end;
   end;
 
