@@ -5,30 +5,29 @@ unit pazo;
 interface
 
 uses
-  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals;
+  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals, IdThreadSafe;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
 
-  TSafeInteger = class
+  { threadsafe integer class with notify event on Increase/Decrease }
+  TIdThreadSafeInt32WithEvent = class(TIdThreadSafeInt32)
   private
-    fC: TCriticalSection;
-    fValue: integer;
+    FonChange: TQueueNotifyEvent;
   public
-    onChange: TQueueNotifyEvent;
-    function ActValue: integer;
+    constructor Create; override;
     procedure Increase;
     procedure Decrease;
-    constructor Create;
-    destructor Destroy; override;
+    property OnChange: TQueueNotifyEvent read FonChange write FonChange;
   end;
 
   TCacheFile = class
+  private
     dir: String;
     filename: String;
     filesize: Int64;
+  public
     constructor Create(const dir, filename: String; const filesize: Int64);
-    destructor Destroy; override;
   end;
 
   TPazo = class;
@@ -58,9 +57,9 @@ type
     delay_leech: integer;
     delay_upload: integer;
 
-    s_dirlisttasks: TSafeInteger;
-    s_racetasks: TSafeInteger;
-    s_mkdirtasks: TSafeInteger;
+    s_dirlisttasks: TIdThreadSafeInt32;
+    s_racetasks: TIdThreadSafeInt32;
+    s_mkdirtasks: TIdThreadSafeInt32;
 
     ircevent: boolean; //< returns @true if we got atleast one catchadd
     error: boolean; //< returns @true if the site went down or mkd (make directory) failed
@@ -155,11 +154,11 @@ type
     //global dirlist
     main_dirlist: TDirlist;
 
-    // Integers with locking
-    queuenumber: TSafeInteger;
-    dirlisttasks: TSafeInteger;
-    racetasks: TSafeInteger;
-    mkdirtasks: TSafeInteger;
+    // Integers with locking and event
+    queuenumber: TIdThreadSafeInt32WithEvent;
+    dirlisttasks: TIdThreadSafeInt32;
+    racetasks: TIdThreadSafeInt32;
+    mkdirtasks: TIdThreadSafeInt32;
 
     cache_files: TStringList;
 
@@ -204,17 +203,35 @@ var
   local_pazo_id: integer;
 
 
+{ TIdThreadSafeInt32WithEvent }
+
+constructor TIdThreadSafeInt32WithEvent.Create;
+begin
+  inherited;
+  OnChange := nil;
+end;
+
+procedure TIdThreadSafeInt32WithEvent.Increase;
+begin
+  Increment;
+  if (Assigned(OnChange)) then
+    OnChange(self, Value);
+end;
+
+procedure TIdThreadSafeInt32WithEvent.Decrease;
+begin
+  Decrement;
+  if (Assigned(OnChange)) then
+    OnChange(self, Value);
+end;
+
 { TCacheFile }
+
 constructor TCacheFile.Create(const dir, filename: String; const filesize: Int64);
 begin
   self.dir := dir;
   self.filename := filename;
   self.filesize := filesize;
-end;
-
-destructor TCacheFile.Destroy;
-begin
-  inherited;
 end;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
@@ -808,11 +825,11 @@ begin
   added := Now;
   cs := TCriticalSection.Create;
   autodirlist := False;
-  queuenumber := TSafeInteger.Create;
-  queuenumber.onChange := QueueEvent;
-  dirlisttasks := TSafeInteger.Create;
-  racetasks := TSafeInteger.Create;
-  mkdirtasks := TSafeInteger.Create;
+  queuenumber := TIdThreadSafeInt32WithEvent.Create;
+  queuenumber.OnChange := QueueEvent;
+  dirlisttasks := TIdThreadSafeInt32.Create;
+  racetasks := TIdThreadSafeInt32.Create;
+  mkdirtasks := TIdThreadSafeInt32.Create;
   main_dirlist := nil;
 
   readyerror := False;
@@ -1336,9 +1353,9 @@ begin
       dirlist.SetFullPath(MyIncludeTrailingSlash(maindir));
   end;
 
-  s_dirlisttasks := TSafeInteger.Create;
-  s_racetasks := TSafeInteger.Create;
-  s_mkdirtasks := TSafeInteger.Create;
+  s_dirlisttasks := TIdThreadSafeInt32.Create;
+  s_racetasks := TIdThreadSafeInt32.Create;
+  s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := TStringList.Create;
   // speed_to := TStringList.Create; // not used
@@ -2030,51 +2047,6 @@ begin
   if minv > 0 then
     delay_upload := RandomRange(minv, maxv);
 
-end;
-
-{ TSafeInteger }
-
-function TSafeInteger.ActValue: integer;
-begin
-  Result := fValue;
-end;
-
-constructor TSafeInteger.Create;
-begin
-  fC := TCriticalSection.Create;
-  onChange := nil;
-end;
-
-procedure TSafeInteger.Decrease;
-begin
-  fc.Enter;
-  try
-    Dec(fvalue);
-    if fValue < 0 then
-      fValue := 0;
-    if (Assigned(onChange)) then
-      onChange(self, fValue);
-  finally
-    fc.Leave;
-  end;
-end;
-
-destructor TSafeInteger.Destroy;
-begin
-  fC.Free;
-  inherited;
-end;
-
-procedure TSafeInteger.Increase;
-begin
-  fc.Enter;
-  try
-    Inc(fValue);
-    if (Assigned(onChange)) then
-      onChange(self, fValue);
-  finally
-    fc.Leave;
-  end;
 end;
 
 end.
