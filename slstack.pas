@@ -1126,7 +1126,7 @@ begin
     except
       on e: EIdOpenSSLAPISSLError do
       begin
-        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
         error := 'sslread failed: ' + e.Message;
         if 0 < Pos('zero return', error) then
           error := 'Connection lost';
@@ -1135,7 +1135,7 @@ begin
       end;
       on e: Exception do
       begin
-        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
+        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
         error := 'sslread Exception failed: ' + e.Message;
         if 0 < Pos('zero return', error) then
           error := 'Connection lost (Exception)';
@@ -1166,12 +1166,12 @@ begin
       except
         on e: EIdOpenSSLAPISSLError do
         begin
-          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
           error := 'sslwrite failed: ' + e.Message;
         end;
         on e: Exception do
         begin
-          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
+          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
           error := 'sslwrite Exception failed: ' + e.Message;
         end;
       end;
