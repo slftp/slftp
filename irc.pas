@@ -175,21 +175,15 @@ const
 
   irc_chanroles: array[0..irc_chanroleindex] of String = (
     'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
-    'UPDATE',
-    'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-    'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
+    'UPDATE', 'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG',
+    'ROUTEINFOS', 'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
 
 implementation
 
 uses
-  debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
-  socks5, versioninfo, mystrings, DateUtils, irccommandsunit,
-  sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl,
-  dbaddimdb, dbaddgenre, news, StrUtils
-  {$IFDEF MSWINDOWS}
-    , Windows
-  {$ENDIF}
-  ;
+  StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
+  socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
+  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news;
 
 const
   section = 'irc';
@@ -795,18 +789,18 @@ begin
   if params <> '' then
     inc(c);
 
-  if ((irccommands[i].minparams <> -1) and (irccommands[i].minparams > c)) then
+  if ((ircCommandsArray[i].minparams <> -1) and (ircCommandsArray[i].minparams > c)) then
   begin
     irc_Addtext(netname, channel, 'Not enough parameters specified. Try !help %s', [cmd]);
     exit;
   end;
-  if ((irccommands[i].maxparams <> -1) and (irccommands[i].maxparams < c)) then
+  if ((ircCommandsArray[i].maxparams <> -1) and (ircCommandsArray[i].maxparams < c)) then
   begin
     irc_Addtext(netname, channel, 'Too many parameters specified. Try !help %s', [cmd]);
     exit;
   end;
 
-  TIRCCommandThread.Create(irccommands[i].hnd, netname, channel, params, irccommands[i].cmd);
+  TIRCCommandThread.Create(ircCommandsArray[i].hnd, netname, channel, params, ircCommandsArray[i].cmd);
 end;
 
 procedure TMyIrcThread.IrcPrivMsg(const s: String);

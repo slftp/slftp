@@ -82,7 +82,7 @@ function TVInfoDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, irccommandsunit, console, ircblowfish, sitesunit, queueunit, slmasks,
+  DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, ircblowfish, sitesunit, queueunit, slmasks,
   http, regexpr, debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, SynDBSQLite3, SynDB;
 
 const
