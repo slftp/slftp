@@ -274,7 +274,7 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
-function GotGroupname(const rlz: String): String;
+function GetGroupname(const rlz: String): String;
 
 var
   kb_sections: TStringList;
@@ -361,34 +361,21 @@ begin
   end;
 end;
 
-// TODO: as it does the same as GotGroupname, emrge both function and have a second parameter to say remove grpname or not
-function RemoveGroupname(rlz: String): String;
+{ Removes groupname from release
+  @param(rlz releasename)
+  @returns(Releasename @value(rlz) without groupname) }
+function RemoveGroupname(const rlz: String): String;
 var
-  x: TStringList;
-  g, s: String;
+  fGroup: String;
 begin
-  s := ReplaceText(rlz, '(', '');
-  s := ReplaceText(s, ')', '');
-  s := ReplaceText(s, '.', ' ');
-  s := ReplaceText(s, '-', ' ');
-  s := ReplaceText(s, '_', ' ');
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := s;
-    if uppercase(x.Strings[x.Count - 1]) = 'INT' then
-      g := '-' + x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
-    else
-      g := x.Strings[x.Count - 1];
-  finally
-    x.Free;
-  end;
-
-  Result := ReplaceText(rlz, g, '');
+  fGroup := GetGroupname(rlz);
+  Result := ReplaceText(rlz, fGroup, '');
 end;
 
-function GotGroupname(const rlz: String): String;
+{ Extracts groupname from release
+  @param(rlz releasename)
+  @returns(Groupname from input @value(rlz)) }
+function GetGroupname(const rlz: String): String;
 var
   x: TStringList;
   s: String;
@@ -589,7 +576,7 @@ begin
     if renamed_group_checker then
     begin
       try
-        grp := GotGroupname(rls);
+        grp := GetGroupname(rls);
         rlz := RemoveGroupname(rls);
         ss := kb_groupcheck_rls.Values[rlz];
         if ss = '' then
