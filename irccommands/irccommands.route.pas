@@ -20,6 +20,13 @@ uses
 const
   section = 'irccommands.route';
 
+type
+  {
+  @value(dRoutesIn To be used when incoming routes should be shown (-> 'to'))
+  @value(dRoutesOut To be used when outgoing routes should be shown (-> 'from'))
+  }
+  TRoutesToShow = (dRoutesIn, dRoutesOut);
+
 {$I common.inc}
 
 function _IrcSetRoute(const netname, channel, params: String; lock: boolean = False): boolean;
@@ -300,30 +307,42 @@ begin
   Result := True;
 end;
 
-// TODO: merge _OutroutesB & _InroutesB, seems only to vary in 'from' and 'to'
-procedure _OutroutesB(const Netname, Channel: String; const sitename: String);
+{ Shows the incoming or outgoing routes depending on @value(aRoutesToShow)
+  @param(Netname netname)
+  @param(Channel channel name)
+  @param(sitename sitename of routes which should be shown)
+  @param(aRoutesToShow TRoutesToShow type to identify between incoming or outgoing routes)
+}
+procedure _ReadAndShowRoutesB(const Netname, Channel, sitename: String; aRoutesToShow: TRoutesToShow);
+const
+  RoutesDirectionIdentifier: array[0..1] of String = ('to', 'from');
 var
   x: TStringList;
   ii, i: integer;
-  ss: String;
+  ss, fIdentifier: String;
 begin
+  case aRoutesToShow of
+    dRoutesIn: fIdentifier := RoutesDirectionIdentifier[0];
+    dRoutesOut: fIdentifier := RoutesDirectionIdentifier[1];
+  end;
+
   x := TStringList.Create;
   try
     x.Sorted := True;
-    sitesdat.ReadSection('speed-from-' + sitename, x);
+    sitesdat.ReadSection('speed-' + fIdentifier +'-' + sitename, x);
     ss := '';
     ii := x.Count;
     for i := 0 to x.Count - 1 do
     begin
       if ss <> '' then
         ss := ss + ', ';
-      if (sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') <> '') then
+      if (sitesdat.ReadString('speedlock-' + fIdentifier + '-' + sitename, x[i], '') <> '') then
       begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-from-' + sitename, x[i], '') + '(L)' + '"';
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-' + fIdentifier + '-' + sitename, x[i], '') + '(L)' + '"';
       end
       else
       begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-from-' + sitename, x[i], '') + '"';
+        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-' + fIdentifier + '-' + sitename, x[i], '') + '"';
       end;
     end;
   finally
@@ -332,40 +351,6 @@ begin
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), format('<b>%s (%d)</b> -> ', [sitename, ii]));
 end;
-
-procedure _InroutesB(const Netname, Channel: String; const sitename: String);
-var
-  x: TStringList;
-  ii, i: integer;
-  ss: String;
-begin
-  x := TStringList.Create;
-  try
-    x.Sorted := True;
-    sitesdat.ReadSection('speed-to-' + sitename, x);
-    ss := '';
-    ii := x.Count;
-    for i := 0 to x.Count - 1 do
-    begin
-      if ss <> '' then
-        ss := ss + ', ';
-      if (sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') <> '') then
-      begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-to-' + sitename, x[i], '') + '(L)' + '"';
-      end
-      else
-      begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-to-' + sitename, x[i], '') + '"';
-      end;
-    end;
-  finally
-    x.Free;
-  end;
-  if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), format('<b>%s (%d)</b> <- ', [sitename, ii]));
-end;
-
-
 
 function IrcSpeeds(const netname, channel, params: String): boolean;
 var
@@ -382,8 +367,8 @@ begin
     exit;
   end;
 
-  _OutroutesB(Netname, Channel, sitename);
-  _InroutesB(Netname, Channel, sitename);
+  _ReadAndShowRoutesB(Netname, Channel, sitename, dRoutesOut);
+  _ReadAndShowRoutesB(Netname, Channel, sitename, dRoutesIn);
 
   Result := True;
 end;
@@ -414,7 +399,7 @@ begin
     s := FindSiteByName('', UpperCase(params));
     if s <> nil then
     begin
-      _InroutesB(Netname, Channel, s.Name);
+      _ReadAndShowRoutesB(Netname, Channel, s.Name, dRoutesIn);
     end
     else
       irc_addtext(Netname, Channel, '<c4>Site: <b>%s</b> not found!</c>', [params]);
@@ -424,7 +409,7 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-    _InroutesB(Netname, Channel, s.Name);
+    _ReadAndShowRoutesB(Netname, Channel, s.Name, dRoutesIn);
   end;
   Result := True;
 end;
@@ -439,7 +424,7 @@ begin
     s := FindSiteByName('', UpperCase(params));
     if s <> nil then
     begin
-      _OutroutesB(Netname, Channel, s.Name);
+      _ReadAndShowRoutesB(Netname, Channel, s.Name, dRoutesOut);
     end
     else
       irc_addtext(Netname, Channel, '<c4>Site: <b>%s</b> not found!</c>', [params]);
@@ -451,7 +436,7 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-    _OutroutesB(Netname, Channel, s.Name);
+    _ReadAndShowRoutesB(Netname, Channel, s.Name, dRoutesOut);
   end;
 
   Result := True;
