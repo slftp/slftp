@@ -926,16 +926,17 @@ var
   s: TSite;
   oldslots, newslots: integer;
   ii, i: integer;
+  fDoOutputOnly: boolean;
 begin
   Result := False;
 
+  fDoOutputOnly := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   newslots := StrToIntDef(SubString(params, ' ', 2), 0);
 
   if newslots <= 0 then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-    exit;
+    fDoOutputOnly := True;
   end;
 
   if sitename = '*' then
@@ -950,10 +951,16 @@ begin
 
       oldslots := s.slots.Count;
 
+      if fDoOutputOnly then
+      begin
+         irc_addtext(Netname, Channel, Format('Site: %s - Slots count: %d', [s.Name, oldslots]));
+         Continue;
+      end;
+
       sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
       if oldslots > newslots then
       begin
-        // nehany slotot torolni kell
+        // you have to remove some slots
         for ii := 1 to oldslots - newslots do
         begin
           TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
@@ -962,12 +969,12 @@ begin
       end
       else if oldslots < newslots then
       begin
-        // uj slotokat kell addolni
+        // new slots have to be added
         for ii := 1 to newslots - oldslots do
         begin
           s.slots.Add(TSiteSlot.Create(s, s.slots.Count));
         end;
-      end; // else fuckup
+      end;
 
       s.RecalcFreeslots;
     end;
@@ -989,10 +996,16 @@ begin
 
         oldslots := s.slots.Count;
 
+        if fDoOutputOnly then
+        begin
+          irc_addtext(Netname, Channel, Format('Site: %s - Slots count: %d', [s.Name, oldslots]));
+          Continue;
+        end;
+
         sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
         if oldslots > newslots then
         begin
-          // nehany slotot torolni kell
+          // you have to remove some slots
           for ii := 1 to oldslots - newslots do
           begin
             TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
@@ -1001,12 +1014,12 @@ begin
         end
         else if oldslots < newslots then
         begin
-          // uj slotokat kell addolni
+          // new slots have to be added
           for ii := 1 to newslots - oldslots do
           begin
             s.slots.Add(TSiteSlot.Create(s, s.slots.Count));
           end;
-        end; // else fuckup
+        end;
 
         s.RecalcFreeslots;
       end;
