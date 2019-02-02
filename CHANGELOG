@@ -65,6 +65,7 @@
     {+} New HTTP Library (up to 50% faster) with Socks5 support
     {+} News System to store important messages to encrypted file. (#173, #164, #198)
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
+    {+} Wildcard/Regex (Masks) support for midnight sections
     {+} New !affils command.
     {+} Show a message when 0 byte file was detected on startup (#189)
     {+} !status and !uptime shows if you use 32/64-bit version of slftp and used compiler version
