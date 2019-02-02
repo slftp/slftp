@@ -3,7 +3,8 @@ unit slmasks;
 interface
 
 uses
-  delphimasks, RegExpr;
+  // TODO: Replace delphimasks file with Masks file from Delphi Rio when FPC has fixed the issues with it...
+  {$IFDEF FPC}delphimasks{$ELSE}Masks{$ENDIF}, RegExpr;
 
 type
   TslMask = class
