@@ -1292,7 +1292,7 @@ begin
             // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
             // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
             ssrc.site.SetOutofSpace;
-            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
+            if ssrc.site.SetDownOnOutOfSpace then
               ssrc.DestroySocket(True);
           end;
         end;
@@ -1460,7 +1460,7 @@ begin
             or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.SetOutofSpace;
-            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
+            if ssrc.site.SetDownOnOutOfSpace then
               sdst.DestroySocket(True);
             readyerror := True;
             mainpazo.errorreason := 'No freespace or slave';
@@ -2124,7 +2124,7 @@ begin
           if (0 < AnsiPos('Error writing file', lastResponse)) then
           begin
             sdst.site.SetOutofSpace;
-            if config.ReadBool('sites', 'set_down_on_out_of_space', False) then
+            if ssrc.site.SetDownOnOutOfSpace then
               sdst.DestroySocket(True);
             readyerror := True;
             mainpazo.errorreason := 'No freespace or slave';

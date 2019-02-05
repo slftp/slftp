@@ -36,6 +36,7 @@ function IrcBnctest(const netname, channel, params: String): boolean;
 function IrcKill(const netname, channel, params: String): boolean;
 function IrcRebuildSlot(const netname, channel, params: String): boolean;
 function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
+function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -2381,6 +2382,65 @@ begin
           Continue;
         end;
         site.RecalcFreeslots;
+      end;
+    finally
+      x.Free;
+    end;
+  end;
+
+  Result := True;
+end;
+
+function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
+var
+  sitename: String;
+  s: TSite;
+  i: integer;
+  x: TStringList;
+  fSetDown: integer;
+begin
+  Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  fSetDown := StrToIntDef(SubString(params, ' ', 2), -1);
+
+  if sitename = '*' then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites.Items[i]);
+      if (s.Name = getAdminSiteName) then
+        Continue;
+      if s.PermDown then
+        Continue;
+
+      // only allow 0 and 1 as valid values
+      if ((fSetDown < 0) or (fSetDown > 1)) then
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> value for set down out of space is: %d', [s.Name, s.SetDownOnOutOfSpace])
+      else
+        s.SetDownOnOutOfSpace := boolean(fSetDown);
+    end;
+  end
+  else
+  begin
+    x := TStringList.Create;
+    try
+      x.CommaText := sitename;
+      for i := 0 to x.Count - 1 do
+      begin
+        s := FindSiteByName(Netname, x.Strings[i]);
+        if s = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [x.Strings[i]]);
+          Continue;
+        end;
+        if s.PermDown then
+          Continue;
+
+        // only allow 0 and 1 as valid values
+        if ((fSetDown < 0) or (fSetDown > 1)) then
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> value for set down out of space is: %d', [s.Name, s.SetDownOnOutOfSpace])
+        else
+          s.SetDownOnOutOfSpace := boolean(fSetDown);
       end;
     finally
       x.Free;

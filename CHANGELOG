@@ -77,6 +77,7 @@
     {+} Support for wildcards in !batch (#222)                                  --- some more work + testing needed ---
     {+} Completely new SQLite engine
     {+} Completely new MySQL/MariaDB engine
+    {+} !setdownoutofspace command to configure set_down_on_out_of_space value per site (#158)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
