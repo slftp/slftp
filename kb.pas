@@ -323,9 +323,11 @@ var
 
   addpreechocmd: String;
 
+  // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
+  // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
-  kb_latest: THashedStringList;
+  kb_latest: THashedStringList; //< holds release and section as rls=section
   kb_skip: THashedStringList;
 
   // Config vars
@@ -407,7 +409,7 @@ begin
 
   // increase rename_patterns in kb_init by 1 everytime a new pattern emerges
 
-  ss := kb_latest[i];
+  ss := kb_latest.Names[i];
   if pattern = 0 then
   begin
     // Original: Point_Blank-X_History-2012-C4
@@ -543,12 +545,26 @@ begin
   kb_lock.Enter;
   psource := nil;
   try
+    // deny adding of a release twice with different section
+    if (section <> '') then
+    begin
+      i := kb_latest.IndexOfName(rls);
+      if i <> -1 then
+      begin
+        ss := kb_latest.ValueFromIndex[i];
+        if (ss <> section) then
+        begin
+          irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
+          exit;
+        end;
+      end
+    end;
+
     // check if rls already skiped
     if kb_skip.IndexOf(rls) <> -1 then
     begin
       if spamcfg.readbool(rsections, 'skipped_release', True) then
-        irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!',
-          [rls, sitename]));
+        irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!', [rls, sitename]));
       exit;
     end;
 
@@ -608,41 +624,47 @@ begin
 
     // don't even enter the checking code if the release is already in kb_latest, because then we already handled it and it's clean
     // because kb_skip would've prevented kb_addb being called from kb_add
-    if (renamed_release_checker and (kb_latest.IndexOf(rls) = -1)) then
+    if (kb_latest.IndexOfName(rls) = -1) then
     begin
-      try
-        len := Length(rls); // no need to check the release length in every loop
-        for i := 0 to kb_latest.Count - 1 do
-        begin
-          // makes no sense to run this "expensive" operation if both strings aren't equal length
-          // since the current pattern shows only strings of equal length being renames of one another
-          if Length(kb_latest[i]) <> len then
-            Continue;
-          if AnsiCompareText(kb_latest[i], rls) <> 0 then
+      if (renamed_release_checker) then
+      begin
+        try
+          len := Length(rls); // no need to check the release length in every loop
+          for i := 0 to kb_latest.Count - 1 do
           begin
-            // loop through the amount of different patterns, reduces code duplication
-            for j := 0 to rename_patterns - 1 do
+            // makes no sense to run this "expensive" operation if both strings aren't equal length
+            // since the current pattern shows only strings of equal length being renames of one another
+            if Length(kb_latest.Names[i]) <> len then
+              Continue;
+            if AnsiCompareText(kb_latest.Names[i], rls) <> 0 then
             begin
-              if renameCheck(j, i, len, rls) then
+              // loop through the amount of different patterns, reduces code duplication
+              for j := 0 to rename_patterns - 1 do
               begin
-                if spamcfg.readbool(rsections, 'renamed_release', True) then
-                  irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest[i]]));
+                if renameCheck(j, i, len, rls) then
+                begin
+                  if spamcfg.readbool(rsections, 'renamed_release', True) then
+                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest.Names[i]]));
 
-                kb_latest.Insert(0, rls);
-                // gonna insert this anyway, because there are sometimes renames of renames
-                kb_skip.Insert(0, rls);
-                exit;
+                  // release is brand-new but a rename of an already existing release
+                  kb_latest.Insert(0, rls + '=' + section);
+                  // gonna insert this anyway, because there are sometimes renames of renames
+                  kb_skip.Insert(0, rls);
+                  exit;
+                end;
               end;
             end;
           end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
+          end;
         end;
       end;
-      kb_latest.Insert(0, rls);
+
+      // release is fine and brand-new, add it to kb_latest
+      kb_latest.Insert(0, rls + '=' + section);
     end;
 
     // Start cleanup lists
@@ -2737,10 +2759,10 @@ begin
   kb_skip := THashedStringList.Create;
 
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
-  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', False);
-  renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', False);
+  renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', True);
+  renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', True);
 
-  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', False);
+  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', True);
 
   // disabled until we look deeper into issues with it
   //enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
