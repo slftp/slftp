@@ -1,7 +1,7 @@
 (******************************************************************************
  *                                   PasMP                                    *
  ******************************************************************************
- *                        Version 2018-03-23-10-18-0000                       *
+ *                        Version 2019-01-15-15-23-0000                       *
  ******************************************************************************
  *                                zlib license                                *
  *============================================================================*
@@ -1539,6 +1539,7 @@ type TPasMPAvailableCPUCores=array of TPasMPInt32;
        function Dequeue(out Item):boolean;
        function AvailableForEnqueue:TPasMPInt32;
        function AvailableForDequeue:TPasMPInt32;
+       function IsFull:boolean;
      end;
 {$if defined(fpc) and (fpc_version>=3)}{$pop}{$ifend}
 
@@ -1560,6 +1561,7 @@ type TPasMPAvailableCPUCores=array of TPasMPInt32;
        function Dequeue(out Item:T):boolean;
        function AvailableForEnqueue:TPasMPInt32;
        function AvailableForDequeue:TPasMPInt32;
+       function IsFull:boolean;
      end;
 {$if defined(fpc) and (fpc_version>=3)}{$pop}{$ifend}
 {$endif}
@@ -5669,21 +5671,18 @@ begin
 {$elseif defined(Linux) or defined(Android)}
   NowTime:=GetTime;
   EndTime:=NowTime+pDelay;
-  while true do begin
-   SleepTime:=abs(EndTime-NowTime);
-   if SleepTime>=fFourMillisecondsInterval then begin
-    SleepTime:=(SleepTime+2) shr 2;
-    if SleepTime>0 then begin
-     req.tv_sec:=SleepTime div 1000000000;
-     req.tv_nsec:=SleepTime mod 10000000000;
+  while (NowTime+fFourMillisecondsInterval)<EndTime do begin
+   SleepTime:=((EndTime-NowTime)+2) shr 2;
+   if SleepTime>0 then begin
+    req.tv_sec:=SleepTime div 1000000000;
+    req.tv_nsec:=SleepTime mod 10000000000;
 {$ifdef fpc}
-     fpNanoSleep(@req,@rem);
+    fpNanoSleep(@req,@rem);
 {$else}
-     NanoSleep(req,@rem);
+    NanoSleep(req,@rem);
 {$endif}
-     NowTime:=GetTime;
-     continue;
-    end;
+    NowTime:=GetTime;
+    continue;
    end;
    break;
   end;
@@ -5697,21 +5696,18 @@ begin
 {$elseif defined(Unix)}
   NowTime:=GetTime;
   EndTime:=NowTime+pDelay;
-  while true do begin
-   SleepTime:=abs(EndTime-NowTime);
-   if SleepTime>=fFourMillisecondsInterval then begin
-    SleepTime:=(SleepTime+2) shr 2;
-    if SleepTime>0 then begin
-     req.tv_sec:=SleepTime div 1000000;
-     req.tv_nsec:=(SleepTime mod 1000000)*1000;
+  while (NowTime+fFourMillisecondsInterval)<EndTime do begin
+   SleepTime:=((EndTime-NowTime)+2) shr 2;
+   if SleepTime>0 then begin
+    req.tv_sec:=SleepTime div 1000000;
+    req.tv_nsec:=(SleepTime mod 1000000)*1000;
 {$ifdef fpc}
-     fpNanoSleep(@req,@rem);
+    fpNanoSleep(@req,@rem);
 {$else}
-     NanoSleep(req,@rem);
+    NanoSleep(req,@rem);
 {$endif}
-     NowTime:=GetTime;
-     continue;
-    end;
+    NowTime:=GetTime;
+    continue;
    end;
    break;
   end;
@@ -9445,6 +9441,26 @@ begin
  end;
 end;
 
+function TPasMPSingleProducerSingleConsumerBoundedQueue.IsFull:boolean;
+var LocalReadIndex,LocalWriteIndex:TPasMPInt32;
+begin
+{$if not (defined(CPU386) or defined(CPUx86_64))}
+ TPasMPMemoryBarrier.ReadWrite;
+{$ifend}
+ LocalReadIndex:=fReadIndex;
+{$if defined(CPU386) or defined(CPUx86_64)}
+ TPasMPMemoryBarrier.ReadDependency;
+{$else}
+ TPasMPMemoryBarrier.Read;
+{$ifend}
+ LocalWriteIndex:=fWriteIndex;
+ if LocalWriteIndex>=LocalReadIndex then begin
+  result:=(LocalWriteIndex-LocalReadIndex)=0;
+ end else begin
+  result:=((fMaximalCount-LocalReadIndex)+LocalWriteIndex)=0;
+ end;
+end;
+
 {$ifdef HAS_GENERICS}
 constructor TPasMPSingleProducerSingleConsumerBoundedQueue<T>.Create(const MaximalCount:TPasMPInt32);
 begin
@@ -9482,6 +9498,7 @@ begin
  end;
  if result then begin
   LocalWriteIndex:=fWriteIndex;
+  Initialize(fData[LocalWriteIndex]);
   fData[LocalWriteIndex]:=Item;
   inc(LocalWriteIndex);
   if LocalWriteIndex>=fMaximalCount then begin
@@ -9513,6 +9530,7 @@ begin
  if result then begin
   LocalReadIndex:=fReadIndex;
   Item:=fData[LocalReadIndex];
+  Finalize(fData[LocalReadIndex]);
   inc(LocalReadIndex);
   if LocalReadIndex>=fMaximalCount then begin
    LocalReadIndex:=0;
@@ -9559,6 +9577,26 @@ begin
   result:=LocalWriteIndex-LocalReadIndex;
  end else begin
   result:=(fMaximalCount-LocalReadIndex)+LocalWriteIndex;
+ end;
+end;
+
+function TPasMPSingleProducerSingleConsumerBoundedQueue<T>.IsFull:boolean;
+var LocalReadIndex,LocalWriteIndex:TPasMPInt32;
+begin
+{$if not (defined(CPU386) or defined(CPUx86_64))}
+ TPasMPMemoryBarrier.ReadWrite;
+{$ifend}
+ LocalReadIndex:=fReadIndex;
+{$if defined(CPU386) or defined(CPUx86_64)}
+ TPasMPMemoryBarrier.ReadDependency;
+{$else}
+ TPasMPMemoryBarrier.Read;
+{$ifend}
+ LocalWriteIndex:=fWriteIndex;
+ if LocalWriteIndex>=LocalReadIndex then begin
+  result:=(LocalWriteIndex-LocalReadIndex)=0;
+ end else begin
+  result:=((fMaximalCount-LocalReadIndex)+LocalWriteIndex)=0;
  end;
 end;
 {$endif}
