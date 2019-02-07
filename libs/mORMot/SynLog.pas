@@ -349,7 +349,7 @@ type
   TSynLogCallbackDynArray = array of TSynLogCallback;
 
   /// can manage a list of ISynLogCallback registrations
-  TSynLogCallbacks = class(TSynPersistentLocked)
+  TSynLogCallbacks = class(TSynPersistentLock)
   protected
     fCount: integer;
     fCurrentlyEchoing: boolean;
@@ -560,6 +560,11 @@ type
     // - will retrieve the log content for the current file, truncating the
     // text up to the specified number of KB (an up to 128 MB at most)
     function GetExistingLog(MaximumKB: cardinal): RawUTF8;
+    /// callback to notify the current logger that its thread is finished
+    // - method follows TNotifyThreadEvent signature, which can be assigned to
+    // TSynBackgroundThreadAbstract.OnAfterExecute
+    // - is called e.g. by TSQLRest.EndCurrentThread
+    procedure OnThreadEnded(Sender: TThread);
 
     /// you can add some exceptions to be ignored to this list
     // - for instance, EConvertError may be added to the list, as such:
@@ -908,7 +913,7 @@ type
     // - should be called in the thread context which is about to terminate,
     // in a situation where no other logging may occur from this thread any more
     // - it will release all thread-specific resource used by this TSynLog
-    // - is called e.g. by TSQLRest.EndCurrentThread
+    // - is called e.g. by TSQLRest.EndCurrentThread, via TSynLogFamily.OnThreadEnded
     procedure NotifyThreadEnded;
     /// handle generic method enter / auto-leave tracing
     // - this is the main method to be called within a procedure/function to trace:
@@ -1204,8 +1209,8 @@ type
     /// compute fLevels[] + fLogProcNatural[] for each .log line during initial reading
     procedure ProcessOneLine(LineBeg, LineEnd: PUTF8Char); override;
     /// called by LogProcSort method
-    function LogProcSortComp(A,B: Integer): integer;
-    procedure LogProcSortInternal(L,R: integer);
+    function LogProcSortComp(A,B: PtrInt): PtrInt;
+    procedure LogProcSortInternal(L,R: PtrInt);
   public
     /// initialize internal structure
     constructor Create; override;
@@ -3556,6 +3561,11 @@ begin
 
 end;
 
+procedure TSynLogFamily.OnThreadEnded(Sender: TThread);
+begin
+  SynLog.NotifyThreadEnded;
+end;
+
 
 { TFileStreamWithoutWriteError }
 
@@ -3740,7 +3750,7 @@ end;
 
 procedure TSynLog.NotifyThreadEnded;
 begin
-  if fThreadContextCount=0 then
+  if (self=nil) or (fThreadContextCount=0) then
     exit; // nothing to release
   LockAndGetThreadContext;
   try
@@ -5179,7 +5189,7 @@ begin
   Result := C1-C2;
 end;
 
-function TSynLogFile.LogProcSortComp(A, B: Integer): integer;
+function TSynLogFile.LogProcSortComp(A, B: PtrInt): PtrInt;
 begin
   case fLogProcSortInternalOrder of
     soByName: result :=
@@ -5192,7 +5202,7 @@ begin
   end;
 end;
 
-procedure TSynLogFile.LogProcSortInternal(L, R: integer);
+procedure TSynLogFile.LogProcSortInternal(L, R: PtrInt);
   procedure Exchg(var P1,P2: TSynLogFileProc);
   var c: TSynLogFileProc;
   begin
@@ -5200,7 +5210,7 @@ procedure TSynLogFile.LogProcSortInternal(L, R: integer);
     P1 := P2;
     P2 := c;
   end;
-var I,J,P: integer;
+var I,J,P: PtrInt;
 begin
   if L<R then
   repeat
@@ -5215,10 +5225,16 @@ begin
         Inc(I); Dec(J);
       end;
     until I>J;
-    if L<J then
-      LogProcSortInternal(L,J);
-     L := I;
-  until I>=R;
+    if J - L < R - I then begin // use recursion only for smaller range
+      if L < J then
+        LogProcSortInternal(L, J);
+      L := I;
+    end else begin
+      if I < R then
+        LogProcSortInternal(I, R);
+      R := J;
+    end;
+  until L >= R;
 end;
 
 procedure TSynLogFile.ProcessOneLine(LineBeg, LineEnd: PUTF8Char);
