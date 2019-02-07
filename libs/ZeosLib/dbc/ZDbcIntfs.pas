@@ -116,6 +116,9 @@ type
   TZProcedureColumnType = (pctUnknown, pctIn, pctInOut, pctOut, pctReturn,
     pctResultSet);
 
+  {** Defines a dynamic array of column types for the procedures. }
+  TZProcedureColumnTypeDynArray = array of TZProcedureColumnType;
+
   {** Defines a best row identifier. }
   TZBestRowIdentifier = (brUnknown, brNotPseudo, brPseudo);
 
@@ -194,6 +197,7 @@ type
       UserName, Password: String; const Port: Integer;
       const Properties: TStrings = nil; const LibLocation: String = ''): String;
     procedure AddGarbage(const Value: IZInterface);
+    procedure ClearGarbageCollector;
   end;
 
   {** Database Driver interface. }
@@ -637,16 +641,6 @@ type
     procedure ClearParameters;
   end;
 
-  { TZBCD }
-  TZBcd  = packed record
-    Precision: Byte;                        { 1..64 }
-    SignSpecialPlaces: Byte;                { Sign:1, Special:1, Places:6 }
-    Fraction: packed array [0..31] of Byte; { BCD Nibbles, 00..99 per Byte, high Nibble 1st }
-  end;
-
-  TZParamType = (zptUnknown, zptInput, zptOutput, zptInputOutput, zptResult);
-  TZParamTypeDynArray = array of TZParamType;
-
   {** Callable SQL statement interface. }
   IZCallableStatement = interface(IZPreparedStatement)
     ['{E6FA6C18-C764-4C05-8FCB-0582BDD1EF40}']
@@ -664,7 +658,7 @@ type
     procedure RegisterParamType(ParameterIndex:integer;ParamType:Integer); //deprecated;
 
 (*    procedure RegisterParameter(ParameterIndex: Integer; SQLType: TZSQLType;
-      ParamType: TZParamType; const Name: String = ''; PrecisionOrSize: LengthInt = 0;
+      ParamType: TZProcedureColumnType; const Name: String = ''; PrecisionOrSize: LengthInt = 0;
       {%H-}Scale: LengthInt = 0);
 *)
     function IsNull(ParameterIndex: Integer): Boolean;
@@ -1130,10 +1124,8 @@ type
     FDrivers: IZCollection;
     FLoggingListeners: IZCollection;
     FGarbageCollector: IZCollection;
-    FTimer: TZThreadTimer;
     FHasLoggingListener: Boolean;
     procedure LogEvent(const Event: TZLoggingEvent);
-    procedure ClearGarbageCollector;
   public
     constructor Create;
     destructor Destroy; override;
@@ -1165,6 +1157,7 @@ type
       UserName, Password: String; const Port: Integer;
       const Properties: TStrings = nil; const LibLocation: String = ''): String;
     procedure AddGarbage(const Value: IZInterface);
+    procedure ClearGarbageCollector;
   end;
 
 { TZDriverManager }
@@ -1180,7 +1173,6 @@ begin
   FLoggingListeners := TZCollection.Create;
   FGarbageCollector := TZCollection.Create;
   FHasLoggingListener := False;
-  FTimer := TZThreadTimer.Create(ClearGarbageCollector, 1000, True);
 end;
 
 {**
@@ -1190,7 +1182,6 @@ destructor TZDriverManager.Destroy;
 begin
   FDrivers := nil;
   FLoggingListeners := nil;
-  FreeAndNil(FTimer);
   FreeAndNil(FDriversCS);
   FreeAndNil(FLogCS);
   inherited Destroy;
@@ -1332,7 +1323,6 @@ end;
 
 procedure TZDriverManager.AddGarbage(const Value: IZInterface);
 begin
-  FTimer.Reset; //take care the garbe will be cleared a little bit later
   FDriversCS.Enter;
   try
     FGarbageCollector.Add(Value);
@@ -1465,11 +1455,15 @@ end;
 
 procedure TZDriverManager.ClearGarbageCollector;
 begin
-  FDriversCS.Enter;
-  try
-    FGarbageCollector.Clear;
-  finally
-    FDriversCS.Leave;
+  if (FGarbageCollector.Count > 0) {$IFDEF HAVE_CS_TRYENTER}and FDriversCS.TryEnter{$ENDIF} then begin
+  {$IFNDEF HAVE_CS_TRYENTER}
+    FDriversCS.Enter;
+  {$ENDIF}
+    try
+      FGarbageCollector.Clear;
+    finally
+      FDriversCS.Leave;
+    end;
   end;
 end;
 
