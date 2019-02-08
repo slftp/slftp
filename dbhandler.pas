@@ -23,11 +23,20 @@ const
   section = 'dbhandler';
 
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+const
+  DATABASEFOLDERNAME = 'databases';
+var
+  fDatabasePath: String;
 begin
   Result := nil;
 
+  if not DirectoryExists(DATABASEFOLDERNAME) then
+    Mkdir(DATABASEFOLDERNAME);
+
+  fDatabasePath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim;
+
   try
-    Result := TSQLDBSQLite3ConnectionProperties.Create(aDatabaseName, '', '', '');
+    Result := TSQLDBSQLite3ConnectionProperties.Create(fDatabasePath + aDatabaseName, '', '', '');
     // locks the database file for exclusive use during the whole session, read/write will be much faster
     Result.MainSQLite3DB.LockingMode := lmExclusive;
     // enable Write-Ahead Logging mode a which is slightly faster
