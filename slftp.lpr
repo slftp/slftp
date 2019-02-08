@@ -46,6 +46,10 @@ program slftp;
   {$endif}
 {$ENDIF}
 
+{$IFNDEF CPU64}
+  {$stop Sorry, due to some FPC issues we do only support 64-bit at the moment }
+{$ENDIF}
+
 {$IFDEF WINDOWS}
   {$APPTYPE CONSOLE}
 {$ENDIF}
