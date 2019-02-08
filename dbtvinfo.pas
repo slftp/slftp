@@ -1177,46 +1177,6 @@ begin
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.tvinfo ON infos (tvmaze_id ASC);');
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.Rips ON series (rip ASC);');
 
-    // Create tables and indexes if they don't exist (new file)
-    // series table
-    tvinfodb.ExecSQL(
-      'CREATE TABLE IF NOT EXISTS "series"(' +
-        '"rip" TEXT NOT NULL,' +
-        '"showname" TEXT NOT NULL,' +
-        '"rip_country" TEXT,' +
-        '"tvmaze_url" TEXT,' +
-        '"id" INTEGER NOT NULL,' +
-        'PRIMARY KEY ("rip")' +
-      ');'
-      );
-
-    // infos table
-    tvinfodb.ExecSQL(
-      'CREATE TABLE IF NOT EXISTS "infos"(' +
-        '"tvdb_id" INTEGER,' +
-        '"tvrage_id" INTEGER,' +
-        '"tvmaze_id" INTEGER NOT NULL,' +
-        '"premiered_year" INTEGER NOT NULL,' +
-        '"country" TEXT NOT NULL DEFAULT unknown,' +
-        '"status"  TEXT NOT NULL DEFAULT unknown,' +
-        '"classification" TEXT NOT NULL DEFAULT unknown,' +
-        '"network" TEXT NOT NULL DEFAULT unknown,' +
-        '"genre" TEXT NOT NULL DEFAULT unknown,' +
-        '"ended_year" INTEGER,' +
-        '"last_updated" INTEGER NOT NULL DEFAULT -1,' +
-        '"next_date" INTEGER,' +
-        '"next_season" INTEGER,' +
-        '"next_episode" INTEGER,' +
-        '"airdays" TEXT,' +
-        '"tv_language" TEXT,' +
-        'PRIMARY KEY ("tvmaze_id" ASC)' +
-      ');'
-    );
-
-    // indexes
-    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."tvinfo" ON "infos" ("tvmaze_id" ASC);');
-    tvinfodb.ExecSQL('CREATE UNIQUE INDEX IF NOT EXISTS "main"."Rips" ON "series" ("rip" ASC);');
-  end;
 
   Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
 end;
