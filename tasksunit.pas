@@ -35,7 +35,7 @@ type
     readydel: Boolean;
     readydelat: TDateTime;
 
-    uid: Integer;
+    uid: UInt64;
     ido: TDateTime;
 
     dependencies: TStringList;
@@ -45,11 +45,9 @@ type
 
     TryToAssign : Integer;
 
-    constructor Create(const netname, channel: String; const site1: String); overload;
-    constructor Create(const netname, channel: String; const site1, site2: String); overload;
+    constructor Create(const netname, channel, site1: String); overload;
+    constructor Create(const netname, channel, site1, site2: String); overload;
     destructor Destroy; override;
-
-
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -65,6 +63,8 @@ procedure Tasks_Init;
 procedure Tasks_Uninit;
 function FindTaskByUidText(const uidtext: String): TTask;
 
+const
+  MaxNumberErrors = 3;
 
 implementation
 
@@ -74,15 +74,15 @@ const
   section = 'tasks';
 
 var
-  uidg: Integer = 1;
+  uidg: UInt64 = 1;
   uid_lock: TCriticalSection;
 
-constructor TTask.Create(const netname, channel: String; const site1: String);
+constructor TTask.Create(const netname, channel, site1: String);
 begin
   Create(netname, channel, site1, '');
 end;
 
-constructor TTask.Create(const netname, channel: String; const site1, site2: String);
+constructor TTask.Create(const netname, channel, site1, site2: String);
 begin
   created := Now();
   assigned := 0;
@@ -128,18 +128,15 @@ begin
   end;
 end;
 
-
+destructor TTask.Destroy;
+begin
+  dependencies.Free;
+  inherited;
+end;
 
 procedure TTask.DebugTask;
 begin
   Debug(dpSpam, section, '%s', [Fullname]);
-end;
-
-destructor TTask.Destroy;
-begin
-  dependencies.Free;
-
-  inherited;
 end;
 
 function TTask.Fullname: String;

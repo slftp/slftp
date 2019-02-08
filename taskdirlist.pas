@@ -1,54 +1,63 @@
 unit taskdirlist;
+
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
-type TDirlistTask = class(TTask)
-       forcecwd: Boolean;
-       dir: String;
-       constructor Create(const netname, channel: String;site: String; dir: String; forcecwd: Boolean = False);
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: String; override;
-     end;
+type
+  TDirlistTask = class(TTask)
+  private
+    forcecwd: Boolean;
+    dir: String;
+  public
+    constructor Create(const netname, channel, site, dir: String; forcecwd: Boolean = False);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
 
 implementation
 
-uses sitesunit, SysUtils, mystrings, DebugUnit;
+uses
+  sitesunit, SysUtils, mystrings, DebugUnit;
 
-const section = 'dirlist';
+const
+  section = 'taskdirlist';
 
 { TDirlistTask }
 
-constructor TDirlistTask.Create(const netname, channel: String;site: String; dir: String; forcecwd: Boolean = False);
+constructor TDirlistTask.Create(const netname, channel, site, dir: String; forcecwd: Boolean = False);
 begin
-  self.dir:= dir;
-  self.forcecwd:= forcecwd;
   inherited Create(netname, channel, site);
+  self.dir := dir;
+  self.forcecwd := forcecwd;
 end;
 
 function TDirlistTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    numerrors: Integer;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  numerrors: Integer;
 begin
-  Result:= False;
-  s:= slot;
+  Result := False;
+  s := slot;
   Debug(dpMessage, section, Name);
-  numerrors:=0;
-  
+  numerrors := 0;
+
 ujra:
   inc(numerrors);
   if numerrors > 3 then
   begin
     Debug(dpError, section, Format('ERROR: numerrors > 3 for %s @ %s', [dir, s.Name]));
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
 
   if s.status <> ssOnline then
     if not s.ReLogin then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
 
@@ -59,24 +68,23 @@ ujra:
       goto ujra;
 
     // could not list directory
-    Debug(dpError, section, Format('ERROR: can not dirlist dir %s with forcecwd value %s', [dir, BoolToStr(forcecwd, True)]));
-    readyerror:= True;
+    Debug(dpError, section, Format('ERROR: can not dirlist dir %s on %s with forcecwd value %s', [dir, site1, BoolToStr(forcecwd, True)]));
+    readyerror := True;
     exit;
   end;
-  response:= s.lastResponse;
+  response := s.lastResponse;
 
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
 end;
 
 function TDirlistTask.Name: String;
 begin
   try
-    Result:= Format('<b>DIRLIST:</b> %s @ %s',[dir,site1]);
+    Result := Format('<b>DIRLIST:</b> %s @ %s', [dir, site1]);
   except
-    Result:= 'DIRLIST';
+    Result := 'DIRLIST';
   end;
 end;
 
 end.
-

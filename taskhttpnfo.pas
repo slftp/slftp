@@ -12,7 +12,6 @@ type
     nfo_name: String;
   public
     constructor Create(const nfo_rls, nfo_url, nfo_name: String);
-    destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
   end;
@@ -35,12 +34,13 @@ begin
   inherited Create('', '', getAdminSiteName);
 end;
 
+// TODO: Why does it return always 'True'?
 function TPazoHTTPNfoTask.Execute(slot: Pointer): Boolean;
 var
   nfo_data: String;
   fHttpGetErrMsg: String;
 begin
-  Result:= False;
+  Result := False;
 
   if not HttpGetUrl(nfo_url, nfo_data, fHttpGetErrMsg) then
   begin
@@ -53,9 +53,9 @@ begin
 
   if (length(nfo_data) < 10) then
   begin
-    Result:= True;
-    ready:= True;
     irc_Adderror(Format('<c7>[WARNING]</c> NFO Size (%d) not enought %s URL : %s', [length(nfo_data), nfo_rls, nfo_url]));
+    Result := True;
+    ready := True;
     exit;
   end;
   try
@@ -64,27 +64,23 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoHTTPNfoTask: Exception : %s', [e.Message]));
-      Result:= True;
-      ready:= True;
+      Result := True;
+      ready := True;
       exit;
     end;
   end;
-  Result:= True;
-  ready:= True;
+
+  Result := True;
+  ready := True;
 end;
 
 function TPazoHTTPNfoTask.Name: String;
 begin
   try
-    Result:= Format('HTTPNfo %s : %s',[nfo_url, nfo_name]);
+    Result := Format('HTTPNfo %s : %s @ %s',[nfo_rls, nfo_name, nfo_url]);
   except
-    Result:= 'HTTPNfo';
+    Result := 'HTTPNfo';
   end;
-end;
-
-destructor TPazoHTTPNfoTask.Destroy;
-begin
-  inherited;
 end;
 
 end.

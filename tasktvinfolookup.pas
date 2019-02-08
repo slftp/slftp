@@ -115,7 +115,7 @@ begin
 
   if ((resp = '') or (resp = '[]')) then
   begin
-    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [Csere(showName, '.', ' '), replaceTVShowChars(showName, true)]);
+    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, true)]);
     Exit;
   end;
 
@@ -137,7 +137,7 @@ begin
   try
     for I := 0 to jl.Count - 1 do
     begin
-      showA := replaceTVShowChars(Csere(showName, '.', ' '));
+      showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
       showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
 
       if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
@@ -167,7 +167,7 @@ begin
               String(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
               String(jl.Child[i].Field['show'].Field['id'].Value),
-              Csere(showName, '.', ' '), country]));
+              ReplaceText(showName, '.', ' '), country]));
         end;
         if hadYear then
         begin
@@ -191,7 +191,7 @@ begin
               String(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
               String(jl.Child[i].Field['show'].Field['id'].Value),
-              Csere(showName, '.', ' '), year]));
+              ReplaceText(showName, '.', ' '), year]));
         end;
       end;
 
@@ -209,7 +209,7 @@ begin
               String(jl.Child[i].Field['show'].Field['url'].Value),
               irccmdprefix,
               String(jl.Child[i].Field['show'].Field['id'].Value),
-              Csere(showName, '.', ' ')]));
+              ReplaceText(showName, '.', ' ')]));
       end;
 
     end;
@@ -236,13 +236,13 @@ var
   fHttpGetErrMsg: String;
 begin
   result := 'FAILED';
-  s := Csere(name, '.and.', '.&.');
-  s := Csere(s, '.at.', '.@.');
-  s := Csere(s, '_and_', '_&_');
-  s := Csere(s, '_at_', '_@_');
-  s := Csere(s, '', Chr(39));
-  s := Csere(s, ' ', '+');
-  s := Csere(s, '.', '+');
+  s := ReplaceText(name, '.and.', '.&.');
+  s := ReplaceText(s, '.at.', '.@.');
+  s := ReplaceText(s, '_and_', '_&_');
+  s := ReplaceText(s, '_at_', '_@_');
+  s := ReplaceText(s, '', Chr(39));
+  s := ReplaceText(s, ' ', '+');
+  s := ReplaceText(s, '.', '+');
 
   if not HttpGetUrl('https://api.tvmaze.com/singlesearch/shows?q=' + s, response, fHttpGetErrMsg) then
   begin
@@ -526,7 +526,7 @@ begin
   numerrors := 0;
 
   if Showname <> '' then
-    s := Csere(Showname, '.', ' ')
+    s := ReplaceText(Showname, '.', ' ')
   else
     s := '';
 
@@ -623,7 +623,7 @@ begin
       for I := 0 to js.Field['genres'].Count - 1 do
         tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
     end;
-    Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Result: %s ', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
+    Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Genres: %s URL: %s', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
     TryEncodeDateTime(2018,5,30,0,0,0,0,endOftvdbAPIDate);
     // just a hotfix to be ready when the API is down (October 1st, 2017)

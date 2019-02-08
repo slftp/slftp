@@ -763,12 +763,9 @@ const
   INFINITE = UInt32($FFFFFFFF);     { Infinite timeout }
   {$ENDIF}
 
-  {$IFDEF KYLIX}
-  NilHandle = 0;
-  {$ENDIF}
-  {$IFDEF DELPHI}
-  NilHandle = 0;
-  {$ENDIF}
+  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause, only
+  // in the implementation's 'uses' clause, so map to what DynLibs.NilHandle maps to...
+  IdNilHandle = {$IFDEF FPC}{DynLibs.NilHandle}PtrInt(0){$ELSE}THandle(0){$ENDIF};
   LF = #10;
   CR = #13;
 
@@ -1019,6 +1016,27 @@ type
   {$EXTERNALSYM Psize_t}
   Psize_t = ^size_t;
   {$ENDIF}
+
+  // RLebeau 12/1/2018: FPC's System unit defines an HMODULE type as a PtrUInt. But,
+  // the DynLibs unit defines its own HModule type that is a TLibHandle, which is a
+  // PtrInt instead. And to make matters worse, although FPC's System.THandle is a
+  // platform-dependant type, it is not always defined as 8 bytes on 64bit platforms,
+  // which has been known to cause overflows when dynamic libraries are loaded at
+  // high addresses! (FPC bug?)  So, we can't rely on THandle to hold correct handles
+  // for libraries that we load dynamically at runtime (which is probably why FPC
+  // defines TLibHandle in the first place, but why is it signed instead of unsigned?).
+  //
+  // Delphi's HMODULE is a System.THandle, which is a NativeUInt, and so is defined
+  // with a proper byte size across all 32bit and 64bit platforms.
+  //
+  // Since (Safe)LoadLibrary(), GetProcAddress(), etc all use TLibHandle in FPC, but
+  // use HMODULE in Delphi. this does mean we have a small descrepency between using
+  // signed vs unsigned library handles.  I would prefer to use unsigned everywhere,
+  // but we should use what is more natural for each compiler...
+
+  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause, only
+  // in the implementation's 'uses' clause, so map to what DynLibs.TLibHandle maps to...
+  TIdLibHandle = {$IFDEF FPC}{DynLibs.TLibHandle}PtrInt{$ELSE}THandle{$ENDIF};
 
   {$IFDEF STRING_IS_IMMUTABLE}
   // In .NET and Delphi next-gen, strings are immutable (and zero-indexed), so we
@@ -1762,6 +1780,7 @@ function IsOctal(const AChar: Char): Boolean; overload;
 function IsOctal(const AString: string; const ALength: Integer = -1; const AIndex: Integer = 1): Boolean; overload;
 {$IFNDEF DOTNET}
 function InterlockedExchangeTHandle(var VTarget: THandle; const AValue: THandle): THandle;
+function InterlockedExchangeTLibHandle(var VTarget: TIdLibHandle; const AValue: TIdLibHandle): TIdLibHandle;
 function InterlockedCompareExchangePtr(var VTarget: Pointer; const AValue, Compare: Pointer): Pointer;
 function InterlockedCompareExchangeObj(var VTarget: TObject; const AValue, Compare: TObject): TObject;
 function InterlockedCompareExchangeIntf(var VTarget: IInterface; const AValue, Compare: IInterface): IInterface;
@@ -1784,7 +1803,7 @@ function IndyRegisterExpectedMemoryLeak(AAddress: Pointer): Boolean;
   {$ENDIF}
 {$ENDIF}
 {$IFDEF UNIX}
-function HackLoad(const ALibName : String; const ALibVersions : array of String) : HMODULE;
+function HackLoad(const ALibName : String; const ALibVersions : array of String) : TIdLibHandle;
 {$ENDIF}
 {$IFNDEF DOTNET}
 function MemoryPos(const ASubStr: string; MemBuff: PChar; MemorySize: Integer): Integer;
@@ -1951,6 +1970,7 @@ uses
     {$IFNDEF HAS_System_RegisterExpectedMemoryLeak}
       {$IFDEF USE_FASTMM4}FastMM4,{$ENDIF}
       {$IFDEF USE_MADEXCEPT}madExcept,{$ENDIF}
+      {$IFDEF USE_LEAKCHECK}LeakCheck,{$ENDIF}
     {$ENDIF}
   {$ENDIF}
   {$IFDEF USE_LIBC}Libc,{$ENDIF}
@@ -4302,44 +4322,58 @@ begin
 end;
 
 {$IFDEF UNIX}
-function HackLoadFileName(const ALibName, ALibVer : String) : string;  {$IFDEF USE_INLINE} inline; {$ENDIF}
+function HackLoadFileName(const ALibName, ALibVer : String) : string;
+  {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
   {$IFDEF DARWIN_OR_IOS}
-  Result := ALibName+ALibVer+LIBEXT;
+  Result := ALibName + ALibVer + LIBEXT;
   {$ELSE}
-  Result := ALibName+LIBEXT+ALibVer;
+  Result := ALibName + LIBEXT + ALibVer;
   {$ENDIF}
 end;
 
-function HackLoad(const ALibName : String; const ALibVersions : array of String) : HMODULE;
+function HackLoad(const ALibName : String; const ALibVersions : array of String) : TIdLibHandle;
 var
   i : Integer;
-  FileName: string;
-begin
-  Result := NilHandle;
-  for i := Low(ALibVersions) to High(ALibVersions) do
+
+  function LoadLibVer(const ALibVer: string): TIdLibHandle;
+  var
+    FileName: string;
   begin
-    FileName := HackLoadFileName(ALibName, ALibVersions[i]);
+    FileName := HackLoadFileName(ALibName, ALibVer);
+
     {$IFDEF USE_SAFELOADLIBRARY}
     Result := SafeLoadLibrary(FileName);
     {$ELSE}
       {$IFDEF KYLIXCOMPAT}
     // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
     // TODO: use ToSingleByteFileSystemEncodedFileName() to encode the filename:
-    // Result := HMODULE(dlopen(PAnsiChar(ToSingleByteFileSystemEncodedFileName(FileName)), RTLD_LAZY));
+    // Result := TIdLibHandle(dlopen(PAnsiChar(ToSingleByteFileSystemEncodedFileName(FileName)), RTLD_LAZY));
     // TODO: use dynlibs.SysLoadLibraryU() instead:
-    // Result := HMODULE(SysLoadLibraryU(FileName));
-    Result := HMODULE(dlopen(PAnsiChar(FileName), RTLD_LAZY));
+    // Result := SysLoadLibraryU(FileName);
+    Result := TIdLibHandle(dlopen(PAnsiChar(FileName), RTLD_LAZY));
       {$ELSE}
     Result := LoadLibrary(FileName);
       {$ENDIF}
     {$ENDIF}
+
     {$IFDEF USE_INVALIDATE_MOD_CACHE}
     InvalidateModuleCache;
     {$ENDIF}
-    if Result <> NilHandle then begin
-      break;
+  end;
+
+begin
+  if High(ALibVersions) > -1 then begin
+    Result := IdNilHandle;
+    for i := Low(ALibVersions) to High(ALibVersions) do
+    begin
+      Result := LoadLibVer(ALibVersions[i]);
+      if Result <> IdNilHandle then begin
+        Break;
+      end;
     end;
+  end else begin
+    Result := LoadLibVer('');
   end;
 end;
 {$ENDIF}
@@ -4453,6 +4487,28 @@ begin
   Result := THandle(InterlockedExchange64(Int64(VTarget), Int64(AValue)));
     {$ENDIF}
   {$ENDIF}
+end;
+
+function InterlockedExchangeTLibHandle(var VTarget: TIdLibHandle; const AValue: TIdLibHandle): TIdLibHandle;
+{$IFDEF USE_INLINE}inline;{$ENDIF}
+begin
+  Result := TIdLibHandle(
+    {$IFDEF HAS_TInterlocked}
+    TInterlocked.Exchange(
+      {$IFDEF CPU64}
+      Int64(VTarget), Int64(AValue)
+      {$ELSE}
+      Integer(VTarget), Integer(AValue)
+      {$ENDIF}
+    )
+    {$ELSE}
+      {$IFDEF CPU64}
+    InterlockedExchange64(Int64(VTarget), Int64(AValue))
+      {$ELSE}
+    InterlockedExchange(Integer(VTarget), Integer(AValue))
+      {$ENDIF}
+    {$ENDIF}
+  );
 end;
 
 {$UNDEF DYNAMICLOAD_InterlockedCompareExchange}
@@ -4595,97 +4651,139 @@ ways on other architectures.
 function HostToLittleEndian(const AValue : UInt16) : UInt16;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function HostToLittleEndian(const AValue : UInt32) : UInt32;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue shr 16) or (UInt32(swap(AValue and $FFFF)) shl 16);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function HostToLittleEndian(const AValue : Integer) : Integer;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a NtoLE() function in its System unit to
+  // "Convert Native-ordered integer to a Little Endian-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := NtoLE(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : UInt16) : UInt16;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
   //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : UInt32): UInt32;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
   //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := swap(AValue shr 16) or (UInt32(swap(AValue and $FFFF)) shl 16);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 function LittleEndianToHost(const AValue : Integer): Integer;
 {$IFDEF USE_INLINE}inline;{$ENDIF}
 begin
-  {$IFDEF DOTNET}
-  //I think that is Little Endian but I'm not completely sure
+  // TODO: FreePascal has a LEtoN() function in its System unit to
+  // "Convert Little Endian-ordered integer to Native-ordered integer"
+
+  {.$IFDEF FPC}
+  //Result := LEtoN(AValue);
+  {.$ELSE}
+    {$IFDEF DOTNET}
+    //I think that is Little Endian but I'm not completely sure
   Result := AValue;
-  {$ELSE}
-    {$IFDEF ENDIAN_LITTLE}
+    {$ELSE}
+      {$IFDEF ENDIAN_LITTLE}
   Result := AValue;
-    {$ENDIF}
-    {$IFDEF ENDIAN_BIG}
+      {$ENDIF}
+      {$IFDEF ENDIAN_BIG}
   Result := Swap(AValue);
+      {$ENDIF}
     {$ENDIF}
-  {$ENDIF}
+  {.$ENDIF}
 end;
 
 // TODO: add an AIndex parameter
@@ -9265,7 +9363,11 @@ begin
       {$IFDEF USE_MADEXCEPT}
   Result := madExcept.HideLeak(AAddress);
       {$ELSE}
+        {$IFDEF USE_LEAKCHECK}
+  Result := LeakCheck.RegisterExpectedMemoryLeak(AAddress);
+        {$ELSE}
   Result := False;
+        {$ENDIF}
       {$ENDIF}
     {$ENDIF}
   {$ENDIF}

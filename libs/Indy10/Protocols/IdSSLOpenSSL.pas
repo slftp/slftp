@@ -336,7 +336,7 @@ type
     function GetVerifyMode: TIdSSLVerifyModeSet;
     procedure InitContext(CtxMode: TIdSSLCtxMode);
   public
-    Parent: TObject;
+    {$IFDEF USE_OBJECT_ARC}[Weak]{$ENDIF} Parent: TObject;
     constructor Create;
     destructor Destroy; override;
     function Clone : TIdSSLContext;
@@ -367,7 +367,7 @@ type
 
   TIdSSLSocket = class(TObject)
   protected
-    fParent: TObject;
+    {$IFDEF USE_OBJECT_ARC}[Weak]{$ENDIF} fParent: TObject;
     fPeerCert: TIdX509;
     fSSL: PSSL;
     fSSLCipher: TIdSSLCipher;
@@ -708,6 +708,14 @@ type
   TIdCriticalSectionThreadList = TThreadList;
   TIdCriticalSectionList = TList;
   {$ENDIF}
+
+  // RLebeau 1/24/2019: defining this as a private implementation for now to
+  // avoid a change in the public interface above.  This should be rolled into
+  // the public interface at some point...
+  TIdSSLOptions_Internal = class(TIdSSLOptions)
+  public
+    {$IFDEF USE_OBJECT_ARC}[Weak]{$ENDIF} Parent: TObject;
+  end;
 
 var
   SSLIsLoaded: TIdThreadSafeBoolean = nil;
@@ -2525,7 +2533,8 @@ end;
 procedure TIdServerIOHandlerSSLOpenSSL.InitComponent;
 begin
   inherited InitComponent;
-  fxSSLOptions := TIdSSLOptions.Create;
+  fxSSLOptions := TIdSSLOptions_Internal.Create;
+  TIdSSLOptions_Internal(fxSSLOptions).Parent := Self;
 end;
 
 destructor TIdServerIOHandlerSSLOpenSSL.Destroy;
@@ -2574,6 +2583,9 @@ begin
     LIO.Open;
     if LIO.Binding.Accept(ASocket.Handle) then begin
       //we need to pass the SSLOptions for the socket from the server
+      // TODO: wouldn't it be easier to just Assign() the server's SSLOptions
+      // here? Do we really need to share ownership of it?
+      // LIO.fxSSLOptions.Assign(fxSSLOptions);
       FreeAndNil(LIO.fxSSLOptions);
       LIO.IsPeer := True;
       LIO.fxSSLOptions := fxSSLOptions;
@@ -2644,10 +2656,9 @@ begin
     LIO.PassThrough := True;
     LIO.OnGetPassword := DoGetPassword;
     LIO.OnGetPasswordEx := OnGetPasswordEx;
-    //todo memleak here - setting IsPeer causes SSLOptions to not free
-    LIO.IsPeer := True;
+    LIO.IsPeer := True; // RLebeau 1/24/2019: is this still needed now?
     LIO.SSLOptions.Assign(SSLOptions);
-    LIO.SSLOptions.Mode := sslmBoth;{doesn't really matter}
+    LIO.SSLOptions.Mode := sslmBoth;{or sslmClient}{doesn't really matter}
     LIO.SSLContext := SSLContext;
   except
     LIO.Free;
@@ -2671,7 +2682,6 @@ begin
     LIO.PassThrough := True;
     LIO.OnGetPassword := DoGetPassword;
     LIO.OnGetPasswordEx := OnGetPasswordEx;
-    //todo memleak here - setting IsPeer causes SSLOptions to not free
     LIO.IsPeer := True;
     LIO.SSLOptions.Assign(SSLOptions);
     LIO.SSLOptions.Mode := sslmBoth;{or sslmServer}
@@ -2748,7 +2758,8 @@ procedure TIdSSLIOHandlerSocketOpenSSL.InitComponent;
 begin
   inherited InitComponent;
   IsPeer := False;
-  fxSSLOptions := TIdSSLOptions.Create;
+  fxSSLOptions := TIdSSLOptions_Internal.Create;
+  TIdSSLOptions_Internal(fxSSLOptions).Parent := Self;
   fSSLLayerClosed := True;
   fSSLContext := nil;
 end;
@@ -2756,10 +2767,15 @@ end;
 destructor TIdSSLIOHandlerSocketOpenSSL.Destroy;
 begin
   FreeAndNil(fSSLSocket);
-  if not IsPeer then begin
-    //we do not destroy these in IsPeer equals true
-    //because these do not belong to us when we are in a server.
+  //we do not destroy these if their Parent is not Self
+  //because these do not belong to us when we are in a server.
+  if (fSSLContext <> nil) and (fSSLContext.Parent = Self) then begin
     FreeAndNil(fSSLContext);
+  end;
+  if (fxSSLOptions <> nil) and
+     (fxSSLOptions is TIdSSLOptions_Internal) and
+     (TIdSSLOptions_Internal(fxSSLOptions).Parent = Self) then
+  begin
     FreeAndNil(fxSSLOptions);
   end;
   inherited Destroy;
@@ -2769,10 +2785,18 @@ procedure TIdSSLIOHandlerSocketOpenSSL.ConnectClient;
 var
   LPassThrough: Boolean;
 begin
+  // RLebeau: initialize OpenSSL before connecting the socket...
+  try
+    Init;
+  except
+    on EIdOSSLCouldNotLoadSSLLibrary do begin
+      if not PassThrough then raise;
+    end;
+  end;
   // RLebeau 1/11/07: In case a proxy is being used, pass through
   // any data from the base class unencrypted when setting up that
   // connection.  We should do this anyway since SSL hasn't been
-  // initialized yet!
+  // negotiated yet!
   LPassThrough := fPassThrough;
   fPassThrough := True;
   try
@@ -2788,13 +2812,6 @@ end;
 
 procedure TIdSSLIOHandlerSocketOpenSSL.StartSSL;
 begin
-  try
-    Init;
-  except
-    on EIdOSSLCouldNotLoadSSLLibrary do begin
-      if not PassThrough then raise;
-    end;
-  end;
   if not PassThrough then begin
     OpenEncodedConnection;
   end;
@@ -2803,8 +2820,12 @@ end;
 procedure TIdSSLIOHandlerSocketOpenSSL.Close;
 begin
   FreeAndNil(fSSLSocket);
-  if not IsPeer then begin
-    FreeAndNil(fSSLContext);
+  if fSSLContext <> nil then begin
+    if fSSLContext.Parent = Self then begin
+      FreeAndNil(fSSLContext);
+    end else begin
+      fSSLContext := nil;
+    end;
   end;
   inherited Close;
 end;
@@ -2866,6 +2887,14 @@ procedure TIdSSLIOHandlerSocketOpenSSL.AfterAccept;
 begin
   try
     inherited AfterAccept;
+    // RLebeau: initialize OpenSSL after accepting a client socket...
+    try
+      Init;
+    except
+      on EIdOSSLCouldNotLoadSSLLibrary do begin
+        if not PassThrough then raise;
+      end;
+    end;
     StartSSL;
   except
     Close;
@@ -2946,6 +2975,8 @@ var
   {$ENDIF}
   LMode: TIdSSLMode;
   LHost: string;
+
+  // TODO: move the following to TIdSSLIOHandlerSocketBase...
 
   function GetURIHost: string;
   var
@@ -3323,6 +3354,8 @@ an invalid MAC when doing SSL.}
   if RootCertFile <> '' then begin    {Do not Localize}
     SSL_CTX_set_client_CA_list(fContext, IndySSL_load_client_CA_file(RootCertFile));
   end
+
+  // TODO: provide an event so users can apply their own settings as needed...
 end;
 
 procedure TIdSSLContext.SetVerifyMode(Mode: TIdSSLVerifyModeSet; CheckRoutine: Boolean);
@@ -3775,7 +3808,7 @@ var
   ret, err: Integer;
 begin
   repeat
-    ret := SSL_read(fSSL, @ABuffer[0], Length(ABuffer));
+    ret := SSL_read(fSSL, PByte(ABuffer), Length(ABuffer));
     if ret > 0 then begin
       Result := ret;
       Exit;

@@ -2,7 +2,8 @@ unit dbaddgenre;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs;
+uses
+  Classes, IniFiles, irc, kb, Contnrs;
 
 type
   TDbGenre = class
@@ -28,9 +29,9 @@ var
 
 implementation
 
-uses SysUtils, StrUtils, configunit, mystrings, irccommandsunit,
-  sitesunit, queueunit, debugunit, pazo {$IFDEF MSWINDOWS},Windows{$ENDIF}
-  ;
+uses
+  SysUtils, StrUtils, configunit, mystrings, sitesunit, queueunit,
+  debugunit, pazo {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   section = 'dbaddgenre';
@@ -150,7 +151,7 @@ begin
           mp3genre:= mp3genres[i];
           if i > 0 then
           begin
-            ss:= Csere(mp3genres[i-1], ' ', '');
+            ss:= ReplaceText(mp3genres[i-1], ' ', '');
             if (0 = AnsiCompareText(ss, mp3genre)) then
             begin
               mp3genre:= mp3genres[i-1];

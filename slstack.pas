@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  IdSSLOpenSSLHeaders, debugunit, mystrings,
+  IdSSLOpenSSLHeaders, debugunit, StrUtils,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -353,7 +353,7 @@ end;
 function slConvertIp(host: String): String;
 var lip:LongWord;
 begin
-  host:=Csere(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
+  host:=ReplaceText(host, '0x', '$'); // if the string is Hex we need to replace the 0x with $
   lip:=StrToInt64Def(host, -1);
   Result := Format('%d.%d.%d.%d', [(lip shr 24), (lip shr 16) and $FF,(lip shr 8) and $FF, lip and $FF]);
 end;
@@ -1126,7 +1126,7 @@ begin
     except
       on e: EIdOpenSSLAPISSLError do
       begin
-        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
         error := 'sslread failed: ' + e.Message;
         if 0 < Pos('zero return', error) then
           error := 'Connection lost';
@@ -1135,7 +1135,7 @@ begin
       end;
       on e: Exception do
       begin
-        Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
+        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
         error := 'sslread Exception failed: ' + e.Message;
         if 0 < Pos('zero return', error) then
           error := 'Connection lost (Exception)';
@@ -1166,12 +1166,12 @@ begin
       except
         on e: EIdOpenSSLAPISSLError do
         begin
-          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
+          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
           error := 'sslwrite failed: ' + e.Message;
         end;
         on e: Exception do
         begin
-          Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
+          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
           error := 'sslwrite Exception failed: ' + e.Message;
         end;
       end;

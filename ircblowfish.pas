@@ -5,22 +5,26 @@ interface
 uses
   Contnrs, delphiblowfish
   {$IFDEF MSWINDOWS}
-    ,Windows
+    , Windows
   {$ENDIF};
 
 type
   TIrcBlowkey = class
   private
     KeyData: TBlowfishData;
+    fBlowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @value(channel) }
+    fCBC: Boolean; //< { @true if channel is CBC encrypted, @false otherwise. }
   public
     netname: String; //< { netname of IRC network }
     channel: String; //< { IRC channelname }
-    blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @value(channel) }
     chankey: String; //< { chankey for @value(channel) which is needed to join it }
     names: String; // funkcionalitasa a csatornanak - Functionality of the channel
-    cbc: Boolean; //< { @true if channel is CBC encrypted, @false otherwise. }
     inviteonly: Boolean; //< { @true if channel is invite only (you have to invite yourself first), @false otherwise. }
-    procedure UpdateKey(const blowkey: String);
+    property cbc: Boolean read fCBC;
+    property blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF} read fBlowkey;
+
+    { Updates IrcBlowkey and CBC mode value }
+    procedure UpdateKey(const aBlowkey: String; aCBCMode: Boolean);
 
     { Creates a new IrcBlowkey entry }
     constructor Create(const netname, channel, blowkey: String; chankey: String = ''; inviteonly: Boolean = True; cbc: Boolean = False);
@@ -605,8 +609,8 @@ begin
   self.chankey := chankey;
   self.netname := netname;
   self.inviteonly := inviteonly;
-  self.cbc := cbc;
-  UpdateKey(blowkey);
+  self.fCBC := cbc;
+  UpdateKey(blowkey, cbc);
 end;
 
 function TIrcBlowkey.HasKey(key: String): Boolean;
@@ -617,18 +621,19 @@ begin
     Result := True;
 end;
 
-procedure TIrcBlowKey.UpdateKey(const blowkey: String);
+procedure TIrcBlowKey.UpdateKey(const aBlowkey: String; aCBCMode: Boolean);
 const
   IV: array[0..7] of byte = ($11, $22, $33, $44, $55, $66, $77, $88);
 var
   myKey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
 begin
-  self.blowkey := {$IFDEF UNICODE}UTF8Encode(blowkey){$ELSE}blowkey{$ENDIF};
+  fBlowkey := {$IFDEF UNICODE}UTF8Encode(aBlowkey){$ELSE}aBlowkey{$ENDIF};
   if blowkey <> '' then
   begin
-    myKey := {$IFDEF UNICODE}set_key(UTF8Encode(blowkey)){$ELSE}set_key(blowkey){$ENDIF};
+    myKey := {$IFDEF UNICODE}set_key(blowkey){$ELSE}set_key(blowkey){$ENDIF};
     SetLength(myKey, length(myKey));
     BlowfishInit(KeyData, PAnsiChar(myKey), Length(myKey), @iv);
+    fCBC := aCBCMode;
   end
   else
     myKey := '';
