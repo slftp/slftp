@@ -17,14 +17,12 @@ var
 implementation
 
 uses
-  SysUtils, debugunit, SynSQLite3;
+  SysUtils, debugunit, globals, SynSQLite3;
 
 const
   section = 'dbhandler';
 
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
-const
-  DATABASEFOLDERNAME = 'databases';
 var
   fDatabasePath: String;
 begin
