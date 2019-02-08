@@ -47,8 +47,9 @@
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
     3. delete your old slftp.news file (if existing)
-    4. delete your old stats.db file due to a wrong UNIQUE INDEX (if existing)
-    5. if you have problems with resuing existing databases, delete all .db files
+    4. create a folder 'databases' in slftp dir and move your databases into it
+    5. delete your old stats.db file due to a wrong UNIQUE INDEX setting (if existing)
+    6. if you have problems with reusing existing databases, delete all .db files
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
