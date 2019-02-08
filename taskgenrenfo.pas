@@ -9,9 +9,9 @@ type
   private
     ss: TStringStream;
     attempt: Integer;
-    function FetchGenre(text: String): String;
+    function FetchGenre(const text: String): String;
   public
-    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -19,15 +19,16 @@ type
 
 implementation
 
-uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     console, configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo;
+uses
+  SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  console, configunit, tasksunit, dirlist, sitesunit, dbaddnfo, mystrings;
 
 const
   section = 'taskgenrenfo';
 
 { TPazoGenreNfoTask }
 
-constructor TPazoGenreNfoTask.Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
+constructor TPazoGenreNfoTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
 begin
   ss := TStringStream.Create('');
   self.attempt := attempt;
@@ -35,7 +36,13 @@ begin
   inherited Create(netname, channel, site, '', pazo);
 end;
 
-function TPazoGenreNfoTask.FetchGenre(text: String): String;
+destructor TPazoGenreNfoTask.Destroy;
+begin
+  ss.Free;
+  inherited;
+end;
+
+function TPazoGenreNfoTask.FetchGenre(const text: String): String;
 var
   i: Integer;
   s: String;
@@ -58,12 +65,12 @@ begin
 
   while(true) do
   begin
-    s:= Csere(Result, '  ', ' ');
+    s:= ReplaceText(Result, '  ', ' ');
     if s = Result then Break;
-    Result:= s;
+    Result := s;
   end;
 
-  Result:= Trim(Result);
+  Result := Trim(Result);
 end;
 
 function TPazoGenreNfoTask.Execute(slot: Pointer): Boolean;
@@ -289,14 +296,8 @@ begin
   try
     Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);
   except
-    Result:= 'GENRENFO';
+    Result := 'GENRENFO';
   end;
-end;
-
-destructor TPazoGenreNfoTask.Destroy;
-begin
-  ss.Free;
-  inherited;
 end;
 
 end.

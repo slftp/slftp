@@ -6,16 +6,17 @@ uses tasksunit;
 
 type
   TAutoIndexTask = class(TTask)
+  private
+    function DoIndexing(slot: Pointer; const sectionname, path: String; const aktszint: Integer): Integer;
+  public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
-  private
-    function DoIndexing(slot: Pointer; const sectionname, path: String;
-      const aktszint: Integer): Integer;
   end;
 
 implementation
 
-uses SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
+uses
+  SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
   dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
 
 const
@@ -26,7 +27,6 @@ const
 function IndexFindNfo(dl: TDirList): TDirListEntry;
 var
   de: TDirlistEntry;
-  //i: Integer;
   rx: TRegexpr;
 begin
   Result := nil;
@@ -43,7 +43,6 @@ begin
           exit;
         end;
       end;
-
     except
       on e: Exception do
       begin
@@ -51,7 +50,6 @@ begin
         Result := nil;
       end;
     end;
-
   finally
     rx.free;
   end;
@@ -168,27 +166,26 @@ end;
 function TAutoIndexTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
-  i: Integer;
+  i, fInterval: Integer;
   l: TAutoIndexTask;
   ss, section, sectiondir: String;
   db: Integer;
 
-  procedure UjraAddolas;
+  procedure ReAddTask;
   begin
-    // megnezzuk, kell e meg a taszk
-    i := s.RCInteger('autoindex', 0);
-    if i > 0 then
+    // fInterval > 0: feature is enabled and new task will be executed in fInterval seconds
+    if fInterval > 0 then
     begin
       try
         l := TAutoIndexTask.Create(netname, channel, site1);
-        l.startat := IncSecond(Now, i);
+        l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
         AddTask(l);
-        s.site.WCDateTime('nextautoindex', l.startat);
+        s.site.NextAutoIndexDateTime := l.startat;
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TAutoIndexTask.Execute AddTask: %s', [e.Message]));
+          Debug(dpError, section, Format('[EXCEPTION] TAutoIndexTask.Execute ReAddTask: %s', [e.Message]));
         end;
       end;
     end;
@@ -197,10 +194,11 @@ var
 begin
   Result := False;
   s := slot;
-  debugunit.Debug(dpMessage, rsections, Name);
+  Debug(dpSpam, rsections, '-->' + Name);
 
-  // megnezzuk, kell e meg a taszk
-  if s.RCInteger('autoindex', 0) = 0 then
+  fInterval := s.site.AutoIndexInterval;
+  // fInterval = 0: feature disabled
+  if fInterval = 0 then
   begin
     ready := True;
     Result := True;
@@ -209,7 +207,7 @@ begin
 
   if s.site.working = sstDown then
   begin
-    ujraaddolas();
+    ReAddTask();
     readyerror := True;
     exit;
   end;
@@ -218,16 +216,14 @@ begin
   begin
     if (not s.ReLogin) then
     begin
-      ujraaddolas();
+      ReAddTask();
       readyerror := True;
       exit;
     end;
   end;
 
   // implement the task itself
-  ss := s.RCString('autoindexsections', '');
-  if not indexerCapable then
-    ss := '';
+  ss := s.site.AutoIndexSections;
 
   for i := 1 to 1000 do
   begin
@@ -237,33 +233,22 @@ begin
     sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-
       irc_SendINDEXER(Format('Indexing of %s on site %s start.', [section, site1]));
       try
-        if config.ReadBool(rsections, 'transaction', True) then
-          indexerBeginTransaction();
+        indexerRemoveSiteSection(site1, section);
+        db := doIndexing(slot, section, sectiondir, 1);
 
-        try
-          indexerRemoveSiteSection(site1, section);
-          db := doIndexing(slot, section, sectiondir, 1);
-
-          if db < 0 then
-          begin
-            irc_addtext(netname, channel, 'Indexing of %s on site %s finished, no rips added.', [section, site1]);
-            irc_SendINDEXER(Format('Indexing of %s on site %s finished, no rips added.', [section, site1]));
-          end;
-
-          if db >= 0 then
-          begin
-            irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]);
-            irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]));
-          end;
-
-        finally
-          if config.ReadBool(rsections, 'transaction', True) then
-            indexerEndTransaction();
+        if db < 0 then
+        begin
+          irc_addtext(netname, channel, 'Indexing of %s on site %s finished, no rips added.', [section, site1]);
+          irc_SendINDEXER(Format('Indexing of %s on site %s finished, no rips added.', [section, site1]));
         end;
 
+        if db >= 0 then
+        begin
+          irc_addtext(netname, channel, 'Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]);
+          irc_SendINDEXER(Format('Indexing of %s on site %s finished, %d rips in index.', [section, site1, db + 1]));
+        end;
       except
         on e: Exception do
         begin
@@ -274,10 +259,11 @@ begin
     end;
   end;
 
-  ujraaddolas();
+  ReAddTask();
 
-  Result := True;
   ready := True;
+  Debug(dpSpam, rsections, '<--' + Name);
+  Result := True;
 end;
 
 function TAutoIndexTask.Name: String;
@@ -285,11 +271,10 @@ var
   cstr: String;
 begin
   if ScheduleText <> '' then
-    cstr := format('(%s)', [ScheduleText])
+    cstr := Format('(%s)', [ScheduleText])
   else
     cstr := '';
-  Result := format('AUTOINDEX %s %s', [site1, cstr]);
+  Result := Format('AUTOINDEX %s %s', [site1, cstr]);
 end;
 
 end.
-

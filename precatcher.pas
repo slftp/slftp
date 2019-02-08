@@ -34,13 +34,13 @@ type
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(sitename: String): boolean;
-procedure Precatcher_DelSiteChans(sitename: String);
+function Precatcher_Sitehasachan(const sitename: String): boolean;
+procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload:String;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: String);
-procedure PrecatcherProcess(net, chan, nick, Data: String);
+procedure PrecatcherProcess(const net, chan, nick, Data: String);
 function precatcher_logfilename: String;
 procedure Precatcher_Init;
 procedure Precatcher_Uninit;
@@ -90,7 +90,7 @@ var
     '/', ':', ';', ' '];
   StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
-procedure mydebug(s: String); overload;
+procedure mydebug(const s: String); overload;
 var
   nowstr: String;
 begin
@@ -120,7 +120,7 @@ begin
   end;
 end;
 
-procedure mydebug(s: String; args: array of const); overload;
+procedure mydebug(const s: String; args: array of const); overload;
 begin
   myDebug(Format(s, args));
 end;
@@ -353,7 +353,7 @@ begin
 
   }
 
-    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(Csere(mp3genres[i], ' ', ''), text)) then
+    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(ReplaceText(mp3genres[i], ' ', ''), text)) then
     begin
       Result := mp3genres[i];
       break;
@@ -373,7 +373,7 @@ begin
     for i := 0 to replacefrom.Count - 1 do
     begin
       MyDebug('ProcessDoReplace %s to %s', [replacefrom[i], replaceto[i]]);
-      rep_s := Csere(rep_s, replacefrom[i], replaceto[i]);
+      rep_s := ReplaceText(rep_s, replacefrom[i], replaceto[i]);
     end;
   end
   else
@@ -392,12 +392,12 @@ begin
   if event <> 'REQUEST' then
   begin
 
-    if CheckForBadAssGroup(rls) then
+    if CheckIfGlobalSkippedGroup(rls) then
     begin
-      MyDebug('<c4>[SKIPPED GROUP]</c> detected!: ' + rls);
-      Debug(dpSpam, rsections, 'Skipped group detected!: ' + rls);
+      MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
+      Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
       if not precatcher_debug then
-        irc_addadmin('<b><c14>Info</c></b>: Skipped group detected!: ' + rls);
+        irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
       skiprlses.Add(rls);
       exit;
     end;
@@ -458,11 +458,13 @@ begin
   genre := '';
   if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
-    genre := _findMP3GenreOnAnnounce(s, ts_data);
+    // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
+    // remove rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+    genre :=  _findMP3GenreOnAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]), ts_data);
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
-      Debug(dpSpam, rsections, Format('Genre found via _findMP3GenreOnAnnounce: %s', [genre]));
+      Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
     end;
   end;
 
@@ -587,9 +589,9 @@ begin
 
 
       // do the [replace] from slftp.precatcher
-      s := Csere(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
+      s := ReplaceText(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
       s := ProcessDoReplace(s);
-      s := Csere(s, '${RELEASENAMEPLACEHOLDER}$', rls);
+      s := ReplaceText(s, '${RELEASENAMEPLACEHOLDER}$', rls);
       ts_data.DelimitedText := s;
 
       MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
@@ -678,7 +680,7 @@ begin
   end;
 end;
 
-procedure PrecatcherProcess(net, chan, nick, Data: String);
+procedure PrecatcherProcess(const net, chan, nick, Data: String);
 begin
   if not precatcherauto then
     Exit;
@@ -889,7 +891,7 @@ begin
   else if (SubString(s, '=', 1) = 'replaceto') then
   begin
     replacetoline := trim(SubString(s, '=', 2));
-    replacetoline := Csere(replacetoline, '[:space:]', ' ');
+    replacetoline := ReplaceText(replacetoline, '[:space:]', ' ');
     db := Count(';', replacefromline);
     for i := 1 to db + 1 do
     begin
@@ -1002,7 +1004,7 @@ begin
   end;
 end;
 
-function Precatcher_Sitehasachan(sitename: String): boolean;
+function Precatcher_Sitehasachan(const sitename: String): boolean;
 var
   i: integer;
   sc: TSiteChan;
@@ -1019,7 +1021,7 @@ begin
   end;
 end;
 
-procedure Precatcher_DelSiteChans(sitename: String);
+procedure Precatcher_DelSiteChans(const sitename: String);
 var
   i: integer;
   s: String;

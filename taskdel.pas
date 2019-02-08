@@ -2,88 +2,97 @@ unit taskdel;
 
 interface
 
-uses  SyncObjs,SysUtils,tasksunit;
+uses
+  SyncObjs, SysUtils, tasksunit;
 
 type
-    TDelReleaseTask = class(TTask)
-       dir: String;
-       devent:TEvent;
-       constructor Create(const netname, channel: String; site: String; dir: String);
-       destructor Destroy;override;
-       function Execute(slot: Pointer): Boolean; override;
-       function Name: String; override;
+  TDelReleaseTask = class(TTask)
   private
-    function RemoveDir(slot: Pointer; dir: String): Boolean;
-    end;
+    dir: String;
+    devent: TEvent;
+    function RemoveDir(slot: Pointer; const dir: String): Boolean;
+  public
+    constructor Create(const netname, channel, site, dir: String);
+    destructor Destroy;override;
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
 
 implementation
 
-uses sitesunit,  mystrings, dirlist, DebugUnit, irc;
+uses
+  sitesunit,  mystrings, dirlist, DebugUnit, irc;
 
-const section = 'del';
+const
+  section = 'del';
 
-{ TLoginTask }
+{ TDelReleaseTask }
 
-constructor TDelReleaseTask.Create(const netname, channel: String; site: String; dir: String);
+constructor TDelReleaseTask.Create(const netname, channel, site, dir: String);
 begin
-  self.dir:= dir;
-  devent:=TEvent.Create(nil, true, false, 'DEL_'+site+'-'+dir);
   inherited Create(netname, channel, site);
+  self.dir := dir;
+  devent := TEvent.Create(nil, true, false, 'DEL_' + site + '-' + dir);
 end;
 
 destructor TDelReleaseTask.Destroy;
 begin
-inherited;
-devent.free;
+  devent.Free;
+  inherited;
 end;
 
-function TDelReleaseTask.RemoveDir(slot: Pointer; dir: String): Boolean;
-var s: TSiteSlot;
-    d: TDirList;
-    i: Integer;
-    de: TDirListEntry;
+function TDelReleaseTask.RemoveDir(slot: Pointer; const dir: String): Boolean;
+var
+  s: TSiteSlot;
+  d: TDirList;
+  i: Integer;
+  de: TDirListEntry;
 begin
-  Result:= True;
-  s:= slot;
-  if not s.Dirlist(dir, False, True) then begin
-    irc_addtext(Netname,Channel,'can%st dirlist %s',[Chr(39),Dir]);
+  Result := True;
+  s := slot;
+  if not s.Dirlist(dir, False, True) then
+  begin
+    irc_addtext(Netname, Channel, 'can%st dirlist %s', [Chr(39), Dir]);
     exit;
   end;
-  d:= TDirList.Create(s.site.name, nil, nil, s.lastResponse);
+
+  d := TDirList.Create(s.site.Name, nil, nil, s.lastResponse);
   d.dirlist_lock.Enter;
   try
-    for i:= 0 to d.entries.Count -1 do
+    for i := 0 to d.entries.Count - 1 do
     begin
-      de:= TDirListEntry(d.entries[i]);
+      de := TDirListEntry(d.entries[i]);
       if not de.directory then
       begin
         if not s.RemoveFile(dir, de.filename) then
         begin
-          Result:= False;
+          Result := False;
           Break;
         end;
       end;
     end;
+
     if Result then
     begin
-      for i:= 0 to d.entries.Count -1 do
+      for i := 0 to d.entries.Count - 1 do
       begin
-        de:= TDirListEntry(d.entries[i]);
+        de := TDirListEntry(d.entries[i]);
         if ((de.filename = '.') or (de.filename = '..')) then Continue;
         if de.directory then
         begin
-          if not RemoveDir(slot, dir+de.filename) then
+          if not RemoveDir(slot, dir + de.filename) then
           begin
-            Result:= False;
+            Result := False;
             Break;
           end;
         end;
       end;
     end;
+
     if Result then
     begin
-      // es vegul eltavolitjuk a main direktorit
-      Result:= s.RemoveDir(dir);
+      // and let's get out the main directory
+      Result := s.RemoveDir(dir);
     end;
   finally
     d.dirlist_lock.Leave;
@@ -92,37 +101,49 @@ begin
 end;
 
 function TDelReleaseTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
+var
+  s: TSiteSlot;
+  fNumErrors: Integer;
 begin
-  Result:= False;
-  s:= slot;
-  Debug(dpMessage, section, Name);
-
-ujra:
-  if s.status <> ssOnline then
-    if not s.ReLogin then
+  Result := False;
+  Debug(dpMessage, section, '-->' + Name);
+  s := slot;
+  dir := MyIncludeTrailingSlash(dir);
+  
+  for fNumErrors := 1 to MaxNumberErrors do
+  begin
+    if s.status <> ssOnline then
     begin
-      readyerror:= True;
-      exit;
+      if not s.ReLogin(1) then
+      begin
+        readyerror := True;
+        exit;
+      end;
     end;
 
-  dir:= MyIncludeTrailingSlash(dir);
-  if (not RemoveDir(s, dir)) then goto ujra;
+    if (RemoveDir(s, dir)) then
+      break;
+  end;
 
-  Result:= True;
-  ready:= True;
+  if (fNumErrors = MaxNumberErrors) then
+  begin
+    readyerror := True;
+    exit;
+  end;
+
+  ready := True;
   devent.setevent;
+  Debug(dpMessage, section, '<--' + Name);
+  Result := True;
 end;
 
 function TDelReleaseTask.Name: String;
 begin
   try
-    Result:=format('DELETE %s - %s',[site1,dir]);
+    Result := Format('DELETE %s - %s', [site1, dir]);
   except
-    Result:= 'DELETE';
+    Result := 'DELETE';
   end;
 end;
 
 end.
-

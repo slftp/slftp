@@ -46,7 +46,8 @@ const
 
 implementation
 
-uses SysUtils, mystrings;
+uses
+  SysUtils, StrUtils, mystrings;
 
 
 const
@@ -356,7 +357,7 @@ begin
 		end;
 
     dest_info.lame_lowpass:= Format('%.1f', [(buffer[offset+$A6]) / 10]);
-    dest_info.lame_lowpass:= Csere(dest_info.lame_lowpass, ',', '.');
+    dest_info.lame_lowpass:= ReplaceText(dest_info.lame_lowpass, ',', '.');
     dest_info.lame_ath:= (buffer[offset+$AF]) and $0f;
     dest_info.lame_bitrate:= (buffer[offset+$B0]);
 

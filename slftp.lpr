@@ -1,17 +1,4 @@
-program slftp;
-{$MODE Delphi}
-
-{$IFDEF FPC}
-  {$if FPC_FULlVERSION < 30004}
-    {$stop Please upgrade your Free Pascal Compiler version to at least 3.0.4 }
-  {$endif}
-{$ENDIF}
-
-{$IFDEF WINDOWS}
-  {$APPTYPE CONSOLE}
-{$ENDIF}
-{*******************************************************************************\
-
+{
  Freeware, Copyright              .
  must be included GLP3            ;    .
  it under the terms of the GNU   01.   .
@@ -38,7 +25,7 @@ program slftp;
      --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
             1:   .`10f.         :         `......:
             01  .1  `00r.       :.............'
-            00  0:  .100'       :...100100...:'
+            00  0:  .100'       :...Legend...:'
             01  01.101'
             10  0101' .   This program is distributed in the hope that it will be useful,
             01  01'  .1   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -47,8 +34,22 @@ program slftp;
             .   1    0:
                 0.    :.
                 .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
+}
 
-\*******************************************************************************}
+program slftp;
+
+{$MODE Delphi} //< delphi compatible mode
+
+{$IFDEF FPC}
+  {$if FPC_FULLVERSION < 30200}
+    {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
+  {$endif}
+{$ENDIF}
+
+{$IFDEF WINDOWS}
+  {$APPTYPE CONSOLE}
+{$ENDIF}
+
 uses
   {$IFDEF FPC}
     {$IFDEF UNIX}

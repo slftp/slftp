@@ -84,19 +84,19 @@ type
     status: String;
     channels: TStringList;
 
-    procedure IrcSendPrivMessage(channel, plainmsgformat: String; const args: array of const); overload;
-    procedure IrcSendPrivMessage(channel, plainmsg: String); overload;
-    function IrcSendPrivMessage(oneliner: String): Boolean; overload;
+    procedure IrcSendPrivMessage(const channel, plainmsgformat: String; const args: array of const); overload;
+    procedure IrcSendPrivMessage(const channel, plainmsg: String); overload;
+    function IrcSendPrivMessage(const oneliner: String): Boolean; overload;
     procedure IrcSetupSocket;
-    procedure chanpart(chan, nick: String);
+    procedure chanpart(const chan, nick: String);
     function IrcConnect: Boolean;
     procedure IrcQuit;
-    function ChanNicks(chan: String): String;
-    constructor Create(netname: String);
+    function ChanNicks(const chan: String): String;
+    constructor Create(const netname: String);
     procedure Execute; override;
     destructor Destroy; override;
 
-    function IrcWrite(s: String; hide: boolean = False): Boolean;
+    function IrcWrite(const s: String; hide: boolean = False): Boolean;
 
     property flood: Integer read GetIrcFlood write SetIrcFlood;
     property ssl: Boolean read GetIrcSSL write SetIrcSSL;
@@ -117,41 +117,42 @@ type
     //    property NickServPassword:string read GetNickServPassw write SetNickServpassw;
   end;
 
-procedure irc_Addtext_b(const netname, channel: String; msg: String); overload;
-procedure irc_Addtext(const netname, channel: String; msg: String); overload;
-procedure irc_Addtext(const netname, channel: String; msgFormat: String; Args: array of const); overload;
-procedure irc_Addtext(task: TTask; msg: String); overload;
-procedure irc_Addtext(task: TTask; msgFormat: String; Args: array of const); overload;
-function irc_Addtext_by_key(key, msg: String): Integer;
-procedure IrcProcessCommand(const netname, channel: String; msg: String);
-procedure irc_Addadmin(msg: String); overload;
-procedure irc_AddAdmin(msgFormat: String; Args: array of const); overload;
+procedure irc_Addtext_b(const netname, channel, msg: String); overload;
+procedure irc_Addtext(const netname, channel, msg: String); overload;
+procedure irc_Addtext(const netname, channel, msgFormat: String; Args: array of const); overload;
+procedure irc_Addtext(task: TTask; const msg: String); overload;
+procedure irc_Addtext(task: TTask; const msgFormat: String; Args: array of const); overload;
+function irc_Addtext_by_key(const key, msg: String): Integer;
+procedure IrcProcessCommand(const netname, channel, msg: String);
 
-procedure irc_AddConsole(msg: String); overload;
+procedure irc_Addadmin(const msg: String); overload;
+procedure irc_AddAdmin(const msgFormat: String; Args: array of const); overload;
 
-procedure irc_Addstats(msgirc: String); overload;
-procedure irc_AddstatsB(msgirc: String); overload;
+procedure irc_AddConsole(const msg: String); overload;
 
-procedure irc_Adderror(task: TTask; msg: String); overload;
-procedure irc_Adderror(msgirc: String); overload;
-procedure irc_Adderror(task: TTask; msgFormat: String; Args: array of const); overload;
+procedure irc_Addstats(const msgirc: String); overload;
+procedure irc_AddstatsB(const msgirc: String); overload;
 
-procedure irc_AddINFO(msgirc: String); overload;
-procedure irc_AddINFO(msgFormat: String; Args: array of const); overload;
+procedure irc_Adderror(task: TTask; const msg: String); overload;
+procedure irc_Adderror(const msgirc: String); overload;
+procedure irc_Adderror(task: TTask; const msgFormat: String; Args: array of const); overload;
+
+procedure irc_AddINFO(const msgirc: String); overload;
+procedure irc_AddINFO(const msgFormat: String; Args: array of const); overload;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
 
-procedure irc_SendAddPre(msgirc: String);
-procedure irc_SendSPEEDSTATS(msgirc: String);
-procedure irc_SendINDEXER(msgirc: String);
-procedure irc_SendRANKSTATS(msgirc: String);
-procedure irc_SendROUTEINFOS(msgirc: String);
-procedure irc_SendRACESTATS(msgirc: String);
-procedure irc_SendIRCEvent(msgirc: String);
+procedure irc_SendAddPre(const msgirc: String);
+procedure irc_SendSPEEDSTATS(const msgirc: String);
+procedure irc_SendINDEXER(const msgirc: String);
+procedure irc_SendRANKSTATS(const msgirc: String);
+procedure irc_SendROUTEINFOS(const msgirc: String);
+procedure irc_SendRACESTATS(const msgirc: String);
+procedure irc_SendIRCEvent(const msgirc: String);
 
-procedure irc_SendUPDATE(msgirc: String);
+procedure irc_SendUPDATE(const msgirc: String);
 
-function FindIrcnetwork(netname: String): TMyIrcThread;
+function FindIrcnetwork(const netname: String): TMyIrcThread;
 
 procedure IrcInit;
 procedure IrcStart;
@@ -174,21 +175,15 @@ const
 
   irc_chanroles: array[0..irc_chanroleindex] of String = (
     'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
-    'UPDATE',
-    'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG', 'ROUTEINFOS',
-    'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
+    'UPDATE', 'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG',
+    'ROUTEINFOS', 'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
 
 implementation
 
 uses
-  debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
-  socks5, versioninfo, mystrings, DateUtils, irccommandsunit,
-  sitesunit, taskraw, queueunit, mainthread, dbaddpre, dbtvinfo, dbaddurl,
-  dbaddimdb, dbaddgenre, news, StrUtils
-  {$IFDEF MSWINDOWS}
-    , Windows
-  {$ENDIF}
-  ;
+  StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
+  socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
+  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news;
 
 const
   section = 'irc';
@@ -203,7 +198,7 @@ begin
   result := config.ReadString(section, 'cmdprefix', '!');
 end;
 
-function FindIrcnetwork(netname: String): TMyIrcThread;
+function FindIrcnetwork(const netname: String): TMyIrcThread;
 var
   i: Integer;
 begin
@@ -224,7 +219,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext_b(const netname, channel: String; msg: String); overload;
+procedure irc_Addtext_b(const netname, channel, msg: String); overload;
 var
   direct_echo: TMyIrcThread;
   msgs: TStringList;
@@ -282,7 +277,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(const netname, channel: String; msg: String); overload;
+procedure irc_Addtext(const netname, channel, msg: String); overload;
 begin
   try
     irc_addtext_b(netname, channel, ReplaceThemeMSG(msg));
@@ -294,7 +289,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(const netname, channel: String; msgFormat: String; Args: array of const); overload;
+procedure irc_Addtext(const netname, channel, msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_Addtext(netname, channel, Format(msgFormat, Args));
@@ -306,7 +301,7 @@ begin
   end;
 end;
 
-procedure irc_Addtext(task: TTask; msg: String); overload;
+procedure irc_Addtext(task: TTask; const msg: String); overload;
 begin
   if ((task <> nil) and (task.netname <> '') and (task.channel <> '')) then
     irc_Addtext(task.netname, task.channel, msg)
@@ -314,7 +309,7 @@ begin
     irc_Addadmin(msg);
 end;
 
-procedure irc_Addtext(task: TTask; msgFormat: String; Args: array of const); overload;
+procedure irc_Addtext(task: TTask; const msgFormat: String; Args: array of const); overload;
 var
   s: String;
 begin
@@ -329,7 +324,7 @@ begin
   end;
 end;
 
-procedure irc_AddstatsB(msgirc: String); overload;
+procedure irc_AddstatsB(const msgirc: String); overload;
 var
   b: TIrcBlowKey;
   i: Integer;
@@ -352,7 +347,7 @@ begin
   end;
 end;
 
-function irc_Addtext_by_key(key, msg: String): Integer;
+function irc_Addtext_by_key(const key, msg: String): Integer;
 var
   b: TIrcBlowKey;
   i, j: Integer;
@@ -388,7 +383,7 @@ begin
   end;
 end;
 
-procedure irc_AddAdmin(msgFormat: String; Args: array of const); overload;
+procedure irc_AddAdmin(const msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_AddAdmin(Format(msgFormat, args));
@@ -400,25 +395,25 @@ begin
   end;
 end;
 
-procedure irc_Addadmin(msg: String); overload;
+procedure irc_Addadmin(const msg: String); overload;
 begin
   irc_addtext('CONSOLE', 'Admin', msg);
   irc_Addtext_by_key('ADMIN', msg);
 end;
 
-procedure irc_AddConsole(msg: String); overload;
+procedure irc_AddConsole(const msg: String); overload;
 begin
   irc_addtext('CONSOLE', 'Admin', msg);
 end;
 
-procedure irc_Addstats(msgirc: String); overload;
+procedure irc_Addstats(const msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('STATS', msgirc)
 end;
 
-procedure irc_Adderror(task: TTask; msgFormat: String; Args: array of const); overload;
+procedure irc_Adderror(task: TTask; const msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_Adderror(task, Format(msgFormat, Args));
@@ -430,26 +425,26 @@ begin
   end;
 end;
 
-procedure irc_Adderror(task: TTask; msg: String); overload;
+procedure irc_Adderror(task: TTask; const msg: String); overload;
 begin
   irc_Addtext_by_key('ERROR', msg);
 end;
 
-procedure irc_Adderror(msgirc: String); overload;
+procedure irc_Adderror(const msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ERROR', msgirc);
 end;
 
-procedure irc_AddINFO(msgirc: String); overload;
+procedure irc_AddINFO(const msgirc: String); overload;
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('INFO', msgirc);
 end;
 
-procedure irc_AddINFO(msgFormat: String; Args: array of const); overload;
+procedure irc_AddINFO(const msgFormat: String; Args: array of const); overload;
 begin
   try
     irc_AddINFO(Format(msgformat, args));
@@ -461,56 +456,56 @@ begin
   end;
 end;
 
-procedure irc_SendIRCEvent(msgirc: String);
+procedure irc_SendIRCEvent(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('IRCEVENT', msgirc);
 end;
 
-procedure irc_SendAddPre(msgirc: String);
+procedure irc_SendAddPre(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ADDPREECHO', msgirc);
 end;
 
-procedure irc_SendSPEEDSTATS(msgirc: String);
+procedure irc_SendSPEEDSTATS(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('SPEEDSTATS', msgirc);
 end;
 
-procedure irc_SendINDEXER(msgirc: String);
+procedure irc_SendINDEXER(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('INDEXER', msgirc);
 end;
 
-procedure irc_SendRANKSTATS(msgirc: String);
+procedure irc_SendRANKSTATS(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('RANKSTATS', msgirc)
 end;
 
-procedure irc_SendROUTEINFOS(msgirc: String);
+procedure irc_SendROUTEINFOS(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('ROUTEINFOS', msgirc)
 end;
 
-procedure irc_SendRACESTATS(msgirc: String);
+procedure irc_SendRACESTATS(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
   irc_Addtext_by_key('RACESTATS', msgirc)
 end;
 
-procedure irc_SendUPDATE(msgirc: String);
+procedure irc_SendUPDATE(const msgirc: String);
 begin
   if (msgirc = '') then
     exit;
@@ -558,7 +553,7 @@ end;
 
 { TMyIrcThread }
 
-constructor TMyIrcThread.Create(netname: String);
+constructor TMyIrcThread.Create(const netname: String);
 begin
   irc_lock := TCriticalSection.Create;
 
@@ -634,7 +629,7 @@ begin
 
 end;
 
-function TMyIrcThread.IrcWrite(s: String; hide: boolean = False): Boolean;
+function TMyIrcThread.IrcWrite(const s: String; hide: boolean = False): Boolean;
 begin
   Result := False;
   irc_lock.Enter;
@@ -767,7 +762,7 @@ begin
   end;
 end;
 
-procedure IrcProcessCommand(const netname, channel: String; msg: String);
+procedure IrcProcessCommand(const netname, channel, msg: String);
 var
   cmd: String;
   i, c: integer;
@@ -794,18 +789,18 @@ begin
   if params <> '' then
     inc(c);
 
-  if ((irccommands[i].minparams <> -1) and (irccommands[i].minparams > c)) then
+  if ((ircCommandsArray[i].minparams <> -1) and (ircCommandsArray[i].minparams > c)) then
   begin
     irc_Addtext(netname, channel, 'Not enough parameters specified. Try !help %s', [cmd]);
     exit;
   end;
-  if ((irccommands[i].maxparams <> -1) and (irccommands[i].maxparams < c)) then
+  if ((ircCommandsArray[i].maxparams <> -1) and (ircCommandsArray[i].maxparams < c)) then
   begin
     irc_Addtext(netname, channel, 'Too many parameters specified. Try !help %s', [cmd]);
     exit;
   end;
 
-  TIRCCommandThread.Create(irccommands[i].hnd, netname, channel, params, irccommands[i].cmd);
+  TIRCCommandThread.Create(ircCommandsArray[i].hnd, netname, channel, params, ircCommandsArray[i].cmd);
 end;
 
 procedure TMyIrcThread.IrcPrivMsg(const s: String);
@@ -892,7 +887,7 @@ begin
       end
       else if ctcp_event = 'VERSION' then
       begin
-        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s%s', [nick, #1, Get_VersionOnlyString, #1]));
+        IrcWrite(Format('PRIVMSG %s :%sVERSION IRC v%s%s', [nick, #1, GetVersionOnlyString, #1]));
       end
       else if ctcp_event = 'TIME' then
       begin
@@ -1151,7 +1146,7 @@ begin
   end;
 end;
 
-procedure TMyIrcThread.chanpart(chan, nick: String);
+procedure TMyIrcThread.chanpart(const chan, nick: String);
 var
   x: TStringList;
   i: Integer;
@@ -1418,12 +1413,12 @@ begin
   Result := True;
 end;
 
-procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsgformat: String; const args: array of const);
+procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsgformat: String; const args: array of const);
 begin
-  IrcSendPrivMessage(channel, FormaT(plainmsgformat, args));
+  IrcSendPrivMessage(channel, Format(plainmsgformat, args));
 end;
 
-procedure TMyIrcThread.IrcSendPrivMessage(channel, plainmsg: String);
+procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
 begin
   irc_message_lock.Enter;
   try
@@ -1434,10 +1429,9 @@ begin
   finally
     irc_message_lock.Leave;
   end;
-
 end;
 
-function TMyIrcThread.IrcSendPrivMessage(oneliner: String): Boolean;
+function TMyIrcThread.IrcSendPrivMessage(const oneliner: String): Boolean;
 var
   channel, msg: String;
 begin
@@ -1908,7 +1902,7 @@ begin
   result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
-function TMyIrcThread.ChanNicks(chan: String): String;
+function TMyIrcThread.ChanNicks(const chan: String): String;
 begin
   Result := channels.Values[chan];
 end;

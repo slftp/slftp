@@ -12,7 +12,7 @@ uses SysUtils, StrUtils,
   Windows;
 {$ELSE}
   {$IFDEF FPC}
-    baseunix, pwd, users;
+    baseunix, {$IFDEF LINUX}pwd,{$ENDIF} users;
   {$ELSE}
     Libc;
   {$ENDIF}

@@ -2,71 +2,101 @@ unit taskraw;
 
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
 type
   TRawTask = class(TTask)
-   cmd: String;
-   dir: String;
-   constructor Create(const netname, channel: String;site: String; dir: String; cmd: String);
-   function Execute(slot: Pointer): Boolean; override;
-   function Name: String; override;
+  private
+    cmd: String;
+    dir: String;
+  public
+    constructor Create(const netname, channel, site, dir, cmd: String);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
   end;
 
 implementation
 
-uses sitesunit, SysUtils, mystrings, DebugUnit;
+uses
+  sitesunit, SysUtils, mystrings, DebugUnit;
 
 const
   section = 'raw';
 
-constructor TRawTask.Create(const netname, channel: String;site: String; dir: String; cmd: String);
+{ TRawTask }
+
+constructor TRawTask.Create(const netname, channel, site, dir, cmd: String);
 begin
+  inherited Create(netname, channel, site);
   self.cmd := cmd;
   self.dir := dir;
-  inherited Create(netname, channel, site);
 end;
 
 function TRawTask.Execute(slot: Pointer): Boolean;
-label
-  ujra;
 var
   s: TSiteSlot;
+  fNumErrors: Integer;
+
+{ Moves into dir if needed, executes @value(cmd) and reads ftpd output afterwards
+  @returns(@true on success, @false if a command execution failed) }
+  function SuccessfullyExecuted: Boolean;
+  begin
+    Result := False;
+
+    if dir <> '' then
+    begin
+      if (not s.Cwd(dir, true)) then
+        exit;
+    end;
+    if (not s.Send(cmd)) then
+      exit;
+    if (not s.Read(cmd)) then
+      exit;
+
+    Result := True;
+  end;
+
 begin
   Result := False;
+  Debug(dpMessage, section, '-->' + Name);
   s := slot;
-  Debug(dpMessage, section, Name);
 
-ujra:
-  if s.status <> ssOnline then
-    if not s.ReLogin(1) then
+  for fNumErrors := 1 to MaxNumberErrors do
+  begin
+    if s.status <> ssOnline then
     begin
-      readyerror := True;
-      exit;
+      if not s.ReLogin(1) then
+      begin
+        readyerror := True;
+        exit;
+      end;
     end;
 
-  if dir <> '' then
-    if (not s.Cwd(dir, true)) then goto ujra;
+    if SuccessfullyExecuted then
+      break;
+  end;
 
-  if (not s.Send(cmd)) then goto ujra;
-  if (not s.Read(cmd)) then goto ujra;
+  if (fNumErrors = MaxNumberErrors) then
+  begin
+    readyerror := True;
+    exit;
+  end;
+
   ido := Now();
-
   response := s.lastResponse;
-
-
-  Result := True;
   ready := True;
+  Debug(dpSpam, section, '<--' + Name);
+  Result := True;
 end;
 
 function TRawTask.Name: String;
 begin
   try
-    Result := 'RAW ' + site1 + ' -> ' + cmd;
+    Result := Format('RAW %s -> %s', [site1, cmd]);
   except
     Result := 'RAW';
   end;
 end;
 
 end.
-

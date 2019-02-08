@@ -23,14 +23,14 @@ type
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
-procedure QueueEmpty(sitename: String);
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
+procedure QueueEmpty(const sitename: String);
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
-function RemovePazo(pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer): boolean;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
+procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
+procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
 procedure QueueInit;
 procedure QueueUninit;
 
@@ -53,7 +53,7 @@ var
 implementation
 
 uses
-  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautocrawler, taskautodirlist, taskautoindex,
+  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautodirlist, taskautoindex,
   tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
 
 const
@@ -781,38 +781,30 @@ begin
   end;
 end;
 
-// EZT IS CSAK ZAROLVA SZABAD HIVNI
-procedure QueueEmpty(sitename: String);
+// IT IS ONLY GIVEN TO CALL
+procedure QueueEmpty(const sitename: String);
 var
   i: integer;
   t: TTask;
-
 begin
-  Debug(dpSpam, section, 'QueueEmpty ' + sitename);
+  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
 
-  queueth.main_lock.Enter;
+  for i := tasks.Count - 1 downto 0 do
+  begin
+    if i < 0 then 
+      Break;
+    try
+      t := TTask(tasks[i]);
+      if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+        t.readyerror := True;
 
-  try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then Break;
-      except
-        Break;
-      end;
-      try
-        t := TTask(tasks[i]);
-        if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
-          t.readyerror := True;
-
-        if (t is TPazoTask) then TPazoTask(t).mainpazo.SiteDown(sitename);
-      except
-        Continue;
-      end;
+      if (t is TPazoTask) then
+        TPazoTask(t).mainpazo.SiteDown(sitename);
+    except
+      Continue;
     end;
-  finally
-    queueth.main_lock.Leave;
   end;
+  Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
 function TaskAlreadyInQueue(t: TTask): boolean;
@@ -998,7 +990,7 @@ begin
   Console_QueueAdd(t.UidText, Format('%s', [tname]));
 end;
 
-procedure RemoveRaceTasks(pazo_id: integer; sitename: String);
+procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
@@ -1037,7 +1029,7 @@ begin
   end;
 end;
 
-procedure RemoveDirlistTasks(pazo_id: integer; sitename: String);
+procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
 var
   i:   integer;
   ttp: TPazoDirlistTask;
@@ -1076,7 +1068,7 @@ begin
   end;
 end;
 
-function RemovePazo(pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer): boolean;
 var
   i: integer;
   t: TPazoTask;
@@ -1118,7 +1110,7 @@ begin
 end;
 
 
-procedure RemovePazoMKDIR(pazo_id: integer; sitename, dir: String);
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 var
   i:   integer;
   ttp: TPazoMkdirTask;
@@ -1160,7 +1152,7 @@ begin
   end;
 end;
 
-procedure RemovePazoRace(pazo_id: integer; dstsite, dir, filename: String);
+procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
@@ -1795,8 +1787,7 @@ begin
         Inc(t_race)
       else if ((tasks[i].ClassType = TPazoDirlistTask)) then
         Inc(t_dir)
-      else if ((tasks[i].ClassType = TAutoNukeTask) or
-        (tasks[i].ClassType = TAutoCrawlerTask) or (tasks[i].ClassType = TAutoDirlistTask) or
+      else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or
         (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or
         (tasks[i].ClassType = TRulesTask)) then
         Inc(t_auto)

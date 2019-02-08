@@ -386,7 +386,7 @@
     {$ENDIF}
   {$ENDIF}
 
-  //Delphi & CBuilder 10.3 "Name TBD" (Carnival)
+  //Delphi & CBuilder 10.3 Rio (Carnival)
   {$IFDEF VER330}
     {$DEFINE VCL_10_3}
     {$IFDEF CBUILDER}
@@ -1108,7 +1108,6 @@
     {$DEFINE HAS_TCharacter}
     {$DEFINE HAS_InterlockedCompareExchangePointer}
     {$DEFINE HAS_WIDE_TCharArray}
-    {$DEFINE HAS_UNIT_AnsiStrings}
     {$DEFINE HAS_PUInt64}
     {$IFDEF VCL_2009}
       // TODO: need to differentiate between RTM and Update 1
@@ -1439,7 +1438,6 @@
   {$UNDEF HAS_AnsiChar}
   {$UNDEF HAS_PAnsiChar}
   {$UNDEF HAS_PPAnsiChar}
-  {$UNDEF HAS_UNIT_AnsiStrings}
   {$UNDEF HAS_AnsiStrings_StrPLCopy}
   {$UNDEF HAS_AnsiStrings_StrLen}
 {$ENDIF}
@@ -1488,7 +1486,7 @@
   {$DEFINE HAS_getifaddrs}
 {$ENDIF}
 
-{$IFDEF LINUX64}
+{$IFDEF LINUX}
   {$DEFINE HAS_getifaddrs}
 {$ENDIF}
 
@@ -1555,7 +1553,7 @@
 //This also must go before the THandle size calculations.
 {$IFDEF VCL_CROSS_COMPILE}
   {$IFDEF POSIX}
-    {$IFNDEF LINUX64}
+    {$IFNDEF LINUX}
       {$DEFINE BSD}
     {$ENDIF}
     {$DEFINE USE_SAFELOADLIBRARY}

@@ -23,3 +23,8 @@ find * -iname "*.resources" -type f -delete
 find * -iname "*.res" -type f -delete
 find * -iname "*.bmp" -type f -delete
 find * -iname "*.cfg*" -type f -delete
+find * -iname "*.dpkl*" -type f -delete
+find * -iname "*.psd*" -type f -delete
+find * -iname "*.dcr*" -type f -delete
+find * -iname "*.xpm*" -type f -delete
+find * -iname "*.lpk*" -type f -delete

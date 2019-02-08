@@ -10,7 +10,7 @@ type
     ss: TStringStream;
     attempt: Integer;
   public
-    constructor Create(const netname, channel: String; site: String; pazo: TPazo; attempt: Integer);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -18,7 +18,8 @@ type
 
 implementation
 
-uses SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
+uses
+  SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
   configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl;
 
 const
@@ -34,18 +35,26 @@ begin
   if sec.ClassName = 'TIMDBRelease' then
   begin
     if dbaddimdb_parseid(nfo_data, imdbid) then
+    begin
       dbaddimdb_SaveImdb(rls, imdbid);
       dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
+    end;
   end;
 end;
 
 { TPazoSiteNfoTask }
-constructor TPazoSiteNfoTask.Create(const netname, channel: String; site: String; pazo: TPazo; attempt: Integer);
+constructor TPazoSiteNfoTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
 begin
   ss := TStringStream.Create('');
   self.attempt := attempt;
   self.wanted_dn := True;
   inherited Create(netname, channel, site, '', pazo);
+end;
+
+destructor TPazoSiteNfoTask.Destroy;
+begin
+  ss.Free;
+  inherited;
 end;
 
 function TPazoSiteNfoTask.Execute(slot: Pointer): Boolean;
@@ -290,17 +299,10 @@ end;
 function TPazoSiteNfoTask.Name: String;
 begin
   try
-    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]',[mainpazo.rls.rlsname, pazo_id, site1, attempt]);
+    Result := Format('GENRENFO: %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, pazo_id, site1, attempt]);
   except
     Result := 'SITENFO';
   end;
 end;
 
-destructor TPazoSiteNfoTask.Destroy;
-begin
-  ss.Free;
-  inherited;
-end;
-
 end.
-

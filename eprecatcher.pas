@@ -85,7 +85,7 @@ begin
 
     debug(dpMessage, rsections, 'Got line: %s', [ss]);
 
-    ss:= Csere(ss, '||', '| |'); // fix for empty genre
+    ss:= ReplaceText(ss, '||', '| |'); // fix for empty genre
     sitename:= Fetch(ss, '|', True, False);
     section:= Fetch(ss, '|', True, False);
     genre:= trim(Fetch(ss, '|', True, False));

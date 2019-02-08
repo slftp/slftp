@@ -442,7 +442,7 @@ type
     property Method: TIdHTTPMethod read FMethod write FMethod;
     property Source: TStream read FSourceStream write FSourceStream;
     property UseProxy: TIdHTTPConnectionType read FUseProxy;
-    property IPVersion: TIdIPversion read FIPVersion write FIPVersion;
+    property IPVersion: TIdIPVersion read FIPVersion write FIPVersion;
     property Destination: string read FDestination write FDestination;
   end;
 
@@ -2269,15 +2269,6 @@ begin
   // username/password as it can use the identity of the user token associated
   // with the calling thread!
 
-  // TODO: get rid of this check here.  Let Request.Authentication validate the
-  // username/password as needed.  Don't validate OnAuthorization unless
-  // wnAskTheProgram is requested...  
-  Result := Assigned(FOnAuthorization) or (Trim(ARequest.Password) <> '');
-
-  if not Result then begin
-    Exit;
-  end;
-
   LAuth := ARequest.Authentication;
   LAuth.Username := ARequest.Username;
   LAuth.Password := ARequest.Password;
@@ -2292,21 +2283,23 @@ begin
     case LAuth.Next of
       wnAskTheProgram:
         begin // Ask the user porgram to supply us with authorization information
-          if Assigned(FOnAuthorization) then
+          if not Assigned(FOnAuthorization) then
           begin
-            LAuth.UserName := ARequest.Username;
-            LAuth.Password := ARequest.Password;
-
-            OnAuthorization(Self, LAuth, Result);
-
-            if Result then begin
-              ARequest.BasicAuthentication := True;
-              ARequest.Username := LAuth.UserName;
-              ARequest.Password := LAuth.Password;
-            end else begin
-              Break;
-            end;
+            Result := False;
+            Break;
           end;
+
+          LAuth.UserName := ARequest.Username;
+          LAuth.Password := ARequest.Password;
+
+          OnAuthorization(Self, LAuth, Result);
+          if not Result then begin
+            Break;
+          end;
+
+          ARequest.BasicAuthentication := True;
+          ARequest.Username := LAuth.UserName;
+          ARequest.Password := LAuth.Password;
         end;
       wnDoRequest:
         begin
@@ -2377,15 +2370,6 @@ begin
   // username/password as it can use the identity of the user token associated
   // with the calling thread!
 
-  // TODO: get rid of this check here.  Let ProxyParams.Authentication validate
-  // the username/password as needed.  Don't validate OnProxyAuthorization unless
-  // wnAskTheProgram is requested...  
-  Result := Assigned(OnProxyAuthorization) or (Trim(ProxyParams.ProxyPassword) <> '');
-
-  if not Result then begin
-    Exit;
-  end;
-
   LAuth := ProxyParams.Authentication;
   LAuth.Username := ProxyParams.ProxyUsername;
   LAuth.Password := ProxyParams.ProxyPassword;
@@ -2399,22 +2383,23 @@ begin
     case LAuth.Next of
       wnAskTheProgram: // Ask the user porgram to supply us with authorization information
         begin
-          if Assigned(OnProxyAuthorization) then
-          begin
-            LAuth.Username := ProxyParams.ProxyUsername;
-            LAuth.Password := ProxyParams.ProxyPassword;
-
-            OnProxyAuthorization(Self, LAuth, Result);
-
-            if Result then begin
-              // TODO: do we need to set this, like DoOnAuthorization does?
-              //ProxyParams.BasicAuthentication := True;
-              ProxyParams.ProxyUsername := LAuth.Username;
-              ProxyParams.ProxyPassword := LAuth.Password;
-            end else begin
-              Break;
-            end;
+          if not Assigned(OnProxyAuthorization) then begin
+            Result := False;
+            Break;
           end;
+
+          LAuth.Username := ProxyParams.ProxyUsername;
+          LAuth.Password := ProxyParams.ProxyPassword;
+
+          OnProxyAuthorization(Self, LAuth, Result);
+          if not Result then begin
+            Break;
+          end;
+
+          // TODO: do we need to set this, like DoOnAuthorization does?
+          //ProxyParams.BasicAuthentication := True;
+          ProxyParams.ProxyUsername := LAuth.Username;
+          ProxyParams.ProxyPassword := LAuth.Password;
         end;
       wnDoRequest:
         begin
@@ -2689,6 +2674,7 @@ begin
   inherited Create(AHTTP);
   FHTTP := AHTTP;
   FUseProxy := ctNormal;
+  FIPVersion := ID_DEFAULT_IP_VERSION;
 end;
 
 { TIdHTTPProtocol }
@@ -3006,6 +2992,12 @@ begin
 
     if LResponseDigit <> 2 then begin
       case LResponseCode of
+        101:
+          begin
+            Response.KeepAlive := True;
+            Result := wnJustExit;
+            Exit;
+          end;
         401:
           begin // HTTP Server authorization required
             if (FHTTP.AuthRetries >= FHTTP.MaxAuthRetries) or
@@ -3165,11 +3157,17 @@ begin
       //
       // This is also necessary as servers are allowed to send any number of
       // 1xx informational responses before sending the final response.
+      //
+      // Except in the case of 101 SWITCHING PROTOCOLS, which is a final response.
+      // The protocol on the line is then switched to the requested protocol, per
+      // the response's 'Upgrade' header, following the 101 response, so we need to
+      // stop and exit immediately if 101 is received, and let the caller handle
+      // the new protocol as needed.
       repeat
         Response.ResponseText := InternalReadLn;
         FHTTPProto.RetrieveHeaders(MaxHeaderLines);
         ProcessCookies(Request, Response);
-      until (Response.ResponseCode div 100) <> 1;
+      until ((Response.ResponseCode div 100) <> 1) or (Response.ResponseCode = 101);
 
       case FHTTPProto.ProcessResponse(AIgnoreReplies) of
         wnAuthRequest:
@@ -3195,7 +3193,7 @@ begin
             FAuthRetries := 0;
             FAuthProxyRetries := 0;
           end;
-        wnJustExit: 
+        wnJustExit:
           begin
             Break;
           end;

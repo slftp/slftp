@@ -1,5 +1,4 @@
-program slftp;
-{*******************************************************************************\
+{
  Freeware, Copyright              .
  must be included GLP3            ;    .
  it under the terms of the GNU   01.   .
@@ -26,7 +25,7 @@ program slftp;
      --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
             1:   .`10f.         :         `......:
             01  .1  `00r.       :.............'
-            00  0:  .100'       :...100100...:'
+            00  0:  .100'       :...Legend...:'
             01  01.101'
             10  0101' .   This program is distributed in the hope that it will be useful,
             01  01'  .1   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,11 +34,13 @@ program slftp;
             .   1    0:
                 0.    :.
                 .     .            http://www.gnu.org/licenses/gpl-3.0.en.html
+}
 
-*******************************************************************************}
+program slftp;
 
 // http://docwiki.embarcadero.com/RADStudio/Tokyo/en/Compiler_Versions
 // you can only check easily if it's Tokyo but not if it's 10.2.3
+// TODO: change min. version to Delphi 10.3
 {$if CompilerVersion < 32}
   {$MESSAGE Fatal 'Please upgrade your compiler to at least Delphi 10.2 Tokyo Release 3 (10.2.3)'}
 {$endif}
@@ -56,4 +57,3 @@ uses
 begin
   ConsoleStart;
 end.
-

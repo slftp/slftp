@@ -7,7 +7,7 @@ uses tasksunit;
 type
   TAutoDirlistTask = class(TTask)
   private
-    procedure ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
+    procedure ProcessRequest(slot: Pointer; const secdir, reqdir, releasename: String);
   public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -15,9 +15,10 @@ type
 
 implementation
 
-uses SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
-  precatcher, kb, queueunit, mystrings, dateutils, dirlist, SysUtils, irc,
-  debugunit, RegExpr, IdGlobal;
+uses
+  SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
+  precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
+  mystrings, IdGlobal;
 
 const
   rsections = 'autodirlist';
@@ -29,12 +30,13 @@ type
     secdir: String;
     rlsname: String;
   public
-    constructor Create(p: Tpazo; secdir, rlsname: String);
+    constructor Create(p: Tpazo; const secdir, rlsname: String);
     procedure Execute; override;
   end;
 
-{ TAutoSectionTask }
-procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; secdir, reqdir, releasename: String);
+{ TAutoDirlistTask }
+
+procedure TAutoDirlistTask.ProcessRequest(slot: Pointer; const secdir, reqdir, releasename: String);
 var
   x: TStringList;
   i, db: Integer;
@@ -55,8 +57,8 @@ begin
   //2009-05-11_
   releasenametofind := releasename;
   datum := Copy(releasenametofind, 1, 10);
-  datum := Csere(datum, '-', '');
-  datum := Csere(datum, '_', '');
+  datum := ReplaceText(datum, '-', '');
+  datum := ReplaceText(datum, '_', '');
   if StrToIntDef(datum, -1) <> -1 then
   begin
     releasenametofind := Copy(releasenametofind, 12, 1000);
@@ -85,7 +87,7 @@ begin
       begin
         // lolka fel van toltve helyben.  -- Lolka is charged on site.
         ss := x.Values[x.Names[i]];
-        ss := Csere(ss, '/', '_');
+        ss := ReplaceText(ss, '/', '_');
 
         if not s.Cwd(maindir, True) then
           Break;
@@ -227,7 +229,7 @@ begin
     sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-      sectiondir := todaycsere(sectiondir);
+      sectiondir := DatumIdentifierReplace(sectiondir);
 
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin
@@ -302,7 +304,7 @@ end;
 
 { TReqFillerThread }
 
-constructor TReqFillerThread.Create(p: Tpazo; secdir, rlsname: String);
+constructor TReqFillerThread.Create(p: Tpazo; const secdir, rlsname: String);
 begin
   self.p := p;
   self.secdir := secdir;
@@ -349,4 +351,3 @@ begin
 end;
 
 end.
-

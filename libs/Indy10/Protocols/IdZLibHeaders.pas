@@ -877,11 +877,7 @@ function inflateMark; external;
 function inflateGetHeader; external;
 {$ELSE}
 var
-  {$IFDEF UNIX}
-  hZlib: HModule = nilhandle;
-  {$ELSE}
-  hZLib: THandle = 0;
-  {$ENDIF}
+  hZLib: TIdLibHandle = IdNilHandle;
 
   {$IFDEF UNIX}
 const
@@ -889,6 +885,7 @@ const
   //This is a little messy because symbolic links to libraries may not always be the same
   //in various Unix types.  Even then, there could possibly be differences.
   libzlib = 'libz';
+  // TODO: setup this array more like the SSLDLLVers arrays in the IdSSLOpenSSLHeaders unit...
   libvers : array [0..3] of string = ('.1','','.3','.2');
   {$ENDIF}
   {$IFDEF NETWARE}  {zlib.nlm comes with netware6}
@@ -929,7 +926,7 @@ end;
 
 function FixupStub(const AName: {$IFDEF WINCE}TIdUnicodeString{$ELSE}string{$ENDIF}): Pointer;
 begin
-  if hZLib = 0 then begin
+  if hZLib = IdNilHandle then begin
     if not Load then begin
       raise EIdZLibStubError.Build(Format(RSZLibCallError, [AName]), 0);
     end;
@@ -1404,14 +1401,14 @@ begin
     {$IFDEF DELPHI_CROSS}
     InvalidateModuleCache;
     {$ENDIF}
-    hZLib := 0;
+    hZLib := IdNilHandle;
     InitializeStubs;
   end;
 end;
 
 function Loaded : Boolean;
 begin
-  Result := (hZLib <> 0);
+  Result := (hZLib <> IdNilHandle);
 end;
 {$ENDIF}
 

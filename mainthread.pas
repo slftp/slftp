@@ -48,14 +48,12 @@ var
 
 implementation
 
-uses pretimeunit, ident, slmysql2, mysqlutilunit, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, slsqlite, xmlwrapper,
-  sllanguagebase, irc, mycrypto, queueunit, sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, irccommandsunit, configunit, precatcher,
-  notify, tags, taskidle, knowngroups, slvision, nuke, mslproxys, prebot, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders,
-  dbaddpre, dbaddimdb, dbaddnfo, dbaddurl, dbaddgenre, globalskipunit, backupunit, taskautocrawler, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb,
-{$IFNDEF MSWINDOWS}
-  slconsole,
-{$ENDIF}
-  StrUtils, news;
+uses
+  ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, helper, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
+  StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
 
 {$I slftp.inc}
 
@@ -78,6 +76,8 @@ begin
 end;
 
 function Main_Init: String;
+var
+  fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
 begin
   Result := '';
 
@@ -86,6 +86,7 @@ begin
     Result := 'Couldnt init TCP library! TCP Error: ' + sltcp_error;
     exit;
   end;
+
 
   if not slssl_inited then
   begin
@@ -119,12 +120,12 @@ begin
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
-      Result := Format('Failed to load OpenSSL: #13#10 %s', [IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
     on e: Exception do
     begin
-      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: #13#10 %s #13#10 %s', [e.ClassName, e.Message]);
+      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
       exit;
     end;
   end;
@@ -132,36 +133,78 @@ begin
   // TODO: add a check for OpenSSL version
 
 
-  if config.ReadString('mysql', 'host', '0') <> '0' then
-  begin
-    if InitialiseMysql then
+  //< initialize global SQLite3 object for API calls (only load from current dir)
+  try
+    sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
+  except
+    on e: Exception do
     begin
-      Debug(dpSpam, section, 'MYSQL libs initialised..');
-    end
-    else
-    begin
-      Debug(dpError, section, 'Could not initialize MYSQL libs!');
-      Result := 'Cant initialize MYSQL libs!';
-      Exit;
+      Result := Format('Failed to load SQLite3: %s%s', [sLineBreak, e.Message]);
+      exit;
     end;
   end;
 
-  if slsqlite_inited then
-    Debug(dpMessage, section, 'SQLITE: ' + slSqliteVersion)
-  else
+  if sqlite3.VersionText < lib_SQLite3 then
   begin
-    Debug(dpError, section, 'Could not initialize sqlite: ' + slsqlite_error);
-    Result := slsqlite_error;
-    Exit;
+    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [sqlite3.VersionText, sLineBreak, lib_SQLite3]);
+    exit;
   end;
+
+
+  // initialize global MySQL/MariaD object
+  fHost := config.ReadString('mysql', 'host', '0');
+  if fHost <> '0' then
+  begin
+    fPort := IntToStr(config.ReadInteger('mysql', 'port', 3306));
+    fUser := config.ReadString('mysql', 'user', 'dbuser');
+    fPass := config.ReadString('mysql', 'pass', 'dbpass');
+    fDbName := config.ReadString('mysql', 'dbname', 'slftp-addpre');
+    fDBMS := UpperCase(config.ReadString('mysql', 'dbms', ''));
+
+    try
+      // differentiate between db software, maybe not compatible in future
+      if fDBMS = 'MYSQL' then
+      begin
+        fLibName := {$IFDEF MSWINDOWS}WINDOWS_DLL_LOCATION{$ELSE}LINUX_DLL_LOCATION{$ENDIF};
+      end
+      else if fDBMS = 'MARIADB' then
+      begin
+        fLibName := MARIADB_LOCATION;
+      end
+      else
+      begin
+        Result := 'Please set DBMS entry for MySQL/MariaDB in config.';
+        exit;
+      end;
+
+      // create connection
+      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fHost + ':' + fPort, fLibName), fDbName, fUser, fPass);
+    except
+      on e: Exception do
+      begin
+        Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, e.Message]);
+        exit;
+      end;
+    end;
+
+    if not Assigned(MySQLCon) then
+    begin
+      Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, fLibName]);
+      exit;
+    end;
+
+    Debug(dpSpam, section, 'MySQL/MariaDB library initialised.');
+  end;
+
 
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
     begin
-      Result := Format('Ncurses version is unsupported! %s+ needed.',[lib_Ncurses]);
+      Result := Format('ncurses version is too old! %s%s or newer needed.', [sLineBreak, lib_Ncurses]);
       exit;
     end;
   {$ENDIF}
+
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
@@ -169,7 +212,6 @@ begin
   end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
-  //  AutoCrawlerInit;
 
   InitXMLWeapper;
 
@@ -179,7 +221,6 @@ begin
   MyCryptoInit;
 
   InitProxys;
-  MySQLInit;
   SLLanguages_Init;
   InitmRdOHConfigFiles;
 
@@ -202,7 +243,6 @@ begin
   MidnightInit;
   IrcInit;
   IrcblowfishInit;
-  IrcCommandInit;
   NotifyInit;
   PazoInit;
   PrebotInit;
@@ -216,12 +256,8 @@ begin
   SpeedStatsInit;
   RanksInit;
   SpeedTestInit;
-
   TaskHttpImdbInit;
-
   Initglobalskiplist;
-  //  DupeDBInit;
-  //  RehashIrcColor;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -358,12 +394,11 @@ end;
 
 procedure Main_Run;
 begin
-  Debug(dpError, section, '%s started', [Get_VersionString(ParamStr(0))]);
-
-  Debug(dpMessage, section, OpenSSLVersion());
-
+  Debug(dpError, section, '%s started', [GetFullVersionString]);
+  Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));
+  Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
   {$IFNDEF MSWINDOWS}
-    Debug(dpMessage, section, 'Ncurses: %s', [Ncurses_Version]);
+    Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
   {$ENDIF}
 
   started := Now();
@@ -404,23 +439,20 @@ begin
   kb_Start();
   indexerStart;
   StatsStart;
-  MySQLInit;
   SitesStart;
   IrcStart();
   PrecatcherStart();
   //  EPrecatcherStart();
   SiteAutoStart;
-  AutoCrawlerStart;
   slshutdown := False;
   QueueStart();
 end;
 
 procedure Main_Stop;
 begin
-  // ez a fuggveny csak kiadja a megfelelo tobbszalu szaroknak a kilepesre vonatkozo dolgokat,
-  // a tenyleges felszabaditasok/uninicializaciok a main_uninitben lesznek
+  // this is just a matter of putting the right shit on the kitty,
+  // uninitialization will be in Main_Uninit
   Debug(dpSpam, section, 'Main_Stop begin');
-  AutoCrawlerStop;
   NukeSave;
   SpeedStatsSave;
   //  EPrecatcherStop;
@@ -429,7 +461,6 @@ begin
   kb_Save();
   kb_Stop;
   QueueFire();
-  MySQLUninit();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 
@@ -447,7 +478,6 @@ begin
       do Sleep(500);
     Debug(dpSpam, section, 'Uninit2');
   *)
-
   ConsoleUnInit;
   UninitXMLWeapper;
   RanksUnInit;
@@ -459,13 +489,10 @@ begin
   RulesUnInit;
   Precatcher_UnInit;
   PrebotUnInit;
-  PazoUnInit;
   NotifyUnInit;
-  IrcCommandUnInit;
   IrcblowfishUnInit;
   IrcUnInit;
   FakesUnInit;
-  DirlistUnInit;
   kb_UnInit;
   taskidleuninit;
   SitesUnInit;
@@ -473,19 +500,13 @@ begin
   KnowngroupsUnInit;
   MidnightUninit;
   Tasks_UnInit;
-  MyCryptoUnInit;
   IndexerUnInit;
   StatsUninit;
-  AutoCrawlerUnInit;
-  //  nWoMYSQLUNinit;
   UnInitProxys;
   UninitmRdOHConfigFiles;
   SLLanguages_Uninit;
   UnInitglobalskiplist;
-  //  DupeDBUninit;
-
   TaskHttpImdbUnInit;
-
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
@@ -493,6 +514,14 @@ begin
   dbaddimdbUnInit;
   dbtvinfoUnInit;
   NewsUnInit;
+
+  // TSQLite3LibraryDynamic
+  if Assigned(sqlite3) then
+    sqlite3.Free;
+
+  // MySQL/MariaDB connection
+  if Assigned(MySQLCon) then
+    MySQLCon.Free;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
