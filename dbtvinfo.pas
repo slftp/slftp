@@ -933,7 +933,7 @@ begin
         '"rip_country" TEXT,' +
         '"tvmaze_url" TEXT,' +
         '"id" INTEGER NOT NULL,' +
-        '"PRIMARY KEY ("rip")' +
+        'PRIMARY KEY ("rip")' +
       ');'
       );
 
