@@ -19,10 +19,10 @@ const
   section = 'http';
   UserAgentsCount = 3;
   UserAgents: array[0..UserAgentsCount] of String = (
-    'Mozilla/5.0 (Windows NT 6.3; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0',
-    'Mozilla/5.0 (X11; Linux x86_64; rv:59.0) Gecko/20100101 Firefox/59.0',
-    'Mozilla/5.0 (Windows NT 10.0; WOW64) Gecko/20100101 Firefox/58.0',
-    'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0'
+    'Mozilla/5.0 (Windows NT 6.3; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:65.0) Gecko/20100101 Firefox/65.0',
+    'Mozilla/5.0 (Windows NT 10.0; WOW64) Gecko/20100101 Firefox/64.0',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0'
   );
 
 function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer): boolean;
@@ -50,24 +50,20 @@ begin
     try
       with fIdHTTP do
       begin
-        // forms of data we want to accept
-        Request.Accept := 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8';
-
         Request.UserAgent := UserAgents[RandomRange(0, UserAgentsCount)];
 
         // enable handling of redirects
         HandleRedirects := True;
         // maximum number of redirects
-        RedirectMaximum := 1;
+        RedirectMaximum := 3;
 
         // time we will wait for beeing connected (milliseconds)
         ConnectTimeout := 3000;
         // time until all data should be read from server (milliseconds)
         ReadTimeout := 3000;
 
-        // needed for using gzip compression
+        // needed for using compression (e.g. gzip), automatically requested if Compressor is not nil
         Compressor := TIdCompressorZLib.Create(nil);
-        Request.AcceptEncoding := 'gzip, deflate, identity, *;q=0';
       end;
 
       // socks5 configuration
@@ -123,6 +119,7 @@ begin
       end;
 
       // TODO: Remove when new FPC is released and we're on unicode
+      // TODO: maybe it's smarter to always assign openssl handler if a redirection occur, not only for given input https url
       {$IFDEF FPC}
         if AnsiStartsText('https', fEncodedUrl) then
       {$ELSE}
@@ -167,14 +164,18 @@ begin
             begin
               Debug(dpMessage, section, Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]));
               aErrMsg := Format('HTTP GET for %s failed: %s.', [fEncodedUrl, e.Message]);
+              Debug(dpSpam, section, Format('HTTP RawHeaders: %s', [fIdHTTP.Response.RawHeaders.CommaText]));
             end;
             on e: Exception do
             begin
               Debug(dpError, section, Format('HTTP GET for %s failed due to %d error code <--> %s.', [fEncodedUrl, ResponseCode, ResponseText]));
               Debug(dpError, section, Format('ClassName: %s <--> Exception: %s', [e.ClassName, e.Message]));
               aErrMsg := Format('HTTP GET failed with %d error code <--> %s.', [ResponseCode, ResponseText]);
+              Debug(dpSpam, section, Format('HTTP RawHeaders: %s', [fIdHTTP.Response.RawHeaders.CommaText]));
             end;
           end;
+
+          Debug(dpSpam, section, Format('HTTP RawHeaders: %s', [fIdHTTP.Response.RawHeaders.CommaText]));
 
           if (Length(aRecvStr) = 0) then
           begin

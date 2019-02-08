@@ -2,21 +2,26 @@ unit taskidle;
 
 interface
 
-uses tasksunit, Math;
+uses
+  tasksunit, Math;
 
-type TIdleTask = class(TTask)
-  idlecmd: String;
-  constructor Create(const netname, channel: String; const site: String);
-  function Execute(slot: Pointer): Boolean; override;
-  function Name: String; override;
-end;
+type
+  TIdleTask = class(TTask)
+  private
+    idlecmd: String;
+  public
+    constructor Create(const netname, channel, site: String);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
 
 procedure TaskIdleInit;
 procedure TaskIdleUninit;
 
 implementation
 
-uses Classes, SysUtils, sitesunit, mystrings, configunit, DebugUnit, irc;
+uses
+  Classes, SysUtils, sitesunit, mystrings, configunit, DebugUnit, irc;
 
 const
   section = 'taskidle';
@@ -25,42 +30,47 @@ var
   idlecommands: TStringList;
 
 { TIdleTask }
-constructor TIdleTask.Create(const netname, channel: String; const site: String);
+
+constructor TIdleTask.Create(const netname, channel, site: String);
 begin
-  idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
   inherited Create(netname, channel, site);
+  idlecmd := idlecommands[RandomRange(0, idlecommands.Count - 1)];
 end;
 
 function TIdleTask.Execute(slot: Pointer): Boolean;
-label
-  ujra;
 var
   s: TSiteSlot;
   h: String;
   p: Integer;
-  numerrors: Integer;
+  fNumErrors: Integer;
+
+{ Executes @value(idlecmd) and reads ftpd output afterwards
+  @returns(@true on success, @false if a command execution failed) }
+  function SuccessfullyExecuted: Boolean;
+  begin
+    Result := False;
+
+    if (not s.Send(idlecmd)) then
+      exit;
+    if (not s.Read(idlecmd)) then
+      exit;
+
+    if ( ((idlecmd = 'REST 0') and (s.lastResponseCode <> 350))
+      or ((idlecmd = 'CWD .') and (0 = Pos('250 CWD', s.lastResponse)) and (0 = Pos('250 Directory changed to', s.lastResponse)))
+      or ((idlecmd = 'PASV') and (not ParsePASVString(s.lastResponse, h, p))) )
+    then
+    begin
+      irc_Adderror(Format('<c7>[ERROR idle]</c> %s: %s', [Name, s.Name]));
+      s.Quit;
+    end;
+
+    Result := True;
+  end;
+
 begin
   Result := False;
+  Debug(dpSpam, section, '-->' + Name);
   s := slot;
-  debugunit.Debug(dpSpam, section, Name);
-  numerrors := 0;
-
-ujra:
-  inc(numerrors);
-  if numerrors > 3 then
-  begin
-    readyerror := True;
-    exit;
-  end;
-
-  if s.status <> ssOnline then
-  begin
-    if not s.ReLogin(1, False, section) then
-    begin
-      readyerror := True;
-      exit;
-    end;
-  end;
 
   if s.site.sw = sswDrftpd then
   begin
@@ -68,25 +78,36 @@ ujra:
     idlecmd := 'CWD .';
   end;
 
-  if (not s.Send(idlecmd)) then goto ujra;
-  if (not s.Read(idlecmd)) then goto ujra;
-
-  if ( ( (idlecmd = 'REST 0') and (s.lastResponseCode <> 350) )
-     or ( (idlecmd = 'CWD .') and (0 = Pos('250 CWD', s.lastResponse)) and (0 = Pos('250 Directory changed to', s.lastResponse)) )
-     or ( (idlecmd = 'PASV') and (not ParsePASVString(s.lastResponse, h, p)) ) )
-  then
+  for fNumErrors := 1 to MaxNumberErrors do
   begin
-    irc_Adderror(Format('<c7>[ERROR idle]</c> %s: %s', [name, s.Name]));
-    s.Quit;
+    if s.status <> ssOnline then
+    begin
+      if not s.ReLogin(1, False, section) then
+      begin
+        readyerror := True;
+        exit;
+      end;
+    end;
+
+    if SuccessfullyExecuted then
+      break;
+  end;
+
+  if (fNumErrors = MaxNumberErrors) then
+  begin
+    readyerror := True;
+    exit;
   end;
 
   ready := True;
+  Debug(dpSpam, section, '<--' + Name);
+  Result := True;
 end;
 
 function TIdleTask.Name: String;
 begin
   try
-    Result := Format('IDLE <b>%s : %s</b>: %s',[site1, slot1name, idlecmd]);
+    Result := Format('IDLE %s : %s : %s', [site1, slot1name, idlecmd]);
   except
     Result := 'IDLE';
   end;

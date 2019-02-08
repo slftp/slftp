@@ -105,7 +105,7 @@ begin
     Result := ReplaceText(Result, '...', '');
 end;
 
-  { TPazoHTTPImdbTask }
+{ TPazoHTTPImdbTask }
 
 constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
 begin
@@ -676,7 +676,7 @@ begin
 
             if rr2.Exec(bomsite) then
             begin
-              s := Csere(rr2.Match[3], ',', '');
+              s := ReplaceText(rr2.Match[3], ',', '');
 
               if StrToIntDef(s, 0) > imdb_screens then
                 imdb_screens := StrToIntDef(s, 0);

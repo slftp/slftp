@@ -6,13 +6,13 @@ uses pazo, taskrace;
 
 type
   TPazoGenreDirlistTask = class(TPazoPlainTask)
-  private
-    attempt: Integer;
-    function FetchGenre(filename: String): String;
-  public
-    constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
-    function Execute(slot: Pointer): Boolean; override;
-    function Name: String; override;
+    private
+      attempt: Integer;
+      function FetchGenre(filename: String): String;
+    public
+      constructor Create(const netname, channel: String;site: String; pazo: TPazo; attempt: Integer);
+      function Execute(slot: Pointer): Boolean; override;
+      function Name: String; override;
   end;
 
 // TODO: Implement it similiar for other ftpd response as drftpd and glftpd output genre too
@@ -68,33 +68,36 @@ begin
 end;
 
 function TPazoGenreDirlistTask.Execute(slot: Pointer): Boolean;
-label ujra;
-var s: TSiteSlot;
-    j: Integer;
-    r: TPazoGenreDirlistTask;
-    d: TDirList;
-    tagfile, genre: String;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  j: Integer;
+  r: TPazoGenreDirlistTask;
+  d: TDirList;
+  tagfile, genre: String;
 begin
-  Result:= False;
-  s:= slot;
+  Result := False;
+  s := slot;
 
   if mainpazo.stopped then
   begin
-    readyerror:= True;
+    readyerror := True;
     exit;
   end;
 
   Debug(dpMessage, section, Name);
 
+  // mp3genre already known?
   if (mainpazo.rls is TMP3Release) then
   begin
     if (TMP3Release(mainpazo.rls).mp3genre <> '') then
     begin
-      Result:= True;
-      ready:= True;
+      Result := True;
+      ready := True;
       exit;
     end;
-  end; // else mas nem nagyon lehet...
+  end;
 
 
 ujra:
@@ -102,7 +105,7 @@ ujra:
   begin
     if not s.ReLogin then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
@@ -110,26 +113,26 @@ ujra:
   try
     if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir)+ MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
     begin
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[Exception] in TPazoGenreDirlistTask  %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
 
 
-  tagfile:= '';
+  tagfile := '';
   try
-      d:= TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+      d := TDirlist.Create(s.site.Name, nil, nil, s.lastResponse);
     try
-      j:= TagComplete(d.complete_tag);
+      j := TagComplete(d.complete_tag);
       if j <> 0 then
-        tagfile:= d.complete_tag;
+        tagfile := d.complete_tag;
     finally
       d.Free;
     end;
@@ -137,18 +140,18 @@ ujra:
     on e: Exception do
     begin
       Debug(dpError, section, Format('[Exception] in TPazoGenreDirlistTask  %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
 
   try
-    genre:= FetchGenre(tagfile);
+    genre := FetchGenre(tagfile);
   except
     on e: Exception do
     begin
       Debug(dpError, section, Format('[Exception] in TPazoGenreDirlistTask  %s', [e.Message]));
-      readyerror:= True;
+      readyerror := True;
       exit;
     end;
   end;
@@ -157,49 +160,49 @@ ujra:
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
-//      Debug(dpSpam, section, 'READD: nincs meg a complete tag vagy nincs meg a genre...');
-
       Debug(dpSpam, section, 'READD: No member or the complete lack of genre...');
       try
-        r:= TPazoGenreDirlistTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-        r.startat:= IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+        r := TPazoGenreDirlistTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
         AddTask(r);
       except
         on e: Exception do
         begin
           Debug(dpError, section, Format('[Exception] in TPazoGenreDirlistTask AddTask %s', [e.Message]));
           irc_Adderror(Format('<c4>[Exception]</c> in TPazoGenreDirlistTask AddTask %s', [e.Message]));
-          readyerror:= True;
+          readyerror := True;
           exit;
         end;
       end;
-    end else
-      Debug(dpSpam, section, 'READD: There is no longer read...');
-  end else
+    end
+    else
+      Debug(dpSpam, section, 'READD: Maximum readd attempts reached...');
+  end
+  else
   begin
     try
-      kb_add(netname, channel,ps1.name, mainpazo.rls.section, genre, 'UPDATE', mainpazo.rls.rlsname, '');
+      kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'UPDATE', mainpazo.rls.rlsname, '');
     except
       on e: Exception do
       begin
         Debug(dpError, section, Format('[Exception] in TPazoGenreDirlistTask kb_add %s', [e.Message]));
         irc_Adderror(Format('<c4>[Exception]</c> in TPazoGenreDirlistTask kb_add %s', [e.Message]));
-        readyerror:= True;
+        readyerror := True;
         exit;
       end;
     end;
   end;
 
-  Result:= True;
-  ready:= True;
+  Result := True;
+  ready := True;
 end;
 
 function TPazoGenreDirlistTask.Name: String;
 begin
   try
-    Result:= Format('GENREDIRLIST: %s (Count:%d)',[mainpazo.rls.rlsname,attempt]);
+    Result := Format('GENREDIRLIST: %s (Count: %d)',[mainpazo.rls.rlsname, attempt]);
   except
-    Result:= 'GENREDIRLIST';
+    Result := 'GENREDIRLIST';
   end;
 end;
 

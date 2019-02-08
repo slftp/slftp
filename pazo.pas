@@ -1,36 +1,46 @@
 unit pazo;
 
 // EZTA Z UNITOT CSAK A QUEUE_LOCK ZARASA UTAN SZABAD HIVNI!
+// THIS ONLY ON THE QUEUE_LOCK CLOSING is FREE to call!
 interface
 
 uses
-  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals;
+  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals, IdThreadSafe;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
 
-  TSafeInteger = class
+  { threadsafe integer class with notify event on Increase/Decrease }
+  TIdThreadSafeInt32WithEvent = class(TIdThreadSafeInt32)
   private
-    fC: TCriticalSection;
-    fValue: integer;
+    FonChange: TQueueNotifyEvent;
   public
-    onChange: TQueueNotifyEvent;
-    function ActValue: integer;
+    constructor Create; override;
     procedure Increase;
     procedure Decrease;
-    constructor Create;
-    destructor Destroy; override;
+    property OnChange: TQueueNotifyEvent read FonChange write FonChange;
   end;
 
   TCacheFile = class
+  private
     dir: String;
     filename: String;
     filesize: Int64;
-    constructor Create(dir, filename: String; filesize: Int64);
-    destructor Destroy; override;
+  public
+    constructor Create(const dir, filename: String; const filesize: Int64);
   end;
 
   TPazo = class;
+
+  {
+  @value(rssNotAllowed release is not allowed on this site)
+  @value(rssNotAllowedButItsThere release is not allowed on this site but it's there)
+  @value(rssAllowed release is allowed on this site)
+  @value(rssShouldPre release should be pred on this site but wasn't pred on it)
+  @value(rssRealPre release was a pre on this site)
+  @value(rssComplete release is complete on this site)
+  @value(rssNuked release got nuked on this site)
+  }
   TRlsSiteStatus = (rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked);
 
   TPazoSite = class
@@ -47,9 +57,9 @@ type
     delay_leech: integer;
     delay_upload: integer;
 
-    s_dirlisttasks: TSafeInteger;
-    s_racetasks: TSafeInteger;
-    s_mkdirtasks: TSafeInteger;
+    s_dirlisttasks: TIdThreadSafeInt32;
+    s_racetasks: TIdThreadSafeInt32;
+    s_mkdirtasks: TIdThreadSafeInt32;
 
     ircevent: boolean; //< returns @true if we got atleast one catchadd
     error: boolean; //< returns @true if the site went down or mkd (make directory) failed
@@ -86,16 +96,16 @@ type
     procedure RemoveMkdir;
     procedure MarkSiteAsFailed(echomsg: boolean = False);
 
-    function ParseDirlist(const netname, channel: String; dir, liststring: String; pre: boolean = False): boolean;
+    function ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
     function MkdirReady(const dir: String): boolean;
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(ps: TPazoSite; const rank: integer): boolean; overload;
     constructor Create(pazo: TPazo; const Name, maindir: String);
     destructor Destroy; override;
-    procedure ParseXdupe(const netname, channel: String; dir, resp: String; added: boolean = False);
-    function ParseDupe(const netname, channel: String; dir, filename: String; byme: boolean): boolean; overload;
-    function ParseDupe(const netname, channel: String; dl: TDirlist; dir, filename: String; byme: boolean): boolean; overload;
+    procedure ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
+    function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
+    function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean; overload;
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
     function Allfiles: String;
@@ -104,7 +114,7 @@ type
     procedure Clear;
   private
     cds: String;
-    function Tuzelj(const netname, channel: String; dir: String; de: TDirListEntry): boolean;
+    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
   end;
 
   TPazo = class
@@ -113,9 +123,7 @@ type
     lastannounceirc: String;
     lastannounceroutes: String;
     procedure QueueEvent(Sender: TObject; Value: integer);
-
     function StatsAllFiles: integer;
-
   public
     pazo_id: integer;
 
@@ -146,11 +154,11 @@ type
     //global dirlist
     main_dirlist: TDirlist;
 
-    // Integers with locking
-    queuenumber: TSafeInteger;
-    dirlisttasks: TSafeInteger;
-    racetasks: TSafeInteger;
-    mkdirtasks: TSafeInteger;
+    // Integers with locking and event
+    queuenumber: TIdThreadSafeInt32WithEvent;
+    dirlisttasks: TIdThreadSafeInt32;
+    racetasks: TIdThreadSafeInt32;
+    mkdirtasks: TIdThreadSafeInt32;
 
     cache_files: TStringList;
 
@@ -178,7 +186,6 @@ function FindPazoByName(const section, rlsname: String): TPazo;
 function FindPazoByRls(const rlsname: String): TPazo;
 function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
 procedure PazoInit;
-procedure PazoUninit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
@@ -196,17 +203,35 @@ var
   local_pazo_id: integer;
 
 
+{ TIdThreadSafeInt32WithEvent }
+
+constructor TIdThreadSafeInt32WithEvent.Create;
+begin
+  inherited;
+  OnChange := nil;
+end;
+
+procedure TIdThreadSafeInt32WithEvent.Increase;
+begin
+  Increment;
+  if (Assigned(OnChange)) then
+    OnChange(self, Value);
+end;
+
+procedure TIdThreadSafeInt32WithEvent.Decrease;
+begin
+  Decrement;
+  if (Assigned(OnChange)) then
+    OnChange(self, Value);
+end;
+
 { TCacheFile }
-constructor TCacheFile.Create(dir, filename: String; filesize: Int64);
+
+constructor TCacheFile.Create(const dir, filename: String; const filesize: Int64);
 begin
   self.dir := dir;
   self.filename := filename;
   self.filesize := filesize;
-end;
-
-destructor TCacheFile.Destroy;
-begin
-  inherited;
 end;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
@@ -401,13 +426,7 @@ begin
   local_pazo_id := 0;
 end;
 
-procedure PazoUnInit;
-begin
-  Debug(dpSpam, section, 'Uninit1');
-  Debug(dpSpam, section, 'Uninit2');
-end;
-
-function TPazoSite.Tuzelj(const netname, channel: String; dir: String; de: TDirListEntry): boolean;
+function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
@@ -806,11 +825,11 @@ begin
   added := Now;
   cs := TCriticalSection.Create;
   autodirlist := False;
-  queuenumber := TSafeInteger.Create;
-  queuenumber.onChange := QueueEvent;
-  dirlisttasks := TSafeInteger.Create;
-  racetasks := TSafeInteger.Create;
-  mkdirtasks := TSafeInteger.Create;
+  queuenumber := TIdThreadSafeInt32WithEvent.Create;
+  queuenumber.OnChange := QueueEvent;
+  dirlisttasks := TIdThreadSafeInt32.Create;
+  racetasks := TIdThreadSafeInt32.Create;
+  mkdirtasks := TIdThreadSafeInt32.Create;
   main_dirlist := nil;
 
   readyerror := False;
@@ -1138,7 +1157,7 @@ begin
           begin
             if (s.IsPretimeOk(rls.section, rls.pretime)) then
             begin
-              sectiondir := TodayCsere(sectiondir);
+              sectiondir := DatumIdentifierReplace(sectiondir);
 
               Result := True;
               //ps:= AddSite(s.name, sectiondir);
@@ -1157,7 +1176,7 @@ begin
         end
         else
         begin
-          sectiondir := TodayCsere(sectiondir);
+          sectiondir := DatumIdentifierReplace(sectiondir);
 
           Result := True;
           //ps:= AddSite(s.name, sectiondir);
@@ -1202,7 +1221,7 @@ begin
     sectiondir := s.sectiondir[rls.section];
     if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
     begin
-      sectiondir := TodayCsere(sectiondir);
+      sectiondir := DatumIdentifierReplace(sectiondir);
       Result := True;
       //ps:= AddSite(s.name, sectiondir);
       ps := TPazoSite.Create(self, s.Name, sectiondir);
@@ -1334,9 +1353,9 @@ begin
       dirlist.SetFullPath(MyIncludeTrailingSlash(maindir));
   end;
 
-  s_dirlisttasks := TSafeInteger.Create;
-  s_racetasks := TSafeInteger.Create;
-  s_mkdirtasks := TSafeInteger.Create;
+  s_dirlisttasks := TIdThreadSafeInt32.Create;
+  s_racetasks := TIdThreadSafeInt32.Create;
+  s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := TStringList.Create;
   // speed_to := TStringList.Create; // not used
@@ -1428,7 +1447,7 @@ begin
   Result := True;
 end;
 
-function TPazoSite.ParseDirlist(const netname, channel: String; dir, liststring: String; pre: boolean = False): boolean;
+function TPazoSite.ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
 var
   d: TDirList;
   i: integer;
@@ -1578,7 +1597,7 @@ begin
   end;
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean;
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
@@ -1668,7 +1687,7 @@ begin
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean;
 var
   dl: TDirList;
 
@@ -1698,7 +1717,7 @@ begin
   end;
 end;
 
-procedure TPazoSite.ParseXdupe(const netname, channel: String; dir, resp: String; added: boolean = False);
+procedure TPazoSite.ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
 var
   s: String;
   dl: TDirList;
@@ -1750,6 +1769,9 @@ function TPazoSite.Stats: String;
 var
   fsize: double;
   fsname, fsizetrigger: String;
+  i: integer;
+  de: TDirlistEntry;
+  sum: Int64;
 begin
   fsname := Name;
 
@@ -1776,10 +1798,37 @@ begin
       Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
 
       // TODO: Find out why it is negative sometimes + try to fix
+      // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
       if fsize < 0 then
       begin
-        irc_Addstats(Format('<c4>[NEGATIVE BYTES]</c> : %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
-        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s', [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s',
+          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+
+        // get more infos about dirlist entries
+        sum := 0;
+        dirlist.dirlist_lock.Enter;
+        try
+          for i := dirlist.entries.Count - 1 downto 0 do
+          begin
+            if i < 0 then Break;
+            try
+              de := TDirlistEntry(dirlist.entries[i]);
+              if (de.racedbyme and de.Useful) then inc(sum, de.filesize);
+              //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d (sum: %d)',
+                [i, fsname, de.filename, de.filesize, sum]));
+            except
+              on E: Exception do
+              begin
+                Continue;
+              end;
+            end;
+          end;
+        finally
+          dirlist.dirlist_lock.Leave;
+        end;
+
       end;
     end
     else
@@ -2028,51 +2077,6 @@ begin
   if minv > 0 then
     delay_upload := RandomRange(minv, maxv);
 
-end;
-
-{ TSafeInteger }
-
-function TSafeInteger.ActValue: integer;
-begin
-  Result := fValue;
-end;
-
-constructor TSafeInteger.Create;
-begin
-  fC := TCriticalSection.Create;
-  onChange := nil;
-end;
-
-procedure TSafeInteger.Decrease;
-begin
-  fc.Enter;
-  try
-    Dec(fvalue);
-    if fValue < 0 then
-      fValue := 0;
-    if (Assigned(onChange)) then
-      onChange(self, fValue);
-  finally
-    fc.Leave;
-  end;
-end;
-
-destructor TSafeInteger.Destroy;
-begin
-  fC.Free;
-  inherited;
-end;
-
-procedure TSafeInteger.Increase;
-begin
-  fc.Enter;
-  try
-    Inc(fValue);
-    if (Assigned(onChange)) then
-      onChange(self, fValue);
-  finally
-    fc.Leave;
-  end;
 end;
 
 end.

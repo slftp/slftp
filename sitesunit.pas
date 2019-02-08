@@ -2,9 +2,10 @@ unit sitesunit;
 
 interface
 
-uses Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
-  taskautodirlist, taskautocrawler, taskautonuke, taskautoindex,
-  tasklogin, tasksunit, taskrules;
+uses
+  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
+  taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
+  taskrules;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -79,10 +80,10 @@ type
     procedure Execute; override;
     constructor Create(site: TSite; no: integer);
     destructor Destroy; override;
-    function RCBool(Name: String; def: boolean): boolean;
-    function RCInteger(Name: String; def: integer): integer;
-    function RCDateTime(Name: String; def: TDateTime): TDateTime;
-    function RCString(Name, def: String): String;
+    function RCBool(const Name: String; def: boolean): boolean;
+    function RCInteger(const Name: String; const def: integer): integer;
+    function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
+    function RCString(const Name, def: String): String;
 
     procedure Stop; override;
 
@@ -171,7 +172,6 @@ type
     function FetchAutoBnctest: TLoginTask;
     function FetchAutoRules: TRulesTask;
     function FetchAutoDirlist: TAutoDirlistTask;
-    function FetchAutoCrawler: TAutoCrawlerTask;
     function FetchAutoNuke: TAutoNukeTask;
     procedure SetNumDn(const Value: integer);
     procedure SetNumUp(const Value: integer);
@@ -191,6 +191,24 @@ type
 
     function GetSiteMaxUpPerRip: integer;
     procedure SetSiteMaxUpPerRip(const Value: integer);
+    function GetAutoBncTestInterval: integer;
+    procedure SetAutoBncTestInterval(const Value: integer);
+    function GetAutoNukeInterval: integer;
+    procedure SetAutoNukeInterval(const Value: integer);
+    function GetNextAutoNukeDateTime: TDateTime;
+    procedure SetNextAutoNukeDateTime(const Value: TDateTime);
+    function GetAutoIndexInterval: integer;
+    procedure SetAutoIndexInterval(const Value: integer);
+    function GetNextAutoIndexDateTime: TDateTime;
+    procedure SetNextAutoIndexDateTime(const Value: TDateTime);
+    function GetAutoIndexSections: String;
+    procedure SetAutoIndexSections(const Value: String);
+    function GetAutoDirlistInterval: integer;
+    procedure SetAutoDirlistInterval(const Value: integer);
+    function GetNextAutoDirlistDateTime: TDateTime;
+    procedure SetNextAutoDirlistDateTime(const Value: TDateTime);
+    function GetAutoDirlistSections: String;
+    procedure SetAutoDirlistSections(const Value: String);
 
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
@@ -218,6 +236,12 @@ type
     function GetAutoRulesStatus: integer;
     procedure SetAutoRulesStatus(const Value: integer);
 
+    function GetSetDownOnOutOfSpace: boolean;
+    procedure SetSetDownOnOutOfSpace(const Value: boolean);
+    function GetSetDownOnOutOfCredits: boolean;
+    procedure SetSetDownOnOutOfCredits(const Value: boolean);
+    { Sets the necessary values to set the site down due to no space or credits left }
+    procedure SetDownSiteDueToCreditsOrSpace;
   public
     emptyQueue: boolean;
     markeddown: boolean;
@@ -241,8 +265,8 @@ type
     procedure WCInteger(const Name: String; const val: integer);
     function RCBool(const Name: String; const def: boolean): boolean;
     procedure WCBool(const Name: String; const val: boolean);
-    function RCDateTime(const Name: String; def: TDateTime): TDateTime;
-    procedure WCDateTime(const Name: String; val: TDateTime);
+    function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
+    procedure WCDateTime(const Name: String; const val: TDateTime);
 
     procedure SetOutofSpace;
     procedure SetKredits;
@@ -252,12 +276,10 @@ type
     procedure RemoveAutoRules;
     procedure RemoveAutoNuke;
     procedure RemoveAutoDirlist;
-    procedure RemoveAutoCrawler;
 
     procedure AutoBnctest;
     procedure AutoRules;
     procedure AutoDirlist;
-    procedure AutoCrawler;
     procedure AutoNuke;
     procedure AutoIndex;
     procedure Auto;
@@ -279,7 +301,7 @@ type
     function SetLeechers(const users: String; remove: boolean): String;
     function SetTraders(const users: String; remove: boolean): String;
     function IsSection(const section: String): boolean;
-    function IsAffil(affil: String): boolean;
+    function IsAffil(const aAffil: String): boolean;
     function AddAffil(const affil: String): boolean;
     // TODO function DelAffil(affil: string): Boolean;
 //    function SetAffils(affils: String): String;
@@ -311,6 +333,17 @@ type
     property PassWord: String read GetSitePassword write SetSitePassword;
     property Country: String read GetSiteCountry write SetSiteCountry;
     property MaxUpPerRip: integer read GetSiteMaxUpPerRip write SetSiteMaxUpPerRip;
+    property AutoBncTestInterval: integer read GetAutoBncTestInterval write SetAutoBncTestInterval; //< Interval in seconds for auto bnctest, zero means turned off
+    property AutoNukeInterval: integer read GetAutoNukeInterval write SetAutoNukeInterval; //< Interval in seconds for autonuke, zero means turned off
+    property NextAutoNukeDateTime: TDateTime read GetNextAutoNukeDateTime write SetNextAutoNukeDateTime; //< timestamp of next autonuke run
+    property AutoIndexInterval: integer read GetAutoIndexInterval write SetAutoIndexInterval; //< Interval in seconds for autoindex, zero means turned off
+    property NextAutoIndexDateTime: TDateTime read GetNextAutoIndexDateTime write SetNextAutoIndexDateTime; //< timestamp of next autoindex run
+    property AutoIndexSections: String read GetAutoIndexSections write SetAutoIndexSections; //< section(s) for autoindex
+
+    property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
+    property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
+    property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
+
   published
     property sw: TSiteSw read GetSw write SetSw;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
@@ -341,6 +374,8 @@ type
     property IsUp: Boolean read GetIsUp;
     property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus;
 
+    property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
+    property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
   end;
 
 function ReadSites(): boolean;
@@ -1159,7 +1194,7 @@ begin
 
   if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
   begin
-    if (not Send('CLNT %s', [Get_VersionString(ParamStr(0))])) then
+    if (not Send('CLNT %s', [GetFullVersionString])) then
       exit;
     if not Read('CLNT') then
       exit;
@@ -1545,17 +1580,22 @@ begin
   end;
 end;
 
-function TSiteSlot.RCInteger(Name: String; def: integer): integer;
+function TSiteSlot.RCBool(const Name: String; def: boolean): boolean;
+begin
+  Result := site.RCBool(Name, def);
+end;
+
+function TSiteSlot.RCInteger(const Name: String; const def: integer): integer;
 begin
   Result := site.RCInteger(Name, def);
 end;
 
-function TSiteSlot.RCDateTime(Name: String; def: TDateTime): TDateTime;
+function TSiteSlot.RCDateTime(const Name: String; const def: TDateTime): TDateTime;
 begin
   Result := site.RCDateTime(Name, def);
 end;
 
-function TSiteSlot.RCString(Name, def: String): String;
+function TSiteSlot.RCString(const Name, def: String): String;
 begin
   Result := site.RCString(Name, def);
 end;
@@ -1582,11 +1622,6 @@ begin
     exit;
   Read('QUIT', False, False);
   DestroySocket(False);
-end;
-
-function TSiteSlot.RCBool(Name: String; def: boolean): boolean;
-begin
-  Result := site.RCBool(Name, def);
 end;
 
 function TSiteSlot.RemoveFile(const dir, filename: String): boolean;
@@ -2125,12 +2160,12 @@ begin
   sitesdat.WriteBool('site-' + self.Name, Name, val);
 end;
 
-function TSite.RCDateTime(const Name: String; def: TDateTime): TDateTime;
+function TSite.RCDateTime(const Name: String; const def: TDateTime): TDateTime;
 begin
   Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
 end;
 
-procedure TSite.WCDateTime(const Name: String; val: TDateTime);
+procedure TSite.WCDateTime(const Name: String; const val: TDateTime);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
 end;
@@ -2139,7 +2174,6 @@ destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   QueueEmpty(Name);
-  // crash on !die
   slots.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -2206,16 +2240,16 @@ begin
       irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
       markeddown := False;
 
-      if RCInteger('autonuke', 0) <> 0 then
+      if AutoNukeInterval <> 0 then
         AutoNuke;
-      if RCInteger('autoindex', 0) <> 0 then
+      if AutoIndexInterval <> 0 then
         AutoIndex;
       //if s.RCString('autologin','-1') <> '-1' then
-      if RCInteger('autobnctest', 0) <> 0 then
+      if AutoBncTestInterval <> 0 then
         AutoBnctest;
       if AutoRulesStatus <> 0 then
         AutoRules;
-      if RCInteger('autodirlist', 0) <> 0 then
+      if AutoDirlistInterval <> 0 then
         AutoDirlist;
     end
     else if Value = sstDown then
@@ -2227,7 +2261,6 @@ begin
       //    RemoveAutoRules;
       //    RemoveAutoNuke;
       //    RemoveAutoDirlist;
-      //    RemoveAutoCrawler;
     end;
 
     SiteStat;
@@ -2352,6 +2385,15 @@ begin
   WCBool('legacycwd', Value);
 end;
 
+procedure TSite.SetDownSiteDueToCreditsOrSpace;
+begin
+  markeddown := True;
+  working := sstDown;
+  RemoveAutoIndex;
+  RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
+  RemoveAutoRules;
+end;
+
 procedure TSite.SetOutofSpace;
 begin
   if ((foutofannounce = 0) or (HoursBetween(Now, foutofannounce) >= 1)) then
@@ -2359,13 +2401,10 @@ begin
     foutofannounce := Now();
     irc_addadmin(Format('<c4>Site <b>%s</b> is out of disk space.</c>', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool(section, 'set_down_on_out_of_space', False) then
+
+    if SetDownOnOutOfSpace then
     begin
-      markeddown := True;
-      working := sstDown;
-      RemoveAutoIndex;
-      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
-      RemoveAutoRules;
+      SetDownSiteDueToCreditsOrSpace;
     end;
   end;
 end;
@@ -2377,16 +2416,12 @@ begin
     fkreditz := Now();
     irc_addadmin(Format('Site %s is out of credits.', [Name]));
     QueueEmpty(Name);
-    if config.ReadBool(section, 'set_down_on_out_of_credits', False) then
+
+    if SetDownOnOutOfCredits then
     begin
-      markeddown := True;
-      working := sstDown;
-      RemoveAutoIndex;
-      RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
-      RemoveAutoRules;
+      SetDownSiteDueToCreditsOrSpace;
     end;
   end;
-
 end;
 
 function TSite.GetSectionDir(Name: String): String;
@@ -2499,28 +2534,16 @@ begin
     Result := Format('%2.2d Sec', [sec_pretime mod 60]);
 end;
 
-function TSite.IsAffil(affil: String): boolean;
+function TSite.IsAffil(const aAffil: String): boolean;
 var
   x: TStringList;
-  i: integer;
 begin
   x := TStringList.Create;
   try
     x.Delimiter := ' ';
     x.CaseSensitive := False;
     x.DelimitedText := siteaffils;
-
-
-    i := x.IndexOf(RemoveINT(affil));
-    if i <> -1 then
-    begin
-      // for testing purpose, some ppl have problems with slftp as it tries to race affilgroups to site
-      Debug(dpError, section, '[isAffils] Site: %s - affils: %s - affillist: %s - IndexOf: %d', [name, affil, x.DelimitedText, x.IndexOf(RemoveINT(affil))]);
-    end;
-    Result := i <> -1;
-
-
-    //Result := x.IndexOf(RemoveINT(affil)) <> -1;
+    Result := x.IndexOf(RemoveINT(aAffil)) <> -1;
   finally
     x.Free;
   end;
@@ -2828,7 +2851,7 @@ begin
   if t <> nil then
     exit;
 
-  // nincs, addolni kell.
+  // there is no need to add.
   t := TLoginTask.Create('', '', Name, False, True);
   t.dontremove := True;
   try
@@ -2836,8 +2859,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoBnctest AddTask: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoBnctest AddTask: %s', [e.Message]));
     end;
   end;
 end;
@@ -2875,44 +2897,16 @@ begin
     exit;
 
   t := TAutoDirlistTask.Create('', '', Name);
-  t.startat := RcDateTime('nextautodirlist', 0);
+  t.startat := NextAutoDirlistDateTime;
   t.dontremove := True;
   try
     AddTask(t);
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoDirlist AddTask: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoDirlist AddTask: %s', [e.Message]));
     end;
   end;
-end;
-
-procedure TSite.AutoCrawler;
-//var t: TAutoCrawlerTask;
-begin
-
-  //there is no code for this stuff so wie can remiove it or?
-
-  Exit;
-
-  (*
-    t:= FetchAutoCrawler;
-    if t <> nil then exit;
-    if PermDown then Exit;
-    // nincs, addolni kell.
-    t:= TAutoCrawlerTask.Create('', '', name);
-    t.startat:= RcDateTime('nextautocrawler', 0);
-    t.dontremove:= True;
-    try
-      AddTask(t);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TSite.AutoCrawler AddTask: %s', [e.Message]));
-      end;
-    end;
-  *)
 end;
 
 procedure TSite.AutoNuke;
@@ -2926,7 +2920,7 @@ begin
     exit;
   // nincs, addolni kell.
   t := TAutoNukeTask.Create('', '', Name);
-  t.startat := RcDateTime('nextautonuke', 0);
+  t.startat := NextAutoNukeDateTime;
   t.dontremove := True;
   AddTask(t);
 end;
@@ -2941,7 +2935,7 @@ begin
     exit;
   // nincs, addolni kell.
   t := TAutoIndexTask.Create('', '', Name);
-  t.startat := RcDateTime('nextautoindex', 0);
+  t.startat := NextAutoIndexDateTime;
   t.dontremove := True;
   AddTask(t);
 end;
@@ -2982,30 +2976,6 @@ begin
       if (tasks[i] is TAutoDirlistTask) then
       begin
         t := TAutoDirlistTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
-end;
-
-function TSite.FetchAutoCrawler: TAutoCrawlerTask;
-var
-  i: integer;
-  t: TAutoCrawlerTask;
-begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoCrawlerTask) then
-      begin
-        t := TAutoCrawlerTask(tasks[i]);
         if (t.site1 = Name) then
         begin
           Result := t;
@@ -3137,37 +3107,25 @@ begin
     t.ready := True;
 end;
 
-procedure TSite.RemoveAutoCrawler;
-var
-  t: TAutoCrawlerTask;
-begin
-  t := FetchAutoCrawler;
-  if ((t <> nil) and (t.slot1 = nil)) then
-    t.ready := True;
-end;
-
 procedure TSite.Auto;
 begin
   if PermDown then
     Exit;
 
-  if RCInteger('autobnctest', 0) > 0 then
+  if AutoBncTestInterval > 0 then
     AutoBnctest;
 
   if AutoRulesStatus > 0 then
     AutoRules;
 
-  if RCInteger('autodirlist', 0) > 0 then
+  if AutoDirlistInterval > 0 then
     AutoDirlist;
 
-  if RCInteger('autonuke', 0) > 0 then
+  if AutoNukeInterval > 0 then
     AutoNuke;
 
-  if RCInteger('autoindex', 0) > 0 then
+  if AutoIndexInterval > 0 then
     AutoIndex;
-
-  if RCInteger('autocrawler', 0) > 0 then
-    AutoCrawler;
 end;
 
 procedure SiteAutoStart;
@@ -3437,6 +3395,26 @@ begin
   WCInteger('autorules', Value);
 end;
 
+function TSite.GetSetDownOnOutOfSpace: boolean;
+begin
+  Result := RCBool('set_down_on_out_of_space', config.ReadBool('sites', 'set_down_on_out_of_space', False));
+end;
+
+procedure TSite.SetSetDownOnOutOfSpace(const Value: boolean);
+begin
+  WCBool('set_down_on_out_of_space', Value);
+end;
+
+function TSite.GetSetDownOnOutOfCredits: boolean;
+begin
+  Result := RCBool('set_down_on_out_of_credits', config.ReadBool('sites', 'set_down_on_out_of_credits', False));
+end;
+
+procedure TSite.SetSetDownOnOutOfCredits(const Value: boolean);
+begin
+  WCBool('set_down_on_out_of_credits', Value);
+end;
+
 procedure TSite.SetIRCNick(Value: String);
 begin
   WCString('ircnick', Value);
@@ -3495,6 +3473,96 @@ end;
 procedure TSite.SetSiteMaxUpPerRip(const Value: integer);
 begin
   WCInteger('maxupperrip', Value);
+end;
+
+function TSite.GetAutoBncTestInterval: integer;
+begin
+  Result := RCInteger('autobnctest', 0);
+end;
+
+procedure TSite.SetAutoBncTestInterval(const Value: integer);
+begin
+  WCInteger('autobnctest', Value);
+end;
+
+function TSite.GetAutoNukeInterval: integer;
+begin
+  Result := RCInteger('autonuke', 0);
+end;
+
+procedure TSite.SetAutoNukeInterval(const Value: integer);
+begin
+  WCInteger('autonuke', Value);
+end;
+
+function TSite.GetNextAutoNukeDateTime: TDateTime;
+begin
+  Result := RCDateTime('nextautonuke', 0);
+end;
+
+procedure TSite.SetNextAutoNukeDateTime(const Value: TDateTime);
+begin
+  WCDateTime('nextautonuke', Value);
+end;
+
+function TSite.GetAutoIndexInterval: integer;
+begin
+  Result := RCInteger('autoindex', 0);
+end;
+
+procedure TSite.SetAutoIndexInterval(const Value: integer);
+begin
+  WCInteger('autoindex', Value);
+end;
+
+function TSite.GetNextAutoIndexDateTime: TDateTime;
+begin
+  Result := RCDateTime('nextautoindex', 0);
+end;
+
+procedure TSite.SetNextAutoIndexDateTime(const Value: TDateTime);
+begin
+  WCDateTime('nextautoindex', Value);
+end;
+
+function TSite.GetAutoIndexSections;
+begin
+  Result := RCString('autoindexsections', '');
+end;
+
+procedure TSite.SetAutoIndexSections(const Value: String);
+begin
+  WCString('autoindexsections', Value);
+end;
+
+function TSite.GetAutoDirlistInterval: integer;
+begin
+  Result := RCInteger('autodirlist', 0);
+end;
+
+procedure TSite.SetAutoDirlistInterval(const Value: integer);
+begin
+  WCInteger('autodirlist', Value);
+end;
+
+function TSite.GetNextAutoDirlistDateTime: TDateTime;
+begin
+  Result := RCDateTime('nextautodirlist', 0);
+end;
+
+procedure TSite.SetNextAutoDirlistDateTime(const Value: TDateTime);
+begin
+  WCDateTime('nextautodirlist', Value);
+end;
+
+function TSite.GetAutoDirlistSections;
+begin
+  Result := RCString('autodirlistsections', '');
+end;
+
+procedure TSite.SetAutoDirlistSections(const Value: String);
+begin
+  WCString('autodirlistsections', Value);
 end;
 
 function TSite.GetNoLoginMSG: boolean;
