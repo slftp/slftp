@@ -375,20 +375,22 @@ begin
         // Add kb function to lookup all existing section-releases combos for this release
         // and loop over the results with the following event.
 
-        kb.kb_lock.Enter;
-        try
+
+        // kb.kb_lock.Enter;
+        // try
           kb_entry := kb_FindRelease('-' + rls);
-        finally
-          kb.kb_lock.Leave;
-        end;
+        // finally
+        //  kb.kb_lock.Leave;
+        // end;
 
         if kb_entry <> '' then
         begin
           p := Pos('-', kb_entry);
           rls_section := Copy(kb_entry, 1, P-1);
           if rls_section <> '' then
-            kb_Add_addpre(rls, rls_section, event);
+          kb_Add_addpre(rls, rls_section, event);
         end;
+
       end;
 
   end;
