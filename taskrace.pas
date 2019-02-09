@@ -1224,9 +1224,9 @@ begin
 
   if (RequireSSL) then
   begin
-    // maybe fallback to CPSV if SSCN is not supported
     // https://www.flashfxp.com/forum/flashfxp/general-discussion/13218-cpsv-vs-sscn.html
-    if not ssrc.Send('SSCN') then
+    // maybe use SSCN instead of CPSV + fallback if SSCN isn't supported (e.g. ioftpd)
+    if not ssrc.Send('CPSV') then
       goto TryAgain;
   end
   else
@@ -1326,7 +1326,7 @@ begin
         end;
     end;
     readyerror := True;
-    mainpazo.errorreason := 'PASV/SSCN (CPSV) failed on ' + site1;
+    mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
