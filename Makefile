@@ -3,9 +3,19 @@ SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
 CINCLUDES = -Fuirccommands -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Compvers -Fulibs/Indy10/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/ZeosLib/*
-CDBFLAGS = -MDelphi -gl -gp -gs -gw3 -gh -gv
+CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gs -gw3
+# flag for heaptrace output
+# see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
+HEAPTRACE = -gh
+# flag for valgrind
+# see http://wiki.lazarus.freepascal.org/Profiling#Using_Valgrind.2FCallgrind
+VALGRIND = -gv
 
 default: clean slftp
+
+debug: clean slftp_debug
+heaptrace: clean slftp_debug_heaptrace
+valgrind: clean slftp_debug_valgrind
 
 all: slftp install
 
@@ -44,6 +54,16 @@ slftp_32_debug:
 slftp_64_debug:
 	$(call revpatch)
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
+	$(call revpatchrevert)
+
+slftp_debug_heaptrace:
+	$(call revpatch)
+	$(CC) $(CDBFLAGS) $(HEAPTRACE) $(CINCLUDES) slftp.lpr
+	$(call revpatchrevert)
+
+slftp_debug_valgrind:
+	$(call revpatch)
+	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
 	$(call revpatchrevert)
 
 clean:
