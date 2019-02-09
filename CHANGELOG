@@ -106,6 +106,7 @@
     {^} taskdirlist shows sitename on 'can not dirlist' announce (#227)
     {^} !indexquery search count is selectable (#188)
     {^} Skip lookup of extra infos for skipped groups (#218)
+    {^} Switched from CPSV to SSCN command for negotiation of a secure data channel between two servers
     {-} TheTVDB support as API goes offline [on October 1st, 2017] some day (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
