@@ -1181,7 +1181,7 @@ begin
   Result := '';
   for index := 0 to kb_list.Count-1 do
   begin
-    if ContainsText(kb_list[index], rls) then
+    if AnsiContainsText(kb_list[index], rls) then
     begin
       Result := kb_list[index];
       break;
