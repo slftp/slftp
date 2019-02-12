@@ -1026,7 +1026,8 @@ begin
     tvdb.free;
   end;
 
-  result := True;
+  ready := True;
+  Result := True;
 end;
 
 end.
