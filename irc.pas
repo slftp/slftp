@@ -1044,7 +1044,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] in dbaddnfo_Process: : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] in dbTVInfo_Process: : %s', [e.Message]));
         exit;
       end;
     end;

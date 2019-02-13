@@ -347,7 +347,6 @@ var
   i: integer;
   s: String;
   js: TlkJSONobject;
-  gTVDB: TStringlist;
   season, episode: Integer;
   date: TDateTime;
 begin
@@ -362,7 +361,6 @@ begin
   tvr := TTVInfoDB.Create(s);
   tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
-  gTVDB := TStringlist.Create;
   js := TlkJSONObject.Create();
   try
     try
@@ -482,7 +480,6 @@ begin
     Result := tvr;
   finally
     js.free;
-    gTVDB.free;
   end;
 end;
 
@@ -668,44 +665,13 @@ end;
 function TPazoHTTPTVInfoTask.Execute(slot: Pointer): boolean;
 var
   tvdb: TTVInfoDB;
-  rx: TRegExpr;
   sname: String;
   fHttpGetErrMsg: String;
 begin
-
-  rx := TRegexpr.Create;
-  try
-    rx.ModifierI := True;
-
-    rx.Expression :=
-      '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-    end;
-
-    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-      //    season   := StrToIntDef(rx.Match[2], 0);
-      //    episode  := StrToIntDef(rx.Match[3], 0);
-    end;
-
-    rx.Expression :=
-      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-      //    season   := StrToIntDef(rx.Match[2], 0);
-      //    episode  := StrToIntDef(rx.Match[5], 0);
-    end;
-
-    rx.Expression := '[\.\_]';
-    sname := rx.Replace(sname, ' ', False);
-  finally
-    rx.Free;
-  end;
+  // remove 'scene' tagging
+  getShowValues(rls, sname);
+  ReplaceText(sname, '.', ' ');
+  ReplaceText(sname, '_', ' ');
 
   if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
   begin
@@ -728,7 +694,7 @@ begin
   tvdb := parseTVMazeInfos(response, sname);
   try
     if tvdb <> nil then
-      saveTVInfos(tvmaze_id, tvdb, rls, false);
+      saveTVInfos(tvmaze_id, tvdb, rls, False);
   finally
     tvdb.free;
   end;
