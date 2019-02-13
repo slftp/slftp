@@ -1932,7 +1932,7 @@ begin
   begin
     db_tvinfo.ripname := rlsname; // caused the error
 
-    if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 2) then
+    if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
     begin
       db_tvinfo.ripname := rlsname;
       if not db_tvinfo.Update then
