@@ -72,10 +72,23 @@ procedure TVInfoFireKbAdd(const aRls: String; msg: String = '<c3>[TVInfo]</c> %s
 
 function dbTVInfo_Process(const aNet, aChan, aNick: String; aMSG: String): boolean;
 
-procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
+{ Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
+  @param(rip Releasename with scene tagging)
+  @param(showName Plain TV showname from @value(rip) without any scene tags) }
 procedure getShowValues(const rip: String; out showName: String); overload;
 
-function replaceTVShowChars(name: String; forWebFetch: boolean = false): String;
+{ Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
+  @param(rip Releasename with scene tagging)
+  @param(showName Plain TV showname from @value(rip) without any scene tags)
+  @param(season Extracted season number from @value(rip))
+  @param(episode Extracted episode number from @value(rip)) }
+procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
+
+{ Does some replacing of normal scene names (and, at) with more reliable ones (&, @) for TV shows and replaces whitespaces with dots
+  @param(aName TV showname)
+  @param(forWebFetch If set to @true, it replaces whitespaces, dots and underscores with '+'' for better web search results)
+  @returns(TV showname with replaced chars) }
+function replaceTVShowChars(const aName: String; forWebFetch: boolean = false): String;
 
 function TVInfoDbAlive: boolean;
 
@@ -91,26 +104,32 @@ const
 var
   tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
   SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
-  addtinfodbcmd: String;
+  addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
 
-function replaceTVShowChars(name: String; forWebFetch: boolean = false): String;
+function replaceTVShowChars(const aName: String; forWebFetch: boolean = false): String;
+var
+  fHelper: String;
 begin
-  //this is a protction!!!!  Dispatches will not end up in Disp@ches
-  name := ReplaceText(name, ' ', '.');
-  name := ReplaceText(name, '.and.', '.&.');
-  name := ReplaceText(name, '.at.', '.@.');
-  name := ReplaceText(name, '_and_', '_&_');
-  name := ReplaceText(name, '_at_', '_@_');
-  name := ReplaceText(name, '', Chr(39));
+  // this is a protection!!!! Dispatches will not end up in Disp@ches
+  fHelper := ReplaceText(aName, ' ', '.');
+  fHelper := ReplaceText(fHelper, '.and.', '.&.');
+  fHelper := ReplaceText(fHelper, '.at.', '.@.');
+  fHelper := ReplaceText(fHelper, '_and_', '_&_');
+  fHelper := ReplaceText(fHelper, '_at_', '_@_');
+  fHelper := ReplaceText(fHelper, '', Chr(39));
+
   if forWebFetch then
   begin
-    name := ReplaceText(name, ' ', '+');
-    name := ReplaceText(name, '.', '+');
-    name := ReplaceText(name, '_', '+');
+    fHelper := ReplaceText(fHelper, ' ', '+');
+    fHelper := ReplaceText(fHelper, '.', '+');
+    fHelper := ReplaceText(fHelper, '_', '+');
   end;
-  if name[Length(name)] = '+' then
-    Delete(name,Length(name),1);
-  result := name;
+
+  // do not end up with 'tv+show+name+''
+  if fHelper[Length(fHelper)] = '+' then
+    SetLength(fHelper, Length(fHelper) - 1);
+
+  Result := fHelper;
 end;
 
 procedure getShowValues(const rip: String; out showName: String);
@@ -234,7 +253,7 @@ begin
   end;
 end;
 
-{   TTVInfoDB                                 }
+{ TTVInfoDB }
 
 procedure TTVInfoDB.setTheTVDbID(const aID: integer);
 var
@@ -994,20 +1013,30 @@ procedure addTVInfos(const aParams: String);
 var
   rls: String;
   tv_showid: String;
+  dbtvinfo: TTVInfoDB;
 begin
   rls := '';
   rls := SubString(aParams, ' ', 1);
   tv_showid := '';
   tv_showid := SubString(aParams, ' ', 2);
 
+  dbtvinfo := getTVInfoByShowID(tv_showid);
   try
-    AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
-  except
-    on e: Exception do
+    // only do the task for non existing shows or if the last update is too old
+    if ( (dbtvinfo = nil) or (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) ) then
     begin
-      Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
-      exit;
+      try
+        AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
+          exit;
+        end;
+      end;
     end;
+  finally
+    dbtvinfo.Free;
   end;
 end;
 
@@ -1015,13 +1044,11 @@ procedure saveTVInfos(const TVMazeID: String; tvrage: TTVInfoDB; rls: String = '
 var
   save_tvrage: TTVInfoDB;
 begin
-  if (getTVInfoByShowID(TVMazeID) = nil) then
-  begin
-    // add the tvrage
+    // add the tvinfo
     save_tvrage := TTVInfoDB(tvrage);
     try
       if (rls <> '') then
-        irc_Addtext_by_key('ADDTVMAZE',Format('%s %s %s',[addtinfodbcmd, rls, TVMazeID]));
+        irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s', [addtinfodbcmd, rls, TVMazeID]));
     except
       on e: Exception do
       begin
@@ -1041,8 +1068,6 @@ begin
 
     if ((rls <> '') and (fireKb)) then
       TVInfoFireKbAdd(rls);
-
-  end;
 end;
 
 procedure TVInfoFireKbAdd(const aRls: String; msg: String = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
