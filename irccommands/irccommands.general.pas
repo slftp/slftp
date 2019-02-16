@@ -57,26 +57,23 @@ end;
 function IrcHelp(const netname, channel, params: String): boolean;
 var
   i: integer;
-  fParams, s: String;
+  s: String;
   f: TextFile;
 begin
   if params <> '' then
   begin
-    if (1 = Pos(irccmdprefix, params)) then
-      fParams := Copy(params, length(irccmdprefix) + 1, 1000);
-
-    i := FindIrcCommand(fParams);
+    i := FindIrcCommand(params);
     if i <> 0 then
     begin
-      if FileExists('help' + PathDelim + fParams + '.txt') then
+      if FileExists('help' + PathDelim + params + '.txt') then
       begin
-        _readHelpTXTFile(Netname, Channel, fParams);
+        _readHelpTXTFile(Netname, Channel, params);
       end
       else
-        irc_addtext(Netname, Channel, '<c4>No help available on</c> ' + fParams);
+        irc_addtext(Netname, Channel, Format('<c4>No help available on</c> %s', [params]));
     end
     else
-      irc_addtext(Netname, Channel, '<b>Command not found.</b>');
+      irc_addtext(Netname, Channel, Format('<b>Command %s not found.</b>', [params]));
   end
   else
   begin

@@ -40,24 +40,31 @@ program slftp;
 
 {$MODE Delphi} //< delphi compatible mode
 
-{$IFDEF FPC}
-  {$if FPC_FULLVERSION < 30200}
-    {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
-  {$endif}
+// workaround for issues with ZeosLib prior v3.3.1 on 32-bit compiler
+{$IFNDEF CPU64}
+  {$if FPC_FULLVERSION < 30301}
+    {$stop Sorry, due to some FPC issues you need at least FPC 3.3.1 for 32-bit }
+  {$ENDIF}
 {$ENDIF}
+
+{$if FPC_FULLVERSION < 30200}
+  {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
+{$endif}
 
 {$IFDEF WINDOWS}
   {$APPTYPE CONSOLE}
 {$ENDIF}
 
 uses
-  {$IFDEF FPC}
-    {$IFDEF UNIX}
+  {$IFDEF UNIX}
+    {$IFNDEF DEBUG}
       {$IFNDEF CPUARM}
         FastMM4,
       {$ENDIF}
-        cthreads,
-        cmem,
+    {$ENDIF}
+      cthreads,
+    {$IFNDEF DEBUG}
+      cmem,
     {$ENDIF}
   {$ENDIF}
   console;
