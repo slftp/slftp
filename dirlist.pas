@@ -87,7 +87,7 @@ type
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
-    class function Timestamp(ts: String): TDateTime;
+    class function Timestamp(const ts: String): TDateTime;
 
     procedure SetCompleteInfo(info : TCompleteInfo);
     procedure SetCompleteInfoFromFtpd;
@@ -150,7 +150,7 @@ type
 
     function Directories: Integer;
 
-    procedure ParseDirlist(s: String);
+    procedure ParseDirlist(const s: String);
     function Complete: Boolean;
     function CompleteByTag: Boolean;
 
@@ -566,7 +566,7 @@ begin
   end;
 end;
 
-class function TDirlist.Timestamp(ts: String): TDateTime;
+class function TDirlist.Timestamp(const ts: String): TDateTime;
 const
   Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
 var
@@ -628,8 +628,7 @@ begin
 
 end;
 
-
-procedure TDirList.ParseDirlist(s: String);
+procedure TDirList.ParseDirlist(const s: String);
 var
   tmp: String;
   akttimestamp: TDateTime;
@@ -1806,19 +1805,19 @@ begin
 end;
 
 procedure TDirListEntry.CalcCDNumber;
-const multicddirprefix : array[1..4] of String = ('cd', 'dvd', 'disc','disk');
+const
+  multicddirprefix : array[1..4] of String = ('cd', 'dvd', 'disc','disk');
 var
   s: String;
   i: Integer;
 begin
-
   s := ReplaceText(filenamelc, ' ', '');
   s := ReplaceText(s, '_', '');
   s := ReplaceText(s, '-', '');
 
   for i := 1 to 4 do
   begin
-    if (1 = AnsiPos(AnsiUpperCase(multicddirprefix[i]), AnsiUpperCase(s))) then
+    if (1 = Pos(UpperCase(multicddirprefix[i]), UpperCase(s))) then
     begin
       cdno := StrToIntDef(Copy(s, Length(multicddirprefix[i]) + 1, 1000), 0);
       exit;

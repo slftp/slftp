@@ -103,7 +103,7 @@ type
     function AddDestination(ps: TPazoSite; const rank: integer): boolean; overload;
     constructor Create(pazo: TPazo; const Name, maindir: String);
     destructor Destroy; override;
-    procedure ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
+    procedure ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
     function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
     function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean; overload;
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
@@ -163,7 +163,9 @@ type
     cache_files: TStringList;
 
     function allfiles: integer;
-    procedure SiteDown(const sitename: String); //< searches for sitename via TPazo.FindSite and calls TPazoSite.MarkSiteAsFailed
+    { Searches for @value(sitename) via @link(TPazo.FindSite) and calls TPazoSite.MarkSiteAsFailed if site was found
+      @param(sitename Sitename which sould be set down) }
+    procedure SiteDown(const sitename: String);
     procedure Clear;
     function StatusText: String;
     function Age: integer;
@@ -1717,12 +1719,11 @@ begin
   end;
 end;
 
-procedure TPazoSite.ParseXdupe(const netname, channel, dir: String; resp: String; added: boolean = False);
+procedure TPazoSite.ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
 var
   s: String;
   dl: TDirList;
   lines_read: integer;
-
 begin
   try
     dl := dirlist.FindDirlist(dir);
@@ -1759,8 +1760,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseXdupe: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseXdupe: %s', [e.Message]));
     end;
   end;
 end;

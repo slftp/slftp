@@ -21,14 +21,13 @@ type
     destructor Destroy; override;
   end;
 
-  huntartunk_tipus = (sehun, racetool, ignorelist, replace, hunsections,
-    mappings, channels, pretime);
+  huntartunk_tipus = (sehun, racetool, ignorelist, replace, hunsections, mappings, channels, pretime);
 
   TMap = class
     origsection: String;
     newsection: String;
     mask: TslMask;
-    constructor Create(origsection, newsection, mask: String);
+    constructor Create(const origsection, newsection, mask: String);
     destructor Destroy; override;
   end;
 
@@ -36,7 +35,7 @@ function precatcherauto: boolean;
 
 function Precatcher_Sitehasachan(const sitename: String): boolean;
 procedure Precatcher_DelSiteChans(const sitename: String);
-function PrecatcherReload:String;
+function PrecatcherReload: String;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: String);
@@ -67,10 +66,10 @@ var
 
 implementation
 
-uses SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
+uses
+  SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
-  console, mrdohutils, SyncObjs, IdGlobal
-{$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -1129,7 +1128,7 @@ end;
 
 { TMap }
 
-constructor TMap.Create(origsection, newsection, mask: String);
+constructor TMap.Create(const origsection, newsection, mask: String);
 begin
   self.origsection := origsection;
   self.newsection := newsection;
