@@ -20,7 +20,7 @@ uses
   SysUtils, Classes, StrUtils, Math, irccommandsunit, irc, regexpr, statsunit, mainthread, debugunit,
   tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, console,
   precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  CompVers, {$IFDEF FPC}process,{$ENDIF} IdGlobal;
+  SynCommons, {$IFDEF FPC}process,{$ENDIF} IdGlobal;
 
 const
   section = 'irccommands.general';
@@ -119,39 +119,10 @@ end;
 
 function IrcUptime(const netname, channel, params: String): boolean;
 var
-  cpuversion: String;
   fProcessID, fCmdLine, fUsageInfo, fUnit: String;
   fMemUsage: double;
   rr: TRegexpr;
 begin
-  {$IFDEF FPC}
-    {$IFDEF CPU32}
-      cpuversion := '32-Bit';
-    {$ELSE}
-      cpuversion := '64-Bit';
-    {$ENDIF}
-  {$ELSE}
-    {$IFDEF MSWINDOWS}
-      {$IFDEF WIN32}
-        cpuversion := '32-Bit';
-      {$ELSE}
-        cpuversion := '64-Bit';
-      {$ENDIF}
-    {$ELSE}
-      {$IFDEF LINUX32}
-        cpuversion := '32-Bit';
-      {$ELSE}
-        cpuversion := '64-Bit';
-      {$ENDIF}
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF CPUARM}
-    cpuversion := cpuversion + ' on ARM';
-  {$ENDIF}
-
-  cpuversion := cpuversion + ' [' + Compiler_Str + ']';
-
   fProcessID := IntToStr(CurrentProcessId);
 
   {$IFDEF MSWINDOWS}
@@ -181,7 +152,7 @@ begin
     {$ENDIF}
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> (%s) (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, cpuversion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> [%s] (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, GetDelphiCompilerVersion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, OpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;
