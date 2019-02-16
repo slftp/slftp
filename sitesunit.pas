@@ -18,8 +18,9 @@ type
   @value(sswGlftpd glFTPd software)
   @value(sswDrftpd DrFTPD software)
   @value(sswIoftpd ioFTPD software)
+  @value(sswRaidenftpd RaidenFTPD software)
   }
-  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd);
+  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd);
 
   TProtection = (prNone, prProtP, prProtC);
 
@@ -446,12 +447,12 @@ function SiteSoftWareToString(site: TSite): String;
 begin
   Result := 'Unknown';
 
-  // sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd
   case TSite(site).Software of
     sswUnknown: Result := 'Unknown';
     sswGlftpd: Result := 'GlFTPD';
     sswDrftpd: Result := 'DrFTPD';
     sswIoftpd: Result := 'ioFTPD';
+    sswRaidenftpd: Result := 'RaidenFTPD';
   end;
 end;
 
@@ -466,6 +467,8 @@ begin
     Result := sswDrftpd;
   if s = 'ioftpd' then
     Result := sswIoftpd;
+  if s = 'raidenftpd' then
+    Result := sswRaidenftpd;
 end;
 
 function sslMethodToString(sitename: String): String;
@@ -974,10 +977,44 @@ begin
      XCRC filename;start;end
     211 END
   }
+
+  {
+  * RaidenFTPD *
+    211-Extensions supported:
+     SIZE
+     MDTM
+     MDTM YYYYMMDDHHMMSS filename
+     MFMT
+     LIST -laT
+     STAT -laT
+     MODE Z
+     MLST type*;lang*;size*;modify*;create*;UNIX.mode*;UNIX.owner*;UNIX.group*;WIN32.ea*
+     MLSD
+     REST STREAM
+     XCRC filename;start;end
+     XMD5 filename;start;end
+     TVFS
+     CLNT client_type
+     LANG EN;FR;JA;DE;IT;SV;ES;RU;ZH-TW;ZH-CN
+     AUTH SSL
+     AUTH TLS
+     PROT
+     PBSZ
+     SSCN
+     UTF8
+     EPRT
+     EPSV
+    211 END
+  }
   if (0 < Pos('PRET', lastResponse)) then
   begin
     if site.sw <> sswDrftpd then
       sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswDrftpd));
+  end
+  else if ( (0 < Pos('UTF8', lastResponse)) and (0 < Pos('MFMT', lastResponse)) ) then
+  begin
+    if site.sw <> sswRaidenftpd then
+      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswRaidenftpd));
   end
   else if (0 < Pos('Command not understood', lastResponse)) or (0 < Pos('TVFS', lastResponse)) or (0 < Pos('XCRC', lastResponse)) then
   begin

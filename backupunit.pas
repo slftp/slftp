@@ -9,12 +9,11 @@ function ircBackup(out backupError: string): boolean;
 var
   backup_last_backup: TDateTime;
 
-{$I common.inc}
-
 implementation
 
-uses Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, dbaddpre, StrUtils
+uses
+  Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
+  statsunit, indexer, dbtvinfo, dbaddpre, StrUtils, globals
   {$IFDEF MSWINDOWS}
     , Windows
   {$ENDIF};
@@ -25,9 +24,11 @@ const
 var
   _backuperror: string;
 
+{$I common.inc}
+
 function createBackup(custom: boolean = False): boolean;
 var
-  s, bName, filename: string;
+  s, bName, filename, filepath: string;
   i: integer;
   sr: TSearchRec;
   skipfiles: TStringList;
@@ -70,36 +71,38 @@ begin
           if ( fileexists(generatedFiles[i]) and (skipfiles.IndexOf(generatedFiles[i]) = -1) ) then
             AddFile(generatedFiles[i]);
 
+        filepath := MyIncludeTrailingSlash(DATABASEFOLDERNAME);
+
         //adding indexer database (only at startup)
         if not IndexerAlive then
         begin
-          fileName := Trim(config.ReadString('indexer', 'database', 'disabled'));
-          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(fileName);
+          fileName := Trim(config.ReadString('indexer', 'database', 'indexes.db'));
+          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(filepath + fileName);
         end;
 
         // adding stats database (only at startup)
         if not StatsAlive then
         begin
-          fileName := Trim(config.ReadString('stats', 'database', 'disabled'));
-          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(fileName);
+          fileName := Trim(config.ReadString('stats', 'database', 'stats.db'));
+          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(filepath + fileName);
         end;
 
         // adding pretime database (only at startup)
         if not AddPreDbAlive then
         begin
           fileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
-          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(fileName);
+          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(filepath + fileName);
         end;
 
         // adding tvinfo database (only at startup)
         if not TVInfoDbAlive then
         begin
           fileName := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
-          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(fileName);
+          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(filepath + fileName);
         end;
 
         (*
@@ -107,8 +110,8 @@ begin
         if not IMDbInfoDbAlive then
         begin
           fileName := Trim(config.ReadString('taskimdb', 'database', 'imdb.db'));
-          if ( fileexists(fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(fileName);
+          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+            AddFile(filepath + fileName);
         end;
         *)
 
@@ -121,7 +124,7 @@ begin
         if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
         begin
           repeat
-          AddFile(s + sr.Name, 'rtpl/' + sr.name);
+            AddFile(s + sr.Name, 'rtpl/' + sr.name);
           until FindNext(sr) <> 0;
           {$IFDEF MSWINDOWS}
             SysUtils.FindClose(sr);
