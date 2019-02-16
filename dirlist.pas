@@ -87,7 +87,7 @@ type
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
-    class function Timestamp(const ts: String): TDateTime;
+    class function Timestamp(ts: String): TDateTime;
 
     procedure SetCompleteInfo(info : TCompleteInfo);
     procedure SetCompleteInfoFromFtpd;
@@ -150,7 +150,7 @@ type
 
     function Directories: Integer;
 
-    procedure ParseDirlist(const s: String);
+    procedure ParseDirlist(s: String);
     function Complete: Boolean;
     function CompleteByTag: Boolean;
 
@@ -566,7 +566,7 @@ begin
   end;
 end;
 
-class function TDirlist.Timestamp(const ts: String): TDateTime;
+class function TDirlist.Timestamp(ts: String): TDateTime;
 const
   Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
 var
@@ -628,7 +628,7 @@ begin
 
 end;
 
-procedure TDirList.ParseDirlist(const s: String);
+procedure TDirList.ParseDirlist(s: String);
 var
   tmp: String;
   akttimestamp: TDateTime;

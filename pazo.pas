@@ -1724,7 +1724,9 @@ var
   s: String;
   dl: TDirList;
   lines_read: integer;
+  fHelper: String;
 begin
+  fHelper := resp;
   try
     dl := dirlist.FindDirlist(dir);
     if dl = nil then
@@ -1736,7 +1738,7 @@ begin
     // crashes
     while (True) do
     begin
-      s := Elsosor(resp);
+      s := Elsosor(fHelper);
       if s = '' then
         Break;
 
