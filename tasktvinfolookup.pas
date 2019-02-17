@@ -5,48 +5,30 @@ interface
 uses
   Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo, StrUtils;
 
-//const apkikey:string = 'FFFFFFFFFFFFFFFF'; //   just a 64bit (16*4) hex string and you are vailed, no RESTful api :P
-
 type
   TPazoTVInfoLookupTask = class(TPazoPlainTask)
   private
     attempt: integer;
     initial_site: String;
   public
-    constructor Create(const netname, channel: String; site: String;
-      pazo: TPazo; attempt: integer = 0);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; attempt: integer = 0);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
 
-  (*didn't work like i wanted :/*)
-  TPazoHTTPUpdateTVInfoTask = class(TPazoPlainTask)
-  private
-    showname: String;
-    tvmaze_id: String;
-  public
-    constructor Create(const netname, channel: String; site: String; pazo: TPazo; attempt: integer = 0);
-    destructor Destroy; override;
-    function Execute(slot: Pointer): boolean; override;
-    function Name: String; override;
-  end;
-
-  (*for !addmaze channels*)
-
+  {* for !addtvmaze channels *}
   TPazoHTTPTVInfoTask = class(TTask)
   private
     rls: String;
     tvmaze_id: String;
   public
     constructor Create(const tvmaze_id: String; rls: String = '');
-    destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
 
-function parseTVMazeInfos(jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
-function findTheTVDbIDByName(name: String): String;
-function findTVMazeIDByName(name: String; Netname: String = ''; Channel: String = ''): String;
+function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
+function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 
 implementation
 
@@ -57,8 +39,7 @@ uses
 const
   section = 'tasktvinfo';
 
-
-function findTVMazeIDByName(name: String; Netname: String = ''; Channel: String = ''): String;
+function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 var
   showA, showB, resp: String;
   x: TRegExpr;
@@ -74,11 +55,13 @@ begin
   hadCountry := False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
 
+  // TODO: guess this call is useless as name is already fine, so name == showName
+  getShowValues(name, showName);
+
   x := TRegExpr.Create;
   try
     x.ModifierI := False;
     x.ModifierM := True;
-    getShowValues(name, showName);
 
     // Cut off Year tag
     x.Expression := '[._-\s]((19|20)\d{2})[\s._-]?$';
@@ -121,251 +104,101 @@ begin
 
   jl := TlkJSONlist.Create;
   try
-    jl := TlkJSON.ParseText(resp) as TlkJSONlist;
-  except
-    on e: Exception do
-    begin
-      irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> IrcAddTVMazeToDb (search): %s', [e.Message]);
-      Debug(dpError, section, '[EXCEPTION] rcAddTVMazeToDb (search): %s', [e.Message]);
-      jl.free;
-      Exit;
-    end;
-  end;
-
-  res := TStringlist.Create;
-  ddate := TStringlist.Create;
-  try
-    for I := 0 to jl.Count - 1 do
-    begin
-      showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
-      showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
-
-      if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+    try
+      jl := TlkJSON.ParseText(resp) as TlkJSONlist;
+    except
+      on e: Exception do
       begin
-        if hadCountry then
+        irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> findTVMazeIDByName (parsing): %s', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] findTVMazeIDByName (parsing): %s', [e.Message]);
+        Exit;
+      end;
+    end;
+
+    res := TStringlist.Create;
+    ddate := TStringlist.Create;
+    try
+      for I := 0 to jl.Count - 1 do
+      begin
+        showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
+        showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
+
+        if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
         begin
-          if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
-            tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
-          if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
-            tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
-
-          if tv_country = 'GB' then
-            tv_country := 'UK';
-
-          if UpperCase(tv_country) = uppercase(country) then
+          if hadCountry then
           begin
-            if not fromIRC then
+            if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
+              tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+            if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
+              tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+
+            if tv_country = 'GB' then
+              tv_country := 'UK';
+
+            if UpperCase(tv_country) = uppercase(country) then
             begin
-              result := String(jl.Child[i].Field['show'].Field['id'].Value);
-              Break;
+              if not fromIRC then
+              begin
+                result := String(jl.Child[i].Field['show'].Field['id'].Value);
+                Break;
+              end;
             end;
+            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              tv_country, String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), country])
+            );
           end;
-          res.Add(
-            Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
-            [String(jl.Child[i].Field['show'].Field['name'].Value),
-            tv_country,
-              String(jl.Child[i].Field['show'].Field['url'].Value),
-              irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value),
-              ReplaceText(showName, '.', ' '), country]));
+
+          if hadYear then
+          begin
+            ddate.Delimiter := '-';
+            if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
+              ddate.DelimitedText := String(jl.Child[i].Field['show'].Field['premiered'].Value)
+            else
+              ddate.DelimitedText := '1970-01-01';
+            if year = ddate.Strings[0] then
+            begin
+              if not fromIRC then
+              begin
+                result := String(jl.Child[i].Field['show'].Field['id'].Value);
+                Break;
+              end;
+            end;
+            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              ddate.Strings[0], String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), year])
+            );
+          end;
         end;
-        if hadYear then
+
+        if ((not hadYear) and (not hadCountry)) then
         begin
-          ddate.Delimiter := '-';
-          if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
-            ddate.DelimitedText := String(jl.Child[i].Field['show'].Field['premiered'].Value)
-          else
-            ddate.DelimitedText := '1970-01-01';
-          if year = ddate.Strings[0] then
+          if not fromIRC then
           begin
-            if not fromIRC then
-            begin
-              result := String(jl.Child[i].Field['show'].Field['id'].Value);
-              Break;
-            end;
+            result := String(jl.Child[i].Field['show'].Field['id'].Value);
+            Break;
           end;
-          res.Add(
-            Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
-            [String(jl.Child[i].Field['show'].Field['name'].Value),
-            ddate.Strings[0],
-              String(jl.Child[i].Field['show'].Field['url'].Value),
-              irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value),
-              ReplaceText(showName, '.', ' '), year]));
+
+            res.Add(Format('<b>%s</b>: %s => %saddtvinfo %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' ')])
+            );
         end;
       end;
 
-      if ((not hadYear) and (not hadCountry)) then
+      if fromIRC then
       begin
-        if not fromIRC then
-        begin
-          result := String(jl.Child[i].Field['show'].Field['id'].Value);
-          Break;
-        end;
-
-         res.Add(
-            Format('<b>%s</b>: %s => %saddtvinfo %s %s',
-            [String(jl.Child[i].Field['show'].Field['name'].Value),
-              String(jl.Child[i].Field['show'].Field['url'].Value),
-              irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value),
-              ReplaceText(showName, '.', ' ')]));
+        if (res.Count = 0) then
+          result := 'FAILED'
+        else
+          result := res.CommaText;
       end;
-
+    finally
+      ddate.free;
+      res.free;
     end;
-
-    if fromIRC then
-    begin
-      if (res.Count = 0) then
-        result := 'FAILED'
-      else
-        result := res.CommaText;
-    end;
-
   finally
     jl.free;
-    res.free;
-    ddate.free;
-  end;
-end;
-
-function findTheTVDbIDByName(name: String): String;
-var
-  s, response: String;
-  js: TlkJSONobject;
-  fHttpGetErrMsg: String;
-begin
-  result := 'FAILED';
-  s := ReplaceText(name, '.and.', '.&.');
-  s := ReplaceText(s, '.at.', '.@.');
-  s := ReplaceText(s, '_and_', '_&_');
-  s := ReplaceText(s, '_at_', '_@_');
-  s := ReplaceText(s, '', Chr(39));
-  s := ReplaceText(s, ' ', '+');
-  s := ReplaceText(s, '.', '+');
-
-  if not HttpGetUrl('https://api.tvmaze.com/singlesearch/shows?q=' + s, response, fHttpGetErrMsg) then
-  begin
-    Debug(dpError, section, '[FAILED] TVMAZE API singlesearch by Name for %s --> %s', [s, fHttpGetErrMsg]);
-    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API singlesearch by Name for %s --> %s', [s, fHttpGetErrMsg]));
-    exit;
-  end;
-
-  if ((response = '') or (response = '[]')) then
-  begin
-    Debug(dpError, section, 'Cant find theTVDB id for ' + name);
-    irc_addadmin('Cant find theTVDB id for ' + name);
-    Exit;
-  end;
-
-  js := TlkJSON.ParseText(response) as TlkJSONobject;
-  try
-    if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-      result := String(js.Field['externals'].Field['thetvdb'].Value)
-    else
-    begin
-      Debug(dpError, section, 'Cant find theTVDB id for ' + name);
-      irc_addadmin('<b><c14>Info</b></c>: Cant find theTVDB id for ' + name);
-    end;
-
-  finally
-    js.Free;
-  end;
-end;
-
-function getGenreFromTheTVDb(const id: String): String;
-var
-  s: String;
-  xml: TSLXMLDocument;
-  gn, nn, n: TSLXMLNode;
-  x: TStringList;
-  rx: TRegExpr;
-  ts: TStream;
-  fHttpGetErrMsg: String;
-begin
-  Result := '';
-
-  (*
-    There can be 3 posible responses:
-
-      1: an XML, first line MUST start with <?xml
-      2: 404 page
-      3: TVDb Lags.. could be done with an timeout.  maybe we retrun something like 0xBAADF00D
-  *)
-  if not HttpGetUrl('https://thetvdb.com/api/FFFFFFFFFFFFFFFF/series/' + id + '/', s, fHttpGetErrMsg) then
-  begin
-    Debug(dpError, section, '[FAILED] TheTVDB API for ID %s --> %s', [id, fHttpGetErrMsg]);
-    irc_Adderror(Format('<c4>[FAILED]</c> TheTVDB API for ID %s --> %s', [id, fHttpGetErrMsg]));
-    exit;
-  end;
-
-  if not AnsiStartsText('<?xml', s) then
-  begin
-    Debug(dpError, section, 'Warning: TheTVDB answer for show id %s was not in XML format.', [id]);
-    exit;
-  end;
-
-  xml := TSLXMLDocument.Create;
-
-  ts := TStringStream.Create(s);
-  try
-    try
-      ts.Position := 0;
-      xml.LoadFromStream(ts)
-    except
-      on E: Exception do
-      begin
-        xml.Free;
-        Debug(dpError, section, '[EXCEPTION] getGenreFromTheTVDb (LoadFromStream): %s', [e.Message]);
-        exit;
-      end;
-    end;
-  finally
-    ts.Free;
-  end;
-
-  try
-    try
-      n := xml.GetDocumentElement;
-      nn := xml.FindChildNode(n, 'Series');
-      gn := xml.FindChildNode(nn, 'Genre');
-      s := xml.GetNodeValue(gn);
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, '[EXCEPTION] getGenreFromTheTVDb (GetNodeValue): %s', [e.Message]);
-        exit;
-      end;
-    end;
-  finally
-    xml.Free;
-  end;
-
-  x := TStringList.Create;
-  rx := TRegExpr.create;
-  try
-    try
-      x.QuoteChar := '"';
-      rx.ModifierI := True;
-      rx.Expression := '\|?(.*?)\|';
-
-      if rx.Exec(s) then
-      repeat
-        x.Add(rx.Match[1]);
-      until not rx.ExecNext();
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, '[EXCEPTION] getGenreFromTheTVDb (x/rx): %s', [e.Message]);
-        exit;
-      end;
-    end;
-
-    Result := x.CommaText;
-    Debug(dpSpam, section, '[DEBUG] getGenreFromTheTVDb: TVDBId: %s Result: %s', [id, Result]);
-  finally
-    rx.Free;
-    x.Free;
   end;
 end;
 
@@ -426,6 +259,7 @@ begin
       ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
       se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
       nextdt := UnixToDateTime(0);
+
       if String(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
         airt := '00:00'
       else
@@ -437,7 +271,7 @@ begin
   except on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] findCurrentAirDate (nextepisode): ' + e.Message);
-      Irc_AddAdmin('[EXCEPTION] findCurrentAirDate (previousepisode): ' + e.Message);
+      Irc_AddAdmin('[EXCEPTION] findCurrentAirDate (nextepisode): ' + e.Message);
     end;
   end;
 
@@ -486,44 +320,38 @@ begin
   if ((not hadPrev) AND (hadNext)) then
   begin
     if json.Field['status'].SelfType <> jsNull then
-      //somehow the group catch the episode early, maybe a "pre-air-pilot"..
+    begin
+      //somehow the group catch the episode early, maybe a "pre-air-pilot" ...
       if (String(json.Field['status'].Value) = 'In Development') then
       begin
         episode := ep_nextnum;
         season := se_nextnum;
         date := nextdt;
       end;
+    end;
     Exit;
   end;
 
   if (DateTimeToUnix(nextdt)) > DateTimeToUnix(now()) then
   begin
-    // nothing before matched and next_date is grater then now, so we took this.
+    // nothing before matched and next_date is greater then now, so we took this.
     episode := ep_nextnum;
     season := se_nextnum;
     date := nextdt;
   end;
 end;
 
-function parseTVMazeInfos(jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
-label
-  TryToGetTheTVDBGenre;
+function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
 var
   tvr: TTVInfoDB;
   i: integer;
   s: String;
   js: TlkJSONobject;
-  gTVDB: TStringlist;
   season, episode: Integer;
   date: TDateTime;
-  numerrors: Integer;
-  TheTVDBGenreFailure: Boolean;
-  ExceptionMessage: String;
-  endOftvdbAPIDate : TDateTime;
 begin
   Result := nil;
   js := nil;
-  numerrors := 0;
 
   if Showname <> '' then
     s := ReplaceText(Showname, '.', ' ')
@@ -533,7 +361,6 @@ begin
   tvr := TTVInfoDB.Create(s);
   tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
-  gTVDB := TStringlist.Create;
   js := TlkJSONObject.Create();
   try
     try
@@ -589,6 +416,7 @@ begin
       if js.Field['webChannel'].SelfType <> jsNull then
       begin
         tvr.tv_network := String(js.Field['webChannel'].Field['name'].Value);
+
         if js.Field['webChannel'].Field['country'].SelfType = jsNull then
           tvr.tv_country := 'unknown'
         else
@@ -603,6 +431,7 @@ begin
     else
     begin
       tvr.tv_network := String(js.Field['network'].Field['name'].Value);
+
       if js.Field['network'].Field['country'].SelfType = jsNull then
         tvr.tv_country := 'unknown'
       else
@@ -625,47 +454,6 @@ begin
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Genres: %s URL: %s', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
-    TryEncodeDateTime(2018,5,30,0,0,0,0,endOftvdbAPIDate);
-    // just a hotfix to be ready when the API is down (October 1st, 2017)
-    // update 01/2018: This version of the API will continue to function until at which time it will be discontinued.
-    if endOftvdbAPIDate > Now then
-    begin
-      TryToGetTheTVDBGenre:
-      TheTVDBGenreFailure := False;
-      try
-        inc(numerrors);
-
-        if js.Field['externals'].Field['thetvdb'].SelfType <> jsNull then
-        begin
-          gTVDB.CommaText := getGenreFromTheTVDb(tvr.thetvdb_id);
-
-          for I := 0 to gTVDB.Count - 1 do
-            tvr.tv_genres.Add(gTVDB.Strings[i]);
-        end;
-      except
-        on e: Exception do
-        begin
-          TheTVDBGenreFailure := True;
-          ExceptionMessage := e.Message;
-        end;
-      end;
-
-      if TheTVDBGenreFailure then
-      begin
-        case numerrors of
-          0..2:
-            begin
-              goto TryToGetTheTVDBGenre;
-            end;
-          3:
-            begin
-              Debug(dpMessage, section, '[EXCEPTION] parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
-              irc_addadmin('<c4><b>[EXCEPTION]</b></c> parseTVMazeInfos TheTVDB Genre Exception : %s - Show: %s (ID: %s)', [ExceptionMessage, tvr.tv_showname, tvr.tvmaze_id]);
-            end;
-        end;
-      end;
-    end;
-
     if js.Field['premiered'].SelfType <> jsNull then
       tvr.tv_premiered_year := StrToIntDef(copy(string(js.Field['premiered'].Value), 1, 4), -1)
     else
@@ -676,7 +464,7 @@ begin
       tvr.tv_next_season := -10;
       tvr.tv_next_date := 3817;
 
-    //Show not ended so we check for next.
+    // Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
     begin
       findCurrentAirDate(js, season, episode, date);
@@ -692,17 +480,16 @@ begin
     Result := tvr;
   finally
     js.free;
-    gTVDB.free;
   end;
 end;
 
-{ TPazoTheTVDbLookupTask }
+{ TPazoTVInfoLookupTask }
 
-constructor TPazoTVInfoLookupTask.Create(const netname, channel: String; site: String; pazo: TPazo; attempt: integer = 0);
+constructor TPazoTVInfoLookupTask.Create(const netname, channel, site: String; pazo: TPazo; attempt: integer = 0);
 begin
+  inherited Create(netname, channel, site, '', pazo);
   self.attempt := attempt;
   self.initial_site := site;
-  inherited Create(netname, channel, site, '', pazo);
 end;
 
 function TPazoTVInfoLookupTask.Execute(slot: Pointer): boolean;
@@ -851,159 +638,45 @@ end;
 function TPazoTVInfoLookupTask.Name: String;
 begin
   try
-    Result := format('TVInfo PazoID(%d) %s @ %s Count(%d)', [mainpazo.pazo_id, mainpazo.rls.rlsname, site1, attempt]);
+    Result := format('TVInfo PazoID(%d) %s @ %s attempts(%d)', [mainpazo.pazo_id, mainpazo.rls.rlsname, site1, attempt]);
   except
     Result := 'TVInfo';
   end;
-end;
-
-//TPazoHTTPUpdateTVInfoTask
-
-constructor TPazoHTTPUpdateTVInfoTask.Create(const netname: String; const channel: String; site: String; pazo: TPazo; attempt: Integer = 0);
-begin
-
-  inherited Create(netname, channel, site, '', pazo);
-end;
-
-destructor TPazoHTTPUpdateTVInfoTask.Destroy;
-begin
-  inherited;
-end;
-
-function TPazoHTTPUpdateTVInfoTask.Name: String;
-begin
-  Result := Format('httpUpdateTVInfo : %s', [showname]);
-end;
-
-function TPazoHTTPUpdateTVInfoTask.Execute(slot: Pointer): boolean;
-var
-  tvdb: TTVInfoDB;
-  response: String;
-  ps: TPazoSite;
-  fHttpGetErrMsg: String;
-begin
-  Result := False;
-  showname := TTvRelease(mainpazo.rls).showname;
-  tvmaze_id := TTvRelease(mainpazo.rls).showid;
-
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
-  begin
-    Debug(dpMessage, section, Format('[FAILED] TVMAZE API for updating ID %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
-    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API for updating ID %s --> %s', [tvmaze_id, fHttpGetErrMsg]));
-    Result := True;
-    readyerror := True;
-    exit;
-  end;
-
-  if ((response = '') or (response = '[]')) then
-  begin
-    irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s', [showname]));
-    Debug(dpSpam, section, 'ERROR HTTP Response is empty for ' + showname);
-    Result := True;
-    readyerror := True;
-    exit;
-  end;
-
-  try
-    tvdb := parseTVMazeInfos(response, showname);
-  except on E: Exception do
-      irc_adderror(Format('parseTVMazeInfos  -=> %s', [e.Message]));
-  end;
-
-  try
-    try
-      result := tvdb.Update;
-    except on E: Exception do
-        irc_adderror(Format('parseTVMazeInfos  -=> %s', [e.Message]));
-    end;
-
-  finally
-    //tvdb.free;
-  end;
-
-  try
-    ps := FindMostCompleteSite(mainpazo);
-    if ((ps = nil) and (mainpazo.sites.Count > 0)) then
-      ps := TPazoSite(mainpazo.sites[0]);
-    kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('Exception in TPazoTVInfoUpdateTask kb_add: %s', [e.Message]));
-    end;
-  end;
-
 end;
 
 { TPazoHTTPTVInfoTask }
 
 constructor TPazoHTTPTVInfoTask.Create(const tvmaze_id: String; rls: String = '');
 begin
+  inherited Create('', '', getAdminSiteName);
   self.tvmaze_id := tvmaze_id;
   self.rls := rls;
-  inherited Create('', '', getAdminSiteName);
 end;
 
 function TPazoHTTPTVInfoTask.Name: String;
 begin
   try
-    Result := Format('httpTVMaze : %s', [tvmaze_id]);
+    Result := Format('HTTP TVMaze lookup via addtvmaze channel : TVID %s for %s', [tvmaze_id, rls]);
   except
-    Result := 'httpTVMaze';
+    Result := 'HTTP TVMaze lookup via addtvmaze channel';
   end;
-end;
-
-destructor TPazoHTTPTVInfoTask.Destroy;
-begin
-  inherited;
 end;
 
 function TPazoHTTPTVInfoTask.Execute(slot: Pointer): boolean;
 var
   tvdb: TTVInfoDB;
-  rx: TRegExpr;
   sname: String;
   fHttpGetErrMsg: String;
 begin
-
-  rx := TRegexpr.Create;
-  try
-    rx.ModifierI := True;
-
-    rx.Expression :=
-      '(.*)[\._-](\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-    end;
-
-    rx.Expression := '(.*)[\._-](\d+)x(\d+)[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-      //    season   := StrToIntDef(rx.Match[2], 0);
-      //    episode  := StrToIntDef(rx.Match[3], 0);
-    end;
-
-    rx.Expression :=
-      '(.*)[\._-]S(\d{1,3})(\.?([DE]|EP|Episode|Part)(\d{1,4})\w?(E\d{1,4})?)?[\._-](.*)';
-    if rx.Exec(rls) then
-    begin
-      sname := rx.Match[1];
-      //    season   := StrToIntDef(rx.Match[2], 0);
-      //    episode  := StrToIntDef(rx.Match[5], 0);
-    end;
-
-    rx.Expression := '[\.\_]';
-    sname := rx.Replace(sname, ' ', False);
-  finally
-    rx.Free;
-  end;
+  // remove 'scene' tagging
+  getShowValues(rls, sname);
+  ReplaceText(sname, '.', ' ');
+  ReplaceText(sname, '_', ' ');
 
   if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
   begin
-    Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s) : %s', [rls, sname, fHttpGetErrMsg]));
-    irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s) : %s', [rls, sname, fHttpGetErrMsg]));
+    Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
+    irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
     Result := True;
     readyerror := True;
     exit;
@@ -1011,8 +684,8 @@ begin
 
   if ((response = '') or (response = '[]')) then
   begin
-    irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s', [sname]));
-    Debug(dpSpam, section, 'ERROR HTTP Response is empty for ' + sname);
+    irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s (%s) from addtvmaze channel', [sname, tvmaze_id]));
+    Debug(dpSpam, section, 'ERROR HTTP Response is empty for %s (%s) from addtvmaze channel', [sname, tvmaze_id]);
     Result := True;
     readyerror := True;
     exit;
@@ -1021,12 +694,13 @@ begin
   tvdb := parseTVMazeInfos(response, sname);
   try
     if tvdb <> nil then
-      saveTVInfos(tvmaze_id, tvdb, rls, false);
+      saveTVInfos(tvmaze_id, tvdb, rls, False);
   finally
     tvdb.free;
   end;
 
-  result := True;
+  ready := True;
+  Result := True;
 end;
 
 end.
