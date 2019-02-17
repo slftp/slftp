@@ -628,7 +628,6 @@ begin
 
 end;
 
-
 procedure TDirList.ParseDirlist(s: String);
 var
   tmp: String;
@@ -1806,19 +1805,19 @@ begin
 end;
 
 procedure TDirListEntry.CalcCDNumber;
-const multicddirprefix : array[1..4] of String = ('cd', 'dvd', 'disc','disk');
+const
+  multicddirprefix : array[1..4] of String = ('cd', 'dvd', 'disc','disk');
 var
   s: String;
   i: Integer;
 begin
-
   s := ReplaceText(filenamelc, ' ', '');
   s := ReplaceText(s, '_', '');
   s := ReplaceText(s, '-', '');
 
   for i := 1 to 4 do
   begin
-    if (1 = AnsiPos(AnsiUpperCase(multicddirprefix[i]), AnsiUpperCase(s))) then
+    if (1 = Pos(UpperCase(multicddirprefix[i]), UpperCase(s))) then
     begin
       cdno := StrToIntDef(Copy(s, Length(multicddirprefix[i]) + 1, 1000), 0);
       exit;
