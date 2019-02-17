@@ -292,7 +292,7 @@ begin
 
     if (s.lastResponseCode = 550) then
     begin
-      if ( (0 <> AnsiPos('FileNotFound', s.lastResponse)) OR (0 <> AnsiPos('File not found', s.lastResponse)) OR (0 <> AnsiPos('No such file or directory', s.lastResponse)) ) then
+      if ( (0 <> Pos('FileNotFound', s.lastResponse)) OR (0 <> Pos('File not found', s.lastResponse)) OR (0 <> Pos('No such file or directory', s.lastResponse)) ) then
       begin
         // do nothing, file/dir not found
       end;
@@ -735,7 +735,7 @@ begin
 
       400:
         begin
-          if (0 <> AnsiPos('DUPE:', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
+          if (0 <> Pos('DUPE:', s.lastResponse)) then // 400 DUPE: /MP3/1028/Danza_Fuego-Flamenco_Andalucia-WEB-2016-ANGER/
           begin
             failure := False;
           end;
@@ -744,7 +744,7 @@ begin
       421:
         begin
           //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
-          if (0 < AnsiPos('Timeout', s.lastResponse)) then
+          if (0 < Pos('Timeout', s.lastResponse)) then
           begin
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
@@ -754,7 +754,7 @@ begin
       426:
         begin
           //COMPLETE MSG: 426 ban.slow.upload
-          if (0 < AnsiPos('ban.slow.upload', s.lastResponse)) then
+          if (0 < Pos('ban.slow.upload', s.lastResponse)) then
           begin
             // should setdown this crapsite because they should kick you from site when you get banned
             goto TryAgain;
@@ -764,7 +764,7 @@ begin
       450:
         begin
           //COMPLETE MSG: 450 No transfer-slave(s) available
-          if (0 < AnsiPos('No transfer-slave', s.lastResponse)) then
+          if (0 < Pos('No transfer-slave', s.lastResponse)) then
           begin
             // maybe disable site...but for now we just try again
             goto TryAgain;
@@ -780,7 +780,7 @@ begin
           end
           //COMPLETE MSG: 530 Make Directory Access denied - Due to Regexp configuration
           //COMPLETE MSG: 530 Access denied
-          else if (0 <> AnsiPos('Access denied', s.lastResponse)) then
+          else if (0 <> Pos('Access denied', s.lastResponse)) then
           begin
             failure := True;
           end
@@ -794,11 +794,11 @@ begin
 
       533:
         begin
-          if (0 <> AnsiPos('This file looks like a dupe!', s.lastResponse)) then
+          if (0 <> Pos('This file looks like a dupe!', s.lastResponse)) then
           begin
             failure := True;
           end;
-          if (0 <> AnsiPos('File name not allowed', s.lastResponse)) then
+          if (0 <> Pos('File name not allowed', s.lastResponse)) then
           begin
             if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
             begin
@@ -811,56 +811,56 @@ begin
       550:
         begin
           //Usage of 'if ... else if ... else' is needed for TPazoMkdirTask response error - without we don't create this announce
-          if (0 <> AnsiPos('File exists', s.lastResponse)) then
+          if (0 <> Pos('File exists', s.lastResponse)) then
           begin
             failure := False;
           end
-          else if (0 <> AnsiPos('already exists', s.lastResponse)) then
+          else if (0 <> Pos('already exists', s.lastResponse)) then
           begin
             failure := False;
           end
 
-          else if ((0 <> AnsiPos('it was last created at', s.lastResponse)) and (dir <> '')) then
+          else if ((0 <> Pos('it was last created at', s.lastResponse)) and (dir <> '')) then
           begin
             // to hopefully avoid loops with 550- Sample already exists in the dupelog, it was last created at 030116
             // also for Proofs, Covers, ...
             failure := True;
           end
 
-          else if (0 <> AnsiPos('Dupe detected', s.lastResponse)) then
+          else if (0 <> Pos('Dupe detected', s.lastResponse)) then
           begin
             failure := True;
           end
-          else if (0 <> AnsiPos('is already on site', s.lastResponse)) then
+          else if (0 <> Pos('is already on site', s.lastResponse)) then
           begin
             failure := True;
           end
-          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
-          begin
-            failure := True;
-          end
-
-
-          else if ((0 <> AnsiPos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
+          else if ((0 <> Pos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
           begin
             failure := True;
           end
 
 
-          else if ((0 <> AnsiPos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
+          else if ((0 <> Pos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
+          begin
+            failure := True;
+          end
+
+
+          else if ((0 <> Pos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
           begin
             //sectiondir removed/not accessible? Need to get more info
             Debug(dpError, c_section, 'TPazoMkdirTask 550 response: %s: %s --- dir: %s (%s) %s', [s.Name, s.lastResponse, dir, aktdir, ps1.maindir]);
             failure := True;
           end
 
-          else if (0 <> AnsiPos('No such file or directory', s.lastResponse)) then
+          else if (0 <> Pos('No such file or directory', s.lastResponse)) then
           begin
             // 550 No such file or directory.
             failure := True;
           end
 
-          else if (0 <> AnsiPos('Not allowed to make directories here', s.lastResponse)) then
+          else if (0 <> Pos('Not allowed to make directories here', s.lastResponse)) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
@@ -873,7 +873,7 @@ begin
           // 550 System Error- /incoming/games/pc/Lara.Croft.GO-R: Permission denied.
           // 550 System Error- /TV-BLURAY/Magnum.P.I.S01E11.720p.: Input/output error.
           // 550 System Error- /GAMES/Mass.Effect.Andromeda.Updat: No space left on device.
-          else if ( (0 <> AnsiPos('System Error', s.lastResponse)) and ( (0 <> AnsiPos('Read-only file system', s.lastResponse)) OR (0 <> AnsiPos('Permission denied', s.lastResponse)) OR (0 <> AnsiPos('Input/output error', s.lastResponse)) OR (0 <> AnsiPos('No space left', s.lastResponse)) )  ) then
+          else if ( (0 <> Pos('System Error', s.lastResponse)) and ( (0 <> Pos('Read-only file system', s.lastResponse)) OR (0 <> Pos('Permission denied', s.lastResponse)) OR (0 <> Pos('Input/output error', s.lastResponse)) OR (0 <> Pos('No space left', s.lastResponse)) )  ) then
           begin
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
             begin
@@ -886,17 +886,17 @@ begin
           end
 
           // 550- can't find package msgcat 1.6 while executing
-          else if (0 <> AnsiPos('t find package', s.lastResponse)) then
+          else if (0 <> Pos('t find package', s.lastResponse)) then
           begin
             // just a silly site error...
             failure := True;
           end
 
-          else if (0 <> AnsiPos('Denying creation of', s.lastResponse)) or (0 <> AnsiPos('BLOCKED:', s.lastResponse)) or (0 <> AnsiPos('Denied by dirscript', s.lastResponse)) then
+          else if (0 <> Pos('Denying creation of', s.lastResponse)) or (0 <> Pos('BLOCKED:', s.lastResponse)) or (0 <> Pos('Denied by dirscript', s.lastResponse)) then
           begin
             if config.ReadBool(c_section, 'autoruleadd', True) then
             begin
-              if (0 <> AnsiPos('releases are not accepted here', s.lastResponse)) or (0 <> AnsiPos('This group is BANNED', s.lastResponse)) then
+              if (0 <> Pos('releases are not accepted here', s.lastResponse)) or (0 <> Pos('This group is BANNED', s.lastResponse)) then
               begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
@@ -925,7 +925,7 @@ begin
 
       553:
         begin
-          if (0 <> AnsiPos('out of disk space', s.lastResponse)) then // 553 Error: out of disk space, contact the siteop!
+          if (0 <> Pos('out of disk space', s.lastResponse)) then // 553 Error: out of disk space, contact the siteop!
           begin
             s.site.SetOutofSpace;
             failure := True;
@@ -1253,7 +1253,7 @@ begin
         begin
 
           //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
-          if (0 < AnsiPos('Timeout', lastResponse)) then
+          if (0 < Pos('Timeout', lastResponse)) then
           begin
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
@@ -1265,7 +1265,7 @@ begin
         begin
           //COMPLETE MSG: 425 Can't open passive connection!
           //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
-          if (0 <> AnsiPos('t open passive connection', lastResponse)) then
+          if (0 <> Pos('t open passive connection', lastResponse)) then
           begin
             goto TryAgain;
           end;
@@ -1276,7 +1276,7 @@ begin
         begin
           //COMPLETE MSG: 426 Data connection: Broken pipe
           //COMPLETE MSG: 426 Data connection: Connection reset by peer.
-          if (0 <> AnsiPos('Data connection', lastResponse)) then
+          if (0 <> Pos('Data connection', lastResponse)) then
           begin
             goto TryAgain;
           end;
@@ -1287,7 +1287,7 @@ begin
         begin
           //COMPLETE MSG: 450 No transfer-slave(s) available
           //COMPLETE MSG: 530 No transfer-slave(s) available
-          if (0 <> AnsiPos('No transfer-slave(s) available', lastResponse)) then
+          if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
           begin
             // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
             // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
@@ -1299,12 +1299,12 @@ begin
 
       500:
         begin
-          if (0 <> AnsiPos('You need to use a client supporting PRET', lastResponse)) then
+          if (0 <> Pos('You need to use a client supporting PRET', lastResponse)) then
           begin
             ssrc.site.sw := sswDrftpd;
             ssrc.site.legacydirlist := True;
           end;
-          if ((RequireSSL) and (0 < AnsiPos('understood', lastResponse))) then
+          if ((RequireSSL) and (0 < Pos('understood', lastResponse))) then
           begin
             ssrc.site.sslfxp := srUnsupported;
           end;
@@ -1313,7 +1313,7 @@ begin
       550:
         begin
           //COMPLETE MSG: 550 Requested action not taken. File unavailable.
-          if (0 <> AnsiPos('Requested action not taken', lastResponse)) then
+          if (0 <> Pos('Requested action not taken', lastResponse)) then
           begin
             goto TryAgain;
           end;
@@ -1391,7 +1391,7 @@ begin
     case lastResponseCode of
       400:
         begin
-          if (0 < AnsiPos('SFVFile still transferring', lastResponse)) then
+          if (0 < Pos('SFVFile still transferring', lastResponse)) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
@@ -1403,7 +1403,7 @@ begin
       421:
         begin
           //COMPLETE MSG: 421 Connection closing
-          if (0 < AnsiPos('Connection closing', lastResponse)) then
+          if (0 < Pos('Connection closing', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             ssrc.Quit;
@@ -1414,7 +1414,7 @@ begin
 
       425:
         begin
-          if (0 < AnsiPos('Connection refused', lastResponse)) then
+          if (0 < Pos('Connection refused', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             ssrc.Quit;
@@ -1425,7 +1425,7 @@ begin
 
       426:
         begin
-          if (0 < AnsiPos('Broken pipe', lastResponse)) then
+          if (0 < Pos('Broken pipe', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             ssrc.Quit;
@@ -1436,14 +1436,14 @@ begin
 
       427, 530:
         begin
-          if ( (0 < AnsiPos('Use SSL FXP',lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse)) ) then
+          if ( (0 < Pos('Use SSL FXP',lastResponse)) or (0 < Pos('USE SECURE DATA CONNECTION', lastResponse)) ) then
           begin //427 .. Use SSL FXP                                    //530 .. USE SECURE DATA CONNECTION
             sdst.site.sslfxp := srNeeded;
             irc_AddINFO('[iNFO] SSLFXP Need for: ' + sdst.Name);
             goto TryAgain;
           end;
 
-          if (0 < AnsiPos('not allowed in this file name', lastResponse)) then
+          if (0 < Pos('not allowed in this file name', lastResponse)) then
           begin   //530 .. not allowed in this file name
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
@@ -1455,7 +1455,7 @@ begin
       435:
         begin
           //COMPLETE MSG: 435 Failed TLS negotiation on data channel (using SSL_accept()), disconnected
-          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          if (0 < Pos('Failed TLS negotiation', lastResponse)) then
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
@@ -1466,10 +1466,10 @@ begin
 
       450, 452, 533, 553:
         begin
-          if ( (0 < AnsiPos('out of disk space', lastResponse))
-            or (0 < AnsiPos('No space left on device', lastResponse))
-            or (0 < AnsiPos('Error writing file', lastResponse))
-            or (0 < AnsiPos('No transfer-slave(s) available', lastResponse)) ) then
+          if ( (0 < Pos('out of disk space', lastResponse))
+            or (0 < Pos('No space left on device', lastResponse))
+            or (0 < Pos('Error writing file', lastResponse))
+            or (0 < Pos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
             sdst.site.SetOutofSpace;
             if ssrc.site.SetDownOnOutOfSpace then
@@ -1483,14 +1483,14 @@ begin
           //COMPLETE MSG: 533 Requested action not taken. Multiple SFV files not allow(ed)? [guess DRFTPD]
           //              553 Multiple SFV files not allowed. [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
           //              553 Max sim UP per dir/sfv reached [GLFTPD] -- I guess it's from glftpd and maybe not the complete response
-          if ( (0 < AnsiPos('Multiple SFV files not allow', lastResponse)) OR (0 < AnsiPos('Max sim UP per dir/sfv reached', lastResponse)) ) then
+          if ( (0 < Pos('Multiple SFV files not allow', lastResponse)) OR (0 < Pos('Max sim UP per dir/sfv reached', lastResponse)) ) then
           begin
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
           end;
 
-          if (0 < AnsiPos('Upload denied by pre_check script', lastResponse)) then
+          if (0 < Pos('Upload denied by pre_check script', lastResponse)) then
           begin     //553 .. Upload denied by pre_check script
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
@@ -1509,7 +1509,7 @@ begin
           end;
 
           // sdst.lastResponseCode for all is 533
-          if ( (0 < AnsiPos('You must upload sfv first', lastResponse)) OR (0 < AnsiPos('does not exist in the sfv', lastResponse)) OR (0 < AnsiPos('File not found in sfv', lastResponse)) ) then
+          if ( (0 < Pos('You must upload sfv first', lastResponse)) OR (0 < Pos('does not exist in the sfv', lastResponse)) OR (0 < Pos('File not found in sfv', lastResponse)) ) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
@@ -1521,7 +1521,7 @@ begin
 
       500, 550:
         begin
-          if (0 < AnsiPos('No such directory', lastResponse)) then
+          if (0 < Pos('No such directory', lastResponse)) then
           begin   //550 .. No such directory
             irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, lastResponse]));
 
@@ -1548,7 +1548,7 @@ begin
         begin
 
           //COMPLETE MSG: 503 Bad sequence of commands.
-          if (0 < AnsiPos('Bad sequence of commands', lastResponse)) then
+          if (0 < Pos('Bad sequence of commands', lastResponse)) then
           begin
             // something went wrong while sending commands, try again should solve it
             irc_Adderror(sdst.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
@@ -1608,7 +1608,7 @@ begin
       421:
         begin
           //COMPLETE MSG: 421 Timeout (10 second .... ?
-          if (0 < AnsiPos('Timeout', lastResponse)) then
+          if (0 < Pos('Timeout', lastResponse)) then
           begin
             //try again or just exit, because timeout -> bad routing, offline?
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1620,7 +1620,7 @@ begin
         begin
           //COMPLETE MSG: 425 Can't open data connection.
           //COMPLETE MSG: 426 Read timed out
-          if ( (0 < AnsiPos('t open data connection', lastResponse)) or (0 < AnsiPos('Read timed out', lastResponse)) ) then
+          if ( (0 < Pos('t open data connection', lastResponse)) or (0 < Pos('Read timed out', lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
@@ -1634,7 +1634,7 @@ begin
 
 
           //COMPLETE MSG: 425 Transfers to 3rd party addresses are not supported.
-          if ( 0 < AnsiPos('addresses are not supported', lastResponse) ) then
+          if ( 0 < Pos('addresses are not supported', lastResponse) ) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
@@ -1652,7 +1652,7 @@ begin
 
       427, 530:
         begin
-          if ((0 < AnsiPos('Use SSL FXP', lastResponse)) or (0 < AnsiPos('USE SECURE DATA CONNECTION', lastResponse))) then
+          if ((0 < Pos('Use SSL FXP', lastResponse)) or (0 < Pos('USE SECURE DATA CONNECTION', lastResponse))) then
           begin   //427 .. Use SSL FXP                               //530 .. USE SECURE DATA CONNECTION
             ssrc.site.sslfxp := srNeeded;
             // must do one read on destination
@@ -1670,7 +1670,7 @@ begin
           end;
 
           //COMPLETE MSG: 530 Access denied
-          if (0 < AnsiPos('Access denied', lastResponse)) then
+          if (0 < Pos('Access denied', lastResponse)) then
           begin
             // not sure what happend, maybe try again or disable site because downloading (fxping) is not allowed?
             irc_Adderror(ssrc.todotask, '<c4>[ERROR] Access denied</c> %s', [tname]);
@@ -1684,7 +1684,7 @@ begin
         begin
 
           //COMPLETE MSG: 503 Bad sequence of commands.
-          if (0 < AnsiPos('Bad sequence of commands', lastResponse)) then
+          if (0 < Pos('Bad sequence of commands', lastResponse)) then
           begin
             // something went wrong while sending commands, try again should solve it
             irc_Adderror(ssrc.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
@@ -1697,7 +1697,7 @@ begin
       550, 553:
         begin
           //COMPLETE MSG: 550 Insufficient credits.
-          if (0 < AnsiPos('credit', LowerCase(lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
+          if (0 < Pos('credit', LowerCase(lastResponse))) then //Find out complete response and maybe remove the lowercase | add longer text to match with
           begin
             // TODO: Modificate 'procedure TSite.SetKredits;' to write a value to config with old max_dl_slots
             // and if credits > 10gb remove this value and set used max_dl_slots back to old saved value
@@ -1711,7 +1711,7 @@ begin
             exit;
           end;
 
-          if (0 < AnsiPos('Taglines Enforced', lastResponse)) then
+          if (0 < Pos('Taglines Enforced', lastResponse)) then
           begin
             if not ssrc.Send('SITE TAGLINE %s', ['SLFTP.4tw']) then
               goto TryAgain;
@@ -1722,7 +1722,7 @@ begin
           end;
 
           //COMPLETE MSG: 553 Permission Denied: not allowed to download from this directory!
-          if ((0 < AnsiPos('Permission denied', lastResponse)) or (0 < AnsiPos('Permission Denied', lastResponse))) then
+          if ((0 < Pos('Permission denied', lastResponse)) or (0 < Pos('Permission Denied', lastResponse))) then
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
@@ -1736,7 +1736,7 @@ begin
 
 
           //COMPLETE MSG: 550 Permission Denied: 300.0GB bandwidth usage detected. Current Ratio:(0.46/0.5).
-          if (0 < AnsiPos('bandwidth usage detected', lastResponse)) then
+          if (0 < Pos('bandwidth usage detected', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
@@ -1751,7 +1751,7 @@ begin
 
 
           //COMPLETE MSG: 550 You have downloaded the same file too often. Please check your AUTO retry setti ... ?
-          if (0 < AnsiPos('downloaded the same file too often', lastResponse)) then
+          if (0 < Pos('downloaded the same file too often', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] You have downloaded the same file too often</c> %s', [tname]);
@@ -1766,7 +1766,7 @@ begin
 
           //COMPLETE MSG: 550 Your have reached your maximum of 4 simultaneous downloads. Transfer denied. [DRFTPD]
           //              553 You have reached your maximum simultaneous downloads allowed. [GLFTPD]
-          if ( (0 < AnsiPos('You have reached your maximum simultaneous downloads allowed', lastResponse)) or (0 < AnsiPos('Your have reached your maximum of', lastResponse)) ) then
+          if ( (0 < Pos('You have reached your maximum simultaneous downloads allowed', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
@@ -1785,13 +1785,13 @@ begin
 
     if (
       ( (lastResponseCode = 550) AND (
-        (0 < AnsiPos('No such file or directory', lastResponse)) or (0 < AnsiPos('Unable to load your own user file', lastResponse)) or
-        (0 < AnsiPos('File not found', lastResponse)) or (0 < AnsiPos('File unavailable', lastResponse)) ) )
+        (0 < Pos('No such file or directory', lastResponse)) or (0 < Pos('Unable to load your own user file', lastResponse)) or
+        (0 < Pos('File not found', lastResponse)) or (0 < Pos('File unavailable', lastResponse)) ) )
       OR
       ( (lastResponseCode = 426) AND (
-        (0 < AnsiPos('File has been deleted on the master', lastResponse)) or (0 < AnsiPos('is being deleted', lastResponse)) or
-        (0 < AnsiPos('found in any root', lastResponse)) or (0 < AnsiPos('Transfer was aborted', lastResponse)) or
-        (0 < AnsiPos('Slave is offline', lastResponse)) ) )
+        (0 < Pos('File has been deleted on the master', lastResponse)) or (0 < Pos('is being deleted', lastResponse)) or
+        (0 < Pos('found in any root', lastResponse)) or (0 < Pos('Transfer was aborted', lastResponse)) or
+        (0 < Pos('Slave is offline', lastResponse)) ) )
     ) then
     begin
       if spamcfg.readbool(c_section, 'No_such_file_or_directory', True) then
@@ -1880,7 +1880,7 @@ begin
         begin
 
           //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
-          if (0 < AnsiPos('Timeout', lastResponse)) then
+          if (0 < Pos('Timeout', lastResponse)) then
           begin
             //try again or just exit, because timeout -> bad routing, offline?
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1894,7 +1894,7 @@ begin
       begin
 
         //COMPLETE MSG: 426 Sendfile error: Broken pipe.
-        if (0 < AnsiPos('Sendfile error', lastResponse)) then
+        if (0 < Pos('Sendfile error', lastResponse)) then
         begin
           //try again
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1903,7 +1903,7 @@ begin
 
         //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
         //              426 Transfer was aborted - File has been deleted on the master
-        if (0 < AnsiPos('File has been deleted on the master', lastResponse)) then
+        if (0 < Pos('File has been deleted on the master', lastResponse)) then
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1915,7 +1915,7 @@ begin
         //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section 0DAY, at least 1000B/s required.
         //              426- Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
         //              426 Transfer was aborted - Slow transfer: 0B/s too slow for section 0DAY
-        if (0 < AnsiPos('Slow transfer', lastResponse)) then
+        if (0 < Pos('Slow transfer', lastResponse)) then
         begin
           //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1929,7 +1929,7 @@ begin
         begin
 
           //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (5) error:00000000:lib(0):func(0):reason(0)), disconnected
-          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          if (0 < Pos('Failed TLS negotiation', lastResponse)) then
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
@@ -1943,7 +1943,7 @@ begin
       500:
         begin
           //COMPLETE MSG: 500 No text
-          if (0 < AnsiPos('No text', lastResponse)) then
+          if (0 < Pos('No text', lastResponse)) then
           begin
             //try again and hopefully it'll work then.
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1954,7 +1954,7 @@ begin
 
       522:
         begin
-          if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
+          if (0 < Pos('You have to turn on secure data connection', lastResponse)) then
           begin
             ssrc.site.sslfxp := srNeeded;
             if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
@@ -1968,7 +1968,7 @@ begin
       550:
         begin
           //COMPLETE MSG: 550 ASSERT: (0) in file sigfix.c line 81 inside function delay_signaling
-          if (0 < AnsiPos('ASSERT', lastResponse)) then
+          if (0 < Pos('ASSERT', lastResponse)) then
           begin
             //try again (maybe will help) or setdown site - some ftpd problem..
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1979,7 +1979,7 @@ begin
       551:
         begin
           //COMPLETE MSG: 551 Error on input file: Input/output error.
-          if (0 < AnsiPos('Error on input', lastResponse)) then
+          if (0 < Pos('Error on input', lastResponse)) then
           begin
             //try again (maybe will help) or setdown site - some ftpd problem..
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2015,7 +2015,7 @@ begin
       begin
 
         //COMPLETE MSG: 421 Timeout (60 seconds): closing control connection.
-        if (0 < AnsiPos('Timeout', lastResponse)) then
+        if (0 < Pos('Timeout', lastResponse)) then
         begin
           //try again or just exit, because timeout -> bad routing, offline?
           irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2028,7 +2028,7 @@ begin
       425:
         begin
           //COMPLETE MSG: 425 Can't build data connection
-          if (0 < AnsiPos('t build data connection', lastResponse)) then
+          if (0 < Pos('t build data connection', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
@@ -2046,7 +2046,7 @@ begin
         begin
 
           //COMPLETE MSG: 426- Slow transfer: 0B/s too slow for section GAMES, at leas
-          if (0 < AnsiPos('Slow transfer', lastResponse)) then
+          if (0 < Pos('Slow transfer', lastResponse)) then
           begin
             //try again, maybe lower routing from srcsite to dstsite
 
@@ -2058,7 +2058,7 @@ begin
 
           //COMPLETE MSG: 426- Read timed out
           //              426 Transfer failed, deleting file
-          if (0 < AnsiPos('Read timed out', lastResponse)) then
+          if (0 < Pos('Read timed out', lastResponse)) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2068,7 +2068,7 @@ begin
           //COMPLETE MSG: 426- Socket closed
           //              426 Transfer failed, deleting file
           //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s
-          if (0 < AnsiPos('Socket closed', lastResponse)) then
+          if (0 < Pos('Socket closed', lastResponse)) then
           begin
             //try again, maybe lower routing if happens again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2081,7 +2081,7 @@ begin
       427:
         begin
           //COMPLETE MSG: 427 Use SSL FXP!
-          if (0 < AnsiPos('Use SSL FXP', lastResponse)) then
+          if (0 < Pos('Use SSL FXP', lastResponse)) then
           begin
             sdst.site.sslfxp := srNeeded;
             // must do one read on source
@@ -2106,7 +2106,7 @@ begin
           //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:1408A0C1:SSL routines:SSL3_GET_CLIENT_HELLO:no shared cipher), disconnected
           //COMPLETE MSG: 435 Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines:SSL23_GET_CLIENT_HELLO:unknown protocol), disconnected
           //COMPLETE MSG: 435 Failed TLS negotiation on data channel, disconnected: No such file or directory.
-          if (0 < AnsiPos('Failed TLS negotiation', lastResponse)) then
+          if (0 < Pos('Failed TLS negotiation', lastResponse)) then
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
@@ -2121,7 +2121,7 @@ begin
       450:
         begin
           //COMPLETE MSG: 450 net.sf.drftpd.NoAvailableSlaveException: Requested Transfer Unavailable
-          if (0 < AnsiPos('Requested Transfer Unavailable', lastResponse)) then
+          if (0 < Pos('Requested Transfer Unavailable', lastResponse)) then
           begin
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
@@ -2133,7 +2133,7 @@ begin
       452:
         begin
           //COMPLETE MSG: 452 Error writing file: Success.
-          if (0 < AnsiPos('Error writing file', lastResponse)) then
+          if (0 < Pos('Error writing file', lastResponse)) then
           begin
             sdst.site.SetOutofSpace;
             if ssrc.site.SetDownOnOutOfSpace then
@@ -2149,7 +2149,7 @@ begin
       500:
         begin
           //COMPLETE MSG: 500 Unsupported command during transfer.
-          if (0 < AnsiPos('Unsupported command during transfer', lastResponse)) then
+          if (0 < Pos('Unsupported command during transfer', lastResponse)) then
           begin
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
@@ -2159,7 +2159,7 @@ begin
 
       522:
         begin
-          if (0 < AnsiPos('You have to turn on secure data connection', lastResponse)) then
+          if (0 < Pos('You have to turn on secure data connection', lastResponse)) then
           begin
             sdst.site.sslfxp := srNeeded;
             if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
@@ -2173,7 +2173,7 @@ begin
       550:
         begin
           //COMPLETE MSG: 550 Requested action not taken. File exists.
-          if (0 < AnsiPos('File exists', lastResponse)) then
+          if (0 < Pos('File exists', lastResponse)) then
           begin
             ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
             ready := True;
@@ -2186,7 +2186,7 @@ begin
       553:
         begin
           //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
-          if (0 < AnsiPos('X-DUPE', lastResponse)) then
+          if (0 < Pos('X-DUPE', lastResponse)) then
           begin
             ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
             ready := True;
@@ -2226,21 +2226,21 @@ begin
 
   //this is a very fucked-up case, we'll try again.
   if ( (mainpazo.rls <> nil) and (FileSendByMe) and
-    ( (0 < AnsiPos('CRC-Check: SFV first', sdst.lastResponse)) or
-    (0 < AnsiPos('CRC-Check: BAD!', sdst.lastResponse)) or
-    (0 < AnsiPos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
-    (0 < AnsiPos('0byte-file: Not allowed', sdst.lastResponse)) ) ) then
+    ( (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) or
+    (0 < Pos('CRC-Check: BAD!', sdst.lastResponse)) or
+    (0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
+    (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)) ) ) then
   begin
     brokentransfer:
     Debug(dpSpam, c_section, 'Broken transfer event!');
     DontRemoveOtherSources := True;
 
-    if (0 < AnsiPos('CRC-Check: SFV first', sdst.lastResponse)) then
+    if (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) then
     begin
       DontRemoveOtherSources := False;
     end;
 
-    if 0 < AnsiPos('CRC-Check: BAD!', sdst.lastResponse) then
+    if 0 < Pos('CRC-Check: BAD!', sdst.lastResponse) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
@@ -2249,7 +2249,7 @@ begin
       Inc(ps2.badcrcevents);
     end;
 
-    if 0 < AnsiPos('CRC-Check: Not in sfv!', sdst.lastResponse) then
+    if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin

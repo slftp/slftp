@@ -9,33 +9,33 @@ type
   private
     dirmask: TObjectList;
     filemask: TObjectList;
-    function Dirmatches(dirname: String): boolean;
+    function Dirmatches(const dirname: String): boolean;
   public
-    function MatchFile(filename: String): integer;
-    function Match(dirname, filename: String): boolean;
-    constructor Create(dms, fms: String);
+    function MatchFile(const filename: String): integer;
+    function Match(const dirname, filename: String): boolean;
+    constructor Create(const dms, fms: String);
     destructor Destroy; override;
   end;
 
   TSkipList = class
   private
-    mask:TslMask;
+    mask: TslMask;
     allowedfiles: TObjectList;
     alloweddirs: TObjectList;
-    function FindDirFilterB(list: TObjectList; dirname: String): TSkiplistFilter;
+    function FindDirFilterB(list: TObjectList; const dirname: String): TSkiplistFilter;
   public
     sectionname: String;
     dirdepth: integer;
-    constructor Create(sectionname: String);
+    constructor Create(const sectionname: String);
     destructor Destroy; override;
 
-    function FindFileFilter(dirname: String): TSkiplistFilter;
-    function FindDirFilter(dirname: String): TSkiplistFilter;
-    function AllowedFile(dirname, filename: String): TSkipListFilter;
-    function AllowedDir(dirname, filename: String): TSkipListFilter;
+    function FindFileFilter(const dirname: String): TSkiplistFilter;
+    function FindDirFilter(const dirname: String): TSkiplistFilter;
+    function AllowedFile(const dirname, filename: String): TSkipListFilter;
+    function AllowedDir(const dirname, filename: String): TSkipListFilter;
   end;
 
-function FindSkipList(section: String): TSkipList;
+function FindSkipList(const section: String): TSkipList;
 procedure SkiplistStart;
 procedure SkiplistsInit;
 procedure SkiplistsUninit;
@@ -154,7 +154,7 @@ end;
 
 { TSkipList }
 
-function TSkipList.AllowedDir(dirname, filename: String): TSkipListFilter;
+function TSkipList.AllowedDir(const dirname, filename: String): TSkipListFilter;
 var
   j: integer;
   sf: TSkipListFilter;
@@ -175,7 +175,7 @@ begin
   end;
 end;
 
-function TSkipList.AllowedFile(dirname, filename: String): TSkipListFilter;
+function TSkipList.AllowedFile(const dirname, filename: String): TSkipListFilter;
 var
   j: integer;
   sf: TSkipListFilter;
@@ -196,13 +196,13 @@ begin
   end;
 end;
 
-constructor TSkipList.Create(sectionname: String);
+constructor TSkipList.Create(const sectionname: String);
 begin
   allowedfiles := TObjectList.Create;
   alloweddirs := TObjectList.Create;
   self.sectionname := UpperCase(sectionname);
   dirdepth := 1;
-  mask:=TslMask.Create(sectionname);
+  mask := TslMask.Create(sectionname);
 end;
 
 destructor TSkipList.Destroy;
@@ -213,7 +213,7 @@ begin
   inherited;
 end;
 
-function TSkipList.FindDirFilterB(list: TObjectList; dirname: String): TSkiplistFilter;
+function TSkipList.FindDirFilterB(list: TObjectList; const dirname: String): TSkiplistFilter;
 var
   i: integer;
   sf: TSkiplistFilter;
@@ -234,19 +234,19 @@ begin
   end;
 end;
 
-function TSkipList.FindDirFilter(dirname: String): TSkiplistFilter;
+function TSkipList.FindDirFilter(const dirname: String): TSkiplistFilter;
 begin
   Result := FindDirFilterB(alloweddirs, dirname);
 end;
 
-function TSkipList.FindFileFilter(dirname: String): TSkiplistFilter;
+function TSkipList.FindFileFilter(const dirname: String): TSkiplistFilter;
 begin
   Result := FindDirFilterB(allowedfiles, dirname);
 end;
 
 { TSkipListFilter }
 
-constructor TSkipListFilter.Create(dms, fms: String);
+constructor TSkipListFilter.Create(const dms, fms: String);
 var
   fm: String;
   dc, fc: integer;
@@ -290,7 +290,7 @@ begin
   inherited;
 end;
 
-function TSkiplistFilter.Dirmatches(dirname: String): boolean;
+function TSkiplistFilter.Dirmatches(const dirname: String): boolean;
 var
   i: integer;
 begin
@@ -307,7 +307,7 @@ begin
   end;
 end;
 
-function TSkipListFilter.Match(dirname, filename: String): boolean;
+function TSkipListFilter.Match(const dirname, filename: String): boolean;
 var
   i: integer;
 begin
@@ -325,7 +325,7 @@ begin
   end;
 end;
 
-function FindSkipList(section: String): TSkipList;
+function FindSkipList(const section: String): TSkipList;
 var
   i: integer;
   s: TSkipList;
@@ -333,7 +333,7 @@ begin
   Result := nil;
 
   // Check if section starts with a slash (for compatiblity with !transfer using absolute paths)
-  if ((1 = AnsiPos('/', section)) or (length(section) = LastDelimiter('/', section))) then
+  if ((1 = Pos('/', section)) or (length(section) = LastDelimiter('/', section))) then
   begin
     Result := skiplist[0] as TSkipList;
   end;
@@ -367,7 +367,7 @@ begin
   end;
 end;
 
-function TSkipListFilter.MatchFile(filename: String): integer;
+function TSkipListFilter.MatchFile(const filename: String): integer;
 var
   i: integer;
 begin
