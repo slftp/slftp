@@ -143,7 +143,7 @@ begin
         Continue;
       end;
 
-      if (AnsiStartsStr('pretime', x.Strings[i]) or (x.Strings[i] = 'pretime-*')) then
+      if (StartsStr('pretime', x.Strings[i]) or (x.Strings[i] = 'pretime-*')) then
       begin
         if s.RCInteger(x.Strings[i], 120) > 60 then
         begin
@@ -886,7 +886,7 @@ begin
     exit;
   end;
 
-  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (AnsiPos('ARCH-', section) = 0) then
+  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (Pos('ARCH-', section) = 0) then
   begin
     if (kb_sections.IndexOf(section) = -1) and (dir <> '') then
     begin
@@ -1641,13 +1641,13 @@ begin
   begin
     response := TSiteResponse(tn.responses[i]).response;
 
-    if ((0 <> AnsiPos('You do not have access', response)) or (0 <> AnsiPos('Access denied', response))) then
+    if ((0 <> Pos('You do not have access', response)) or (0 <> Pos('Access denied', response))) then
     begin
       irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: You do not have access to this command.');
       break;
     end;
 
-    if (0 <> AnsiPos('does not exist', response)) then
+    if (0 <> Pos('does not exist', response)) then
     begin
       irc_addtext(Netname, Channel, Format('<c4><b>ERROR</c></b>: User %s does not exist.', [username]));
       break;
@@ -1974,7 +1974,7 @@ var
         {$ENDIF}
         c := strtofloat(ss);
         ss := x.Match[3];
-        if AnsiUpperCase(ss) = 'MB' then
+        if UpperCase(ss) = 'MB' then
         begin
           RecalcSizeValueAndUnit(c, ss, 2);
         end;
@@ -2032,7 +2032,7 @@ var
 
 begin
   Result := False;
-  sitename := AnsiUpperCase(SubString(params, ' ', 1));
+  sitename := UpperCase(SubString(params, ' ', 1));
 
   if sitename = '*' then
   begin

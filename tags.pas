@@ -77,7 +77,7 @@ var
 begin
   Result := 0;
 
-  i := AnsiPos(AnsiUpperCase('% complete'), AnsiUpperCase(filename));
+  i := Pos(UpperCase('% complete'), UpperCase(filename));
   if i > 4 then
   begin
     voltszam := False;
