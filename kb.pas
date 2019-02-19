@@ -247,12 +247,10 @@ type
     destructor Destroy; override;
   end;
 
-  //procedure kb_Pretime(sitename, section, rls: string; age: Integer);
-
-  //function kb_pretime(rlsname:string):TDateTime;
-
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
-function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_FindRelease(const rls: String): String;
 
 function FindSectionHandler(const section: String): TCRelease;
 
@@ -1059,7 +1057,7 @@ begin
     irc_SendROUTEINFOS(ss);
   end;
 
-  if (psource.Status = rssNotAllowed) then
+  if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
     psource.Status := rssNotAllowedButItsThere;
   end;
@@ -1167,6 +1165,22 @@ begin
 
   QueueFire;
 end;
+
+function kb_FindRelease(const rls: String): String;
+var
+  index: integer;
+begin
+  Result := '';
+  for index := 0 to kb_list.Count-1 do
+  begin
+    if AnsiContainsText(kb_list[index], rls) then
+    begin
+      Result := kb_list[index];
+      break;
+    end;
+  end;
+end;
+
 
 { TRelease }
 
