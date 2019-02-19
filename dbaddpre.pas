@@ -357,25 +357,43 @@ function dbaddpre_ADDPRE(const netname, channel, nickname: String; const params:
 var
   rls: String;
   rls_section: String;
+  kb_entry: String;
+  p: Integer;
 begin
   rls := '';
   rls := SubString(params, ' ', 1);
-  rls_section := '';
-  rls_section := UpperCase(SubString(params, ' ', 2));
-  if ((rls <> '') and (rls_section <> '') and (length(rls) > minimum_rlsname)) then
+  if ((rls <> '')  and (length(rls) > minimum_rlsname)) then
   begin
 
     if dbaddpre_mode <> apmNone then
-      dbaddpre_InsertRlz(rls, rls_section, netname + '-' + channel + '-' + nickname);
+      dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
 
-    if (event = 'ADDPRE') and (kbadd_addpre) then
-    begin
-      kb_Add_addpre(rls, rls_section, event);
-    end;
-    if (event = 'SITEPRE') and (kbadd_sitepre) then
-    begin
-      kb_Add_addpre(rls, rls_section, event);
-    end;
+      if ((event = 'ADDPRE') and (kbadd_addpre)) or (event = 'SITEPRE') and (kbadd_sitepre) then
+      begin
+
+        // TODO:
+        // Add kb function to lookup all existing section-releases combos for this release
+        // and loop over the results with the following event.
+
+
+        // kb.kb_lock.Enter;
+        // try
+          kb_entry := kb_FindRelease('-' + rls);
+        // finally
+        //  kb.kb_lock.Leave;
+        // end;
+
+        if kb_entry <> '' then
+        begin
+          p := Pos('-', kb_entry);
+          rls_section := Copy(kb_entry, 1, P-1);
+          if rls_section <> '' then
+          Debug(dpError, section, Format('[DEBUG] Sending addpre event to kb for section: %s release: %s', [rls_section, rls]));
+          kb_Add_addpre(rls, rls_section, event);
+        end;
+
+      end;
+
   end;
 
   Result := True;
