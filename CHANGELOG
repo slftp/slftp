@@ -61,6 +61,8 @@
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2.3 Tokyo or newer - ON WINDOWS! **
   ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
   
+    {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
+    {#} Addpre event received after a NEWDIR will now correctly update kb with the pretime and recalc routes
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
     {+} New HTTP Library (up to 50% faster) with Socks5 support
