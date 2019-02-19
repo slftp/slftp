@@ -388,8 +388,7 @@ begin
           p := Pos('-', kb_entry);
           rls_section := Copy(kb_entry, 1, P-1);
           if rls_section <> '' then
-          Debug(dpError, section, Format('[DEBUG] Sending addpre event to kb for section: %s release: %s', [rls_section, rls]));
-          kb_Add_addpre(rls, rls_section, event);
+            kb_Add_addpre(rls, rls_section, event);
         end;
 
       end;
