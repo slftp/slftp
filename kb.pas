@@ -1057,7 +1057,7 @@ begin
     irc_SendROUTEINFOS(ss);
   end;
 
-  if (psource.Status = rssNotAllowed) then
+  if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
     psource.Status := rssNotAllowedButItsThere;
   end;
