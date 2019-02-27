@@ -3,6 +3,7 @@ SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
 CINCLUDES = -Fuirccommands -Fulibs/FastMM4 -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/DFFLibV15_UIntList -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/ZeosLib/*
+CTESTINCLUDES = -Futests/* -Futests/DUnit2 -Futests/DUnit2/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gs -gw3
 # flag for heaptrace output
 # see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
@@ -66,6 +67,12 @@ slftp_debug_valgrind:
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
 	$(call revpatchrevert)
 
+test:
+	@make cleanuptestdir
+	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
+	./tests/slftpUnitTests
+	@make cleanuptestdir
+
 clean:
 	@rm -f irccommands/*.ppu irccommands/*.o
 	@rm -f libs/FastMM4/*.ppu libs/FastMM4/*.o
@@ -81,6 +88,12 @@ clean:
 	@rm -f libs/mORMot/*.ppu libs/mORMot/*.o libs/mORMot/CrossPlatform/*.ppu libs/mORMot/CrossPlatform/*.o libs/mORMot/SQLite3/*.ppu libs/mORMot/SQLite3/*.o libs/mORMot/SynDBDataset/*.ppu libs/mORMot/SynDBDataset/*.o
 	@rm -f libs/ZeosLib/core/*.ppu libs/ZeosLib/core/*.o libs/ZeosLib/dbc/*.ppu libs/ZeosLib/dbc/*.o libs/ZeosLib/plain/*.ppu libs/ZeosLib/plain/*.o
 	@rm -f *.ppu *.o slftp *.exe
+	@make cleanuptestdir
+
+cleanuptestdir:
+	@find tests -name "*.ppu" -type f -delete
+	@find tests -name "*.o" -type f -delete
+	@rm -f tests/*.ppu tests/*.o tests/slftpUnitTests tests/*.exe
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
