@@ -157,6 +157,7 @@ const
   {$IF NOT DECLARED(SecsPerHour)}
   SecsPerHour = SecsPerMin * MinsPerHour;
   {$IFEND}
+  FirstStringIndex = {$IFDEF ZERO_BASED_STRINGS}0{$ELSE}1{$ENDIF}; //Str[i] fe.
 
 type
   PZCharRec = ^TZCharRec;
@@ -533,6 +534,7 @@ const
   EmptyRaw = {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}nil{$ELSE}RawByteString(''){$ENDIF};
 var
   ZOSCodePage: Word;
+  ZOSCodePageMaxCharSize: Word;
 
 implementation
 
