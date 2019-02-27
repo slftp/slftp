@@ -61,8 +61,6 @@
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2.3 Tokyo or newer - ON WINDOWS! **
   ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
   
-    {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
-    {#} Addpre event received after a NEWDIR will now correctly update kb with the pretime and recalc routes
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
     {+} New HTTP Library (up to 50% faster) with Socks5 support
@@ -94,6 +92,8 @@
     {#} Wrong mp3genre detected on IRC announce (#114)
     {#} !raw command timeout/error handling (#225)
     {#} !slots command didn't supported showing of siteslots for all sites (#230)
+    {#} Addpre event received after a NEWDIR will now correctly update kb with the pretime and recalc routes
+    {#} Converting error in TVMaze lookup if webChannel exists but Country was null (#233)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -108,6 +108,7 @@
     {^} taskdirlist shows sitename on 'can not dirlist' announce (#227)
     {^} !indexquery search count is selectable (#188)
     {^} Skip lookup of extra infos for skipped groups (#218)
+    {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
