@@ -523,6 +523,15 @@ begin
   if Assigned(MySQLCon) then
     MySQLCon.Free;
 
+  try
+    IdSSLOpenSSLHeaders.Unload;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] Unexpected error while unloading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
+    end;
+  end;
+
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
 end;
