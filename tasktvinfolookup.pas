@@ -128,14 +128,21 @@ begin
           if hadCountry then
           begin
             if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
-              tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+            begin
+              if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
+                tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+            end;
+
             if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
-              tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+            begin
+              if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
+                tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+            end;
 
             if tv_country = 'GB' then
               tv_country := 'UK';
 
-            if UpperCase(tv_country) = uppercase(country) then
+            if UpperCase(tv_country) = UpperCase(country) then
             begin
               if not fromIRC then
               begin
