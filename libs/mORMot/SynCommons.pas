@@ -117,9 +117,15 @@ const
   /// a text including the version and the main active conditional options
   // - usefull for low-level debugging purpose
   SYNOPSE_FRAMEWORK_FULLVERSION  = SYNOPSE_FRAMEWORK_VERSION
-    {$ifndef FPC}
+    {$ifdef FPC}
+      {$ifdef FPC_FASTMM4}+' FMM4'{$else}
+        {$ifdef FPC_SYNTBB}+' TBB'{$else}
+          {$ifdef FPC_SYNJEMALLOC}+' JM'{$else}
+            {$ifdef FPC_SYNCMEM}+' GM'{$else}
+              {$ifdef FPC_CMEM}+' CM'{$endif}{$endif}{$endif}{$endif}{$endif}
+    {$else}
       {$ifdef LVCL}+' LVCL'{$else}
-      {$ifdef ENHANCEDRTL}+' ERTL'{$endif}{$endif}
+        {$ifdef ENHANCEDRTL}+' ERTL'{$endif}{$endif}
       {$ifdef DOPATCHTRTL}+' PRTL'{$endif}
       {$ifdef FullDebugMode}+' FDM'{$endif}
     {$endif FPC};
@@ -720,9 +726,10 @@ type
     procedure UTF8BufferToAnsi(Source: PUTF8Char; SourceChars: Cardinal;
       var result: RawByteString); override;
     /// convert any UTF-8 encoded String into Ansi Text
-    // - internaly calls UTF8BufferToAnsi virtual method
+    // - directly assign the input as result, since no conversion is needed
     function UTF8ToAnsi(const UTF8: RawUTF8): RawByteString; override;
     /// convert any Ansi Text into an UTF-8 encoded String
+    // - directly assign the input as result, since no conversion is needed
     function AnsiToUTF8(const AnsiText: RawByteString): RawUTF8; override;
     /// direct conversion of a PAnsiChar buffer into a UTF-8 encoded string
     function AnsiBufferToRawUTF8(Source: PAnsiChar; SourceChars: Cardinal): RawUTF8; override;
@@ -956,6 +963,11 @@ procedure FastSetString(var s: RawUTF8; p: pointer; len: PtrInt);
 /// equivalence to SetString(s,nil,len) function with a specific code page
 // - faster especially under FPC
 procedure FastSetStringCP(var s; p: pointer; len, codepage: PtrInt);
+
+/// initialize a RawByteString, ensuring returned "aligned" pointer is 16-bytes aligned
+// - to be used e.g. for proper SSE process
+procedure GetMemAligned(var s: RawByteString; p: pointer; len: PtrInt;
+  out aligned: pointer);
 
 /// equivalence to @UTF8[1] expression to ensure a RawUTF8 variable is unique
 // - will ensure that the string refcount is 1, and return a pointer to the text
@@ -1229,8 +1241,7 @@ function RawUnicodeToUtf8(WideChar: PWideChar; WideCharCount: integer;
 /// convert a RawUnicode UTF-16 PWideChar into a UTF-8 buffer
 // - replace system.UnicodeToUtf8 implementation, which is rather slow
 // since Delphi 2009+
-// - will append a trailing #0 to the ending PUTF8Char, unless
-// ccfNoTrailingZero is set
+// - append a trailing #0 to the ending PUTF8Char, unless ccfNoTrailingZero is set
 // - if ccfReplacementCharacterForUnmatchedSurrogate is set, this function will identify
 // unmatched surrogate pairs and replace them with EF BF BD / FFFD  Unicode
 // Replacement character - see https://en.wikipedia.org/wiki/Specials_(Unicode_block)
@@ -1808,7 +1819,10 @@ var CompareMemFixed: function(P1, P2: Pointer; Length: PtrInt): Boolean = Compar
 function CompareMemSmall(P1, P2: Pointer; Length: PtrInt): Boolean; {$ifdef HASINLINE}inline;{$endif}
 
 /// convert an IPv4 'x.x.x.x' text into its 32-bit value
-function IPToCardinal(const aIP: RawUTF8; out aValue: cardinal): boolean;
+function IPToCardinal(const aIP: RawUTF8; out aValue: cardinal): boolean; overload;
+
+/// convert an IPv4 'x.x.x.x' text into its 32-bit value, 0 or localhost
+function IPToCardinal(const aIP: RawUTF8): cardinal; overload;
 
 /// convert some ASCII-7 text into binary, using Emile Baudot code
 // - as used in telegraphs, covering a-z 0-9 - ' , ! : ( + ) $ ? @ . / ; charset
@@ -1980,6 +1994,14 @@ function SameValue(const A, B: Double; DoublePrec: double = 1E-12): Boolean;
 // - faster equivalent than SameValue() in Math unit
 // - if you know the precision range of A and B, it's faster to check abs(A-B)<range
 function SameValueFloat(const A, B: TSynExtended; DoublePrec: TSynExtended = 1E-12): Boolean;
+
+/// a comparison function for sorting IEEE 754 double precision values
+function CompareFloat(const A, B: double): integer;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// a comparison function for sorting 64-bit floating point values
+function CompareInt64(const A, B: Int64): integer;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// compute the sum of values, using a running compensation for lost low-order bits
 // - a naive "Sum := Sum + Data" will be restricted to 53 bits of resolution,
@@ -2889,10 +2911,8 @@ function FindIniEntryW(const Content: string; const Section, Name: RawUTF8): str
 
 {$ifdef PUREPASCAL}
 {$ifdef HASINLINE}
-function PosEx(const SubStr, S: RawUTF8; Offset: PtrUInt=1): PtrInt; inline;
-{$ifndef FPC}
 function PosExPas(pSub, p: PUTF8Char; Offset: PtrUInt): PtrInt;
-{$endif}
+function PosEx(const SubStr, S: RawUTF8; Offset: PtrUInt=1): PtrInt; inline;
 {$else}
 var PosEx: function(const SubStr, S: RawUTF8; Offset: PtrUInt=1): PtrInt;
 {$endif}
@@ -3523,6 +3543,7 @@ function DirectoryDeleteOlderFiles(const Directory: TFileName; TimePeriod: TDate
 
 /// creates a directory if not already existing
 // - returns the full expanded directory name, including trailing backslash
+// - returns '' on error, unless RaiseExceptionOnCreationFailure=true
 function EnsureDirectoryExists(const Directory: TFileName;
   RaiseExceptionOnCreationFailure: boolean=false): TFileName;
 
@@ -7681,8 +7702,8 @@ type
   protected
     B, BEnd: PUTF8Char;
     fStream: TStream;
-    fInitialStreamPosition: cardinal;
-    fTotalFileSize: cardinal;
+    fInitialStreamPosition: PtrUInt;
+    fTotalFileSize: PtrUInt;
     fCustomOptions: TTextWriterOptions;
     // internal temporary buffer
     fTempBufSize: Integer;
@@ -7691,13 +7712,13 @@ type
     /// used by WriteObjectAsString/AddDynArrayJSONAsString methods
     fInternalJSONWriter: TTextWriter;
     fHumanReadableLevel: integer;
-    fEchoStart: integer;
+    fEchoStart: PtrInt;
     fEchoBuf: RawUTF8;
     fEchos: array of TOnTextWriterEcho;
-    function GetLength: cardinal;
+    function GetTextLength: PtrUInt;
     procedure SetStream(aStream: TStream);
     procedure SetBuffer(aBuf: pointer; aBufSize: integer);
-    function EchoFlush: integer;
+    function EchoFlush: PtrInt;
     procedure InternalAddFixedAnsi(Source: PAnsiChar; SourceChars: Cardinal;
       const AnsiToWide: TWordDynArray; Escape: TTextWriterKind);
     function GetEndOfLineCRLF: boolean;
@@ -7915,7 +7936,7 @@ type
     /// append an Integer Value as a 2 digits String with comma
     procedure Add2(Value: integer);
     /// append the current UTC date and time, in a log-friendly format
-    // - e.g. append '20110325 19241502 '
+    // - e.g. append '20110325 19241502'
     // - you may set LocalTime=TRUE to write the local date and time instead
     // - this method is very fast, and avoid most calculation or API calls
     procedure AddCurrentLogTime(LocalTime: boolean);
@@ -8425,7 +8446,7 @@ type
     /// how many bytes were currently written on disk
     // - excluding the bytes in the internal buffer
     // - see TextLength for the total number of bytes, on both disk and memory
-    property WrittenBytes: cardinal read fTotalFileSize;
+    property WrittenBytes: PtrUInt read fTotalFileSize;
     /// the last char appended is canceled
     procedure CancelLastChar; overload;
       {$ifdef HASINLINE}inline;{$endif}
@@ -8443,7 +8464,7 @@ type
     /// count of added bytes to the stream
     // - see PendingBytes for the number of bytes currently in the memory buffer
     // or WrittenBytes for the number of bytes already written to disk
-    property TextLength: cardinal read GetLength;
+    property TextLength: PtrUInt read GetTextLength;
     /// define how AddEndOfLine method stores its line feed characters
     // - by default (FALSE), it will append a LF (#10) char to the buffer
     // - you can set this property to TRUE, so that CR+LF (#13#10) chars will
@@ -9227,11 +9248,11 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     /// compress a memory buffer with crc32c hashing to a RawByteString
     function Compress(const Plain: RawByteString; CompressionSizeTrigger: integer=100;
-      CheckMagicForCompressed: boolean=false): RawByteString; overload;
+      CheckMagicForCompressed: boolean=false; BufferOffset: integer=0): RawByteString; overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// compress a memory buffer with crc32c hashing to a RawByteString
     function Compress(Plain: PAnsiChar; PlainLen: integer; CompressionSizeTrigger: integer=100;
-      CheckMagicForCompressed: boolean=false): RawByteString; overload;
+      CheckMagicForCompressed: boolean=false; BufferOffset: integer=0): RawByteString; overload;
     /// compress a memory buffer with crc32c hashing
     // - supplied Comp buffer should contain at least CompressDestLen(PlainLen) bytes
     function Compress(Plain, Comp: PAnsiChar; PlainLen, CompLen: integer;
@@ -9252,7 +9273,7 @@ type
       Load: TAlgoCompressLoad=aclNormal): boolean;
     /// uncompress a memory buffer with crc32c hashing
     procedure Decompress(Comp: PAnsiChar; CompLen: integer; out Result: RawByteString;
-      Load: TAlgoCompressLoad=aclNormal); overload;
+      Load: TAlgoCompressLoad=aclNormal; BufferOffset: integer=0); overload;
     /// uncompress a RawByteString memory buffer with crc32c hashing
     function Decompress(const Comp: TByteDynArray): RawByteString; overload;
       {$ifdef HASINLINE}inline;{$endif}
@@ -9296,6 +9317,11 @@ type
     // - returns nil if no algorithm was identified
     class function Algo(Comp: PAnsiChar; CompLen: integer): TAlgoCompress; overload;
       {$ifdef HASINLINE}inline;{$endif}
+    /// get the TAlgoCompress instance corresponding to the AlgoID stored
+    // in the supplied compressed buffer
+    // - returns nil if no algorithm was identified
+    // - also identifies "stored" content in IsStored variable
+    class function Algo(Comp: PAnsiChar; CompLen: integer; out IsStored: boolean): TAlgoCompress; overload;
     /// get the TAlgoCompress instance corresponding to the AlgoID stored
     // in the supplied compressed buffer
     // - returns nil if no algorithm was identified
@@ -9619,8 +9645,11 @@ type
     fValues: TDynArray;
     fValueVar: pointer;
     fCount, fFirst, fLast: integer;
-    fWaitPopFlags: set of (wpfWaiting, wpfDestroying);
+    fWaitPopFlags: set of (wpfDestroying);
+    fWaitPopCounter: integer;
     procedure InternalGrow;
+    function InternalDestroying(incPopCounter: integer): boolean;
+    function InternalWaitDone(endtix: Int64; const idle: TThreadMethod): boolean;
   public
     /// initialize the queue storage
     // - aTypeInfo should be a dynamic array TypeInfo() RTTI pointer, which
@@ -9644,13 +9673,21 @@ type
     // - returns false if the queue is empty
     // - this method is thread-safe, since it will lock the instance
     function Peek(out aValue): boolean;
-    /// waiting lookup of one item from the queue, as FIFO (First-In-First-Out)
+    /// waiting extract of one item from the queue, as FIFO (First-In-First-Out)
     // - returns true if aValue has been filled with a pending item within the
-    // specified aTimeoutMS time, or if WaitPopFinalize has been called
-    // - returns false if nothing was pushed into the queue in time
+    // specified aTimeoutMS time
+    // - returns false if nothing was pushed into the queue in time, or if
+    // WaitPopFinalize has been called
     // - aWhenIdle could be assigned e.g. to VCL/LCL Application.ProcessMessages
     // - this method is thread-safe, but will lock the instance only if needed
     function WaitPop(aTimeoutMS: integer; const aWhenIdle: TThreadMethod; out aValue): boolean;
+    /// waiting lookup of one item from the queue, as FIFO (First-In-First-Out)
+    // - returns a pointer to a pending item within the specified aTimeoutMS
+    // time - the Safe.Lock is still there, so that caller could check its content,
+    // then call Pop() if it is the expected one, and eventually always call Safe.Unlock
+    // - returns nil if nothing was pushed into the queue in time
+    // - this method is thread-safe, but will lock the instance only if needed
+    function WaitPeekLocked(aTimeoutMS: integer; const aWhenIdle: TThreadMethod): pointer;
     /// ensure any pending or future WaitPop() returns immediately as false
     // - is always called by Destroy destructor
     // - could be also called e.g. from an UI OnClose event to avoid any lock
@@ -10037,7 +10074,9 @@ type
     // ! TFileBufferWriter.Create(TRawByteStringStream)
     // - if algo is left to its default nil, will use global AlgoSynLZ
     // - features direct compression from internal buffer, if stream was not used
-    function FlushAndCompress(nocompression: boolean=false; algo: TAlgoCompress=nil): RawByteString;
+    // - BufferOffset could be set to reserve some bytes before the compressed buffer
+    function FlushAndCompress(nocompression: boolean=false; algo: TAlgoCompress=nil;
+      BufferOffset: integer=0): RawByteString;
     /// rewind the Stream to the position when Create() was called
     // - note that this does not clear the Stream content itself, just
     // move back its writing position to its initial place
@@ -10267,6 +10306,9 @@ type
     /// retrieved cardinal values encoded with TFileBufferWriter.WriteVarUInt32Array
     // - only supports wkUInt32, wkVarInt32, wkVarUInt32 kind of encoding
     function ReadVarUInt32Array(var Values: TIntegerDynArray): PtrInt;
+    /// retrieve some TAlgoCompress buffer, appended via Write()
+    // - BufferOffset could be set to reserve some bytes before the uncompressed buffer
+    function ReadCompressed(Load: TAlgoCompressLoad=aclNormal; BufferOffset: integer=0): RawByteString;
     /// returns TRUE if the current position is the end of the input stream
     function EOF: boolean; {$ifdef HASINLINE}inline;{$endif}
     /// returns remaining length (difference between Last and P)
@@ -11849,7 +11891,9 @@ type
 
 var
   /// compute CRC32C checksum on the supplied buffer
-  // - this variable will use the fastest mean available, e.g. SSE 4.2
+  // - result is not compatible with zlib's crc32() - Intel/SCSI CRC32C is not
+  // the same polynom - but will use the fastest mean available, e.g. SSE 4.2,
+  // to achieve up to 16GB/s with the optimized implementation from SynCrypto.pas
   // - you should use this function instead of crc32cfast() or crc32csse42()
   crc32c: THasher;
   /// compute CRC32C checksum on one 32-bit unsigned integer
@@ -12111,7 +12155,7 @@ type
     procedure SetPendingProcess(State: TSynBackgroundThreadProcessStep);
     // returns  flagIdle if acquired, flagDestroying if terminated
     function AcquireThread: TSynBackgroundThreadProcessStep;
-    procedure WaitForFinished(start: Int64);
+    procedure WaitForFinished(start: Int64; const onmainthreadidle: TNotifyEvent);
     /// called by Execute method when fProcessParams<>nil and fEvent is notified
     procedure Process; virtual; abstract;
   public
@@ -12263,7 +12307,11 @@ type
     // - will split Method[0..MethodCount-1] execution over the threads
     // - in case of any exception during process, an ESynParallelProcess
     // exception would be raised by this method
-    procedure ParallelRunAndWait(Method: TSynParallelProcessMethod; MethodCount: integer);
+    // - if OnMainThreadIdle is set, the current thread (which is expected to be
+    // e.g. the main UI thread) won't process anything, but call this event
+    // during waiting for the background threads
+    procedure ParallelRunAndWait(const Method: TSynParallelProcessMethod;
+      MethodCount: integer; const OnMainThreadIdle: TNotifyEvent = nil);
   published
     /// how many threads have been activated
     property ParallelRunCount: integer read fParallelRunCount;
@@ -12374,11 +12422,21 @@ type
     /// encode the stored date/time as text
     function ToText(Expanded: boolean=true; FirstTimeChar: AnsiChar='T'; const TZD: RawUTF8=''): RawUTF8;
     /// append the stored date and time, in a log-friendly format
-    // - e.g. append '20110325 19241502 '
+    // - e.g. append '20110325 19241502' - with no trailing space
     // - as called by TTextWriter.AddCurrentLogTime()
     procedure AddLogTime(WR: TTextWriter);
+    /// append the stored data and time, in apache-like format, to a TTextWriter
+    // - e.g. append '19/Feb/2019:06:18:55 ' - including a trailing space
+    procedure AddNCSAText(WR: TTextWriter);
+    /// append the stored data and time, in apache-like format, to a memory buffer
+    // - e.g. append '19/Feb/2019:06:18:55 ' - including a trailing space
+    // - returns the number of chars added to P, i.e. always 21
+    function ToNCSAText(P: PUTF8Char): PtrInt;
     /// convert the stored time into a TDateTime
     function ToDateTime: TDateTime;
+    /// add some 1..999 milliseconds to the stored time
+    // - not to be used for computation, but e.g. for fast AddLogTime generation
+    procedure IncrementMS(ms: integer);
   end;
   PSynSystemTime = ^TSynSystemTime;
 
@@ -13048,7 +13106,8 @@ procedure LogToTextFile(Msg: RawUTF8);
 // - this version expects the filename to be specified
 // - format contains the current date and time, then the Msg on one line
 // - date and time format used is 'YYYYMMDD hh:mm:ss'
-procedure AppendToTextFile(aLine: RawUTF8; const aFileName: TFileName; aMaxSize: Int64=MAXLOGSIZE);
+procedure AppendToTextFile(aLine: RawUTF8; const aFileName: TFileName; aMaxSize: Int64=MAXLOGSIZE;
+  aUTCTimeStamp: boolean=false);
 
 
 { ************ fast low-level lookup types used by internal conversion routines }
@@ -13249,7 +13308,7 @@ const
 // - returns Cardinal(-1) in case of failure
 function GetFileVersion(const FileName: TFileName): cardinal;
 
-{$endif}
+{$endif DELPHI6OROLDER}
 
 /// returns a JSON object containing basic information about the computer
 // - including Host, User, CPU, OS, freemem, freedisk...
@@ -13457,8 +13516,10 @@ function FileOpen(const FileName: string; Mode: LongWord): Integer;
 {$endif}
 
 /// compatibility function, to be implemented according to the running OS
-// - expect more or less the same result as the homonymous Win32 API function
-// - will call the corresponding function in SynKylix.pas or SynFPCLinux.pas
+// - expect more or less the same result as the homonymous Win32 API function,
+// but usually with a better resolution (Windows has only around 10-16 ms)
+// - will call the corresponding function in SynKylix.pas or SynFPCLinux.pas,
+// using the very fast CLOCK_MONOTONIC_COARSE if available on the kernel
 function GetTickCount64: Int64;
 
 {$endif MSWINDOWS}
@@ -15961,17 +16022,19 @@ type
   PPPrecisionTimer = ^PPrecisionTimer;
 
   /// high resolution timer (for accurate speed statistics)
-  // - WARNING: this record MUST be aligned to 32 bit, otherwise iFreq=0 -
-  // so you can use TLocalPrecisionTimer/ILocalPrecisionTimer if you want
-  // to alllocate a local timer instance on the stack
+  // - WARNING: under Windows, this record MUST be aligned to 32-bit, otherwise
+  // iFreq=0 - so you can use TLocalPrecisionTimer/ILocalPrecisionTimer if you
+  // want to alllocate a local timer instance on the stack
   {$ifdef UNICODE}TPrecisionTimer = record{$else}TPrecisionTimer = object{$endif}
   private
-    iStart,iStop,iResume,iLast: Int64;
-    iFreq: Int64;
+    fStart,fStop,fResume,fLast: Int64;
+    {$ifndef LINUX} // use QueryPerformanceMicroSeconds() fast API
+    fWinFreq: Int64;
+    {$endif}
     /// contains the time elapsed in micro seconds between Start and Stop
-    iTime: TSynMonitorTotalMicroSec;
+    fTime: TSynMonitorTotalMicroSec;
     /// contains the time elapsed in micro seconds between Resume and Pause
-    iLastTime: TSynMonitorOneMicroSec;
+    fLastTime: TSynMonitorOneMicroSec;
     fPauseCount: TSynMonitorCount;
   public
     /// initialize the timer
@@ -15980,11 +16043,10 @@ type
     procedure Init;
     /// initialize and start the high resolution timer
     procedure Start;
-    /// returns TRUE if iStart is not 0
-    function Started: boolean;
-      {$ifdef HASINLINE}inline;{$endif}
+    /// returns TRUE if fStart is not 0
+    function Started: boolean; {$ifdef HASINLINE}inline;{$endif}
     /// stop the timer, setting the Time elapsed since last Start
-    procedure ComputeTime;
+    procedure ComputeTime; {$ifdef LINUX}{$ifdef HASINLINE}inline;{$endif}{$endif}
     /// stop the timer, returning the time elapsed as text with time resolution
     // (us,ms,s)
     // - is just a wrapper around ComputeTime + Time
@@ -16028,20 +16090,22 @@ type
     function PerSec(const Count: QWord): QWord;
     /// compute the time elapsed by count, with appened time resolution (us,ms,s)
     function ByCount(Count: QWord): TShort16;
+    /// returns e.g. '16.9 MB in 102.20ms i.e. 165.5 MB/s'
+    function SizePerSec(Size: QWord): shortstring;
     /// textual representation of time after counter stopped
     // - with appened time resolution (us,ms,s)
     // - not to be used in normal code, but e.g. for custom performance analysis
     function Time: TShort16;
     /// time elapsed in micro seconds after counter stopped
     // - not to be used in normal code, but e.g. for custom performance analysis
-    property TimeInMicroSec: TSynMonitorTotalMicroSec read iTime write iTime;
+    property TimeInMicroSec: TSynMonitorTotalMicroSec read fTime write fTime;
     /// textual representation of last process timing after counter stopped
     // - with appened time resolution (us,ms,s)
     // - not to be used in normal code, but e.g. for custom performance analysis
     function LastTime: TShort16;
     /// timing in micro seconds of the last process
     // - not to be used in normal code, but e.g. for custom performance analysis
-    property LastTimeInMicroSec: TSynMonitorOneMicroSec read iLastTime write iLastTime;
+    property LastTimeInMicroSec: TSynMonitorOneMicroSec read fLastTime write fLastTime;
     /// how many times the Pause method was called, i.e. the number of tasks
     // processeed
     property PauseCount: TSynMonitorCount read fPauseCount;
@@ -16214,12 +16278,10 @@ type
     destructor Destroy; override;
     /// lock the instance for exclusive access
     // - needed only if you access directly the instance properties
-    procedure Lock;
-      {$ifdef HASINLINE}inline;{$endif}
+    procedure Lock; {$ifdef HASINLINE}inline;{$endif}
     /// release the instance for exclusive access
     // - needed only if you access directly the instance properties
-    procedure UnLock;
-      {$ifdef HASINLINE}inline;{$endif}
+    procedure UnLock; {$ifdef HASINLINE}inline;{$endif}
     /// create Count instances of this actual class in the supplied ObjArr[]
     class procedure InitializeObjArray(var ObjArr; Count: integer); virtual;
     /// should be called when the process starts, to resume the internal timer
@@ -16263,7 +16325,7 @@ type
     /// returns a TDocVariant with all published properties information
     // - thread-safe method
     function ComputeDetails: variant;
-    {$endif}
+    {$endif NOVARIANTS}
     /// used to allow thread safe timing
     // - by default, the internal TPrecisionTimer is not thread safe: you can
     // use this method to update the timing from many threads
@@ -17340,12 +17402,13 @@ type
     // - to be retrieved later on via LoadFrom method
     // - actually call the SaveToWriter() protected virtual method for persistence
     // - you can specify ForcedAlgo if you want to override the default AlgoSynLZ
+    // - BufferOffset could be set to reserve some bytes before the compressed buffer
     procedure SaveTo(out aBuffer: RawByteString; nocompression: boolean=false;
-      BufLen: integer=65536; ForcedAlgo: TAlgoCompress=nil); overload; virtual;
+      BufLen: integer=65536; ForcedAlgo: TAlgoCompress=nil; BufferOffset: integer=0); overload; virtual;
     /// persist the content as a SynLZ-compressed binary blob
     // - just an overloaded wrapper
     function SaveTo(nocompression: boolean=false; BufLen: integer=65536;
-      ForcedAlgo: TAlgoCompress=nil): RawByteString; overload;
+      ForcedAlgo: TAlgoCompress=nil; BufferOffset: integer=0): RawByteString; overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// persist the content as a SynLZ-compressed binary file
     // - to be retrieved later on via LoadFromFile method
@@ -17739,14 +17802,14 @@ function KB(const buffer: RawByteString): TShort16; overload;
 procedure KBU(bytes: Int64; var result: RawUTF8);
 
 /// convert a micro seconds elapsed time into a human readable value
-// - append 'us', 'ms' or 's' symbol
-// - for 'us' and 'ms', add two fractional digits
+// - append 'us', 'ms', 's', 'm', 'h' and 'd' symbol for the given value range,
+// with two fractional digits
 function MicroSecToString(Micro: QWord): TShort16; overload;
   {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
 
 /// convert a micro seconds elapsed time into a human readable value
-// - append 'us', 'ms' or 's' symbol
-// - for 'us' and 'ms', add two fractional digits
+// - append 'us', 'ms', 's', 'm', 'h' and 'd' symbol for the given value range,
+// with two fractional digits
 procedure MicroSecToString(Micro: QWord; out result: TShort16); overload;
 
 /// convert an integer value into its textual representation with thousands marked
@@ -21122,6 +21185,12 @@ begin
   result := aValue<>$0100007f;
 end;
 
+function IPToCardinal(const aIP: RawUTF8): cardinal;
+begin
+  if not IPToCardinal(aIP,result) then
+    result := 0;
+end;
+
 const
   // see https://en.wikipedia.org/wiki/Baudot_code
   Baudot2Char: array[0..63] of AnsiChar =
@@ -21709,6 +21778,16 @@ begin
   SetString(RawByteString(s),PAnsiChar(p),len);
 end;
 {$endif}
+
+procedure GetMemAligned(var s: RawByteString; p: pointer; len: PtrInt;
+  out aligned: pointer);
+begin
+  SetString(s,nil,len+16);
+  aligned := pointer(s);
+  inc(PtrUInt(aligned),PtrUInt(aligned) and 15);
+  if p<>nil then
+    MoveFast(p^,aligned^,len);
+end;
 
 function ToText(k: TTypeKind): PShortString; overload;
 begin
@@ -24714,18 +24793,24 @@ zero:
   result := false;
 end;
 
+{$ifdef HASINLINE} // to use directly the SubStr/S arguments registers
+function PosEx(const SubStr, S: RawUTF8; Offset: PtrUInt): PtrInt;
+begin
+  result := PosExPas(pointer(SubStr),pointer(S),Offset);
+end;
+{$endif HASINLINE}
+
 // from Aleksandr Sharahov's PosEx_Sha_Pas_2()
 function PosExPas(pSub, p: PUTF8Char; Offset: PtrUInt): PtrInt;
 var len, lenSub: PtrInt;
     ch: AnsiChar;
     pStart, pStop: PUTF8Char;
-label Loop0, Loop4, TestT, Test0, Test1, Test2, Test3, Test4,
+label Loop2, Loop6, TestT, Test0, Test1, Test2, Test3, Test4,
       AfterTestT, AfterTest0, Ret, Exit;
 begin
-  if (p=nil) or (pSub=nil) or (Offset<1) then begin
-    result := 0;
+  result := 0;
+  if (p=nil) or (pSub=nil) or (Offset<1) then
     goto Exit;
-  end;
   {$ifdef FPC}
   len := _LStrLenP(p);
   lenSub := _LStrLenP(pSub)-1;
@@ -24733,70 +24818,60 @@ begin
   len := PInteger(p-4)^;
   lenSub := PInteger(pSub-4)^-1;
   {$endif}
-  if (len<lenSub+PtrInt(Offset)) or (lenSub<0) then begin
-    result := 0;
+  if (len<lenSub+PtrInt(Offset)) or (lenSub<0) then
     goto Exit;
-  end;
   pStop := p+len;
-  p := p+lenSub;
-  pSub := pSub+lenSub;
+  inc(p,lenSub);
+  inc(pSub,lenSub);
   pStart := p;
-  p := p+Offset+3;
+  inc(p,Offset+3);
   ch := pSub[0];
   lenSub := -lenSub;
-  if p<pStop then goto Loop4;
-  p := p-4;
-  goto Loop0;
-Loop4:
+  if p<pStop then goto Loop6;
+  dec(p,4);
+  goto Loop2;
+Loop6: // check 6 chars per loop iteration
   if ch=p[-4] then goto Test4;
   if ch=p[-3] then goto Test3;
   if ch=p[-2] then goto Test2;
   if ch=p[-1] then goto Test1;
-Loop0:
+Loop2:
   if ch=p[0] then goto Test0;
 AfterTest0:
   if ch=p[1] then goto TestT;
 AfterTestT:
-  p := p+6;
-  if p<pStop then goto Loop4;
-  p := p-4;
-  if p<pStop then goto Loop0;
-  result := 0;
-  goto Exit;
-Test3: p := p-2;
-Test1: p := p-2;
+  inc(p,6);
+  if p<pStop then goto Loop6;
+  dec(p,4);
+  if p>=pStop then goto Exit;
+  goto Loop2;
+Test4: dec(p,2);
+Test2: dec(p,2);
+  goto Test0;
+Test3: dec(p,2);
+Test1: dec(p,2);
 TestT: len := lenSub;
   if lenSub<>0 then
-  repeat
-    if (psub[len]<>p[len+1]) or (psub[len+1]<>p[len+2]) then
-      goto AfterTestT;
-    len := len+2;
-  until len>=0;
-  p := p+2;
+    repeat
+      if (psub[len]<>p[len+1]) or (psub[len+1]<>p[len+2]) then
+        goto AfterTestT;
+      inc(len,2);
+    until len>=0;
+  inc(p,2);
   if p<=pStop then goto Ret;
-  result := 0;
   goto Exit;
-Test4: p := p-2;
-Test2: p := p-2;
 Test0: len := lenSub;
   if lenSub<>0 then
-  repeat
-    if (psub[len]<>p[len]) or (psub[len+1]<>p[len+1]) then
-      goto AfterTest0;
-    len := len+2;
-  until len>=0;
+    repeat
+      if (psub[len]<>p[len]) or (psub[len+1]<>p[len+1]) then
+        goto AfterTest0;
+      inc(len,2);
+    until len>=0;
   inc(p);
 Ret:
   result := p-pStart;
 Exit:
 end;
-
-{$ifdef HASINLINE} // to use directly the SubStr/S arguments registers
-function PosEx(const SubStr, S: RawUTF8; Offset: PtrUInt): PtrInt;
-begin
-  result := PosExPas(pointer(SubStr),pointer(S),Offset);
-end;
-{$endif HASINLINE}
 
 function IdemPropNameU(const P1,P2: RawUTF8): boolean;
 var L: PtrInt;
@@ -27291,7 +27366,7 @@ var now: Int64;
 begin
   if Interval<=0 then
     result := false else begin
-    now := GetTickCount64;
+    now := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64;
     if now-PreviousTix>Interval then begin
       PreviousTix := now;
       result := true;
@@ -29447,6 +29522,24 @@ begin
     result := (A-B)<=DoublePrec;
 end;
 
+function CompareFloat(const A, B: double): integer;
+begin
+  if A<B then
+    result := -1 else
+  if A>B then
+    result := 1 else
+    result := 0;
+end;
+
+function CompareInt64(const A, B: Int64): integer;
+begin
+  if A<B then
+    result := -1 else
+  if A>B then
+    result := 1 else
+    result := 0;
+end;
+
 procedure KahanSum(const Data: double; var Sum, Carry: double);
 var y, t: double;
 begin
@@ -30656,7 +30749,7 @@ begin
     if not CreateDir(result) then
       if not RaiseExceptionOnCreationFailure then
         result := '' else
-        raise ESynException.CreateUTF8('Impossible to create "%" folder',[Directory]);
+        raise ESynException.CreateUTF8('Impossible to create folder %',[result]);
 end;
 
 var
@@ -32545,12 +32638,12 @@ end;
 function GetExtended(P: PUTF8Char; out err: integer): TSynExtended;
 // inspired by ValExt_JOH_PAS_8_a and ValExt_JOH_IA32_8_a by John O'Harrow
 {$ifdef GETEXTENDEDPASCAL}
-  const POW10: array[-31..31] of TSynExtended = (
-    1E-31,1E-30,1E-29,1E-28,1E-27,1E-26,1E-25,1E-24,1E-23,1E-22,1E-21,1E-20,
-    1E-19,1E-18,1E-17,1E-16,1E-15,1E-14,1E-13,1E-12,1E-11,1E-10,1E-9,1E-8,1E-7,
-    1E-6,1E-5,1E-4,1E-3,1E-2,1E-1,1E0,1E1,1E2,1E3,1E4,1E5,1E6,1E7,1E8,1E9,1E10,
-    1E11,1E12,1E13,1E14,1E15,1E16,1E17,1E18,1E19,1E20,1E21,1E22,1E23,1E24,1E25,
-    1E26,1E27,1E28,1E29,1E30,1E31);
+const POW10: array[-31..31] of TSynExtended = (
+  1E-31,1E-30,1E-29,1E-28,1E-27,1E-26,1E-25,1E-24,1E-23,1E-22,1E-21,1E-20,
+  1E-19,1E-18,1E-17,1E-16,1E-15,1E-14,1E-13,1E-12,1E-11,1E-10,1E-9,1E-8,1E-7,
+  1E-6,1E-5,1E-4,1E-3,1E-2,1E-1,1E0,1E1,1E2,1E3,1E4,1E5,1E6,1E7,1E8,1E9,1E10,
+  1E11,1E12,1E13,1E14,1E15,1E16,1E17,1E18,1E19,1E20,1E21,1E22,1E23,1E24,1E25,
+  1E26,1E27,1E28,1E29,1E30,1E31);
 var Digits, ExpValue: PtrInt;
     Ch: cardinal;
     flags: set of (Neg, NegExp, Valid);
@@ -35926,7 +36019,7 @@ end;
 
 function UnixTimeToDateTime(const UnixTime: TUnixTime): TDateTime;
 begin
-  result := (UnixTime / SecsPerDay + UnixDateDelta);
+  result := UnixTime / SecsPerDay + UnixDateDelta;
 end;
 
 function DateTimeToUnixTime(const AValue: TDateTime): TUnixTime;
@@ -36085,7 +36178,7 @@ end;
 
 function UnixMSTimeToDateTime(const UnixMSTime: TUnixMSTime): TDateTime;
 begin
-  result := (UnixMSTime/MSecsPerDay + UnixDateDelta);
+  result := UnixMSTime/MSecsPerDay + UnixDateDelta;
 end;
 
 function UnixMSTimePeriodToString(const UnixTime: TUnixTime; FirstTimeChar: AnsiChar): RawUTF8;
@@ -36729,7 +36822,8 @@ var tix: PtrInt;
     newtimesys: TSystemTime absolute NewTime;
 begin
   with GlobalTime[LocalTime] do begin
-    tix := GetTickCount64 {$ifndef MSWINDOWS}shr 3{$endif}; // Linux: 8ms refresh
+    tix := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64
+      {$ifndef MSWINDOWS}shr 3{$endif}; // Linux: 8ms refresh
     if clock<>tix then begin // Windows: typically in range of 10-16 ms
       clock := tix;
       NewTime.Clear;
@@ -37096,7 +37190,7 @@ var y,d100: PtrUInt;
     P: PUTF8Char;
     tab: {$ifdef CPUX86}TWordArray absolute TwoDigitLookupW{$else}PWordArray{$endif};
 begin
-  if WR.BEnd-WR.B<=17 then
+  if WR.BEnd-WR.B<=18 then
     WR.FlushToStream;
   {$ifndef CPUX86}tab := @TwoDigitLookupW;{$endif}
   y := Year;
@@ -37112,8 +37206,37 @@ begin
   PWord(P+13)^ := tab[Second];
   y := Millisecond;
   PWord(P+15)^ := tab[y shr 4];
-  P[17] := ' ';
-  WR.B := P+16;
+  inc(WR.B,17);
+end;
+
+function TSynSystemTime.ToNCSAText(P: PUTF8Char): PtrInt;
+var y,d100: PtrUInt;
+    tab: {$ifdef CPUX86}TWordArray absolute TwoDigitLookupW{$else}PWordArray{$endif};
+begin
+  {$ifndef CPUX86}tab := @TwoDigitLookupW;{$endif}
+  PWord(P)^ := tab[Day];
+  P[2] := '/';
+  PCardinal(P+3)^ := PCardinal(@HTML_MONTH_NAMES[Month][1])^;
+  P[6] := '/';
+  y := Year;
+  d100 := y div 100;
+  PWord(P+7)^ := tab[d100];
+  PWord(P+9)^ := tab[y-(d100*100)];
+  P[11] := ':';
+  PWord(P+12)^ := tab[Hour];
+  P[14] := ':';
+  PWord(P+15)^ := tab[Minute];
+  P[17] := ':';
+  PWord(P+18)^ := tab[Second];
+  P[20] := ' ';
+  result := 21;
+end;
+
+procedure TSynSystemTime.AddNCSAText(WR: TTextWriter);
+begin
+  if WR.BEnd-WR.B<=21 then
+    WR.FlushToStream;
+  inc(WR.B,ToNCSAText(WR.B+1));
 end;
 
 function TSynSystemTime.ToDateTime: TDateTime;
@@ -37124,6 +37247,41 @@ begin
       result := result+time else
       result := 0 else
     result := 0;
+end;
+
+procedure TSynSystemTime.IncrementMS(ms: integer);
+begin
+  inc(MilliSecond, ms);
+  if MilliSecond >= 1000 then
+    repeat
+      dec(MilliSecond, 1000);
+      if Second < 60 then
+        inc(Second)
+      else begin
+        Second := 0;
+        if Minute < 60 then
+          inc(Minute)
+        else begin
+          Minute := 0;
+          if Hour < 24 then
+            inc(Hour)
+          else begin
+            Hour := 0;
+            if Day < MonthDays[false, Month] then
+              inc(Day)
+            else begin
+              Day := 1;
+              if Month < 12 then
+                inc(Month)
+              else begin
+                Month := 1;
+                inc(Year);
+              end;
+            end;
+          end;
+        end;
+      end;
+    until MilliSecond < 1000;
 end;
 
 { TTimeZoneData }
@@ -37391,7 +37549,8 @@ begin
 end;
 
 
-procedure AppendToTextFile(aLine: RawUTF8; const aFileName: TFileName; aMaxSize: Int64);
+procedure AppendToTextFile(aLine: RawUTF8; const aFileName: TFileName;
+    aMaxSize: Int64; aUTCTimeStamp: boolean);
 var F: THandle;
     Old: TFileName;
     Date: array[1..22] of AnsiChar;
@@ -37420,7 +37579,9 @@ begin
       exit;
   end;
   PWord(@Date)^ := 13+10 shl 8; // first go to next line
-  now.FromNowLocal;
+  if aUTCTimeStamp then
+    now.FromNowUTC else
+    now.FromNowLocal;
   DateToIso8601PChar(@Date[3],true,Now.Year,Now.Month,Now.Day);
   TimeToIso8601PChar(@Date[13],true,Now.Hour,Now.Minute,Now.Second,0,' ');
   Date[22] := ' ';
@@ -37619,7 +37780,7 @@ var time, crc: THash128Rec;
 begin
   repeat
     QueryPerformanceCounter(time.Lo);
-    time.i2 := UnixTimeUTC;
+    time.i2 := UnixMSTimeUTC;
     time.i3 := integer(GetCurrentThreadID);
     crcblock(@crc.b,@time.b);
     crcblock(@crc.b,@ExeVersion.Hash.b);
@@ -39107,13 +39268,6 @@ begin
   LastAppUserModelID := AppUserModelID;
 end;
 
-{$else}
-
-// wrapper around some low-level OS (non Windows) specific API
-
-const
-  _SC_PAGE_SIZE = $1000;
-
 {$endif MSWINDOWS}
 
 { TFileVersion }
@@ -39393,14 +39547,16 @@ const
     // spCommonData,       spUserData,          spCommonDocuments
     CSIDL_COMMON_APPDATA, CSIDL_LOCAL_APPDATA, CSIDL_COMMON_DOCUMENTS,
     // spUserDocuments, spTempFolder, spLog
-    CSIDL_PERSONAL, 0, CSIDL_COMMON_APPDATA);
+    CSIDL_PERSONAL, 0, CSIDL_LOCAL_APPDATA);
   ENV: array[TSystemPath] of TFileName = (
-    'ALLUSERSAPPDATA', 'LOCALAPPDATA', '', '', 'TEMP', 'ALLUSERSAPPDATA');
+    'ALLUSERSAPPDATA', 'LOCALAPPDATA', '', '', 'TEMP', 'LOCALAPPDATA');
 var tmp: array[0..MAX_PATH] of char;
     k: TSystemPath;
 begin
-  if _SystemPath[spCommonData]='' then begin
+  if _SystemPath[spCommonData]='' then
     for k := low(k) to high(k) do
+      if (k=spLog) and IsDirectoryWritable(ExeVersion.ProgramFilePath) then
+        _SystemPath[k] := EnsureDirectoryExists(ExeVersion.ProgramFilePath+'log') else
       if (CSIDL[k]<>0) and (SHGetFolderPath(0,CSIDL[k],0,0,@tmp)=S_OK) then
         _SystemPath[k] := IncludeTrailingPathDelimiter(tmp) else begin
         _SystemPath[k] := GetEnvironmentVariable(ENV[k]);
@@ -39408,8 +39564,6 @@ begin
           _SystemPath[k] := GetEnvironmentVariable('APPDATA');
         _SystemPath[k] := IncludeTrailingPathDelimiter(_SystemPath[k]);
       end;
-    _SystemPath[spTempFolder] := IncludeTrailingPathDelimiter(GetEnvironmentVariable('TEMP'));
-  end;
   result := _SystemPath[kind];
 end;
 {$else MSWINDOWS}
@@ -39495,10 +39649,10 @@ begin
   if Backup<>nil then
     for i := 0 to Size-1 do // do not use Move() here
       PByteArray(Backup)^[i] := PByteArray(Old)^[i];
-  PageSize := _SC_PAGE_SIZE;
-  AlignedAddr := PtrUInt(Old) and not (PageSize - 1);
-  while PtrUInt(Old) + PtrUInt(Size) >= AlignedAddr + PageSize do
-    Inc(PageSize,_SC_PAGE_SIZE);
+  PageSize := SystemInfo.dwPageSize;
+  AlignedAddr := PtrUInt(Old) and not (PageSize-1);
+  while PtrUInt(Old)+PtrUInt(Size)>=AlignedAddr+PageSize do
+    Inc(PageSize,SystemInfo.dwPageSize);
   {$ifdef USEMPROTECT}
   if mprotect(Pointer(AlignedAddr),PageSize,PROT_READ or PROT_WRITE or PROT_EXEC)=0 then
   {$else}
@@ -49355,6 +49509,40 @@ begin
   fSorted := true;
 end;
 
+procedure QuickSortPtr(L, R: PtrInt; Compare: TDynArraySortCompare; V: PPointerArray);
+var I, J, P: PtrInt;
+    tmp: pointer;
+begin
+  if L<R then
+  repeat
+    I := L; J := R;
+    P := (L + R) shr 1;
+    repeat
+      while Compare(V[I], V[P])<0 do
+        inc(I);
+      while Compare(V[J], V[P])>0 do
+        dec(J);
+      if I <= J then begin
+        tmp := V[I];
+        V[I] := V[J];
+        V[J] := tmp;
+        if P = I then P := J else
+        if P = J then P := I;
+        Inc(I); Dec(J);
+      end;
+    until I > J;
+    if J - L < R - I then begin // use recursion only for smaller range
+      if L < J then
+        QuickSortPtr(L, J, Compare, V);
+      L := I;
+    end else begin
+      if I < R then
+        QuickSortPtr(I, R, Compare, V);
+      R := J;
+    end;
+  until L >= R;
+end;
+
 procedure TDynArray.SortRange(aStart, aStop: integer; aCompare: TDynArraySortCompare);
 var QuickSort: TDynArrayQuickSort;
 begin
@@ -49363,11 +49551,13 @@ begin
   if @aCompare=nil then
     Quicksort.Compare := @fCompare else
     Quicksort.Compare := aCompare;
-  if (@Quicksort.Compare<>nil) and (fValue<>nil) and (fValue^<>nil) then begin
-    Quicksort.Value := fValue^;
-    Quicksort.ElemSize := ElemSize;
-    Quicksort.QuickSort(aStart,aStop);
-  end;
+  if (@Quicksort.Compare<>nil) and (fValue<>nil) and (fValue^<>nil) then
+    if ElemSize=SizeOf(pointer) then
+      QuickSortPtr(aStart,aStop,QuickSort.Compare,fValue^) else begin
+      Quicksort.Value := fValue^;
+      Quicksort.ElemSize := ElemSize;
+      Quicksort.QuickSort(aStart,aStop);
+    end;
 end;
 
 procedure TDynArray.Sort(const aCompare: TEventDynArraySortCompare; aReverse: boolean);
@@ -49735,7 +49925,6 @@ end;
 
 procedure TDynArray.InternalSetLength(NewLength: PtrUInt);
 var p: PDynArrayRec;
-    pa: PAnsiChar absolute p;
     OldLength, NeededSize, minLength: PtrUInt;
     pp: pointer;
     i: integer;
@@ -49753,13 +49942,6 @@ begin // this method is faster than default System.DynArraySetLength() function
     {$ifdef FPC}FPCDynArrayClear{$else}_DynArrayClear{$endif}(fValue^,ArrayType);
     exit;
   end;
-  // retrieve old length
-  p := fValue^;
-  if p<>nil then begin
-    dec(PtrUInt(p),SizeOf(TDynArrayRec)); // p^ = start of heap object
-    OldLength := p^.length;
-  end else
-    OldLength := 0;
   // calculate the needed size of the resulting memory structure on heap
   NeededSize := NewLength*ElemSize+SizeOf(TDynArrayRec);
   {$ifndef CPU64}
@@ -49768,29 +49950,37 @@ begin // this method is faster than default System.DynArraySetLength() function
       [ArrayTypeShort^,NewLength]);
   {$endif}
   // if not shared (refCnt=1), resize; if shared, create copy (not thread safe)
-  if (p=nil) or (p^.refCnt=1) then begin
-    if NewLength<OldLength then
-      if ElemType<>nil then
-        {$ifdef FPC}FPCFinalizeArray{$else}_FinalizeArray{$endif}(
-          pa+NeededSize,ElemType,OldLength-NewLength) else
-        if GetIsObjArray then begin // FreeAndNil() of resized objects list
-          for i := NewLength to OldLength-1 do
-            PObjectArray(fValue^)^[i].Free;
-          FillCharFast(pa[NeededSize],(OldLength-NewLength) shl POINTERSHR,0);
-        end;
-    ReallocMem(p,neededSize);
+  p := fValue^;
+  if p=nil then begin
+    p := AllocMem(NeededSize);
+    OldLength := NewLength; // no FillcharFast() below
   end else begin
-    InterlockedDecrement(PInteger(@p^.refCnt)^); // FPC has refCnt: PtrInt
-    GetMem(p,neededSize);
-    minLength := oldLength;
-    if minLength>newLength then
-      minLength := newLength;
-    if ElemType<>nil then begin
-      pp := pa+SizeOf(TDynArrayRec);
-      FillcharFast(pp^,minLength*elemSize,0);
-      CopyArray(pp,fValue^,ElemType,minLength);
-    end else
-      MoveFast(fValue^,pa[SizeOf(TDynArrayRec)],minLength*elemSize);
+    dec(PtrUInt(p),SizeOf(TDynArrayRec)); // p^ = start of heap object
+    OldLength := p^.length;
+    if p^.refCnt=1 then begin
+      if NewLength<OldLength then
+        if ElemType<>nil then
+          {$ifdef FPC}FPCFinalizeArray{$else}_FinalizeArray{$endif}(
+            PAnsiChar(p)+NeededSize,ElemType,OldLength-NewLength) else
+          if GetIsObjArray then begin // FreeAndNil() of resized objects list
+            for i := NewLength to OldLength-1 do
+              PObjectArray(fValue^)^[i].Free;
+            FillCharFast(PAnsiChar(p)[NeededSize],(OldLength-NewLength) shl POINTERSHR,0);
+          end;
+      ReallocMem(p,NeededSize);
+    end else begin
+      InterlockedDecrement(PInteger(@p^.refCnt)^); // FPC has refCnt: PtrInt
+      GetMem(p,NeededSize);
+      minLength := oldLength;
+      if minLength>newLength then
+        minLength := newLength;
+      if ElemType<>nil then begin
+        pp := PAnsiChar(p)+SizeOf(TDynArrayRec);
+        FillcharFast(pp^,minLength*elemSize,0);
+        CopyArray(pp,fValue^,ElemType,minLength);
+      end else
+        MoveFast(fValue^,PAnsiChar(p)[SizeOf(TDynArrayRec)],minLength*elemSize);
+    end;
   end;
   // set refCnt=1 and new length to the heap memory structure
   with p^ do begin
@@ -49805,7 +49995,7 @@ begin // this method is faster than default System.DynArraySetLength() function
   // reset new allocated elements content to zero
   if NewLength>OldLength then begin
     OldLength := OldLength*elemSize;
-    FillcharFast(pa[OldLength],neededSize-OldLength-SizeOf(TDynArrayRec),0);
+    FillcharFast(PAnsiChar(p)[OldLength],NeededSize-OldLength-SizeOf(TDynArrayRec),0);
   end;
   fValue^ := p;
 end;
@@ -50813,14 +51003,9 @@ begin
 end;
 
 procedure TObjectDynArrayWrapper.Sort(Compare: TDynArraySortCompare);
-var QuickSort: TDynArrayQuickSort;
 begin
-  if (@Compare<>nil) and (fCount>0) then begin
-    Quicksort.Compare := @Compare;
-    Quicksort.Value := fValue^;
-    Quicksort.ElemSize := SizeOf(pointer);
-    Quicksort.QuickSort(0,fCount-1);
-  end;
+  if (@Compare<>nil) and (fCount>0) then
+    QuickSortPtr(0,fCount-1,Compare,fValue^);
 end;
 
 function PtrArrayAdd(var aPtrArray; aItem: pointer): integer;
@@ -50957,16 +51142,9 @@ begin
 end;
 
 procedure ObjArraySort(var aObjArray; Compare: TDynArraySortCompare);
-var QuickSort: TDynArrayQuickSort;
-    n: integer;
 begin
-  n := length(TObjectDynArray(aObjArray));
-  if (@Compare<>nil) and (n>0) then begin
-    Quicksort.Compare := @Compare;
-    Quicksort.Value := pointer(aObjArray);
-    Quicksort.ElemSize := SizeOf(pointer);
-    Quicksort.QuickSort(0,n-1);
-  end;
+  if @Compare<>nil then
+    QuickSortPtr(0,length(TObjectDynArray(aObjArray))-1,Compare,pointer(aObjArray));
 end;
 
 procedure RawObjectsClear(o: PObject; n: integer);
@@ -51593,12 +51771,9 @@ end;
 
 {$ifdef FPC_OR_PUREPASCAL}
 class function TSynPersistent.NewInstance: TObject;
-var p: pointer;
 begin // bypass vmtIntfTable and vmt^.vInitTable (management operators)
-  GetMem(p, InstanceSize);
-  FillCharFast(p^, InstanceSize, 0);
-  PPointer(p)^ := pointer(self); // store VMT
-  result := p;
+  result := AllocMem(InstanceSize); // will zero memory
+  PPointer(result)^ := pointer(self); // store VMT
 end;
 {$else}
 class function TSynPersistent.NewInstance: TObject;
@@ -51656,8 +51831,7 @@ end;
 constructor TSynPersistentLock.Create;
 begin
   inherited Create;
-  GetMem(fSafe,SizeOf(TSynLocker));
-  FillCharFast(fSafe^,SizeOf(TSynLocker),0);
+  fSafe := AllocMem(SizeOf(TSynLocker));
   fSafe^.Init;
 end;
 
@@ -51747,7 +51921,7 @@ begin
 end;
 
 procedure TSynPersistentStore.SaveTo(out aBuffer: RawByteString; nocompression: boolean;
-  BufLen: integer; ForcedAlgo: TAlgoCompress);
+  BufLen: integer; ForcedAlgo: TAlgoCompress; BufferOffset: integer);
 var writer: TFileBufferWriter;
     temp: array[word] of byte;
 begin
@@ -51757,16 +51931,16 @@ begin
   try
     SaveToWriter(writer);
     fSaveToLastUncompressed := writer.TotalWritten;
-    aBuffer := writer.FlushAndCompress(nocompression,ForcedAlgo);
+    aBuffer := writer.FlushAndCompress(nocompression,ForcedAlgo,BufferOffset);
   finally
     writer.Free;
   end;
 end;
 
 function TSynPersistentStore.SaveTo(nocompression: boolean; BufLen: integer;
-  ForcedAlgo: TAlgoCompress): RawByteString;
+  ForcedAlgo: TAlgoCompress; BufferOffset: integer): RawByteString;
 begin
-  SaveTo(result,nocompression,BufLen,ForcedAlgo);
+  SaveTo(result,nocompression,BufLen,ForcedAlgo,BufferOffset);
 end;
 
 function TSynPersistentStore.SaveToFile(const aFileName: TFileName;
@@ -52508,23 +52682,29 @@ begin
   time.AddLogTime(self);
 end;
 
-procedure TTextWriter.AddMicroSec(MS: cardinal);
-function Value3Digits(V: Cardinal; P: PUTF8Char): Cardinal;
+function Value3Digits(V: PtrUInt; P: PUTF8Char; W: PWordArray): PtrUInt;
+  {$ifdef HASINLINE}inline;{$endif}
 begin
-  PWord(P+1)^ := TwoDigitLookupW[V mod 100];
-  P^ := AnsiChar((V div 100)mod 10+48);
-  result := V div 1000;
+  result := V div 100;
+  PWord(P+1)^ := W[V-result*100];
+  V := result;
+  result := result div 10;
+  P^ := AnsiChar(V-result*10+48);
 end;
+
+procedure TTextWriter.AddMicroSec(MS: cardinal);
+var W: PWordArray;
 begin // 00.000.000
   if BEnd-B<=17 then
     FlushToStream;
   B[3] := '.';
   B[7] := '.';
   inc(B);
-  MS := Value3Digits(Value3Digits(MS,B+7),B+3);
+  W := @TwoDigitLookupW;
+  MS := Value3Digits(Value3Digits(MS,B+7,W),B+3,W);
   if MS>99 then
     MS := 99;
-  PWord(B)^:= TwoDigitLookupW[MS];
+  PWord(B)^:= W[MS];
   inc(B,9);
 end;
 
@@ -53459,7 +53639,7 @@ begin
 end;
 
 procedure TTextWriter.AddBinToHex(Bin: Pointer; BinBytes: integer);
-var ChunkBytes: integer;
+var ChunkBytes: PtrInt;
 begin
   if BinBytes<=0 then
     exit;
@@ -54697,7 +54877,7 @@ end;
 
 procedure TTextWriter.FlushToStream;
 var i: PtrInt;
-    written: cardinal;
+    written: PtrUInt;
 begin
   if fEchos<>nil then begin
     EchoFlush;
@@ -54738,11 +54918,11 @@ begin
     exclude(fCustomOptions,twoEndOfLineCRLF);
 end;
 
-function TTextWriter.GetLength: cardinal;
+function TTextWriter.GetTextLength: PtrUInt;
 begin
   if self=nil then
     result := 0 else
-    result := cardinal(B-fTempBuf+1)+fTotalFileSize-fInitialStreamPosition;
+    result := PtrUInt(B-fTempBuf+1)+fTotalFileSize-fInitialStreamPosition;
 end;
 
 function TTextWriter.Text: RawUTF8;
@@ -54867,8 +55047,8 @@ begin
     MultiEventRemove(fEchos,TMethod(aEcho));
 end;
 
-function TTextWriter.EchoFlush: integer;
-var L,LI: Integer;
+function TTextWriter.EchoFlush: PtrInt;
+var L,LI: PtrInt;
     P: PByteArray;
 begin
   result := B-fTempBuf+1;
@@ -56984,17 +57164,23 @@ function TPrecisionTimer.ByCount(Count: QWord): TShort16;
 begin
   if Count=0 then
     result := '0' else // avoid div per 0 exception
-    MicroSecToString(iTime div Count,result);
+    MicroSecToString(fTime div Count,result);
 end;
 
 function TPrecisionTimer.PerSec(const Count: QWord): QWord;
 begin
-  if iTime<=0 then // avoid negative value in case of incorrect Start/Stop sequence
+  if fTime<=0 then // avoid negative value in case of incorrect Start/Stop sequence
     result := 0 else // avoid div per 0 exception
-    result := (Count*QWord(1000*1000)) div iTime;
+    result := (Count*QWord(1000000)) div fTime;
 end;
 
-{$HINTS OFF} // for FillZero() complain about loop executed zero times
+function TPrecisionTimer.SizePerSec(Size: QWord): shortstring;
+begin
+  FormatShort('% in % i.e. %/s',[KB(Size),Stop,KB(PerSec(Size))],result);
+end;
+
+{$IFDEF FPC} {$PUSH} {$ENDIF} {$HINTS OFF}
+// for FillZero() complain about loop executed zero times
 procedure TPrecisionTimer.Init;
 begin
   FillZero(self,SizeOf(self));
@@ -57003,78 +57189,90 @@ end;
 procedure TPrecisionTimer.Start;
 begin
   FillZero(self,SizeOf(self));
-  QueryPerformanceCounter(iStart);
-  iLast := iStart;
+  {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(fStart);
+  fLast := fStart;
 end;
-{$HINTS ON}
+{$IFDEF FPC} {$POP} {$ELSE} {$HINTS ON} {$ENDIF}
 
 function TPrecisionTimer.Started: boolean;
 begin
-  result := iStart <> 0;
+  result := fStart <> 0;
 end;
 
 procedure TPrecisionTimer.ComputeTime;
 begin
-  QueryPerformanceCounter(iStop);
-  if iFreq=0 then begin
-    QueryPerformanceFrequency(iFreq);
-    if iFreq=0 then begin
-      iTime := 0;
-      iLastTime := 0;
+  {$ifdef LINUX}
+  QueryPerformanceMicroSeconds(fStop);
+  fTime := fStop-fStart;
+  fLastTime := fStop-fLast;
+  {$else}
+  QueryPerformanceCounter(fStop);
+  if fWinFreq=0 then begin
+    QueryPerformanceFrequency(fWinFreq);
+    if fWinFreq=0 then begin
+      fTime := 0;
+      fLastTime := 0;
       exit;
     end;
   end;
-  iTime := ((iStop-iStart)*Int64(1000*1000))div iFreq;
-  iLastTime := ((iStop-iLast)*Int64(1000*1000))div iFreq;
+  fTime := (QWord(fStop-fStart)*QWord(1000000)) div QWord(fWinFreq);
+  if fLast=fStart then
+    fLastTime := fTime else
+    fLastTime := (QWord(fStop-fLast)*QWord(1000000)) div QWord(fWinFreq);
+  {$endif LINUX}
 end;
 
 procedure TPrecisionTimer.FromExternalMicroSeconds(const MicroSeconds: QWord);
 begin
-  iLastTime := MicroSeconds;
-  inc(iTime,MicroSeconds);
+  fLastTime := MicroSeconds;
+  inc(fTime,MicroSeconds);
 end;
 
 function TPrecisionTimer.FromExternalQueryPerformanceCounters(const CounterDiff: QWord): QWord;
-begin // very close to ComputeTime
-  if iFreq=0 then begin
-    iTime := 0;
-    QueryPerformanceFrequency(iFreq);
+begin // mimics ComputeTime from already known elapsed time
+  {$ifdef LINUX}
+  FromExternalMicroSeconds(CounterDiff);
+  {$else}
+  if fWinFreq=0 then begin
+    fTime := 0;
+    fLastTime := 0;
+    QueryPerformanceFrequency(fWinFreq);
   end;
-  if iFreq=0 then
-    iLastTime := 0 else
-    FromExternalMicroSeconds((Int64(CounterDiff)*Int64(1000*1000))div iFreq);
-  result := iLastTime;
+  if fWinFreq<>0 then
+    FromExternalMicroSeconds((CounterDiff*QWord(1000000))div QWord(fWinFreq));
+  {$endif LINUX}
+  result := fLastTime;
 end;
 
 function TPrecisionTimer.Stop: TShort16;
 begin
   ComputeTime;
-  MicroSecToString(iTime,result);
+  MicroSecToString(fTime,result);
 end;
 
 procedure TPrecisionTimer.Pause;
 begin
-  QueryPerformanceCounter(iResume);
-  dec(iResume,iStart);
+  {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(fResume);
+  dec(fResume,fStart);
   inc(fPauseCount);
 end;
 
 procedure TPrecisionTimer.Resume;
 begin
-  QueryPerformanceCounter(iStart);
-  iLast := iStart;
-  dec(iStart,iResume);
-  iResume := 0;
+  {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(fStart);
+  fLast := fStart;
+  dec(fStart,fResume);
+  fResume := 0;
 end;
 
 function TPrecisionTimer.Time: TShort16;
 begin
-  MicroSecToString(iTime,result);
+  MicroSecToString(fTime,result);
 end;
 
 function TPrecisionTimer.LastTime: TShort16;
 begin
-  MicroSecToString(iLastTime,result);
+  MicroSecToString(fLastTime,result);
 end;
 
 
@@ -57103,7 +57301,7 @@ end;
 
 function TPrecisionTimer.ProfileCurrentMethod: IUnknown;
 begin
-  if iStart=0 then
+  if fStart=0 then
     Start else
     Resume;
   result := TPrecisionTimerProfiler.Create(@self);
@@ -57159,7 +57357,7 @@ function TSynMonitorTime.PerSecond(const Count: QWord): QWord;
 begin
   if PInt64(@fMicroSeconds)^<=0 then // avoid negative or div per 0
     result := 0 else
-    result := (Count*QWord(1000*1000)) div fMicroSeconds;
+    result := (Count*QWord(1000000)) div fMicroSeconds;
 end;
 
 
@@ -57174,7 +57372,7 @@ function TSynMonitorOneTime.PerSecond(const Count: QWord): QWord;
 begin
   if PInt64(@fMicroSeconds)^<=0 then // avoid negative or div per 0
     result := 0 else
-    result := (Count*QWord(1000*1000)) div fMicroSeconds;
+    result := (Count*QWord(1000000)) div fMicroSeconds;
 end;
 
 
@@ -58512,7 +58710,7 @@ begin
   {$ifdef VER3_0_1}+' 3.0.1'{$endif}
   {$ifdef VER3_0_2}+' 3.0.2'{$endif}
   {$ifdef VER3_1_1}+' 3.1.1'{$endif}
-  {$ifdef VER3_2}+' 3.2'{$endif}
+  {$ifdef VER3_2}  +' 3.2'  {$endif}
   {$ifdef VER3_3_1}+' 3.3.1'{$endif}
 {$else}
   {$ifdef VER130} 'Delphi 5'{$endif}
@@ -58572,7 +58770,7 @@ begin
   if fRamUsed>fMaxRamUsed then
     Reset;
   if fTimeoutSeconds>0 then begin
-    tix := GetTickCount64 shr 10;
+    tix := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10;
     if fTimeoutTix>tix then
       Reset;
     fTimeoutTix := tix+fTimeoutSeconds;
@@ -59861,7 +60059,7 @@ function TSynDictionary.ComputeNextTimeOut: cardinal;
 begin
   result := fSafe.Padding[DIC_TIMESEC].VInteger;
   if result<>0 then
-    result := cardinal(GetTickCount64 shr 10)+result;
+    result := cardinal({$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10)+result;
 end;
 
 function TSynDictionary.GetCapacity: integer;
@@ -59906,7 +60104,7 @@ begin
   if (self=nil) or (fSafe.Padding[DIC_TIMECOUNT].VInteger=0) or // no entry
      (fSafe.Padding[DIC_TIMESEC].VInteger=0) then // nothing in fTimeOut[]
     exit;
-  now := GetTickCount64 shr 10;
+  now := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10;
   if fSafe.Padding[DIC_TIMETIX].VInteger=integer(now) then
     exit; // no need to search more often than every second
   fSafe.Lock;
@@ -60126,7 +60324,7 @@ begin // caller is expected to call fSafe.Lock/Unlock
   if aUpdateTimeOut and (result>=0) then begin
     tim := fSafe.Padding[DIC_TIMESEC].VInteger;
     if tim>0 then // inlined fTimeout[result] := GetTimeout
-      fTimeout[result] := cardinal(GetTickCount64 shr 10)+tim;
+      fTimeout[result] := cardinal({$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10)+tim;
   end;
 end;
 
@@ -60148,7 +60346,7 @@ var ndx: integer;
 begin
   tim := fSafe.Padding[DIC_TIMESEC].VInteger; // inlined tim := GetTimeout
   if tim<>0 then
-    tim := cardinal(GetTickCount64 shr 10)+tim;
+    tim := cardinal({$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10)+tim;
   ndx := fKeys.FindHashedForAdding(aKey,added);
   if added then begin
     with fKeys{$ifdef UNDIRECTDYNARRAY}.InternalDynArray{$endif} do
@@ -60286,7 +60484,7 @@ begin
     exit;
   tim := fSafe.Padding[DIC_TIMESEC].VInteger;
   if tim > 0 then
-    fTimeOut[aIndex] := cardinal(GetTickCount64 shr 10)+tim;
+    fTimeOut[aIndex] := cardinal({$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64 shr 10)+tim;
 end;
 
 function TSynDictionary.Count: integer;
@@ -60563,71 +60761,78 @@ begin
   end;
 end;
 
+function TSynQueue.InternalDestroying(incPopCounter: integer): boolean;
+begin
+  fSafe.Lock;
+  try
+    result := wpfDestroying in fWaitPopFlags;
+    inc(fWaitPopCounter, incPopCounter);
+  finally
+    fSafe.UnLock;
+  end;
+end;
+
+function TSynQueue.InternalWaitDone(endtix: Int64; const idle: TThreadMethod): boolean;
+begin
+  Sleep(1);
+  if Assigned(idle) then
+    idle; // e.g. Application.ProcessMessages
+  result := InternalDestroying(0) or (GetTickCount64>endtix);
+end;
+
 function TSynQueue.WaitPop(aTimeoutMS: integer; const aWhenIdle: TThreadMethod;
   out aValue): boolean;
 var endtix: Int64;
 begin
   result := false;
-  endtix := GetTickCount64+aTimeoutMS;
-  repeat
-    fSafe.Lock;
+  if not InternalDestroying(+1) then
     try
-      if wpfDestroying in fWaitPopFlags then
-        exit;
-      if not(wpfWaiting in fWaitPopFlags) then begin
-        include(fWaitPopFlags,wpfWaiting); // acquire flag
-        break;
-      end;
+      endtix := GetTickCount64+aTimeoutMS;
+      repeat
+        result := Pop(aValue);
+      until result or InternalWaitDone(endtix,aWhenIdle);
     finally
-      fSafe.UnLock;
+      InternalDestroying(-1);
     end;
-    Sleep(1);
-    if GetTickCount64>endtix then
-      exit;
-  until false;
-  try
-    repeat
-      result := Pop(aValue);
-      if result then
-        exit;
-      Sleep(1);
-      if Assigned(aWhenIdle) then
-        aWhenIdle; // e.g. Application.ProcessMessages
-      fSafe.Lock;
-      try
-        if wpfDestroying in fWaitPopFlags then
-          exit;
-      finally
-        fSafe.UnLock;
-      end;
-    until GetTickCount64>endtix;
-  finally
-    fSafe.Lock;
+end;
+
+function TSynQueue.WaitPeekLocked(aTimeoutMS: integer; const aWhenIdle: TThreadMethod): pointer;
+var endtix: Int64;
+begin
+  result := nil;
+  if not InternalDestroying(+1) then
     try
-      exclude(fWaitPopFlags,wpfWaiting); // release flag
+      endtix := GetTickCount64+aTimeoutMS;
+      repeat
+        fSafe.Lock;
+        try
+          if fFirst>=0 then
+            result := fValues.ElemPtr(fFirst);
+        finally
+          if result=nil then
+            fSafe.UnLock; // caller should always Unlock once done
+        end;
+      until (result<>nil) or InternalWaitDone(endtix,aWhenIdle);
     finally
-      fSafe.UnLock;
+      InternalDestroying(-1);
     end;
-  end;
 end;
 
 procedure TSynQueue.WaitPopFinalize;
 var endtix: Int64; // never wait forever
 begin
-  endtix := 0;
+  fSafe.Lock;
+  try
+    include(fWaitPopFlags,wpfDestroying);
+    if fWaitPopCounter = 0 then
+      exit;
+  finally
+    fSafe.UnLock;
+  end;
+  endtix := GetTickCount64 + 100;
   repeat
-    fSafe.Lock;
-    try
-      include(fWaitPopFlags,wpfDestroying);
-      if not(wpfWaiting in fWaitPopFlags) then
-        exit;
-    finally
-      fSafe.UnLock;
-    end;
-    if endtix = 0 then
-      endtix := GetTickCount64 + 100;
     Sleep(1); // ensure WaitPos() is actually finished
-  until GetTickCount64 > endtix;
+  until (fWaitPopCounter=0) or (GetTickCount64>endtix);
 end;
 
 procedure TSynQueue.Save(out aDynArrayValues; aDynArray: PDynArray);
@@ -60695,10 +60900,10 @@ begin
     fMap := 0;
   {$else}
   if aCustomOffset<>0 then
-    if aCustomOffset and (_SC_PAGE_SIZE-1)<>0 then
-      raise ESynException.CreateUTF8('fpmmap(aCustomOffset=%) with pagesize=%',
-        [aCustomOffset,_SC_PAGE_SIZE]) else
-      aCustomOffset := aCustomOffset div _SC_PAGE_SIZE;
+    if aCustomOffset and (SystemInfo.dwPageSize-1)<>0 then
+      raise ESynException.CreateUTF8('fpmmap(aCustomOffset=%) with SystemInfo.dwPageSize=%',
+        [aCustomOffset,SystemInfo.dwPageSize]) else
+      aCustomOffset := aCustomOffset div SystemInfo.dwPageSize;
   fBuf := {$ifdef KYLIX3}mmap{$else}fpmmap{$endif}(
     nil,fBufSize,PROT_READ,MAP_SHARED,fFile,aCustomOffset);
   if fBuf=MAP_FAILED then begin
@@ -61532,16 +61737,17 @@ begin
   until false;
 end;
 
-function TFileBufferWriter.FlushAndCompress(nocompression: boolean; algo: TAlgoCompress): RawByteString;
+function TFileBufferWriter.FlushAndCompress(nocompression: boolean; algo: TAlgoCompress;
+  BufferOffset: integer): RawByteString;
 var trig: integer;
 begin
   if algo=nil then
     algo := AlgoSynLZ;
   trig := SYNLZTRIG[nocompression];
   if fStream.Position=0 then // direct compression from internal buffer
-    result := algo.Compress(PAnsiChar(fBuffer),fPos,trig) else begin
+    result := algo.Compress(PAnsiChar(fBuffer),fPos,trig,false,BufferOffset) else begin
     Flush;
-    result := algo.Compress((fStream as TRawByteStringStream).DataString,trig);
+    result := algo.Compress((fStream as TRawByteStringStream).DataString,trig,false,BufferOffset);
   end;
 end;
 
@@ -62566,6 +62772,15 @@ begin
   end;
 end;
 
+function TFastReader.ReadCompressed(Load: TAlgoCompressLoad; BufferOffset: integer): RawByteString;
+var comp: PAnsiChar;
+    complen: PtrUInt;
+begin
+  complen := VarUInt32;
+  comp := Next(complen);
+  TAlgoCompress.Algo(comp,complen).Decompress(comp,complen,result,Load,BufferOffset);
+end;
+
 
 function PropNameValid(P: PUTF8Char): boolean;
 begin
@@ -63098,10 +63313,21 @@ end;
 class function TAlgoCompress.Algo(Comp: PAnsiChar; CompLen: integer): TAlgoCompress;
 begin
   if (Comp<>nil) and (CompLen>9) then
-    if ord(Comp[4])<=1{inlinedCOMPRESS_SYNLZ} then // "stored" maps SynLZ
-      result := AlgoSynLZ else
+    if ord(Comp[4])<=1 then // inline-friendly Comp[4]<=COMPRESS_SYNLZ
+      result := AlgoSynLZ else // COMPRESS_STORED is also handled as SynLZ
       result := Algo(ord(Comp[4])) else
     result := nil;
+end;
+
+class function TAlgoCompress.Algo(Comp: PAnsiChar; CompLen: integer; out IsStored: boolean): TAlgoCompress;
+begin
+  if (Comp<>nil) and (CompLen>9) then begin
+    IsStored := Comp[4]=COMPRESS_STORED;
+    result := Algo(ord(Comp[4]));
+  end else begin
+    IsStored := false;
+    result := nil;
+  end;
 end;
 
 class function TAlgoCompress.Algo(AlgoID: byte): TAlgoCompress;
@@ -63153,40 +63379,43 @@ begin
   result := crc32c(Previous,Data,DataLen);
 end;
 
-function TAlgoCompress.Compress(const Plain: RawByteString;
-  CompressionSizeTrigger: integer; CheckMagicForCompressed: boolean): RawByteString;
+function TAlgoCompress.Compress(const Plain: RawByteString; CompressionSizeTrigger: integer;
+  CheckMagicForCompressed: boolean; BufferOffset: integer): RawByteString;
 begin
-  result := Compress(pointer(Plain),Length(Plain),CompressionSizeTrigger,CheckMagicForCompressed);
+  result := Compress(pointer(Plain),Length(Plain),CompressionSizeTrigger,
+    CheckMagicForCompressed,BufferOffset);
 end;
 
-function TAlgoCompress.Compress(Plain: PAnsiChar; PlainLen: integer;
-  CompressionSizeTrigger: integer; CheckMagicForCompressed: boolean): RawByteString;
+function TAlgoCompress.Compress(Plain: PAnsiChar; PlainLen: integer; CompressionSizeTrigger: integer;
+  CheckMagicForCompressed: boolean; BufferOffset: integer): RawByteString;
 var len: integer;
     R: PAnsiChar;
     crc: cardinal;
-    tmp: array[0..16383] of AnsiChar;  // will resize Result in-place
+    tmp: array[0..16383] of AnsiChar;  // big enough to resize Result in-place
 begin
   if (self=nil) or (PlainLen=0) or (Plain=nil) then
     exit;
   crc := AlgoHash(0,Plain,PlainLen);
   if (PlainLen<CompressionSizeTrigger) or
      (CheckMagicForCompressed and IsContentCompressed(Plain,PlainLen)) then begin
-    SetString(result,nil,PlainLen+9);
+    SetString(result,nil,PlainLen+BufferOffset+9);
     R := pointer(result);
+    inc(R,BufferOffset);
     PCardinal(R)^ := crc;
     R[4] := COMPRESS_STORED;
     PCardinal(R+5)^ := crc;
     MoveFast(Plain^,R[9],PlainLen);
   end else begin
-    len := CompressDestLen(PlainLen);
+    len := CompressDestLen(PlainLen)+BufferOffset;
     if len>SizeOf(tmp) then begin
       SetString(result,nil,len);
       R := pointer(result);
     end else
       R := @tmp;
+    inc(R,BufferOffset);
     PCardinal(R)^ := crc;
     len := AlgoCompress(Plain,PlainLen,R+9);
-    if len>=PlainLen then begin // store if compression not worth it
+    if len+64>=PlainLen then begin // store if compression was not worth it
       R[4] := COMPRESS_STORED;
       PCardinal(R+5)^ := crc;
       MoveFast(Plain^,R[9],PlainLen);
@@ -63196,8 +63425,8 @@ begin
       PCardinal(R+5)^ := AlgoHash(0,R+9,len);
     end;
     if R=@tmp then
-      SetString(result,tmp,len+9) else
-      SetLength(result,len+9); // resize in-place may not move any data
+      SetString(result,tmp,len+BufferOffset+9) else
+      SetLength(result,len+BufferOffset+9); // MM may not move the data
   end;
 end;
 
@@ -63283,14 +63512,16 @@ begin
 end;
 
 procedure TAlgoCompress.Decompress(Comp: PAnsiChar; CompLen: integer;
-  out Result: RawByteString; Load: TAlgoCompressLoad);
+  out Result: RawByteString; Load: TAlgoCompressLoad; BufferOffset: integer);
 var len: integer;
+    dec: PAnsiChar;
 begin
   len := DecompressHeader(Comp,CompLen,Load);
   if len=0 then
     exit;
-  SetString(result,nil,len);
-  if not DecompressBody(Comp,pointer(result),CompLen,len,Load) then
+  SetString(result,nil,len+BufferOffset);
+  dec := pointer(result);
+  if not DecompressBody(Comp,dec+BufferOffset,CompLen,len,Load) then
     result := '';
 end;
 
@@ -63779,7 +64010,7 @@ procedure TMemoryMapText.LoadFromMap(AverageLineLength: integer=32);
 var P: PUTF8Char;
 begin
   fLinesMax := fMap.fFileSize div AverageLineLength+8;
-  Getmem(fLines,fLinesMax*SizeOf(pointer));
+  GetMem(fLines,fLinesMax*SizeOf(pointer));
   P := pointer(fMap.Buffer);
   fMapEnd := P+fMap.Size;
   if TextFileKind(Map)=isUTF8 then
@@ -63894,7 +64125,7 @@ end;
 
 function TPendingTaskList.GetTimestamp: Int64;
 begin
-  result := GetTickCount64;
+  result := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64;
 end;
 
 procedure TPendingTaskList.AddTask(aMilliSecondsDelayFromNow: integer;
@@ -64670,19 +64901,24 @@ end;
 
 function TSynBackgroundThreadMethodAbstract.OnIdleProcessNotify(start: Int64): integer;
 begin
-  result := GetTickCount64-start;
+  result := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64-start;
   if result<0 then
     result := MaxInt; // should happen only under XP -> ignore
   if Assigned(fOnIdle) then
     fOnIdle(self,result) ;
 end;
 
-procedure TSynBackgroundThreadMethodAbstract.WaitForFinished(start: Int64);
+procedure TSynBackgroundThreadMethodAbstract.WaitForFinished(start: Int64;
+  const onmainthreadidle: TNotifyEvent);
 var E: Exception;
 begin
-  if (self=nil) or not (fPendingProcessFlag in [flagStarted, flagFinished]) then
+  if (self=nil) or not(fPendingProcessFlag in [flagStarted, flagFinished]) then
     exit; // nothing to wait for
   try
+    if Assigned(onmainthreadidle) then begin
+      while FixedWaitFor(fCallerEvent,100)=wrTimeout do
+        onmainthreadidle(self);
+    end else
     {$ifdef MSWINDOWS} // do process the OnIdle only if UI
     if Assigned(fOnIdle) then begin
       while FixedWaitFor(fCallerEvent,100)=wrTimeout do
@@ -64719,7 +64955,7 @@ begin
   // 1. wait for any previous request to be finished (should not happen often)
   if Assigned(fOnIdle) then
     fOnIdle(self,0); // notify started
-  start := GetTickCount64;
+  start := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64;
   repeat
     case AcquireThread of
     flagDestroying:
@@ -64737,7 +64973,7 @@ begin
   // 2. process execution in the background thread
   fParam := OpaqueParam;
   fProcessEvent.SetEvent; // notify background thread for Call pending process
-  WaitForFinished(start); // wait for flagFinished, then set flagIdle
+  WaitForFinished(start,nil); // wait for flagFinished, then set flagIdle
   result := true;
 end;
 
@@ -64910,7 +65146,7 @@ var tix: Int64;
 begin
   if (fTask=nil) or Terminated then
     exit;
-  tix := GetTickCount64;
+  tix := {$ifdef FPCLINUX}SynFPCLinux.{$endif}GetTickCount64;
   n := 0;
   fTaskLock.Lock;
   try
@@ -65000,9 +65236,12 @@ end;
 procedure TSynBackgroundTimer.WaitUntilNotProcessing(timeoutsecs: integer);
 var timeout: Int64;
 begin
+  if not Processing then
+    exit;
   timeout := GetTickCount64+timeoutsecs*1000;
-  while Processing and (GetTickcount64<timeout) do
+  repeat
     SleepHiRes(1);
+  until not Processing or (GetTickcount64>timeout);
 end;
 
 function TSynBackgroundTimer.ExecuteNow(aOnProcess: TOnSynBackgroundTimerProcess): boolean;
@@ -65506,20 +65745,24 @@ begin
   inherited;
 end;
 
-procedure TSynParallelProcess.ParallelRunAndWait(Method: TSynParallelProcessMethod;
-  MethodCount: integer);
+procedure TSynParallelProcess.ParallelRunAndWait(const Method: TSynParallelProcessMethod;
+  MethodCount: integer; const OnMainThreadIdle: TNotifyEvent);
 var use,t,n,perthread: integer;
     error: RawUTF8;
 begin
   if (MethodCount<=0) or not Assigned(Method) then
     exit;
-  if (self=nil) or (MethodCount=1) or (fThreadPoolCount=0) then begin
-    Method(0,MethodCount-1); // no need (or impossible) to use background thread
-    exit;
-  end;
+  if not Assigned(OnMainThreadIdle) then
+    if (self=nil) or (MethodCount=1) or (fThreadPoolCount=0) then begin
+      Method(0,MethodCount-1); // no need (or impossible) to use background thread
+      exit;
+    end;
   use := MethodCount;
-  if use>fThreadPoolCount+1 then // +1 to include current thread
-    use := fThreadPoolCount+1;
+  t := fThreadPoolCount;
+  if not Assigned(OnMainThreadIdle) then
+    inc(t); // include current thread
+  if use>t then
+    use := t;
   try
     // start secondary threads
     perthread := MethodCount div use;
@@ -65536,21 +65779,27 @@ begin
           break; // acquired (should always be the case)
         end;
         Sleep(1);
+        if Assigned(OnMainThreadIdle) then
+          OnMainThreadIdle(self);
       until false;
       fPool[t].Start(Method,n,n+perthread-1);
       inc(n,perthread);
       inc(fParallelRunCount);
     end;
-    // run remaining items in the current thread
+    // run remaining items in the current/last thread
     if n<MethodCount then begin
-      Method(n,MethodCount-1);
+      if Assigned(OnMainThreadIdle) then begin
+        fPool[use-1].Start(Method,n,MethodCount-1);
+        inc(use); // also wait for the last thread
+      end else
+        Method(n,MethodCount-1);
       inc(fParallelRunCount);
     end;
   finally
     // wait for the process to finish
     for t := 0 to use-2 do
     try
-      fPool[t].WaitForFinished(0);
+      fPool[t].WaitForFinished(0,OnMainThreadIdle);
     except
       on E: Exception do
         error := FormatUTF8('% % on thread % [%]',[error,E,fPool[t].fThreadName,E.Message]);

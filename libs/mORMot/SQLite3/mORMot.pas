@@ -13990,7 +13990,6 @@ type
     fServices: TServiceContainer;
     fPrivateGarbageCollector: TObjectList;
     fRoutingClass: TSQLRestServerURIContextClass;
-    fFrequencyTimestamp: Int64;
     fBackgroundTimer: TSQLRestBackgroundTimer;
     fOnDecryptBody, fOnEncryptBody: TNotifyRestBody;
     fCustomEncryptAES: TAESAbstract;
@@ -33488,6 +33487,9 @@ end;
 
 {$endif NOVARIANTS}
 
+var
+  vmtAutoTableLock: TRTLCriticalSection; // atomic set of the VMT AutoTable entry
+
 function PropsCreate(aTable: TSQLRecordClass): TSQLRecordProperties;
 var PVMT: pointer;
 begin // private sub function makes the code faster in most case
@@ -33495,17 +33497,23 @@ begin // private sub function makes the code faster in most case
     result := nil; // invalid call
     exit;
   end;
-  // create the properties information from RTTI
-  result := TSQLRecordProperties.Create(aTable);
-  // store the TSQLRecordProperties instance into AutoTable unused VMT entry
-  PVMT := pointer(PtrInt(aTable)+vmtAutoTable);
-  if PPointer(PVMT)^<>nil then
-    raise ESynException.CreateUTF8('%.AutoTable VMT entry already set',[aTable]);
-  PatchCodePtrUInt(PVMT,PtrUInt(result),true); // LeaveUnprotected=true
-  // register to the internal garbage collection (avoid memory leak)
-  GarbageCollectorFreeAndNil(PVMT^,result); // set to nil at finalization
-  // overriden method may use RecordProps -> do it after the VMT is set
-  aTable.InternalDefineModel(result);
+  EnterCriticalSection(vmtAutoTableLock);
+  try
+    // TSQLRecordProperties instance is store into "AutoTable" unused VMT entry
+    PVMT := pointer(PtrInt(aTable)+vmtAutoTable);
+    result := PPointer(PVMT)^;
+    if result=nil then begin // protect from (unlikely) concurrent call
+      // create the properties information from RTTI
+      result := TSQLRecordProperties.Create(aTable);
+      PatchCodePtrUInt(PVMT,PtrUInt(result),true); // LeaveUnprotected=true
+      // register to the internal garbage collection (avoid memory leak)
+      GarbageCollectorFreeAndNil(PVMT^,result); // set to nil at finalization
+      // overriden method may use RecordProps -> do it after the VMT is set
+      aTable.InternalDefineModel(result);
+    end;
+  finally
+    LeaveCriticalSection(vmtAutoTableLock);
+  end;
 end;
 
 // since "var class" are not available in Delphi 6-7, and is inherited by
@@ -35377,7 +35385,6 @@ begin
   AcquireWriteMode := amLocked;
   AcquireWriteTimeOut := 5000; // default 5 seconds
   fRoutingClass := TSQLRestRoutingREST;
-  QueryPerformanceFrequency(fFrequencyTimestamp);
   {$ifdef WITHLOG}
   SetLogClass(SQLite3Log); // by default
   {$endif}
@@ -37911,10 +37918,10 @@ procedure TSQLRestThread.WaitForNotExecuting(maxMS: integer);
 var endtix: Int64;
 begin
   if fExecuting then begin
-    endtix := GetTickCount64+maxMS;
+    endtix := SynCommons.GetTickCount64+maxMS;
     repeat
       Sleep(1); // wait for InternalExecute to finish
-    until not fExecuting or (GetTickCount64>=endtix);
+    until not fExecuting or (SynCommons.GetTickCount64>=endtix);
   end;
 end;
 
@@ -37944,12 +37951,12 @@ begin
   result := true; // notify Terminated
   if (self = nil) or Terminated then
     exit;
-  endtix := GetTickCount64+MS;
+  endtix := SynCommons.GetTickCount64+MS;
   repeat
     FixedWaitFor(fEvent,MS);
     if Terminated then
       exit;
-  until (MS<32) or (GetTickCount64>=endtix);
+  until (MS<32) or (SynCommons.GetTickCount64>=endtix);
   result := false; // normal delay expiration
 end;
 
@@ -41260,7 +41267,7 @@ var timeStart,timeEnd: Int64;
 begin
   with Server.fPublishedMethod[MethodIndex] do begin
     if mlMethods in Server.StatLevels then begin
-      QueryPerformanceCounter(timeStart);
+      {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeStart);
       if Stats=nil then begin
         Server.fStats.Lock; // use this global lock
         try
@@ -41276,7 +41283,7 @@ begin
       Server.InternalLog('% %',[Name,Parameters],sllServiceCall);
     CallBack(self);
     if Stats<>nil then begin
-      QueryPerformanceCounter(timeEnd);
+      {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeEnd);
       dec(timeEnd,timeStart);
       StatsFromContext(Stats,timeEnd,false);
       if Server.StatUsage<>nil then
@@ -42835,7 +42842,7 @@ begin
   {$ifdef WITHLOG}
   log := fLogClass.Enter('URI % % in=%',[Call.Method,Call.Url,KB(Call.InBody)],self);
   {$endif}
-  QueryPerformanceCounter(timeStart);
+  {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeStart);
   fStats.AddCurrentRequestCount(1);
   if Assigned(fOnDecryptBody) then
     fOnDecryptBody(self,Call.InBody,Call.InHead,Call.Url);
@@ -42948,7 +42955,7 @@ begin
        IsInvalidHttpHeader(pointer(Call.OutHead), length(Call.OutHead)) then
       Ctxt.Error('Unsafe HTTP header rejected [%]', [EscapeToShort(Call.OutHead)], HTTP_SERVERERROR);
   finally
-    QueryPerformanceCounter(timeEnd);
+    {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeEnd);
     Ctxt.MicroSecondsElapsed := fStats.FromExternalQueryPerformanceCounters(timeEnd-timeStart);
     {$ifdef WITHLOG}
     InternalLog('% % % %/% %=% out=% in %',
@@ -56838,13 +56845,13 @@ begin
   {$ifdef WITHLOG}
   log := fRest.LogClass.Enter('AsynchBatchStop(%)',[Table],self);
   {$endif}
-  timeout := GetTickCount64+5000;
+  timeout := SynCommons.GetTickCount64+5000;
   if Table=nil then begin // e.g. from TSQLRest.Destroy
     if not EnQueue(AsynchBatchExecute,'free@',true) then
       exit;
     repeat
       sleep(1); // wait for all batchs to be released
-    until (fBackgroundBatch=nil) or (GetTickCount64>timeout);
+    until (fBackgroundBatch=nil) or (SynCommons.GetTickCount64>timeout);
     result := Disable(AsynchBatchExecute);
   end else begin
     b := AsynchBatchIndex(Table);
@@ -56852,7 +56859,7 @@ begin
       exit;
     repeat
       sleep(1); // wait for all pending rows to be sent
-    until (fBackgroundBatch[b]=nil) or (GetTickCount64>timeout);
+    until (fBackgroundBatch[b]=nil) or (SynCommons.GetTickCount64>timeout);
     if ObjArrayCount(fBackgroundBatch)>0 then
       result := true else begin
       result := Disable(AsynchBatchExecute);
@@ -58386,6 +58393,7 @@ procedure FinalizeGlobalInterfaceResolution;
 begin
   GlobalInterfaceResolution := nil; // also cleanup Instance fields
   DeleteCriticalSection(GlobalInterfaceResolutionLock);
+  DeleteCriticalSection(vmtAutoTableLock);
 end;
 
 function TInterfaceResolverInjected.TryResolve(aInterface: PTypeInfo; out Obj): boolean;
@@ -59895,7 +59903,7 @@ var Inst: TServiceFactoryServerInstance;
 
 begin
   if mlInterfaces in TSQLRestServer(Rest).StatLevels then
-    QueryPerformanceCounter(timeStart);
+    {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeStart);
   // 1. initialize Inst.Instance and Inst.InstanceID
   Inst.InstanceID := 0;
   Inst.Instance := nil;
@@ -60043,7 +60051,7 @@ begin
       if InstanceCreation=sicSingle then
         Inst.SafeFreeInstance(self); // always release single shot instance
       if stats<>nil then begin
-        QueryPerformanceCounter(timeEnd);
+        {$ifdef LINUX}QueryPerformanceMicroSeconds{$else}QueryPerformanceCounter{$endif}(timeEnd);
         dec(timeEnd,timeStart);
         Ctxt.StatsFromContext(stats,timeEnd,false);
         if Ctxt.Server.StatUsage<>nil then
@@ -60789,8 +60797,22 @@ begin
   until aClass=TObject;
 end;
 
-type
-  TSimpleMethodCall = procedure(self: TObject);
+function SetAutoCreateFields(PVMT: pointer; c: TClass): TAutoCreateFields;
+begin
+  EnterCriticalSection(vmtAutoTableLock); // protect from concurrent access
+  try
+    result := PPointer(PVMT)^;
+    if result=nil then begin
+      // first time access: compute RTTI cache
+      result := TAutoCreateFields.Create(c);
+      // store the RTTI cache into the AutoTable VMT entry of this class
+      PatchCodePtrUInt(pointer(PVMT),PtrUInt(result),true);
+      GarbageCollectorFreeAndNil(PVMT^,result);
+    end;
+  finally
+    LeaveCriticalSection(vmtAutoTableLock);
+  end;
+end;
 
 procedure AutoCreateFields(self: TObject);
 var fields: TAutoCreateFields;
@@ -60799,13 +60821,8 @@ var fields: TAutoCreateFields;
 begin
   PVMT := pointer(PPtrInt(self)^+vmtAutoTable);
   fields := PVMT^;
-  if fields=nil then begin
-    // first time access: compute RTTI cache
-    fields := TAutoCreateFields.Create(PClass(self)^);
-    // store the RTTI cache into the AutoTable VMT entry of this class
-    PatchCodePtrUInt(pointer(PVMT),PtrUInt(fields),true);
-    GarbageCollectorFreeAndNil(PVMT^,fields);
-  end else
+  if fields=nil then
+    fields := SetAutoCreateFields(PVMT,PClass(self)^) else
     if PClass(fields)^<>TAutoCreateFields then
       raise EModelException.CreateUTF8('%.AutoTable VMT entry already set',[self]);
   // auto-create published persistent class instances
@@ -62851,8 +62868,7 @@ begin
     if TClass(PPointer(PVMT^)^)=TSQLRecordProperties then
       GarbageCollectorFreeAndNil(  // set to nil at finalization
         TSQLRecordProperties(PVMT^).fWeakZeroClass,self) else
-      raise EORMException.CreateUTF8(
-        '%.Create: %.AutoTable VMT entry already used',[self,aClass]);
+      raise EORMException.CreateUTF8('%.Create: %.AutoTable VMT entry already used',[self,aClass]);
   InitializeCriticalSection(fLock);
   EnterCriticalSection(fLock);
   {$WARN SYMBOL_DEPRECATED OFF}
@@ -62879,6 +62895,9 @@ begin
     if CreateIfNonExisting then
       result := TSetWeakZeroClass.Create(PPointer(aObject)^);
 end;
+
+type
+  TSimpleMethodCall = procedure(self: TObject);
 
 procedure TSetWeakZeroClass.HookedFreeInstance;
 begin
@@ -63070,6 +63089,7 @@ initialization
      TypeInfo(TSQLRestServerURI),_TSQLRestServerURI]);
   SynCommons.DynArrayIsObjArray := InternalIsObjArray;
   InitializeCriticalSection(GlobalInterfaceResolutionLock);
+  InitializeCriticalSection(vmtAutoTableLock);
   TInterfaceResolverInjected.RegisterGlobal(TypeInfo(IAutoLocker),TAutoLocker);
   TInterfaceResolverInjected.RegisterGlobal(TypeInfo(ILockedDocVariant),TLockedDocVariant);
   assert(SizeOf(TServiceMethod)and 3=0,'wrong padding');
