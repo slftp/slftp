@@ -1,8 +1,8 @@
-#   Makefile.fpc for indysystemfpc 10.6.2.5494
+#   Makefile.fpc for indysystemfpc 10.6.2.5495
 
 [package]
 name=indysystemfpc
-version=10.6.2.5494
+version=10.6.2.5495
 main=indy
 
 [require]
