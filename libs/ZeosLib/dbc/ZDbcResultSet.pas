@@ -1178,11 +1178,11 @@ begin
     if not LastWasNull and (Blob <> nil) then
       if Blob.IsClob then
         Result := Blob.GetStream
-      else
-        if Self.GetMetaData.GetColumnType(ColumnIndex) = stUnicodeStream then
-          Result := TStringStream.Create(GetValidatedAnsiStringFromBuffer(Blob.GetBuffer,
-            Blob.Length, ConSettings, ConSettings.CTRL_CP))
-        else
+      else if Self.GetMetaData.GetColumnType(ColumnIndex) = stUnicodeStream then begin
+        FRawTemp := GetValidatedAnsiStringFromBuffer(Blob.GetBuffer,
+            Blob.Length, ConSettings, ConSettings.CTRL_CP);
+        Result := StreamFromData(Pointer(FRawTemp), Length(FRawTemp){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF});
+      end else
           Result := Blob.GetStream;
     LastWasNull := (Result = nil);
   end;
@@ -1358,6 +1358,7 @@ end;
   @param columnIndex the first column is 1, the second is 2, ...
   @return the DefaultExpression value
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // readonly dataset - parameter not used intentionally
 function TZAbstractResultSet.GetDefaultExpression(ColumnIndex: Integer): string;
 begin
 {$IFNDEF DISABLE_CHECKING}
@@ -1365,6 +1366,7 @@ begin
 {$ENDIF}
   Result := '';
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 //======================================================================
 // Methods for accessing results by column name

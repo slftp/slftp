@@ -347,7 +347,7 @@ type
     function SupportsBidirectionalParams: Boolean; virtual;
     function AlignParamterIndex2ResultSetIndex(Value: Integer): Integer; virtual;
   protected //Properties
-    property BatchDMLArrayCount: ArrayLenInt read FBatchDMLArrayCount;
+    property BatchDMLArrayCount: ArrayLenInt read FBatchDMLArrayCount write FBatchDMLArrayCount;
     property SupportsDMLBatchArrays: Boolean read FSupportsDMLBatchArrays;
     property BindList: TZBindList read FBindList;
   protected //the sql conversions
@@ -924,7 +924,9 @@ type
 implementation
 
 uses ZFastCode, ZSysUtils, ZMessages, ZDbcResultSet, ZCollections,
-  ZEncoding, ZDbcProperties{$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
+  ZEncoding, ZDbcProperties
+  {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
+  {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
 
 var
 {**
@@ -2148,12 +2150,16 @@ end;
   @return a <code>ResultSet</code> object that contains the data produced by the
     query; never <code>null</code>
 }
+{$IFDEF FPC}
+  {$PUSH} {$WARN 5033 off : Function result does not seem to be set} // base class - result not returned intentionally
+{$ENDIF}
 function TZAbstractPreparedStatement.ExecuteQueryPrepared: IZResultSet;
 begin
   { Logging Execution }
   if DriverManager.HasLoggingListener then
     DriverManager.LogMessage(lcExecPrepStmt,Self);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Executes the SQL INSERT, UPDATE or DELETE statement
@@ -3232,6 +3238,7 @@ begin
   OutParamTypes[ParameterIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}] := TZSQLType(SQLType);
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // abstract method - parameters not used intentionally
 procedure TZAbstractCallableStatement.RegisterParameter(ParameterIndex: Integer;
   SQLType: TZSQLType; ParamType: TZProcedureColumnType; const Name: String;
   PrecisionOrSize: LengthInt; Scale: LengthInt);
@@ -3248,6 +3255,7 @@ begin
   if not FIsFunction then FIsFunction := ParamType = pctReturn;
   if not FHasOutParameter then FHasOutParameter := ParamType in [pctOut, pctInOut];
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 procedure TZAbstractCallableStatement.RegisterParamType(ParameterIndex,
   ParamType: Integer);
@@ -5103,6 +5111,7 @@ end;
   or <code>DECIMAL</code>, the version of
   <code>registerOutParameter</code> that accepts a scale value should be used.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // abstract method - parameters not used intentionally
 procedure TZAbstractPreparedStatement2.RegisterParameter(ParameterIndex: Integer;
   SQLType: TZSQLType; ParamType: TZProcedureColumnType; const Name: String = '';
   PrecisionOrSize: LengthInt = 0; Scale: LengthInt = 0);
@@ -5117,6 +5126,7 @@ begin
   BindValue^.SQLType   := SQLType;
   FHasInOutParams := FHasInOutParams or (ParamType = pctInOut)
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 procedure TZAbstractPreparedStatement2.ReleaseImmediat(
   const Sender: IImmediatelyReleasable);
@@ -6746,11 +6756,13 @@ end;
   @param parameterIndex the first parameter is 1, the second is 2, ...
   @param Value the default value normally defined in the field's DML SQL statement
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // abstract method - parameters not used intentionally
 procedure TZAbstractCallableStatement2.SetDefaultValue(ParameterIndex: Integer;
   const Value: String);
 begin
   //it's a nop
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Sets the designated parameter to SQL <code>NULL</code>.
