@@ -15,10 +15,16 @@ type
     procedure Base64OpenSSLEncode1;
     procedure Base64OpenSSLEncode2;
     procedure Base64OpenSSLEncode3;
+    procedure Base64OpenSSLEncode4;
+    procedure Base64OpenSSLEncode5;
+    procedure Base64OpenSSLEncode6;
     // test decoding
     procedure Base64OpenSSLDecode1;
     procedure Base64OpenSSLDecode2;
     procedure Base64OpenSSLDecode3;
+    procedure Base64OpenSSLDecode4;
+    procedure Base64OpenSSLDecode5;
+    procedure Base64OpenSSLDecode6;
   end;
 
 implementation
@@ -97,7 +103,46 @@ begin
   fLength := DoBase64Encode(fInputStr, fOutputStr);
 
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 encoded string differs');
-  CheckNotEquals(-101, fLength, 'Base64 encoded should return error code -101');
+  CheckEquals(0, fLength, 'Empty base64 encoded string length should be 0');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLEncode4;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := 'To encode binaries (like images, documents, etc.) upload your data via the file encode form below.';
+  fExpectedResultStr := 'VG8gZW5jb2RlIGJpbmFyaWVzIChsaWtlIGltYWdlcywgZG9jdW1lbnRzLCBldGMuKSB1cGxvYWQgeW91ciBkYXRhIHZpYSB0aGUgZmlsZSBlbmNvZGUgZm9ybSBiZWxvdy4=';
+  fLength := DoBase64Encode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 encoded string differs');
+  CheckEquals(132, fLength, 'Base64 encoded string length differs');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLEncode5;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := '192425';
+  fExpectedResultStr := 'MTkyNDI1';
+  fLength := DoBase64Encode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 encoded string differs');
+  CheckEquals(8, fLength, 'Base64 encoded string length differs');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLEncode6;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
+  fExpectedResultStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
+  fLength := DoBase64Encode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 encoded string differs');
+  CheckEquals(76, fLength, 'Base64 encoded string length differs');
 end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode1;
@@ -123,7 +168,7 @@ begin
   fLength := DoBase64Decode(fInputStr, fOutputStr);
 
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
-  CheckEquals(5, fLength, 'Base64 decoded string length differs');
+  CheckEquals(31, fLength, 'Base64 decoded string length differs');
 end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode3;
@@ -132,11 +177,51 @@ var
   fLength: integer;
 begin
   fInputStr := '';
-  fExpectedResultStr := '61';
+  fExpectedResultStr := '';
   fLength := DoBase64Decode(fInputStr, fOutputStr);
 
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
-  CheckNotEquals(-1301, fLength, 'Base64 decoded should return error code -101');
+  CheckEquals(0, fLength, 'Empty base64 decoded string length should be 0');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLDecode4;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := 'VG8gZW5jb2RlIGJpbmFyaWVzIChsaWtlIGltYWdlcywgZG9jdW1lbnRzLCBldGMuKSB1cGxvYWQgeW91ciBkYXRhIHZpYSB0aGUgZmlsZSBlbmNvZGUgZm9ybSBiZWxvdy4=';
+  fExpectedResultStr := 'To encode binaries (like images, documents, etc.) upload your data via the file encode form below.';
+  fLength := DoBase64Decode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
+  CheckEquals(98, fLength, 'Base64 decoded string length differs');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLDecode5;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := 'MTkyNDI1';
+  fExpectedResultStr := '192425';
+  fLength := DoBase64Decode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
+  CheckEquals(6, fLength, 'Base64 decoded string length differs');
+end;
+
+procedure TTestBase64OpenSSL.Base64OpenSSLDecode6;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fLength: integer;
+begin
+  fInputStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
+  fExpectedResultStr := 'En France, il y a au total 11 fêtes pendant l’année.';
+  fLength := DoBase64Decode(fInputStr, fOutputStr);
+
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
+  // length of fOutputStr and fExpectedResultStr is 56 when using Length()
+  CheckEquals(56, fLength, 'Base64 decoded string length differs');
 end;
 
 initialization
