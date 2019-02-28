@@ -6,10 +6,15 @@ uses
   TestFramework;
 
 type
-  TTestBase64OpenSSL = class(TTestCase)
+  // base class which should be used whenever the Indy OpenSSL is needed
+  TTestIndyOpenSSL = class(TTestCase)
   protected
     procedure SetUpOnce; override;
     procedure TeardownOnce; override;
+  end;
+
+type
+  TTestBase64OpenSSL = class(TTestIndyOpenSSL)
   published
     // test encoding
     procedure Base64OpenSSLEncode1;
@@ -32,9 +37,9 @@ implementation
 uses
   SysUtils, IdSSLOpenSSL, IdSSLOpenSSLHeaders, Base64OpenSSL;
 
-{ TTestBase64OpenSSL }
+{ TTestIndyOpenSSL }
 
-procedure TTestBase64OpenSSL.SetUpOnce;
+procedure TTestIndyOpenSSL.SetUpOnce;
 begin
   {$IFDEF UNIX}
     // do not try to load sym links first
@@ -55,7 +60,7 @@ begin
   end;
 end;
 
-procedure TTestBase64OpenSSL.TeardownOnce;
+procedure TTestIndyOpenSSL.TeardownOnce;
 begin
   try
     IdSSLOpenSSLHeaders.Unload;
@@ -66,6 +71,8 @@ begin
     end;
   end;
 end;
+
+{ TTestBase64OpenSSL }
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode1;
 var
@@ -225,5 +232,5 @@ begin
 end;
 
 initialization
-  RegisterTest(TTestBase64OpenSSL.Suite);
+  RegisterTest('Base64 OpenSSL', TTestBase64OpenSSL.Suite);
 end.

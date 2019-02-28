@@ -30,7 +30,8 @@ uses
   {$ENDIF}
   Classes, SysUtils,
   // add all test units below
-  Base64OpenSSLTests;
+  Base64OpenSSLTests,
+  mystringsTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

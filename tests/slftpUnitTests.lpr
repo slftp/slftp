@@ -38,7 +38,8 @@ uses
   {$ENDIF}
   Classes, SysUtils,
   // add all test units below
-  Base64OpenSSLTests;
+  Base64OpenSSLTests,
+  mystringsTests;
 
 begin
   // run all registered tests
