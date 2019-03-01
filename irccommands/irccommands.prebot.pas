@@ -721,25 +721,25 @@ begin
       sr := TSiteResponse(tn2.responses[i]);
       if mind = 0 then
       begin
-        mind := sr.ido;
+        mind := sr.time;
         mins := sr.sitename;
       end
       else
-      if mind > sr.ido then
+      if mind > sr.time then
       begin
         mins := sr.sitename;
-        mind := sr.ido;
+        mind := sr.time;
       end;
 
       if maxd = 0 then
       begin
-        maxd := sr.ido;
+        maxd := sr.time;
         maxs := sr.sitename;
       end
       else
-      if maxd < sr.ido then
+      if maxd < sr.time then
       begin
-        maxd := sr.ido;
+        maxd := sr.time;
         maxs := sr.sitename;
       end;
     end;

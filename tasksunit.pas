@@ -36,7 +36,7 @@ type
     readydelat: TDateTime;
 
     uid: UInt64;
-    ido: TDateTime;
+    time: TDateTime; //< some time value
 
     dependencies: TStringList;
 
@@ -88,7 +88,7 @@ begin
   assigned := 0;
   self.netname := netname;
   self.channel := channel;
-  ido := 0;
+  time := 0;
   TryToAssign := 0;
 
   response := '';
