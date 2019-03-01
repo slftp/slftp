@@ -11,6 +11,8 @@ type
   protected
     procedure SetUpOnce; override;
     procedure TeardownOnce; override;
+  published
+    procedure OpenSSLVersion;
   end;
 
 type
@@ -70,6 +72,18 @@ begin
       Fail(Format('Failed to unload OpenSSL: %s %s', [sLineBreak, e.Message]));
     end;
   end;
+end;
+
+procedure TTestIndyOpenSSL.OpenSSLVersion;
+var
+  fExpectedResultStr, fShortVersion: String;
+  {$I slftp.inc}
+begin
+  fExpectedResultStr := IdSSLOpenSSL.OpenSSLVersion; // e.g. OpenSSL 1.0.2n  7 Dec 2017
+  fShortVersion := Copy(fExpectedResultStr, 9, 5);
+  CheckEqualsString(lib_OpenSSL, fShortVersion, 'OpenSSL version is wrong');
+  SetLength(fExpectedResultStr, 13);
+  CheckEqualsString('OpenSSL ' + lib_OpenSSL, fExpectedResultStr, 'OpenSSL version string is wrong');
 end;
 
 { TTestBase64OpenSSL }
