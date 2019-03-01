@@ -2,7 +2,7 @@ const
 
 iFileCount = 1;
 cFilecount = 8;
-gFilecount = 12;
+gFilecount = 11;
 
 iniFiles: array[0..iFileCount] of String = (
 'slftp.ini', 'slftp.cini'
@@ -15,7 +15,7 @@ commonFiles: array[0..cFilecount] of String = (
 );
 
 generatedFiles: array[0..gFilecount] of String =(
-'slftp.pem', 'slftp.ranks', 'slftp.chans', 'slftp.kb', 'slftp.speedstats',
+'slftp.ranks', 'slftp.chans', 'slftp.kb', 'slftp.speedstats',
 'slftp.history', 'slftp.renames', 'slftp.nukequeue', 'slftp.rules',
 'slftp.preurls', 'slftp.socks5', 'slftp.news', 'sites.dat'
 );

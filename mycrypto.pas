@@ -5,12 +5,11 @@ interface
 uses
   Classes, slmd5;
 
-function GenPem(const certpath: String; const keylen: Integer; const commonname: String): Boolean;
+procedure MyCryptoInit;
 procedure MycryptoStart(pp: TslMD5Data);
 procedure MycryptoStop;
-function DecryptUDP(s: String): String;
-function EncryptUDP(s: String): String;
-procedure  MyCryptoInit;
+function DecryptUDP(const s: String): String;
+function EncryptUDP(const s: String): String;
 
 implementation
 
@@ -26,136 +25,16 @@ const
 var
   KeyData: TBlowfishData;
 
-function GenPem(const certpath: String; const keylen: Integer; const commonname: String): Boolean;
-var
-  b, r, xn, x, xr, xne, evp: Pointer;
+procedure MyCryptoInit;
 begin
-  Result:= False;
-
-  b:= slBIO_new_file(PAnsiChar(certpath), 'w');
-  if( b = nil) then exit;
-
-  r:= slRSA_generate_key(keylen, 65537, nil, nil);
-  if( r = nil) then
-  begin
-    slBIO_free(b);
-    exit;
-  end;
-
-  xr := slX509_REQ_new();
-  if( xr = nil) then
-  begin
-    slRSA_free(r);
-    slBIO_free(b);
-    exit;
-  end;
-
-  xn := slX509_NAME_new();
-  if(xn = nil) then
-  begin
-    slBIO_free(b);
-    slRSA_free(r);
-    slX509_REQ_free(xr);
-    exit;
-  end;
-
-  xne := slX509_NAME_ENTRY_create_by_txt(nil, 'CN', OPENSSL_V_ASN1_APP_CHOOSE, PAnsiChar(commonname), Length(commonname));
-  if (xne = nil) then
-  begin
-    slBIO_free(b);
-    slRSA_free(r);
-    slX509_REQ_free(xr);
-    slX509_NAME_free(xn);
-    exit;
-  end;
-
-  slX509_NAME_add_entry(xn, xne, 0, 0);
-  slX509_REQ_set_subject_name(xr, xn);
-
-  evp := slEVP_PKEY_new();
-  if(evp = nil) then
-  begin
-    slBIO_free(b);
-    slRSA_free(r);
-    slX509_REQ_free(xr);
-    slX509_NAME_free(xn);
-    exit;
-  end;
-
-
-  if (0 = slEVP_PKEY_set1_RSA(evp,r)) then
-  begin
-      slBIO_free(b);
-      slRSA_free(r);
-      slX509_REQ_free(xr);
-      slX509_NAME_free(xn);
-      slEVP_PKEY_free(evp);
-
-      exit;
-  end;
-
-  if (0 = slX509_REQ_set_pubkey(xr, evp)) then
-  begin
-      slBIO_free(b);
-      slRSA_free(r);
-      slX509_REQ_free(xr);
-      slX509_NAME_free(xn);
-      slEVP_PKEY_free(evp);
-      exit;
-  end;
-
-  if (0 = slX509_REQ_sign(xr, evp, slEVP_sha256())) then
-  begin
-    slX509_REQ_free(xr);
-    slX509_NAME_free(xn);
-    slBIO_free(b);
-    slRSA_free(r);
-    slEVP_PKEY_free(evp);
-    exit;
-  end;
-
-  // na mar nincs sok hatra
-  x := slX509_REQ_to_X509(xr, 3000, evp);
-  if (x = nil) then
-  begin
-    slBIO_free(b);
-    slRSA_free(r);
-    slX509_REQ_free(xr);
-    slX509_NAME_free(xn);
-    slEVP_PKEY_free(evp);
-    exit;
-  end;
-
-
-  slPEM_write_bio_RSAPrivateKey(b, r, nil, nil, 0, nil, nil);
-  slPEM_write_bio_X509(b, x);
-
-
-
-  slX509_free(x);
-  slX509_REQ_free(xr);
-  slX509_NAME_free(xn);
-  slBIO_free(b);
-  slRSA_free(r);
-  slEVP_PKEY_free(evp);
-
-  Result:= True;
+  Randomize;
 end;
 
 procedure MycryptoStart(pp: TslMD5Data);
 const
   IV: array[0..7] of Byte = (0,0,0,0,0,0,0,0);
-var
-  cert: String;
 begin
-  cert := config.ReadString(section, 'certificate', 'slftp.pem');
-  if not FileExists(cert) then
-  begin
-    Debug(dpError, section, 'Certificate not found, generating new one');
-    GenPem(cert, config.ReadInteger(section, 'keylen', 2048), MyGetusername());
-  end;
-
-  BlowfishInit(KeyData, @pp, SizeOf(pp), @iv);
+  BlowfishInit(KeyData, @pp, SizeOf(pp), @IV);
 end;
 
 procedure MycryptoStop;
@@ -163,7 +42,7 @@ begin
   BlowfishBurn(KeyData);
 end;
 
-function DecryptUDP(s: String): String;
+function DecryptUDP(const s: String): String;
 var
   p: Byte;
   l: Integer;
@@ -182,8 +61,7 @@ begin
     Result := Copy(s, p + 1, l - p - 1);
 end;
 
-
-function EncryptUDP(s: String): String;
+function EncryptUDP(const s: String): String;
 var
   p: Byte;
   block: array[0..MAX_UDP_PACKET-1] of AnsiChar;
@@ -201,11 +79,6 @@ begin
   BlowfishEncryptCFB(KeyData, @block, @block, p+1+length(s));
   SetLength(Result, p + Length(s) + 1);
   Move(block[0], Result[1], p + 1 + Length(s));
-end;
-
-procedure MyCryptoInit;
-begin
-  Randomize;
 end;
 
 end.
