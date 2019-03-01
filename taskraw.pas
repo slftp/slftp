@@ -83,7 +83,7 @@ begin
     exit;
   end;
 
-  ido := Now();
+  time := Now();
   response := s.lastResponse;
   ready := True;
   Debug(dpSpam, section, '<--' + Name);
