@@ -78,6 +78,7 @@ end;
 function Main_Init: String;
 var
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
+  fOpenSSLVersion: String;
 begin
   Result := '';
 
@@ -99,9 +100,11 @@ begin
     exit;
   end;
 
-  if (OpenSSLShortVersion() < lib_OpenSSL) then
+  fOpenSSLVersion := slssl.OpenSSLShortVersion;
+  SetLength(fOpenSSLVersion, 5);
+  if (fOpenSSLVersion <> lib_OpenSSL) then
   begin
-    result := Format('OpenSSL version %s is deprecated! %s or newer needed.', [OpenSSLVersion, lib_OpenSSL]);
+    Result := Format('OpenSSL %s is not supported! OpenSSL %s needed.', [slssl.OpenSSLShortVersion, lib_OpenSSL]);
     exit;
   end;
 
@@ -130,8 +133,13 @@ begin
     end;
   end;
 
-  // TODO: add a check for OpenSSL version
-
+  fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
+  fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
+  if (fOpenSSLVersion <> lib_OpenSSL) then
+  begin
+    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+    exit;
+  end;
 
   //< initialize global SQLite3 object for API calls (only load from current dir)
   try
