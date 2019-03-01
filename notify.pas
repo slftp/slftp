@@ -8,34 +8,40 @@ interface
 uses Classes, syncobjs, tasksunit, Contnrs;
 
 type
-  TSiteResponse  = class
-    sitename: String;
-    slotname: String;
-    response: String;
-
-    ido: TDateTime;
-
-    constructor Create(sitename, slotname, response: String; ido: TDateTime);
+  TSiteResponse = class
+  private
+    FSitename: String;
+    FSlotname: String;
+    FResponse: String;
+    FTime: TDateTime;
+  public
+    constructor Create(const sitename, slotname, response: String; const time: TDateTime);
+  published
+    property sitename: String read FSitename; //< sitename
+    property slotname: String read FSlotname; //< slotname
+    property response: String read FResponse; //< site response
+    property time: TDateTime read FTime; //< time value
   end;
+
   TTaskNotify = class
+  private
+    tnno: Integer;
+  public
     event: TEvent;
     tasks: TList;
-    tnno: Integer;
-
     responses: TObjectList;
-
     constructor Create;
     destructor Destroy; override;
   end;
 
-var
-  tasknotifies: TObjectList;
-
+procedure NotifyInit;
+procedure NotifyUninit;
 procedure TaskReady(t: TTask);
 function AddNotify: TTaskNotify;
 procedure RemoveTN(tn: TTaskNotify);
-procedure NotifyInit;
-procedure NotifyUninit;
+
+var
+  tasknotifies: TObjectList;
 
 implementation
 
@@ -47,27 +53,24 @@ const
 var
   gtnno: Integer;
 
-function AddNotify: TTaskNotify;
+{ TSiteResponse }
+
+constructor TSiteResponse.Create(const sitename, slotname, response: String; const time: TDateTime);
 begin
-  Result:= TTaskNotify.Create;
-  tasknotifies.Add(Result);
+  FSitename := sitename;
+  FSlotname := slotname;
+  FResponse := response;
+  FTime := time;
 end;
 
-procedure RemoveTN(tn: TTaskNotify);
-begin
-  try
-    tasknotifies.Remove(tn);
-  except
-    exit;
-  end;
-end;
+{ TTaskNotify }
 
 constructor TTaskNotify.Create;
 begin
-  responses:= TObjectList.Create;
-  tasks:= TList.Create;
-  self.tnno:= gtnno;
-  event:= TEvent.Create(nil, False, False, 'taskno'+IntToStr(tnno));
+  responses := TObjectList.Create;
+  tasks := TList.Create;
+  self.tnno := gtnno;
+  event := TEvent.Create(nil, False, False, 'taskno' + IntToStr(tnno));
   inc(gtnno);
 end;
 
@@ -81,9 +84,10 @@ end;
 
 procedure NotifyInit;
 begin
-  tasknotifies:= TObjectList.Create;
-  gtnno:= 0;
+  tasknotifies := TObjectList.Create;
+  gtnno := 0;
 end;
+
 procedure NotifyUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
@@ -92,20 +96,21 @@ begin
 end;
 
 procedure TaskReady(t: TTask);
-var i: integer;
-    tn: TTaskNotify;
+var
+  i: integer;
+  tn: TTaskNotify;
 begin
- for i:= tasknotifies.Count-1 downto 0 do
+ for i := tasknotifies.Count - 1 downto 0 do
  begin
    try if i < 0 then Break; except Break; end;
    try
-     tn:= TTaskNotify(tasknotifies[i]);
-     if -1 <> tn.tasks.IndexOf(t) then
+     tn := TTaskNotify(tasknotifies[i]);
+     if tn.tasks.IndexOf(t) <> -1 then
      begin
        tn.tasks.Remove(t);
 
        if (t.response <> '') then
-         tn.responses.Add(TSiteResponse.Create(t.site1, t.slot1name, t.response, t.ido));
+         tn.responses.Add(TSiteResponse.Create(t.site1, t.slot1name, t.response, t.time));
 
        if ((t.announce <> '') and (not t.readyerror)) then
          irc_addtext(t, t.announce);
@@ -122,14 +127,19 @@ begin
  end;
 end;
 
-{ TSiteResponse }
-
-constructor TSiteResponse.Create(sitename, slotname, response: String; ido: TDateTime);
+function AddNotify: TTaskNotify;
 begin
-  self.sitename:= sitename;
-  self.slotname:= slotname;
-  self.response:= response;
-  self.ido:= ido;
+  Result := TTaskNotify.Create;
+  tasknotifies.Add(Result);
+end;
+
+procedure RemoveTN(tn: TTaskNotify);
+begin
+  try
+    tasknotifies.Remove(tn);
+  except
+    exit;
+  end;
 end;
 
 end.
