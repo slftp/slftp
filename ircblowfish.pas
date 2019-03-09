@@ -12,14 +12,14 @@ type
   TIrcBlowkey = class
   private
     KeyData: TBlowfishData;
-    fBlowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @value(channel) }
-    fCBC: Boolean; //< { @true if channel is CBC encrypted, @false otherwise. }
+    fBlowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @link(channel) }
+    fCBC: Boolean; //< @true if channel is CBC encrypted, @false otherwise.
   public
-    netname: String; //< { netname of IRC network }
-    channel: String; //< { IRC channelname }
-    chankey: String; //< { chankey for @value(channel) which is needed to join it }
+    netname: String; //< netname of IRC network
+    channel: String; //< IRC channelname
+    chankey: String; //< chankey for @link(channel) which is needed to join it
     names: String; // funkcionalitasa a csatornanak - Functionality of the channel
-    inviteonly: Boolean; //< { @true if channel is invite only (you have to invite yourself first), @false otherwise. }
+    inviteonly: Boolean; //< @true if channel is invite only (you have to invite yourself first), @false otherwise.
     property cbc: Boolean read fCBC;
     property blowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF} read fBlowkey;
 
@@ -31,7 +31,7 @@ type
     function HasKey(key: String): Boolean;
   end;
 
-{ function to decide which encryption mode should be used
+{ function to decide which encryption mode should be used @br
   For more infos: http://blog.bjrn.se/2009/01/proposal-for-better-irc-encryption.html }
 function irc_encrypt(const netname, channel, dText: String; include_ok: Boolean = False): String;
 

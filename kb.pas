@@ -29,6 +29,10 @@
 
 *****************************************************************************}
 
+{ @abstract(Knowledge base for release information)
+  The different types hold different infos which are needed for all the different
+  categories of releases }
+
 unit kb;
 
 interface
@@ -265,7 +269,7 @@ function kb_reloadsections: boolean;
 
 { Extracts groupname from release
   @param(rlz releasename)
-  @returns(Groupname from input @value(rlz)) }
+  @returns(Groupname from input @link(rlz)) }
 function GetGroupname(const rlz: String): String;
 
 var
@@ -357,7 +361,7 @@ end;
 
 { Removes groupname from release
   @param(rlz releasename)
-  @returns(Releasename @value(rlz) without groupname) }
+  @returns(Releasename @link(rlz) without groupname) }
 function RemoveGroupname(const rlz: String): String;
 var
   fGroup: String;

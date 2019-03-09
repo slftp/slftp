@@ -18,13 +18,13 @@ type
 }
   TKnownGroup = (grp_known, grp_unknown, grp_notconfigured);
 
-{ Just a helper function to create @value(kg) on init }
+{ Just a helper function to create @link(kg) on init }
 procedure KnowngroupsInit;
 
-{ Just a helper function to free @value(kg) on uninit }
+{ Just a helper function to free @link(kg) on uninit }
 procedure KnowngroupsUnInit;
 
-{ Just a helper function to set values from knowngroups file to @value(kg). It even handles the support for placeholders like TV-720=%TV-1080% }
+{ Just a helper function to set values from knowngroups file to @link(kg). It even handles the support for placeholders like TV-720=%TV-1080% }
 procedure KnowngroupsStart;
 
 { Checks what type of @link(TKnownGroup) a given group is in a given sectionname

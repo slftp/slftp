@@ -44,7 +44,7 @@ var
   p: Integer;
   fNumErrors: Integer;
 
-{ Executes @value(idlecmd) and reads ftpd output afterwards
+{ Executes @link(idlecmd) and reads ftpd output afterwards
   @returns(@true on success, @false if a command execution failed) }
   function SuccessfullyExecuted: Boolean;
   begin
