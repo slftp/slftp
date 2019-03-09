@@ -163,7 +163,7 @@ type
     cache_files: TStringList;
 
     function allfiles: integer;
-    { Searches for @value(sitename) via @link(TPazo.FindSite) and calls TPazoSite.MarkSiteAsFailed if site was found
+    { Searches for @link(sitename) via @link(TPazo.FindSite) and calls TPazoSite.MarkSiteAsFailed if site was found
       @param(sitename Sitename which sould be set down) }
     procedure SiteDown(const sitename: String);
     procedure Clear;

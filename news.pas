@@ -5,10 +5,10 @@ interface
 uses
   SysUtils;
 
-{ Just a helper function to set @value(SlftpNewsFilename) on startup and initialize @value(NewsMultiReadSingleWriteLock) }
+{ Just a helper function to set @link(SlftpNewsFilename) on startup and initialize @link(NewsMultiReadSingleWriteLock) }
 procedure NewsInit;
 
-{ Just a helper function to free @value(NewsMultiReadSingleWriteLock) }
+{ Just a helper function to free @link(NewsMultiReadSingleWriteLock) }
 procedure NewsUnInit;
 
 { Check if category is in known MessageCategories array. If not found it returns -1, else index of matching element. }

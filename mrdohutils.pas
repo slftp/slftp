@@ -8,7 +8,7 @@ uses
 procedure InitmRdOHConfigFiles;
 procedure UninitmRdOHConfigFiles;
 
-{ Creates a TFileStream for @value(FileName) and returns the size of it
+{ Creates a TFileStream for @link(FileName) and returns the size of it
   @param(FileName Name of the file from which you want to know the size)
   @returns(filesize on success, else -1) }
 function GetLocalFileSize(const FileName: String): Int64;

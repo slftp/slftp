@@ -28,6 +28,9 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                       *
 
 *****************************************************************************}
+
+{ @abstract(Code for initialization, runtime checks and uninit) }
+
 unit mainthread;
 
 interface

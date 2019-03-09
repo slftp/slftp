@@ -74,14 +74,14 @@ function dbTVInfo_Process(const aNet, aChan, aNick: String; aMSG: String): boole
 
 { Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
   @param(rip Releasename with scene tagging)
-  @param(showName Plain TV showname from @value(rip) without any scene tags) }
+  @param(showName Plain TV showname from @link(rip) without any scene tags) }
 procedure getShowValues(const rip: String; out showName: String); overload;
 
 { Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
   @param(rip Releasename with scene tagging)
-  @param(showName Plain TV showname from @value(rip) without any scene tags)
-  @param(season Extracted season number from @value(rip))
-  @param(episode Extracted episode number from @value(rip)) }
+  @param(showName Plain TV showname from @link(rip) without any scene tags)
+  @param(season Extracted season number from @link(rip))
+  @param(episode Extracted episode number from @link(rip)) }
 procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
 
 { Does some replacing of normal scene names (and, at) with more reliable ones (&, @) for TV shows and replaces whitespaces with dots

@@ -14,7 +14,7 @@ type
   { Function prototype for all IRC commands }
   TIrcCommandHandler = function(const netname, channel, params: String): boolean;
 
-  { Record which will be used in @value(TIRCCommandThread) to execute the @value(TIrcCommandHandler) function }
+  { Record which will be used in @link(TIRCCommandThread) to execute the @link(TIrcCommandHandler) function }
   TIrcCommand = record
     cmd: String; //< triggername for command
     hnd: TIrcCommandHandler; //< function which is used for the command
@@ -34,9 +34,9 @@ type
     constructor Create(c: TIRCCommandHandler; const netname, channel, params: String; cmd: String = '');
   end;
 
-{ Searchs in @value(ircCommandsArray) for given command (cmd)
+{ Searchs in @link(ircCommandsArray) for given command @link(aCmd)
   @param(aCmd commandname)
-  @returns(Index for commandname in @value(ircCommandsArray)) }
+  @returns(Index for commandname in @link(ircCommandsArray)) }
 function FindIrcCommand(const aCmd: String): integer;
 
 { help section handler }
@@ -44,13 +44,13 @@ function IrcHelpHeader(const netname, channel, params: String): boolean;
 function IrcHelpSeperator(const netname, channel, params: String): boolean;
 
 const
-  { Names of IRC command groups for @value(hlpgrp) }
+  { Names of IRC command groups for @link(hlpgrp) }
   helpCommands: array[0..22] of String = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'prebot', 'stats', 'slots', 'misc', 'news', 'irc',
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
     'section' {, 'preurl', 'mysql'});
 
-  { Declarations of all IRC commands as @value(TIrcCommand) records }
+  { Declarations of all IRC commands as @link(TIrcCommand) records }
   ircCommandsArray: array[1..251] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
