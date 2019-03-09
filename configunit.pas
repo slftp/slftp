@@ -8,18 +8,16 @@ uses
 function config_io_timeout: Integer;
 function config_connect_timeout: Integer;
 { Creates the MD5 password from decrypting password and loads settings from slftp.cini/slftp.ini if existing,
-  it also sets @value(cfgloaded) to @true if ini file loading was successful.
+  it also sets @link(cfgloaded) to @true if ini file loading was successful.
   @param(aPassword Decryption password as string)
   @returns(@true on successful loading of ini file, @false otherwise) }
 function ConfigInit(var aPassword: String): Boolean;
-{ Just a helper function to free @value(config) and reset @value(cfgloaded) }
+{ Just a helper function to free @link(config) and reset @link(cfgloaded) }
 procedure ConfigUninit;
 
 var
-  { config values from loaded slftp.cini/slftp.ini }
-  config: TEncIniFile;
-  { MD5 hash of decryption password for slftp }
-  passphrase: TslMD5Data;
+  config: TEncIniFile; //< config values from loaded slftp.cini/slftp.ini
+  passphrase: TslMD5Data; //< MD5 hash of decryption password for slftp
 
 implementation
 
@@ -31,8 +29,7 @@ const
   section = 'config';
 
 var
-  { @true if slftp.cini/slftp.ini is decrypted and loaded, @false if not existing or failed to load. }
-  cfgloaded: boolean = False;
+  cfgloaded: boolean = False; //< @true if slftp.cini/slftp.ini is decrypted and loaded, @false if not existing or failed to load
 
 { Sets the length of @param(p) to 100 and fills all of it with char 'x'
   @param(aWipeString String which should be overwritten with value 'x')

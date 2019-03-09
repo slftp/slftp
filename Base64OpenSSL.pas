@@ -2,13 +2,13 @@ unit Base64OpenSSL;
 
 interface
 
-{ Creates a base64 encoded string from @value(aInput)
+{ Creates a base64 encoded string from @link(aInput)
   @param(aInput String which should be used)
   @param(aOutput Base64 encoded String)
   @returns(Length of base64 encoded string, 0, -1 and -101 means it failed) }
 function DoBase64Encode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; out aOutput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): integer;
 
-{ Creates a base64 decoded string from @value(aInput)
+{ Creates a base64 decoded string from @link(aInput)
   @param(aInput String which should be used)
   @param(aOutput Base64 decoded String)
   @returns(Length of base64 decoded string, 0, -1 and -101 means it failed) }
@@ -26,7 +26,7 @@ type
   }
   TEncodingMethod = (Base64Encode, Base64Decode);
 
-{ Creates a base64 string from @value(aInput) with given @value(aInputLen)
+{ Creates a base64 string from @link(aInput) with given @link(aInputLen)
   @param(aInput String which should be used)
   @param(aInputLen Length of input String)
   @param(aOutput Output of encoded/decoded String)

@@ -5,17 +5,17 @@ interface
 uses
   IniFiles;
 
-{ Just a helper function to initialize @value(globalgroupskip) and calls Rehashglobalskiplist afterwards }
+{ Just a helper function to initialize @link(globalgroupskip) and calls Rehashglobalskiplist afterwards }
 procedure Initglobalskiplist;
 
-{ Just a helper function to free @value(globalgroupskip) }
+{ Just a helper function to free @link(globalgroupskip) }
 procedure Uninitglobalskiplist;
 
-{ Reloads entries from skipgroups file and sets it to @value(globalgroupskip)
+{ Reloads entries from skipgroups file and sets it to @link(globalgroupskip)
   @returns(@true on success, @false otherwise) }
 function Rehashglobalskiplist: boolean;
 
-{ Extracts groupname from @value(rls) and checks if it's in global skipped group list
+{ Extracts groupname from @link(rls) and checks if it's in global skipped group list
   @param(rls Releasename which should be checked against skipped group lists)
   @returns(@true if in global skipped group list, @false otherwise) }
 function CheckIfGlobalSkippedGroup(const rls: String): boolean;

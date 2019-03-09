@@ -38,7 +38,7 @@ var
   s: TSiteSlot;
   fNumErrors: Integer;
 
-{ Moves into dir if needed, executes @value(cmd) and reads ftpd output afterwards
+{ Moves into dir if needed, executes @link(cmd) and reads ftpd output afterwards
   @returns(@true on success, @false if a command execution failed) }
   function SuccessfullyExecuted: Boolean;
   begin

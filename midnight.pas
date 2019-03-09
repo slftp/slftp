@@ -2,9 +2,9 @@ unit midnight;
 
 interface
 
-{ Just a helper function to init @value(ms) }
+{ Just a helper function to init @link(ms) }
 procedure MidnightInit;
-{ Just a helper function to free @value(ms) }
+{ Just a helper function to free @link(ms) }
 procedure MidnightUninit;
 { Load values from inifile into corresponding variables }
 procedure MidnightStart;

@@ -5,9 +5,9 @@ interface
 uses
   Contnrs;
 
-{ Just a helper function to initialize @value(nukequeue) }
+{ Just a helper function to initialize @link(nukequeue) }
 procedure NukeInit;
-{ Just a helper function to free @value(nukequeue) }
+{ Just a helper function to free @link(nukequeue) }
 procedure NukeUnInit;
 { Reads existing values from slftp.nukequeue on startup }
 procedure NukeStart;

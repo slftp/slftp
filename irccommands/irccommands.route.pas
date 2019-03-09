@@ -307,7 +307,7 @@ begin
   Result := True;
 end;
 
-{ Shows the incoming or outgoing routes depending on @value(aRoutesToShow)
+{ Shows the incoming or outgoing routes depending on @link(aRoutesToShow)
   @param(Netname netname)
   @param(Channel channel name)
   @param(sitename sitename of routes which should be shown)

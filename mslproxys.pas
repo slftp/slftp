@@ -5,6 +5,10 @@
  *                                                                             *
  *                                                                             *
  **************************(mod.done.by.kraut)**********************************}
+
+{ @abstract(Proxy (Socks5) related code)
+}
+
 unit mslproxys;
 
 interface
@@ -59,7 +63,7 @@ type
   @returns(@true on success, @false otherwise) }
 function AddNewProxy(const aName, aHost, aUsername, aPassword: String; const aPort: Integer; aEnabled: boolean): boolean;
 
-{ Search proxy with given Name and return it's object
+{ Search proxy with given @link(Name) and return it's object
   @param(Name Name of proxy)
   @returns(TmSLSocks5 if found, nil otherwise) }
 function FindProxyByName(const Name: String): TmSLSocks5;
@@ -68,7 +72,7 @@ function FindProxyByName(const Name: String): TmSLSocks5;
   @param(index list entry of proxy) }
 function RemoveProxy(const index: integer): boolean; overload;
 
-{ Remove proxy by Name
+{ Remove proxy by @link(Name)
   @param(Name name of proxy) }
 function RemoveProxy(const Name: String): boolean; overload;
 

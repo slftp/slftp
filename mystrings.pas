@@ -30,6 +30,9 @@
 
 *****************************************************************************}
 
+{ @abstract(Implementations of own (sub-)functions)
+  Mostly own implementations of functions which are not included in RTL }
+
 unit mystrings;
 
 interface

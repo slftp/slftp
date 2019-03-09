@@ -5,10 +5,10 @@ interface
 uses
   Classes, tasksunit, sltcp;
 
-{ Just a helper function to initialize @value(ImdbVotesRegexList) and @value(ImdbRatingRegexList) }
+{ Just a helper function to initialize @link(ImdbVotesRegexList) and @link(ImdbRatingRegexList) }
 procedure TaskHttpImdbInit;
 
-{ Just a helper function to free @value(ImdbVotesRegexList) and @value(ImdbRatingRegexList) }
+{ Just a helper function to free @link(ImdbVotesRegexList) and @link(ImdbRatingRegexList) }
 procedure TaskHttpImdbUnInit;
 
 type
