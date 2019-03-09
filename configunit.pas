@@ -5,45 +5,44 @@ interface
 uses
   encinifile, slmd5;
 
-procedure ReadPass;
 function config_io_timeout: Integer;
 function config_connect_timeout: Integer;
-function ConfigInit(var p: String): Boolean;
+{ Creates the MD5 password from decrypting password and loads settings from slftp.cini/slftp.ini if existing,
+  it also sets @value(cfgloaded) to @true if ini file loading was successful.
+  @param(aPassword Decryption password as string)
+  @returns(@true on successful loading of ini file, @false otherwise) }
+function ConfigInit(var aPassword: String): Boolean;
+{ Just a helper function to free @value(config) and reset @value(cfgloaded) }
 procedure ConfigUninit;
 
 var
+  { config values from loaded slftp.cini/slftp.ini }
   config: TEncIniFile;
+  { MD5 hash of decryption password for slftp }
   passphrase: TslMD5Data;
 
 implementation
 
 uses
-  SysUtils, helper;
+  SysUtils;
 
 const
   timeout = 'timeout';
   section = 'config';
 
 var
+  { @true if slftp.cini/slftp.ini is decrypted and loaded, @false if not existing or failed to load. }
   cfgloaded: boolean = False;
 
-procedure ReadPass;
-var
-  pw: String;
-begin
-  pw := MyGetPass('Password: ');
-  if pw = '' then
-    halt;
-  passphrase := slMD5String(pw);
-end;
-
-procedure WipePass(var p: String);
+{ Sets the length of @param(p) to 100 and fills all of it with char 'x'
+  @param(aWipeString String which should be overwritten with value 'x')
+}
+procedure WipePass(var aWipeString: String);
 var
   i: Integer;
 begin
-  SetLength(p, 100);
-  for i := 1 to 100 do
-    p[i] := 'x';
+  SetLength(aWipeString, 100);
+  aWipeString := StringOfChar('x', Length(aWipeString));
 end;
 
 function config_connect_timeout: Integer;
@@ -62,14 +61,15 @@ begin
     result := config.ReadInteger(timeout, 'io', 20);
 end;
 
-function ConfigInit(var p: String): Boolean;
+function ConfigInit(var aPassword: String): Boolean;
 begin
   Result := True;
 
-  passphrase := slMD5String(p);
-  WipePass(p);
+  passphrase := slMD5String(aPassword);
+  WipePass(aPassword);
+
   try
-    if FileExists(ExtractFilePath(ParamStr(0))+'slftp.cini') then
+    if FileExists(ExtractFilePath(ParamStr(0)) + 'slftp.cini') then
       config := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.cini', passphrase)
     else
       config := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.ini', '');
@@ -77,13 +77,13 @@ begin
     Result := False;
   end;
 
-  cfgloaded := result;
+  cfgloaded := Result;
 end;
 
 procedure ConfigUninit;
 begin
-  config.Free;
   cfgloaded := False;
+  config.Free;
 end;
 
 end.
