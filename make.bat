@@ -20,6 +20,9 @@ if /I "%~1" == "slftp_64" goto :slftp_64
 if /I "%~1" == "slftp_32_debug" goto :slftp_32_debug
 if /I "%~1" == "slftp_64_debug" goto :slftp_64_debug
 if /I "%~1" == "clean" goto :clean
+if /I "%~1" == "test" goto :test_64
+if /I "%~1" == "test_32" goto :test_32
+if /I "%~1" == "test_64" goto :test_64
 
 goto :error
 
@@ -72,8 +75,36 @@ echo Cleaning files
 del /q *.exe *.dcu
 goto :eof
 
+:test_32
+del /q *.exe *.dcu
+echo Testing Win64
+echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+"%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+"tests\slftpUnitTests.exe"
+cd tests
+del /q *.exe *.dcu
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
+goto :eof
+
+:test_64
+del /q *.exe *.dcu
+echo Testing Win64
+echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+"%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+"tests\slftpUnitTests.exe"
+cd tests
+del /q *.exe *.dcu
+if errorlevel 1 (
+   echo Failure Reason Given is %errorlevel%
+   exit /b %errorlevel%
+)
+goto :eof
+
 :error
 echo Unknown target!
-echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean
+echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean test test_32 test_64
 echo Default: slftp_64
 goto :eof
