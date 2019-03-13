@@ -3,7 +3,11 @@ unit dbtvinfoTests;
 interface
 
 uses
-  TestFramework;
+  {$IFDEF FPC}
+    TestFramework;
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+  {$ENDIF}
 
 type
   TTestShowFunctions = class(TTestCase)
@@ -142,5 +146,9 @@ begin
 end;
 }
 initialization
-  RegisterTest('dbtvinfo Showname functions', TTestShowFunctions.Suite);
+  {$IFDEF FPC}
+    RegisterTest('dbtvinfo Showname functions', TTestShowFunctions.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestShowFunctions);
+  {$ENDIF}
 end.
