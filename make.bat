@@ -2,8 +2,8 @@
 REM
 REM Quick and dirty SLFTP Delphi compilation script
 REM
-set CC_32=C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\dcc32.exe
-set CC_64=C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\dcc64.exe
+for /f "delims=" %%a in ('where dcc32.exe') do @set CC_32=%%a
+for /f "delims=" %%a in ('where dcc64.exe') do @set CC_64=%%a
 set CC_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap;DUnitX.MemoryLeakMonitor
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
