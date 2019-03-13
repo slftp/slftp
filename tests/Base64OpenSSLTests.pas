@@ -3,7 +3,11 @@ unit Base64OpenSSLTests;
 interface
 
 uses
-  TestFramework;
+  {$IFDEF FPC}
+    TestFramework;
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+  {$ENDIF}
 
 type
   // base class which should be used whenever the Indy OpenSSL is needed
@@ -246,5 +250,9 @@ begin
 end;
 
 initialization
-  RegisterTest('Base64 OpenSSL', TTestBase64OpenSSL.Suite);
+  {$IFDEF FPC}
+    RegisterTest('Base64 OpenSSL', TTestBase64OpenSSL.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestBase64OpenSSL);
+  {$ENDIF}
 end.

@@ -3,7 +3,12 @@ unit httpTests;
 interface
 
 uses
-  TestFramework, Base64OpenSSLTests;
+  {$IFDEF FPC}
+    TestFramework,
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility,
+  {$ENDIF}
+  Base64OpenSSLTests;
 
 type
   TTestHTTP = class(TTestIndyOpenSSL)
@@ -36,5 +41,9 @@ begin
 end;
 
 initialization
-  RegisterTest('mystrings', TTestHTTP.Suite);
+  {$IFDEF FPC}
+    RegisterTest('HTTP Get Tests', TTestHTTP.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestHTTP);
+  {$ENDIF}
 end.
