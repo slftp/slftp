@@ -31,7 +31,7 @@ uses
   {$ENDIF}
   Classes, SysUtils,
   // add all test units below
-  //Base64OpenSSLTests, {* TODO: does not compile *}
+  Base64OpenSSLTests,
   mystringsTests;
 
 // allow more user mode address space
