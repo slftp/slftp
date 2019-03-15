@@ -136,7 +136,7 @@ type
     queue: TslCommandWindow;
     dir: String;
     main_timer: TMainTimer;
-    inited: Boolean; //< @true if @link(MyOnShow) was successful, @false otherwise
+    inited: Boolean;
     sitesstat: TslLabel;
     m: TslMutualVisibilityControl;
     function OnKeyDown(sender: TslEdit; c: Char; extended: Boolean): Boolean;
@@ -149,11 +149,6 @@ type
     function AddDummyWindow(const netname: String): TslCommandWindow;
     function AddSiteWindow(const netname: String): TslCommandWindow;
     procedure MyOnExit(sender: TslControl);
-    { First it executes @link(CommonFileCheck), then it does the password check on startup/creates
-      an empty sites.dat, afterwards it calls @link(ConfigInit), @link(DebugInit), @link(ReadSites),
-      @link(Main_Init), shows the 'slftp ... started' line, @link(Main_Run) and
-      loads slftp.history text into console window
-      @param(sender TODO: not sure why and what it does...maybe needed for GUI?) }
     procedure MyOnShow(sender: TslControl);
     constructor Create;
     destructor Destroy; override;
