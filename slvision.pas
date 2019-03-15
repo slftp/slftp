@@ -1,4 +1,4 @@
-unit slvision;
+﻿unit slvision;
 
 interface
 
@@ -2991,8 +2991,6 @@ var
   i: integer;
 begin
   try
-    // it seems that 'v_queue.Count - 2' is intended as with 'v_queue.Count - 1' there is no 
-    // QUEUE: 4 (Race:1 Dir:0 Auto:1 Other:2) line at the bottom of the console window
     for i := 0 to v_queue.Count - 2 do
     begin
       if v_queue[i].ClassName = ClassName then
