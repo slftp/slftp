@@ -528,11 +528,11 @@ begin
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then
-    sqlite3.Free;
+    FreeAndNil(sqlite3);
 
   // MySQL/MariaDB connection
   if Assigned(MySQLCon) then
-    MySQLCon.Free;
+    FreeAndNil(MySQLCon);
 
   try
     IdSSLOpenSSLHeaders.Unload;
