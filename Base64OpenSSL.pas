@@ -3,14 +3,14 @@ unit Base64OpenSSL;
 interface
 
 { Creates a base64 encoded string from @link(aInput)
-  @param(aInput String which should be used)
+  @param(aInput String which should be used, caller is responsible to use Utf8Encode() if needed)
   @param(aOutput Base64 encoded String)
   @returns(Length of base64 encoded string, 0, -1 and -101 means it failed) }
 function DoBase64Encode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; out aOutput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): integer;
 
 { Creates a base64 decoded string from @link(aInput)
   @param(aInput String which should be used)
-  @param(aOutput Base64 decoded String)
+  @param(aOutput Base64 decoded String, caller is responsible to use Utf8Decode() if needed)
   @returns(Length of base64 decoded string, 0, -1 and -101 means it failed) }
 function DoBase64Decode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; out aOutput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): integer;
 

@@ -6,15 +6,20 @@ uses
   {$IFDEF FPC}
     TestFramework;
   {$ELSE}
-    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
   {$ENDIF}
 
 type
   // base class which should be used whenever the Indy OpenSSL is needed
   TTestIndyOpenSSL = class(TTestCase)
   protected
-    procedure SetUpOnce; override;
-    procedure TeardownOnce; override;
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+      procedure TeardownOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+      procedure Teardown; override;
+    {$ENDIF}
   published
     procedure OpenSSLVersion;
   end;
@@ -45,7 +50,11 @@ uses
 
 { TTestIndyOpenSSL }
 
-procedure TTestIndyOpenSSL.SetUpOnce;
+{$IFDEF FPC}
+  procedure TTestIndyOpenSSL.SetUpOnce;
+{$ELSE}
+  procedure TTestIndyOpenSSL.SetUp;
+{$ENDIF}
 begin
   {$IFDEF UNIX}
     // do not try to load sym links first
@@ -57,23 +66,27 @@ begin
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
-      Fail(Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]));
+      {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]));
     end;
     on e: Exception do
     begin
-      Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
+      {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
     end;
   end;
 end;
 
-procedure TTestIndyOpenSSL.TeardownOnce;
+{$IFDEF FPC}
+  procedure TTestIndyOpenSSL.TeardownOnce;
+{$ELSE}
+  procedure TTestIndyOpenSSL.Teardown;
+{$ENDIF}
 begin
   try
     IdSSLOpenSSLHeaders.Unload;
   except
     on e: Exception do
     begin
-      Fail(Format('Failed to unload OpenSSL: %s %s', [sLineBreak, e.Message]));
+      {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('Failed to unload OpenSSL: %s %s', [sLineBreak, e.Message]));
     end;
   end;
 end;
@@ -162,7 +175,11 @@ var
   fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
   fLength: integer;
 begin
-  fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
+  {$IFDEF UNICODE}
+    fInputStr := Utf8Encode('En France, il y a au total 11 fêtes pendant l’année.');
+  {$ELSE}
+    fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
+  {$ENDIF}
   fExpectedResultStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
   fLength := DoBase64Encode(fInputStr, fOutputStr);
 
@@ -244,7 +261,12 @@ begin
   fExpectedResultStr := 'En France, il y a au total 11 fêtes pendant l’année.';
   fLength := DoBase64Decode(fInputStr, fOutputStr);
 
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
+  {$IFDEF UNICODE}
+    CheckEqualsString(fExpectedResultStr, Utf8Decode(fOutputStr), 'Base64 decoded string differs');
+  {$ELSE}
+    CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
+  {$ENDIF}
+
   // length of fOutputStr and fExpectedResultStr is 56 when using Length()
   CheckEquals(56, fLength, 'Base64 decoded string length differs');
 end;
