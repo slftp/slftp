@@ -96,7 +96,7 @@ type
     procedure Execute; override;
     destructor Destroy; override;
 
-    function IrcWrite(const s: String; hide: boolean = False): Boolean;
+    function IrcWrite(const s: String): Boolean;
 
     property flood: Integer read GetIrcFlood write SetIrcFlood;
     property ssl: Boolean read GetIrcSSL write SetIrcSSL;
@@ -629,7 +629,7 @@ begin
 
 end;
 
-function TMyIrcThread.IrcWrite(const s: String; hide: boolean = False): Boolean;
+function TMyIrcThread.IrcWrite(const s: String): Boolean;
 begin
   Result := False;
   irc_lock.Enter;
@@ -682,10 +682,10 @@ begin
   *)
 
   if ircpassword <> '' then
-    if not IrcWrite('PASS ' + ircpassword, Hide_plain_text) then
+    if not IrcWrite('PASS ' + ircpassword) then
       exit;
 
-  if not IrcWrite('NICK ' + irc_nick, Hide_plain_text) then
+  if not IrcWrite('NICK ' + irc_nick) then
     exit;
   if not IrcWrite(
     Format('USER %s %s %s :%s', [irc_username, LOurAddr, Host, irc_ident])) then
