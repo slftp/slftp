@@ -59,11 +59,6 @@ begin
   Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
 end;
 
-function _GetDebugMaxFileSize: integer;
-begin
-  Result := config.ReadInteger(section, 'max_file_size', 0);
-end;
-
 function _GetDebugCategories: String;
 begin
   Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
