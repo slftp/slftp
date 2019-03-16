@@ -20,7 +20,7 @@ uses
   SysUtils, Classes, StrUtils, Math, irccommandsunit, irc, regexpr, statsunit, mainthread, debugunit,
   tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, console,
   precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  SynCommons, {$IFDEF FPC}process,{$ENDIF} IdGlobal, {$IFDEF MSWINDOWS}Windows, psAPI{$ENDIF};
+  SynCommons, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
   section = 'irccommands.general';
