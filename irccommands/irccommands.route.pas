@@ -316,14 +316,23 @@ end;
 procedure _ReadAndShowRoutesB(const Netname, Channel, sitename: String; aRoutesToShow: TRoutesToShow);
 const
   RoutesDirectionIdentifier: array[0..1] of String = ('to', 'from');
+  ArrowDirection: array[0..1] of String = ('<-', '->');
 var
   x: TStringList;
   ii, i: integer;
-  ss, fIdentifier: String;
+  ss, fIdentifier, fArrowDirection: String;
 begin
   case aRoutesToShow of
-    dRoutesIn: fIdentifier := RoutesDirectionIdentifier[0];
-    dRoutesOut: fIdentifier := RoutesDirectionIdentifier[1];
+    dRoutesIn:
+      begin
+        fIdentifier := RoutesDirectionIdentifier[0];
+        fArrowDirection := ArrowDirection[0];
+      end;
+    dRoutesOut:
+      begin
+        fIdentifier := RoutesDirectionIdentifier[1];
+        fArrowDirection := ArrowDirection[1];
+      end;
   end;
 
   x := TStringList.Create;
@@ -349,7 +358,7 @@ begin
     x.Free;
   end;
   if ss <> '' then
-    IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), format('<b>%s (%d)</b> -> ', [sitename, ii]));
+    IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), Format('<b>%s (%d)</b> %s ', [sitename, ii, fArrowDirection]));
 end;
 
 function IrcSpeeds(const netname, channel, params: String): boolean;
