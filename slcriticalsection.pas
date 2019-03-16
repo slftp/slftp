@@ -2,7 +2,8 @@ unit slcriticalsection;
 
 interface
 
-uses SyncObjs, Contnrs;
+uses
+  SyncObjs, Contnrs;
 
 type
   TslCriticalSection = class
@@ -23,58 +24,44 @@ type
 implementation
 
 uses
-  Classes, Types, SysUtils
-  {$IFDEF MSWINDOWS}
-    , Windows
-  {$ELSE}
-    {$IFDEF FPC}
-      , pthreads
-    {$ELSE}
-      , Libc
-    {$ENDIF}
-  {$ENDIF}
-  , irc, debugunit;
-
+  Classes, Types, SysUtils, irc, debugunit, IdGlobal;
 
 var
   ec: Cardinal = 0;
-
-function MyGetCurrentProcessId(): LongWord;
-begin
-{$IFDEF MSWINDOWS}
-  Result:= GetCurrentThreadId;
-{$ELSE}
-  Result:= LongWord(pthread_self());
-{$ENDIF}
-end;
-
 
 { TslCriticalSection }
 
 constructor TslCriticalSection.Create(name: String = '');
 begin
   self.name :=  name;
-  l:= TCriticalSection.Create;
-  w:= TObjectList.Create(False);
+  l := TCriticalSection.Create;
+  w := TObjectList.Create(False);
 end;
 
 destructor TslCriticalSection.Destroy;
-var i: Integer;
-    wait_read: Integer;
+var
+  i: Integer;
+  wait_read: Integer;
 begin
-  wait_read:= 0;
-  
-  slshutdown:= True;
+  wait_read := 0;
+  slshutdown := True;
+
   l.Enter;
-  for i:= 0 to w.Count -1 do
-    TEvent(w[i]).SetEvent;
-  l.Leave;
+  try
+    for i := 0 to w.Count - 1 do
+      TEvent(w[i]).SetEvent;
+  finally
+    l.Leave;
+  end;
 
   while(true) do
   begin
     l.Enter;
-    i:= w.Count;
-    l.Leave;
+    try
+      i := w.Count;
+    finally
+      l.Leave;
+    end;
 
     Inc(wait_read);
     if (wait_read > 250) then
@@ -82,7 +69,11 @@ begin
       debugunit.Debug(dpError, 'criticalSection', '[iNFO] TslCriticalSection.Destroy count break', []);
       break;
     end;
-    if i > 0 then sleep(50) else Break;
+
+    if i > 0 then
+      sleep(50)
+    else
+      Break;
   end;
 
   w.Free;
@@ -91,44 +82,32 @@ begin
 end;
 
 function TslCriticalSection.Enter(sname: String = ''): Boolean;
-label ujra;
-var procId: LongWord;
-    event: TEvent;
+label
+  ujra;
+var
+  procId: LongWord;
+  event: TEvent;
 begin
-  Result:= False;
-  procId:= MyGetCurrentProcessId;
+  Result := False;
+  procId := IdGlobal.CurrentThreadId;
 
 ujra:
   if slshutdown then exit;
 
   l.Enter;
   if (rt = 0) then
-    rt:= procId;
+    rt := procId;
 
   if (rt = procId) then
   begin
     inc(rc);
     l.Leave;
-    Result:= True;
-  end else
+    Result := True;
+  end
+  else
   begin
-(*
     inc(ec);
-    event:= TEvent.Create(nil, False, False, IntToStr(ec));
-    w.Add(event);
-    l.Leave;
-    event.WaitFor($FFFFFFFF);
-
-    l.Enter;
-    w.Remove(event);
-    l.Leave;
-    event.Free;
-
-    goto ujra;
-*)
-
-    inc(ec);
-    event:= TEvent.Create(nil, False, False, IntToStr(ec)+'-'+name+'-'+sname);
+    event := TEvent.Create(nil, False, False, Format('%d-%s-%s', [ec, name, sname]));
     w.Add(event);
     l.Leave;
     try
@@ -142,7 +121,7 @@ ujra:
           end;
           else { Timeout reach }
           begin
-            Debug(dpError, 'criticalSection','TslCriticalSection.Enter: Force Leave ('+IntToStr(procId)+') Timeout 30sec: '+name+'('+sname+')');
+            Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
             l.Enter;
             w.Remove(event);
             l.Leave;
@@ -164,9 +143,10 @@ ujra:
 end;
 
 procedure TslCriticalSection.Leave;
-var procId: LongWord;
+var
+  procId: LongWord;
 begin
-  procId:= MyGetCurrentProcessId;
+  procId := IdGlobal.CurrentThreadId;
   try
     l.Enter;
     try
@@ -175,8 +155,8 @@ begin
         dec(rc);
         if rc <= 0 then
         begin
-          rc:= 0;
-          rt:= 0;
+          rc := 0;
+          rt := 0;
           if w.Count > 0 then
             TEvent(w[0]).SetEvent;
         end;
