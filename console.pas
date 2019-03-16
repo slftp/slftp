@@ -556,7 +556,8 @@ end;
 
 constructor TMySlApp.Create;
 begin
-  inherited Create(80, 25);//config.ReadInteger(section, 'height', 50)
+  // must use hardcoded values as config isn't initialized yet
+  inherited Create(200, 60);
 
   dir := ExtractFilePath(ParamStr(0));
 
