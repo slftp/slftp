@@ -6,16 +6,18 @@ uses Classes, irc, kb, encinifile;
 
 type
   TDbNfo = class
+  private
     rls:      String;
     nfo_name: String;
-    constructor Create(rls, nfo_name: String);
+  public
+    constructor Create(const rls, nfo_name: String);
     destructor Destroy; override;
   end;
 
-function dbaddnfo_Process(net, chan, nick, msg: String): boolean;
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: String); overload;
-procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: String); overload;
-procedure dbaddnfo_addnfo(params: String);
+function dbaddnfo_Process(const net, chan, nick: String; msg: String): boolean;
+procedure dbaddnfo_SaveNfo(const rls, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_SaveNfo(const rls, section, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_addnfo(const params: String);
 procedure dbaddnfo_ParseNfo(const rls, nfo_data: String); overload;
 procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: String); overload;
 
@@ -30,7 +32,8 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, queueunit, regexpr, debugunit, taskhttpnfo,
+uses
+  DateUtils, SysUtils, configunit, mystrings, queueunit, regexpr, debugunit, taskhttpnfo,
   dbaddurl, dbaddimdb;
 
 const
@@ -41,7 +44,7 @@ var
   oldnfocmd: String;
 
 { TDbNfo }
-constructor TDbNfo.Create(rls, nfo_name: String);
+constructor TDbNfo.Create(const rls, nfo_name: String);
 begin
   self.rls      := rls;
   self.nfo_name := nfo_name;
@@ -54,15 +57,17 @@ end;
 
 { Proc/Func }
 
-function dbaddnfo_Process(net, chan, nick, msg: String): boolean;
+function dbaddnfo_Process(const net, chan, nick: String; msg: String): boolean;
 begin
   Result := False;
+
   if (1 = Pos(addnfocmd, msg)) then
   begin
     msg := Copy(msg, length(addnfocmd + ' ') + 1, 1000);
     dbaddnfo_addnfo(msg);
     Result := True;
   end;
+
   if (1 = Pos(oldnfocmd, msg)) then
   begin
     msg := Copy(msg, length(oldnfocmd + ' ') + 1, 1000);
@@ -71,7 +76,7 @@ begin
   end;
 end;
 
-procedure dbaddnfo_addnfo(params: String);
+procedure dbaddnfo_addnfo(const params: String);
 var
   rls: String;
   nfo_url: String;
@@ -98,16 +103,14 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in dbaddnfo_addnfo AddTask: %s',
-          [e.Message]));
+        Debug(dpError, section, Format('Exception in dbaddnfo_addnfo AddTask: %s', [e.Message]));
         exit;
       end;
     end;
   end;
 end;
 
-
-procedure dbaddnfo_SaveNfo(rls, section, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_SaveNfo(const rls, section, nfo_name, nfo_data: String); overload;
 var
   i:      integer;
   db_nfo: TDbNfo;
@@ -141,7 +144,7 @@ begin
   end;
 end;
 
-procedure dbaddnfo_SaveNfo(rls, nfo_name, nfo_data: String); overload;
+procedure dbaddnfo_SaveNfo(const rls, nfo_name, nfo_data: String); overload;
 var
   i:      integer;
   db_nfo: TDbNfo;
@@ -172,7 +175,6 @@ begin
     end;
   end;
 end;
-
 
 procedure dbaddnfo_ParseNfo(const rls, section, nfo_data: String); overload;
 var
