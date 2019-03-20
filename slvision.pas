@@ -387,7 +387,7 @@ type
     procedure SetColors; override;
     function BackgroundCharacter: Char; override;
   public
-    shouldquit: boolean;
+    shouldquit: boolean; //< @true when slftp should exit (e.g. !die), @false otherwise
     l_clock:    TslLabel;
     l_uptime:   TslLabel;
     l_infos:    TslLabel;
@@ -631,8 +631,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision',
-          Format('[EXCEPTION] TslApplication.ProcessMessages: %s', [e.Message]));
+        Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages: %s', [e.Message]));
         fLocalConsoleToUpdate.Clear;
         Exit;
       end;
@@ -661,8 +660,7 @@ begin
         KeyEvent(c, extended);
       except
         on E: Exception do
-          Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
+          Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
       end;
 
     end;
@@ -675,8 +673,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision',
-          Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
+        Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
       end;
     end;
 
@@ -687,9 +684,7 @@ begin
 
   except
     on E: Exception do
-      Debug(dpError, 'slvision', Format(
-        '[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s',
-        [e.Message]));
+      Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s', [e.Message]));
   end;
 
 end;
@@ -703,8 +698,7 @@ begin
       fOnShow(self);
   except
     on E: Exception do
-      Debug(dpError, 'slvision', '[EXCEPTION] Run.assigned(fOnShow) %s',
-        [e.Message]);
+      Debug(dpError, 'slvision', '[EXCEPTION] Run.assigned(fOnShow) %s', [e.Message]);
   end;
 
 
@@ -715,7 +709,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision', '[EXCEPTION] Run %s', [e.Message]);
+        Debug(dpError, 'slvision', '[EXCEPTION] Run.ProcessMessages %s', [e.Message]);
       end;
     end;
   end;
@@ -728,7 +722,6 @@ procedure TslApplication.SetColors;
 begin
   slscreen.NormVideo;
 end;
-
 
 procedure TslApplication.slOnCtrlC;
 begin
@@ -1889,8 +1882,6 @@ procedure TslWindow.SetTitle(const Value: String);
 begin
   fTitle.Caption := ' ' + Value + ' ';
 end;
-
-
 
 function TslWindow.ShowModal: TslModalResult;
 var
