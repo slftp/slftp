@@ -7,16 +7,18 @@ uses
 
 type
   TDbGenre = class
+  private
     rls: String;
     genre: String;
-    constructor Create(rls, genre: String);
+  public
+    constructor Create(const rls, genre: String);
     destructor Destroy; override;
   end;
 
-function dbaddgenre_Process(net, chan, nick, msg: String): Boolean;
-procedure dbaddgenre_SaveGenre(rls, genre: String);
-procedure dbaddgenre_addgenre(params: String);
-function dbaddgenre_ParseGenre(rls, genre: String): Boolean;
+function dbaddgenre_Process(const net, chan, nick: String; msg: String): Boolean;
+procedure dbaddgenre_SaveGenre(const rls, genre: String);
+procedure dbaddgenre_addgenre(const params: String);
+function dbaddgenre_ParseGenre(const rls, genre: String): Boolean;
 
 function dbaddgenre_Status: String;
 
@@ -40,7 +42,7 @@ var
   addgenrecmd: String;
 
 { TDbGenre }
-constructor TDbGenre.Create(rls, genre: String);
+constructor TDbGenre.Create(const rls, genre: String);
 begin
   self.rls := rls;
   self.genre := genre;
@@ -53,7 +55,7 @@ end;
 
 { Proc/Func }
 
-function dbaddgenre_Process(net, chan, nick, msg: String): Boolean;
+function dbaddgenre_Process(const net, chan, nick: String; msg: String): Boolean;
 begin
   Result := False;
   if (1 = Pos(addgenrecmd, msg)) then
@@ -64,14 +66,15 @@ begin
   end;
 end;
 
-procedure dbaddgenre_addgenre(params: String);
+procedure dbaddgenre_addgenre(const params: String);
 var
   rls: String;
   genre: String;
   i: Integer;
 begin
-  if (Count(' ', params) > 1) then begin
-    irc_AddInfo(Format('<c7>[GENRE]</c> rejected <b>%s</b> because it contains more than 2 parameters', [params]));
+  if (Count(' ', params) > 1) then
+  begin
+    irc_AddInfo(Format('<c7>[GENRE]</c> <b>%s</b> rejected because it contains more than 2 parameters', [params]));
     exit;
   end;
 
@@ -82,7 +85,7 @@ begin
 
   if ((rls <> '') and (genre <> '')) then
   begin
-    i:= last_addgenre.IndexOf(rls);
+    i := last_addgenre.IndexOf(rls);
     if i <> -1 then
     begin
       exit;
@@ -93,36 +96,40 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('Exception in dbaddgenre_addgenre AddTask: %s', [e.Message]));
+        Debug(dpError, section, Format('Exception in dbaddgenre_addgenre: %s', [e.Message]));
         exit;
       end;
     end;
   end;
 end;
 
-procedure dbaddgenre_SaveGenre(rls, genre: String);
+procedure dbaddgenre_SaveGenre(const rls, genre: String);
 var
   i: Integer;
   db_genre: TDbGenre;
 begin
-  i:= last_addgenre.IndexOf(rls);
+  i := last_addgenre.IndexOf(rls);
   if i = -1 then
   begin
     if (dbaddgenre_ParseGenre(rls, genre)) then
     begin
-      db_genre:= TDbGenre.Create(rls, genre);
+      db_genre := TDbGenre.Create(rls, genre);
       last_addgenre.AddObject(rls, db_genre);
-    end else begin
+    end
+    else
+    begin
       exit;
     end;
 
     last_addgenre.BeginUpdate;
     try
-      i:= last_addgenre.Count;
-      if i > 75 then begin
-        while i > 50 do  begin
+      i := last_addgenre.Count;
+      if i > 75 then
+      begin
+        while i > 50 do
+        begin
           last_addgenre.Delete(0);
-          i:= last_addgenre.Count - 1;
+          i := last_addgenre.Count - 1;
         end;
       end;
     finally
@@ -131,30 +138,31 @@ begin
   end;
 end;
 
-function dbaddgenre_ParseGenre(rls, genre: String): Boolean;
-var p: TPazo;
-    mp3genre: String;
-    ss: String;
-    i: Integer;
+function dbaddgenre_ParseGenre(const rls, genre: String): Boolean;
+var
+  p: TPazo;
+  mp3genre: String;
+  ss: String;
+  i: Integer;
 begin
-  Result:=False;
-  p:= FindPazoByRls(rls);
+  Result := False;
+  p := FindPazoByRls(rls);
   if (p <> nil) then
   begin
     if p.rls is TMP3Release then
     begin
-      mp3genre:='';
-      for i:=0 to mp3genres.Count-1 do
+      mp3genre := '';
+      for i := 0 to mp3genres.Count - 1 do
       begin
         if (0 = AnsiCompareText(genre, mp3genres[i])) then
         begin
-          mp3genre:= mp3genres[i];
+          mp3genre := mp3genres[i];
           if i > 0 then
           begin
-            ss:= ReplaceText(mp3genres[i-1], ' ', '');
+            ss := ReplaceText(mp3genres[i-1], ' ', '');
             if (0 = AnsiCompareText(ss, mp3genre)) then
             begin
-              mp3genre:= mp3genres[i-1];
+              mp3genre := mp3genres[i - 1];
             end;
           end;
           Break;
@@ -164,7 +172,7 @@ begin
       begin
         kb_add('', '', getAdminSiteName, p.rls.section, mp3genre, 'UPDATE', p.rls.rlsname, '');
         irc_AddInfo(Format('<c7>[GENRE]</c> for <b>%s</b> : %s', [rls, mp3genre]));
-        Result:=True;
+        Result := True;
       end;
     end;
   end;
@@ -174,18 +182,16 @@ end;
 
 function dbaddgenre_Status: String;
 begin
-  Result:='';
-
-  Result:= Format('<b>Genre</b>: %d',[last_addgenre.Count]);
+  Result := Format('<b>Genre</b>: %d', [last_addgenre.Count]);
 end;
 
 { Init }
 
 procedure dbaddgenreInit;
 begin
-  last_addgenre:= TStringList.Create;
-  last_addgenre.CaseSensitive:= False;
-  last_addgenre.Duplicates:= dupIgnore;
+  last_addgenre := TStringList.Create;
+  last_addgenre.CaseSensitive := False;
+  last_addgenre.Duplicates := dupIgnore;
 end;
 
 procedure dbaddgenreStart;
