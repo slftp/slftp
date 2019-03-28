@@ -95,6 +95,7 @@
     {#} !slots command didn't supported showing of siteslots for all sites (#230)
     {#} Addpre event received after a NEWDIR will now correctly update kb with the pretime and recalc routes
     {#} Converting error in TVMaze lookup if webChannel exists but Country was null (#233)
+    {#} Logging of categories which are specified as value for debugging works now
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
