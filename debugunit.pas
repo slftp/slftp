@@ -144,7 +144,7 @@ begin
   if (_GetDebugVerbosity < priority) then
     exit;
 
-  if (_GetDebugCategories <> ',verbose,') and (not ContainsText(_GetDebugCategories, section)) then
+  if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
