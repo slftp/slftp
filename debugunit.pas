@@ -4,10 +4,10 @@ interface
 
 type
   {
-  @value(dpError logs only important issues/errors)
-  @value(dpMessage logs important and general stuff)
-  @value(dpSpam logs everything)
-  @value(dpNone logs nothing)
+  @value(dpError logs only important issues/errors = 0)
+  @value(dpMessage logs errors, important and general stuff = 1)
+  @value(dpSpam logs everything = 2)
+  @value(dpNone logs nothing = 3)
   }
   TDebugPriority = (dpError, dpMessage, dpSpam, dpNone);
 
@@ -26,22 +26,21 @@ procedure Debug(const priority: TDebugPriority; const section, msg: String); ove
   @param(FormatStr formatting text for RTL Format())
   @param(Args formatting argments for RTL Format()) }
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
-{ Reads up to @link(lines) lines from logfile
-  @param(lines number of lines to read from logfile)
+{ Reads up to @link(aMaxLinesToRead) lines from logfile
+  @param(aMaxLinesToRead number of lines to read from logfile)
   @returns(logfile lines) }
-function LogTail(const lines: Integer): String;
+function LogTail(const aMaxLinesToRead: Integer): String;
 
 implementation
 
 uses
-  SysUtils, Classes, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
 
 const
   section = 'debug';
 
 var
   f: TextFile;
-  Lines: integer = 0;
   debug_lock: TCriticalSection;
 
 function _GetDebugLogFileName: String;
@@ -49,17 +48,12 @@ begin
   Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-function _GetDebugFlushLinesCount: integer;
-begin
-  Result := config.ReadInteger(section, 'flushlines', 16);
-end;
-
-function _GetDebugVerbosity: TDebugPriority;
+function _GetDebugVerbosity: TDebugPriority; inline;
 begin
   Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
 end;
 
-function _GetDebugCategories: String;
+function _GetDebugCategories: String; inline;
 begin
   Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
 end;
@@ -67,7 +61,6 @@ end;
 procedure _OpenLogFile;
 begin
   Assignfile(f, _GetDebugLogFileName);
-  FileMode := fmShareDenyNone;
   try
     if FileExists(_GetDebugLogFileName) then
       Append(f)
@@ -75,7 +68,7 @@ begin
       Rewrite(f);
   except
     begin
-      Writeln('Couldnt open logfile! It might be too huge?');
+      Writeln('Could not open logfile! It might be too huge?');
       halt;
     end;
   end;
@@ -86,29 +79,47 @@ begin
   Closefile(f);
 end;
 
-function _FileTail(const lines: Integer; const filename: String): String;
+function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): String;
 var
-  s: TStream;
-  c: char;
-  l: integer;
+  fStream: TFileStream;
+  fLinesRead, fBytesToEnd: Integer;
+  c: Byte;
+  fResultBytes: TBytes;
 begin
-  s := TFileStream.Create(filename, fmOpenRead, fmShareDenyNone);
+  Result := '';
+
+  fStream := TFileStream.Create(aFilename, fmOpenRead, fmShareDenyNone);
   try
-    s.Seek(0, soEnd);
-    l := 0;
-    while (l <= lines) and (s.Position > 0) do
+    fLinesRead := 0;
+    // go to end of file
+    fStream.Seek(0, soFromEnd);
+    while ((fLinesRead < aMaxLinesToRead) and (fStream.Seek(-2, soFromCurrent) >= 0)) do
     begin
-      s.Seek(-2, soCurrent);
-      s.Read(c, SizeOf(byte));
-      if c = #10 then Inc(l);
+      fStream.Read(c, SizeOf(c));
+      // check if line feed #10 -> new line detected
+      if c = 10 then
+      begin
+        Inc(fLinesRead);
+      end;
     end;
-    s.Seek(1, soCurrent);
-    l := s.Size - s.Position;
-    SetLength(Result, l);
-    s.Read(Result[1], l);
+
+    // file has less lines than we want to read
+    if fLinesRead < aMaxLinesToRead then
+    begin
+      fStream.Position := 0;
+    end;
+
+    // filesize - current position = begin of x last line
+    fBytesToEnd := fStream.Size - fStream.Position;
+    SetLength(fResultBytes, fBytesToEnd);
+
+    fStream.ReadBuffer(fResultBytes, fBytesToEnd);
   finally
-    s.Free;
+    fStream.Free;
   end;
+
+  // convert bytearray to string
+  Result := TEncoding.UTF8.GetString(fResultBytes);
 end;
 
 procedure DebugInit;
@@ -130,20 +141,17 @@ begin
   if _GetDebugVerbosity = dpNone then
     exit;
 
-  if (priority <> dpError) and (_GetDebugVerbosity < priority) and (_GetDebugCategories <> ',all,') and (0 = Pos(',' + section + ',', _GetDebugCategories)) then
+  if (_GetDebugVerbosity < priority) then
+    exit;
+
+  if (_GetDebugCategories <> ',verbose,') and (not ContainsText(_GetDebugCategories, section)) then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   debug_lock.Enter;
   try
     try
-      WriteLn(f, Format('%s (%s) [%-12s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 2), section, msg]));
-      Inc(Lines);
-      if Lines >= _GetDebugFlushLinesCount then
-      begin
-        Flush(f);
-        Lines := 0;
-      end;
+      WriteLn(f, Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]));
     except
       on e: Exception do
       begin
@@ -169,7 +177,7 @@ begin
   end;
 end;
 
-function LogTail(const lines: Integer): String;
+function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
@@ -177,7 +185,7 @@ begin
   try
     _CloseLogFile;
     try
-      Result := _FileTail(lines, _GetDebugLogFileName);
+      Result := _FileTail(aMaxLinesToRead, _GetDebugLogFileName);
     finally
       _OpenLogFile;
     end;
@@ -187,4 +195,3 @@ begin
 end;
 
 end.
-
