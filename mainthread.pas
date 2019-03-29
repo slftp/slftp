@@ -122,7 +122,7 @@ begin
   {$ENDIF}
 
   try
-    IdSSLOpenSSLHeaders.Load;
+    IdSSLOpenSSL.LoadOpenSSLLibrary;
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
@@ -535,7 +535,7 @@ begin
     FreeAndNil(MySQLCon);
 
   try
-    IdSSLOpenSSLHeaders.Unload;
+    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
   except
     on e: Exception do
     begin
