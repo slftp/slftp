@@ -62,7 +62,7 @@ begin
   {$ENDIF}
 
   try
-    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary;, 'IdSSLOpenSSL.LoadOpenSSLLibrary loaded');
+    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary loaded');
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
