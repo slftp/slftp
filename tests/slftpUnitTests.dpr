@@ -30,9 +30,11 @@ uses
     DUnitX.Loggers.GUIX,
   {$ENDIF}
   Classes, SysUtils,
+  slftpUnitTestsSetup,
   // add all test units below
   Base64OpenSSLTests,
-  mystringsTests;
+  mystringsTests,
+  httpTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -43,6 +45,11 @@ var
   logger : ITestLogger;
 
 begin
+  {* setup needed internal variables, etc *}
+  InitialConfigSetup;
+  InitialDebugSetup;
+
+
   // run all registered tests
   {$IFDEF TextRunner}
     try

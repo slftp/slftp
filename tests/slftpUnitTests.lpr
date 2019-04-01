@@ -37,11 +37,18 @@ uses
     GUITestRunner,
   {$ENDIF}
   Classes, SysUtils,
+  slftpUnitTestsSetup,
   // add all test units below
   Base64OpenSSLTests,
-  mystringsTests;
+  mystringsTests,
+  httpTests;
 
 begin
+  {* setup needed internal variables, etc *}
+  InitialConfigSetup;
+  InitialDebugSetup;
+
+
   // run all registered tests
 {$IFDEF TextRunner}
   // halt on error, means exit code <> 0

@@ -62,7 +62,7 @@ begin
   {$ENDIF}
 
   try
-    CheckTrue(IdSSLOpenSSLHeaders.Load, 'IdSSLOpenSSLHeaders loaded');
+    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary;, 'IdSSLOpenSSL.LoadOpenSSLLibrary loaded');
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
@@ -82,7 +82,7 @@ end;
 {$ENDIF}
 begin
   try
-    IdSSLOpenSSLHeaders.Unload;
+    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
   except
     on e: Exception do
     begin
