@@ -10,7 +10,7 @@ function DoBase64Encode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String
 
 { Creates a base64 decoded string from @link(aInput)
   @param(aInput String which should be used)
-  @param(aOutput Base64 decoded String, caller is responsible to use Utf8Decode() if needed)
+  @param(aOutput Base64 decoded String, caller is responsible to use UTF8ToString() if needed)
   @returns(Length of base64 decoded string, 0, -1 and -101 means it failed) }
 function DoBase64Decode(const aInput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; out aOutput: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): integer;
 
