@@ -107,7 +107,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode1;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'Hello';
@@ -120,7 +120,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode2;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'This is just an example test!!';
@@ -133,7 +133,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode3;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '';
@@ -146,7 +146,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode4;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'To encode binaries (like images, documents, etc.) upload your data via the file encode form below.';
@@ -159,7 +159,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode5;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '192425';
@@ -172,14 +172,10 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode6;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
-  {$IFDEF UNICODE}
-    fInputStr := Utf8Encode('En France, il y a au total 11 fêtes pendant l’année.');
-  {$ELSE}
-    fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
-  {$ENDIF}
+  fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
   fExpectedResultStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
   fLength := DoBase64Encode(fInputStr, fOutputStr);
 
@@ -189,7 +185,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode1;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'SGVsbG8=';
@@ -202,7 +198,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode2;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'V2UgdGVzdCBvdXIgZnVuY3Rpb25zIG5vdyEhITExMQ==';
@@ -215,7 +211,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode3;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '';
@@ -228,7 +224,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode4;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'VG8gZW5jb2RlIGJpbmFyaWVzIChsaWtlIGltYWdlcywgZG9jdW1lbnRzLCBldGMuKSB1cGxvYWQgeW91ciBkYXRhIHZpYSB0aGUgZmlsZSBlbmNvZGUgZm9ybSBiZWxvdy4=';
@@ -241,7 +237,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode5;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'MTkyNDI1';
@@ -254,19 +250,14 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode6;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
   fExpectedResultStr := 'En France, il y a au total 11 fêtes pendant l’année.';
   fLength := DoBase64Decode(fInputStr, fOutputStr);
 
-  {$IFDEF UNICODE}
-    CheckEqualsString(fExpectedResultStr, UTF8ToString(fOutputStr), 'Base64 decoded string differs');
-  {$ELSE}
-    CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
-  {$ENDIF}
-
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
   // length of fOutputStr and fExpectedResultStr is 56 when using Length()
   CheckEquals(56, fLength, 'Base64 decoded string length differs');
 end;
