@@ -262,7 +262,7 @@ begin
   fLength := DoBase64Decode(fInputStr, fOutputStr);
 
   {$IFDEF UNICODE}
-    CheckEqualsString(fExpectedResultStr, Utf8Decode(fOutputStr), 'Base64 decoded string differs');
+    CheckEqualsString(fExpectedResultStr, UTF8ToString(fOutputStr), 'Base64 decoded string differs');
   {$ELSE}
     CheckEqualsString(fExpectedResultStr, fOutputStr, 'Base64 decoded string differs');
   {$ENDIF}
