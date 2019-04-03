@@ -34,7 +34,8 @@ uses
   // add all test units below
   Base64OpenSSLTests,
   mystringsTests,
-  httpTests;
+  httpTests,
+  ircblowfishTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
