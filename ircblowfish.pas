@@ -11,7 +11,7 @@ uses
 type
   TIrcBlowkey = class
   private
-    KeyData: TBlowfishData;
+    KeyData: TBlowfishData; //< generated blowfish data for @link(blowkey) in ECB mode
     fBlowkey: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}; //< { blowkey for @link(channel) }
     fCBC: Boolean; //< @true if channel is CBC encrypted, @false otherwise.
   public
