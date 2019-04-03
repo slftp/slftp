@@ -41,7 +41,8 @@ uses
   // add all test units below
   Base64OpenSSLTests,
   mystringsTests,
-  httpTests;
+  httpTests,
+  ircblowfishTests;
 
 begin
   {* setup needed internal variables, etc *}
