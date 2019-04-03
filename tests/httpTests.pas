@@ -21,7 +21,7 @@ type
 implementation
 
 uses
-  SysUtils, http;
+  SysUtils, StrUtils, http;
 
 { TTestHTTP }
 
@@ -37,7 +37,8 @@ begin
 
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
-  CheckEqualsString('no error', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book (2018) - IMDb</title>'), 'HTML content should include title');
 end;
 
 initialization
