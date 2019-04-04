@@ -3,13 +3,13 @@ unit slcriticalsection;
 interface
 
 uses
-  SyncObjs, Contnrs;
+  SyncObjs, Contnrs, IdGlobal;
 
 type
   TslCriticalSection = class
   private
     rc: Integer;
-    rt: LongWord;
+    rt: TIdThreadId;
     w: TObjectList;
     l: TCriticalSection;
     slshutdown: Boolean;
@@ -24,7 +24,7 @@ type
 implementation
 
 uses
-  Classes, Types, SysUtils, irc, debugunit, IdGlobal;
+  Classes, Types, SysUtils, irc, debugunit;
 
 var
   ec: Cardinal = 0;
@@ -85,7 +85,7 @@ function TslCriticalSection.Enter(sname: String = ''): Boolean;
 label
   ujra;
 var
-  procId: LongWord;
+  procId: TIdThreadId;
   event: TEvent;
 begin
   Result := False;
@@ -144,7 +144,7 @@ end;
 
 procedure TslCriticalSection.Leave;
 var
-  procId: LongWord;
+  procId: TIdThreadId;
 begin
   procId := IdGlobal.CurrentThreadId;
   try
