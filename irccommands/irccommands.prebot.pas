@@ -1002,7 +1002,7 @@ var
       IrcBnctest(netname, channel, Trim(ss));
 
       irc_Addtext(netname, channel, '%sspread %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcSpread(netname, channel, sitename + ' ' + dir) then
+      if not IrcSpread(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Spreading returned error. Skipping.</c>');
         goto ujkor;
@@ -1011,7 +1011,7 @@ var
         irc_Addtext(netname, channel, 'Checking now....');
 
       irc_Addtext(netname, channel, '%scheck %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcCheck(netname, channel, sitename + ' ' + dir) then
+      if not IrcCheck(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Checking returned error. Skipping.</c>');
         goto ujkor;
