@@ -85,6 +85,8 @@ var
   LinesDone, BytesToEnd: Integer;
   currentByte: Byte;
 begin
+  Result := '';
+
   fStream := TFileStream.Create(aFilename, fmOpenRead or fmShareDenyNone);
 
   try
