@@ -34,7 +34,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, console;
 
 const
   section = 'debug';
@@ -79,47 +79,34 @@ begin
   Closefile(f);
 end;
 
-function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): String;
+function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): RawByteString;
 var
-  fStream: TFileStream;
-  fLinesRead, fBytesToEnd: Integer;
-  c: Byte;
-  fResultBytes: TBytes;
+  fStream: TStream;
+  LinesDone, BytesToEnd: Integer;
+  currentByte: Byte;
 begin
-  Result := '';
+  fStream := TFileStream.Create(aFilename, fmOpenRead or fmShareDenyNone);
 
-  fStream := TFileStream.Create(aFilename, fmOpenRead, fmShareDenyNone);
   try
-    fLinesRead := 0;
-    // go to end of file
-    fStream.Seek(0, soFromEnd);
-    while ((fLinesRead < aMaxLinesToRead) and (fStream.Seek(-2, soFromCurrent) >= 0)) do
+    fStream.Seek(0, soEnd);
+    LinesDone := 0;
+
+    while (LinesDone < aMaxLinesToRead) and (fStream.Seek(-2, soCurrent) >= 0) do
     begin
-      fStream.Read(c, SizeOf(c));
-      // check if line feed #10 -> new line detected
-      if c = 10 then
-      begin
-        Inc(fLinesRead);
-      end;
+      fStream.Read(currentByte, SizeOf(currentByte));
+      if currentByte = 10 then
+        Inc(LinesDone);
     end;
 
-    // file has less lines than we want to read
-    if fLinesRead < aMaxLinesToRead then
-    begin
+    if LinesDone < aMaxLinesToRead then
       fStream.Position := 0;
-    end;
 
-    // filesize - current position = begin of x last line
-    fBytesToEnd := fStream.Size - fStream.Position;
-    SetLength(fResultBytes, fBytesToEnd);
-
-    fStream.ReadBuffer(fResultBytes, fBytesToEnd);
+    BytesToEnd := fStream.Size - fStream.Position;
+    SetLength(Result, BytesToEnd);
+    fStream.ReadBuffer(PByte(Result)[0], BytesToEnd);
   finally
     fStream.Free;
   end;
-
-  // convert bytearray to string
-  Result := TEncoding.UTF8.GetString(fResultBytes);
 end;
 
 procedure DebugInit;
