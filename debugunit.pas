@@ -34,7 +34,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, console;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
 
 const
   section = 'debug';
@@ -79,36 +79,47 @@ begin
   Closefile(f);
 end;
 
-function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): RawByteString;
+function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): String;
 var
   fStream: TStream;
-  LinesDone, BytesToEnd: Integer;
-  currentByte: Byte;
+  fLinesDone, fBytesToEnd: Integer;
+  fCurrentByte: Byte;
+  fResultBytes: TBytes;
 begin
   Result := '';
 
   fStream := TFileStream.Create(aFilename, fmOpenRead or fmShareDenyNone);
-
   try
     fStream.Seek(0, soEnd);
-    LinesDone := 0;
+    fLinesDone := 0;
 
-    while (LinesDone < aMaxLinesToRead) and (fStream.Seek(-2, soCurrent) >= 0) do
+    while (fLinesDone < aMaxLinesToRead) and (fStream.Seek(-2, soCurrent) >= 0) do
     begin
-      fStream.Read(currentByte, SizeOf(currentByte));
-      if currentByte = 10 then
-        Inc(LinesDone);
+      fStream.Read(fCurrentByte, SizeOf(fCurrentByte));
+      // line feed #10 -> new line detected
+      if fCurrentByte = 10 then
+        Inc(fLinesDone);
     end;
 
-    if LinesDone < aMaxLinesToRead then
+    if fLinesDone < aMaxLinesToRead then
       fStream.Position := 0;
 
-    BytesToEnd := fStream.Size - fStream.Position;
-    SetLength(Result, BytesToEnd);
-    fStream.ReadBuffer(PByte(Result)[0], BytesToEnd);
+    // filesize - current position = begin of x-th last line
+    fBytesToEnd := fStream.Size - fStream.Position;
+    SetLength(fResultBytes, fBytesToEnd);
+
+    fStream.ReadBuffer(fResultBytes[0], fBytesToEnd);
   finally
     fStream.Free;
   end;
+
+  {$IFDEF UNICODE}
+    // convert bytearray to string (2-byte char)
+    Result := TEncoding.UTF8.GetString(fResultBytes);
+  {$ELSE}
+    SetLength(Result, fBytesToEnd);
+    move(fResultBytes[0], Result[1], fBytesToEnd);
+  {$ENDIF}
 end;
 
 procedure DebugInit;
