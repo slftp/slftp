@@ -1104,10 +1104,10 @@ begin
     if AnsiContainsText(dir, '*') then
   {$ENDIF}
   begin
-    irc_Addtext(netname, channel, 'Doing a wildcard batch for %s', [dir]);
+    irc_Addtext(netname, channel, 'Doing a wildcard match for <b>%s</b> on %s/%s', [dir, sitename, section]);
     fInputRlsMask := TslMask.Create(dir);
     try
-      fDirlist := DirlistB(netname, channel, sitename, section);
+      fDirlist := DirlistB(netname, channel, sitename, s.sectiondir[section]);
       try
         if fDirlist <> nil then
         begin
@@ -1128,7 +1128,7 @@ begin
           end;
         end
         else
-          irc_Addtext(netname, channel, 'Can''t dirlist section %s', [section]);
+          irc_Addtext(netname, channel, 'Can''t dirlist section %s on %s', [section, sitename]);
       finally
         fDirlist.Free;
       end;
