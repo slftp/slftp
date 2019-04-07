@@ -70,6 +70,7 @@ type
     kilepve: boolean;
     no: integer;
     fstatus: TSlotStatus;
+    fSSCNEnabled: boolean;
     event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure AddLoginTask;
@@ -122,12 +123,15 @@ type
     function RemoveDir(dir: String): boolean;
     function SendProtP: boolean;
     function SendProtC: boolean;
+    function SendSSCNEnable: boolean;
+    function SendSSCNDisable: boolean;
     function Mkdir(const dirtocreate: String): boolean;
     function TranslateFilename(const filename: String): String;
     function Pwd(var dir: String): boolean;
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask;
+    property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -746,6 +750,7 @@ begin
   lastResponseCode := 0;
   lastio := Now();
   lastactivity := Now();
+  SSCNEnabled := False;
 
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
@@ -778,6 +783,7 @@ begin
     socks5.Enabled := False;
     Console_Slot_Close(Name);
     prot := prNone;
+    SSCNEnabled := False;
     aktdir := '';
   except
     on e: Exception do
@@ -945,6 +951,36 @@ begin
       exit;
 
     prot := prProtP;
+  end;
+  Result := True;
+end;
+
+function TSiteSlot.SendSSCNEnable: boolean;
+begin
+  Result := False;
+  if not SSCNEnabled then
+  begin
+    if not Send('SSCN ON') then
+      exit;
+    if not Read('SSCN ON') then
+      exit;
+
+    SSCNEnabled := True;
+  end;
+  Result := True;
+end;
+
+function TSiteSlot.SendSSCNDisable: boolean;
+begin
+  Result := False;
+  if SSCNEnabled then
+  begin
+    if not Send('SSCN OFF') then
+      exit;
+    if not Read('SSCN OFF') then
+      exit;
+
+    SSCNEnabled := False;
   end;
   Result := True;
 end;
