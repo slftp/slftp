@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
+  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules;
 
@@ -12,6 +12,25 @@ type
   TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+
+  {
+  @value(sfUnknown unknown feature flag)
+  @value(sfCEPR Custom Extended Passive Reply, a glftpd flag)
+  @value(sfCLNT supply client information to server)
+  @value(sfCPSV Crypted PASV)
+  @value(sfEPRT Extended PORT)
+  @value(sfEPSV Extended PASV)
+  @value(sfMFMT Modify File Modification Time)
+  @value(sfPRET PRE Transfer)
+  @value(sfPROT Data Channel Protection Level)
+  @value(sfSSCN Set Secured Client Negotiation)
+  @value(sfTVFS Trivial Virtual File Store, a RaidenFTPD flag)
+  @value(sfUTF8 UTF8 encoding, a RaidenFTPD flag)
+  @value(sfXCRC CRC calculation on file, a ioftpd flag)
+  }
+  TSiteFeature = (sfUnknown, sfCEPR, sfCLNT, sfCPSV, sfEPRT, sfEPSV, sfMFMT,
+    sfPRET, sfPROT, sfSSCN, sfTVFS, sfUTF8, sfXCRC);
+  TSiteFeatures = set of TSiteFeature;
 
   {
   @value(sswUnknown unknown ftpd software)
@@ -116,6 +135,7 @@ type
   TSite = class
   private
     fworking: TSiteStatus;
+    fFeatures: TSiteFeatures;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
     fNumDn: integer;
@@ -347,6 +367,7 @@ type
 
   published
     property sw: TSiteSw read GetSw write SetSw;
+    property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
     property working: TSiteStatus read fWorking write SetWorking;
     property max_dn: integer read GetMaxDn write SetMaxDn;
@@ -396,6 +417,8 @@ function getAdminSiteName: String;
 function SiteSoftWareToString(sitename: String): String; overload;
 function SiteSoftWareToString(site: TSite): String; overload;
 function StringToSiteSoftWare(s: String): TSiteSw;
+
+function FeatResponseToFeature(const feature: String): TSiteFeature;
 
 function sslMethodToString(sitename: String): String; overload;
 function sslMethodToString(site: TSite): String; overload;
@@ -515,6 +538,18 @@ begin
       sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
+  end;
+end;
+
+function FeatResponseToFeature(const feature: string): TSiteFeature;
+var
+  helper: Integer;
+begin
+  Result := sfUnknown;
+  helper := GetEnumValue(TypeInfo(TSiteFeature), feature);
+  if helper > -1 then
+  begin
+    Result := TSiteFeature(helper);
   end;
 end;
 
@@ -915,6 +950,11 @@ begin
 end;
 
 procedure TSiteSlot.ProcessFeat;
+var
+  sFeatures: TArray<String>;
+  feature: TSiteFeature;
+  features: TSiteFeatures;
+  sf, sfloop: string;
 begin
   {
   * GLFTPD *
@@ -1006,25 +1046,42 @@ begin
      EPSV
     211 END
   }
-  if (0 < Pos('PRET', lastResponse)) then
+  features := [];
+  sFeatures := lastResponse.Split([#10]);
+
+  for sfloop in sFeatures do
+  begin
+    sf := sfloop.Trim();
+    if sf.IndexOf(' ') > -1 then
+      sf := sf.Split([' '])[0];
+    feature := FeatResponseToFeature('sf' + sf);
+    if feature <> sfUnknown then
+    begin
+      features := features + [feature];
+    end;
+  end;
+
+  site.features := features;
+
+  if (sfPRET in features) then
   begin
     if site.sw <> sswDrftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswDrftpd));
+      site.sw := sswDrftpd;
   end
-  else if ( (0 < Pos('UTF8', lastResponse)) and (0 < Pos('MFMT', lastResponse)) ) then
+  else if (sfUTF8 in features) and (sfMFMT in features) then
   begin
     if site.sw <> sswRaidenftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswRaidenftpd));
+      site.sw := sswRaidenftpd;
   end
-  else if (0 < Pos('Command not understood', lastResponse)) or (0 < Pos('TVFS', lastResponse)) or (0 < Pos('XCRC', lastResponse)) then
+  else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
   begin
     if site.sw <> sswIoftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
+      site.sw := sswIoftpd;
   end
-  else if (0 < Pos('CPSV', lastResponse)) then
+  else if (sfCPSV in features) then
   begin
     if site.sw <> sswGlftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
+      site.sw := sswGlftpd;
   end;
 end;
 
@@ -1208,7 +1265,8 @@ begin
   if not Read('TYPE I') then
     exit;
 
-  if (TSiteSw(RCInteger('sw', 0)) = sswUnknown) then
+  // check FEAT when site comes up or we dont know the site software
+  if ((site.sw = sswUnknown) or (not site.IsUp)) then
   begin
     if not Send('FEAT') then
       exit;
@@ -1229,7 +1287,7 @@ begin
       exit;
   end;
 
-  if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
+  if (site.sw = sswDrftpd) then
   begin
     if (not Send('CLNT %s', [GetFullVersionString])) then
       exit;
@@ -2064,6 +2122,7 @@ begin
   // nullazni a felfedezendo beallitasokat
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   working := sstUnknown;
+  features := [];
 
   // rakjuk rendbe a direket
   if ((RCString('predir', '') <> '') and (sectiondir['PRE'] = '')) then
