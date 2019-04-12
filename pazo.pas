@@ -1143,6 +1143,7 @@ begin
     except
       Break;
     end;
+
     try
       s := TSite(sitesunit.sites[i]);
       if s.working = sstDown then
@@ -1151,49 +1152,34 @@ begin
         Continue;
 
       sectiondir := s.sectiondir[rls.section];
-      if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
+      if (sectiondir = '') then
+        Continue;
+
+      sectiondir := DatumIdentifierReplace(sectiondir);
+
+      if FindSite(s.Name) <> nil then
+        Continue;
+
+      if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
-        begin
-          if (DateTimeToUnix(rls.pretime) <> 0) then
-          begin
-            if (s.IsPretimeOk(rls.section, rls.pretime)) then
-            begin
-              sectiondir := DatumIdentifierReplace(sectiondir);
+        if not (DateTimeToUnix(rls.pretime) <> 0) then
+          Continue;
 
-              Result := True;
-              //ps:= AddSite(s.name, sectiondir);
-
-              ps := TPazoSite.Create(self, s.Name, sectiondir);
-              ps.status := rssNotAllowed;
-              ps.DelaySetup;
-              if s.IsAffil(rls.groupname) then
-              begin
-                Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-                ps.status := rssShouldPre;
-              end;
-              sites.Add(ps);
-            end;
-          end;
-        end
-        else
-        begin
-          sectiondir := DatumIdentifierReplace(sectiondir);
-
-          Result := True;
-          //ps:= AddSite(s.name, sectiondir);
-
-          ps := TPazoSite.Create(self, s.Name, sectiondir);
-          ps.status := rssNotAllowed;
-          ps.DelaySetup;
-          if s.IsAffil(rls.groupname) then
-          begin
-            Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-            ps.status := rssShouldPre;
-          end;
-          sites.Add(ps);
-        end;
+        if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+          Continue;
       end;
+
+      ps := TPazoSite.Create(self, s.Name, sectiondir);
+      ps.status := rssNotAllowed;
+      ps.DelaySetup;
+      if s.IsAffil(rls.groupname) then
+      begin
+        Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
+        ps.status := rssShouldPre;
+      end;
+      sites.Add(ps);
+
+      Result := True;
     except
       Continue;
     end;
@@ -1224,8 +1210,6 @@ begin
     if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
     begin
       sectiondir := DatumIdentifierReplace(sectiondir);
-      Result := True;
-      //ps:= AddSite(s.name, sectiondir);
       ps := TPazoSite.Create(self, s.Name, sectiondir);
       ps.status := rssAllowed; //rssNotAllowed;
       if s.IsAffil(rls.groupname) then
@@ -1234,6 +1218,8 @@ begin
         ps.status := rssShouldPre;
       end;
       sites.Add(ps);
+
+      Result := True;
     end;
   end;
 end;
