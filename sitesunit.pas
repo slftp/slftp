@@ -152,8 +152,8 @@ type
     procedure SetPredir(const Value: String);
     function Getlegacydirlist: boolean;
     procedure Setlegacydirlist(const Value: boolean);
-    function GetSectionDir(Name: String): String;
-    procedure SetSectionDir(Name: String; const Value: String);
+    function GetSectionDir(const Name: String): String;
+    procedure SetSectionDir(const Name, Value: String);
     function GetSectionPrecmd(Name: String): String;
     procedure SetSectionPrecmd(Name: String; const Value: String);
     function GetAffils: String;
@@ -2461,12 +2461,12 @@ begin
   end;
 end;
 
-function TSite.GetSectionDir(Name: String): String;
+function TSite.GetSectionDir(const Name: String): String;
 begin
   Result := RCString('dir-' + Name, '');
 end;
 
-procedure TSite.SetSectionDir(Name: String; const Value: String);
+procedure TSite.SetSectionDir(const Name, Value: String);
 begin
   if Value <> '' then
     WCString('dir-' + Name, Value)

@@ -3207,7 +3207,9 @@ begin
         inc_srcsite := FindSiteByName('', pss.Name);
         inc_dstsite := FindSiteByName('', ps.Name);
         inc_srcdir := inc_srcsite.sectiondir[p.rls.section];
+        inc_srcdir := DatumIdentifierReplace(inc_srcdir);
         inc_dstdir := inc_dstsite.sectiondir[p.rls.section];
+        inc_dstdir := DatumIdentifierReplace(inc_dstdir);
 
         inc_rc := FindSectionHandler(p.rls.section);
         inc_rls := inc_rc.Create(p.rls.rlsname, p.rls.section);
