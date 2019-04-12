@@ -17,7 +17,7 @@ implementation
 
 uses
   Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, StrUtils,
-  dateutils, dirlist, SysUtils, irc, debugunit, nuke;
+  dateutils, dirlist, SysUtils, irc, debugunit, nuke, mystrings;
 
 const
   rsections = 'autonuke';
@@ -30,10 +30,11 @@ label
 var
   s: TSiteSlot;
   i, fInterval: Integer;
-  ss: String;
+  sectiondir: String;
   l: TAutoNukeTask;
   n: TNukeQueueItem;
   b: Boolean;
+  fNuketime: TDateTime;
 
   procedure RetryNextTime;
   begin
@@ -93,14 +94,22 @@ TryAgain:
     n := TNukeQueueItem(nukequeue[i]);
     if n.site = site1 then
     begin
-      ss := s.site.sectiondir[n.section];
-      if ss <> '' then
+      sectiondir := s.site.sectiondir[n.section];
+      if sectiondir <> '' then
       begin
-        ss := ReplaceText(ss, '<yyyy>', n.yyyy);
-        ss := ReplaceText(ss, '<yy>', n.yy);
-        ss := ReplaceText(ss, '<mm>', n.mm);
-        ss := ReplaceText(ss, '<dd>', n.dd);
-        if s.Cwd(ss, True) then
+        fNuketime := UnixToDateTime(0);
+        // identifier for week <ww> cannot be defined in TNukeQueueItem and is not used in nuke dates
+        // but it could result in issues if sectiondir is confed with it, atm we won't care about it until someone reports
+        if not TryEncodeDateTime(StrToInt(n.yyyy), StrToInt(n.mm), StrToInt(n.dd), 0, 0, 0, 0, fNuketime) then
+        begin
+          Debug(dpError, rsections, Format('TAutoNukeTask.Execute TryEncodeDateTime: Could not recode date: %s (%d) %s (%d) %s (%d)',
+            [n.yyyy, StrToInt(n.yyyy), n.mm, StrToInt(n.mm), n.dd, StrToInt(n.dd)]));
+          readyerror := true;
+          Result := True;
+        end;
+        sectiondir := DatumIdentifierReplace(sectiondir, fNuketime);
+
+        if s.Cwd(sectiondir, True) then
         begin
           if n.multiplier >= 0 then
             b := s.Send('SITE NUKE %s %d %s', [n.rip, n.multiplier, n.reason])

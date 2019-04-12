@@ -16,15 +16,15 @@ procedure NukeSave;
 
 type
   TNukeQueueItem = class
-    site: String;
+    site: String; //< sitename
     section: String;
-    yyyy: String;
-    yy: String;
-    mm: String;
-    dd: String;
-    rip: String;
-    multiplier: Integer;
-    reason: String;
+    yyyy: String; //< year, e.g. 2019
+    yy: String; //< last two numbers of year, e.g. 19
+    mm: String; //< month
+    dd: String; //< day
+    rip: String; //< releasename
+    multiplier: Integer; //< nuke multiplier
+    reason: String; //< nuke reason
   end;
 
 var

@@ -233,7 +233,9 @@ begin
     sectiondir := s.site.sectiondir[section];
     if sectiondir <> '' then
     begin
-      irc_SendINDEXER(Format('Indexing of %s on site %s start.', [section, site1]));
+      sectiondir := DatumIdentifierReplace(sectiondir);
+
+      irc_SendINDEXER(Format('Indexing of %s (path: %s) on site %s start.', [section, sectiondir, site1]));
       try
         indexerRemoveSiteSection(site1, section);
         db := doIndexing(slot, section, sectiondir, 1);
