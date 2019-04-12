@@ -321,7 +321,7 @@ type
     property leechers: String read GetLeechers write SettLeechers;
     property traders: String read GetTraders write SettTraders;
     property users: String read GetUsers;
-    property sectiondir[Name: String]: String read GetSectionDir write SetSectionDir;
+    property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
     property sectionpretime[Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
