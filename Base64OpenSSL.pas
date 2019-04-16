@@ -104,9 +104,21 @@ function DoBase64Encode(const aInput: String; out aOutput: String): integer;
 var
   fInBytes, fOutBytes: TBytes;
 begin
-  fInBytes := TEncoding.UTF8.GetBytes(aInput);
+  {$IFDEF UNICODE}
+    fInBytes := TEncoding.UTF8.GetBytes(aInput);
+  {$ELSE}
+    SetLength(fInBytes, Length(aInput));
+    move(aInput[1], fInBytes[0], Length(aInput));
+  {$ENDIF}
+
   Result := DoBase64Encode(fInBytes, fOutBytes);
-  aOutput := StringOf(fOutBytes);
+
+  {$IFDEF UNICODE}
+    aOutput := StringOf(fOutBytes);
+  {$ELSE}
+    SetLength(aOutput, Length(fOutBytes));
+    move(fOutBytes[0], aOutput[1], Length(fOutBytes));
+  {$ENDIF}
 end;
 
 function DoBase64Encode(const aInput: TBytes; out aOutput: TBytes): integer;
@@ -121,7 +133,13 @@ begin
   // no explicit 1-byte string conversion needed due to base64 alphabet
   fInBytes := BytesOf(aInput);
   Result := DoBase64Decode(fInBytes, fOutBytes);
-  aOutput := TEncoding.UTF8.GetString(fOutBytes);
+
+  {$IFDEF UNICODE}
+    aOutput := TEncoding.UTF8.GetString(fOutBytes);
+  {$ELSE}
+    SetLength(aOutput, Length(fOutBytes));
+    move(fOutBytes[0], aOutput[1], Length(fOutBytes));
+  {$ENDIF}
 end;
 
 function DoBase64Decode(const aInput: TBytes; out aOutput: TBytes): integer;

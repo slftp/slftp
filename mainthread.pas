@@ -52,7 +52,7 @@ var
 implementation
 
 uses
-  ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  ident, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
@@ -253,7 +253,7 @@ begin
   KnowngroupsInit;
   MidnightInit;
   IrcInit;
-  IrcblowfishInit;
+  IrcChannelSettingsInit;
   NotifyInit;
   PazoInit;
   PrebotInit;
@@ -501,7 +501,7 @@ begin
   Precatcher_UnInit;
   PrebotUnInit;
   NotifyUnInit;
-  IrcblowfishUnInit;
+  IrcChannelSettingsUninit;
   IrcUnInit;
   FakesUnInit;
   kb_UnInit;
