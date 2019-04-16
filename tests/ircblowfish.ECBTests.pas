@@ -77,18 +77,35 @@ begin
 end;
 
 procedure TTestIrcBlowkeyECB.TestDecryptMessage;
-//var
-//  fResult: String;
+var
+  fChanSettingsObj: TIrcChannelSettings;
+  fInputStr, fResult: String;
+  i: Integer;
 begin
-{
-  fResult := irc_encrypt('LinkNET', '#testsl', 'I chat more securely with CBC');
-  CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-  CheckEqualsString('differs always', fResult, 'Encrypted text does not match');
-
-  fResult := irc_encrypt('efNET', '#sltesting', 'I only use CBC');
-  CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-  CheckEqualsString('always different', fResult, 'Encrypted text does not match');
-}
+  for fChanSettingsObj in IrcChanSettingsList.Values do
+  begin
+    if (fChanSettingsObj is TIrcBlowkeyECB) then
+    begin
+      if (fChanSettingsObj.Channel = '#slftp-blowfish') then
+      begin
+        for i := Low(TestValues1) to High(TestValues1) do
+        begin
+          fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues1[i]._dText, fResult, 'Encrypted text does not match');
+        end;
+      end
+      else if (fChanSettingsObj.Channel = '#blowfishuser') then
+      begin
+        for i := Low(TestValues2) to High(TestValues2) do
+        begin
+          fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues2[i]._dText, fResult, 'Encrypted text does not match');
+        end;
+      end;
+    end;
+  end;
 end;
 
 initialization
