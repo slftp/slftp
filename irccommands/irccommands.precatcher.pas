@@ -14,7 +14,7 @@ function IrcDisplayMappings(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, precatcher, irc, ircblowfish, sitesunit, mystrings;
+  SysUtils, Classes, precatcher, irc, ircchansettings, sitesunit, mystrings;
 
 const
   section = 'irccommands.precatcher';
@@ -32,9 +32,9 @@ begin
 
   if ((s1 <> '') and (s2 <> '')) then
   begin
-    if nil = FindIrcBlowfish(s1, s2, False) then
+    if FindIrcChannelSettings(s1, s2) = nil then
     begin
-      irc_addtext(Netname, Channel, 'Cant find channel.');
+      irc_addtext(Netname, Channel, Format('Cant find channel %s on net %s.', [s2, s1]));
       exit;
     end;
   end
@@ -104,9 +104,9 @@ begin
     exit;
   end;
 
-  if nil = FindIrcBlowfish(nn, channelname, False) then
+  if FindIrcChannelSettings(nn, channelname) = nil then
   begin
-    irc_addtext(Netname, Channel, Format('Channel %s not found or no blowfish set.', [channelname]));
+    irc_addtext(Netname, Channel, Format('Channel %s not found on net %s.', [channelname, nn]));
     exit;
   end;
 
@@ -147,7 +147,7 @@ begin
   nick := SubString(params, ' ', 3);
   rest := mystrings.RightStr(params, length(net) + length(chan) + length(nick) + 3);
 
-  if nil = FindIrcBlowfish(net, chan, False) then
+  if FindIrcChannelSettings(net, chan) = nil then
   begin
     irc_addtext(Netname, Channel, 'Syntax error: %s@%s not found', [net, chan]);
     exit;
@@ -195,9 +195,9 @@ begin
     exit;
   end;
 
-  if nil = FindIrcBlowfish(nn, channelname, False) then
+  if FindIrcChannelSettings(nn, channelname) = nil then
   begin
-    irc_addtext(Netname, Channel, 'Channel not found.');
+    irc_addtext(Netname, Channel, Format('Channel %s not found on net %s.', [channelname, nn]));
     exit;
   end;
   try
