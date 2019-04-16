@@ -35,7 +35,8 @@ uses
   Base64OpenSSLTests,
   mystringsTests,
   httpTests,
-  ircblowfishTests;
+  ircblowfish.ECBTests,
+  ircblowfish.CBCTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

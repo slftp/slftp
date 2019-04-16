@@ -42,7 +42,8 @@ uses
   Base64OpenSSLTests,
   mystringsTests,
   httpTests,
-  ircblowfishTests;
+  ircblowfish.ECBTests,
+  ircblowfish.CBCTests;
 
 begin
   {* setup needed internal variables, etc *}
