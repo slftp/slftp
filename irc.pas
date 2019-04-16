@@ -181,7 +181,7 @@ const
 implementation
 
 uses
-  StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircblowfish, irccolorunit, precatcher, console,
+  StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
   dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news;
 
@@ -326,18 +326,14 @@ end;
 
 procedure irc_AddstatsB(const msgirc: String); overload;
 var
-  b: TIrcBlowKey;
+  fChanSettingsObj: TIrcChannelSettings;
   i: Integer;
 begin
-  if chankeys = nil then
-    exit;
-
   try
-    for i := chankeys.Count - 1 downto 0 do
+    for fChanSettingsObj in IrcChanSettingsList.Values do
     begin
-      b := TIrcBlowKey(chankeys[i]);
-      if b.HasKey('STATS') then
-        IrcLineBreak(b.netname, b.channel, msgirc);
+      if fChanSettingsObj.HasThisChanRole('STATS') then
+        IrcLineBreak(fChanSettingsObj.Netname, fChanSettingsObj.Channel, msgirc);
     end;
   except
     on E: Exception do
@@ -349,20 +345,15 @@ end;
 
 function irc_Addtext_by_key(const key, msg: String): Integer;
 var
-  b: TIrcBlowKey;
+  fChanSettingsObj: TIrcChannelSettings;
   i, j: Integer;
   s, ss: String;
 begin
   Result := 0;
-
-  if chankeys = nil then
-    exit;
-
   try
-    for i := chankeys.Count - 1 downto 0 do
+    for fChanSettingsObj in IrcChanSettingsList.Values do
     begin
-      b := TIrcBlowKey(chankeys[i]);
-      if b.HasKey(key) then
+      if fChanSettingsObj.HasThisChanRole(key) then
       begin
         inc(Result);
         s := msg;
@@ -371,7 +362,7 @@ begin
           ss := SubString(s, #13#10, j);
           if ss = '' then
             break;
-          irc_addtext(b.netname, b.channel, '%s', [ss]);
+          irc_addtext(fChanSettingsObj.Netname, fChanSettingsObj.Channel, '%s', [ss]);
         end;
       end;
     end;
@@ -517,8 +508,8 @@ procedure IrcStart;
 var
   x: TStringList;
   i: Integer;
-  channel, nn: String;
-  b: TIrcBlowKey;
+  fNetname, fChannel, fChanroles, fBlowkey, fChankey: String;
+  fInviteonly, fCbc: boolean;
 begin
   // register other sitechan keys
   x := TStringList.Create;
@@ -528,10 +519,15 @@ begin
     begin
       if (1 = Pos('channel-', x[i])) then
       begin
-        nn := SubString(x[i], '-', 2);
-        channel := Copy(x[i], Length('channel-') + Length(nn) + 2, 1000);
-        b := irc_RegisterChannel(nn, channel, sitesdat.ReadString(x[i], 'blowkey', ''), sitesdat.ReadString(x[i], 'chankey', ''), sitesdat.ReadBool(x[i], 'inviteonly', False), sitesdat.ReadBool(x[i], 'cbc', False));
-        b.names := ' ' + sitesdat.ReadString(x[i], 'names', '') + ' ';
+        fNetname := SubString(x[i], '-', 2);
+        fChannel := Copy(x[i], Length('channel-') + Length(fNetname) + 2, 1000);
+        fChanroles := sitesdat.ReadString(x[i], 'names', '');
+        fBlowkey := sitesdat.ReadString(x[i], 'blowkey', '');
+        fChankey := sitesdat.ReadString(x[i], 'chankey', '');
+        fInviteonly := sitesdat.ReadBool(x[i], 'inviteonly', False);
+        fCbc := sitesdat.ReadBool(x[i], 'cbc', False);
+
+        RegisterChannelSettings(fNetname, fChannel, fChanroles, fBlowkey, fChankey, fInviteonly, fCbc);
       end;
     end;
 
@@ -709,56 +705,57 @@ end;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
 var
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
 begin
-  try
-    b := FindIrcBlowfish(netname, channel, False);
-    // fo kulccsal barmit barhol meg lehet tenni.
-    if ((netname = 'CONSOLE') or (b.HasKey('ADMIN'))) then
+  Result := False;
+
+  // console is always authorized
+  if (netname = 'CONSOLE') then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  fChanSettings := FindIrcChannelSettings(netname, channel);
+  // admin chan is always authorized
+  if fChanSettings.HasThisChanRole('ADMIN') then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  // privat gesture with no key. here only transfer / stop / uptime is allowed
+  if (channel[1] <> '#') then
+  begin
+    if ((cmd = 'transfer') or (cmd = 'stop') or (cmd = 'uptime')) then
     begin
       Result := True;
       exit;
     end;
-
-    Result := False;
-
-    // privat uzenet, nem fo kulccsal. itt csak transfer/stop/uptime engedelyezett
-    if (channel[1] <> '#') then
+  end
+  else
+  begin
+    // any channel, here we only accept the special channel
+    if (fChanSettings.HasThisChanRole('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news') or (cmd = 'spread') or (cmd = 'stop') or (cmd = 'pre') or (cmd = 'prelist') or (cmd = 'help'))) then
     begin
-      if ((cmd = 'transfer') or (cmd = 'stop') or (cmd = 'uptime')) then
-      begin
-        Result := True;
-        exit;
-      end;
-
+      Result := True;
+      exit;
     end
-    else
+    else if (fChanSettings.HasThisChanRole('NUKE') and ((cmd = 'nuke') or (cmd = 'unnuke') or (cmd = 'nukedir') or (cmd = 'autonuke'))) then
     begin
-      // akarmilyen csatorna, itt mar csak a specialis csatornarol fogadunk el
-      if (b.HasKey('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news') or (cmd = 'spread') or
-        (cmd = 'stop') or (cmd = 'pre') or (cmd = 'prelist') or (cmd = 'help'))) then
-      begin
-        Result := True;
-        exit;
-      end
-      else if (b.HasKey('NUKE') and ((cmd = 'nuke') or (cmd = 'unnuke') or (cmd = 'nukedir') or (cmd = 'autonuke'))) then
-      begin
-        Result := True;
-        exit;
-      end
-      else if (b.HasKey('STATS') and (1 = Pos('stat', cmd))) then
-      begin
-        Result := True;
-        exit;
-      end
-      else if (b.HasKey('KB') and ((cmd = 'kbadd') or (cmd = 'kbshow') or (cmd = 'kblist') or (cmd = 'kbextra'))) then
-      begin
-        Result := True;
-        exit;
-      end;
+      Result := True;
+      exit;
+    end
+    else if (fChanSettings.HasThisChanRole('STATS') and (1 = Pos('stat', cmd))) then
+    begin
+      Result := True;
+      exit;
+    end
+    else if (fChanSettings.HasThisChanRole('KB') and ((cmd = 'kbadd') or (cmd = 'kbshow') or (cmd = 'kblist') or (cmd = 'kbextra'))) then
+    begin
+      Result := True;
+      exit;
     end;
-  except
-    Result := False;
   end;
 end;
 
@@ -808,7 +805,7 @@ var
   channel, msg, nick, ctcp_event: String;
   is_crypted_msg: Boolean;
   i, FishModeArrayIndex, l: Integer;
-  b: TIrcBlowkey;
+  b: TIrcChannelSettings;
   {$I common.inc}
 begin
   FishModeArrayIndex := -1;
@@ -816,12 +813,12 @@ begin
   * full input string 's' looks like:
   :***!znc@znc.in PRIVMSG #channel :Buffer Playback... <-- znc
   :Benti!~IDENT@91.x.x.256 PRIVMSG #sl-test :+OK OKm.j0tnE8Y0hLJOr.r90Sk.q829n/YneL6/IwZZI/.QW05.CrF9M.2L9Uw.mO3pZ1aJDry1TwKts.YDZKL01q1aH.BVbQe/9X/0/1JLntf/1Q5f90d8dea/ <-- a message on any chan
-  :SL!SiLLY-BiTCH@C404J4.284M2F.B26DIC.CPDBA5 PRIVMSG #adminchan :+OK 26S0X1DFeaf0W7PLv0RpNcU/0YfTK.v1HXb/zA9IQ0KA/OR/ <-- slftp bot
-  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG #adminchan :+OK 2DshD/5hHM1/ <-- command in admin chan
-  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG #adminchan :omg this shit!! <-- unencrypted msg
-  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :stupid idiot <-- private message to slftp bot [query] (unencrypted)
-  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :VERSION <- CTCP 'version'
-  :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :PING 1503674480 <- CTCP 'ping'
+  :SL!SiLLY-BiTCH@C40QJ4.2M2M2F.B26D6C.C1GAA5 PRIVMSG #adminchan :+OK 26S0X1DFeaf0W7PLv0RpNcU/0YfTK.v1HXb/zA9IQ0KA/OR/ <-- slftp bot
+  :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG #adminchan :+OK 2DshD/5hHM1/ <-- command in admin chan
+  :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG #adminchan :omg this shit!! <-- unencrypted msg
+  :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :stupid idiot <-- private message to slftp bot [query] (unencrypted)
+  :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :VERSION <- CTCP 'version'
+  :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :PING 1503674480 <- CTCP 'ping'
   }
 
   // find channel name or username from your query partner (private message)
@@ -861,9 +858,9 @@ begin
   if channel = irc_nick then
   begin
     {
-    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :stupid idiot
-    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :VERSION
-    :eN!TESTBOX@977026.6HADFD.5C4LD7.272AXF PRIVMSG SL :PING 1503674480
+    :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :stupid idiot
+    :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :VERSION
+    :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :PING 1503674480
     }
 
     if ((msg[1] = #1) and (msg[l] = #1)) then
@@ -918,6 +915,11 @@ begin
     exit;
   end;
 
+  b := FindIrcChannelSettings(netname, channel);
+  if (b = nil) then
+  begin
+    exit;
+  end;
 
   is_crypted_msg := False;
 
@@ -938,11 +940,11 @@ begin
       begin
         is_crypted_msg := True;
         try
-          msg := TrimRight(irc_cbc_decrypt(netname, channel, Copy(msg, 6, 1000)));
+          msg := TrimRight(b.DecryptMessage(Copy(msg, 6, 1000)));
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] in irc_cbc_decrypt: %s', [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] CBC mode for b.DecryptMessage: %s', [e.Message]));
             exit;
           end;
         end;
@@ -954,11 +956,11 @@ begin
       begin
         is_crypted_msg := True;
         try
-          msg := TrimRight(irc_ecb_decrypt(netname, channel, Copy(msg, 5, 1000)));
+          msg := TrimRight(b.DecryptMessage(Copy(msg, 5, 1000)));
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt: %s', [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] ECB mode for b.DecryptMessage: %s', [e.Message]));
             exit;
           end;
         end;
@@ -970,11 +972,11 @@ begin
       begin
         is_crypted_msg := True;
         try
-          msg := TrimRight(irc_ecb_decrypt(netname, channel, Copy(msg, 6, 1000)));
+          msg := TrimRight(b.DecryptMessage(Copy(msg, 6, 1000)));
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt: %s', [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] MCPS mode in b.DecryptMessage: %s', [e.Message]));
             exit;
           end;
         end;
@@ -989,16 +991,9 @@ begin
     exit;
   end;
 
-
-  b := FindIrcBlowfish(netname, channel, False);
-  if (b = nil) then
-  begin
-    exit;
-  end;
-
   console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), nick, msg]));
 
-  if (b.HasKey('ADDPRE')) then
+  if (b.HasThisChanRole('ADDPRE')) then
   begin
     try
       if dbaddpre_Process(netname, channel, nick, msg) then
@@ -1015,7 +1010,7 @@ begin
     end;
   end;
   (*
-    if (b.HasKey('ADDNFO')) then
+    if (b.HasThisChanRole('ADDNFO')) then
     begin
       try
         if dbaddnfo_Process(netname, channel, nick, msg) then
@@ -1033,7 +1028,7 @@ begin
     end;
   *)
 
-  if (b.HasKey('ADDTVMAZE')) then
+  if (b.HasThisChanRole('ADDTVMAZE')) then
   begin
     try
       if dbTVInfo_Process(netname, channel, nick, msg) then
@@ -1050,7 +1045,7 @@ begin
     end;
   end;
 
-  if (b.HasKey('ADDURL')) then
+  if (b.HasThisChanRole('ADDURL')) then
   begin
     try
       if dbaddurl_Process(netname, channel, nick, msg) then
@@ -1067,7 +1062,7 @@ begin
     end;
   end;
 
-  if (b.HasKey('ADDIMDB')) then
+  if (b.HasThisChanRole('ADDIMDB')) then
   begin
     try
       if dbaddimdb_Process(netname, channel, nick, msg) then
@@ -1084,7 +1079,7 @@ begin
     end;
   end;
 
-  if (b.HasKey('ADDGN')) then
+  if (b.HasThisChanRole('ADDGN')) then
   begin
     try
       if dbaddgenre_Process(netname, channel, nick, msg) then
@@ -1209,7 +1204,7 @@ end;
 function TMyIrcThread.IrcProcessLine(s: String): Boolean;
 var
   msg, nick, snick, s1, s2, chan: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   i, FishModeArrayIndex: Integer;
   crypted: boolean;
   {$I common.inc}
@@ -1262,15 +1257,13 @@ begin
       begin
         chan := Copy(SubString(s, ' ', 4), 2, 1000);
         irc_Addadmin('INVITE on ' + netname + ' to ' + chan + ' by ' + Copy(SubString(SubString(s, ' ', 1), '!', 1), 2, 100));
-        b := FindIrcBlowfish(netname, chan, False);
-        if nil <> b then
+
+        fChanSettings := FindIrcChannelSettings(netname, chan);
+        // oke, ha hivtak hat belepunk
+        if not WriteLn(Trim('JOIN ' + fChanSettings.Channel + ' ' + fChanSettings.ChanKey)) then
         begin
-          // oke, ha hivtak hat belepunk
-          if not WriteLn(Trim('JOIN ' + b.channel + ' ' + b.chankey)) then
-          begin
-            Result := True;
-            exit;
-          end;
+          Result := True;
+          exit;
         end;
       end;
     end;
@@ -1338,6 +1331,8 @@ begin
         end;
       end;
 
+      fChanSettings := FindIrcChannelSettings(netname, chan);
+
       // handle decryption of IRC Topics if encrypted
       case FishModeArrayIndex of
         0: // CBC '+OK *'
@@ -1345,7 +1340,7 @@ begin
           crypted := True;
           try
             if config.ReadBool(section, 'echo_topic_change_events', False) then
-              //irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_cbc_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+              //irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
               irc_Addadmin(Format('[CBC encrypted Topic] %s : %s', [chan, msg]));
           except
             on e: Exception do
@@ -1359,7 +1354,7 @@ begin
           crypted := True;
           try
             if config.ReadBool(section, 'echo_topic_change_events', False) then
-              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_ecb_decrypt(netname, chan, Copy(msg, 5, MaxInt))]));
+              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 5, MaxInt))]));
           except
             on e: Exception do
             begin
@@ -1372,7 +1367,7 @@ begin
           crypted := True;
           try
             if config.ReadBool(section, 'echo_topic_change_events', False) then
-              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, irc_ecb_decrypt(netname, chan, Copy(msg, 6, MaxInt))]));
+              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
           except
             on e: Exception do
             begin
@@ -1381,7 +1376,6 @@ begin
           end;
         end;
       end;
-
 
       if not crypted then
       begin
@@ -1419,11 +1413,14 @@ begin
 end;
 
 procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
+var
+  fChanSettingsObj: TIrcChannelSettings;
 begin
   irc_message_lock.Enter;
   try
     irc_last_read := Now();
-    IrcWrite('PRIVMSG ' + channel + ' :' + irc_encrypt(netname, channel, plainmsg, True));
+    fChanSettingsObj := FindIrcChannelSettings(netname, channel);
+    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
     console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
     irc_last_written := Now;
   finally
@@ -1454,41 +1451,35 @@ end;
 function TMyIrcThread.ShouldJoinGame: Boolean;
 var
   i: Integer;
-  b: TIrcBlowkey;
+  fChanSettingsObj: TIrcChannelSettings;
   s: TSite;
   r: TRawTask;
   added: Boolean;
 begin
-  Result := False;
-
   debug(dpSpam, section, netname + ': ShouldJoinGame');
-
+  Result := False;
   shouldjoin := False;
 
-  if chankeys = nil then
-    exit;
-
-  // most akkor belepunk mindenhova illetve addoljuk az invite taskokat
-  for i := 0 to chankeys.Count - 1 do
+  // now I enter everywhere and add the invite task
+  for fChanSettingsObj in IrcChanSettingsList.Values do
   begin
-    b := chankeys[i] as TIrcBlowkey;
-    if ((b.netname = netname) and (-1 = channels.IndexOf(b.channel)) and (b.channel[1] = '#')) then
+    if ((fChanSettingsObj.Netname = netname) and (channels.IndexOf(fChanSettingsObj.Channel) = -1) and (fChanSettingsObj.Channel[1] = '#')) then
     begin
-      // be kell lepni erre a csatornara
-      if (not b.inviteonly) then // meghivot kene kuldeni
+      // you don't need to invite me in this channel
+      if (not fChanSettingsObj.InviteOnly) then
       begin
-        if b.chankey <> '' then
+        if fChanSettingsObj.ChanKey <> '' then
         begin
-          debug(dpSpam, section, '%s: Trying to join %s with key %s', [netname, b.channel, b.chankey]);
-          if not WriteLn(Trim('JOIN ' + b.channel + ' ' + b.chankey)) then
+          debug(dpSpam, section, '%s: Trying to join %s with key %s', [netname, fChanSettingsObj.Channel, fChanSettingsObj.ChanKey]);
+          if not WriteLn(Trim('JOIN ' + fChanSettingsObj.Channel + ' ' + fChanSettingsObj.ChanKey)) then
           begin
             exit;
           end;
         end
         else
         begin
-          debug(dpSpam, section, '%s: Trying to join %s without key', [netname, b.channel]);
-          if not WriteLn(Trim('JOIN ' + b.channel)) then
+          debug(dpSpam, section, '%s: Trying to join %s without key', [netname, fChanSettingsObj.Channel]);
+          if not WriteLn(Trim('JOIN ' + fChanSettingsObj.Channel)) then
           begin
             exit;
           end;
@@ -1496,18 +1487,6 @@ begin
       end;
     end;
   end;
-
-  (* no idea what this is here for, parting channels w/o blowkeys does not really make sense and the code doesn't work either
-  // itt pedig azt nezzuk kell e valahonnan partolni
-  for i:= 0 to channels.Count -1 do
-    if nil = FindIrcBlowfish(netname, channels[i], False) then begin
-      debug(dpSpam, section, '%s: Parting %s because blowkey is nil', [netname, b.channel]);
-      if not WriteLn('PART '+channels[i]) then
-      begin
-        exit;
-      end;
-  end;
-  *)
 
   added := False;
   for i := 0 to sites.Count - 1 do
