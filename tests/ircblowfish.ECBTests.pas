@@ -31,10 +31,17 @@ type
   end;
 
 var
-  TestValues: array [0..2] of TItem = (
-    (_dText:'Hello guys!' ; _eText:'+OK asdf'),
-    (_dText:'please call me noob' ; _eText:'+OK lolol'),
-    (_dText:'Im a frénch gúy :)' ; _eText:'+OK qwerty')
+  // #slftp-blowfish
+  TestValues1: array [0..2] of TItem = (
+    (_dText:'Hello guys!' ; _eText:'+OK zzPVJ0.imLT1rN4oA.CbFjU1'),
+    (_dText:'please call me noob' ; _eText:'+OK Hqywo1KBhKz0XSB/U17DvWd/lED26/nQUfB1'),
+    (_dText:'Im a frénch gúy :)' ; _eText:'+OK pLJzN/xHT5y04HZAo.rflC9/B03PX1lHITy.')
+  );
+  // #blowfishuser
+  TestValues2: array [0..2] of TItem = (
+    (_dText:'Hello guys!' ; _eText:'+OK di93b.objmT0YE/FY0FeOe5.'),
+    (_dText:'please call me noob' ; _eText:'+OK yOCAR.8sXH./lEAyP/LOvkf/V4.cb/KrDXR/'),
+    (_dText:'Im a frénch gúy :)' ; _eText:'+OK OIXm3.mwbJx0.8oZh.D0tbo/bgqar.kgaga/')
   );
 
 procedure TTestIrcBlowkeyECB.TestEncryptMessage;
@@ -43,13 +50,28 @@ var
   fInputStr, fResult: String;
   i: Integer;
 begin
-  for i := Low(TestValues) to High(TestValues) do
+  for fChanSettingsObj in IrcChanSettingsList.Values do
   begin
-    for fChanSettingsObj in IrcChanSettingsList.Values do
+    if (fChanSettingsObj is TIrcBlowkeyECB) then
     begin
-      fResult := fChanSettingsObj.EncryptMessage(TestValues[i]._dText);
-      CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-      CheckEqualsString(TestValues[i]._eText, fResult, 'Encrypted text does not match');
+      if (fChanSettingsObj.Channel = '#slftp-blowfish') then
+      begin
+        for i := Low(TestValues1) to High(TestValues1) do
+        begin
+          fResult := fChanSettingsObj.EncryptMessage(TestValues1[i]._dText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues1[i]._eText, fResult, 'Encrypted text does not match');
+        end;
+      end
+      else if (fChanSettingsObj.Channel = '#blowfishuser') then
+      begin
+        for i := Low(TestValues2) to High(TestValues2) do
+        begin
+          fResult := fChanSettingsObj.EncryptMessage(TestValues2[i]._dText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues2[i]._eText, fResult, 'Encrypted text does not match');
+        end;
+      end;
     end;
   end;
 end;
