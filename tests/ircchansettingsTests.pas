@@ -34,12 +34,12 @@ begin
   IrcChannelSettingsInit;
 
   { ECB channels }
-  RegisterChannelSettings('linknet', '#slftp-blowfish', 'ADMIN', 'ThisIsNOTsecure', '', False, False);
-  RegisterChannelSettings('efnet', '#blowfishuser', 'googleme', 'STATS INFO', 'lesssecurechannel', False, False);
+  RegisterChannelSettings('linknet', '#slftp-blowfish', 'ADMIN', 'ThisIsNOTsecure', '', True, False);
+  RegisterChannelSettings('efnet', '#blowfishuser', 'STATS INFO', 'googleme', 'securechannel', False, False);
 
   { CBC channels }
-  RegisterChannelSettings('LinkNET', '#testsl', 'asdf1234', 'ADMIN', '', False, True);
-  RegisterChannelSettings('efNET', '#sltesting', 'graycode', 'STATS INFO', '', False, True);
+  RegisterChannelSettings('LinkNET', '#testsl', 'ADMIN', 'asdf1234', '', True, True);
+  RegisterChannelSettings('efNET', '#sltesting', 'STATS INFO', 'graycodefishing', 'moresecure', False, True);
 
   CheckEquals(4, IrcChanSettingsList.Count, 'Should have 4 chan settings');
 end;
