@@ -31,10 +31,17 @@ type
   end;
 
 var
-  TestValues: array [0..2] of TItem = (
-    (_dText:'Hello guys!' ; _eText:'+OK asdf'),
-    (_dText:'please call me noob' ; _eText:'+OK lolol'),
-    (_dText:'Im a frénch gúy :)' ; _eText:'+OK qwerty')
+  // #testsl
+  TestValues1: array [0..2] of TItem = (
+    (_dText:'Hello guys!' ; _eText:'+OK *CXafm5eIlo8mQ12vArFSS6GLQYmTaGGF'),
+    (_dText:'please call me noob' ; _eText:'+OK *KI4brpXJZaMbE+tDkerjjQ2F86KVgNohQAwSjNqWT20='),
+    (_dText:'Im a frénch gúy :)' ; _eText:'+OK *rg0iG4Jyyeho4J2hRUt95ByAw3EhnDlxg4mszMI4XHQ=')
+  );
+  // #sltesting
+  TestValues2: array [0..2] of TItem = (
+    (_dText:'Hello guys!' ; _eText:'+OK *LNO+lAO4d5KTIfGV2nuCFtU+FirnW5hN'),
+    (_dText:'please call me noob' ; _eText:'+OK *i/PCJijQodq2IbxisvlvwK6k1s/Dw+lCrvbq9sM09A0='),
+    (_dText:'Im a frénch gúy :)' ; _eText:'+OK *2BjXD7fb+EM52ZmNKeKCowX79ntFNZPYFzEEHvcZac8=')
   );
 
 procedure TTestIrcBlowkeyCBC.TestEncryptMessage;
@@ -43,6 +50,7 @@ var
   fInputStr, fResult: String;
   i: Integer;
 begin
+{
   for i := Low(TestValues) to High(TestValues) do
   begin
     for fChanSettingsObj in IrcChanSettingsList.Values do
@@ -52,21 +60,39 @@ begin
       CheckEqualsString(TestValues[i]._eText, fResult, 'Encrypted text does not match');
     end;
   end;
+}
 end;
 
 procedure TTestIrcBlowkeyCBC.TestDecryptMessage;
 var
-  fResult: String;
+  fChanSettingsObj: TIrcChannelSettings;
+  fInputStr, fResult: String;
+  i: Integer;
 begin
-{
-  fResult := irc_encrypt('LinkNET', '#testsl', 'I chat more securely with CBC');
-  CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-  CheckEqualsString('differs always', fResult, 'Encrypted text does not match');
-
-  fResult := irc_encrypt('efNET', '#sltesting', 'I only use CBC');
-  CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-  CheckEqualsString('always different', fResult, 'Encrypted text does not match');
-}
+  for fChanSettingsObj in IrcChanSettingsList.Values do
+  begin
+    if (fChanSettingsObj is TIrcBlowkeyCBC) then
+    begin
+      if (fChanSettingsObj.Channel = '#testsl') then
+      begin
+        for i := Low(TestValues1) to High(TestValues1) do
+        begin
+          fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues1[i]._dText, fResult, 'Encrypted text does not match');
+        end;
+      end
+      else if (fChanSettingsObj.Channel = '#sltesting') then
+      begin
+        for i := Low(TestValues2) to High(TestValues2) do
+        begin
+          fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText);
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
+          CheckEqualsString(TestValues2[i]._dText, fResult, 'Encrypted text does not match');
+        end;
+      end;
+    end;
+  end;
 end;
 
 initialization
