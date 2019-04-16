@@ -20,7 +20,7 @@ type
 implementation
 
 uses
-  SysUtils, ircchansettings;
+  SysUtils, ircchansettings, ircblowfish.ECB;
 
 { TTestIrcBlowkeyECB }
 
