@@ -1,4 +1,4 @@
-unit ircblowfish.ECBTests;
+﻿unit ircblowfish.ECBTests;
 
 interface
 

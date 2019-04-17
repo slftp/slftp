@@ -1,4 +1,4 @@
-unit ircblowfish.CBCTests;
+﻿unit ircblowfish.CBCTests;
 
 interface
 

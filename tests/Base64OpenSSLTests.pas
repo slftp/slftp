@@ -1,4 +1,4 @@
-unit Base64OpenSSLTests;
+﻿unit Base64OpenSSLTests;
 
 interface
 
