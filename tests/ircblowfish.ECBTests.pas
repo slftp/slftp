@@ -35,13 +35,13 @@ var
   TestValues1: array [0..2] of TItem = (
     (_dText:'Hello guys!' ; _eText:'+OK zzPVJ0.imLT1rN4oA.CbFjU1'),
     (_dText:'please call me noob' ; _eText:'+OK Hqywo1KBhKz0XSB/U17DvWd/lED26/nQUfB1'),
-    (_dText:'Im a frénch gúy :)' ; _eText:'+OK pLJzN/xHT5y04HZAo.rflC9/B03PX1lHITy.')
+    (_dText:'Im a frénch gúy :]' ; _eText:'+OK pLJzN/xHT5y04HZAo.rflC9/8QcJE1rbRJ/.')
   );
   // #blowfishuser
   TestValues2: array [0..2] of TItem = (
     (_dText:'Hello guys!' ; _eText:'+OK di93b.objmT0YE/FY0FeOe5.'),
     (_dText:'please call me noob' ; _eText:'+OK yOCAR.8sXH./lEAyP/LOvkf/V4.cb/KrDXR/'),
-    (_dText:'Im a frénch gúy :)' ; _eText:'+OK OIXm3.mwbJx0.8oZh.D0tbo/bgqar.kgaga/')
+    (_dText:'Im a frénch gúy :]' ; _eText:'+OK v7QYP.xnylF1.C8re.6Tjo1/5S4Ub.i.zXu0')
   );
 
 procedure TTestIrcBlowkeyECB.TestEncryptMessage;

@@ -270,7 +270,10 @@ begin
 
   // remove (possible) null terminator(s) at end of string
   fPriorNullByte := Pos(#0, dText) - 1;
-  SetLength(dText, fPriorNullByte);
+  if fPriorNullByte > 0 then
+    SetLength(dText, fPriorNullByte)
+  else
+    fPriorNullByte := Length(dText);
 
   {$IFDEF UNICODE}
     Result := UTF8ToString(dText);
