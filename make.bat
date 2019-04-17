@@ -99,11 +99,19 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-cp %OPENSSL_NAME%-i386-win32/libeay32.dll libeay32.dll
-cp %OPENSSL_NAME%-i386-win32/ssleay32.dll ssleay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32/libeay32.dll libeay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32/ssleay32.dll ssleay32.dll
+if errorlevel 1 (
+   echo Failure reason for copying is %errorlevel%
+   exit /b %errorlevel%
+)
 echo - Removing temp OpenSSL stuff -
-rm %OPENSSL_NAME%-i386-win32.zip
-rm -r %OPENSSL_NAME%-i386-win32
+del /Q %OPENSSL_NAME%-i386-win32.zip
+rmdir /Q /S %OPENSSL_NAME%-i386-win32
+if errorlevel 1 (
+   echo Failure reason for deleting is %errorlevel%
+   exit /b %errorlevel%
+)
 cd ..
 echo - Compiling -
 echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
@@ -139,11 +147,19 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-cp %OPENSSL_NAME%-x64_86-win64/libeay32.dll libeay32.dll
-cp %OPENSSL_NAME%-x64_86-win64/ssleay32.dll ssleay32.dll
+copy /Y %OPENSSL_NAME%-x64_86-win64/libeay32.dll libeay32.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64/ssleay32.dll ssleay32.dll /Y
+if errorlevel 1 (
+   echo Failure reason for copying is %errorlevel%
+   exit /b %errorlevel%
+)
 echo - Removing temp OpenSSL stuff -
-rm %OPENSSL_NAME%-x64_86-win64.zip
-rm -r %OPENSSL_NAME%-x64_86-win64
+del /Q %OPENSSL_NAME%-x64_86-win64.zip
+rmdir /Q /S %OPENSSL_NAME%-x64_86-win64
+if errorlevel 1 (
+   echo Failure reason for deleting is %errorlevel%
+   exit /b %errorlevel%
+)
 cd ..
 echo - Compiling -
 echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
