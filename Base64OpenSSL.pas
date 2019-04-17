@@ -114,7 +114,7 @@ begin
   Result := DoBase64Encode(fInBytes, fOutBytes);
 
   {$IFDEF UNICODE}
-    aOutput := StringOf(fOutBytes);
+    aOutput := TEncoding.UTF8.GetString(fOutBytes);
   {$ELSE}
     SetLength(aOutput, Length(fOutBytes));
     move(fOutBytes[0], aOutput[1], Length(fOutBytes));
@@ -130,8 +130,13 @@ function DoBase64Decode(const aInput: String; out aOutput: String): integer;
 var
   fInBytes, fOutBytes: TBytes;
 begin
-  // no explicit 1-byte string conversion needed due to base64 alphabet
-  fInBytes := BytesOf(aInput);
+  {$IFDEF UNICODE}
+    fInBytes := TEncoding.UTF8.GetBytes(aInput);
+  {$ELSE}
+    SetLength(fInBytes, Length(aInput));
+    move(aInput[1], fInBytes[0], Length(aInput));
+  {$ENDIF}
+
   Result := DoBase64Decode(fInBytes, fOutBytes);
 
   {$IFDEF UNICODE}

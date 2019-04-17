@@ -237,7 +237,7 @@ begin
 
   // append * to mark it as CBC message
   {$IFDEF UNICODE}
-    Result := StringOf(eTextBase64);
+    Result := TEncoding.UTF8.GetString(eTextBase64);
   {$ELSE}
     SetLength(Result, Length(eTextBase64));
     move(eTextBase64[0], Result[1], Length(eTextBase64));
@@ -340,7 +340,7 @@ begin
   SetLength(fCleanedBytes, fLength);
 
   {$IFDEF UNICODE}
-    Result := StringOf(fCleanedBytes);
+    Result := TEncoding.UTF8.GetString(fCleanedBytes);
   {$ELSE}
     SetLength(Result, Length(fCleanedBytes));
     move(fCleanedBytes[0], Result[1], Length(fCleanedBytes));
