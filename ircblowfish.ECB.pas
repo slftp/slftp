@@ -250,15 +250,16 @@ end;
 function TIrcBlowkeyECB.DecryptMessage(const eText: String): String;
 var
   fStrHelper, temp, dText: RawByteString;
-  i: Integer;
+  i, fSplitLength, fPriorNullByte: Integer;
 begin
   Result := eText;
   if Blowkey = '' then
     exit;
 
   dText := '';
+  fSplitLength := Length(eText) div 12;
 
-  for i := 1 to Length(eText) div 12 do
+  for i := 1 to fSplitLength do
   begin
     fStrHelper := UTF8Encode(Copy(eText, 1 + (i - 1) * 12, 12));
     temp := B64tobyte(fStrHelper);
@@ -267,11 +268,15 @@ begin
     dText := dText + temp;
   end;
 
+  // remove (possible) null terminator(s) at end of string
+  fPriorNullByte := Pos(#0, dText) - 1;
+  SetLength(dText, fPriorNullByte);
+
   {$IFDEF UNICODE}
     Result := UTF8ToString(dText);
   {$ELSE}
-    SetLength(Result, Length(dText));
-    move(dText[1], Result[1], Length(dText));
+    SetLength(Result, fPriorNullByte);
+    move(dText[1], Result[1], fPriorNullByte);
   {$ENDIF}
 end;
 
