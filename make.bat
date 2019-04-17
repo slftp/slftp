@@ -99,8 +99,8 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-i386-win32/libeay32.dll libeay32.dll
-copy /Y %OPENSSL_NAME%-i386-win32/ssleay32.dll ssleay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32\libeay32.dll libeay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32\ssleay32.dll ssleay32.dll
 if errorlevel 1 (
    echo Failure reason for copying is %errorlevel%
    exit /b %errorlevel%
@@ -147,8 +147,8 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-x64_86-win64/libeay32.dll libeay32.dll /Y
-copy /Y %OPENSSL_NAME%-x64_86-win64/ssleay32.dll ssleay32.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\libeay32.dll libeay32.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\ssleay32.dll ssleay32.dll /Y
 if errorlevel 1 (
    echo Failure reason for copying is %errorlevel%
    exit /b %errorlevel%
