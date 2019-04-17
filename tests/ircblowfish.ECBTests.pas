@@ -90,7 +90,7 @@ begin
       begin
         for i := Low(TestValues1) to High(TestValues1) do
         begin
-          fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText);
+          fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText.Remove(0, 4));
           CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
           CheckEqualsString(TestValues1[i]._dText, fResult, 'Encrypted text does not match');
         end;
@@ -99,7 +99,7 @@ begin
       begin
         for i := Low(TestValues2) to High(TestValues2) do
         begin
-          fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText);
+          fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText.Remove(0, 4));
           CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
           CheckEqualsString(TestValues2[i]._dText, fResult, 'Encrypted text does not match');
         end;
