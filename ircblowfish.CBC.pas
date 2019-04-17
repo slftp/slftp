@@ -20,11 +20,11 @@ type
     { Sets @link(FBlowkey) and @link(FBlowkeyLength)
       @param(aBlowkey blowkey) }
     procedure UpdateKey(const aBlowkey: String); override;
-    { Encrypts decrypted input text
+    { Encrypts decrypted input text, adds the '+OK *' to returned result
       @param(dText decrypted message)
       @returns(encrypted text) }
     function EncryptMessage(const dText: String): String; override;
-    { Decrypts encrypted input text
+    { Decrypts encrypted input text, caller is responsible to remove '+OK *'
       @param(eText encrypted message)
       @returns(decrypted text) }
     function DecryptMessage(const eText: String): String; override;
