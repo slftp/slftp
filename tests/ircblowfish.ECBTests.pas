@@ -59,8 +59,8 @@ begin
         for i := Low(TestValues1) to High(TestValues1) do
         begin
           fResult := fChanSettingsObj.EncryptMessage(TestValues1[i]._dText);
-          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-          CheckEqualsString(TestValues1[i]._eText, fResult, 'Encrypted text does not match');
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
+          CheckEqualsString(TestValues1[i]._eText, fResult, 'Encrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end
       else if (fChanSettingsObj.Channel = '#blowfishuser') then
@@ -68,8 +68,8 @@ begin
         for i := Low(TestValues2) to High(TestValues2) do
         begin
           fResult := fChanSettingsObj.EncryptMessage(TestValues2[i]._dText);
-          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-          CheckEqualsString(TestValues2[i]._eText, fResult, 'Encrypted text does not match');
+          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
+          CheckEqualsString(TestValues2[i]._eText, fResult, 'Encrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end;
     end;
@@ -91,8 +91,8 @@ begin
         for i := Low(TestValues1) to High(TestValues1) do
         begin
           fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText.Remove(0, 4));
-          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-          CheckEqualsString(TestValues1[i]._dText, fResult, 'Encrypted text does not match');
+          CheckNotEquals(0, Length(fResult), 'Length of decrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
+          CheckEqualsString(TestValues1[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end
       else if (fChanSettingsObj.Channel = '#blowfishuser') then
@@ -100,8 +100,8 @@ begin
         for i := Low(TestValues2) to High(TestValues2) do
         begin
           fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText.Remove(0, 4));
-          CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0');
-          CheckEqualsString(TestValues2[i]._dText, fResult, 'Encrypted text does not match');
+          CheckNotEquals(0, Length(fResult), 'Length of decrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
+          CheckEqualsString(TestValues2[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end;
     end;
