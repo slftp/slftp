@@ -41,7 +41,7 @@ var
   TestValues2: array [0..2] of TItem = (
     (_dText:'Hello guys!' ; _eText:'+OK di93b.objmT0YE/FY0FeOe5.'),
     (_dText:'please call me noob' ; _eText:'+OK yOCAR.8sXH./lEAyP/LOvkf/V4.cb/KrDXR/'),
-    (_dText:'Im a frénch gúy :]' ; _eText:'+OK v7QYP.xnylF1.C8re.6Tjo1/5S4Ub.i.zXu0')
+    (_dText:'Im a frénch gúy :]' ; _eText:'+OK OIXm3.mwbJx0.8oZh.D0tbo/jcTAR.nUiBg1')
   );
 
 procedure TTestIrcBlowkeyECB.TestEncryptMessage;
