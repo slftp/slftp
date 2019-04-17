@@ -12,6 +12,11 @@ set UnitTestAppName="tests\slftpUnitTests.exe --exitbehavior:Continue"
 set CTESTINCLUDES=-Utests/DUnitX
 
 REM
+REM OpenSSL version, depending names for 32/64bit will be added later
+REM
+set OPENSSL_NAME=openssl-1.0.2r
+
+REM
 REM default: 64bit (2018!)
 REM
 if /I "%~1" == "" goto :slftp_64
@@ -78,9 +83,30 @@ del /q *.exe *.dcu
 goto :eof
 
 :test_32
-del /q *.exe *.dcu
+del /q *.exe *.dcu *.dll
 echo -- Testing Win32 ---
-echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+cd tests
+echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
+if errorlevel 1 (
+   echo Failure reason for downloading OpenSSL is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Extracting OpenSSL libraries -
+powershell expand-archive %OPENSSL_NAME%-i386-win32.zip
+if errorlevel 1 (
+   echo Failure reason for extracting is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Copying OpenSSL libraries -
+cp %OPENSSL_NAME%-i386-win32/libeay32.dll libeay32.dll
+cp %OPENSSL_NAME%-i386-win32/ssleay32.dll ssleay32.dll
+echo - Removing temp OpenSSL stuff -
+rm %OPENSSL_NAME%-i386-win32.zip
+rm -r %OPENSSL_NAME%-i386-win32
+cd ..
+echo - Compiling -
+echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
 "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
 if errorlevel 1 (
    echo Failure reason for compiling tests is %errorlevel%
@@ -92,14 +118,35 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 cd tests
-del /q *.exe *.dcu
+del /q *.exe *.dcu *.dll
 cd ..
 goto :eof
 
 :test_64
-del /q *.exe *.dcu
+del /q *.exe *.dcu *.dll
 echo -- Testing Win64 ---
-echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% tests\slftpUnitTests.dpr
+cd tests
+echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+if errorlevel 1 (
+   echo Failure reason for downloading OpenSSL is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Extracting OpenSSL libraries -
+powershell expand-archive %OPENSSL_NAME%-x64_86-win64.zip
+if errorlevel 1 (
+   echo Failure reason for extracting is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Copying OpenSSL libraries -
+cp %OPENSSL_NAME%-x64_86-win64/libeay32.dll libeay32.dll
+cp %OPENSSL_NAME%-x64_86-win64/ssleay32.dll ssleay32.dll
+echo - Removing temp OpenSSL stuff -
+rm %OPENSSL_NAME%-x64_86-win64.zip
+rm -r %OPENSSL_NAME%-x64_86-win64
+cd ..
+echo - Compiling -
+echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
 "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
 if errorlevel 1 (
    echo Failure reason for compiling tests is %errorlevel%
@@ -111,7 +158,7 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 cd tests
-del /q *.exe *.dcu
+del /q *.exe *.dcu *.dll
 cd ..
 goto :eof
 
