@@ -50,14 +50,6 @@ begin
   InitialConfigSetup;
   InitialDebugSetup;
 
-
-  // seems including other slftp units lets fptest start a new terminal window
-  // instead writting to actual terminal not sure why but if you only
-  // include Base64OpenSSLTests & mystringsTests it works flawless and results
-  // are printed to current terminal window and can be seen after running tests
-  // sl units are automatically included due to adding it to uses lists e.g. in slftpUnitTestsSetup
-
-
   // run all registered tests
 {$IFDEF TextRunner}
   // halt on error, means exit code <> 0
