@@ -217,9 +217,14 @@ end;
 function TIrcBlowkeyECB.EncryptMessage(const dText: String): String;
 var
   fStrHelper, fResultHelper, temp: RawByteString;
-  i: Integer;
+  i, fSplitLength: Integer;
 begin
-  fStrHelper := UTF8Encode(dText);
+  {$IFDEF UNICODE}
+    fStrHelper := UTF8Encode(dText);
+  {$ELSE}
+    SetLength(fStrHelper, Length(dText));
+    move(dText[1], fStrHelper[1], Length(dText));
+  {$ENDIF}
   fResultHelper := '';
 
   // Each message is split into blocks of 8 bytes, encrypted individually.
@@ -230,7 +235,9 @@ begin
 
   SetLength(temp, 8);
 
-  for i := 1 to length(fStrHelper) div 8 do
+  fSplitLength := Length(fStrHelper) div 8;
+
+  for i := 1 to fSplitLength do
   begin
     temp := Copy(fStrHelper, 1 + (i - 1) * 8, 8);
     BlowfishEncryptECB(FKeyData, PAnsiChar(temp), PAnsiChar(temp));
@@ -261,7 +268,11 @@ begin
 
   for i := 1 to fSplitLength do
   begin
-    fStrHelper := UTF8Encode(Copy(eText, 1 + (i - 1) * 12, 12));
+    {$IFDEF UNICODE}
+      fStrHelper := UTF8Encode(Copy(eText, 1 + (i - 1) * 12, 12));
+    {$ELSE}
+      fStrHelper := Copy(eText, 1 + (i - 1) * 12, 12);
+    {$ENDIF}
     temp := B64tobyte(fStrHelper);
     SetLength(temp, 8);
     BlowfishDecryptECB(FKeyData, PAnsiChar(temp), PAnsiChar(temp));
