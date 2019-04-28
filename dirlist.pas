@@ -327,9 +327,8 @@ begin
       begin
         if AnsiContainsText(full_path, tag) then
         begin
-          // TODO: Maybe add case by case checks instead of considering complete
           debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [full_path, tag]);
-          Result := True;
+          Result := hasnfo;
           Break;
         end;
       end;
