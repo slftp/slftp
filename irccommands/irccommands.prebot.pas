@@ -1002,7 +1002,7 @@ var
       IrcBnctest(netname, channel, Trim(ss));
 
       irc_Addtext(netname, channel, '%sspread %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcSpread(netname, channel, sitename + ' ' + dir) then
+      if not IrcSpread(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Spreading returned error. Skipping.</c>');
         goto ujkor;
@@ -1011,7 +1011,7 @@ var
         irc_Addtext(netname, channel, 'Checking now....');
 
       irc_Addtext(netname, channel, '%scheck %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcCheck(netname, channel, sitename + ' ' + dir) then
+      if not IrcCheck(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Checking returned error. Skipping.</c>');
         goto ujkor;
@@ -1104,10 +1104,10 @@ begin
     if AnsiContainsText(dir, '*') then
   {$ENDIF}
   begin
-    irc_Addtext(netname, channel, 'Doing a wildcard batch for %s', [dir]);
+    irc_Addtext(netname, channel, 'Doing a wildcard match for <b>%s</b> on %s/%s', [dir, sitename, section]);
     fInputRlsMask := TslMask.Create(dir);
     try
-      fDirlist := DirlistB(netname, channel, sitename, section);
+      fDirlist := DirlistB(netname, channel, sitename, s.sectiondir[section]);
       try
         if fDirlist <> nil then
         begin
@@ -1128,7 +1128,7 @@ begin
           end;
         end
         else
-          irc_Addtext(netname, channel, 'Can''t dirlist section %s', [section]);
+          irc_Addtext(netname, channel, 'Can''t dirlist section %s on %s', [section, sitename]);
       finally
         fDirlist.Free;
       end;
