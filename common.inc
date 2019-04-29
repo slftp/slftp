@@ -28,9 +28,10 @@ ImageFileExtensions: array[0..2] of String = (
   '.jpg', '.jpeg', '.png'
 );
 
-SpecialDirsTags: array[0..9] of String = (
+SpecialDirsTags: array[0..11] of String = (
   'DiRFiX', 'SFVFiX', 'PROOFFiX', 'NFOFiX', 'COVERFiX',
-  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX'
+  'DiR.FiX', 'SFV.FiX', 'PROOF.FiX', 'NFO.FiX', 'COVER.FiX',
+  'SAMPLEFiX', 'SAMPLE.FiX'
 );
 
 // identification words for messages which are ECB or CBC encrypted
