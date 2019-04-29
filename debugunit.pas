@@ -3,100 +3,159 @@ unit debugunit;
 interface
 
 type
+  {
+  @value(dpError logs only important issues/errors = 0)
+  @value(dpMessage logs errors, important and general stuff = 1)
+  @value(dpSpam logs everything = 2)
+  @value(dpNone logs nothing = 3)
+  }
   TDebugPriority = (dpError, dpMessage, dpSpam, dpNone);
 
-procedure Debug(priority: TDebugPriority; section, msg: String); overload;
-procedure Debug(priority: TDebugPriority; const section, FormatStr: String;
-  const Args: array of const); overload;
-
+{ Just a helper function to initialize @link(debug_lock) and calls @link(_OpenLogFile) afterwards }
 procedure DebugInit;
+{ Just a helper function to call @link(_CloseLogFile) and free @link(debug_lock) afterwards }
 procedure DebugUnInit;
-
-procedure OpenLogFile;
-procedure CloseLogFile;
-
-procedure HandleDebugFile;
-
-function Debug_logfilename: String;
-function Debug_flushlines: integer;
-function Debug_categorystr: String;
-function Debug_verbosity: TDebugPriority;
-function Debug_MaxFileSize: integer;
-function Debug_EncryptOldFiles: boolean;
-function Debug_CompressOldFiles: boolean;
-
-function LogTail(lines: Integer): String;
-function FileTail(lines: Integer; filename: String): String;
-
-function Hide_plain_text: boolean;
-
-var
-  debug_verbose: boolean;
+{ Writes given data to logfile
+  @param(priority priority of message)
+  @param(section debug section for message)
+  @param(msg output text with infos/errors/etc) }
+procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
+{ Writes given data to logfile with support for RTL Format() function
+  @param(priority priority of message)
+  @param(section debug section for message)
+  @param(FormatStr formatting text for RTL Format())
+  @param(Args formatting argments for RTL Format()) }
+procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
+{ Reads up to @link(aMaxLinesToRead) lines from logfile
+  @param(aMaxLinesToRead number of lines to read from logfile)
+  @returns(logfile lines) }
+function LogTail(const aMaxLinesToRead: Integer): String;
 
 implementation
 
-uses configunit, SysUtils, Classes
-{$IFDEF MSWINDOWS}
-  , Windows
-{$ELSE}
-{$IFDEF FPC}
-  , pthreads
-{$ELSE}
-  , Libc
-{$ENDIF}
-{$ENDIF}
-  , SyncObjs, LibTar, DateUtils, irc, mystrings;
+uses
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
 
 const
   section = 'debug';
 
 var
-  f:     TextFile;
-  //    flushlines: Integer;
-  Lines: integer = 0;
-  //    verbosity: TDebugPriority = dpError;
-  //    categorystr: string;
+  f: TextFile;
   debug_lock: TCriticalSection;
 
-
-function MyGetCurrentProcessId(): longword;
+function _GetDebugLogFileName: String;
 begin
-{$IFDEF MSWINDOWS}
-  Result := GetCurrentThreadId;
-{$ELSE}
-  Result:= LongWord(pthread_self());
-{$ENDIF}
+  Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-procedure Debug(priority: TDebugPriority; section, msg: String); overload;
+function _GetDebugVerbosity: TDebugPriority; inline;
+begin
+  Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+end;
+
+function _GetDebugCategories: String; inline;
+begin
+  Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
+end;
+
+procedure _OpenLogFile;
+begin
+  Assignfile(f, _GetDebugLogFileName);
+  try
+    if FileExists(_GetDebugLogFileName) then
+      Append(f)
+    else
+      Rewrite(f);
+  except
+    begin
+      Writeln('Could not open logfile! It might be too huge?');
+      halt;
+    end;
+  end;
+end;
+
+procedure _CloseLogFile;
+begin
+  Closefile(f);
+end;
+
+function _FileTail(const aMaxLinesToRead: Integer; const aFilename: String): String;
+var
+  fStream: TStream;
+  fLinesDone, fBytesToEnd: Integer;
+  fCurrentByte: Byte;
+  fResultBytes: TBytes;
+begin
+  Result := '';
+
+  fStream := TFileStream.Create(aFilename, fmOpenRead or fmShareDenyNone);
+  try
+    fStream.Seek(0, soEnd);
+    fLinesDone := 0;
+
+    while (fLinesDone < aMaxLinesToRead) and (fStream.Seek(-2, soCurrent) >= 0) do
+    begin
+      fStream.Read(fCurrentByte, SizeOf(fCurrentByte));
+      // line feed #10 -> new line detected
+      if fCurrentByte = 10 then
+        Inc(fLinesDone);
+    end;
+
+    if fLinesDone < aMaxLinesToRead then
+      fStream.Position := 0;
+
+    // filesize - current position = begin of x-th last line
+    fBytesToEnd := fStream.Size - fStream.Position;
+    SetLength(fResultBytes, fBytesToEnd);
+
+    fStream.ReadBuffer(fResultBytes[0], fBytesToEnd);
+  finally
+    fStream.Free;
+  end;
+
+  {$IFDEF UNICODE}
+    // convert bytearray to string (2-byte char)
+    Result := TEncoding.UTF8.GetString(fResultBytes);
+  {$ELSE}
+    SetLength(Result, fBytesToEnd);
+    move(fResultBytes[0], Result[1], fBytesToEnd);
+  {$ENDIF}
+end;
+
+procedure DebugInit;
+begin
+  debug_lock := TCriticalSection.Create;
+  _OpenLogFile;
+end;
+
+procedure DebugUninit;
+begin
+  _CloseLogFile;
+  debug_lock.Free;
+end;
+
+procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
 var
   nowstr: String;
 begin
-  //HandleDebugFile;
-  if debug_verbosity = TDebugPriority(3) then
+  if _GetDebugVerbosity = dpNone then
     exit;
 
-  if (priority <> dpError) and (Debug_verbosity < priority) and
-    (Debug_categorystr <> ',all,') and
-    (0 = Pos(',' + section + ',', Debug_categorystr)) then
+  if (_GetDebugVerbosity < priority) then
+    exit;
+
+  if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   debug_lock.Enter;
   try
     try
-      WriteLn(f, Format('%s (%s) [%-12s] %s',
-        [nowstr, IntToHex(MyGetCurrentProcessId(), 2), section, msg]));
-      Inc(Lines);
-      if Lines >= Debug_flushlines then
-      begin
-        Flush(f);
-        Lines := 0;
-      end;
+      WriteLn(f, Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]));
     except
       on e: Exception do
       begin
-        //irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
         exit;
       end;
     end;
@@ -105,7 +164,7 @@ begin
   end;
 end;
 
-procedure Debug(priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
+procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
   try
     Debug(priority, section, Format(FormatStr, Args));
@@ -118,176 +177,21 @@ begin
   end;
 end;
 
-procedure OpenLogFile;
-begin
-  Assignfile(f, Debug_logfilename);
-  FileMode := fmShareDenyNone;
-  try
-    if FileExists(Debug_logfilename) then
-      Append(f)
-    else
-      Rewrite(f);
-  except
-    begin
-      Writeln('Couldnt open logfile! It might be too huge?');
-      halt;
-    end;
-  end;
-end;
-
-procedure CloseLogFile;
-begin
-  Closefile(f);
-end;
-
-procedure DebugInit;
-begin
-  debug_lock := TCriticalSection.Create();
-  debug_verbose := debug_verbosity = dpSpam;
-  OpenLogFile;
-end;
-
-procedure DebugUninit;
-begin
-  CloseLogFile;
-  debug_lock.Free;
-end;
-
-function ArchiveOldBackup: boolean;
-var
-  tar: TTarWriter;
-begin
-  tar := TTarWriter.Create('slftp_' + FormatDateTime('yyyymmddhhnnss', Now) + '_log.tar');
-  try
-    tar.AddFile('slftp.log', 'slftp.log');
-  finally
-    tar.Free;
-  end;
-  Result := True;
-end;
-
-// -10 = nothing done, -5 = file not found, 1= biggern as, 0= smaller as
-function CheckLogFileSize: integer;
-var
-  trec: TSearchRec;
-begin
-  //result:=-10;
-  if FindFirst('slftp.log', faAnyFile - fadirectory, trec) = 0 then
-  begin
-    if trec.Size > Debug_MaxFileSize then
-      Result := 1
-    else
-      Result := 0;
-  end
-  else
-    Result := -5;
-  SysUtils.FindClose(trec);
-end;
-
-procedure HandleDebugFile;
-begin
-
-  debug_lock.Enter;
-  try
-    if CheckLogFileSize = 1 then
-    begin
-      irc_addtext('CONSOLE', 'ADMIN', 'Backing up current logfile...');
-      CloseLogFile;
-      if ArchiveOldBackup then
-      begin
-        irc_addtext('CONSOLE', 'ADMIN', 'Logfile backed up successfully!');
-        ArchiveOldBackup;
-        irc_addtext('CONSOLE', 'ADMIN', 'Removing current logfile');
-        DeleteFile('slftp.log');
-        irc_addtext('CONSOLE', 'ADMIN', 'Creating a new fresh logfile...');
-        OpenLogFile;
-        irc_addtext('CONSOLE', 'ADMIN', 'Ok!');
-      end;
-    end;
-  finally
-    debug_lock.Leave;
-  end;
-end;
-
-function LogTail(lines: Integer): String;
+function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
   debug_lock.Enter;
-  CloseLogFile;
   try
-    Result := FileTail(lines, Debug_logfilename);
+    _CloseLogFile;
+    try
+      Result := _FileTail(aMaxLinesToRead, _GetDebugLogFileName);
+    finally
+      _OpenLogFile;
+    end;
   finally
     debug_lock.Leave;
-    OpenLogFile;
   end;
-end;
-
-function FileTail(lines: Integer; filename: String): String;
-var
-  s: TStream;
-  c: char;
-  l: integer;
-begin
-  s := TFileStream.Create(filename, fmOpenRead, fmShareDenyNone);
-  try
-    s.Seek(0, soEnd);
-    l := 0;
-    while (l <= lines) and (s.Position > 0) do
-    begin
-      s.Seek(-2, soCurrent);
-      s.Read(c, SizeOf(byte));
-      if c = #10 then Inc(l);
-    end;
-    s.Seek(1, soCurrent);
-    l := s.Size - s.Position;
-    SetLength(Result, l);
-    s.Read(Result[1], l);
-  finally
-    s.Free;
-  end;
-end;
-
-function Hide_plain_text: boolean;
-begin
-  Result := config.ReadBool(section, 'hide_plain_text', True);
-end;
-
-function Debug_logfilename: String;
-begin
-  Result := config.ReadString(section, 'debugfile',
-    ExtractFilePath(ParamStr(0)) + 'slftp.log');
-end;
-
-function Debug_flushlines: integer;
-begin
-  Result := config.ReadInteger(section, 'flushlines', 16);
-end;
-
-function Debug_categorystr: String;
-begin
-  Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
-end;
-
-function Debug_verbosity: TDebugPriority;
-begin
-  Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
-end;
-
-function Debug_MaxFileSize: integer;
-begin
-  Result := config.ReadInteger(section, 'max_file_size', 0);
-end;
-
-function Debug_EncryptOldFiles: boolean;
-begin
-  Result := config.ReadBool(section, 'encrypt_old_files', False);
-end;
-
-function Debug_CompressOldFiles: boolean;
-begin
-  Result := config.ReadBool(section, 'compress_old_files', True);
 end;
 
 end.
-

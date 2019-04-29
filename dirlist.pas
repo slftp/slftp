@@ -40,6 +40,7 @@ type
     filename: String; //< filename
     filenamelc: String; //< lowercase filename
     filesize: Int64;
+    fExtension: String; //< file extension, inclusive the '.' prefix such as '.nfo'
 
     skiplisted: Boolean;
     racedbyme: Boolean; //< @true if we send this file to the site
@@ -56,7 +57,7 @@ type
     addedfrom: TStringList;
 
     procedure CalcCDNumber;
-    function Extension: String;
+    property Extension: String read fExtension;
 
     constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
@@ -326,9 +327,8 @@ begin
       begin
         if AnsiContainsText(full_path, tag) then
         begin
-          // TODO: Maybe add case by case checks instead of considering complete
           debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [full_path, tag]);
-          Result := True;
+          Result := hasnfo;
           Break;
         end;
       end;
@@ -1767,6 +1767,7 @@ begin
   subdirlist := nil;
 
   filenamelc := LowerCase(filename);
+  fExtension := ExtractFileExt(filenamelc);
   cdno := 0;
 end;
 
@@ -1793,6 +1794,7 @@ begin
   self.error := False;
   self.justadded := True;
   filenamelc := LowerCase(filename);
+  fExtension := ExtractFileExt(filenamelc);
 
   if self.directory then CalcCDNumber;
 end;
@@ -1823,11 +1825,6 @@ begin
       exit;
     end;
   end;
-end;
-
-function TDirListEntry.Extension: String;
-begin
-  Result := ExtractFileExt(filenamelc);
 end;
 
 function TDirListEntry.Useful: Boolean;

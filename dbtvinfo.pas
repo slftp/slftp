@@ -1020,23 +1020,26 @@ begin
   tv_showid := '';
   tv_showid := SubString(aParams, ' ', 2);
 
-  dbtvinfo := getTVInfoByShowID(tv_showid);
-  try
-    // only do the task for non existing shows or if the last update is too old
-    if ( (dbtvinfo = nil) or (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) ) then
-    begin
-      try
-        AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
-          exit;
+  if ((rls <> '') and (tv_showid <> '')) then
+  begin
+    dbtvinfo := getTVInfoByShowID(tv_showid);
+    try
+      // only do the task for non existing shows or if the last update is too old
+      if ( (dbtvinfo = nil) or (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) ) then
+      begin
+        try
+          AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
+            exit;
+          end;
         end;
       end;
+    finally
+      dbtvinfo.Free;
     end;
-  finally
-    dbtvinfo.Free;
   end;
 end;
 

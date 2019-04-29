@@ -2,16 +2,14 @@ unit console;
 
 interface
 
-procedure Console_QueueAdd(name, task: String);
-procedure Console_QueueDel(name: String);
-procedure Console_Slot_Add(name, s: String); overload;
+procedure Console_QueueAdd(const name, task: String);
+procedure Console_QueueDel(const name: String);
 procedure Console_Slot_Close(const name: String);
-
-procedure Console_Slot_Add(name, FormatStr: String; const Args: array of const);overload;
+procedure Console_Slot_Add(const name, s: String); overload;
+procedure Console_Slot_Add(const name, FormatStr: String; const Args: array of const); overload;
 procedure ConsoleStart;
-procedure Console_SiteStat(allsites, upsites, downsites, unknown: Cardinal);
-//procedure Console_QueueStat(queuedb: Cardinal);overload;
-procedure Console_QueueStat(queuedb, t_race, t_dir, t_auto, t_other: Cardinal);overload;
+procedure Console_SiteStat(const allsites, upsites, downsites, unknown: Cardinal);
+procedure Console_QueueStat(const queuedb, t_race, t_dir, t_auto, t_other: Cardinal);
 procedure console_addline(const windowtitle, msg: String);
 procedure console_repaint();
 procedure console_delwindow(const windowtitle: String);
@@ -51,14 +49,15 @@ type
     constructor Create(allsites, upsites, downsites, unknown: Cardinal);
     procedure Execute; override;
   end;
+
   TQueueStatTask = class(TslRemoveEarlierTask)
   private
     queue, t_race, t_dir, t_auto, t_other: Cardinal;
   public
-    //constructor Create(queue: Cardinal);overload;
     constructor Create(queue, t_race, t_dir, t_auto, t_other: Cardinal);overload;
     procedure Execute; override;
   end;
+
   TslCommandWindowTask = class(TslTextBoxTask)
   private
     windowtitle: String;
@@ -66,19 +65,24 @@ type
     constructor Create(const windowtitle: String);
     function FindWindow: TslCommandWindow;
   end;
+
   TShowWindowTask = class(TslCommandWindowTask)
     procedure Execute; override;
   end;
+
   TDelWindowTask = class(TslCommandWindowTask)
     constructor Create(const windowtitle: String);
     procedure Execute; override;
   end;
+
   TAddIrcWindowTask = class(TslCommandWindowTask)
     procedure Execute; override;
   end;
+
   TAddSiteWindowTask = class(TslCommandWindowTask)
     procedure Execute; override;
   end;
+
   TAddDummyWindowTask = class(TslCommandWindowTask)
     procedure Execute; override;
   end;
@@ -99,25 +103,30 @@ type
     procedure Execute; override;
 (*    procedure OnConleTaskAdded(queue: TObjectList); override; *)
   end;
+
   TItemManageTask = class(TTextBoxAddLineTask)
   private
     name: String;
   end;
+
   TQueueItemAddTask = class(TItemManageTask)
   public
     constructor Create(const name, msg: String);
     procedure Execute; override;
   end;
+
   TQueueItemDelTask = class(TItemManageTask)
   public
     constructor Create(const name: String);
     procedure Execute; override;
   end;
+
   TSlotItemAddTask = class(TItemManageTask)
   public
     constructor Create(const name, msg: String);
     procedure Execute; override;
   end;
+
   TSlotItemDelTask = class(TItemManageTask)
   public
     constructor Create(const name: String);
@@ -128,6 +137,7 @@ type
   public
     procedure OnTimer; override;
   end;
+
   TMySlApp = class(TslApplication)
   private
     vl: TslLabel;
@@ -136,7 +146,7 @@ type
     queue: TslCommandWindow;
     dir: String;
     main_timer: TMainTimer;
-    inited: Boolean;
+    inited: Boolean; //< @true if @link(MyOnShow) was successful, @false otherwise
     sitesstat: TslLabel;
     m: TslMutualVisibilityControl;
     function OnKeyDown(sender: TslEdit; c: Char; extended: Boolean): Boolean;
@@ -149,6 +159,12 @@ type
     function AddDummyWindow(const netname: String): TslCommandWindow;
     function AddSiteWindow(const netname: String): TslCommandWindow;
     procedure MyOnExit(sender: TslControl);
+
+    { First it executes @link(CommonFileCheck), then it does the password check on startup/creates
+      an empty sites.dat, afterwards it calls @link(ConfigInit), @link(DebugInit), @link(ReadSites),
+      @link(Main_Init), shows the 'slftp ... started' line, @link(Main_Run) and
+      loads slftp.history text into console window
+      @param(sender TODO: not sure why and what it does...maybe needed for GUI?) }
     procedure MyOnShow(sender: TslControl);
     constructor Create;
     destructor Destroy; override;
@@ -198,7 +214,8 @@ begin
         end
         else
           Result:= Result + ' ';
-      end else
+      end
+      else
       begin
         if ((s[i] = #3) and (i < length(s) -2)) then
         begin
@@ -211,7 +228,8 @@ begin
           end;
         end;
       end;
-    end else
+    end
+    else
       dec(skip);
 end;
 
@@ -266,10 +284,8 @@ begin
 
   try
     if add_time_stamp then
-      //app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now),msg])))
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), wraptext(msg, (slScreen.GetWidth() - 2))])))
     else
-      //app.AddConsoleTask(TTextBoxAddLineTask.Create(w, msg));
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, wraptext(msg, (slScreen.GetWidth() - 2))));
   except
     on e: Exception do
@@ -420,9 +436,7 @@ begin
   end;
 end;
 
-
-
-procedure Console_SiteStat(allsites, upsites, downsites, unknown: Cardinal);
+procedure Console_SiteStat(const allsites, upsites, downsites, unknown: Cardinal);
 begin
   try
     if app <> nil then
@@ -435,21 +449,7 @@ begin
   end;
 end;
 
-(*
-procedure Console_QueueStat(queuedb: Cardinal);overload;
-begin
-  try
-    if app <> nil then
-      app.AddConsoleTask(TQueueStatTask.Create(queuedb));
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] Console_QueueStat %s', [e.Message]);
-    end;
-  end;
-end;
-*)
-procedure Console_QueueStat(queuedb, t_race, t_dir, t_auto, t_other: Cardinal);overload;
+procedure Console_QueueStat(const queuedb, t_race, t_dir, t_auto, t_other: Cardinal);
 begin
   try
     if app <> nil then
@@ -462,7 +462,7 @@ begin
   end;
 end;
 
-procedure Console_Slot_Add(name, FormatStr: String; const Args: array of const);
+procedure Console_Slot_Add(const name, FormatStr: String; const Args: array of const);
 begin
   if (no_console_slot) then exit;
   try
@@ -475,7 +475,7 @@ begin
   end;
 end;
 
-procedure Console_Slot_Add(name, s: String);
+procedure Console_Slot_Add(const name, s: String);
 begin
   if (no_console_slot) then exit;
   try
@@ -503,7 +503,7 @@ begin
   end;
 end;
 
-procedure Console_QueueAdd(name, task: String);
+procedure Console_QueueAdd(const name, task: String);
 begin
   if (no_console_queue) then exit;
 
@@ -523,7 +523,7 @@ begin
   end;
 end;
 
-procedure Console_QueueDel(name: String);
+procedure Console_QueueDel(const name: String);
 begin
   if (no_console_queue) then exit;
 
@@ -543,8 +543,8 @@ begin
   end;
 end;
 
-
 { TMySlApp }
+
 procedure TMySlApp.OnAdminCommand(sender: TslEdit; const command: String);
 begin
   if 1 = Pos(irccmdprefix, command) then
@@ -556,7 +556,8 @@ end;
 
 constructor TMySlApp.Create;
 begin
-  inherited Create(80, 25);//config.ReadInteger(section, 'height', 50)
+  // must use hardcoded values as config isn't initialized yet
+  inherited Create(200, 60);
 
   dir := ExtractFilePath(ParamStr(0));
 
@@ -608,7 +609,6 @@ begin
     x.Free;
   end;
 end;
-
 
 procedure TMySlApp.MyOnShow(sender: TslControl);
 label
@@ -756,7 +756,8 @@ begin
 end;
 
 procedure TMySlApp.OnIrcCommand(Sender: TslEdit; const command: String);
-var t: String;
+var
+  t: String;
 begin
   t:= TslWindow(sender.parent.parent.parent.parent).Title;
   if AnsiSameText(command, '/names') then
@@ -776,8 +777,9 @@ begin
 end;
 
 procedure TMySlApp.OnSiteCommand(Sender: TslEdit; const command: String);
-var s,t: String;
-    rt: TRawTask;
+var
+  s,t: String;
+  rt: TRawTask;
 begin
   t := TslWindow(sender.parent.parent.parent.parent).Title;
   s := SubString(t, '/', 1);
@@ -796,13 +798,14 @@ end;
 
 function TMySlApp.AddDummyWindow(const netname: String): TslCommandWindow;
 begin
-  Result:= nil;
+  Result := nil;
+
   if (no_console_queue and (UpperCase(netname) = 'QUEUE')) then exit;
   if (no_console_slot and (UpperCase(netname) = 'SLOTS')) then exit;
 
-  Result:= TslCommandWindow.Create(0,0,netname, 'This is a dummy edit control, dont type anything.', nil);
-  Result.textbox.maxlines:= config.ReadInteger(section, 'maxlines', 1000);
-  Result.Visible:= slvHidden;
+  Result := TslCommandWindow.Create(0,0,netname, 'This is a dummy edit control, dont type anything.', nil);
+  Result.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  Result.Visible := slvHidden;
   Result.SetParent(m);
 end;
 
@@ -923,17 +926,6 @@ end;
 
 { TQueueStatTask }
 
-(*
-constructor TQueueStatTask.Create(queue: Cardinal);
-begin
-  self.queue:= queue;
-  self.t_race:=0;
-  self.t_dir:=0;
-  self.t_auto:=0;
-  self.t_other:=0;
-end;
-*)
-
 constructor TQueueStatTask.Create(queue, t_race, t_dir, t_auto, t_other: Cardinal);
 begin
   self.queue:= queue;
@@ -946,7 +938,7 @@ end;
 procedure TQueueStatTask.Execute;
 begin
   try
-    app.queuestat.Caption:= 'QUEUE: '+IntToStr(queue)+' (Race:'+IntToStr(t_race)+' Dir:'+IntToStr(t_dir)+' Auto:'+IntToStr(t_auto)+' Other:'+IntToStr(t_other)+')';
+    app.queuestat.Caption := Format('QUEUE: %d (Race:%d Dir:%d Auto:%d Other:%d)', [queue, t_race, t_dir, t_auto, t_other]);;
   except
     on e: Exception do
     begin
@@ -958,11 +950,11 @@ end;
 { TslTextBoxTask }
 
 constructor TslCommandWindowTask.Create(const windowtitle: String);
-var w: TslCommandWindow;
-
+var
+  w: TslCommandWindow;
 begin
-  self.windowtitle:= windowtitle;
-  w:= FindWindow;
+  self.windowtitle := windowtitle;
+  w := FindWindow;
   if w <> nil then
     inherited Create(windowtitle, w.textbox)
   else
@@ -971,7 +963,7 @@ end;
 
 function TslCommandWindowTask.FindWindow: TslCommandWindow;
 begin
-  Result:= MyFindWindow(windowtitle);
+  Result := MyFindWindow(windowtitle);
 end;
 
 { TTextBoxAddLineTask }
@@ -979,13 +971,14 @@ end;
 constructor TTextBoxAddLineTask.Create(const windowtitle, msg: String);
 begin
   inherited Create(windowtitle);
-  self.msg:= msg;
+  self.msg := msg;
 end;
 
 procedure TTextBoxAddLineTask.Execute;
-var w: TslCommandWindow;
-    s, ss: String;
-    i: Integer;
+var
+  w: TslCommandWindow;
+  s, ss: String;
+  i: Integer;
 begin
   try
     i:=0;
@@ -1075,18 +1068,21 @@ end;
 constructor TDelWindowTask.Create(const windowtitle: String);
 begin
   inherited Create(windowtitle);
-  remove:= True;
+  remove := True;
 end;
 
 procedure TDelWindowTask.Execute;
-var w: TslCommandWindow;
+var
+  w: TslCommandWindow;
 begin
   try
-    w:= FindWindow;
+    w := FindWindow;
     if w = nil then exit;
     w.Free;
-  except on e: Exception do begin
-    Debug(dpError, 'console', Format('[EXCEPTION] TDelWindowTask.Execute : %s', [e.Message]));
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'console', Format('[EXCEPTION] TDelWindowTask.Execute : %s', [e.Message]));
     end;
   end;
 end;
@@ -1094,10 +1090,11 @@ end;
 { TAddIrcWindowTask }
 
 procedure TAddIrcWindowTask.Execute;
-var w: TslCommandWindow;
+var
+  w: TslCommandWindow;
 begin
   try
-    w:= FindWindow;
+    w := FindWindow;
     if w <> nil then exit;
     app.AddIrcWindow(windowtitle);
   except
@@ -1111,7 +1108,8 @@ end;
 { TAddSiteWindowTask }
 
 procedure TAddSiteWindowTask.Execute;
-var w: TslCommandWindow;
+var
+  w: TslCommandWindow;
 begin
   try
     w:= FindWindow;
@@ -1128,11 +1126,11 @@ end;
 { TAddDummyWindowTask }
 
 procedure TAddDummyWindowTask.Execute;
-var w: TslCommandWindow;
-
+var
+  w: TslCommandWindow;
 begin
   try
-    w:= FindWindow;
+    w := FindWindow;
     if w <> nil then exit;
     app.AddDummyWindow(windowtitle);
   except
@@ -1146,12 +1144,13 @@ end;
 { TShowWindowTask }
 
 procedure TShowWindowTask.Execute;
-var w: TslCommandWindow;
+var
+  w: TslCommandWindow;
 begin
   try
-    w:= FindWindow;
+    w := FindWindow;
     if w = nil then exit;
-    w.Visible:= slvVisible;
+    w.Visible := slvVisible;
   except
     on e: Exception do
     begin
@@ -1165,18 +1164,19 @@ end;
 constructor TQueueItemAddTask.Create(const name, msg: String);
 begin
   inherited Create('Queue', msg);
-  self.name:= name;
+  self.name := name;
 end;
 
 procedure TQueueItemAddTask.Execute;
-var i: Integer;
+var
+  i: Integer;
 begin
   try
-    i:= app.queue.textbox.fText.IndexOfName(name);
+    i := app.queue.textbox.fText.IndexOfName(name);
     if i <> -1 then
-      app.queue.textbox.fText[i]:= name+'='+msg
+      app.queue.textbox.fText[i] := name + '=' + msg
     else
-      app.queue.textbox.fText.Add( name+'='+msg );
+      app.queue.textbox.fText.Add(name + '=' + msg);
     if not app.queue.textbox.updateing then
       app.queue.textbox.EndUpdate;
   except
@@ -1192,14 +1192,15 @@ end;
 constructor TQueueItemDelTask.Create(const name: String);
 begin
   inherited Create('Queue', '');
-  self.name:= name;
+  self.name := name;
 end;
 
 procedure TQueueItemDelTask.Execute;
-var i: Integer;
+var
+  i: Integer;
 begin
   try
-    i:= app.queue.textbox.fText.IndexOfName(name);
+    i := app.queue.textbox.fText.IndexOfName(name);
     if i <> -1 then
       app.queue.textbox.fText.Delete(i);
     if not app.queue.textbox.updateing then
@@ -1217,18 +1218,19 @@ end;
 constructor TSlotItemAddTask.Create(const name, msg: String);
 begin
   inherited Create('Slots', msg);
-  self.name:= name;
+  self.name := name;
 end;
 
 procedure TSlotItemAddTask.Execute;
-var i: Integer;
+var
+  i: Integer;
 begin
   try
-    i:= app.slots.textbox.fText.IndexOfName(name);
+    i := app.slots.textbox.fText.IndexOfName(name);
     if i <> -1 then
-      app.slots.textbox.fText[i]:= name+'='+msg
+      app.slots.textbox.fText[i] := name + '=' + msg
     else
-      app.slots.textbox.fText.Add( name+'='+msg );
+      app.slots.textbox.fText.Add(name + '=' + msg);
     if not app.slots.textbox.updateing then
       app.slots.textbox.EndUpdate;
   except
@@ -1244,14 +1246,15 @@ end;
 constructor TSlotItemDelTask.Create(const name: String);
 begin
   inherited Create('Slots', '');
-  self.name:= name;
+  self.name := name;
 end;
 
 procedure TSlotItemDelTask.Execute;
-var i: Integer;
+var
+  i: Integer;
 begin
   try
-    i:= app.slots.textbox.fText.IndexOfName(name);
+    i := app.slots.textbox.fText.IndexOfName(name);
     if i <> -1 then
       app.slots.textbox.fText.Delete(i);
     if not app.slots.textbox.updateing then

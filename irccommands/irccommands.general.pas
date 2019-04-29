@@ -20,7 +20,7 @@ uses
   SysUtils, Classes, StrUtils, Math, irccommandsunit, irc, regexpr, statsunit, mainthread, debugunit,
   tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, console,
   precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  SynCommons, {$IFDEF FPC}process,{$ENDIF} IdGlobal;
+  SynCommons, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
   section = 'irccommands.general';
@@ -120,15 +120,25 @@ end;
 function IrcUptime(const netname, channel, params: String): boolean;
 var
   fProcessID, fCmdLine, fUsageInfo, fUnit: String;
+  {$IFDEF MSWINDOWS}
+    fMemCounters: TProcessMemoryCounters;
+  {$ENDIF}
   fMemUsage: double;
   rr: TRegexpr;
 begin
-  fProcessID := IntToStr(CurrentProcessId);
+  fProcessID := IntToStr(IdGlobal.CurrentProcessId);
 
   {$IFDEF MSWINDOWS}
-    // TODO: read memory usage on windows
-    fMemUsage := 13.37;
-    fUnit := 'GB';
+    fMemCounters.cb := SizeOf(fMemCounters);
+    // memory amount returned from Win API always differs from Taskmgr -> see stackoverflow
+    if GetProcessMemoryInfo(GetCurrentProcess(), @fMemCounters, SizeOf(fMemCounters)) then
+    begin
+      fMemUsage := fMemCounters.WorkingSetSize;
+    end
+    else
+      fMemUsage := 0;
+    
+    RecalcSizeValueAndUnit(fMemUsage, fUnit, 0);
   {$ELSE}
     {$IFDEF UNIX}
       fCmdLine := '/proc/' + fProcessID + '/status';
@@ -142,7 +152,7 @@ begin
 
           if rr.Exec(fUsageInfo) then
           begin
-            fMemUsage := StrToFloat(rr.Match[1]);
+            fMemUsage := StrToFloatDef(rr.Match[1], 0);
             RecalcSizeValueAndUnit(fMemUsage, fUnit, 1);
           end;
         finally

@@ -441,6 +441,7 @@ var
   pd: TPazoDirlistTask;
   dde: TDirListEntry;
   s: TSite;
+  fd: String;
 
 begin
   Result := False;
@@ -450,6 +451,11 @@ begin
 
   // something's fucked
   if error then exit;
+
+  if (dir <> '') then
+    fd := pazo.rls.rlsname + '/' + dir
+  else
+    fd := pazo.rls.rlsname;
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
@@ -524,12 +530,12 @@ begin
       if ((dde <> nil) and (dde.error)) then Continue;
 
       // Check if mkdir is needed
-      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
+      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
       if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
       begin
         if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
         begin
-          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
+          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
           // Create the dirlist task
           pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
@@ -557,13 +563,13 @@ begin
       end;
 
       // Add dirlist task if needed
-      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if dirlist is needed on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
+      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if dirlist is needed on %s', [fd, Name, dst.Name, dst.Name]);
       if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
       begin
         try
           pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
-          Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [pazo.rls.rlsname, dir, Name, dst.Name, dst.Name]);
-          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [pazo.rls.section, pazo.rls.rlsname, dir, dst.Name]));
+          Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
+          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
           dstdl.dirlistadded := True;
           AddTask(pd);
         except
@@ -587,26 +593,6 @@ begin
           if ((dstdl.hasnfo) and (AnsiLowerCase(de.Extension) = '.nfo')) then
             Continue;
 
-          // sfv not found so we won't race this file yet
-          if ((dstdl.sfv_status = dlSFVNotFound) and (AnsiLowerCase(de.Extension) <> '.sfv')) then
-          begin
-            Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [pazo.rls.rlsname, Name, dst.Name, dst.Name]);
-            Continue;
-          end;
-
-          // Check if we already have traded this same file more than we want
-          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'max_same_trade', 100))) then Continue;
-
-          // Create the race task
-          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [dir, Name, dst.Name, dst.Name, de.filename]);
-          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
-
-          // Set file type
-          if (AnsiLowerCase(de.Extension) = '.sfv') then
-            pr.IsSfv := True;
-          if (AnsiLowerCase(de.Extension) = '.nfo') then
-            pr.IsNfo := True;
-
           // Set file type for subdirs
           if (dstdl.parent <> nil) then
             if de.DirType in [IsSample] then
@@ -617,6 +603,30 @@ begin
               pr.IsCovers := True
             else if de.DirType in [IsSubs] then
               pr.IsSubs := True;
+
+          // sfv not found so we won't race this file yet
+          if ((dstdl.sfv_status = dlSFVNotFound) and (AnsiLowerCase(de.Extension) <> '.sfv') and (AnsiLowerCase(de.Extension) <> '.nfo')) then
+          begin
+            // Sample, Proof, Covers don't usually contain nfo/sfv so we'll race those regardless
+            if not (pr.IsSample or pr.IsProof or pr.IsCovers) then
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [fd, Name, dst.Name, dst.Name]);
+              Continue;
+	    end;
+          end;
+
+          // Check if we already have traded this same file more than we want
+          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'max_same_trade', 100))) then Continue;
+
+          // Create the race task
+          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
+          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
+
+          // Set file type
+          if (AnsiLowerCase(de.Extension) = '.sfv') then
+            pr.IsSfv := True;
+          if (AnsiLowerCase(de.Extension) = '.nfo') then
+            pr.IsNfo := True;
 
           // Delay leech stuff
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
@@ -1143,6 +1153,7 @@ begin
     except
       Break;
     end;
+
     try
       s := TSite(sitesunit.sites[i]);
       if s.working = sstDown then
@@ -1151,49 +1162,34 @@ begin
         Continue;
 
       sectiondir := s.sectiondir[rls.section];
-      if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
+      if (sectiondir = '') then
+        Continue;
+
+      sectiondir := DatumIdentifierReplace(sectiondir);
+
+      if FindSite(s.Name) <> nil then
+        Continue;
+
+      if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
-        begin
-          if (DateTimeToUnix(rls.pretime) <> 0) then
-          begin
-            if (s.IsPretimeOk(rls.section, rls.pretime)) then
-            begin
-              sectiondir := DatumIdentifierReplace(sectiondir);
+        if not (DateTimeToUnix(rls.pretime) <> 0) then
+          Continue;
 
-              Result := True;
-              //ps:= AddSite(s.name, sectiondir);
-
-              ps := TPazoSite.Create(self, s.Name, sectiondir);
-              ps.status := rssNotAllowed;
-              ps.DelaySetup;
-              if s.IsAffil(rls.groupname) then
-              begin
-                Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-                ps.status := rssShouldPre;
-              end;
-              sites.Add(ps);
-            end;
-          end;
-        end
-        else
-        begin
-          sectiondir := DatumIdentifierReplace(sectiondir);
-
-          Result := True;
-          //ps:= AddSite(s.name, sectiondir);
-
-          ps := TPazoSite.Create(self, s.Name, sectiondir);
-          ps.status := rssNotAllowed;
-          ps.DelaySetup;
-          if s.IsAffil(rls.groupname) then
-          begin
-            Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-            ps.status := rssShouldPre;
-          end;
-          sites.Add(ps);
-        end;
+        if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+          Continue;
       end;
+
+      ps := TPazoSite.Create(self, s.Name, sectiondir);
+      ps.status := rssNotAllowed;
+      ps.DelaySetup;
+      if s.IsAffil(rls.groupname) then
+      begin
+        Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
+        ps.status := rssShouldPre;
+      end;
+      sites.Add(ps);
+
+      Result := True;
     except
       Continue;
     end;
@@ -1224,8 +1220,6 @@ begin
     if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
     begin
       sectiondir := DatumIdentifierReplace(sectiondir);
-      Result := True;
-      //ps:= AddSite(s.name, sectiondir);
       ps := TPazoSite.Create(self, s.Name, sectiondir);
       ps.status := rssAllowed; //rssNotAllowed;
       if s.IsAffil(rls.groupname) then
@@ -1234,6 +1228,8 @@ begin
         ps.status := rssShouldPre;
       end;
       sites.Add(ps);
+
+      Result := True;
     end;
   end;
 end;

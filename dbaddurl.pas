@@ -2,17 +2,20 @@ unit dbaddurl;
 
 interface
 
-uses Classes, irc;
+uses
+  Classes;
 
 type
   TDbUrl = class
+  private
     rls: String;
     url: String;
+  public
     constructor Create(const rls, url: String);
     destructor Destroy; override;
   end;
 
-function dbaddurl_Process(net, chan, nick, msg: String): Boolean;
+function dbaddurl_Process(const net, chan, nick: String; msg: String): Boolean;
 procedure dbaddurl_SaveUrl(const rls, url: String);
 procedure dbaddurl_addurl(const params: String);
 procedure dbaddurl_ParseUrl(const rls, url: String);
@@ -28,7 +31,8 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, debugunit, dbaddimdb;
+uses
+  DateUtils, SysUtils, configunit, irc, mystrings, debugunit, dbaddimdb;
 
 const
   section = 'dbaddurl';
@@ -51,7 +55,7 @@ end;
 
 { Proc/Func }
 
-function dbaddurl_Process(net, chan, nick, msg: String): Boolean;
+function dbaddurl_Process(const net, chan, nick: String; msg: String): Boolean;
 begin
   Result := False;
   if (1 = Pos(addurlcmd, msg)) then
