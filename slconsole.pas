@@ -61,7 +61,7 @@ type
     end;
 
 {$IFNDEF MSWINDOWS}
-function NCurses_version: String;
+  function NCurses_version: String;
 {$ENDIF}
 
 var

@@ -122,7 +122,7 @@ begin
   {$ENDIF}
 
   try
-    IdSSLOpenSSLHeaders.Load;
+    IdSSLOpenSSL.LoadOpenSSLLibrary;
   except
     on e: EIdOSSLCouldNotLoadSSLLibrary do
     begin
@@ -528,14 +528,14 @@ begin
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then
-    sqlite3.Free;
+    FreeAndNil(sqlite3);
 
   // MySQL/MariaDB connection
   if Assigned(MySQLCon) then
-    MySQLCon.Free;
+    FreeAndNil(MySQLCon);
 
   try
-    IdSSLOpenSSLHeaders.Unload;
+    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
   except
     on e: Exception do
     begin

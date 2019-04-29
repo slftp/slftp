@@ -585,7 +585,11 @@ var args: TStringArray;
       exit;
     end;
     setlength(args[high(args)], length(args[high(args)]) + addLen);
-    move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], addLen);
+    {$IFDEF UNICODE}
+      move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], 2*addLen);
+    {$ELSE}
+      move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], addLen);
+    {$ENDIF}
     if hasEscapes then begin
       args[high(args)] := StringReplace(StringReplace(args[high(args)], '\'+stringstart, stringstart, [rfReplaceAll]),
                                                                         '\\', '\', [rfReplaceAll]); //todo: are these all cases
@@ -1074,4 +1078,4 @@ begin
   say('rcmdline unit test completed');
 {$endif}
 end.
-
+

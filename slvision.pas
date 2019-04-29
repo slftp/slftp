@@ -75,8 +75,7 @@ type
     function KeyEvent(c: Char; extended: boolean): boolean; virtual;
 
     procedure LostFocus(); virtual;
-    procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0);
-      overload; virtual;
+    procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0); overload; virtual;
     procedure Write(const x, y: integer; s: String; hossz: integer = 0); overload;
     procedure Write(const x, y: integer; c: Char); overload;
     function BackgroundCharacter: Char; virtual;
@@ -139,10 +138,8 @@ type
     function MaxHeight: integer; virtual;
   end;
 
-
-  TslEdit      = class;
-  TslOnKeyDown = function(Sender: TslEdit; c: Char;
-    extended: boolean): boolean of object;
+  TslEdit = class;
+  TslOnKeyDown = function(Sender: TslEdit; c: Char; extended: boolean): boolean of object;
 
   TslEdit = class(TslAlignedControl)
   private
@@ -216,8 +213,8 @@ type
     procedure SetText(const Value: String);
   public
     updateing: boolean;
-    fText:     TStringList;
-    maxlines:  integer;
+    fText: TStringList;
+    maxlines: integer;
     procedure AddLine(const s: String);
     procedure BeginUpdate;
     procedure EndUpdate;
@@ -234,8 +231,8 @@ type
   TslHorizontalScrollbar = class;
   TslVerticalScrollbar   = class;
 
+  //this should be maxwidth and maxheight calculation
   TslScrollArea = class(TslBackGround)
-    // ennek kell lennie maxwidth maxheight szamolasnak
   private
     fMaxHeight, fMaxWidth: integer;
   protected
@@ -244,8 +241,7 @@ type
     hScrollBar: TslHorizontalScrollbar;
     vScrollBar: TslVerticalScrollbar;
     procedure GotoXy(ca: TslRect; x, y: integer); override;
-    procedure Write(ca: TslRect; const x, y: integer; s: String;
-      hossz: integer = 0); override;
+    procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0); override;
     function MaxWidth: integer;
     function MaxHeight: integer;
     function Width: integer;
@@ -281,8 +277,8 @@ type
     function KeyEvent(c: Char; extended: boolean): boolean; override;
   end;
 
+  // It is doing some scrollbar
   TslScrollControl = class(TslAlignedControl)
-    // ez csinal ket scrollbart
   private
     rest: TslScrollArea;
     hScrollBar: TslHorizontalScrollbar;
@@ -324,8 +320,7 @@ type
     commandedit: TslCommandEdit;
 
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
-    constructor Create(Width, Height: integer; title, Caption: String;
-      parent: TslControl);
+    constructor Create(Width, Height: integer; title, Caption: String; parent: TslControl);
   end;
 
   TslAlignedPanel = class(TslControl)
@@ -341,10 +336,8 @@ type
     fAlign: TslHorizontalAlignment;
   public
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
-    constructor Create(panel: TslFixWidthPanel; alignment: TslHorizontalAlignment;
-      parent: TslControl); overload;
-    constructor Create(panel: TslFixWidthPanel; alignment: TslHorizontalAlignment;
-      rest, parent: TslControl); overload;
+    constructor Create(panel: TslFixWidthPanel; alignment: TslHorizontalAlignment; parent: TslControl); overload;
+    constructor Create(panel: TslFixWidthPanel; alignment: TslHorizontalAlignment; rest, parent: TslControl); overload;
     property Alignment: TslHorizontalAlignment Read fAlign;
   end;
 
@@ -353,10 +346,8 @@ type
     fAlign: TslVerticalAlignment;
   public
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
-    constructor Create(panel: TslFixHeightPanel; alignment: TslVerticalAlignment;
-      parent: TslControl); overload;
-    constructor Create(panel: TslFixHeightPanel; alignment: TslVerticalAlignment;
-      rest, parent: TslControl); overload;
+    constructor Create(panel: TslFixHeightPanel; alignment: TslVerticalAlignment; parent: TslControl); overload;
+    constructor Create(panel: TslFixHeightPanel; alignment: TslVerticalAlignment; rest, parent: TslControl); overload;
     property Alignment: TslVerticalAlignment Read fAlign;
   end;
 
@@ -391,21 +382,19 @@ type
     procedure slOnCtrlC;
     procedure ShowMessage(const s: String);
     procedure CopyConsoleTasks;
-    function InputQuery(const title, Caption: String; var reply: String;
-      password: boolean = False): boolean;
+    function InputQuery(const title, Caption: String; var reply: String; password: boolean = False): boolean;
   protected
     procedure SetColors; override;
     function BackgroundCharacter: Char; override;
   public
-    shouldquit: boolean;
+    shouldquit: boolean; //< @true when slftp should exit (e.g. !die), @false otherwise
     l_clock:    TslLabel;
     l_uptime:   TslLabel;
     l_infos:    TslLabel;
     timers:     TObjectList;
     menubartop: TslMenubar;
     menubarbottom: TslMenubar;
-    procedure Write(ca: TslRect; const x, y: integer; s: String;
-      hossz: integer = 0); override;
+    procedure Write(ca: TslRect; const x, y: integer; s: String; hossz: integer = 0); override;
     procedure GetClientArea(ca: TslRect; whowantstoknow: TslControl); override;
     destructor Destroy; override;
     constructor Create; overload;
@@ -642,8 +631,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision',
-          Format('[EXCEPTION] TslApplication.ProcessMessages: %s', [e.Message]));
+        Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages: %s', [e.Message]));
         fLocalConsoleToUpdate.Clear;
         Exit;
       end;
@@ -672,8 +660,7 @@ begin
         KeyEvent(c, extended);
       except
         on E: Exception do
-          Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
+          Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages.KeyEvent: %s', [e.Message]));
       end;
 
     end;
@@ -686,8 +673,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision',
-          Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
+        Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages TslTimer: %s', [e.Message]));
       end;
     end;
 
@@ -698,9 +684,7 @@ begin
 
   except
     on E: Exception do
-      Debug(dpError, 'slvision', Format(
-        '[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s',
-        [e.Message]));
+      Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages.slScreen.keypressed: %s', [e.Message]));
   end;
 
 end;
@@ -714,8 +698,7 @@ begin
       fOnShow(self);
   except
     on E: Exception do
-      Debug(dpError, 'slvision', '[EXCEPTION] Run.assigned(fOnShow) %s',
-        [e.Message]);
+      Debug(dpError, 'slvision', '[EXCEPTION] Run.assigned(fOnShow) %s', [e.Message]);
   end;
 
 
@@ -726,7 +709,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, 'slvision', '[EXCEPTION] Run %s', [e.Message]);
+        Debug(dpError, 'slvision', '[EXCEPTION] Run.ProcessMessages %s', [e.Message]);
       end;
     end;
   end;
@@ -739,7 +722,6 @@ procedure TslApplication.SetColors;
 begin
   slscreen.NormVideo;
 end;
-
 
 procedure TslApplication.slOnCtrlC;
 begin
@@ -1802,19 +1784,16 @@ begin
 end;
 
 procedure TslFrame.Repaint;
-{$IFDEF MSWINDOWS}
 const
   frameChars: array[False..True, 1..6] of Char = (
-    ('─', '│', '┌', '┐', '└', '┘'),
-    ('─', '│', '┌', '┐', '└', '┘')
+    {$IFDEF MSWINDOWS}
+      ('─', '│', '┌', '┐', '└', '┘'),
+      ('─', '│', '┌', '┐', '└', '┘')
+    {$ELSE}
+      ('-', '|', ',', '.',  '`', '4'),
+      ('-', '|', ',', '.',  '`', '4')
+    {$ENDIF}
     );
- {$ELSE}
-const frameChars : array[false..true, 1..6] of Char = (
-    ('-', '|', ',', '.',  '`', '4'),
-    ('-', '|', ',', '.',  '`', '4')
- );
-{$ENDIF}
-
 var
   i: integer;
   s: String;
@@ -1903,8 +1882,6 @@ procedure TslWindow.SetTitle(const Value: String);
 begin
   fTitle.Caption := ' ' + Value + ' ';
 end;
-
-
 
 function TslWindow.ShowModal: TslModalResult;
 var
@@ -2961,8 +2938,6 @@ begin
 
 end;
 
-
-
 procedure TslCommandWindow.GetClientArea(ca: TslRect; whowantstoknow: TslControl);
 begin
   inherited GetClientArea(ca, whowantstoknow);
@@ -2991,6 +2966,8 @@ var
   i: integer;
 begin
   try
+    // it seems that 'v_queue.Count - 2' is intended as with 'v_queue.Count - 1' there is no
+    // QUEUE: 4 (Race:1 Dir:0 Auto:1 Other:2) line at the bottom of the console window
     for i := 0 to v_queue.Count - 2 do
     begin
       if v_queue[i].ClassName = ClassName then
@@ -3002,8 +2979,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'slvision',
-        Format('[EXCEPTION] TslRemoveEarlierTask.OnConleTaskAdded : %s', [e.Message]));
+      Debug(dpError, 'slvision', Format('[EXCEPTION] TslRemoveEarlierTask.OnConleTaskAdded : %s', [e.Message]));
     end;
   end;
 end;

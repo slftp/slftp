@@ -59,6 +59,7 @@ begin
     ready := True;
     exit;
   end;
+  dir := DatumIdentifierReplace(dir);
 
 ujra:
   if s.status <> ssOnline then

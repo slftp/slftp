@@ -1176,7 +1176,7 @@ begin
 
     if site.IsAffil(GetGroupname(rip)) then
     begin
-      irc_addtext(Netname, Channel, '<b>%s</b> is affil on %s we dont nuke affil!', [GetGroupname(rip), site.Name]);
+      irc_addtext(Netname, Channel, '<b>%s</b> is affil on %s - we dont nuke affil!', [GetGroupname(rip), site.Name]);
       Continue;
     end;
 
