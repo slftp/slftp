@@ -141,6 +141,7 @@ begin
   end
   else
   begin
+    // note: its intended that it shows up once on startup because IrcStart calls RegisterChannelSettings to check if IRC server isn't loaded already
     Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly spelled', [aChannel, aNetname]));
     Result := nil;
   end;
