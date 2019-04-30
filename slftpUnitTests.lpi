@@ -10,7 +10,7 @@
       </Flags>
       <SessionStorage Value="InProjectDir"/>
       <MainUnit Value="0"/>
-      <Title Value="slftp"/>
+      <Title Value="slftpUnitTests"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
@@ -21,9 +21,6 @@
       <Version Value="2"/>
     </PublishOptions>
     <RunParams>
-      <local>
-        <WorkingDirectory Value="/PATH-TO-YOUR-SLFTP-BIN-DIR/"/>
-      </local>
       <FormatVersion Value="2"/>
       <Modes Count="1">
         <Mode0 Name="default">
@@ -35,7 +32,7 @@
     </RunParams>
     <Units Count="1">
       <Unit0>
-        <Filename Value="slftp.lpr"/>
+        <Filename Value="tests/slftpUnitTests.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
     </Units>
@@ -43,18 +40,24 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="slftp"/>
+      <Filename Value="slftpUnitTests"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="libs/BeRoHighResolutionTimer;libs/DFFLibV15_UIntList;libs/FastMM4;libs/FLRE;libs/Indy10/Core;libs/Indy10/Protocols;libs/Indy10/System;libs/LibTar;libs/lkJSON;libs/mORMot;libs/pasmp;libs/rcmdline;libs/TRegExpr;libs/ZeosLib/core;libs/ZeosLib/dbc;libs/ZeosLib/parsesql;libs/ZeosLib/plain;irccommands"/>
-      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      <OtherUnitFiles Value="libs/BeRoHighResolutionTimer;libs/DFFLibV15_UIntList;libs/FastMM4;libs/FLRE;libs/Indy10/Core;libs/Indy10/Protocols;libs/Indy10/System;libs/LibTar;libs/lkJSON;libs/mORMot;libs/pasmp;libs/rcmdline;libs/TRegExpr;libs/ZeosLib/core;libs/ZeosLib/dbc;libs/ZeosLib/parsesql;libs/ZeosLib/plain;irccommands;tests/fptest;tests/fptest/epiktimer"/>
+      <UnitOutputDirectory Value="tests/lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Parsing>
       <SyntaxOptions>
         <SyntaxMode Value="Delphi"/>
       </SyntaxOptions>
     </Parsing>
+    <Other>
+      <CustomOptions Value="-dUNITTESTING"/>
+      <OtherDefines Count="1">
+        <Define0 Value="UNITTESTING"/>
+      </OtherDefines>
+    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">
