@@ -113,8 +113,7 @@ begin
 
 
   // Tell Indy OpenSSL to load libs from current dir
-  //IdOpenSSLSetLibPath('.');
-  // note for Indy 5457: "Failed to load ./libcrypto.so."
+  IdOpenSSLSetLibPath('.');
 
   {$IFDEF UNIX}
     // do not try to load sym links first
@@ -122,13 +121,12 @@ begin
   {$ENDIF}
 
   try
-    IdSSLOpenSSL.LoadOpenSSLLibrary;
-  except
-    on e: EIdOSSLCouldNotLoadSSLLibrary do
+    if not IdSSLOpenSSL.LoadOpenSSLLibrary then
     begin
-      Result := Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
+  except
     on e: Exception do
     begin
       Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);

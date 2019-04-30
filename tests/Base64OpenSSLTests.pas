@@ -56,6 +56,9 @@ uses
   procedure TTestIndyOpenSSL.SetUp;
 {$ENDIF}
 begin
+  // TODO: uncomment this and put Indy stuff into own function which is loaded from start to end
+  //IdOpenSSLSetLibPath('.');
+
   {$IFDEF UNIX}
     // do not try to load sym links first
     IdOpenSSLSetLoadSymLinksFirst(False);
