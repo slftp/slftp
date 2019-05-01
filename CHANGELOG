@@ -76,7 +76,7 @@
     {+} Show a warn message if important files not found on startup
     {+} Show PID & actual memory usage in !status command (#170)
     {+} !fetchuser cmd to fetch some information about site settings + basic recommendation (#51)
-    {+} Support for wildcards in !batch (#222)                                  --- some more work + testing needed ---
+    {+} Support for wildcards in !batch (#222)
     {+} Completely new SQLite engine
     {+} Completely new MySQL/MariaDB engine
     {+} !setdownoutofspace command to configure set_down_on_out_of_space value per site (#158)
@@ -114,6 +114,7 @@
     {^} Skip lookup of extra infos for skipped groups (#218)
     {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
     {^} Less flickering of console window at startup on Windows platform
+    {^} Send nfo for NFOFIX, SFVFIX, SAMPLEFIX, etc instead of creating only an empty dir
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
