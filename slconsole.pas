@@ -1025,23 +1025,14 @@ Begin
    nClrScr(w,TextAttr);
 End;
 
-// TODO: use PAnsiChar instead of variable ps + check if it works with fpc/delphi and shows all correctly
 { write a string to a window at the current cursor position }
 Procedure TslUnixScreen.nWrite(win: pWindow; s: String);
-var
-  ps : array [0..255] of Char;       { for use with PAnsiChar's }
-  //p: PAnsiChar;
 Begin
-  //p := StrAlloc(Length(s) + 1);
-
   If TextAttr <> prev_textattr Then
     nWinColor(win,TextAttr);
 
-  waddstr(win, StrPCopy(ps, s));
-  //waddstr(win, StrPCopy(p, s));
+  waddstr(win, PAnsiChar(s));
   wrefresh(win);
-
-  //StrDispose(p);
 End;
 
 {=========================================================================
