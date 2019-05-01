@@ -97,6 +97,7 @@
     {#} Converting error in TVMaze lookup if webChannel exists but Country was null (#233)
     {#} Logging of categories which are specified as value for debugging works now
     {#} Replacing of <yyyy>, <yy>, <mm>, ... identifiers for sectiondir was missed in some places
+    {#} No segmentation fault if terminal window is too big (#213)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
