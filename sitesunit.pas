@@ -64,9 +64,6 @@ type
 
   TSiteSlot = class(TslTCPThread)
   private
-    FLastIO: TDateTime;
-    FLastTaskExecution: TDateTime;
-    FLastNonIdleTaskExecution: TDateTime;
     mdtmre: TRegExpr;
     aktdir: String;
     prot: TProtection;
@@ -89,6 +86,8 @@ type
     peerip: String;
     fuploadingto: boolean;
     fdownloadingfrom: boolean;
+    lastio: TDateTime;
+    lastactivity: TDateTime;
     lastResponse: String;
     lastResponseCode: integer;
 
@@ -129,14 +128,10 @@ type
     function Mkdir(const dirtocreate: String): boolean;
     function TranslateFilename(const filename: String): String;
     function Pwd(var dir: String): boolean;
-
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
-    property todotask: TTask read fTodotask write SetTodotask; //< assigned task which should be executed by this siteslot
-    property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled; //< @true if 'SSCN ON' was send to ftpd and is enabled, @false otherwise
-    property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
-    property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
-    property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property todotask: TTask read fTodotask write SetTodotask;
+    property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -753,8 +748,8 @@ begin
   status := ssNone;
   lastResponse := '';
   lastResponseCode := 0;
-  LastIO := Now();
-  LastTaskExecution := Now();
+  lastio := Now();
+  lastactivity := Now();
   SSCNEnabled := False;
 
   mdtmre := TRegExpr.Create;
@@ -818,34 +813,34 @@ begin
       if ((todotask <> nil) and (not queue_debug_mode)) then
       begin
         try
-          tname := todotask.Name;
+          try
+            tname := todotask.Name;
+          except
+            on E: Exception do
+              Debug(dpError, section,
+                Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s',
+                [tname, e.Message]));
+          end;
+
+          Debug(dpSpam, section, Format('--> %s', [Name]));
+
+          try
+            if todotask.Execute(self) then
+              lastactivity := Now();
+
+          except
+            on E: Exception do
+              Debug(dpError, section,
+                Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+          end;
+          Debug(dpSpam, section, Format('<-- %s', [Name]));
         except
-          on E: Exception do
+          on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s', [tname, e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute %s: %s',
+              [tname, e.Message]));
           end;
         end;
-
-        Debug(dpSpam, section, Format('--> %s', [Name]));
-
-        try
-          if todotask.Execute(self) then
-          begin
-            LastTaskExecution := Now();
-
-            if not (todotask is TIdleTask) then
-            begin
-              LastNonIdleTaskExecution := LastTaskExecution;
-            end;
-          end;
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
-          end;
-        end;
-
-        Debug(dpSpam, section, Format('<-- %s', [Name]));
 
         uploadingto := False;
         downloadingfrom := False;
@@ -1671,7 +1666,7 @@ begin
   if ((lastResponseCode >= 1000) or (lastResponseCode < 100)) then // auto read more
     goto ujra;
 
-  LastIO := Now();
+  lastio := Now();
 
   Result := True;
 end;
@@ -1690,7 +1685,7 @@ begin
       exit;
     end;
 
-    LastIO := Now();
+    lastio := Now();
     Result := True;
   except
     on e: Exception do
