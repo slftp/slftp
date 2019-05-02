@@ -10,7 +10,19 @@ type
     mode: String;
   end;
 
-  TPretimeLookupMOde = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
+  {
+  @value(plmNone no saving and no lookup of pretimes)
+  @value(plmHTTP read pretime over HTTP)
+  @value(plmMYSQL read pretime from MySQL/MariaDB)
+  @value(plmSQLITE read pretime from local SQLite database)
+  }
+  TPretimeLookupMode = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
+  {
+  @value(apmMem uses a run-time filled list of pretimes)
+  @value(apmSQLITE SQLite database)
+  @value(apmMYSQL MySQL/MariaDB)
+  @value(apmNone no saving and no lookup)
+  }
   TAddPreMode = (apmMem, apmSQLITE, apmMYSQL, apmNone);
 
   TDbAddPre = class
@@ -39,12 +51,12 @@ function ReadPretimeOverHTTP(const rls: String): TDateTime;
 function ReadPretimeOverMYSQL(const rls: String): TDateTime;
 function ReadPretimeOverSQLITE(const rls: String): TDateTime;
 
-function GetPretimeMode: TPretimeLookupMOde;
-function pretimeModeToString(mode: TPretimeLookupMOde): String;
+function GetPretimeMode: TPretimeLookupMode;
+function pretimeModeToString(mode: TPretimeLookupMode): String;
 function addPreModeToString(mode: TAddPreMode): String;
 
-procedure setPretimeMode_One(mode: TPretimeLookupMOde);
-procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
+procedure setPretimeMode_One(mode: TPretimeLookupMode);
+procedure setPretimeMode_Two(mode: TPretimeLookupMode);
 
 procedure setAddPretimeMode(mode: TAddPreMode);
 
@@ -72,17 +84,17 @@ var
   last_addpre_lock: TCriticalSection;
 
   dbaddpre_mode: TAddPreMode = TAddPreMode(3);
-  dbaddpre_plm1: TPretimeLookupMOde;
-  dbaddpre_plm2: TPretimeLookupMOde;
+  dbaddpre_plm1: TPretimeLookupMode;
+  dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
 
-procedure setPretimeMode_One(mode: TPretimeLookupMOde);
+procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
   dbaddpre_plm1 := mode;
 end;
 
-procedure setPretimeMode_Two(mode: TPretimeLookupMOde);
+procedure setPretimeMode_Two(mode: TPretimeLookupMode);
 begin
   dbaddpre_plm2 := mode;
 end;
@@ -92,12 +104,12 @@ begin
   dbaddpre_mode := mode;
 end;
 
-function GetPretimeMode: TPretimeLookupMOde;
+function GetPretimeMode: TPretimeLookupMode;
 begin
   Result := dbaddpre_plm1;
 end;
 
-function pretimeModeToString(mode: TPretimeLookupMOde): String;
+function pretimeModeToString(mode: TPretimeLookupMode): String;
 begin
   Result := 'None';
 
@@ -328,16 +340,18 @@ begin
 
 end;
 
-function kb_Add_addpre(rls, section: String; event: String): integer;
+function kb_Add_addpre(const rls, section, event: String): integer;
 var
   rls_section: String;
+  fSection: String;
 begin
   Result := -1;
 
-  section := ProcessDoReplace(section);
+  fSection := ProcessDoReplace(section);
   rls_section := '';
-  rls_section := KibontasSection(' ' + section + ' ', '');
+  rls_section := KibontasSection(' ' + fSection + ' ', '');
   rls_section := PrecatcherSectionMapping(rls, rls_section);
+
   if (rls_section = 'TRASH') then
   begin
     exit;
@@ -345,12 +359,11 @@ begin
 
   if (rls_section = '') then
   begin
-    irc_Addstats(Format('<c7>[ADDPRE]</c> %s %s (%s) : <b>No Sites</b>',
-      [rls, rls_section, section]));
+    irc_Addstats(Format('<c7>[ADDPRE]</c> %s %s (%s) : <b>No Sites</b>', [rls, rls_section, fSection]));
     exit;
   end;
 
-  kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
+  Result := kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
 end;
 
 function dbaddpre_ADDPRE(const netname, channel, nickname: String; const params: String; const event: String): boolean;
@@ -360,39 +373,29 @@ var
   kb_entry: String;
   p: Integer;
 begin
+  Result := False;
+
   rls := '';
   rls := SubString(params, ' ', 1);
-  if ((rls <> '')  and (length(rls) > minimum_rlsname)) then
+  if ((rls <> '') and (length(rls) > minimum_rlsname)) then
   begin
-
     if dbaddpre_mode <> apmNone then
       dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
 
-      if ((event = 'ADDPRE') and (kbadd_addpre)) or (event = 'SITEPRE') and (kbadd_sitepre) then
+    if ((event = 'ADDPRE') and (kbadd_addpre)) or ((event = 'SITEPRE') and (kbadd_sitepre)) then
+    begin
+      kb_entry := FindReleaseInKbList('-' + rls);
+
+      // TODO: might not work correctly if sections are TV-SD, TV-720P-FR, etc
+      // introduced with merge-req #315
+      if kb_entry <> '' then
       begin
-
-        // TODO:
-        // Add kb function to lookup all existing section-releases combos for this release
-        // and loop over the results with the following event.
-
-
-        // kb.kb_lock.Enter;
-        // try
-          kb_entry := kb_FindRelease('-' + rls);
-        // finally
-        //  kb.kb_lock.Leave;
-        // end;
-
-        if kb_entry <> '' then
-        begin
-          p := Pos('-', kb_entry);
-          rls_section := Copy(kb_entry, 1, P-1);
-          if rls_section <> '' then
-            kb_Add_addpre(rls, rls_section, event);
-        end;
-
+        p := Pos('-', kb_entry);
+        rls_section := Copy(kb_entry, 1, p - 1);
+        if rls_section <> '' then
+          kb_Add_addpre(rls, rls_section, event);
       end;
-
+    end;
   end;
 
   Result := True;
@@ -695,8 +698,8 @@ begin
   kbadd_sitepre := config.ReadBool(section, 'kbadd_sitepre', False);
 
   dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
-  dbaddpre_plm1 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
-  dbaddpre_plm2 := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode_2', 0));
+  dbaddpre_plm1 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode', 0));
+  dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
 

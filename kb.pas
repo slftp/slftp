@@ -254,7 +254,7 @@ type
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
-function kb_FindRelease(const rls: String): String;
+function FindReleaseInKbList(const rls: String): String;
 
 function FindSectionHandler(const section: String): TCRelease;
 
@@ -1170,16 +1170,16 @@ begin
   QueueFire;
 end;
 
-function kb_FindRelease(const rls: String): String;
+function FindReleaseInKbList(const rls: String): String;
 var
-  index: integer;
+  i: integer;
 begin
   Result := '';
-  for index := 0 to kb_list.Count-1 do
+  for i := 0 to kb_list.Count - 1 do
   begin
-    if AnsiContainsText(kb_list[index], rls) then
+    if AnsiContainsText(kb_list[i], rls) then
     begin
-      Result := kb_list[index];
+      Result := kb_list[i];
       break;
     end;
   end;
