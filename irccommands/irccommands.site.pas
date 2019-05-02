@@ -2130,9 +2130,8 @@ begin
         end
         else
         begin
-          irc_addtext(Netname, Channel, ss.Name + ': ' + ss.todotask.Name +
-            ' - A:' + TimeToStr(ss.lastactivity) + ' I/O:' +
-            TimeToStr(ss.lastio));
+          irc_addtext(Netname, Channel, Format('%s : %s - LastTaskExecution: %s LastNonIdleTaskExecution: %s Last I/O Operation: %s',
+            [ss.Name, ss.todotask.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
         end;
       end;
     except

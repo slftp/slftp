@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr,
+  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules;
 
@@ -12,6 +12,25 @@ type
   TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+
+  {
+  @value(sfUnknown unknown feature flag)
+  @value(sfCEPR Custom Extended Passive Reply, a glftpd flag)
+  @value(sfCLNT supply client information to server)
+  @value(sfCPSV Crypted PASV)
+  @value(sfEPRT Extended PORT)
+  @value(sfEPSV Extended PASV)
+  @value(sfMFMT Modify File Modification Time)
+  @value(sfPRET PRE Transfer)
+  @value(sfPROT Data Channel Protection Level)
+  @value(sfSSCN Set Secured Client Negotiation)
+  @value(sfTVFS Trivial Virtual File Store, a RaidenFTPD flag)
+  @value(sfUTF8 UTF8 encoding, a RaidenFTPD flag)
+  @value(sfXCRC CRC calculation on file, a ioftpd flag)
+  }
+  TSiteFeature = (sfUnknown, sfCEPR, sfCLNT, sfCPSV, sfEPRT, sfEPSV, sfMFMT,
+    sfPRET, sfPROT, sfSSCN, sfTVFS, sfUTF8, sfXCRC);
+  TSiteFeatures = set of TSiteFeature;
 
   {
   @value(sswUnknown unknown ftpd software)
@@ -45,12 +64,16 @@ type
 
   TSiteSlot = class(TslTCPThread)
   private
+    FLastIO: TDateTime;
+    FLastTaskExecution: TDateTime;
+    FLastNonIdleTaskExecution: TDateTime;
     mdtmre: TRegExpr;
     aktdir: String;
     prot: TProtection;
     kilepve: boolean;
     no: integer;
     fstatus: TSlotStatus;
+    fSSCNEnabled: boolean;
     event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure AddLoginTask;
@@ -66,8 +89,6 @@ type
     peerip: String;
     fuploadingto: boolean;
     fdownloadingfrom: boolean;
-    lastio: TDateTime;
-    lastactivity: TDateTime;
     lastResponse: String;
     lastResponseCode: integer;
 
@@ -103,12 +124,19 @@ type
     function RemoveDir(dir: String): boolean;
     function SendProtP: boolean;
     function SendProtC: boolean;
+    function SendSSCNEnable: boolean;
+    function SendSSCNDisable: boolean;
     function Mkdir(const dirtocreate: String): boolean;
     function TranslateFilename(const filename: String): String;
     function Pwd(var dir: String): boolean;
+
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
-    property todotask: TTask read fTodotask write SetTodotask;
+    property todotask: TTask read fTodotask write SetTodotask; //< assigned task which should be executed by this siteslot
+    property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled; //< @true if 'SSCN ON' was send to ftpd and is enabled, @false otherwise
+    property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
+    property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
+    property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -116,6 +144,7 @@ type
   TSite = class
   private
     fworking: TSiteStatus;
+    fFeatures: TSiteFeatures;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
     fNumDn: integer;
@@ -347,6 +376,7 @@ type
 
   published
     property sw: TSiteSw read GetSw write SetSw;
+    property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
     property working: TSiteStatus read fWorking write SetWorking;
     property max_dn: integer read GetMaxDn write SetMaxDn;
@@ -396,6 +426,8 @@ function getAdminSiteName: String;
 function SiteSoftWareToString(sitename: String): String; overload;
 function SiteSoftWareToString(site: TSite): String; overload;
 function StringToSiteSoftWare(s: String): TSiteSw;
+
+function FeatResponseToFeature(const feature: String): TSiteFeature;
 
 function sslMethodToString(sitename: String): String; overload;
 function sslMethodToString(site: TSite): String; overload;
@@ -515,6 +547,18 @@ begin
       sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
+  end;
+end;
+
+function FeatResponseToFeature(const feature: string): TSiteFeature;
+var
+  helper: Integer;
+begin
+  Result := sfUnknown;
+  helper := GetEnumValue(TypeInfo(TSiteFeature), feature);
+  if helper > -1 then
+  begin
+    Result := TSiteFeature(helper);
   end;
 end;
 
@@ -709,8 +753,9 @@ begin
   status := ssNone;
   lastResponse := '';
   lastResponseCode := 0;
-  lastio := Now();
-  lastactivity := Now();
+  LastIO := Now();
+  LastTaskExecution := Now();
+  SSCNEnabled := False;
 
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
@@ -743,6 +788,7 @@ begin
     socks5.Enabled := False;
     Console_Slot_Close(Name);
     prot := prNone;
+    SSCNEnabled := False;
     aktdir := '';
   except
     on e: Exception do
@@ -772,34 +818,34 @@ begin
       if ((todotask <> nil) and (not queue_debug_mode)) then
       begin
         try
-          try
-            tname := todotask.Name;
-          except
-            on E: Exception do
-              Debug(dpError, section,
-                Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s',
-                [tname, e.Message]));
-          end;
-
-          Debug(dpSpam, section, Format('--> %s', [Name]));
-
-          try
-            if todotask.Execute(self) then
-              lastactivity := Now();
-
-          except
-            on E: Exception do
-              Debug(dpError, section,
-                Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
-          end;
-          Debug(dpSpam, section, Format('<-- %s', [Name]));
+          tname := todotask.Name;
         except
-          on e: Exception do
+          on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute %s: %s',
-              [tname, e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s', [tname, e.Message]));
           end;
         end;
+
+        Debug(dpSpam, section, Format('--> %s', [Name]));
+
+        try
+          if todotask.Execute(self) then
+          begin
+            LastTaskExecution := Now();
+
+            if not (todotask is TIdleTask) then
+            begin
+              LastNonIdleTaskExecution := LastTaskExecution;
+            end;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+          end;
+        end;
+
+        Debug(dpSpam, section, Format('<-- %s', [Name]));
 
         uploadingto := False;
         downloadingfrom := False;
@@ -914,7 +960,42 @@ begin
   Result := True;
 end;
 
+function TSiteSlot.SendSSCNEnable: boolean;
+begin
+  Result := False;
+  if not SSCNEnabled then
+  begin
+    if not Send('SSCN ON') then
+      exit;
+    if not Read('SSCN ON') then
+      exit;
+
+    SSCNEnabled := True;
+  end;
+  Result := True;
+end;
+
+function TSiteSlot.SendSSCNDisable: boolean;
+begin
+  Result := False;
+  if SSCNEnabled then
+  begin
+    if not Send('SSCN OFF') then
+      exit;
+    if not Read('SSCN OFF') then
+      exit;
+
+    SSCNEnabled := False;
+  end;
+  Result := True;
+end;
+
 procedure TSiteSlot.ProcessFeat;
+var
+  sFeatures: TArray<String>;
+  feature: TSiteFeature;
+  features: TSiteFeatures;
+  sf, sfloop: string;
 begin
   {
   * GLFTPD *
@@ -1006,25 +1087,42 @@ begin
      EPSV
     211 END
   }
-  if (0 < Pos('PRET', lastResponse)) then
+  features := [];
+  sFeatures := lastResponse.Split([#10]);
+
+  for sfloop in sFeatures do
+  begin
+    sf := sfloop.Trim();
+    if sf.IndexOf(' ') > -1 then
+      sf := sf.Split([' '])[0];
+    feature := FeatResponseToFeature('sf' + sf);
+    if feature <> sfUnknown then
+    begin
+      features := features + [feature];
+    end;
+  end;
+
+  site.features := features;
+
+  if (sfPRET in features) then
   begin
     if site.sw <> sswDrftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswDrftpd));
+      site.sw := sswDrftpd;
   end
-  else if ( (0 < Pos('UTF8', lastResponse)) and (0 < Pos('MFMT', lastResponse)) ) then
+  else if (sfUTF8 in features) and (sfMFMT in features) then
   begin
     if site.sw <> sswRaidenftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswRaidenftpd));
+      site.sw := sswRaidenftpd;
   end
-  else if (0 < Pos('Command not understood', lastResponse)) or (0 < Pos('TVFS', lastResponse)) or (0 < Pos('XCRC', lastResponse)) then
+  else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
   begin
     if site.sw <> sswIoftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswIoftpd));
+      site.sw := sswIoftpd;
   end
-  else if (0 < Pos('CPSV', lastResponse)) then
+  else if (sfCPSV in features) then
   begin
     if site.sw <> sswGlftpd then
-      sitesdat.WriteInteger('site-' + site.Name, 'sw', integer(sswGlftpd));
+      site.sw := sswGlftpd;
   end;
 end;
 
@@ -1208,7 +1306,8 @@ begin
   if not Read('TYPE I') then
     exit;
 
-  if (TSiteSw(RCInteger('sw', 0)) = sswUnknown) then
+  // check FEAT when site comes up or we dont know the site software
+  if ((site.sw = sswUnknown) or (not site.IsUp)) then
   begin
     if not Send('FEAT') then
       exit;
@@ -1229,7 +1328,7 @@ begin
       exit;
   end;
 
-  if (TSiteSw(RCInteger('sw', 0)) = sswDrftpd) then
+  if (site.sw = sswDrftpd) then
   begin
     if (not Send('CLNT %s', [GetFullVersionString])) then
       exit;
@@ -1572,7 +1671,7 @@ begin
   if ((lastResponseCode >= 1000) or (lastResponseCode < 100)) then // auto read more
     goto ujra;
 
-  lastio := Now();
+  LastIO := Now();
 
   Result := True;
 end;
@@ -1591,7 +1690,7 @@ begin
       exit;
     end;
 
-    lastio := Now();
+    LastIO := Now();
     Result := True;
   except
     on e: Exception do
@@ -2064,6 +2163,7 @@ begin
   // nullazni a felfedezendo beallitasokat
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   working := sstUnknown;
+  features := [];
 
   // rakjuk rendbe a direket
   if ((RCString('predir', '') <> '') and (sectiondir['PRE'] = '')) then

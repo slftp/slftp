@@ -1214,7 +1214,7 @@ begin
       goto TryAgain;
   end;
 
-  if (ssrc.site.sw = sswDrftpd) then
+  if (ssrc.site.sw = sswDrftpd) or (sfPRET in ssrc.site.features) then
   begin
     if not ssrc.Send('PRET RETR %s', [ssrc.TranslateFilename(filename)]) then
       goto TryAgain;
@@ -1222,15 +1222,23 @@ begin
       goto TryAgain;
   end;
 
-  if (RequireSSL) then
+  (* we prefer CPSV over SSCN because it takes care of the encrypted connection
+     in one command instead of two *)
+  if (RequireSSL) and (sfCPSV in ssrc.site.features) then
   begin
-    // https://www.flashfxp.com/forum/flashfxp/general-discussion/13218-cpsv-vs-sscn.html
-    // maybe use SSCN instead of CPSV + fallback if SSCN isn't supported (e.g. ioftpd)
     if not ssrc.Send('CPSV') then
       goto TryAgain;
   end
   else
   begin
+    if (sfSSCN in ssrc.site.features) then
+    begin
+      if (RequireSSL) and (not ssrc.SendSSCNEnable()) then
+        goto TryAgain;
+      if (not RequireSSL) and (not ssrc.SendSSCNDisable()) then
+	goto TryAgain;
+    end;
+
     if not ssrc.Send('PASV') then
       goto TryAgain;
   end;
