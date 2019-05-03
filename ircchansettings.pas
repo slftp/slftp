@@ -50,11 +50,17 @@ type
 procedure IrcChannelSettingsInit;
 { Just a helper function to free @link(TIrcChanSettingsList) }
 procedure IrcChannelSettingsUninit;
-{ Find object with IRC Channel Stuff for Netname-Channel combination
+{ Find object with IRC Channel Stuff for Netname-Channel combination, does not suppress logging of 'No IrcChannelInfos found'
   @param(aNetname irc network name)
   @param(aChannel irc channel name)
   @returns(Corresponding object for Channel@Netname if existing, else @nil) }
-function FindIrcChannelSettings(const aNetname, aChannel: String): TIrcChannelSettings;
+function FindIrcChannelSettings(const aNetname, aChannel: String): TIrcChannelSettings; overload;
+{ Find object with IRC Channel Stuff for Netname-Channel combination
+  @param(aNetname irc network name)
+  @param(aChannel irc channel name)
+  @param(aSuppressDebugEntry Set it to @true if you want to suppress 'No IrcChannelInfos found' logging, otherwise use @false)
+  @returns(Corresponding object for Channel@Netname if existing, else @nil) }
+function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebugEntry: Boolean): TIrcChannelSettings; overload;
 { Creates a new object for IRC Channel Stuff for Netname-Channel combination if not existing
   @param(aNetname irc network name)
   @param(aChannel irc channel name)
@@ -132,6 +138,11 @@ begin
 end;
 
 function FindIrcChannelSettings(const aNetname, aChannel: String): TIrcChannelSettings;
+begin
+  Result := FindIrcChannelSettings(aNetname, aChannel, False);
+end;
+
+function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebugEntry: Boolean): TIrcChannelSettings;
 var
   fChanSettingsObj: TIrcChannelSettings;
 begin
@@ -141,8 +152,12 @@ begin
   end
   else
   begin
-    // note: its intended that it shows up once on startup because IrcStart calls RegisterChannelSettings to check if IRC server isn't loaded already
-    Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly spelled', [aChannel, aNetname]));
+    if not aSuppressDebugEntry then
+    begin
+      // note: its intended that it shows up once on startup because IrcStart calls RegisterChannelSettings to check if IRC server isn't loaded already
+      Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly spelled', [aChannel, aNetname]));
+    end;
+
     Result := nil;
   end;
 end;
@@ -151,7 +166,7 @@ procedure RegisterChannelSettings(const aNetname, aChannel, aChanRoles, aBlowkey
 var
   fChanSettingsObj: TIrcChannelSettings;
 begin
-  fChanSettingsObj := FindIrcChannelSettings(aNetname, aChannel);
+  fChanSettingsObj := FindIrcChannelSettings(aNetname, aChannel, True);
   if fChanSettingsObj = nil then
   begin
     console_add_ircwindow(aNetname + ' ' + aChannel);
