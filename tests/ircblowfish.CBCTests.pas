@@ -12,6 +12,9 @@ uses
 
 type
   TTestIrcBlowkeyCBC = class(TTestIrcChannelSettingsSetup)
+  private
+    // copy of slftpUnitTestsSetupIndyOpenSSL unit because it cannot be called if not inherited from TTestIndyOpenSSL
+    procedure LoadIndyOpenSSL;
   published
     procedure TestEncryptMessage;
     procedure TestDecryptMessage;
@@ -20,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, ircchansettings, ircblowfish.CBC, IdSSLOpenSSL;
+  SysUtils, ircchansettings, ircblowfish.CBC, IdSSLOpenSSL, IdSSLOpenSSLHeaders;
 
 { TTestIrcBlowkeyCBC }
 
@@ -44,13 +47,33 @@ var
     (_dText:'Im a frénch gúy :]' ; _eText:'+OK */VOHZwapNbV7tMml1zf4TWSwxjG6VV6419VnVkRU3sM=')
   );
 
+procedure TTestIrcBlowkeyCBC.LoadIndyOpenSSL;
+begin
+  // Tell Indy OpenSSL to load libs from current dir
+  IdOpenSSLSetLibPath('.');
+
+  {$IFDEF UNIX}
+    // do not try to load sym links first
+    IdOpenSSLSetLoadSymLinksFirst(False);
+  {$ENDIF}
+
+  try
+    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + IdSSLOpenSSLHeaders.WhichFailedToLoad);
+  except
+    on e: Exception do
+    begin
+      {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
+    end;
+  end;
+end;
+
 procedure TTestIrcBlowkeyCBC.TestEncryptMessage;
 var
   fChanSettingsObj: TIrcChannelSettings;
   fInputStr, fResult: String;
   i: Integer;
 begin
-  CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary loaded');
+  LoadIndyOpenSSL;
 
   for fChanSettingsObj in IrcChanSettingsList.Values do
   begin
@@ -88,7 +111,7 @@ var
   fInputStr, fResult: String;
   i: Integer;
 begin
-  CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary loaded');
+  LoadIndyOpenSSL;
 
   for fChanSettingsObj in IrcChanSettingsList.Values do
   begin
