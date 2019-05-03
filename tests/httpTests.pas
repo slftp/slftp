@@ -13,9 +13,12 @@ uses
 type
   TTestHTTP = class(TTestIndyOpenSSL)
   published
-    procedure TestIMDB;
-    //procedure TestBOM;
-    //procedure TestMozilla;
+    procedure TestIMDBHTTP;
+    procedure TestIMDBHTTPS;
+    procedure TestBOMHTTP;
+    procedure TestBOMHTTPS;
+    procedure TestTVMAZEHTTP;
+    procedure TestTVMAZEHTTPS;
   end;
 
 implementation
@@ -25,7 +28,24 @@ uses
 
 { TTestHTTP }
 
-procedure TTestHTTP.TestIMDB;
+procedure TTestHTTP.TestIMDBHTTP;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fTryCount: Integer;
+begin
+  fURL := 'http://www.imdb.com/title/tt6966692/';
+  fTryCount := 1;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, fTryCount);
+
+  CheckTrue(Result, 'The HTTP fetch should work!');
+  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book (2018) - IMDb</title>'), 'HTML content should include title');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
+end;
+
+procedure TTestHTTP.TestIMDBHTTPS;
 var
   Result: Boolean;
   fURL, fHTML, fErrMsg: String;
@@ -39,6 +59,75 @@ begin
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book (2018) - IMDb</title>'), 'HTML content should include title');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
+end;
+
+procedure TTestHTTP.TestBOMHTTP;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fTryCount: Integer;
+begin
+  fURL := 'http://www.boxofficemojo.com/movies/?id=marvel2019.htm';
+  fTryCount := 1;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, fTryCount);
+
+  CheckTrue(Result, 'The HTTP fetch should work!');
+  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Avengers: Endgame (2019) - Box Office Mojo</title>'), 'HTML content should include title');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, 'Runtime: <b>3 hrs. 1 min.</b>'), 'HTML content should include Runtime (3hrs 1min)');
+end;
+
+procedure TTestHTTP.TestBOMHTTPS;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fTryCount: Integer;
+begin
+  fURL := 'https://www.boxofficemojo.com/movies/?id=marvel2019.htm';
+  fTryCount := 1;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, fTryCount);
+
+  CheckTrue(Result, 'The HTTP fetch should work!');
+  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Avengers: Endgame (2019) - Box Office Mojo</title>'), 'HTML content should include title');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, 'Runtime: <b>3 hrs. 1 min.</b>'), 'HTML content should include Runtime (3hrs 1min)');
+end;
+
+procedure TTestHTTP.TestTVMAZEHTTP;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fTryCount: Integer;
+begin
+  fURL := 'http://api.tvmaze.com/search/shows?q=Utopia';
+  fTryCount := 1;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, fTryCount);
+
+  CheckTrue(Result, 'The HTTP fetch should work!');
+  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
+end;
+
+procedure TTestHTTP.TestTVMAZEHTTPS;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fTryCount: Integer;
+begin
+  fURL := 'https://api.tvmaze.com/search/shows?q=Utopia';
+  fTryCount := 1;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, fTryCount);
+
+  CheckTrue(Result, 'The HTTP fetch should work!');
+  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
+  CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
 end;
 
 initialization
