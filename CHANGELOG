@@ -116,6 +116,7 @@
     {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
     {^} Less flickering of console window at startup on Windows platform
     {^} Send nfo for NFOFIX, SFVFIX, SAMPLEFIX, etc instead of creating only an empty dir
+    {^} more reliable maxidle interval handling
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
