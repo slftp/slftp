@@ -2120,25 +2120,26 @@ begin
       ss := TSiteSlot(s.slots[i]);
       if ((s.slots[i] = nil) or (ss = nil)) then
       begin
-        irc_addtext(Netname, Channel, sitename + '/' + IntToStr(i) + ': ERROR');
+        irc_addtext(Netname, Channel, Format('%s/%d : ERROR while getting infos', [sitename, i]));
       end
       else
       begin
         if ss.todotask = nil then
         begin
-          irc_addtext(Netname, Channel, ss.Name + ': NIL');
+          irc_addtext(Netname, Channel, Format('%s : no assigned task', [ss.Name]));
         end
         else
         begin
-          irc_addtext(Netname, Channel, ss.Name + ': ' + ss.todotask.Name +
-            ' - A:' + TimeToStr(ss.lastactivity) + ' I/O:' +
-            TimeToStr(ss.lastio));
+          irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
         end;
+
+        irc_addtext(Netname, Channel, Format('%s : Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
+            [ss.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
       end;
     except
       on E: Exception do
       begin
-        irc_addtext(Netname, Channel, sitename + '/' + IntToStr(i) + ': ERROR');
+        irc_addtext(Netname, Channel, Format('%s/%d : FATAL ERROR', [sitename, i]));
         Continue;
       end;
     end;

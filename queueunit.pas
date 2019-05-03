@@ -1477,11 +1477,11 @@ begin
             if ((s.todotask = nil) and (s.status = ssOnline)) then
             begin
               if ((s.site.markeddown) or ((s.site.maxidle <> 0) and
-                (MilliSecondsBetween(queue_last_run, s.lastactivity) >= s.site.maxidle * 1000))) then
+                (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000))) then
               begin
                 AddQuitTask(s);
               end
-              else if (MilliSecondsBetween(queue_last_run, s.lastio) > s.site.idleinterval * 1000) then
+              else if (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000) then
               begin
                 AddIdleTask(s);
               end;
