@@ -7,7 +7,7 @@ uses
   {$IFDEF FPC}
     TestFramework;
   {$ELSE}
-    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
   {$ENDIF}
 
 type
