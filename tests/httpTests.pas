@@ -8,7 +8,7 @@ uses
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility,
   {$ENDIF}
-  Base64OpenSSLTests;
+  slftpUnitTestsSetupIndyOpenSSL;
 
 type
   TTestHTTP = class(TTestIndyOpenSSL)
