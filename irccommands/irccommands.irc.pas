@@ -32,7 +32,7 @@ function IrcInviteMyIRCNICK(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, irc, sitesunit, ircblowfish, configunit, mainthread, mystrings, irccommandsunit;
+  SysUtils, Classes, StrUtils, irc, sitesunit, ircchansettings, ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit;
 
 const
   section = 'irccommands.irc';
@@ -61,11 +61,12 @@ begin
   blowchannel := SubString(params, ' ', 2);
   tosay := mystrings.RightStr(params, length(nn) + length(blowchannel) + 2);
 
-  if nil = FindIrcBlowfish(nn, blowchannel, False) then
+  if FindIrcChannelSettings(nn, blowchannel) = nil then
   begin
     irc_addtext(Netname, Channel, 'Cant find channel.');
     exit;
   end;
+
   irc_addtext(nn, blowchannel, tosay);
 
   Result := True;
@@ -354,7 +355,7 @@ var
   i, ii: integer;
   s: TSite;
   ircth: TMyIrcThread;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   x: TStringList;
   fParams: String;
 begin
@@ -377,7 +378,6 @@ begin
       end;
     end;
 
-    // most meg le kell wipeolnunk a siteokrol is ezt a networkot
     // now we have to wipe this network out of the sites
     try
       for i := 0 to sites.Count - 1 do
@@ -390,24 +390,18 @@ begin
       end;
     except
       on E: Exception do
-        irc_addtext(Netname, Channel, 'Erase <b>ircnet from sites</b> failed : %s',
-          [E.Message]);
+        irc_addtext(Netname, Channel, 'Erase <b>ircnet from sites</b> failed : %s',[E.Message]);
     end;
 
-    // most meg le kell torolnunk a chanjait
     // you need to delete your channel now
-    i := 0;
     try
-      while (i < chankeys.Count) do
+      for fChanSettings in IrcChanSettingsList.Values do
       begin
-        b := chankeys[i] as TIrcBlowkey;
-        if b.Netname = fParams then
+        if fChanSettings.Netname = fParams then
         begin
-          sitesdat.EraseSection('channel-' + b.Netname + '-' + b.Channel);
-          chankeys.Remove(b);
-          Dec(i);
+          sitesdat.EraseSection('channel-' + fChanSettings.Netname + '-' + fChanSettings.Channel);
+          IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
         end;
-        Inc(i);
       end;
     except
       on E: Exception do
@@ -692,26 +686,40 @@ end;
 function IrcChannels(const netname, channel, params: String): boolean;
 var
   i: integer;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   nn: String;
+  fMode: String;
+  fBlowkey: String;
 begin
-  nn := UpperCase(trim(params));
-  for i := 0 to chankeys.Count - 1 do
+  nn := UpperCase(Trim(params));
+
+  for fChanSettings in IrcChanSettingsList.Values do
   begin
-    b := chankeys[i] as TIrcBlowkey;
-    if ((nn = '') or (nn = b.Netname)) then
+    if (fChanSettings.Netname = '') or (fChanSettings.Netname = nn) then
     begin
-      irc_addtext_b(Netname, Channel, format('%s@%s -> %s blowkey(%s) chankey(%s)',
-        [b.Channel, b.Netname, IfThen(b.cbc, 'CBC mode', 'ECB mode'), b.blowkey, b.chankey]));
+      if UpperCase(fChanSettings.ClassName) = UpperCase('TIrcBlowkeyCBC') then
+      begin
+        fMode := 'CBC mode';
+        fBlowkey := StringOf((fChanSettings as TIrcBlowkeyCBC).Blowkey);
+      end
+      else
+      begin
+        fMode := 'ECB mode';
+        fBlowkey := (fChanSettings as TIrcBlowkeyECB).Blowkey;
+      end;
+
+      irc_addtext_b(Netname, Channel, Format('%s@%s -> %s blowkey(%s) chankey(%s)',
+        [fChanSettings.Channel, fChanSettings.Netname, fMode, fBlowkey, fChanSettings.ChanKey]));
     end;
   end;
+
   Result := True;
 end;
 
 function IrcChanAdd(const netname, channel, params: String): boolean;
 var
   nn, blowchannel: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
 begin
   Result := False;
@@ -725,11 +733,11 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b = nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings = nil then
   begin
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'blowkey', '');
-    irc_RegisterChannel(nn, blowchannel, '');
+    RegisterChannelSettings(nn, blowchannel, '', '');
     ircth.shouldjoin := True;
   end
   else
@@ -741,7 +749,7 @@ end;
 function IrcDelchan(const netname, channel, params: String): boolean;
 var
   nn, blowchannel: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
 begin
   Result := False;
@@ -755,16 +763,16 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b <> nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings <> nil then
   begin
     ircth.chanpart(blowchannel, ircth.BotNick);
-    chankeys.Remove(b);
+    IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
     ircth.shouldjoin := True;
   end
   else
-    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found, spelled channel exactly?', [blowchannel, nn]));
 
   Result := True;
 end;
@@ -772,7 +780,7 @@ end;
 function IrcSetBlowkey(const netname, channel, params: String): boolean;
 var
   nn, blowchannel, key: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
   cbc: boolean;
 begin
@@ -796,10 +804,10 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b <> nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings <> nil then
   begin
-    b.UpdateKey(key, cbc);
+    fChanSettings.UpdateKey(key);
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'blowkey', key);
     sitesdat.WriteBool('channel-' + nn + '-' + blowchannel, 'cbc', cbc);
   end
@@ -812,7 +820,7 @@ end;
 function IrcSetChankey(const netname, channel, params: String): boolean;
 var
   nn, blowchannel, key: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
 begin
   Result := False;
@@ -827,10 +835,10 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b <> nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings <> nil then
   begin
-    b.chankey := key;
+    fChanSettings.ChanKey := key;
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'chankey', key);
     ircth.shouldjoin := True;
   end
@@ -843,7 +851,7 @@ end;
 function IrcSetChanName(const netname, channel, params: String): boolean;
 var
   nn, blowchannel, Names: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
   y: TStringList;
   i: integer;
@@ -874,23 +882,23 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b = nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings = nil then
   begin
-    irc_addtext(Netname, Channel, 'Cant find Channel %s', [blowchannel]);
+    irc_addtext_b(Netname, Channel, format('Channel %s@%s not found.', [blowchannel, nn]));
     exit;
   end;
 
   if Names = '' then
   begin
-    irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [trim(b.Names)]));
+    irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [fChanSettings.ChanRoles]));
     Result := True;
     exit;
   end;
 
   if Names = '-' then
   begin
-    b.Names := '';
+    fChanSettings.ChanRoles := '';
     sitesdat.DeleteKey('channel-' + nn + '-' + blowchannel, 'names');
     Result := True;
     exit;
@@ -909,26 +917,20 @@ begin
         exit;
       end;
 
-    b := FindIrcBlowfish(nn, blowchannel, False);
-    if b <> nil then
+    if Names = '' then
     begin
-      if Names = '' then
-      begin
-        irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [trim(b.Names)]));
-      end
-      else if Names = '-' then
-      begin
-        b.Names := '';
-        sitesdat.DeleteKey('channel-' + nn + '-' + blowchannel, 'names');
-      end
-      else
-      begin
-        b.Names := ' ' + Names + ' ';
-        sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'names', Names);
-      end;
+      irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [fChanSettings.ChanRoles]));
+    end
+    else if Names = '-' then
+    begin
+      fChanSettings.ChanRoles := '';
+      sitesdat.DeleteKey('channel-' + nn + '-' + blowchannel, 'names');
     end
     else
-      irc_addtext_b(Netname, Channel, format('Channel %s@%s not found.', [blowchannel, nn]));
+    begin
+      fChanSettings.ChanRoles := Names;
+      sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'names', Names);
+    end;
   finally
     y.Free;
   end;
@@ -939,7 +941,7 @@ end;
 function IrcDelPart(const netname, channel, params: String): boolean;
 var
   nn, blowchannel: String;
-  b: TIrcBlowkey;
+  fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
 begin
   Result := False;
@@ -953,11 +955,11 @@ begin
     exit;
   end;
 
-  b := FindIrcBlowfish(nn, blowchannel, False);
-  if b <> nil then
+  fChanSettings := FindIrcChannelSettings(nn, blowchannel);
+  if fChanSettings <> nil then
   begin
     ircth.chanpart(blowchannel, ircth.BotNick);
-    chankeys.Remove(b);
+    IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     ircth.shouldjoin := True;
   end
   else
