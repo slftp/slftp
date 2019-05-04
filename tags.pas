@@ -7,7 +7,7 @@ procedure TagsUninit;
 function TagComplete(const filename: String): Integer;
 { Searches for '% complete' in given @link(aFilename) and determines the percentage if found
   @param(aFilename complete dir/file)
-  @returns(1 if it's done (-> 100%), otherwise -1.) }
+  @returns(0 if '% complete' not found, 1 if it's done (100%), otherwise -1.) }
 function CheckStandardPercentDir(const aFilename: String): Integer;
 
 implementation
