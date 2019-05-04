@@ -52,7 +52,7 @@ var
 implementation
 
 uses
-  ident, tasksunit, dirlist, ircblowfish, sltcp, slssl, kb, fake, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  ident, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
@@ -113,8 +113,7 @@ begin
 
 
   // Tell Indy OpenSSL to load libs from current dir
-  //IdOpenSSLSetLibPath('.');
-  // note for Indy 5457: "Failed to load ./libcrypto.so."
+  IdOpenSSLSetLibPath('.');
 
   {$IFDEF UNIX}
     // do not try to load sym links first
@@ -122,13 +121,12 @@ begin
   {$ENDIF}
 
   try
-    IdSSLOpenSSL.LoadOpenSSLLibrary;
-  except
-    on e: EIdOSSLCouldNotLoadSSLLibrary do
+    if not IdSSLOpenSSL.LoadOpenSSLLibrary then
     begin
-      Result := Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
+  except
     on e: Exception do
     begin
       Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
@@ -253,7 +251,7 @@ begin
   KnowngroupsInit;
   MidnightInit;
   IrcInit;
-  IrcblowfishInit;
+  IrcChannelSettingsInit;
   NotifyInit;
   PazoInit;
   PrebotInit;
@@ -501,7 +499,7 @@ begin
   Precatcher_UnInit;
   PrebotUnInit;
   NotifyUnInit;
-  IrcblowfishUnInit;
+  IrcChannelSettingsUninit;
   IrcUnInit;
   FakesUnInit;
   kb_UnInit;

@@ -1,19 +1,14 @@
-unit Base64OpenSSLTests;
+﻿unit Base64OpenSSLTests;
 
 interface
 
 uses
-  TestFramework;
-
-type
-  // base class which should be used whenever the Indy OpenSSL is needed
-  TTestIndyOpenSSL = class(TTestCase)
-  protected
-    procedure SetUpOnce; override;
-    procedure TeardownOnce; override;
-  published
-    procedure OpenSSLVersion;
-  end;
+  slftpUnitTestsSetupIndyOpenSSL,
+  {$IFDEF FPC}
+    TestFramework;
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
+  {$ENDIF}
 
 type
   TTestBase64OpenSSL = class(TTestIndyOpenSSL)
@@ -37,60 +32,13 @@ type
 implementation
 
 uses
-  SysUtils, IdSSLOpenSSL, IdSSLOpenSSLHeaders, Base64OpenSSL;
-
-{ TTestIndyOpenSSL }
-
-procedure TTestIndyOpenSSL.SetUpOnce;
-begin
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
-
-  try
-    CheckTrue(IdSSLOpenSSLHeaders.Load, 'IdSSLOpenSSLHeaders loaded');
-  except
-    on e: EIdOSSLCouldNotLoadSSLLibrary do
-    begin
-      Fail(Format('Failed to load OpenSSL: %s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]));
-    end;
-    on e: Exception do
-    begin
-      Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
-    end;
-  end;
-end;
-
-procedure TTestIndyOpenSSL.TeardownOnce;
-begin
-  try
-    IdSSLOpenSSLHeaders.Unload;
-  except
-    on e: Exception do
-    begin
-      Fail(Format('Failed to unload OpenSSL: %s %s', [sLineBreak, e.Message]));
-    end;
-  end;
-end;
-
-procedure TTestIndyOpenSSL.OpenSSLVersion;
-var
-  fExpectedResultStr, fShortVersion: String;
-  {$I slftp.inc}
-begin
-  fExpectedResultStr := IdSSLOpenSSL.OpenSSLVersion; // e.g. OpenSSL 1.0.2n  7 Dec 2017
-  fShortVersion := Copy(fExpectedResultStr, 9, 5);
-  CheckEqualsString(lib_OpenSSL, fShortVersion, 'OpenSSL version is wrong');
-  SetLength(fExpectedResultStr, 13);
-  CheckEqualsString('OpenSSL ' + lib_OpenSSL, fExpectedResultStr, 'OpenSSL version string is wrong');
-end;
+  SysUtils, Base64OpenSSL;
 
 { TTestBase64OpenSSL }
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode1;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'Hello';
@@ -103,7 +51,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode2;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'This is just an example test!!';
@@ -116,7 +64,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode3;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '';
@@ -129,7 +77,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode4;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'To encode binaries (like images, documents, etc.) upload your data via the file encode form below.';
@@ -142,7 +90,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode5;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '192425';
@@ -155,7 +103,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLEncode6;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'En France, il y a au total 11 fêtes pendant l’année.';
@@ -168,7 +116,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode1;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'SGVsbG8=';
@@ -181,7 +129,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode2;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'V2UgdGVzdCBvdXIgZnVuY3Rpb25zIG5vdyEhITExMQ==';
@@ -194,7 +142,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode3;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := '';
@@ -207,7 +155,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode4;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'VG8gZW5jb2RlIGJpbmFyaWVzIChsaWtlIGltYWdlcywgZG9jdW1lbnRzLCBldGMuKSB1cGxvYWQgeW91ciBkYXRhIHZpYSB0aGUgZmlsZSBlbmNvZGUgZm9ybSBiZWxvdy4=';
@@ -220,7 +168,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode5;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'MTkyNDI1';
@@ -233,7 +181,7 @@ end;
 
 procedure TTestBase64OpenSSL.Base64OpenSSLDecode6;
 var
-  fInputStr, fOutputStr, fExpectedResultStr: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF};
+  fInputStr, fOutputStr, fExpectedResultStr: String;
   fLength: integer;
 begin
   fInputStr := 'RW4gRnJhbmNlLCBpbCB5IGEgYXUgdG90YWwgMTEgZsOqdGVzIHBlbmRhbnQgbOKAmWFubsOpZS4=';
@@ -246,5 +194,9 @@ begin
 end;
 
 initialization
-  RegisterTest('Base64 OpenSSL', TTestBase64OpenSSL.Suite);
+  {$IFDEF FPC}
+    RegisterTest('Base64 OpenSSL', TTestBase64OpenSSL.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestBase64OpenSSL);
+  {$ENDIF}
 end.

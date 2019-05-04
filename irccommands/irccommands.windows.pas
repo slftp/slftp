@@ -12,7 +12,7 @@ function IrcRepaint(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, console, irc, ircblowfish, mystrings;
+  SysUtils, Classes, console, irc, ircchansettings, mystrings;
 
 const
   section = 'irccommands.windows';
@@ -63,7 +63,8 @@ begin
   nn := UpperCase(SubString(params, ' ', 1));
   ch := SubString(params, ' ', 2);
   th := FindIrcnetwork(nn);
-  if ((nil = FindIrcBlowfish(nn, ch, False)) or (th = nil)) then
+
+  if ((FindIrcChannelSettings(nn, ch) = nil) or (th = nil)) then
   begin
     irc_addtext(Netname, Channel, 'Channel %s@%s not found.', [ch, nn]);
     exit;

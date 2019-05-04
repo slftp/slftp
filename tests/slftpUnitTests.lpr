@@ -12,7 +12,7 @@ program slftpUnitTests;
   {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
 {$endif}
 
-{$IF Defined(TextRunner)}
+{$IFDEF TextRunner}
   {$IFDEF WINDOWS}
     {$APPTYPE CONSOLE}
   {$ENDIF}
@@ -37,11 +37,19 @@ uses
     GUITestRunner,
   {$ENDIF}
   Classes, SysUtils,
+  slftpUnitTestsSetup,
   // add all test units below
   Base64OpenSSLTests,
-  mystringsTests;
+  mystringsTests,
+  httpTests,
+  ircblowfish.ECBTests,
+  ircblowfish.CBCTests;
 
 begin
+  {* setup needed internal variables, etc *}
+  InitialConfigSetup;
+  InitialDebugSetup;
+
   // run all registered tests
 {$IFDEF TextRunner}
   // halt on error, means exit code <> 0

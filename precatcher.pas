@@ -67,7 +67,7 @@ var
 implementation
 
 uses
-  SysUtils, sitesunit, Dateutils, kb, irc, ircblowfish, queueunit, mystrings,
+  SysUtils, sitesunit, Dateutils, kb, irc, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
   console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;

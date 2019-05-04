@@ -1073,12 +1073,10 @@ end;
 {$ENDIF}
 
 
-
-
-
-
-initialization
-  slConsoleInit;
-finalization
-  slConsoleUninit;
+{$IFNDEF UNITTESTING}
+  initialization
+    slConsoleInit;
+  finalization
+    slConsoleUninit;
+{$ENDIF}
 end.

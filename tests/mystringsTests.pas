@@ -3,7 +3,11 @@ unit mystringsTests;
 interface
 
 uses
-  TestFramework;
+  {$IFDEF FPC}
+    TestFramework;
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+  {$ENDIF}
 
 type
   TTestMyStrings = class(TTestCase)
@@ -62,5 +66,9 @@ begin
 end;
 
 initialization
-  RegisterTest('mystrings', TTestMyStrings.Suite);
+  {$IFDEF FPC}
+    RegisterTest('mystrings', TTestMyStrings.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestMyStrings);
+  {$ENDIF}
 end.
