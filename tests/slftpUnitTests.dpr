@@ -36,7 +36,8 @@ uses
   mystringsTests,
   httpTests,
   ircblowfish.ECBTests,
-  ircblowfish.CBCTests;
+  ircblowfish.CBCTests,
+  tagsTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

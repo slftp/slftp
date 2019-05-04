@@ -43,7 +43,8 @@ uses
   mystringsTests,
   httpTests,
   ircblowfish.ECBTests,
-  ircblowfish.CBCTests;
+  ircblowfish.CBCTests,
+  tagsTests;
 
 begin
   {* setup needed internal variables, etc *}
