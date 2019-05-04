@@ -118,35 +118,17 @@ begin
         end;
       end;
 
-      // TODO: Remove when new FPC is released and we're on unicode
-      // TODO: maybe it's smarter to always assign openssl handler if a redirection occur, not only for given input https url
-      {$IFDEF FPC}
-        if AnsiStartsText('https', fEncodedUrl) then
-      {$ELSE}
-         if StartsText('https', fEncodedUrl) then
-      {$ENDIF}
-      begin
-        fIdSSLIOHandlerSocketOpenSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+      // secure connection setup
+      fIdSSLIOHandlerSocketOpenSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+      // negotiate highest possible SSL version between client and server
+      fIdSSLIOHandlerSocketOpenSSL.SSLOptions.SSLVersions := [sslvSSLv23];
 
-        // set socks5 proxy if configured to use one
-        if fIdSocksInfo <> nil then
-        begin
-          fIdSSLIOHandlerSocketOpenSSL.TransparentProxy := fIdSocksInfo;
-        end;
-
-        // tell fIdHTTP that we want to use secure connection
-        fIdHTTP.IOHandler := fIdSSLIOHandlerSocketOpenSSL;
-      end
-      else
+      // set socks5 proxy if configured to use one
+      if fIdSocksInfo <> nil then
       begin
-        if fIdSocksInfo <> nil then
-        begin
-          fIdIOHandlerStack := TIdIOHandlerStack.Create(nil);
-          fIdIOHandlerStack.TransparentProxy := fIdSocksInfo;
-          // tell fIdHTTP that we want to use a socks5
-          fIdHTTP.IOHandler := fIdIOHandlerStack;
-        end;
+        fIdSSLIOHandlerSocketOpenSSL.TransparentProxy := fIdSocksInfo;
       end;
+      fIdHTTP.IOHandler := fIdSSLIOHandlerSocketOpenSSL;
 
       TryAgain:
       Inc(fNumErrors);
