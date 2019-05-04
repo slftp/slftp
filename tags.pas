@@ -5,7 +5,10 @@ interface
 procedure TagsInit;
 procedure TagsUninit;
 function TagComplete(const filename: String): Integer;
-function CheckStandardPercentDir(const filename: String): Integer;
+{ Searches for '% complete' in given @link(aFilename) and determines the percentage if found
+  @param(aFilename complete dir/file)
+  @returns(1 if it's done (-> 100%), otherwise -1.) }
+function CheckStandardPercentDir(const aFilename: String): Integer;
 
 implementation
 
@@ -70,34 +73,38 @@ begin
 
 end;
 
-function CheckStandardPercentDir(const filename: String): Integer;
+function CheckStandardPercentDir(const aFilename: String): Integer;
 var
   i, j: Integer;
-  voltszam: Boolean;
+  fFoundNumber: Boolean;
 begin
   Result := 0;
 
-  i := Pos(UpperCase('% complete'), UpperCase(filename));
+  i := Pos(UpperCase('% complete'), UpperCase(aFilename));
   if i > 4 then
   begin
-    voltszam := False;
+    fFoundNumber := False;
     for j := 1 to 4 do
-      if ((not voltszam) and (filename[i-j] = ' ')) then
+    begin
+      if ((not fFoundNumber) and (aFilename[i-j] = ' ')) then
         Continue
       else
       begin
-        voltszam := True;
-        if (filename[i-j] < '0') or (filename[i-j] > '9') then
+        fFoundNumber := True;
+        if (aFilename[i-j] < '0') or (aFilename[i-j] > '9') then
         begin
-          i := StrToIntDef(Trim(Copy(filename, i-j+1, j-1)), -1);
+          i := StrToIntDef(Trim(Copy(aFilename, i-j+1, j-1)), -1);
           break;
         end;
       end;
+    end;
+
     if i = 100 then
     begin
       Result := 1;
       exit;
-    end else
+    end
+    else
     begin
       Result := -1;
       exit;
