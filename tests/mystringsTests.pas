@@ -12,9 +12,11 @@ uses
 type
   TTestMyStrings = class(TTestCase)
   published
+    procedure TestMyIncludeTrailingSlash;
     procedure TestIsALetter;
     procedure TestIsANumber;
     procedure TestOccurrencesOfNumbers;
+    procedure TestDatumIdentifierReplace;
   end;
 
 implementation
@@ -23,6 +25,13 @@ uses
   SysUtils, mystrings;
 
 { TTestMyStrings }
+
+procedure TTestMyStrings.TestMyIncludeTrailingSlash;
+begin
+  CheckEquals('/', MyIncludeTrailingSlash(''), 'Empty dir should give /');
+  CheckEquals('/inc/apps/', MyIncludeTrailingSlash('/inc/apps'), '/inc/apps -> /inc/apps/');
+  CheckEquals('/inc/apps/', MyIncludeTrailingSlash('/inc/apps/'), '/inc/apps/ -> /inc/apps/');
+end;
 
 procedure TTestMyStrings.TestIsALetter;
 begin
@@ -63,6 +72,21 @@ begin
   CheckEquals(7, OccurrencesOfNumbers('Take.It.or.Leave.It.2018.DVDRip.x264-EMX'), 'Should have 7 numbers');
   CheckEquals(0, OccurrencesOfNumbers('WavSupply.Nick.Mira.Forge.WAV-MASCHiNE'), 'Should have 0 numbers');
   CheckEquals(1, OccurrencesOfNumbers('This is a sentence with 2 questionmarks??'), 'Should have 2 numbers');
+end;
+
+procedure TTestMyStrings.TestDatumIdentifierReplace;
+var
+  fDateTime: TDateTime;
+begin
+  fDateTime := EncodeDate(2019, 4, 13); // 13/4/2019
+  CheckEquals('/inc/mp3/2019/04/13/', DatumIdentifierReplace('/inc/mp3/<yyyy>/<mm>/<dd>/', fDateTime));
+  CheckEquals('/inc/mp3/19/04/13/', DatumIdentifierReplace('/inc/mp3/<yy>/<mm>/<dd>/', fDateTime));
+  CheckEquals('/inc/mvid/2019/15/', DatumIdentifierReplace('/inc/mvid/<yyyy>/<ww>/', fDateTime));
+
+  fDateTime := EncodeDate(2017, 1, 2); // 2/1/2017
+  CheckEquals('/inc/mp3/2017/01/02/', DatumIdentifierReplace('/inc/mp3/<yyyy>/<mm>/<dd>/', fDateTime));
+  CheckEquals('/inc/mp3/17/01/02/', DatumIdentifierReplace('/inc/mp3/<yy>/<mm>/<dd>/', fDateTime));
+  CheckEquals('/inc/mvid/17/01/', DatumIdentifierReplace('/inc/mvid/<yy>/<ww>/', fDateTime));
 end;
 
 initialization
