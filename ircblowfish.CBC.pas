@@ -125,7 +125,7 @@ begin
 
   if FBlowkeyLength = 0 then
   begin
-    Debug(dpError, section, 'Empty CBC blowkey does not make sense!');
+    Debug(dpError, section, Format('Empty CBC blowkey for %s-%s does not make sense!', [Netname, Channel]));
     exit;
   end;
 
