@@ -1259,11 +1259,15 @@ begin
         irc_Addadmin('INVITE on ' + netname + ' to ' + chan + ' by ' + Copy(SubString(SubString(s, ' ', 1), '!', 1), 2, 100));
 
         fChanSettings := FindIrcChannelSettings(netname, chan);
-        // oke, ha hivtak hat belepunk
-        if not WriteLn(Trim('JOIN ' + fChanSettings.Channel + ' ' + fChanSettings.ChanKey)) then
+        // sitebot could invite you to a chan you don't want to join
+        if (fChanSettings <> nil) then
         begin
-          Result := True;
-          exit;
+          // okay, if you call me, let's get in there
+          if not WriteLn(Trim('JOIN ' + fChanSettings.Channel + ' ' + fChanSettings.ChanKey)) then
+          begin
+            Result := True;
+            exit;
+          end;
         end;
       end;
     end;
@@ -1340,12 +1344,11 @@ begin
           crypted := True;
           try
             if config.ReadBool(section, 'echo_topic_change_events', False) then
-              //irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
-              irc_Addadmin(Format('[CBC encrypted Topic] %s : %s', [chan, msg]));
+              irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] in irc_cbc_decrypt for Topic: %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] CBC decrypt for Topic: %s', [e.Message]));
             end;
           end;
         end;
@@ -1358,7 +1361,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt for Topic: %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] ECB decrypt for Topic: %s', [e.Message]));
             end;
           end;
         end;
@@ -1371,7 +1374,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] in irc_ecb_decrypt for Topic: %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] ECB (mcps) decrypt for Topic: %s', [e.Message]));
             end;
           end;
         end;

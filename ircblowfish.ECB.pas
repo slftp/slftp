@@ -209,7 +209,7 @@ begin
   end
   else
   begin
-    Debug(dpError, section, 'Empty ECB blowkey does not make sense!');
+    Debug(dpError, section, Format('Empty ECB blowkey for %s-%s does not make sense!', [Netname, Channel]));
     exit;
   end;
 end;
