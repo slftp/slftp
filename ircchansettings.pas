@@ -154,7 +154,7 @@ begin
   begin
     if not aSuppressDebugEntry then
     begin
-      Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly spelled', [aChannel, aNetname]));
+      Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly cased/spelled', [aChannel, aNetname]));
     end;
 
     Result := nil;
