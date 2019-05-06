@@ -687,25 +687,28 @@ function IrcChannels(const netname, channel, params: String): boolean;
 var
   i: integer;
   fChanSettings: TIrcChannelSettings;
-  nn: String;
-  fMode: String;
-  fBlowkey: String;
+  fNetworkName, fMode, fBlowkey: String;
 begin
-  nn := UpperCase(Trim(params));
+  fNetworkName := UpperCase(Trim(params));
 
   for fChanSettings in IrcChanSettingsList.Values do
   begin
-    if (fChanSettings.Netname = '') or (fChanSettings.Netname = nn) then
+    if (fNetworkName = '') or (fNetworkName = fChanSettings.Netname) then
     begin
       if UpperCase(fChanSettings.ClassName) = UpperCase('TIrcBlowkeyCBC') then
       begin
         fMode := 'CBC mode';
         fBlowkey := StringOf((fChanSettings as TIrcBlowkeyCBC).Blowkey);
       end
-      else
+      else if UpperCase(fChanSettings.ClassName) = UpperCase('TIrcBlowkeyECB') then
       begin
         fMode := 'ECB mode';
         fBlowkey := (fChanSettings as TIrcBlowkeyECB).Blowkey;
+      end
+      else
+      begin
+        fMode := 'plaintext mode';
+        fBlowkey := '';
       end;
 
       irc_addtext_b(Netname, Channel, Format('%s@%s -> %s blowkey(%s) chankey(%s)',
