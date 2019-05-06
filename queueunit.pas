@@ -1296,21 +1296,10 @@ begin
             Continue;
 
           try
-            if (t.readydel) then
+            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
             begin
-              ss := t.uidtext;
-              TaskReady(t);
-
-              if (t.ClassType = TPazoRaceTask) then
-              begin
-                with TPazoRaceTask(t) do
-                  if (dst <> nil) then
-                    dst.event.SetEvent;
-              end;
-              RemoveActiveTransfer(t);
-              RemoveDependencies(t);
-              tasks.Remove(t);
-              Console_QueueDel(ss);
+              t.readydel   := True;
+              t.readydelat := Now();
             end;
           except
             on e: Exception do
@@ -1338,7 +1327,6 @@ begin
               Break;
             end;
           end;
-
           try
             t := TTask(tasks.items[i]);
           except
@@ -1353,10 +1341,23 @@ begin
             Continue;
 
           try
-            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
+            if (t.readydel) then
             begin
-              t.readydel   := True;
-              t.readydelat := Now();
+              ss := t.uidtext;
+              TaskReady(t);
+
+              if (t.ClassType = TPazoRaceTask) then
+              begin
+                with TPazoRaceTask(t) do
+                  if (dst <> nil) then
+                  begin
+                    dst.event.SetEvent;
+                  end;
+              end;
+              RemoveActiveTransfer(t);
+              RemoveDependencies(t);
+              tasks.Remove(t);
+              Console_QueueDel(ss);
             end;
           except
             on e: Exception do
