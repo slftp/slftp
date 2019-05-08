@@ -78,7 +78,7 @@ var
 implementation
 
 uses
-  SysUtils, console, debugunit, ircblowfish.ECB, ircblowfish.CBC;
+  SysUtils, StrUtils, console, debugunit, ircblowfish.ECB, ircblowfish.CBC, ircblowfish.plaintext;
 
 const
   section = 'ircchansettings';
@@ -145,19 +145,32 @@ end;
 function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebugEntry: Boolean): TIrcChannelSettings;
 var
   fChanSettingsObj: TIrcChannelSettings;
+  fItem: TPair<string, TIrcChannelSettings>;
 begin
+  Result := nil;
+
   if IrcChanSettingsList.TryGetValue(aNetname + aChannel, fChanSettingsObj) then
   begin
+    // fast case sensitive approach via hash code
     Result := fChanSettingsObj;
+    exit;
   end
   else
   begin
-    if not aSuppressDebugEntry then
+    // slower fallback case insensitive approach
+    for fItem in IrcChanSettingsList do
     begin
-      Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly cased/spelled', [aChannel, aNetname]));
+      if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fItem.Key, aNetname + aChannel) then
+      begin
+        Result := fItem.Value;
+        exit;
+      end;
     end;
+  end;
 
-    Result := nil;
+  if not aSuppressDebugEntry then
+  begin
+    Debug(dpError, section, Format('No IrcChannelInfos found for chan %s on net %s - check if its correctly cased/spelled', [aChannel, aNetname]));
   end;
 end;
 
@@ -170,10 +183,17 @@ begin
   begin
     console_add_ircwindow(aNetname + ' ' + aChannel);
 
-    if aIsCBCEncrypted then
-      fChanSettingsObj := TIrcBlowkeyCBC.Create(aNetname, aChannel, aChanRoles, aBlowkey, aChankey, aInviteOnly)
+    if aBlowkey = '' then
+    begin
+      fChanSettingsObj := TIrcBlowkeyPlaintext.Create(aNetname, aChannel, aChanRoles, aBlowkey, aChankey, aInviteOnly);
+    end
     else
-      fChanSettingsObj := TIrcBlowkeyECB.Create(aNetname, aChannel, aChanRoles, aBlowkey, aChankey, aInviteOnly);
+    begin
+      if aIsCBCEncrypted then
+        fChanSettingsObj := TIrcBlowkeyCBC.Create(aNetname, aChannel, aChanRoles, aBlowkey, aChankey, aInviteOnly)
+      else
+        fChanSettingsObj := TIrcBlowkeyECB.Create(aNetname, aChannel, aChanRoles, aBlowkey, aChankey, aInviteOnly);
+    end;
 
     try
       IrcChanSettingsList.Add(aNetname + aChannel, fChanSettingsObj);
