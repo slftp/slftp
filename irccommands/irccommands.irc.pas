@@ -782,10 +782,10 @@ end;
 
 function IrcSetBlowkey(const netname, channel, params: String): boolean;
 var
-  nn, blowchannel, key: String;
+  nn, blowchannel, key, fChankey, fBlowkey, fChanroles, fChannel, fNetname: String;
   fChanSettings: TIrcChannelSettings;
   ircth: TMyIrcThread;
-  cbc: boolean;
+  cbc, fInviteonly: boolean;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
@@ -810,9 +810,22 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
-    fChanSettings.UpdateKey(key);
-    sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'blowkey', key);
-    sitesdat.WriteBool('channel-' + nn + '-' + blowchannel, 'cbc', cbc);
+    fNetname := fChanSettings.Netname;
+    fChannel := fChanSettings.Channel;
+
+    sitesdat.WriteString('channel-' + fNetname + '-' + fChannel, 'blowkey', key);
+    sitesdat.WriteBool('channel-' + fNetname + '-' + fChannel, 'cbc', cbc);
+
+    // remove entry from list to create proper blowfish class
+    IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
+
+    fChanroles := sitesdat.ReadString('channel-' + fNetname + '-' + fChannel, 'names', '');
+    fBlowkey := sitesdat.ReadString('channel-' + fNetname + '-' + fChannel, 'blowkey', '');
+    fChankey := sitesdat.ReadString('channel-' + fNetname + '-' + fChannel, 'chankey', '');
+    fInviteonly := sitesdat.ReadBool('channel-' + fNetname + '-' + fChannel, 'inviteonly', False);
+    cbc := sitesdat.ReadBool('channel-' + fNetname + '-' + fChannel, 'cbc', False);
+
+    RegisterChannelSettings(fNetname, fChannel, fChanroles, fBlowkey, fChankey, fInviteonly, cbc);
   end
   else
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found', [blowchannel, nn]));
