@@ -41,7 +41,11 @@ begin
   RegisterChannelSettings('LinkNET', '#testsl', 'ADMIN', 'asdf1234', '', True, True);
   RegisterChannelSettings('efNET', '#sltesting', 'STATS INFO', 'graycodefishing', 'moresecure', False, True);
 
-  CheckEquals(4, IrcChanSettingsList.Count, 'Should have 4 chan settings');
+  { PlainText channels }
+  RegisterChannelSettings('LINKnet', '#insecure', 'ADMIN', '', '', True, False);
+  RegisterChannelSettings('EfNet', '#plainy', 'STATS INFO', '', 'moresecure', False, False);
+
+  CheckEquals(6, IrcChanSettingsList.Count, 'Should have 6 chan settings');
 end;
 
 procedure TTestIrcChannelSettingsSetup.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
