@@ -44,7 +44,8 @@ uses
   httpTests,
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
-  tagsTests;
+  tagsTests,
+  ircblowfish.plaintextTests;
 
 begin
   {* setup needed internal variables, etc *}
