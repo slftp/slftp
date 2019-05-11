@@ -167,6 +167,7 @@ end;
 
 function IrcSetSocks5(const netname, channel, params: String): boolean;
 var
+  i: integer;
   vname, vvalue, vtrigger: String;
   virc: TMyIrcThread;
   vsite: TSite;
@@ -194,20 +195,7 @@ begin
 
   if vtrigger = 'SITE' then
   begin
-    vsite := FindSiteByName('', vname);
-    if vsite = nil then
-    begin
-      irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Site with name %s!', [vname]);
-      exit;
-    end;
-
-    if vvalue = '-1' then
-    begin
-      vsite.ProxyName := '!!NOIN!!'; //means Proxy usage removed
-      Result := True;
-      exit;
-    end
-    else
+    if vvalue <> '-1' then
     begin
       vsocks := FindProxyByName(vvalue);
       if vsocks = nil then
@@ -215,7 +203,35 @@ begin
         irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Proxy with name %s!', [vvalue]);
         exit;
       end;
-      vsite.ProxyName := vvalue;
+    end;
+
+    if vname = '*' then
+    begin
+      for i := 0 to sites.Count - 1 do
+      begin
+        vsite := TSite(sites.Items[i]);
+        if vvalue = '-1' then
+          vsite.ProxyName := '!!NOIN!!' //means Proxy usage removed
+        else
+          vsite.ProxyName := vvalue;
+      end;
+    end
+    else
+    begin
+      vsite := FindSiteByName('', vname);
+      if vsite = nil then
+      begin
+        irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: Cant find Site with name %s!', [vname]);
+        exit;
+      end;
+      if vvalue = '-1' then
+      begin
+        vsite.ProxyName := '!!NOIN!!'; //means Proxy usage removed
+      end
+      else
+      begin
+        vsite.ProxyName := vvalue;
+      end;
     end;
   end
   else if vtrigger = 'IRC' then
@@ -230,8 +246,6 @@ begin
     if vvalue = '-1' then
     begin
       virc.ProxyName := '!!NOIN!!'; //means Proxy usage removed
-      Result := True;
-      exit;
     end
     else
     begin
