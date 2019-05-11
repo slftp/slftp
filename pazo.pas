@@ -442,7 +442,7 @@ var
   dde: TDirListEntry;
   s: TSite;
   fd: String;
-
+  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
 begin
   Result := False;
   dst := nil;
@@ -587,46 +587,48 @@ begin
         // destination dir is not complete
         if not dstdl.complete then
         begin
+          fExtensionMatchSFV := LowerCase(de.Extension) = '.sfv';
+          fExtensionMatchNFO := LowerCase(de.Extension) = '.nfo';
           // skip nfo and sfv if already there
-          if ((dstdl.hassfv) and (AnsiLowerCase(de.Extension) = '.sfv')) then
+          if ((dstdl.hassfv) and (fExtensionMatchSFV)) then
             Continue;
-          if ((dstdl.hasnfo) and (AnsiLowerCase(de.Extension) = '.nfo')) then
+          if ((dstdl.hasnfo) and (fExtensionMatchNFO)) then
             Continue;
-
-          // Set file type for subdirs
-          if (dstdl.parent <> nil) then
-            if de.DirType in [IsSample] then
-              pr.IsSample := True
-            else if de.DirType in [IsProof] then
-              pr.IsProof := True
-            else if de.DirType in [IsCovers] then
-              pr.IsCovers := True
-            else if de.DirType in [IsSubs] then
-              pr.IsSubs := True;
-
-          // sfv not found so we won't race this file yet
-          if ((dstdl.sfv_status = dlSFVNotFound) and (AnsiLowerCase(de.Extension) <> '.sfv') and (AnsiLowerCase(de.Extension) <> '.nfo')) then
-          begin
-            // Sample, Proof, Covers don't usually contain nfo/sfv so we'll race those regardless
-            if not (pr.IsSample or pr.IsProof or pr.IsCovers) then
-            begin
-              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [fd, Name, dst.Name, dst.Name]);
-              Continue;
-	    end;
-          end;
 
           // Check if we already have traded this same file more than we want
-          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'max_same_trade', 100))) then Continue;
+          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'max_same_trade', 100))) then
+            Continue;
 
           // Create the race task
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
           pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
 
+          // Set file type for subdirs
+          if (dstdl.parent <> nil) then
+            case de.DirType of
+              IsSample: pr.IsSample := True;
+              IsProof: pr.IsProof := True;
+              IsCovers: pr.IsCovers := True;
+              IsSubs: pr.IsSubs := True;
+            end;
+
           // Set file type
-          if (AnsiLowerCase(de.Extension) = '.sfv') then
+          if (fExtensionMatchSFV) then
             pr.IsSfv := True;
-          if (AnsiLowerCase(de.Extension) = '.nfo') then
+          if (fExtensionMatchNFO) then
             pr.IsNfo := True;
+
+          // sfv not found so we won't race this file yet
+          if ((dstdl.sfv_status = dlSFVNotFound) and (not pr.IsNfo) and (not pr.IsSfv)) then
+          begin
+            // Sample, Proof, Covers don't usually contain nfo/sfv so we'll race those regardless
+            if not (pr.IsSample or pr.IsProof or pr.IsCovers) then
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [fd, Name, dst.Name, dst.Name]);
+              FreeAndNil(pr);
+              Continue;
+            end;
+          end;
 
           // Delay leech stuff
           if ((delay_leech > 0) or (dst.delay_upload > 0)) then
