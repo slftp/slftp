@@ -872,6 +872,18 @@ begin
             de.subdirlist := TDirlist.Create(site_name, de, skiplist, isSpeedTest, isFromIrc);
             if de.subdirlist <> nil then
               de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
+          end
+          else
+          begin
+            (*
+              Pass information about DirType of the parent directory on to child elements
+              so we can use it and evaluate it in e.g. the queue to determine their
+              priority when trading/sorting the queue
+            *)
+            if (parent <> nil) then
+            begin
+              de.DirType := parent.DirType;
+            end;
           end;
 
           if (self.date_started = 0) then
