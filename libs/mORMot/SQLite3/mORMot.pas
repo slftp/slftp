@@ -39,6 +39,7 @@ unit mORMot;
     Goran Despalatovic (gigo)
     Jordi Tudela
     Jean-Baptiste Roussia (jbroussia)
+    Lagodny
     Maciej Izak (hnb)
     Martin Suer
     Michalis Kamburelis
@@ -91,9 +92,9 @@ unit mORMot;
       the UNICODE conditional will adapt the framework to these compilers
       (you shouldn't have to change any conditional define below)
     - attempt to reach Free Pascal Compiler 2.4.0 compatibility
-    - all asm code equivalence in pure pascal code for 64 bits compatibility
+    - all asm code equivalence in pure pascal code for 64-bit compatibility
       (always slower, but always portable to all CPUs)
-    - use of PtrUInt / PtrInt for 64 bits compatibility
+    - use of PtrUInt / PtrInt for 64-bit compatibility
     - in case of FPC, the typinfo.pp unit is used: so all published properties
       in any TSQLRecord descendant must have a setter (i.e. a "write fValue"
       statement); the FPC's RTTI is not the same as Delphi's: it's a shame :(
@@ -391,7 +392,7 @@ unit mORMot;
     - fixed issue in produced JSON stream using '=' instead of ':'
 
   Version 1.15
-    - unit now tested with Delphi XE2 (32 Bit)
+    - unit now tested with Delphi XE2 (32-bit)
     - new sftModTime / TModTime published field type in TSQLRecord, which will
       be set to the current server time stamp before update/adding
     - new sftCreateTime / TCreateTime published field type in TSQLRecord, which
@@ -1294,7 +1295,7 @@ uses
   Classes,
   SynZip, // use crc32 for TSQLRestClientURI.SetUser
 {$ifdef USETYPEINFO}
-  // some pure pascal version must handle the 64-bits ordinal values or
+  // some pure pascal version must handle the 64-bit ordinal values or
   // a not-Delphi RTTI layout of the underlying compiler (e.g. FPC)
   TypInfo,
   {$ifdef FPC}
@@ -1361,7 +1362,7 @@ type
   /// this is the type to be used for our ORM primary key, i.e. TSQLRecord.ID
   // - it maps the SQLite3 RowID definition
   // - when converted to plain TSQLRecord published properties, you may loose
-  // some information under Win32 when stored as a 32 bit pointer
+  // some information under Win32 when stored as a 32-bit pointer
   // - could be defined as value in a TSQLRecord property as such:
   // ! property AnotherRecord: TID read fAnotherRecord write fAnotherRecord;
   TID = type Int64;
@@ -1571,7 +1572,7 @@ type
   // pure AJAX application should fill such fields explicitely before sending)
   // - sftTID is an INTEGER field containing a TID pointing to another record;
   // since regular TSQLRecord published properties (i.e. sftID kind of field)
-  // can not be greater than 2,147,483,647 (i.e. a signed 32 bit value) under
+  // can not be greater than 2,147,483,647 (i.e. a signed 32-bit value) under
   // Win32, defining TID published properties will allow to store the ID
   // as signed 64-bit, e.g. up to 9,223,372,036,854,775,808; despite to
   // sftID kind of record, coherency is NOT ensured: after a deletion, all
@@ -2001,7 +2002,7 @@ type
     /// number of fields decoded in FieldNames[] and FieldValues[]
     FieldCount: integer;
     /// set to TRUE if parameters are to be :(...): inlined
-    InlinedParams: boolean;
+    InlinedParams: TJSONObjectDecoderParams;
     /// internal pointer over field names to be used after Decode() call
     // - either FieldNames, either Fields[] array as defined in Decode()
     DecodedFieldNames: PRawUTF8Array;
@@ -2062,12 +2063,12 @@ type
     function FindFieldName(const FieldName: RawUTF8): integer;
   end;
 
-/// set the TID (=64 bits integer) value from the numerical text stored in P^
+/// set the TID (=64-bit integer) value from the numerical text stored in P^
 // - just a redirection to SynCommons.SetInt64()
 procedure SetID(P: PUTF8Char; var result: TID); overload;
   {$ifdef HASINLINENOTX86}inline;{$endif}
 
-/// set the TID (=64 bits integer) value from the numerical text stored in U
+/// set the TID (=64-bit integer) value from the numerical text stored in U
 // - just a redirection to SynCommons.SetInt64()
 procedure SetID(const U: RawByteString; var result: TID); overload;
   {$ifdef HASINLINENOTX86}inline;{$endif}
@@ -2550,7 +2551,8 @@ const
 type
   /// specify ordinal (tkInteger and tkEnumeration) storage size and sign
   // - note: Int64 is stored as its own TTypeKind, not as tkInteger
-  TOrdType = (otSByte, otUByte, otSWord, otUWord, otSLong, otULong);
+  TOrdType = (otSByte, otUByte, otSWord, otUWord, otSLong, otULong
+    {$ifdef FPC_NEWRTTI},otSQWord,otUQWord{$endif});
 
   /// specify floating point (ftFloat) storage size and precision
   // - here ftDouble is renamed ftDoub to avoid confusion with TSQLDBFieldType
@@ -2658,7 +2660,7 @@ type
     inner:
     {$ifndef FPC_REQUIRES_PROPER_ALIGNMENT}
     packed
-    {$endif FPC_ENUMHASINNER}
+    {$endif FPC_REQUIRES_PROPER_ALIGNMENT}
     record
     {$endif}
     {$ifdef FPC_ENUMHASINNER}
@@ -2800,7 +2802,7 @@ type
     record
     {$ifdef FPC_NEWRTTI}
     RecInitInfo: Pointer;
-    {$endif}
+    {$endif FPC_NEWRTTI}
     Size: cardinal;
     Count: integer;
     Fields: array[word] of TRecordField;
@@ -2842,6 +2844,8 @@ type
     function ClassFieldCount(onlyWithoutGetter: boolean): integer;
     /// for ordinal types, get the storage size and sign
     function OrdType: TOrdType; {$ifdef HASINLINE}inline;{$endif}
+    /// return TRUE if the property is an unsigned 64-bit field
+    function IsQWord: boolean; {$ifdef HASINLINE}inline;{$endif}
     /// for set types, get the type information of the corresponding enumeration
     function SetEnumType: PEnumType;
     /// for gloating point types, get the storage size and procision
@@ -3113,16 +3117,16 @@ type
     // - you can create a new item instance just by calling result^.CreateNew
     function DynArrayIsObjArrayInstance: PClassInstance;
       {$ifdef HASINLINE}inline;{$endif}
-    /// return TRUE if the the property has no getter but direct field read
+    /// return TRUE if the property has no getter but direct field read
     function GetterIsField: boolean;
       {$ifdef HASINLINE}inline;{$endif}
-    /// return TRUE if the the property has no setter but direct field write
+    /// return TRUE if the property has no setter but direct field write
     function SetterIsField: boolean;
       {$ifdef HASINLINE}inline;{$endif}
-    /// return TRUE if the the property has a write setter or direct field
+    /// return TRUE if the property has a write setter or direct field
     function WriteIsDefined: boolean;
       {$ifdef HASINLINE}inline;{$endif}
-    /// return TRUE if the the property has a read or write setter or direct field
+    /// return TRUE if the property has a read or write setter or direct field
     // - may be used e.g. to avoid EPropertyError when calling FPC typinfo
     function WriteIsPossible: boolean;
     /// returns the low-level field read address, if GetterIsField is TRUE
@@ -3169,10 +3173,8 @@ type
   // - Win64 has one unique calling convention
   TCallingConvention = (
     ccRegister, ccCdecl, ccPascal, ccStdCall, ccSafeCall
-    {$ifdef FPC},
-    ccCppdecl, ccFar16,
-    ccOldFPCCall, ccInternProc, ccSysCall, ccSoftFloat, ccMWPascal
-    {$endif});
+    {$ifdef FPC}, ccCppdecl, ccFar16, ccOldFPCCall, ccInternProc,
+    ccSysCall, ccSoftFloat, ccMWPascal{$endif FPC});
 
   /// the available kind of method parameters
   TParamFlag = (pfVar, pfConst, pfArray, pfAddress, pfReference, pfOut
@@ -3180,7 +3182,7 @@ type
     ,pfConstRef
     {$ifdef FPC_NEWRTTI}
     ,pfHidden,pfHigh,pfSelf,pfVmt,pfResult
-    {$endif}
+    {$endif FPC_NEWRTTI}
     {$else}
     ,pfResult
     {$endif});
@@ -3428,7 +3430,7 @@ type
     // - this method should match the case-sensitivity of GetHash()
     // - this default implementation will call GetValueVar() for slow comparison
     function CompareValue(Item1,Item2: TObject; CaseInsensitive: boolean): PtrInt; virtual;
-    /// retrieve an unsigned 32 bit hash of the corresponding property
+    /// retrieve an unsigned 32-bit hash of the corresponding property
     // - not all kind of properties are handled: only main types
     // - if CaseInsensitive is TRUE, will apply NormToUpper[] 8 bits uppercase,
     // handling RawUTF8 properties just like the SYSTEMNOCASE collation
@@ -3566,8 +3568,11 @@ type
   /// information about an ordinal Int64 published property
   TSQLPropInfoRTTIInt64 = class(TSQLPropInfoRTTI)
   protected
+    fIsQWord: boolean;
     procedure CopySameClassProp(Source: TObject; DestInfo: TSQLPropInfo; Dest: TObject); override;
   public
+    constructor Create(aPropInfo: PPropInfo; aPropIndex: integer;
+      aSQLFieldType: TSQLFieldType; aOptions: TSQLPropInfoListOptions); override;
     procedure SetValue(Instance: TObject; Value: PUTF8Char; wasString: boolean); override;
     procedure GetValueVar(Instance: TObject; ToSQL: boolean;
       var result: RawUTF8; wasSQLString: PBoolean); override;
@@ -4639,6 +4644,8 @@ type
     function LoadFromFile(const aFileName: TFileName): boolean; virtual;
     /// persist the settings as a JSON file, named from LoadFromFile() parameter
     procedure SaveIfNeeded; virtual;
+    /// optional persistence file name, as set by LoadFromFile()
+    property FileName: TFileName read fFileName;
   end;
 
   /// used by TRawUTF8ObjectCacheList to manage a list of information cache
@@ -4861,7 +4868,7 @@ var
 /// convert any HTTP_* constant to an integer error code and its English text
 // - see @http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
 // - will call StatusCodeToErrorMessage()
-function StatusCodeToErrorMsg(Code: integer): RawUTF8;
+function StatusCodeToErrorMsg(Code: integer): shortstring;
 
 /// returns true for successful HTTP status codes, i.e. in 200..399 range
 // - will map mainly SUCCESS (200), CREATED (201), NOCONTENT (204),
@@ -5403,7 +5410,7 @@ type
       /// one associated model
       Model: TSQLModel;
       /// the index in the Model.Tables[] array
-      TableIndex: integer;
+      TableIndex: PtrInt;
       /// associated ORM parameters
       Properties: TSQLModelRecordProperties;
     end;
@@ -6869,7 +6876,8 @@ type
   // TSQLAuthGroup.InitializeTable to fill the TSQLAuthGroup and TSQLAuthUser
   // tables with default records
   // - itoNoCreateMissingField will avoid to create the missing fields on a table
-  // - itoNoIndex4ID won't create the index for the main ID field
+  // - itoNoIndex4ID won't create the index for the main ID field (do nothing
+  // on SQLite3, by design - but may be used for tables on external databases)
   // - itoNoIndex4UniqueField won't create indexes for "stored AS_UNIQUE" fields
   // - itoNoIndex4NestedRecord won't create indexes for TSQLRecord fields
   // - itoNoIndex4RecordReference won't create indexes for TRecordReference fields
@@ -8165,13 +8173,13 @@ type
     // ! Detail := TSQLRecordDetail.Create;
     // ! Detail.Main := Main.AsTSQLRecord; // will store Main.ID in MAIN column
     // ! Client.Add(Detail);
-    // - is especially useful on 64-bit plaform, since on 32 bit:
+    // - is especially useful on 64-bit plaform, since on 32-bit:
     // ! Detail.Main := pointer(Main.ID)
     // compiles (whereas it won't on 64-bit) and is the same than platform-independent
     // ! Detail.Main := Main.AsTSQLRecord;
     // - using Main.AsTSQLRecord will ensure that the ID is retrieved, even
     // if Main itself is not a true instance
-    // - if the stored ID is bigger than 32 bits, then it will raise an
+    // - if the stored ID is bigger than 32-bit, then it will raise an
     // EORMException: in this case, you should use a TID / T*ID kind of
     // published property, and not a TSQLRecord, which is limited to the
     // pointer size
@@ -8208,6 +8216,7 @@ type
 
   /// root class for defining and mapping database records with case-insensitive
   // NOCASE collation
+  // - abstract ancestor, from which you may inherit your own ORM classes
   // - by default, any sftUTF8Text field (RawUTF8, UnicodeString, WideString
   // properties) will use our Unicode SYSTEMNOCASE SQLite3 collation, which calls
   // UTF8ILComp() to handle most western languages, but is not standard
@@ -8225,6 +8234,7 @@ type
 
   /// root class for defining and mapping database records with case-sensitive
   // BINARY collation
+  // - abstract ancestor, from which you may inherit your own ORM classes
   // - by default, any sftUTF8Text field (RawUTF8, UnicodeString, WideString
   // properties) will use our Unicode SYSTEMNOCASE SQLite3 collation, which calls
   // UTF8ILComp() to handle most western languages, but is not standard
@@ -8241,6 +8251,7 @@ type
   end;
 
   /// database records with NOCASE collation and JSON_OPTIONS_FAST_EXTENDED variants
+  // - abstract ancestor, from which you may inherit your own ORM classes
   TSQLRecordNoCaseExtended = class(TSQLRecordNoCase)
   protected
     /// will call Props.SetVariantFieldsDocVariantOptions(JSON_OPTIONS_FAST_EXTENDED);
@@ -8248,10 +8259,21 @@ type
   end;
 
   /// database records with BINARY collation and JSON_OPTIONS_FAST_EXTENDED variants
+  // - abstract ancestor, from which you may inherit your own ORM classes
   TSQLRecordCaseSensitiveExtended = class(TSQLRecordCaseSensitive)
   protected
     /// will call Props.SetVariantFieldsDocVariantOptions(JSON_OPTIONS_FAST_EXTENDED);
     class procedure InternalDefineModel(Props: TSQLRecordProperties); override;
+  end;
+
+  /// database records with NOCASE collation and JSON_OPTIONS_FAST_EXTENDED
+  // variants, and itoNoIndex4TID option to avoid indexes on TID/T*ID properties
+  // - abstract ancestor, from which you may inherit your own ORM classes
+  TSQLRecordNoCaseExtendedNoID = class(TSQLRecordNoCaseExtended)
+  public
+    /// overriden method forcing no index creation on TID/T*ID properties
+    class procedure InitializeTable(Server: TSQLRestServer; const FieldName: RawUTF8;
+      Options: TSQLInitializeTableOptions); override;
   end;
 
   /// allow on-the-fly translation of a TSQLTable grid value
@@ -8624,9 +8646,10 @@ type
     /// get the Field indexes of several Field names
     // - could be used to speed-up field access in a TSQLTable loop, avoiding
     // a FieldIndex(aFieldName) lookup for each value
-    // - return -1 in FieldIndexes[]^ if not found, index (0..FieldCount-1) if found
-    procedure FieldIndex(const FieldNames: array of RawUTF8;
-      const FieldIndexes: array of PInteger); overload;
+    // - returns the number of matching Field names
+    // - set -1 in FieldIndexes[]^ if not found, index (0..FieldCount-1) if found
+    function FieldIndex(const FieldNames: array of RawUTF8;
+      const FieldIndexes: array of PInteger): integer; overload;
     /// get the Field indexes of several Field names
     // - raise an ESQLTableException if not found
     // - set FieldIndexes[]^ to the index (0..FieldCount-1) if found
@@ -10787,7 +10810,8 @@ type
   // Information (e.g. a bank card number or a plain password), which type has
   // been previously registered via TInterfaceFactory.RegisterUnsafeSPIType
   // so that low-level logging won't include such values
-  TServiceMethodValueAsm = set of (vIsString, vPassedByReference, vIsObjArray, vIsSPI);
+  // - vIsQword is set for ValueType=smvInt64 over a QWord unsigned 64-bit value
+  TServiceMethodValueAsm = set of (vIsString, vPassedByReference, vIsObjArray, vIsSPI, vIsQword);
 
   /// describe a service provider method argument
   {$ifdef UNICODE}TServiceMethodArgument = record{$else}TServiceMethodArgument = object{$endif}
@@ -10819,9 +10843,9 @@ type
     RegisterIdent: integer;
     /// used to specify if a floating-point argument is passed as register
     // - contains always 0 for x86/x87
-    // - contains 1 for XMM0, 2 for XMM1 ... 4 for XMM3 for x64
-    // - contains 1 for D0, 2 D1 ... 8 for D7 for armhf
-    // - contains 1 for V0, 2 V1 ... 8 for V7 for aarch64
+    // - contains 1 for XMM0, 2 for XMM1, ..., 4 for XMM3 for x64
+    // - contains 1 for D0, 2 for D1, ..., 8 for D7 for armhf
+    // - contains 1 for V0, 2 for V1, ..., 8 for V7 for aarch64
     FPRegisterIdent: integer;
     /// size (in bytes) of this argument on the stack
     SizeInStack: integer;
@@ -15587,22 +15611,22 @@ type
   TSQLRestServerURIPagingParameters = record
     /// parameter name used to specify the request sort order
     // - default value is 'SORT='
-    Sort: PAnsiChar;
+    Sort: RawUTF8;
     /// parameter name used to specify the request sort direction
     // - default value is 'DIR='
-    Dir: PAnsiChar;
+    Dir: RawUTF8;
     /// parameter name used to specify the request starting offset
     // - default value is 'STARTINDEX='
-    StartIndex: PAnsiChar;
+    StartIndex: RawUTF8;
     /// parameter name used to specify the request the page size (LIMIT clause)
     // - default value is 'RESULTS='
-    Results: PAnsiChar;
+    Results: RawUTF8;
     /// parameter name used to specify the request field names
     // - default value is 'SELECT='
-    Select: PAnsiChar;
+    Select: RawUTF8;
     /// parameter name used to specify the request WHERE clause
     // - default value is 'WHERE='
-    Where: PAnsiChar;
+    Where: RawUTF8;
     /// returned JSON field value of optional total row counts
     // - default value is nil, i.e. no total row counts field
     // - computing total row counts can be very expensive, depending on the
@@ -17201,11 +17225,11 @@ type
     /// search for Ctxt.Session ID and fill Ctxt.Session* members if found
     // - returns nil if not found, or fill aContext.User/Group values if matchs
     // - this method will also check for outdated sessions, and delete them
-    // - this method is not thread-safe: caller should use fSessions.Lock
+    // - this method is not thread-safe: caller should use Sessions.Lock/Unlock
     function SessionAccess(Ctxt: TSQLRestServerURIContext): TAuthSession;
-    /// delete a session from its index in fSessions[]
+    /// delete a session from its index in Sessions[]
     // - will perform any needed clean-up, and log the event
-    // - this method is not thread-safe: caller should use fSessions.Lock
+    // - this method is not thread-safe: caller should use Sessions.Lock/Unlock
     procedure SessionDelete(aSessionIndex: integer; Ctxt: TSQLRestServerURIContext);
     /// returns TRUE if this table is worth caching (e.g. already in memory)
     // - this overridden implementation returns FALSE for TSQLRestStorageInMemory
@@ -17809,8 +17833,8 @@ type
     // - returns nil if the session does not exist (e.g. if authentication is
     // disabled)
     // - caller MUST release the TSQLAuthUser instance returned (if not nil)
-    // - this method IS thread-safe, and call internaly fSessions.Lock
-    // (the returned TSQLAuthUser is a private copy from fSessions[].User instance,
+    // - this method IS thread-safe, and calls internaly Sessions.Lock
+    // (the returned TSQLAuthUser is a private copy from Sessions[].User instance,
     // in order to be really thread-safe)
     // - the returned TSQLAuthUser instance will have GroupRights=nil but will
     // have ID, LogonName, DisplayName, PasswordHashHexa and Data fields available
@@ -17819,7 +17843,7 @@ type
     // - you should not call this method it directly, but rather use Shutdown()
     // with a StateFileName parameter - to be used e.g. for a short maintainance
     // server shutdown, without loosing the current logged user sessions
-    // - this method IS thread-safe, and call internaly fSessions.Lock
+    // - this method IS thread-safe, and call internaly Sessions.Lock
     procedure SessionsSaveToFile(const aFileName: TFileName);
     /// re-create all in-memory sessions from a compressed binary file
     // - typical use is after a server restart, with the file supplied to the
@@ -17828,7 +17852,7 @@ type
     // - WARNING: this method will restore authentication sessions for the ORM,
     // but not any complex state information used by interface-based services,
     // like sicClientDriven class instances - DO NOT use this feature with SOA
-    // - this method IS thread-safe, and call internaly fSessions.Lock
+    // - this method IS thread-safe, and call internaly Sessions.Lock
     procedure SessionsLoadFromFile(const aFileName: TFileName;
       andDeleteExistingFileAfterRead: boolean);
     /// retrieve all current session information as a JSON array
@@ -17925,6 +17949,9 @@ type
     // - is a wrapper around the Stats() method-based service
     function StatsAsDocVariant(Flags: TSQLRestServerAddStats=[withTables..withSessions]): variant;
 
+    /// read-only access to the internal list of sessions
+    // - ensure you protect its access calling Sessions.Lock/Sessions.Unlock
+    property Sessions: TObjectListLocked read fSessions;
     /// read-only access to the list of registered server-side authentication
     // methods, used for session creation
     // - note that the exact number or registered services in this list is
@@ -20660,6 +20687,10 @@ var
   AuthUserDefaultPassword: RawUTF8 = DEFAULT_HASH_SYNOPSE;
 
 const
+  {$ifndef DOMAINAUTH} // fallback is no SSPI library was made available
+  TSQLRestServerAuthenticationSSPI = nil;
+  {$endif DOMAINAUTH}
+
   /// timer identifier which indicates we must refresh the current Page
   // - used for User Interface generation
   // - is associated with the TSQLRibbonTabParameters.AutoRefresh property,
@@ -20936,7 +20967,7 @@ end;
 
 function TSQLRecordDynArrayCompare(const Item1,Item2): integer;
  begin // we assume Item1<>nil and Item2<>nil
-   result := SortDynArrayInt64(TSQLRecord(Item1).fID,TSQLRecord(Item2).fID);
+   result := CompareInt64(TSQLRecord(Item1).fID,TSQLRecord(Item2).fID);
  end;
 
 {$ifdef HASDIRECTTYPEINFO}
@@ -22308,11 +22339,17 @@ end;
 
 { TSQLPropInfoRTTIInt64 }
 
+constructor TSQLPropInfoRTTIInt64.Create(aPropInfo: PPropInfo; aPropIndex: integer;
+  aSQLFieldType: TSQLFieldType; aOptions: TSQLPropInfoListOptions);
+begin
+  inherited Create(aPropInfo,aPropIndex,aSQLFieldType,aOptions);
+  fIsQWord := fPropType^.IsQword;
+end;
+
 procedure TSQLPropInfoRTTIInt64.CopySameClassProp(Source: TObject; DestInfo: TSQLPropInfo;
   Dest: TObject);
 begin
-  TSQLPropInfoRTTIInt64(DestInfo).fPropInfo.SetInt64Prop(Dest,
-    fPropInfo.GetInt64Prop(Source));
+  TSQLPropInfoRTTIInt64(DestInfo).fPropInfo.SetInt64Prop(Dest,fPropInfo.GetInt64Prop(Source));
 end;
 
 procedure TSQLPropInfoRTTIInt64.GetBinary(Instance: TObject;
@@ -22324,41 +22361,58 @@ begin
 end;
 
 function TSQLPropInfoRTTIInt64.GetHash(Instance: TObject; CaseInsensitive: boolean): cardinal;
-var I64: Int64;
+var V64: TQWordRec;
 begin
   if fGetterIsFieldPropOffset<>0 then
-    I64 := PInt64(PtrUInt(Instance)+fGetterIsFieldPropOffset)^ else
-    I64 := fPropInfo.GetInt64Prop(Instance);
-  result := crc32c(0,@I64,SizeOf(I64)); // better hash distribution using crc32c
+    V64.V := PInt64(PtrUInt(Instance)+fGetterIsFieldPropOffset)^ else
+    V64.V := fPropInfo.GetInt64Prop(Instance);
+  result := crc32cBy4(V64.L,V64.H); // better hash distribution using crc32c
 end;
 
 procedure TSQLPropInfoRTTIInt64.GetJSONValues(Instance: TObject; W: TJSONSerializer);
+var V64: Int64;
 begin
   if fGetterIsFieldPropOffset<>0 then
-    W.Add(PInt64(PtrUInt(Instance)+fGetterIsFieldPropOffset)^) else
-    W.Add(fPropInfo.GetInt64Prop(Instance));
+    V64 := PInt64(PtrUInt(Instance)+fGetterIsFieldPropOffset)^ else
+    V64 := fPropInfo.GetInt64Prop(Instance);
+  if fIsQWord then
+    W.AddQ(V64) else
+    W.Add(V64);
 end;
 
 procedure TSQLPropInfoRTTIInt64.GetValueVar(Instance: TObject;
   ToSQL: boolean; var result: RawUTF8; wasSQLString: PBoolean);
+var V64: Int64;
 begin
   if wasSQLString<>nil then
     wasSQLString^ := false;
-  Int64ToUtf8(fPropInfo.GetInt64Prop(Instance),result);
+  if fGetterIsFieldPropOffset<>0 then
+    V64 := PInt64(PtrUInt(Instance)+fGetterIsFieldPropOffset)^ else
+    V64 := fPropInfo.GetInt64Prop(Instance);
+  if fIsQWord then
+    UInt64ToUtf8(V64,result) else
+    Int64ToUtf8(V64,result);
 end;
 
 procedure TSQLPropInfoRTTIInt64.NormalizeValue(var Value: RawUTF8);
 var err: integer;
-    VInt64: Int64;
+    V64: Int64;
 begin
-  VInt64 := GetInt64(pointer(Value),err);
-  if err<>0 then
-    Value := '' else
-    Int64ToUtf8(VInt64,Value);
+  if fIsQWord then begin
+    V64 := GetQWord(pointer(Value),err);
+    if err<>0 then
+      Value := '' else
+      UInt64ToUtf8(V64,Value);
+  end else begin
+    V64 := GetInt64(pointer(Value),err);
+    if err<>0 then
+      Value := '' else
+      Int64ToUtf8(V64,Value);
+  end;
 end;
 
 function TSQLPropInfoRTTIInt64.CompareValue(Item1, Item2: TObject; CaseInsensitive: boolean): PtrInt;
-var res64: Int64;
+var V1,V2: Int64;
 begin
   if Item1=Item2 then
     result := 0 else
@@ -22366,15 +22420,16 @@ begin
     result := -1 else
   if Item2=nil then
     result := 1 else begin
-    if fGetterIsFieldPropOffset<>0 then
-      res64 := PInt64(PtrUInt(Item1)+fGetterIsFieldPropOffset)^-
-        PInt64(PtrUInt(Item2)+fGetterIsFieldPropOffset)^ else
-      res64 := fPropinfo.GetInt64Prop(Item1)-fPropinfo.GetInt64Prop(Item2);
-    if res64>0 then
-      result := 1 else
-    if res64<0 then
-      result := -1 else
-      result := 0;
+    if fGetterIsFieldPropOffset<>0 then begin
+      V1 := PInt64(PtrUInt(Item1)+fGetterIsFieldPropOffset)^;
+      V2 := PInt64(PtrUInt(Item2)+fGetterIsFieldPropOffset)^;
+    end else begin
+      V1 := fPropinfo.GetInt64Prop(Item1);
+      V2 := fPropinfo.GetInt64Prop(Item2);
+    end;
+    if fIsQWord then
+      result := CompareQWord(V1,V2) else
+      result := CompareInt64(V1,V2);
   end;
 end;
 
@@ -22389,8 +22444,12 @@ end;
 
 procedure TSQLPropInfoRTTIInt64.SetValue(Instance: TObject; Value: PUTF8Char;
   wasString: boolean);
+var V64: Int64;
 begin
-  fPropInfo.SetInt64Prop(Instance,GetInt64(Value));
+  if fIsQWord then
+    SetQWord(Value,PQword(@V64)^) else
+    SetInt64(Value,V64);
+  fPropInfo.SetInt64Prop(Instance,V64);
 end;
 
 function TSQLPropInfoRTTIInt64.SetFieldSQLVar(Instance: TObject; const aValue: TSQLVar): boolean;
@@ -24213,7 +24272,7 @@ procedure TSQLPropInfoRecordFixedSize.CopySameClassProp(Source: TObject;
   DestInfo: TSQLPropInfo; Dest: TObject);
 begin
   if TSQLPropInfoRecordFixedSize(DestInfo).fTypeInfo=fTypeInfo then
-    MoveFast(GetFieldAddr(Source)^,
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(GetFieldAddr(Source)^,
       TSQLPropInfoRecordFixedSize(DestInfo).GetFieldAddr(Dest)^,fRecordSize) else
     inherited CopySameClassProp(Source,DestInfo,Dest);
 end;
@@ -24268,8 +24327,9 @@ procedure TSQLPropInfoRecordFixedSize.SetVariant(Instance: TObject;
   const Source: Variant);
 begin
   if TVarData(Source).VType=varString then
-    MoveFast(TVarData(Source).VAny^,GetFieldAddr(Instance)^,fRecordSize) else
-    FillcharFast(GetFieldAddr(Instance)^,fRecordSize,0);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(
+      TVarData(Source).VAny^,GetFieldAddr(Instance)^,fRecordSize) else
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(GetFieldAddr(Instance)^,fRecordSize,0);
 end;
 {$endif NOVARIANTS}
 
@@ -24302,8 +24362,8 @@ end;
 function TSQLPropInfoRecordFixedSize.SetBinary(Instance: TObject; P: PAnsiChar): PAnsiChar;
 begin
   if P=nil then
-    FillcharFast(GetFieldAddr(Instance)^,fRecordSize,0) else
-    MoveFast(P^,GetFieldAddr(Instance)^,fRecordSize);
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(GetFieldAddr(Instance)^,fRecordSize,0) else
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(P^,GetFieldAddr(Instance)^,fRecordSize);
   result := P+fRecordSize;
 end;
 
@@ -24314,8 +24374,8 @@ begin
   TextToBinary(Value,data);
   Value := pointer(data);
   if Value=nil then
-    FillcharFast(GetFieldAddr(Instance)^,fRecordSize,0) else
-    MoveFast(Value^,GetFieldAddr(Instance)^,fRecordSize);
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(GetFieldAddr(Instance)^,fRecordSize,0) else
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(Value^,GetFieldAddr(Instance)^,fRecordSize);
 end;
 
 function TSQLPropInfoRecordFixedSize.SetFieldSQLVar(Instance: TObject; const aValue: TSQLVar): boolean;
@@ -24323,7 +24383,7 @@ begin
   if aValue.VType=ftBlob then begin
     result := aValue.VBlobLen=fRecordSize;
     if result then
-      MoveFast(aValue.VBlob^,GetFieldAddr(Instance)^,fRecordSize)
+      {$ifdef FPC}Move{$else}MoveFast{$endif}(aValue.VBlob^,GetFieldAddr(Instance)^,fRecordSize)
   end else
     result := inherited SetFieldSQLVar(Instance,aValue);
 end;
@@ -24529,7 +24589,7 @@ begin
   // add to the internal list
   result := fCount;
   if result>=length(fList) then
-    SetLength(fList,result+result shr 3+32);
+    SetLength(fList,NextGrow(result));
   inc(fCount);
   fList[result] := aItem;
   fOrderedByName := nil; // force recompute sorted name array
@@ -24700,10 +24760,11 @@ begin // only basic verbs here -> SynCrtSock.StatusCodeToReason() used instead
   end;
 end;
 
-function StatusCodeToErrorMsg(Code: integer): RawUTF8;
+function StatusCodeToErrorMsg(Code: integer): shortstring;
+var msg: RawUTF8;
 begin
-  StatusCodeToErrorMessage(Code,result);
-  result := FormatUTF8('HTTP Error % - %',[Code,result]);
+  StatusCodeToErrorMessage(Code,msg);
+  FormatShort('HTTP Error % - %',[Code,msg],result);
 end;
 
 function StatusCodeIsSuccess(Code: integer): boolean;
@@ -25215,10 +25276,11 @@ begin
     raise ESQLTableException.CreateUTF8('%.FieldIndexExisting("%")',[self,FieldName]);
 end;
 
-procedure TSQLTable.FieldIndex(const FieldNames: array of RawUTF8;
-  const FieldIndexes: array of PInteger);
-var i: integer;
+function TSQLTable.FieldIndex(const FieldNames: array of RawUTF8;
+  const FieldIndexes: array of PInteger): integer;
+var i: PtrInt;
 begin
+  result := 0;
   if high(FieldNames)<0 then
     exit;
   if high(FieldNames)<>high(FieldIndexes) then
@@ -25226,13 +25288,16 @@ begin
   for i := 0 to high(FieldNames) do
     if FieldIndexes[i]=nil then
       raise ESQLTableException.CreateUTF8(
-        '%.FieldIndex() FieldIndexes["%"]=nil',[self,FieldNames[i]]) else
+        '%.FieldIndex() FieldIndexes["%"]=nil',[self,FieldNames[i]]) else begin
       FieldIndexes[i]^ := FieldIndex(pointer(FieldNames[i]));
+      if FieldIndexes[i]^>=0 then
+        inc(result);
+    end;
 end;
 
 procedure TSQLTable.FieldIndexExisting(const FieldNames: array of RawUTF8;
   const FieldIndexes: array of PInteger);
-var i: integer;
+var i: PtrInt;
 begin
   if high(FieldNames)<0 then
     exit;
@@ -25279,7 +25344,7 @@ begin
   R := @fResults[FieldCount];
   j := FieldCount;
   for i := 1 to fRowCount do begin
-    if GetBit(Bits,i-1) then begin
+    if GetBitPtr(@Bits,i-1) then begin
       if fIDColumn<>nil then
         fIDColumn[n] := oldIDColumn[i];
       MoveFast(oldResults[j],R^,FieldCount*SizeOf(PUTF8Char));
@@ -25292,7 +25357,7 @@ begin
   // put unmarked IDs
   j := FieldCount;
   for i := 1 to fRowCount do begin
-    if not GetBit(Bits,i-1) then begin
+    if not GetBitPtr(@Bits,i-1) then begin
       if fIDColumn<>nil then
         fIDColumn[n] := oldIDColumn[i];
       MoveFast(oldResults[j],R^,FieldCount*SizeOf(PUTF8Char));
@@ -25303,13 +25368,9 @@ begin
   end;
   assert(n-1=fRowCount);
   // recalcultate Bits[]
-  FillcharFast(Bits,(fRowCount shr 3)+1,0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Bits,(fRowCount shr 3)+1,0);
   for i := 0 to nSet-1 do
-    SetBit(Bits,i); // slow but accurate
-  {$ifdef FPC}
-  Finalize(oldIDColumn); // alf: to circumvent FPC issues
-  Finalize(oldResults);
-  {$endif}
+    SetBitPtr(@Bits,i); // slow but accurate
 end;
 
 function TSQLTable.IDColumnHide: boolean;
@@ -25379,14 +25440,14 @@ begin
   n := 0;
   if Assigned(fIDColumn) then begin
     for i := 1 to fRowCount do
-    if GetBit(Bits,i-1) then begin
+    if GetBitPtr(@Bits,i-1) then begin
       IDs[n] := GetInt64(fIDColumn[i]); // get hidden ID column UTF-8 content
       inc(n);
     end;
   end else begin
     inc(FID,FieldCount); // [i*FieldCount+FID] = [(i+1)*FieldCount+FID] below
     for i := 0 to fRowCount-1 do
-    if GetBit(Bits,i) then begin
+    if GetBitPtr(@Bits,i) then begin
       IDs[n] := GetInt64(fResults[i*FieldCount+FID]); // get ID column UTF-8 content
       inc(n);
     end;
@@ -25423,20 +25484,20 @@ procedure TSQLTable.IDArrayToBits(var Bits; var IDs: TIDDynArray);
 var i,FID: integer;
     U: PPUTF8Char;
     ID: Pointer;
-    IDn: integer;
+    IDmax: integer;
 //    AllID: : TIDDynArray;
 begin
-  if length(IDs)=RowCount then begin
-    FillcharFast(Bits,(RowCount shr 3)+1,255); // all selected -> all bits set to 1
+  if length(IDs)=fRowCount then begin // all selected -> all bits set to 1
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Bits,(fRowCount shr 3)+1,255);
     exit;
   end;
-  FillcharFast(Bits,(RowCount shr 3)+1,0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Bits,(fRowCount shr 3)+1,0);
   if IDs=nil then
     exit; // no selected -> all bits left to 0
   // we sort IDs to use FastFindIntegerSorted() and its O(log(n)) binary search
   ID := @IDs[0];
-  IDn := high(IDs);
-  QuickSortInt64(ID,0,IDn);
+  IDmax := high(IDs);
+  QuickSortInt64(ID,0,IDmax);
   if not Assigned(fIDColumn) then begin
     FID := fFieldIndexID; // get ID column field index
     if FID<0 then
@@ -25444,14 +25505,14 @@ begin
   end else
     FID := 0; // make compiler happy
   if Assigned(fIDColumn) then begin
-    for i := 1 to RowCount do
-      if FastFindInt64Sorted(ID,IDn,GetInt64(fIDColumn[i]))>=0 then
-        SetBit(Bits,i-1);
+    for i := 1 to fRowCount do
+      if FastFindInt64Sorted(ID,IDmax,GetInt64(fIDColumn[i]))>=0 then
+        SetBitPtr(@Bits,i-1);
   end else begin
     U := @fResults[FID+FieldCount];  // U^ = ID column UTF-8 content
-    for i := 0 to RowCount-1 do begin
-      if FastFindInt64Sorted(ID,IDn,GetInt64(U^))>=0 then
-        SetBit(Bits,i);
+    for i := 0 to fRowCount-1 do begin
+      if FastFindInt64Sorted(ID,IDmax,GetInt64(U^))>=0 then
+        SetBitPtr(@Bits,i);
       inc(U,FieldCount);
     end;
   end;
@@ -25698,7 +25759,7 @@ begin
   if length(fQueryTables)=1 then
     SearchInQueryTables(pointer(PropName),0)
   else begin
-    i := PosEx(RawUTF8('.'),PropName)-1;
+    i := PosExChar('.',PropName)-1;
     if i<0 then // no 'ClassName.PropertyName' format: find first exact property name
       for t := 0 to high(fQueryTables) do begin
         SearchInQueryTables(pointer(PropName),t);
@@ -26101,7 +26162,7 @@ begin
     end;
   // TEXT format
   SetLength(Result,Len);
-  MoveFast(P^,pointer(Result)^,Len);
+  {$ifdef FPC}Move{$else}MoveFast{$endif}(P^,pointer(Result)^,Len);
 end;
 
 function TSQLRawBlobToBlob(const RawBlob: TSQLRawBlob): RawUTF8;
@@ -26247,16 +26308,16 @@ begin
   U := @fResults[FieldCount+Field]; // start reading after first Row (= Field Names)
   len := tmp.buf;
   for i := 2 to fRowCount do begin
-    MoveFast(U^^,P^,len^);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(U^^,P^,len^);
     inc(P,len^);
-    MoveFast(pointer(Sep)^,P^,SepLen);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(Sep)^,P^,SepLen);
     inc(P,SepLen);
     inc(len);
     inc(U,FieldCount); // go to next row
   end;
-  MoveFast(U^^,P^,len^); // last row without Sep
+  {$ifdef FPC}Move{$else}MoveFast{$endif}(U^^,P^,len^); // last row without Sep
   if Trail<>'' then
-    MoveFast(pointer(Trail)^,P[len^],length(Trail));
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(Trail)^,P[len^],length(Trail));
   tmp.Done;
 end;
 
@@ -26909,18 +26970,7 @@ begin
 end;
 
 procedure ExchgPtrUInt(P1,P2: PtrUInt; FieldCount: PtrUInt);
-{$ifndef CPUX86}  // CPU64 will call this version e.g.
-var B,i: PtrUInt;
-begin
-  for i := 1 to FieldCount do begin
-    B := PPtrUInt(P1)^;
-    PPtrUInt(P1)^ := PPtrUInt(P2)^;
-    PPtrUInt(P2)^ := B;
-    inc(PPtrUInt(P1));
-    inc(PPtrUInt(P2));
-  end;
-end;
-{$else}
+{$ifdef CPUX86NOTPIC}
 asm // eax=P1 edx=P2 ecx=FieldCount
         push    esi
         push    edi
@@ -26935,9 +26985,20 @@ asm // eax=P1 edx=P2 ecx=FieldCount
         pop     edi
         pop     esi
 end;
-{$endif}
+{$else}
+var B,i: PtrUInt;
+begin
+  for i := 1 to FieldCount do begin
+    B := PPtrUInt(P1)^;
+    PPtrUInt(P1)^ := PPtrUInt(P2)^;
+    PPtrUInt(P2)^ := B;
+    inc(PPtrUInt(P1));
+    inc(PPtrUInt(P2));
+  end;
+end;
+{$endif CPUX86NOTPIC}
 
-{$ifndef PUREPASCAL} // do be placed outside TUTF8QuickSort.QuickSort for FPC
+{$ifndef ABSOLUTEORPUREPASCAL} // outside TUTF8QuickSort.QuickSort for FPC
 procedure ExchgPUTF8Charx86(P: pointer; I,J: integer);
 asm // eax=P edx=I ecx=J
         push    ebx
@@ -26949,12 +27010,12 @@ asm // eax=P edx=I ecx=J
         mov     [edx], ebx
         pop     ebx
 end;
-{$endif}
+{$endif ABSOLUTEORPUREPASCAL}
 
 procedure TUTF8QuickSort.QuickSort(L, R: Integer);
 // code below is very fast and optimized
 var P: PtrInt;
-    {$ifdef PUREPASCAL}Tmp: PUTF8Char;{$endif}
+    {$ifdef ABSOLUTEORPUREPASCAL}Tmp: PUTF8Char;{$endif}
 begin
   if @Params.Comp<>nil then
   repeat
@@ -26995,7 +27056,7 @@ begin
           ExchgPtrUInt(PtrInt(CI)-FieldFirstPtr,PtrInt(CJ)-FieldFirstPtr,
             Params.FieldCount); // exchange PUTF8Char for whole I,J rows
           if Assigned(IDColumn) then begin // exchange hidden ID column also
-            {$ifdef PUREPASCAL}
+            {$ifdef ABSOLUTEORPUREPASCAL}
             Tmp := IDColumn[I];
             IDColumn[I] := IDColumn[J];
             IDColumn[J] := Tmp;
@@ -27249,7 +27310,7 @@ begin
   n := length(Tables);
   if n>0 then begin
     SetLength(fQueryTables,n);
-    MoveFast(Tables[0],fQueryTables[0],n*SizeOf(TClass));
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(Tables[0],fQueryTables[0],n*SizeOf(TClass));
   end;
 end;
 
@@ -28221,14 +28282,15 @@ procedure TJSONObjectDecoder.Decode(var P: PUTF8Char; const Fields: TRawUTF8DynA
   Params: TJSONObjectDecoderParams; const RowID: TID; ReplaceRowIDWithID: boolean);
 var EndOfObject: AnsiChar;
 
-  procedure GetSQLValue(ndx: integer);
+  procedure GetSQLValue(ndx: PtrInt);
   var wasString: boolean;
       res: PUTF8Char;
       resLen, c: integer;
   begin
     res := P;
     if res=nil then begin
-      FieldValues[ndx] := ''; // avoid GPF, but will return invalid SQL
+      FieldTypeApproximation[ndx] := ftaNull;
+      FieldValues[ndx] := NULL_STR_VAR;
       exit;
     end;
     while res^ in [#1..' '] do inc(res);
@@ -28294,8 +28356,10 @@ var EndOfObject: AnsiChar;
               QuotedStr(res,'''',FieldValues[ndx]);
           end;
         end else
-          if res=nil then
-            FieldValues[ndx] := '' else // avoid GPF, but will return invalid SQL
+          if res=nil then begin
+            FieldTypeApproximation[ndx] := ftaNull;
+            FieldValues[ndx] := NULL_STR_VAR;
+          end else // avoid GPF, but will return invalid SQL
           // non string params (numeric or false/true) are passed untouched
           if PInteger(res)^=FALSE_LOW then begin
             FieldValues[ndx] := SmallUInt32UTF8[0];
@@ -28319,8 +28383,9 @@ var FN: PUTF8Char;
 begin
   FieldCount := 0;
   DecodedRowID := 0;
-  FillcharFast(FieldTypeApproximation,SizeOf(FieldTypeApproximation),0);
-  InlinedParams := Params=pInlined;
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+    FieldTypeApproximation,SizeOf(FieldTypeApproximation),ord(ftaNumber{TID}));
+  InlinedParams := Params;
   if pointer(Fields)=nil then begin
     // get "COL1"="VAL1" pairs, stopping at '}' or ']'
     DecodedFieldNames := @FieldNames;
@@ -28477,10 +28542,10 @@ var F: integer;
     temp: TTextWriterStackBuffer;
   procedure AddValue;
   begin
-    if InlinedParams then
+    if InlinedParams=pInlined then
       W.AddShort(':(');
     W.AddString(FieldValues[F]);
-    if InlinedParams then
+    if InlinedParams=pInlined then
       W.AddShort('):,') else
       W.Add(',');
   end;
@@ -28529,7 +28594,11 @@ begin
     W.Add('{');
     for F := 0 to FieldCount-1 do begin
       W.AddFieldName(DecodedFieldNames^[F]);
-      W.AddQuotedStringAsJSON(FieldValues[F]);
+      if FieldTypeApproximation[F] in [ftaBlob,ftaDate,ftaString] then
+        if InlinedParams=pNonQuoted then
+          W.AddJSONString(FieldValues[F]) else
+          W.AddQuotedStringAsJSON(FieldValues[F]) else
+        W.AddString(FieldValues[F]);
       W.Add(',');
     end;
     W.CancelLastComma;
@@ -28898,8 +28967,8 @@ begin
           P := GotoNextJSONItem(P);  // ignore field name for later rows
           // warning: field order if not checked, and should be as expected
         if max>=resmax then begin // check space inside loop for GPF security
-          inc(resmax,resmax shr 3+nfield shl 8);
-          SetLength(fJSONResults,resmax); // enough space for 256 more rows
+          resmax := NextGrow(resmax);
+          SetLength(fJSONResults,resmax); // enough space for more rows
         end;
         if P=nil then break; // normal end: no more field name
         fJSONResults[max] := GetJSONFieldOrObjectOrArray(P,@wasString,@EndOfObject,true);
@@ -29041,13 +29110,13 @@ begin
   S := pointer(prev);
   D := pointer(fJSONResults);
   rowlen := result*SizeOf(pointer);
-  MoveFast(S^,D^,rowlen);
+  {$ifdef FPC}Move{$else}MoveFast{$endif}(S^,D^,rowlen);
   inc(S,rowlen);
   inc(D,rowlen);
   PPUTF8Char(D)^ := pointer(FieldName);
   inc(D,SizeOf(pointer));
   for i := 1 to fRowCount do begin
-    MoveFast(S^,D^,rowlen);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(S^,D^,rowlen);
     inc(S,rowlen);
     inc(D,rowlen+SizeOf(pointer)); // leave new field value as D^=nil
   end;
@@ -29149,7 +29218,7 @@ begin
       new[f] := i;
     end;
   ndx := FieldCount;
-  for i := 1 to RowCount do begin // merge data
+  for i := 1 to fRowCount do begin // merge data
     k := From.SearchFieldSorted(fResults[ndx+dk],fk);
     if k>0 then begin
       k := k*From.FieldCount;
@@ -30020,6 +30089,7 @@ begin
     case PropType^.OrdType of
     otSByte, otUByte: result := 1;
     otSWord, otUWord: result := 2;
+    {$ifdef FPC_NEWRTTI}otSQWord, otUQWord: result := 8;{$endif}
     else result := 4;
     end;
   tkFloat:
@@ -30063,6 +30133,7 @@ begin
     otUByte,otSByte: PByte(P)^ := Value;
     otUWord,otSWord: PWord(P)^ := Value;
     otULong,otSLong: PCardinal(P)^ := Value;
+    {$ifdef FPC_NEWRTTI}otSQWord, otUQWord: PInt64(P)^ := Value;{$endif}
     end;
 end;
 
@@ -30086,22 +30157,14 @@ procedure TPropInfo.GetLongStrProp(Instance: TObject; var Value: RawByteString);
 begin
   if GetterIsField then
     Value := PRawByteString(GetterAddr(Instance))^ else
-    {$ifdef UNICODE}
-    Value := TypInfo.GetAnsiStrProp(Instance,@self);
-    {$else}
-    Value := TypInfo.GetStrProp(Instance,@self);
-    {$endif}
+    Value := TypInfo.{$ifdef UNICODE}GetAnsiStrProp{$else}GetStrProp{$endif}(Instance,@self);
 end;
 
 procedure TPropInfo.GetShortStrProp(Instance: TObject; var Value: RawByteString);
 begin
   if GetterIsField then
     Value := ShortStringToAnsi7String(PShortString(GetterAddr(Instance))^) else
-    {$ifdef UNICODE}
-    Value := TypInfo.GetAnsiStrProp(Instance,@self);
-    {$else}
-    Value := TypInfo.GetStrProp(Instance,@self); // FPC returns an AnsiString
-    {$endif}
+    Value := TypInfo.{$ifdef UNICODE}GetAnsiStrProp{$else}GetStrProp{$endif}(Instance,@self);
 end; // no SetShortStrProp() by now
 
 procedure TPropInfo.SetLongStrProp(Instance: TObject; const Value: RawByteString);
@@ -30110,11 +30173,7 @@ begin
     PRawByteString(SetterAddr(Instance))^ := Value else
   if (SetProc=0) and GetterIsField then
     PRawByteString(GetterAddr(Instance))^ := Value else
-    {$ifdef UNICODE}
-    TypInfo.SetAnsiStrProp(Instance,@self,Value);
-    {$else}
-    TypInfo.SetStrProp(Instance,@self,Value);
-    {$endif}
+    TypInfo.{$ifdef UNICODE}SetAnsiStrProp{$else}SetStrProp{$endif}(Instance,@self,Value);
 end;
 
 procedure TPropInfo.GetWideStrProp(Instance: TObject; var Value: WideString);
@@ -30775,7 +30834,7 @@ type
     CC: TCallingConvention;
     ParamCount: Byte;
     {Params: array[0..ParamCount - 1] of TVmtMethodParam;}
-    {$endif}
+    {$endif FPC_NEWRTTI}
   end;
 
 { TTypeInfo }
@@ -31046,6 +31105,20 @@ begin
   {$endif}
 end;
 
+function TTypeInfo.IsQWord: boolean;
+begin
+  {$ifdef FPC}
+  result := Kind=tkQWord;
+  {$else}
+  if @self=TypeInfo(QWord) then
+    result := true else
+    {$ifdef UINICODE}if Kind=tkInt64 then // check MinInt64Value>MaxInt64Value
+      with PHash128Rec(@Name[ord(Name[0])+1])^ do
+        result := Lo>Hi else {$endif}
+      result := false;
+  {$endif}
+end;
+
 function TTypeInfo.EnumBaseType: PEnumType;
 {$ifdef FPC}
 var base: PPTypeInfo;
@@ -31069,33 +31142,23 @@ asm     // very fast code
         movzx   edx, byte ptr[eax].TTypeInfo.Name
         lea     eax, [eax + edx].TTypeInfo.Name[1]
 {$endif}
-{$endif}
+{$endif FPC}
 end;
 
 function TTypeInfo.SetEnumType: PEnumType;
-{$ifdef FPC}
-var p: pointer;
-    aTest: TYPINFO.PTypeInfo;
 begin
   if (@self=nil) or (Kind<>tkSet) then
     result := nil else begin
-    p := GetFPCTypeData(@self);
-    {$ifdef FPC_NEWRTTI}
-    aTest := TYPINFO.PTypeData(p)^.CompTypeRef^;
-    {$else}
-    aTest := TYPINFO.PTypeData(p)^.CompType;
-    {$endif}
-    if aTest=nil then
-      result := nil else
-      result := PTypeInfo(aTest)^.EnumBaseType;
-  end;
-{$else}
-begin
-  if (@self=nil) or (Kind<>tkSet) then
-    result := nil else
+  {$ifdef FPC}
+    result := pointer(TypInfo.PTypeData(GetFPCTypeData(@self))^.
+      {$ifdef FPC_NEWRTTI}CompTypeRef^{$else}CompType{$endif});
+    if result<>nil then
+      result := PTypeInfo(result)^.EnumBaseType;
+  {$else}
     result := PPTypeInfo(PPointer(PtrUInt(@Name[ord(Name[0])+1])+SizeOf(TOrdType))^)^.
       EnumBaseType;
-{$endif}
+  {$endif FPC}
+  end;
 end;
 
 function TTypeInfo.DynArrayItemType(aDataSize: PInteger): PTypeInfo;
@@ -31136,7 +31199,7 @@ begin
     result := CP_RAWBYTESTRING else
   if (@self=TypeInfo(AnsiString)) or IdemPropName(Name,'TCaption') then
     result := 0 else
-  {$endif}
+  {$endif HASCODEPAGE}
     result := CP_UTF8; // default is UTF-8
 end;
 
@@ -31192,7 +31255,7 @@ begin
   typ := PInterfaceTypeData(GetFPCTypeData(@self));
   {$else}
   typ := @Name[ord(Name[0])+1];
-  {$endif}
+  {$endif FPC}
   repeat
     if typ^.IntfParent=nil then
       exit;
@@ -31203,7 +31266,7 @@ begin
     typ := PInterfaceTypeData(GetFPCTypeData(pointer(nfo)));
     {$else}
     typ := @nfo^.Name[ord(nfo^.Name[0])+1];
-    {$endif}
+    {$endif FPC}
     if ifHasGuid in typ^.IntfFlags then begin
       if OnlyImplementedBy<>nil then begin
         entry := OnlyImplementedBy.GetInterfaceEntry(typ^.IntfGuid);
@@ -31398,11 +31461,11 @@ var j: integer;
     PS: PShortString;
 begin
   W.Add('[');
-  if FullSetsAsStar and (MaxValue in [1..31]) and GetAllBits(Value,MaxValue+1) then
+  if FullSetsAsStar and GetAllBits(Value,MaxValue+1) then
     W.AddShort('"*"') else begin
     PS := @NameList;
     for j := MinValue to MaxValue do begin
-      if GetBit(Value,j) then begin
+      if GetBitPtr(@Value,j) then begin
         W.Add('"');
         if twoTrimLeftEnumSets in W.CustomOptions then
           W.AddTrimLeftLowerCase(PS) else
@@ -31422,11 +31485,11 @@ var j: integer;
     arr: TDocVariantData;
 begin
   arr.InitFast;
-  if FullSetsAsStar and (MaxValue in [1..31]) and GetAllBits(Value,MaxValue+1) then
+  if FullSetsAsStar and GetAllBits(Value,MaxValue+1) then
     arr.AddItem('*') else begin
     PS := @NameList;
     for j := MinValue to MaxValue do begin
-      if GetBit(Value,j) then
+      if GetBitPtr(@Value,j) then
         arr.AddItem(PS^);
       inc(PByte(PS),ord(PS^[0])+1); // next item
     end;
@@ -31601,7 +31664,7 @@ begin
     V := @NameList;
     for i := MinValue to MaxValue do begin
       if (UsedValuesBits=nil) or
-         GetBit(UsedValuesBits^,i) then begin
+         GetBitPtr(UsedValuesBits,i) then begin
         L := ord(V^[0]);
         P := @V^[1];
         while (L>0) and (P^ in ['a'..'z']) do begin // ignore left lowercase chars
@@ -31613,7 +31676,7 @@ begin
           P := @V^[1];
         end;
         Line[L] := #0; // GetCaptionFromPCharLen() expect it as ASCIIZ
-        MoveFast(P^,Line,L);
+        {$ifdef FPC}Move{$else}MoveFast{$endif}(P^,Line,L);
         GetCaptionFromPCharLen(Line,s);
         Strings.AddObject(s,pointer(i));
       end;
@@ -31662,6 +31725,7 @@ begin
   case OrdType of // MaxValue does not work e.g. with WordBool
   otSByte, otUByte: result := 1;
   otSWord, otUWord: result := 2;
+  {$ifdef FPC_NEWRTTI}otSQWord, otUQWord: result := 8;{$endif}
   else              result := 4;
   end;
 end;
@@ -31671,6 +31735,7 @@ begin
   case OrdType of // MaxValue does not work e.g. with WordBool
   otSByte, otUByte: byte(Value) := Ordinal;
   otSWord, otUWord: word(Value) := Ordinal;
+  {$ifdef FPC_NEWRTTI}otSQWord, otUQWord: Int64(Value) := Ordinal;{$endif}
   else              integer(Value) := Ordinal;
   end;
 end;
@@ -33184,9 +33249,6 @@ begin
   Objects[0] := self;
   ObjectsClass[0] := PSQLRecordClass(self)^;
   SetLength(fFill.fTableMapRecordManyInstances,n);  // fFill.UnMap will release memory
-  aSQLWhere := '';  // alf: to circumvent FPC issues
-  aSQLFields := '';
-  aSQLFrom := '';
   for f := 0 to n-1 do begin
     M := TSQLRecordMany(Props.ManyFields[f].GetInstance(self));
     if M=nil then
@@ -33340,7 +33402,7 @@ begin
     {$ifndef CPU64}
     if fID>MaxInt then
       raise EORMException.CreateUTF8('%.GetIDAsPointer is storing ID=%, which '+
-        'cannot be stored in a pointer/TSQLRecord 32 bit instance: use '+
+        'cannot be stored in a pointer/TSQLRecord 32-bit instance: use '+
         'a TID/T*ID published field for 64-bit IDs',[self,fID]) else
     {$endif}
       result := pointer(fID);
@@ -33668,7 +33730,6 @@ begin
   if (self=nil) or IsZero(aFields) then
     // avoid GPF and handle case if no field was selected
     exit;
-  Value := '';  // alf: to circumvent FPC issues
   with RecordProps do
   if Filters<>nil then
   for f := 0 to Fields.Count-1 do
@@ -33830,6 +33891,15 @@ class procedure TSQLRecordCaseSensitiveExtended.InternalDefineModel(
 begin
   inherited InternalDefineModel(Props); // set BINARY collation
   Props.SetVariantFieldsDocVariantOptions(JSON_OPTIONS_FAST_EXTENDED);
+end;
+
+
+{ TSQLRecordNoCaseExtendedNoID }
+
+class procedure TSQLRecordNoCaseExtendedNoID.InitializeTable(Server: TSQLRestServer;
+  const FieldName: RawUTF8; Options: TSQLInitializeTableOptions);
+begin
+  inherited InitializeTable(Server, FieldName, Options + [itoNoIndex4TID]);
 end;
 
 
@@ -34595,22 +34665,26 @@ begin
 end;
 
 function TSQLModel.GetTableIndex(aTable: TSQLRecordClass): integer;
-var i: integer;
+var i: PtrInt;
     Props: TSQLRecordProperties;
+    c: PSQLRecordClass;
 begin
   if (self<>nil) and (aTable<>nil) then begin
     Props := PPointer(PtrInt(aTable)+vmtAutoTable)^;
-    if (Props<>nil) and (Props.fModelMax>=0) and (Props.fModelMax<fTablesMax) then
+    if (Props<>nil) and (Props.fModelMax<fTablesMax) then
       // fastest O(1) search in all registered models (if worth it)
       for i := 0 to Props.fModelMax do
-        if Props.fModel[i].Model=self then begin
-          result := Props.fModel[i].TableIndex;
-          exit;
-        end;
+        with Props.fModel[i] do
+          if Model=self then begin
+            result := TableIndex; // almost always loop-free
+            exit;
+          end;
     // manual search e.g. if fModel[] is not yet set
+    c := pointer(Tables);
     for result := 0 to fTablesMax do
-      if Tables[result]=aTable then
-        exit;
+      if c^=aTable then
+        exit else
+        inc(c);
   end;
   result := -1;
 end;
@@ -35217,7 +35291,7 @@ end;
 procedure AddID(var Values: TIDDynArray; var ValuesCount: integer; Value: TID);
 begin
   if ValuesCount=length(Values) then
-    SetLength(Values,ValuesCount+256+ValuesCount shr 3);
+    SetLength(Values,NextGrow(ValuesCount));
   Values[ValuesCount] := Value;
   inc(ValuesCount);
 end;
@@ -36004,25 +36078,28 @@ begin
     SetLength(Lens,T.fRowCount);
     SepLen := length(Separator);
     Len := 0;
-    for i := 0 to T.fRowCount-1 do begin // ignore fResults[0] i.e. field name
-      Lens[i] := StrLen(T.fResults[i]);
-      inc(Len,Lens[i]+SepLen);
+    for i := 1 to T.fRowCount do begin
+      L := StrLen(T.fResults[i]); // ignore fResults[0] i.e. field name
+      inc(Len,L+SepLen);
+      Lens[i-1] := L;
     end;
     dec(Len,SepLen);
     SetLength(result,Len);
     // add row values as CSV
     P := pointer(result);
-    for i := 1 to T.fRowCount do begin
+    i := 1;
+    repeat
       L := Lens[i-1];
       if L<>0 then begin
-        MoveFast(T.fResults[i]^,P^,L);
+        {$ifdef FPC}Move{$else}MoveFast{$endif}(T.fResults[i]^,P^,L);
         inc(P,L);
       end;
       if i=T.fRowCount then
         break;
-      MoveFast(pointer(Separator)^,P^,SepLen);
+      {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(Separator)^,P^,SepLen);
       inc(P,SepLen);
-    end;
+      inc(i);
+    until false;
     //assert(P-pointer(result)=Len);
   finally
     T.Free;
@@ -36349,9 +36426,9 @@ begin
     T := MultiFieldValues(Table,FieldName,FormatSQLWhere,BoundsSQLWhere);
     if T<>nil then
     try
-      res.InitFast(T.RowCount,dvArray);
-      res.SetCount(T.RowCount);
-      for row := 1 to T.RowCount do
+      res.InitFast(T.fRowCount,dvArray);
+      res.SetCount(T.fRowCount);
+      for row := 1 to T.fRowCount do
         T.GetAsVariant(row,0,res.Values[row-1],false,false,false,JSON_OPTIONS_FAST);
     finally
       T.Free;
@@ -38124,7 +38201,8 @@ begin
     end;
   dec(Count);
   if index<Count then
-    MoveFast(List[index+1],List[index],(Count-index)*SizeOf(List[index]));
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(
+      List[index+1],List[index],(Count-index)*SizeOf(List[index]));
 end;
 
 function TSQLRestClientCallbacks.UnRegister(aInstance: pointer): boolean;
@@ -38761,7 +38839,7 @@ end;
 {$ifdef DOMAINAUTH}
 const
   SSPI_DEFINITION_USERNAME = '***SSPI***';
-{$endif}
+{$endif DOMAINAUTH}
 
 constructor TSQLRestClientURI.RegisteredClassCreateFrom(aModel: TSQLModel;
   aDefinition: TSynConnectionDefinition);
@@ -38774,7 +38852,7 @@ begin
     {$ifdef DOMAINAUTH}
     if aDefinition.User=SSPI_DEFINITION_USERNAME then
       SetUser('',aDefinition.PasswordPlain) else
-    {$endif}
+    {$endif DOMAINAUTH}
       SetUser(aDefinition.User,aDefinition.PasswordPlain,true);
   end;
 end;
@@ -38788,7 +38866,7 @@ begin
     {$ifdef DOMAINAUTH}
     if fSessionAuthentication.InheritsFrom(TSQLRestServerAuthenticationSSPI) then
       Definition.User := SSPI_DEFINITION_USERNAME else
-    {$endif}
+    {$endif DOMAINAUTH}
        Definition.User := fSessionUser.LogonName;
      Definition.PasswordPlain := fSessionUser.fPasswordHashHexa;
   end;
@@ -38876,10 +38954,10 @@ begin
   end;
   {$ifdef DOMAINAUTH} // try Windows/GSSAPI authentication with the current logged user
   result := true;
-  if ((trim(aUserName)='') or (PosEx({$ifdef GSSAPIAUTH}'@'{$else}'\'{$endif},aUserName)>0)) and
+  if ((trim(aUserName)='') or (PosExChar({$ifdef GSSAPIAUTH}'@'{$else}'\'{$endif},aUserName)>0)) and
     TSQLRestServerAuthenticationSSPI.ClientSetUser(self,aUserName,aPassword,passKerberosSPN) then
       exit;
-  {$endif}
+  {$endif DOMAINAUTH}
   result := TSQLRestServerAuthenticationDefault.
     ClientSetUser(self,aUserName,aPassword,HASH[aHashedPassword]);
 end;
@@ -39449,7 +39527,7 @@ begin
       result := pointer(GlobalAlloc(GMEM_FIXED,L)) else
     {$endif}
       GetMem(result,L);
-    MoveFast(pointer(s)^,result^,L);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(s)^,result^,L);
   end;
 end;
 var call: TSQLRestURIParams;
@@ -39483,7 +39561,7 @@ var files: TFindFilesDynArray;
     fn: TFileName;
     fs: Int64;
 begin
-  if (Param<>'*') and (PosEx(RawUTF8(':'),Param)=0) and (PosEx(PathDelim,Param)=0) then begin
+  if (Param<>'*') and (PosExChar(':',Param)=0) and (PosExChar(PathDelim,Param)=0) then begin
     fn := IncludeTrailingPathDelimiter(Folder)+UTF8ToString(Param);
     fs := FileSize(fn);
     if (fs>0) and (fs<256 shl 20) then begin // download up to 256 MB
@@ -39699,7 +39777,7 @@ var i: integer;
 begin
   if aInstance=nil then
     exit;
-  if PosEx(RawUTF8('/'),aPrefix)>0 then
+  if PosExChar('/',aPrefix)>0 then
     raise EServiceException.CreateUTF8('%.ServiceMethodRegisterPublishedMethods'+
       '("%"): prefix should not contain "/"',[self,aPrefix]);
   for i := 0 to GetPublishedMethods(aInstance,methods)-1 do
@@ -40999,7 +41077,7 @@ begin // expects 'ModelRoot[/TableName[/TableID][/URIBlobFieldName]][?param=...]
     result := False;
     exit; // bad ModelRoot -> caller can try another TSQLRestServer
   end;
-  ParametersPos := PosEx(RawUTF8('?'),Call^.url,1);
+  ParametersPos := PosExChar('?',Call^.url);
   if ParametersPos>0 then // '?select=...&where=...' or '?where=...'
     Parameters := @Call^.url[ParametersPos+1];
   if Method=mPost then begin
@@ -41015,7 +41093,7 @@ begin // expects 'ModelRoot[/TableName[/TableID][/URIBlobFieldName]][?param=...]
     URI := copy(Call^.url,i,ParametersPos-i);
   URIAfterRoot := PUTF8Char(pointer(Call^.url))+i-1;
   // compute Table, TableID and URIBlobFieldName
-  slash := PosEx(RawUTF8('/'),URI);
+  slash := PosExChar('/',URI);
   if slash>0 then begin
     URI[slash] := #0;
     Par := pointer(URI);
@@ -41027,7 +41105,7 @@ begin // expects 'ModelRoot[/TableName[/TableID][/URIBlobFieldName]][?param=...]
       TableID := -1; // URI like "ModelRoot/TableName/MethodName"
     URIBlobFieldName := Par;
     if Table<>nil then begin
-      j := PosEx(RawUTF8('/'),URIBlobFieldName);
+      j := PosExChar('/',URIBlobFieldName);
       if j>0 then begin // handle "ModelRoot/TableName/URIBlobFieldName/ID"
         TableID := GetCardinalDef(pointer(PtrInt(URIBlobFieldName)+j),cardinal(-1));
         SetLength(URIBlobFieldName,j-1);
@@ -41317,9 +41395,9 @@ begin
     end;
   end;
   with Server.fStats do begin
-    EnterCriticalSection(fLock);
+    fSafe^.Lock; // try...finally not mandatory (slow
     inc(fServiceMethod); // TSQLRestServerMonitor.Changed method is void
-    LeaveCriticalSection(fLock);
+    fSafe^.UnLock;
   end;
 end;
 
@@ -41380,13 +41458,10 @@ procedure TSQLRestServerURIContext.InternalExecuteSOAByInterface;
     if ForceServiceResultAsXMLObjectNameSpace='' then
       ForceServiceResultAsXMLObjectNameSpace := Service.ResultAsXMLObjectNameSpace;
     with Server.fStats do begin
-      EnterCriticalSection(fLock);
-      try
-        inc(fServiceInterface);
-        Changed;
-      finally
-        LeaveCriticalSection(fLock);
-      end;
+      fSafe^.Lock;
+      inc(fServiceInterface);
+      Changed;
+      fSafe^.UnLock;
     end;
     case ServiceMethodIndex of
     ord(imFree):
@@ -41646,8 +41721,8 @@ begin
           SQLResults := 0;
           if Parameters^<>#0 then
           with Server.URIPagingParameters do begin
-            NonStandardSQLSelectParameter := StrComp(Select,PAGINGPARAMETERS_YAHOO.Select)<>0;
-            NonStandardSQLWhereParameter := StrComp(Where,PAGINGPARAMETERS_YAHOO.Where)<>0;
+            NonStandardSQLSelectParameter := Select<>PAGINGPARAMETERS_YAHOO.Select;
+            NonStandardSQLWhereParameter := Where<>PAGINGPARAMETERS_YAHOO.Where;
             repeat
               UrlDecodeValue(Parameters,Sort,SQLSort);
               UrlDecodeValue(Parameters,Dir,SQLDir);
@@ -42129,7 +42204,7 @@ begin
       name := fInput[ndx*2];
       if met<>nil then begin
         a := met.ArgIndex(pointer(name),length(name),{input=}true);
-        forcestring := (a>=0) and (vIsString  in met.Args[a].ValueKindAsm);
+        forcestring := (a>=0) and (vIsString in met.Args[a].ValueKindAsm);
       end else
         forcestring := false;
       GetVariantFromJSON(pointer(fInput[ndx*2+1]),forcestring,v,@Options);
@@ -42245,7 +42320,7 @@ begin
   aOutSetCookie := Trim(aOutSetCookie);
   if not IsValidUTF8WithoutControlChars(aOutSetCookie) then
     raise EBusinessLayerException.CreateUTF8('Unsafe %.SetOutSetCookie',[self]);
-  if PosEx(RawUTF8('='),aOutSetCookie)<2 then
+  if PosExChar('=',aOutSetCookie)<2 then
     raise EBusinessLayerException.CreateUTF8(
       '"name=value" expected for %.SetOutSetCookie("%")',[self,aOutSetCookie]);
   if StrPosI('; PATH=',pointer(aOutSetCookie))=nil then
@@ -42624,62 +42699,63 @@ end;
 procedure TSQLRestRoutingREST.ExecuteSOAByInterface;
 var JSON: RawUTF8;
     Par: PUTF8Char;
-    a,i,iLow: Integer;
-    WR: TTextWriter;
-    argDone: boolean;
-    temp: TTextWriterStackBuffer;
+  procedure DecodeUriParametersIntoJSON(const input: TRawUTF8DynArray);
+  var a,i,iLow: Integer;
+      WR: TTextWriter;
+      argDone: boolean;
+      temp: TTextWriterStackBuffer;
+  begin
+    WR := TJSONSerializer.CreateOwnedStream(temp);
+    try // convert URI parameters into the expected ordered JSON array
+      WR.Add('[');
+      with PServiceMethod(ServiceMethod)^ do begin
+        iLow := 0;
+        for a := ArgsInFirst to ArgsInLast do
+        with Args[a] do
+        if ValueDirection<>smdOut then begin
+          argDone := false;
+          for i := iLow to high(input) shr 1 do // search argument in URI
+            if IdemPropName(ParamName^,pointer(input[i*2]),length(input[i*2])) then begin
+              AddValueJSON(WR,input[i*2+1]); // will add "" if needed
+              if i=iLow then
+                inc(iLow); // optimistic in-order search, but allow any order
+              argDone := true;
+              break;
+            end;
+          if not argDone then
+            AddDefaultJSON(WR); // allow missing argument (and add ',')
+        end;
+      end;
+      WR.CancelLastComma;
+      WR.Add(']');
+      WR.SetText(JSON);
+    finally
+      WR.Free;
+    end;
+  end;
 begin // here Ctxt.Service and ServiceMethod(Index) are set
   if (Server.Services=nil) or (Service=nil) then
     raise EServiceException.CreateUTF8('%.ExecuteSOAByInterface invalid call',[self]);
   //  URI as '/Model/Interface.Method[/ClientDrivenID]'
   if Call.InBody<>'' then
-    // parameters sent as JSON array (the Delphi/AJAX way) or single blob
+    // parameters sent as JSON array/object (the Delphi/AJAX way) or single blob
     if (ServiceMethod<>nil) and PServiceMethod(ServiceMethod)^.ArgsInputIsOctetStream and
        not Call.InBodyTypeIsJson then begin
       JSON := BinToBase64(Call.InBody,'["','"]',false);
       ServiceParameters := pointer(JSON); // as expected by InternalExecuteSOAByInterface
     end else
       ServiceParameters := pointer(Call.InBody) else begin
-    // URI-encoded parameters  (the HTML way)
+    // no body -> try URI-encoded parameters (the HTML way)
     Par := Parameters;
     if Par<>nil then begin
       while Par^='+' do inc(Par); // ignore trailing spaces
       if (Par^='[') or IdemPChar(Par,'%5B') then
-        // either as JSON array (input is e.g. '+%5B...' for ' [...')
+        // as JSON array (input is e.g. '+%5B...' for ' [...')
         JSON := UrlDecode(Parameters) else begin
         // or as a list of parameters (input is 'Param1=Value1&Param2=Value2...')
         FillInput; // fInput[0]='Param1',fInput[1]='Value1',fInput[2]='Param2'...
-        if fInput<>nil then begin
-          if ServiceMethod<>nil then begin
-            WR := TJSONSerializer.CreateOwnedStream(temp);
-            try // convert URI parameters into the expected ordered JSON array
-              WR.Add('[');
-              with PServiceMethod(ServiceMethod)^ do begin
-                iLow := 0;
-                for a := ArgsInFirst to ArgsInLast do
-                with Args[a] do
-                if ValueDirection<>smdOut then begin
-                  argDone := false;
-                  for i := iLow to high(fInput)shr 1 do // search argument in URI
-                    if IdemPropName(ParamName^,pointer(fInput[i*2]),length(fInput[i*2])) then begin
-                      AddValueJSON(WR,fInput[i*2+1]); // will add "" if needed
-                      if i=iLow then
-                        inc(iLow); // optimistic in-order search, but allow any order
-                      argDone := true;
-                      break;
-                    end;
-                  if not argDone then
-                    AddDefaultJSON(WR); // allow missing argument (and add ',')
-                end;
-              end;
-              WR.CancelLastComma;
-              WR.Add(']');
-              WR.SetText(JSON);
-            finally
-              WR.Free;
-            end;
-          end;
-        end;
+        if (fInput<>nil) and (ServiceMethod<>nil) then
+          DecodeUriParametersIntoJSON(fInput);
       end;
     end;
     ServiceParameters := pointer(JSON);
@@ -43396,7 +43472,7 @@ begin
   hash := ServerNonceHash; // thread-safe SHA-3 sponge reuse
   hash.Update(@ticks,SizeOf(ticks));
   hash.Final(res,true);
-  result := BinToHex(@res,SizeOf(res));
+  result := BinToHexLower(@res,SizeOf(res));
   with ServerNonceCache[Previous] do begin
     tix := ticks;
     res := result;
@@ -43489,18 +43565,19 @@ end;
 
 procedure TSQLRestServer.SessionDelete(aSessionIndex: integer;
   Ctxt: TSQLRestServerURIContext);
+var sess: TAuthSession;
 begin
-  if (self<>nil) and (cardinal(aSessionIndex)<cardinal(fSessions.Count)) then
-  with TAuthSession(fSessions.List[aSessionIndex]) do begin
+  if (self<>nil) and (cardinal(aSessionIndex)<cardinal(fSessions.Count)) then begin
+    sess := fSessions.List[aSessionIndex];
     if Services<>nil then
-      (Services as TServiceContainerServer).OnCloseSession(IDCardinal);
+      (Services as TServiceContainerServer).OnCloseSession(sess.IDCardinal);
     if Ctxt=nil then
-      InternalLog('Deleted session %:%/%',
-        [User.LogonName,IDCardinal,fSessions.Count],sllUserAuth) else
-      InternalLog('Deleted session %:%/% from %/%',
-        [User.LogonName,IDCardinal,fSessions.Count,RemoteIP,Ctxt.Call^.LowLevelConnectionID],sllUserAuth);
+      InternalLog('Deleted session %:%/%',[sess.User.LogonName,sess.IDCardinal,
+        fSessions.Count],sllUserAuth) else
+      InternalLog('Deleted session %:%/% from %/%',[sess.User.LogonName,sess.IDCardinal,
+        fSessions.Count,sess.RemoteIP,Ctxt.Call^.LowLevelConnectionID],sllUserAuth);
     if Assigned(OnSessionClosed) then
-      OnSessionClosed(self,fSessions.List[aSessionIndex],Ctxt);
+      OnSessionClosed(self,sess,Ctxt);
     fSessions.Delete(aSessionIndex);
     fStats.ClientDisconnect;
   end;
@@ -44463,7 +44540,7 @@ begin
   RunningBatchTable := nil;
   RunningBatchURIMethod := mNone;
   Count := 0;
-  FillcharFast(counts,SizeOf(counts),0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(counts,SizeOf(counts),0);
   fAcquireExecution[execORMWrite].fSafe.Lock; // multi thread protection
   try // to protect automatic transactions and global write lock
   try // to protect InternalBatchStart/Stop locking
@@ -44599,7 +44676,7 @@ begin
           RunningBatchURIMethod := URIMethod;
         end;
         if Count>=length(Results) then
-          SetLength(Results,Count+256+Count shr 3);
+          SetLength(Results,NextGrow(Count));
       end;
       // process CRUD method operation
       OK := false;
@@ -45449,20 +45526,20 @@ end;
 
 procedure TSQLRestServerMonitor.ProcessSuccess(IsOutcomingFile: boolean);
 begin
-  EnterCriticalSection(fLock);
+  fSafe^.Lock;
   try
     inc(fSuccess);
     if IsOutcomingFile then
       inc(fOutcomingFiles);
     Changed;
   finally
-    LeaveCriticalSection(fLock);
+    fSafe^.UnLock;
   end;
 end;
 
 procedure TSQLRestServerMonitor.NotifyORM(aMethod: TSQLURIMethod);
 begin
-  EnterCriticalSection(fLock);
+  fSafe^.Lock;
   try
     case aMethod of
     mGET,mLOCK: inc(fRead);
@@ -45472,7 +45549,7 @@ begin
     end;
     Changed;
   finally
-    LeaveCriticalSection(fLock);
+    fSafe^.UnLock;
   end;
 end;
 
@@ -45483,7 +45560,7 @@ var st: TSynMonitorWithSize;
 begin
   if TableIndex<0 then
     exit;
-  EnterCriticalSection(fLock);
+  fSafe^.Lock;
   try
     if TableIndex>=length(fPerTable[Write]) then
       // tables may have been added after Create()
@@ -45497,7 +45574,7 @@ begin
     if fServer.fStatUsage<>nil then
       fServer.fStatUsage.Modified(st,[]);
   finally
-    LeaveCriticalSection(fLock);
+    fSafe^.UnLock;
   end;
 end;
 
@@ -45505,14 +45582,14 @@ function TSQLRestServerMonitor.NotifyThreadCount(delta: integer): integer;
 begin
   if self=nil then
     result := 0 else begin
-    EnterCriticalSection(fLock);
+    fSafe^.Lock;
     try
       inc(fCurrentThreadCount,delta);
       result := fCurrentThreadCount;
       if delta<>0 then
         Changed;
     finally
-      LeaveCriticalSection(fLock);
+      fSafe^.UnLock;
     end;
   end;
 end;
@@ -45927,7 +46004,7 @@ end;
 
 function TSQLRecordCompareList(Item1,Item2: Pointer): integer;
 begin // we assume Item1<>nil and Item2<>nil in fValue[]
-  result := SortDynArrayInt64(TSQLRecord(Item1).fID,TSQLRecord(Item2).fID);
+  result := CompareInt64(TSQLRecord(Item1).fID,TSQLRecord(Item2).fID);
 end;
 
 function TSQLRestStorageInMemory.AddOne(Rec: TSQLRecord; ForceID: boolean;
@@ -47227,7 +47304,6 @@ begin
   // search indexes, then apply updates
   Where := TList.Create;
   StorageLock(true,'EngineUpdateField');
-  SetValueJson := ''; // alf: to circumvent FPC issues
   try
     // find matching Where[]
     if FindWhereEqual(WhereFieldIndex,WhereValueString,AddIntegerDynArrayEvent,Where,0,0)=0 then
@@ -47357,7 +47433,7 @@ begin
       exit;
     SetLength(ResultID,n);
     {$ifdef CPU64} // on x64 TList[]=Pointer does map an TID/Int64
-    MoveFast(Where.List[0],ResultID[0],n*SizeOf(TID));
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(Where.List[0],ResultID[0],n*SizeOf(TID));
     {$else}
     with Where do
       for i := 0 to Count-1 do
@@ -47670,7 +47746,7 @@ begin
         raise EORMException.CreateUTF8('%.EngineAdd(%) fShardNextID',[self,fStoredClass]);
     end;
     result := fShardLastID;
-    i := PosEx(RawUTF8('{'),SentData);
+    i := PosExChar('{',SentData);
     if i=0 then
       FormatUTF8('{ID:%}',[result],data) else begin
       data := SentData;
@@ -49909,7 +49985,7 @@ begin
       if not(j2oIgnoreUnknownProperty in Options) or P^.WriteIsPossible then
         P^.SetInt64Prop(Value,V64);
     end else begin
-      if {$ifdef FPC}Kind=tkQWord{$else}P^.TypeInfo=TypeInfo(QWord){$endif} then
+      if P^.PropType^.IsQWord then
         V64 := GetQWord(PropValue,err) else
         V64 := GetInt64(PropValue,err);
       if err<>0 then
@@ -50240,7 +50316,7 @@ begin
     U := FindIniNameValue(From,UpperName);
     case P^.PropType^.Kind of
       tkInt64: begin
-        {$ifndef FPC}if P^.TypeInfo=TypeInfo(QWord) then
+        {$ifndef FPC}if P^.PropType^.IsQWord then
           V64 := GetQWord(pointer(U),err) else{$endif}
           V64 := GetInt64(pointer(U),err);
         if err=0 then
@@ -50682,7 +50758,7 @@ begin
   result := false;
   if self=nil then
     exit;
-  i := PosEx(RawUTF8('/'),fSignature,1);
+  i := PosExChar('/',fSignature);
   if i=0 then
     exit;
   sign := ComputeSignature(copy(fSignature,1,i-1),Content);
@@ -50707,7 +50783,7 @@ var i: integer;
 begin
   if self=nil then
     i := 0 else
-    i := PosEx(RawUTF8('/'),fSignature,1);
+    i := PosExChar('/',fSignature);
   if i=0 then
     result := '' else
     result := copy(fSignature,1,i-1);
@@ -50831,7 +50907,8 @@ end;
 class procedure TSQLRecordRTree.BlobToCoord(const InBlob;
   var OutCoord: TSQLRecordTreeCoords);
 begin // direct memory copy with no memory check
-  MoveFast(InBlob,OutCoord,(RecordProps.RTreeCoordBoundaryFields shr 1)*SizeOf(double));
+  {$ifdef FPC}Move{$else}MoveFast{$endif}(
+    InBlob,OutCoord,(RecordProps.RTreeCoordBoundaryFields shr 1)*SizeOf(double));
 end;
 
 class function TSQLRecordRTree.ContainedIn(const BlobA,BlobB): boolean;
@@ -50852,7 +50929,8 @@ end;
 class procedure TSQLRecordRTreeInteger.BlobToCoord(const InBlob;
   var OutCoord: TSQLRecordTreeCoordsInteger);
 begin // direct memory copy with no memory check
-  MoveFast(InBlob,OutCoord,(RecordProps.RTreeCoordBoundaryFields shr 1)*SizeOf(integer));
+  {$ifdef FPC}Move{$else}MoveFast{$endif}(
+    InBlob,OutCoord,(RecordProps.RTreeCoordBoundaryFields shr 1)*SizeOf(integer));
 end;
 
 class function TSQLRecordRTreeInteger.ContainedIn(const BlobA,BlobB): boolean;
@@ -51153,7 +51231,7 @@ begin
   if FieldNames='' then
     Fields := fStoredClassRecordProps.SimpleFieldsBits[soUpdate] else
   if FieldNames='*' then
-    FillcharFast(Fields,SizeOf(Fields),255) else
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Fields,SizeOf(Fields),255) else
     if not fStoredClassRecordProps.FieldBitsFromCSV(FieldNames,Fields) then begin
       result := false; // invalid FieldNames content
       exit;
@@ -51847,7 +51925,7 @@ begin
       0..3:
         result := IsFieldName(copy(PropName,5,L-5));
       4..5:
-        result := IsFieldName(copy(PropName,9,PosEx(',',PropName)-9));
+        result := IsFieldName(copy(PropName,9,PosExChar(',',PropName)-9));
       else
         result := IsFieldName(PropName);
       end else
@@ -52174,7 +52252,6 @@ var where: RawUTF8;
     i: integer;
     aID: TID;
 begin
-  where := ''; // alf: to circumvent FPC issues
   if (fProcessRest=nil) or (fProcessRec=nil) or (fFieldNames=nil) then
     result := true else begin
     for i := 0 to high(fFieldNames) do begin
@@ -52284,7 +52361,7 @@ var Added: boolean;
               AddBinToHexDisplay(@V64,SizeOf(V64));
             Add('"');
           end else
-          if {$ifdef FPC}Kind=tkQWord{$else}P^.TypeInfo=TypeInfo(QWord){$endif} then
+          if {$ifdef FPC}Kind=tkQWord{$else}P^.PropType^.IsQWord{$endif} then
             AddQ(V64) else
             Add(V64);
         end;
@@ -53366,7 +53443,7 @@ end;
 
 procedure TSQLAccessRights.FromString(P: PUTF8Char);
 begin
-  FillcharFast(self,SizeOf(self),0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(self,SizeOf(self),0);
   if P=nil then
     exit;
   AllowRemoteExecute := TSQLAllowRemoteExecute(byte(GetNextItemCardinal(P)));
@@ -53410,7 +53487,7 @@ end;
 function TSQLAuthGroup.GetSQLAccessRights: TSQLAccessRights;
 begin
   if self=nil then
-    FillcharFast(result,SizeOf(result),0) else
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(result,SizeOf(result),0) else
     result.FromString(pointer(AccessRights));
 end;
 
@@ -53511,7 +53588,7 @@ begin
     result := SHA256(TSQLAUTHUSER_SALT+aPasswordPlain) else begin
     PBKDF2_HMAC_SHA256(aPasswordPlain,aHashSalt,aHashRound,dig);
     result := SHA256DigestToString(dig);
-    FillcharFast(dig,SizeOf(dig),0);
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(dig,SizeOf(dig),0);
   end;
 end;
 
@@ -53779,7 +53856,7 @@ begin // FPC doesn't allow to use constants for procedure of object
   suaSHA1:   result := ComputeSignatureSHA1;
   suaSHA256: result := ComputeSignatureSHA256;
   suaSHA512: result := ComputeSignatureSHA512;
-  else       result := ComputeSignatureCrc32;
+  else       result := ComputeSignatureCrc32; // default/fallback
   end;
 end;
 
@@ -53803,7 +53880,7 @@ end;
 
 class function TSQLRestServerAuthenticationSignedURI.ComputeSignatureMD5(
   privatesalt: cardinal; timestamp, url: PAnsiChar; urllen: integer): cardinal;
-var digest: array[0..(SizeOf(TMD5Digest)div 4)-1] of cardinal;
+var digest: THash128Rec;
     MD5: TMD5;
     i: integer;
 begin
@@ -53811,10 +53888,10 @@ begin
   MD5.Update(privatesalt,4);
   MD5.Update(timestamp^,8);
   MD5.Update(url^,urllen);
-  MD5.Final(TMD5Digest(digest));
-  result := digest[0];
-  for i := 1 to high(digest) do
-    result := result xor digest[i];
+  MD5.Final(digest.b);
+  result := digest.c[0];
+  for i := 1 to high(digest.c) do
+    result := result xor digest.c[i];
 end;
 
 class function TSQLRestServerAuthenticationSignedURI.ComputeSignatureSHA1(
@@ -53835,7 +53912,7 @@ end;
 
 class function TSQLRestServerAuthenticationSignedURI.ComputeSignatureSHA256(
   privatesalt: cardinal; timestamp, url: PAnsiChar; urllen: integer): cardinal;
-var digest: array[0..(SizeOf(TSHA256Digest)div 4)-1] of cardinal;
+var digest: THash256Rec;
     SHA256: TSHA256;
     i: integer;
 begin
@@ -53843,15 +53920,15 @@ begin
   SHA256.Update(@privatesalt,4);
   SHA256.Update(timestamp,8);
   SHA256.Update(url,urllen);
-  SHA256.Final(TSHA256Digest(digest));
-  result := digest[0];
-  for i := 1 to high(digest) do
-    result := result xor digest[i];
+  SHA256.Final(digest.b);
+  result := digest.c[0];
+  for i := 1 to high(digest.c) do
+    result := result xor digest.c[i];
 end;
 
 class function TSQLRestServerAuthenticationSignedURI.ComputeSignatureSHA512(
   privatesalt: cardinal; timestamp, url: PAnsiChar; urllen: integer): cardinal;
-var digest: array[0..(SizeOf(TSHA512Digest)div 4)-1] of cardinal;
+var digest: THash512Rec;
     SHA512: TSHA512;
     i: integer;
 begin
@@ -53859,10 +53936,10 @@ begin
   SHA512.Update(@privatesalt,4);
   SHA512.Update(timestamp,8);
   SHA512.Update(url,urllen);
-  SHA512.Final(TSHA512Digest(digest));
-  result := digest[0];
-  for i := 1 to high(digest) do
-    result := result xor digest[i];
+  SHA512.Final(digest.b);
+  result := digest.c[0];
+  for i := 1 to high(digest.c) do
+    result := result xor digest.c[i];
 end;
 
 function TSQLRestServerAuthenticationSignedURI.RetrieveSession(
@@ -53982,7 +54059,7 @@ begin
   if aServerNonce='' then
     exit;
   TAESPRNG.Main.FillRandom(@rnd,SizeOf(rnd));
-  aClientNonce := BinToHex(@rnd,SizeOf(rnd));
+  aClientNonce := BinToHexLower(@rnd,SizeOf(rnd));
   result := ClientGetSessionKey(Sender,User,['UserName',User.LogonName,'Password',
      Sha256(Sender.Model.Root+aServerNonce+aClientNonce+User.LogonName+User.PasswordHashHexa),
      'ClientNonce',aClientNonce]);
@@ -54515,7 +54592,7 @@ procedure TServiceContainer.SetInterfaceMethodBits(MethodNamesCSV: PUTF8Char;
 var i,n: integer;
     method: RawUTF8;
 begin
-  FillcharFast(bits,SizeOf(bits),0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(bits,SizeOf(bits),0);
   n := length(fListInterfaceMethod);
   if n>SizeOf(bits) shl 3 then
     raise EServiceException.CreateUTF8('%.SetInterfaceMethodBits: n=%',[self,n]);
@@ -54809,6 +54886,7 @@ const
   CONST_PSEUDO_RESULT_NAME: string[6] = 'Result';
   CONST_PSEUDO_SELF_NAME: string[4] = 'Self';
   CONST_INTEGER_NAME: string[7] = 'Integer';
+  CONST_CARDINAL_NAME: string[8] = 'Cardinal';
 
 type
   /// map the stack memory layout at TInterfacedObjectFake.FakeCall()
@@ -55014,7 +55092,8 @@ var method: PServiceMethod;
         include(Params.fCustomOptions,twoIgnoreDefaultInRecord);
       end else
         opt := [woDontStoreDefault];
-      FillcharFast(I64s,method^.ArgsUsedCount[smvv64]*SizeOf(Int64),0);
+      {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+        I64s,method^.ArgsUsedCount[smvv64]*SizeOf(Int64),0);
       for arg := 1 to high(method^.Args) do
       with method^.Args[arg] do
       if ValueType>smvSelf then begin
@@ -55106,7 +55185,7 @@ var method: PServiceMethod;
             resultType := ValueType;
             if ValueType in [smvBoolean..smvCurrency] then
               // ordinal/real result values to CPU/FPU registers
-              MoveFast(V^,Result,SizeInStorage);
+              {$ifdef FPC}Move{$else}MoveFast{$endif}(V^,Result,SizeInStorage);
           end;
         end;
         if R=nil then
@@ -55563,7 +55642,7 @@ var m,a,reg: integer;
     ErrorMsg: RawUTF8;
     dummy: pointer;
     {$ifdef HAS_FPREG}
-    ValueIsInFPR:boolean;
+    ValueIsInFPR: boolean;
     {$endif}
     {$ifdef CPUX86}
     offs: integer;
@@ -55728,12 +55807,13 @@ begin
          ((ValueDirection=smdResult) and (ValueType in CONST_ARGS_RESULT_BY_REF)) then
         Include(ValueKindAsm,vPassedByReference);
       case ValueType of
-      smvInteger, smvInt64:
-        if TJSONCustomParserRTTI.TypeNameToSimpleBinary(ShortStringToUTF8(ArgTypeName^),
-            SizeInBinary, SizeInStorage) then begin
+      smvInteger, smvCardinal, smvInt64:
+        if TJSONCustomParserRTTI.TypeNameToSimpleBinary(
+           ShortStringToUTF8(ArgTypeName^),SizeInBinary,SizeInStorage) then begin
           ValueType := smvBinary; // transmitted as hexa string
           Include(ValueKindAsm,vIsString);
-        end;
+        end else if ArgTypeInfo^.IsQWord then
+          Include(ValueKindAsm,vIsQword);
       smvRawUTF8..smvWideString:
         Include(ValueKindAsm,vIsString);
       smvDynArray: begin
@@ -55802,7 +55882,7 @@ begin
         ((ValueIsInFPR) and (fpreg>FPREG_LAST)) or
         (not ValueIsInFPR and (reg>PARAMREG_LAST))
         {$else}
-        (reg>PARAMREG_LAST) // Win64
+        (reg>PARAMREG_LAST) // Win64: XMMs overlap regular registers
         {$endif Linux}
         {$endif CPUX86}
         {$ifdef FPC}or ((ValueType in [smvRecord]) and
@@ -55961,10 +56041,10 @@ procedure TInterfaceFactory.CheckMethodIndexes(const aMethodName: array of RawUT
 var i: integer;
 begin
   if aSetAllIfNone and (high(aMethodName)<0) then begin
-    FillCharFast(aBits,SizeOf(aBits),255);
+    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(aBits,SizeOf(aBits),255);
     exit;
   end;
-  FillCharFast(aBits,SizeOf(aBits),0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(aBits,SizeOf(aBits),0);
   for i := 0 to high(aMethodName) do
     include(aBits,CheckMethodIndex(aMethodName[i]));
 end;
@@ -56170,7 +56250,7 @@ begin
         exit else
         fpmunmap(Result,STUB_SIZE);
       {$else}
-      // are we close enough for a relative jump (32 bit signed)?
+      // are we close enough for a relative jump (32-bit signed)?
       if ((PtrUInt(Result)-Addr)<Int64($7FFFFFFF)) or (Addr-(PtrUInt(Result))<Int64($7FFFFFFF)) then
         exit else
         fpmunmap(Result,STUB_SIZE);
@@ -56327,20 +56407,24 @@ end;
 
 procedure TInterfaceFactoryRTTI.AddMethodsFromTypeInfo(aInterface: PTypeInfo);
 const
+  {$ifdef FPC}
   {$if defined(CPUI386) or defined(CPUI8086) or defined(CPUX86_64) or defined(CPUM68K)}
   DEFCC = ccRegister;
   {$else}
   DEFCC = ccStdCall;
   {$ifend}
+  {$else}
+  DEFCC = ccRegister;
+  {$endif FPC}
 var P: Pointer;
     {$ifdef FPC}
-    PI: TYPINFO.PInterfaceData;
+    PI: TypInfo.PInterfaceData;
     VMP: PVmtMethodParam;
     methtable: PIntfMethodTable;
     PME: PIntfMethodEntry;
     PW: PWord;
     aResultType: PTypeInfo;
-    methodindex,argsindex: word;
+    argsindex: word;
     {$else}
     PI: PInterfaceTypeData absolute P;
     PB: PByte absolute P;
@@ -56349,19 +56433,19 @@ var P: Pointer;
     PF: ^TParamFlags absolute P;
     PP: ^PPTypeInfo absolute P;
     PW: PWord absolute P;
-    {$endif}
+    {$endif FPC}
     Ancestor: PTypeInfo;
     Kind: TMethodKind;
     f: TParamFlags;
     m: integer;
     paramcounter: word;
+    sm: PServiceMethod;
     n: cardinal;
     aURI: RawUTF8;
 
   procedure RaiseError(const Format: RawUTF8; const Args: array of const);
   begin
-    raise EInterfaceFactoryException.CreateUTF8(
-      '%.AddMethodsFromTypeInfo(%.%) failed - %',
+    raise EInterfaceFactoryException.CreateUTF8('%.AddMethodsFromTypeInfo(%.%) failed - %',
       [self,fInterfaceName,aURI,FormatUTF8(Format,Args)]);
   end;
 
@@ -56369,13 +56453,13 @@ begin
   // handle interface inheritance via recursive calls
   P := aInterface^.ClassType;
   {$ifdef FPC}
-  PI := TYPINFO.PInterfaceData(GetFPCTypeData(pointer(aInterface)));
+  PI := TypInfo.PInterfaceData(GetFPCTypeData(pointer(aInterface)));
   if PI^.Parent<>nil then
     Ancestor := Deref(mORMot.PPTypeInfo(PI^.Parent)) else
   {$else}
   if PI^.IntfParent<>nil then
     Ancestor := Deref(PI^.IntfParent) else
-  {$endif}
+  {$endif FPC}
     Ancestor := nil;
   if Ancestor<>nil then begin
     AddMethodsFromTypeInfo(Ancestor);
@@ -56384,59 +56468,52 @@ begin
   {$ifdef FPC}
   if PI^.UnitName='System' then
     exit;
-  // retrieve methods for this interface level
   methtable := PI^.MethodTable;
-  n:= methtable^.Count;
+  n := methtable^.Count;
   PW := @methtable^.RttiCount;
-  {$else}
-  P := AlignToPtr(@PI^.IntfUnit[ord(PI^.IntfUnit[0])+1]);
-  n := PW^; inc(PW);
-  {$endif}
   if (PW^=$ffff) or (n=0) then
     exit; // no RTTI or no method at this level of interface
-  {$ifdef FPC}
-  methodindex:=0;
   {$else}
+  P := AlignToPtr(@PI^.IntfUnit[ord(PI^.IntfUnit[0])+1]);
+  n := PW^;
+  inc(PW);
+  if (PW^=$ffff) or (n=0) then
+    exit; // no RTTI or no method at this level of interface
   inc(PW);
   p := aligntoptr(p);
-  {$endif}
-  for m := fMethodsCount to fMethodsCount+n-1 do begin
+  {$endif FPC}
+  for m := 0 to n-1 do begin
     // retrieve method name, and add to the methods list (with hashing)
-    {$ifdef FPC_NEWRTTI}
-    PME := methtable^.Method[methodindex];
-    Inc(methodindex);
-    aURI := PME^.Name;
+    {$ifdef FPC}
+    PME := methtable^.Method[m];
+    ShortStringToAnsi7String(PME^.Name,aURI);
     {$else}
-    FastSetString(aURI,@PS^[1],ord(PS^[0]));
-    {$endif}
-    with PServiceMethod(fMethod.AddUniqueName(aURI,
-      '%.% method: duplicated name for %',[fInterfaceTypeInfo^.Name,aURI,self]))^ do begin
-      HierarchyLevel := fAddMethodsLevel;
-      {$ifdef FPC}
-      aResultType := Deref(pointer(PME^.ResultType));
-      Kind := mORMot.TMethodKind(PME^.Kind);
-      if TCallingConvention(PME^.CC)<>DEFCC then
-        RaiseError('method uses wrong calling convention',[]);
-      {$else}
-      PS := AlignToPtr(@PS^[ord(PS^[0])+1]); // skip method name in Delphi
-      Kind := PME^.Kind;
-      if PME^.CC<>ccRegister then
-         RaiseError('method shall use register calling convention',[]);
-      {$endif}
-      // retrieve method call arguments from RTTI
-      n := PME^.ParamCount;
-      {$ifndef FPC}
-       // skip ParamCount in Delphi
-      inc(PME);
-      {$endif}
-      if Kind=mkFunction then
-        SetLength(Args,n+1) else
-        SetLength(Args,n);
-      if length(Args)>MAX_METHOD_ARGS then
-         RaiseError('method has too many parameters: %>%',[Length(Args),MAX_METHOD_ARGS]);
-      {$ifdef FPC}
-      if aResultType<>nil then
-      with Args[n] do begin
+    ShortStringToAnsi7String(PS^,aURI);
+    {$endif FPC}
+    sm := fMethod.AddUniqueName(aURI,'%.% method: duplicated name for %',
+      [fInterfaceTypeInfo^.Name,aURI,self]);
+    sm^.HierarchyLevel := fAddMethodsLevel;
+    {$ifndef FPC}
+    PS := AlignToPtr(@PS^[ord(PS^[0])+1]); // skip method name in Delphi
+    {$endif FPC}
+    Kind := mORMot.TMethodKind(PME^.Kind);
+    if TCallingConvention(PME^.CC)<>DEFCC then
+      RaiseError('unhandled calling convention %',[SynCommons.GetEnumName(
+        TypeInfo(TCallingConvention),ord(PME^.CC))^]);
+    // retrieve method call arguments from RTTI
+    n := PME^.ParamCount;
+    {$ifndef FPC}
+    inc(PME); // skip ParamCount in Delphi
+    {$endif FPC}
+    if Kind=mkFunction then
+      SetLength(sm^.Args,n+1) else
+      SetLength(sm^.Args,n);
+    if length(sm^.Args)>MAX_METHOD_ARGS then
+       RaiseError('method has too many parameters: %>%',[Length(sm^.Args),MAX_METHOD_ARGS]);
+    {$ifdef FPC}
+    aResultType := Deref(pointer(PME^.ResultType));
+    if aResultType<>nil then
+      with sm^.Args[n] do begin
         ParamName := @CONST_PSEUDO_RESULT_NAME;
         ValueDirection := smdResult;
         ArgTypeInfo := aResultType;
@@ -56444,22 +56521,21 @@ begin
           ArgTypeName := @CONST_INTEGER_NAME else
           ArgTypeName := @ArgTypeInfo^.Name;
       end;
-      argsindex:=0;
-      {$endif}
-      paramcounter:=0;
-      while paramcounter < n do
-      {$ifdef FPC} // FPC has its own RTTI layout
-      begin
-        VMP:=PME^.Param[paramcounter];
-        f := mORMot.TParamFlags(VMP^.Flags);
-        with Args[argsindex] do begin
+    argsindex := 0;
+    {$endif FPC}
+    paramcounter := 0;
+    while paramcounter<n do
+    {$ifdef FPC} begin // FPC has its own RTTI layout
+      VMP := PME^.Param[paramcounter];
+      f := mORMot.TParamFlags(VMP^.Flags);
+      with sm^.Args[argsindex] do begin
         if pfVar in f then
           ValueDirection := smdVar else
         if pfOut in f then
           ValueDirection := smdOut;
-          ArgsNotResultLast := argsindex;
+          sm^.ArgsNotResultLast := argsindex;
         if ValueDirection<>smdConst then
-            ArgsOutNotResultLast := argsindex;
+            sm^.ArgsOutNotResultLast := argsindex;
         ArgTypeInfo := pointer(Deref(pointer(VMP^.ParamType)));
         ArgTypeName := @ArgTypeInfo^.Name;
         if paramcounter>0 then
@@ -56469,74 +56545,72 @@ begin
              RaiseError('%: % parameter should be declared as const, var or out',
                [ParamName^,ArgTypeName^]);
         smvInterface:
-           if not (pfConst in f) then
+           if not(pfConst in f) then
              RaiseError('%: % parameter should be declared as const',
                [ParamName^,ArgTypeName^]);
         end;
         if pfSelf in f then
-            ParamName := @CONST_PSEUDO_SELF_NAME else
+          ParamName := @CONST_PSEUDO_SELF_NAME else
           if pfResult in f then begin
-            if (paramcounter <> n-1) or (High(Args) <> paramcounter+1) then begin
+            if (paramcounter<>n-1) or (High(sm^.Args)<>paramcounter+1) then begin
               // at least on ARM, function (result) is on paramcounter different position than on x86
               // so, cleanup and re-use array for next param entry
-              FillcharFast(Args[argsindex],SizeOf(TServiceMethodArgument),0);
+              FillCharFast(sm^.Args[argsindex],SizeOf(TServiceMethodArgument),0);
               // needed for re-use due to following Inc(argsindex) ... see below
-              Dec(argsindex);
+              dec(argsindex);
             end;
-            Args[n-1]:=Args[n];
-            SetLength(Args,n);
+            sm^.Args[n-1] := sm^.Args[n];
+            SetLength(sm^.Args,n);
           end else
-            { Since https://svn.freepascal.org/cgi-bin/viewvc.cgi?view=revision&revision=39684 ,
-              we cannot take an address of TVmtMethodParam.Name , we have to use NamePtr instead. }
-            ParamName := {$ifdef VER3_1} @VMP^.Name {$else} VMP^.NamePtr {$endif};
-        end;
-        Inc(paramcounter);
-        Inc(argsindex);
+            { since https://svn.freepascal.org/cgi-bin/viewvc.cgi?view=revision&revision=39684
+              TVmtMethodParam.Name is a local stack copy -> direct NamePtr use }
+            ParamName := {$ifdef VER3_1}@VMP^.Name{$else}VMP^.NamePtr{$endif};
       end;
-      {$else FPC} // Delphi code
-      with Args[paramcounter] do begin
-        f := PF^;
-        inc(PF);
-        if pfVar in f then
-          ValueDirection := smdVar else
-        if pfOut in f then
-          ValueDirection := smdOut;
-        ArgsNotResultLast := paramcounter;
-        if ValueDirection<>smdConst then
-          ArgsOutNotResultLast := paramcounter;
-        ParamName := PS;
-        PS := AlignToPtr(@PS^[ord(PS^[0])+1]);
-        SetFromRTTI(PB);
-        {$ifdef ISDELPHIXE}
-        inc(PB,PW^); // skip custom attributes
-        {$endif}
-        if paramcounter>0 then
-        case TypeInfoToMethodValueType(ArgTypeInfo) of
-        smvRecord,smvDynArray:
-          if f*[pfConst,pfVar,pfOut]=[] then
-            RaiseError('%: % parameter should be declared as const, var or out',
-              [ParamName^,ArgTypeName^]);
-        smvInterface:
-          if not (pfConst in f) then
-            RaiseError('%: % parameter should be declared as const',
-              [ParamName^,ArgTypeName^]);
-        end;
-        Inc(paramcounter);
-      end;
-      // add a pseudo argument after all arguments for functions
-      if Kind=mkFunction then
-        with Args[n] do begin
-          ParamName := @CONST_PSEUDO_RESULT_NAME;
-          ValueDirection := smdResult;
-          SetFromRTTI(PB);
-        end;
+      inc(paramcounter);
+      inc(argsindex);
+    end;
+    {$else FPC} // Delphi code:
+    with sm^.Args[paramcounter] do begin
+      f := PF^;
+      inc(PF);
+      if pfVar in f then
+        ValueDirection := smdVar else
+      if pfOut in f then
+        ValueDirection := smdOut;
+      sm^.ArgsNotResultLast := paramcounter;
+      if ValueDirection<>smdConst then
+        sm^.ArgsOutNotResultLast := paramcounter;
+      ParamName := PS;
+      PS := AlignToPtr(@PS^[ord(PS^[0])+1]);
+      SetFromRTTI(PB);
       {$ifdef ISDELPHIXE}
       inc(PB,PW^); // skip custom attributes
-      {$endif}
-      {$endif FPC}
-      // go to next method
+      {$endif ISDELPHIXE}
+      if paramcounter>0 then
+      case TypeInfoToMethodValueType(ArgTypeInfo) of
+      smvRecord,smvDynArray:
+        if f*[pfConst,pfVar,pfOut]=[] then
+          RaiseError('%: % parameter should be declared as const, var or out',
+            [ParamName^,ArgTypeName^]);
+      smvInterface:
+        if not(pfConst in f) then
+          RaiseError('%: % parameter should be declared as const',
+            [ParamName^,ArgTypeName^]);
+      end;
+      inc(paramcounter);
     end;
-  end;
+    // add a pseudo argument after all arguments for functions
+    if Kind=mkFunction then
+      with sm^.Args[n] do begin
+        ParamName := @CONST_PSEUDO_RESULT_NAME;
+        ValueDirection := smdResult;
+        SetFromRTTI(PB);
+      end;
+    {$ifdef ISDELPHIXE}
+    inc(PB,PW^); // skip custom attributes
+    {$endif ISDELPHIXE}
+    {$endif FPC}
+  end; // go to next method
 end;
 
 {$endif HASINTERFACERTTI} // see http://bugs.freepascal.org/view.php?id=26774
@@ -56583,10 +56657,12 @@ begin
       raise EInterfaceFactoryException.CreateUTF8('%: expect TypeInfo() at #% for %.AddMethod("%")',
         [fInterfaceTypeInfo^.Name,a,self,aName]);
     arg^.ArgTypeInfo := aParams[a*ARGPERARG+2].VPointer;
-    {$ifdef FPC} // under FPC, TypeInfo(Integer)=TypeInfo(Longint)
+    {$ifdef FPC} // under FPC, TypeInfo(Integer/Cardinal)=TypeInfo(LongInt/LongWord)
     if arg^.ArgTypeInfo=TypeInfo(Integer) then
       arg^.ArgTypeName := @CONST_INTEGER_NAME else
-    {$endif}
+    if arg^.ArgTypeInfo=TypeInfo(Cardinal) then
+      arg^.ArgTypeName := @CONST_CARDINAL_NAME else
+    {$endif FPC}
       arg^.ArgTypeName := @arg^.ArgTypeInfo^.Name;
   end;
 end;
@@ -58379,7 +58455,8 @@ begin
             [self,aInterface^.Name]);
         Instance := nil; // avoid GPF
         if n>i then
-          MoveFast(GlobalInterfaceResolution[i+1],GlobalInterfaceResolution[i],
+          {$ifdef FPC}Move{$else}MoveFast{$endif}(
+            GlobalInterfaceResolution[i+1],GlobalInterfaceResolution[i],
             (n-i)*SizeOf(GlobalInterfaceResolution[i]));
         SetLength(GlobalInterfaceResolution,n);
         exit;
@@ -58996,7 +59073,7 @@ class function TServiceContainerServer.CallbackReleasedOnClientSide(
     s := ord(source[0]);
     if d+s<254 then begin
       dest[d+1] := ' ';
-      MoveFast(source[1],dest[d+2],s);
+      {$ifdef FPC}Move{$else}MoveFast{$endif}(source[1],dest[d+2],s);
       inc(dest[0],s+1);
     end;
   end;
@@ -59298,7 +59375,7 @@ asm
         mov     rbp, rsp
         // simulate .params 60 ... size for 60 parameters
         lea     rsp, [rsp - MAX_EXECSTACK]
-        // align stack
+        // align stack to 16 bytes
         and     rsp, -16
 {$else DELPHI} // ensure we use regular .params command for easier debugging
 asm
@@ -59312,11 +59389,11 @@ asm
         mov     rdx, [r12].TCallMethodArgs.StackAddr
         jmp     @checkstack
 @addstack:
-        push    qword ptr[rdx]
         dec     ecx
+        push    qword ptr[rdx]
         sub     rdx, 8
 @checkstack:
-        or      ecx, ecx
+        test    ecx, ecx
         jnz     @addstack
         // fill registers and call method
         {$ifdef LINUX}
@@ -59368,13 +59445,16 @@ asm
 end;
 {$endif CPUX64}
 
-{$ifdef CPUX86}
+{$ifdef CPUX86} {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
         push    esi
         push    ebp
         mov     ebp, esp
         mov     esi, Args
         // copy stack content (if any)
+        {$ifdef DARWIN} // require aligned stack
+        and     esp, -16
+        {$endif}
         mov     eax, [esi].TCallMethodArgs.StackSize
         mov     edx, dword ptr[esi].TCallMethodArgs.StackAddr
         add     edx, eax // pascal/register convention = left-to-right
@@ -60388,12 +60468,12 @@ begin
   result := false;
   case ValueType of
   smvBoolean..smvCurrency:
-  case SizeInStorage of
-    1: result := PByte(V)^=0;
-    2: result := PWord(V)^=0;
-    4: result := PInteger(V)^=0;
-    8: result := PInt64(V)^=0;
-  end;
+    case SizeInStorage of
+      1: result := PByte(V)^=0;
+      2: result := PWord(V)^=0;
+      4: result := PInteger(V)^=0;
+      8: result := PInt64(V)^=0;
+    end;
   smvRawUTF8..smvWideString, smvObject..smvInterface:
     result := PPointer(V)^=nil;
   smvBinary, smvRecord:
@@ -60407,13 +60487,13 @@ end;
 function TServiceMethodArgument.FromJSON(const MethodName: RawUTF8; var R: PUTF8Char;
   V: pointer; Error: PShortString{$ifndef NOVARIANTS}; DVO: TDocVariantOptions{$endif}): boolean;
   procedure RaiseError(const msg: RawUTF8);
-  var tmp: RawUTF8;
+  var tmp: shortstring;
   begin
-    FormatUTF8('I% failed on %:% [%]',[MethodName,ParamName^,ArgTypeName^,msg],tmp);
+    FormatShort('I% failed on %:% [%]',[MethodName,ParamName^,ArgTypeName^,msg],tmp);
     if Error=nil then
       raise EInterfaceFactoryException.CreateUTF8('%',[tmp]);
     result := false;
-    SetString(Error^,PAnsiChar(pointer(tmp)),length(tmp));
+    Error^ := tmp;
   end;
 var parser: TJSONToObject; // inlined JSONToObject()
     Val: PUTF8Char;
@@ -60446,7 +60526,7 @@ begin
       if R=nil then
         RaiseError('returned RawJSON');
     end;
-  smvBoolean..smvBinary: begin
+  smvBoolean..smvWideString: begin
     Val := GetJSONField(R,R,@wasString,nil,@ValLen);
     if (Val=nil) or (wasString<>(vIsString in ValueKindAsm)) then begin
       RaiseError('missing or invalid value');
@@ -60464,7 +60544,9 @@ begin
     smvInteger:
       PInteger(V)^ := GetInteger(Val);
     smvInt64:
-      SetInt64(Val,PInt64(V)^);
+      if vIsQword in ValueKindAsm then
+        SetQWord(Val,PQWord(V)^) else
+        SetInt64(Val,PInt64(V)^);
     smvDouble,smvDateTime:
       PDouble(V)^ := GetExtended(Val);
     smvCurrency:
@@ -60477,11 +60559,25 @@ begin
       Base64ToBin(PAnsiChar(Val),ValLen,PRawByteString(V)^);
     smvWideString:
       UTF8ToWideString(Val,ValLen,PWideString(V)^);
-    smvBinary:
-      if ValLen=SizeInStorage*2 then
-        HexDisplayToBin(PAnsiChar(Val),PByte(V),SizeInStorage);
     else RaiseError('ValueType?');
     end;
+  end;
+  smvBinary: begin
+    Val := GetJSONField(R,R,@wasString,nil,@ValLen);
+    if Val=nil then begin
+      RaiseError('missing or invalid binary value');
+      exit;
+    end;
+    if wasString then begin // decode hexadecimal string
+      if ValLen=SizeInStorage*2 then
+        HexDisplayToBin(PAnsiChar(Val),PByte(V),SizeInStorage);
+    end else // allow fallback to read plain numbers (e.g. on API upgrade)
+      case SizeInStorage of
+      1: PByte(V)^     := GetCardinal(Val);
+      2: PWord(V)^     := GetCardinal(Val);
+      4: PCardinal(V)^ := GetCardinal(Val);
+      8: SetQWord(Val,PQWord(V)^);
+      end;
   end;
   smvRecord: begin
     R := RecordLoadJSON(V^,R,ArgTypeInfo);
@@ -60522,7 +60618,9 @@ begin
     4: if ValueType=smvInteger then
          WR.Add(PInteger(V)^) else
          WR.AddU(PCardinal(V)^);
-    8: WR.Add(PInt64(V)^);
+    8: if vIsQword in ValueKindAsm then
+         WR.AddQ(PQWord(V)^) else
+         WR.Add(PInt64(V)^);
   end;
   smvDouble, smvDateTime: WR.AddDouble(PDouble(V)^);
   smvCurrency:   WR.AddCurr64(PInt64(V)^);
@@ -60568,7 +60666,9 @@ begin
     4: if ValueType=smvInteger then
          Int32ToUtf8(PInteger(V)^,DestValue) else
          UInt32ToUtf8(PCardinal(V)^,DestValue);
-    8: Int64ToUtf8(PInt64(V)^,DestValue);
+    8: if vIsQword in ValueKindAsm then
+         UInt64ToUtf8(PQword(V)^,DestValue) else
+         Int64ToUtf8(PInt64(V)^,DestValue);
   end;
   smvDouble, smvDateTime:
     ExtendedToStr(PDouble(V)^,DOUBLE_PRECISION,DestValue);
@@ -60648,7 +60748,9 @@ begin
     4: if ValueType=smvInteger then
          DestValue := PInteger(V)^ else
          DestValue := PCardinal(V)^;
-    8: DestValue := PInt64(V)^;
+    8: if vIsQword in ValueKindAsm then
+         DestValue := PQWord(V)^ else
+         DestValue := PInt64(V)^;
   end;
   smvDouble, smvDateTime:
     DestValue := PDouble(V)^;
@@ -61570,11 +61672,14 @@ begin
       SetLength(fWideStrings,ArgsUsedCount[smvvWideString]);
     if fAlreadyExecuted then begin
       if ArgsUsedCount[smvvObject]>0 then
-        FillcharFast(fObjects,ArgsUsedCount[smvvObject]*SizeOf(TObject),0);
+        {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+          fObjects,ArgsUsedCount[smvvObject]*SizeOf(TObject),0);
       if ArgsUsedCount[smvv64]>0 then
-        FillcharFast(fInt64s,ArgsUsedCount[smvv64]*SizeOf(Int64),0);
+        {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+          fInt64s,ArgsUsedCount[smvv64]*SizeOf(Int64),0);
       if ArgsUsedCount[smvvInterface]>0 then
-        FillcharFast(fInterfaces,ArgsUsedCount[smvvInterface]*SizeOf(pointer),0);
+        {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+          fInterfaces,ArgsUsedCount[smvvInterface]*SizeOf(pointer),0);
     end;
     Value := @fValues[1];
     for a := 1 to high(Args) do
@@ -61597,7 +61702,8 @@ begin
       smvvRecord: begin
         Value^ := pointer(fRecords[IndexVar]);
         if fAlreadyExecuted then
-          FillcharFast(Value^^,ArgTypeInfo^.RecordType^.Size,0);
+          {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+            Value^^,ArgTypeInfo^.RecordType^.Size,0);
       end;
       smvvDynArray:
         Value^ := @fDynArrays[IndexVar].Value;
@@ -61621,12 +61727,17 @@ var Value: pointer;
     call: TCallMethodArgs;
     Stack: packed array[0..MAX_EXECSTACK-1] of byte;
 begin
-  FillcharFast(call,SizeOf(call),0);
+  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(call,SizeOf(call),0);
   with fMethod^ do begin
     // create the stack and register content
     {$ifdef CPUX86}
     call.StackAddr := PtrInt(@Stack[0]);
+    {$ifdef DARWIN} // require aligned stack
+    a := ArgsSizeInStack+15;
+    call.StackSize := a-(a and 15);
+    {$else}
     call.StackSize := ArgsSizeInStack;
+    {$endif}
     {$else}
     {$ifdef CPUINTEL}
     call.StackSize := ArgsSizeInStack shr 3;
@@ -61638,13 +61749,14 @@ begin
     {$else}
     // stack is filled normally (LTR)
     call.StackAddr := PtrInt(@Stack[0]);
-    call.StackSize := ArgsSizeInStack shr 2;
     {$ifdef CPUAARCH64}
     call.StackSize := ArgsSizeInStack shr 3;
     // ensure stack aligned on 16 bytes (mandatory: needed for correct low level asm)
     if call.StackSize and 1 <> 0 then
       inc(call.StackSize);
-    {$endif}
+    {$else}
+    call.StackSize := ArgsSizeInStack shr 2;
+    {$endif CPUAARCH64}
     {$endif CPUINTEL}
     {$endif CPUX86}
     for a := 1 to high(Args) do
@@ -61654,7 +61766,7 @@ begin
          (ValueType in [smvRecord{$ifndef NOVARIANTS},smvVariant{$endif}]) then begin
           // pass by reference
           if (RegisterIdent=0) and (FPRegisterIdent=0) and (SizeInStack>0) then
-            MoveFast(Value,Stack[InStackOffset],SizeInStack) else begin
+            {$ifdef FPC}Move{$else}MoveFast{$endif}(Value,Stack[InStackOffset],SizeInStack) else begin
             if RegisterIdent>0 then
               call.ParamRegs[RegisterIdent] := PtrInt(Value);
             if FPRegisterIdent>0 then
@@ -61665,11 +61777,11 @@ begin
         else begin
           // pass by value
           if (RegisterIdent=0) AND (FPRegisterIdent=0) AND (SizeInStack>0) then
-            MoveFast(Value^,Stack[InStackOffset],SizeInStack) else begin
+            {$ifdef FPC}Move{$else}MoveFast{$endif}(Value^,Stack[InStackOffset],SizeInStack) else begin
             if (RegisterIdent>0) then begin
               call.ParamRegs[RegisterIdent] := PPtrInt(Value)^;
               {$ifdef CPUARM}
-              // for e.g. INT64 on 32 bit ARM systems; these are also passed in the normal registers
+              // for e.g. INT64 on 32-bit ARM systems; these are also passed in the normal registers
               if SizeInStack>PTRSIZ then
                 call.ParamRegs[RegisterIdent+1] := PPtrInt(Value+PTRSIZ)^;
               {$endif}
@@ -61831,7 +61943,7 @@ begin
   tmp.Init(n+2);
   try
     PAnsiChar(tmp.buf)[0] := '[';
-    MoveFast(pointer(params)^,PAnsiChar(tmp.buf)[1],n);
+    {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(params)^,PAnsiChar(tmp.buf)[1],n);
     PWord(PAnsiChar(tmp.buf)+n+1)^ := ord(']'); // ']'#0
     if output<>nil then begin
       WR := TempTextWriter;
@@ -61892,7 +62004,8 @@ begin
         repeat inc(Par) until not(Par^ in [#1..' ']);
         if Par<>'}' then begin
           ParObjValuesUsed := true;
-          FillCharFast(ParObjValues,(ArgsInLast+1)*SizeOf(pointer),0); // := nil
+          {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(
+            ParObjValues,(ArgsInLast+1)*SizeOf(pointer),0); // := nil
           a1 := ArgsInFirst;
           repeat
             Name := GetJSONPropName(Par,@NameLen);
@@ -62992,30 +63105,34 @@ end;
 function ObjArraySearch(const aSQLRecordObjArray; aID: TID): TSQLRecord;
 var i: integer;
     a: TSQLRecordObjArray absolute aSQLRecordObjArray;
+    r: ^TSQLRecord;
 begin
-  for i := 0 to length(a)-1 do
-    if a[i].fID=aID then begin
-      result := a[i];
+  r := pointer(a);
+  for i := 1 to length(a) do begin
+    result := r^;
+    if result.fID=aID then
       exit;
-    end;
+    inc(r);
+  end;
   result := nil;
 end;
 
 procedure ObjArrayRecordIDs(const aSQLRecordObjArray; out result: TInt64DynArray);
 var
-  i, n: integer;
+  i, n: PtrInt;
   a: TSQLRecordObjArray absolute aSQLRecordObjArray;
 begin
   n := length(a);
   SetLength(result,n);
   for i := 0 to n-1 do
-    result[i] := a[i].IDValue;
+    result[i] := a[i].fID;
 end;
 
 procedure ObjArrayCopy(const aSourceObjArray; var aDestObjArray; aDestObjArrayClear: boolean);
 var s: TObjectDynArray absolute aSourceObjArray;
     d: TObjectDynArray absolute aDestObjArray;
-    slen,dlen,i: integer;
+    slen,dlen: integer;
+    i: PtrInt;
     dinst: TClassInstance;
     o: TObject;
 begin

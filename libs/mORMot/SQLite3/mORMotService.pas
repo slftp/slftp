@@ -108,7 +108,7 @@ uses
   {$endif}
   SynCommons,
   SynLog,
-  SynCrypto,
+  SynCrypto, // for executable MD5/SHA256 hashes
   mORMot; // for TSynJsonFileSettings (i.e. JSON serialization)
 
 {$ifdef MSWINDOWS}
@@ -285,7 +285,7 @@ type
     // - Dependencies - string containing a list with names of services, which must
     // start before (every name should be separated with #0, entire
     // list should be separated with #0#0. Or, an empty string can be
-    // passed if there are no dependances).
+    // passed if there is no dependancy).
     // - Username - login name. For service type SERVICE_WIN32_OWN_PROCESS, the
     // account name in the form of "DomainName\Username"; If the account
     // belongs to the built-in domain, ".\Username" can be specified;
@@ -381,9 +381,9 @@ type
     // - so that you can write in the main block of your .dpr:
     // !CheckParameters('MyService.exe',HTTPSERVICENAME,HTTPSERVICEDISPLAYNAME);
     // - if ExeFileName='', it will install the current executable
-    // - an optional Description text for the service may be specified
+    // - optional Description and Dependencies text may be specified
     class procedure CheckParameters(const ExeFileName: TFileName;
-      const ServiceName,DisplayName,Description: string);
+      const ServiceName,DisplayName,Description: string; const Dependencies: string='');
   end;
 
   {$M+}
@@ -587,10 +587,10 @@ var
 
 /// enable low-level interception of executable stop signals
 // - any SIGQUIT / SIGTERM / SIGINT signal will set appropriately the global
-// SynDaemonTerminated variable
+// SynDaemonTerminated variable, with an optional logged entry to log
 // - as called e.g. by RunUntilSigTerminated()
 // - you can call this method several times with no issue
-procedure SynDaemonIntercept;
+procedure SynDaemonIntercept(log: TSynLog=nil);
 
 {$endif MSWINDOWS}
 
@@ -612,6 +612,7 @@ type
     fLogPath: TFileName;
     fLogRotateFileCount: integer;
     fLogClass: TSynLogClass;
+    fServiceDependencies: string;
   public
     /// initialize and set the default settings
     constructor Create; override;
@@ -625,6 +626,11 @@ type
     function ServiceDescription: string;
     /// read-only access to the TSynLog class, if SetLog() has been called
     property LogClass: TSynLogClass read fLogClass;
+    /// optional service dependencies
+    // - not published by default: could be defined if needed, or e.g. set in
+    // overriden constructor
+    // - several depending services may be set by appending #0 between names
+    property ServiceDependencies: string read fServiceDependencies write fServiceDependencies;
   published
     /// the service name, as used internally by Windows or the TSynDaemon class
     // - default is the executable name
@@ -909,7 +915,7 @@ begin
 end;
 
 class procedure TServiceController.CheckParameters(const ExeFileName: TFileName;
-  const ServiceName,DisplayName,Description: string);
+  const ServiceName, DisplayName, Description, Dependencies: string);
 var param: string;
     i: integer;
 procedure ShowError(const Msg: RawUTF8);
@@ -928,7 +934,7 @@ begin
     ServiceLog.Add.Log(sllInfo,'Controling % with command "%"',[ServiceName,param]);
     if param='/install' then
      TServiceController.Install(
-       ServiceName,DisplayName,Description,true,ExeFileName) else
+       ServiceName,DisplayName,Description,true,ExeFileName,Dependencies) else
     with TServiceController.CreateOpenService('','',ServiceName) do
     try
       if State=ssErrorRetrievingState then
@@ -1458,34 +1464,64 @@ end;
 
 var
   SynDaemonIntercepted: boolean;
+  SynDaemonInterceptLog: TSynLogClass;
 
 {$ifdef FPC}
 procedure DoShutDown(Sig: Longint; Info: PSigInfo; Context: PSigContext); cdecl;
+var level: TSynLogInfo;
+    log: TSynLog;
+    si_code: integer;
+    text: TShort4;
+begin // code below has no memory (re)allocation
+  if SynDaemonInterceptLog <> nil then begin
+    log := SynDaemonInterceptLog.Add;
+    case Sig of
+      SIGQUIT: text := 'QUIT';
+      SIGTERM: text := 'TERM';
+      SIGINT:  text := 'INT';
+      SIGABRT: text := 'ABRT';
+      else text := UInt3DigitsToShort(Sig);
+    end;
+    if Sig = SIGTERM then // polite quit
+      level := sllInfo else
+      level := sllExceptionOS;
+    if Info=nil then
+      si_code := 0 else
+      si_code := Info^.si_code;
+    log.Writer.CustomOptions := log.Writer.CustomOptions + [twoFlushToStreamNoAutoResize];
+    log.Log(level, 'SynDaemonIntercepted received SIG%=% si_code=%', [text, Sig, si_code]);
+    log.Flush({flushtodisk=}Sig <> SIGTERM); // ensure all log is safely written
+  end;
+  SynDaemonTerminated := Sig;
+end;
 {$else}
 procedure DoShutDown(Sig: integer); cdecl;
-{$endif}
 begin
   SynDaemonTerminated := Sig;
 end;
+{$endif FPC}
 
-procedure SynDaemonIntercept;
+procedure SynDaemonIntercept(log: TSynLog);
 var
   saOld, saNew: {$ifdef FPC}SigactionRec{$else}TSigAction{$endif};
-begin
+begin // note: SIGFPE/SIGSEGV/SIGBUS/SIGILL are handled by the RTL
   if SynDaemonIntercepted then
     exit;
   SynDaemonIntercepted := true;
+  SynDaemonInterceptLog := log.LogClass;
   FillCharFast(saNew, SizeOf(saNew), 0);
   {$ifdef FPC}
   saNew.sa_handler := @DoShutDown;
   fpSigaction(SIGQUIT, @saNew, @saOld);
   fpSigaction(SIGTERM, @saNew, @saOld);
   fpSigaction(SIGINT, @saNew, @saOld);
+  fpSigaction(SIGABRT, @saNew, @saOld);
   {$else} // Kylix
   saNew.__sigaction_handler := @DoShutDown;
   sigaction(SIGQUIT, @saNew, @saOld);
   sigaction(SIGTERM, @saNew, @saOld);
   sigaction(SIGINT, @saNew, @saOld);
+  sigaction(SIGABRT, @saNew, @saOld);
   {$endif}
 end;
 
@@ -1506,7 +1542,7 @@ begin
   if pid <= 0 then
     exit;
   {$ifdef FPC}
-  if fpkill(pid, SIGTERM) <> 0 then
+  if fpkill(pid, SIGTERM) <> 0 then // polite quit
     if fpgeterrno<>ESysESRCH then
   {$else} // Kylix
   if kill(pid, SIGTERM) <> 0 then
@@ -1552,7 +1588,7 @@ var
 const
   TXT: array[boolean] of string[4] = ('run', 'fork');
 begin
-  SynDaemonIntercept;
+  SynDaemonIntercept(log);
   if dofork then begin
     pidfilename := RunUntilSigTerminatedPidFile;
     pid := GetInteger(pointer(StringFromFile(pidfilename)));
@@ -1946,7 +1982,7 @@ begin
       cInstall:
         with fSettings do
           Show(TServiceController.Install(ServiceName, ServiceDisplayName,
-            ServiceDescription, aAutoStart) <> ssNotInstalled);
+            ServiceDescription, aAutoStart, '', ServiceDependencies) <> ssNotInstalled);
       cStart, cStop, cUninstall, cState: begin
         ctrl := TServiceController.CreateOpenService('', '', fSettings.ServiceName);
         try
