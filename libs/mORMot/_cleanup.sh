@@ -13,6 +13,8 @@ rm -r SQLite3/Documentation
 rm -r SQLite3/Samples
 rm -r static
 rm -r SyNode
+rm -r Packages
+rm -r SynDBDataset
 
 # delete unwanted file types
 find * -iname "*.tmpl" -type f -delete

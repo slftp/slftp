@@ -1605,6 +1605,7 @@ begin
   Assert(strspnpas(PAnsiChar('baabbaabbaabbabcd'),PAnsiChar('ab'))=15);
   Assert(strspnpas(PAnsiChar('baabbaabbaabbaabcd'),PAnsiChar('ab'))=16);
   Assert(strspnpas(PAnsiChar('baabbaabbaababaabcd'),PAnsiChar('ab'))=17);
+  {$ifndef ABSOLUTEPASCAL}
   {$ifdef CPUINTEL}
   if cfSSE42 in CpuFeatures then begin
     Check(strcspnsse42(PAnsiChar('ab'),PAnsiChar('a'#0))=0);
@@ -1639,6 +1640,7 @@ begin
     Check(strspnsse42(PAnsiChar('baabbaabbaababaabcd'),PAnsiChar('ab'))=17);
   end;
   {$endif CPUINTEL}
+  {$endif ABSOLUTEPASCAL}
 end;
 
 procedure TTestLowLevelCommon.IniFiles;
@@ -2779,6 +2781,7 @@ procedure TTestLowLevelCommon.UrlEncoding;
 var i,j: integer;
     s: RawByteString;
     name,value,utf: RawUTF8;
+    str: string;
     P: PUTF8Char;
     GUID2: TGUID;
     U: TURI;
@@ -2790,6 +2793,8 @@ begin
   Check(UrlDecode(PUTF8Char(encoded))=decoded);
 end;
 begin
+  str := UTF8ToString(UrlEncode(StringToUTF8('https://test3.diavgeia.gov.gr/doc/')));
+  check(str='https%3A%2F%2Ftest3.diavgeia.gov.gr%2Fdoc%2F');
   Test('abcdef','abcdef');
   Test('abcdefyzABCDYZ01239_-.~ ','abcdefyzABCDYZ01239_-.~+');
   Test('"Aardvarks lurk, OK?"','%22Aardvarks+lurk%2C+OK%3F%22');
@@ -3392,7 +3397,6 @@ begin
   result := result xor (result shr 16);
 end;
 
-{$ifdef CPUINTEL}
 procedure crcblockreference(crc128, data128: PBlock128);
 var c: cardinal;
 begin
@@ -3409,7 +3413,6 @@ begin
   crc128^[3] := crc32ctab[3,byte(c)] xor crc32ctab[2,byte(c shr 8)]
             xor crc32ctab[1,byte(c shr 16)] xor crc32ctab[0,c shr 24];
 end;
-{$endif CPUINTEL}
 
 procedure TTestLowLevelCommon._crc32c;
 var crc: array[0..10000] of record
@@ -3478,11 +3481,15 @@ begin
   check(TBlock128(crc2)[1]=582109780);
   check(TBlock128(crc2)[2]=1177891908);
   check(TBlock128(crc2)[3]=4047040040);
-  {$ifdef CPUINTEL}
   FillZero(crc1);
   crcblockreference(@crc1,PBlock128(PAnsiChar('0123456789012345')));
   check(not IsZero(crc1));
   check(IsEqual(crc1,crc2));
+  FillZero(crc1);
+  crcblocks(@crc1,PBlock128(PAnsiChar('0123456789012345')),1);
+  check(not IsZero(crc1));
+  check(IsEqual(crc1,crc2),'crcblocks');
+  {$ifdef CPUINTEL}
   FillZero(crc1);
   crcblockNoSSE42(@crc1,PBlock128(PAnsiChar('0123456789012345')));
   check(not IsZero(crc1));
@@ -3557,6 +3564,63 @@ procedure TTestLowLevelCommon.Integers;
     Check(fAdd = added, 'added');
     Check(fDel = deleted, 'deleted');
   end;
+  procedure includes(const values, includes, excludes, included, excluded: RawUTF8);
+    procedure includes32;
+    var v, i, e: TIntegerDynArray;
+    begin
+      CSVToIntegerDynArray(Pointer(values),v);
+      CSVToIntegerDynArray(Pointer(excludes),e);
+      ExcludeInteger(v, e, 32); // no sort
+      Check(IntegerDynArrayToCSV(v) = excluded);
+      v := nil;
+      e := nil;
+      CSVToIntegerDynArray(Pointer(values),v);
+      CSVToIntegerDynArray(Pointer(excludes),e);
+      ExcludeInteger(v, e, 2); // sort
+      Check(IntegerDynArrayToCSV(v) = excluded);
+      v := nil;
+      e := nil;
+      CSVToIntegerDynArray(Pointer(values),v);
+      CSVToIntegerDynArray(Pointer(includes),i);
+      IncludeInteger(v, i, 32); // no sort
+      Check(IntegerDynArrayToCSV(v) = included);
+      v := nil;
+      e := nil;
+      CSVToIntegerDynArray(Pointer(values),v);
+      CSVToIntegerDynArray(Pointer(includes),i);
+      IncludeInteger(v, i, 2); // sort
+      Check(IntegerDynArrayToCSV(v) = included);
+    end;
+    procedure includes64;
+    var v, i, e: TInt64DynArray;
+    begin
+      CSVToInt64DynArray(Pointer(values),v);
+      CSVToInt64DynArray(Pointer(excludes),e);
+      ExcludeInt64(v, e, 32); // no sort
+      Check(Int64DynArrayToCSV(v) = excluded);
+      v := nil;
+      e := nil;
+      CSVToInt64DynArray(Pointer(values),v);
+      CSVToInt64DynArray(Pointer(excludes),e);
+      ExcludeInt64(v, e, 2); // sort
+      Check(Int64DynArrayToCSV(v) = excluded);
+      v := nil;
+      e := nil;
+      CSVToInt64DynArray(Pointer(values),v);
+      CSVToInt64DynArray(Pointer(includes),i);
+      IncludeInt64(v, i, 32); // no sort
+      Check(Int64DynArrayToCSV(v) = included);
+      v := nil;
+      e := nil;
+      CSVToInt64DynArray(Pointer(values),v);
+      CSVToInt64DynArray(Pointer(includes),i);
+      IncludeInt64(v, i, 2); // sort
+      Check(Int64DynArrayToCSV(v) = included);
+    end;
+  begin
+    Includes32;
+    Includes64;
+  end;
 var i32: TIntegerDynArray;
     i64: TInt64DynArray;
     i,n: integer;
@@ -3621,6 +3685,10 @@ begin
   changes('1,2,3,4','5,6','5,6','1,2,3,4');
   changes('1,2,4','1,3,5,6','3,5,6','2,4');
   changes('1,2,4','3,5,6','3,5,6','1,2,4');
+  includes('1,2,3', '2', '2', '2', '1,3');
+  includes('1,2,3', '2,3', '2,3', '2,3', '1');
+  includes('1,2,3', '1,2,3', '1,2,3', '1,2,3', '');
+  includes('1,2,3', '3,1,2', '3,1,2', '1,2,3', '');
   check(i64=nil);
   DeduplicateInt64(i64);
   check(i64=nil);
@@ -3975,7 +4043,7 @@ begin
     Check(SysUtils.IntToStr(j)=string(a));
     Check(format('%d',[j])=string(a));
     Check(format('%.8x',[j])=IntToHex(j,8));
-    d := Random*1E-17-Random*1E-9;
+    d := Random*1E-17-Random*1E-19;
     str(d,a);
     s := RawUTF8(a);
     e := GetExtended(Pointer(s),err);
@@ -4454,6 +4522,7 @@ procedure Test(D: TDateTime; Expanded: boolean);
 var s,t: RawUTF8;
     E,F: TDateTime;
     I,J: TTimeLogBits;
+    st, s2: TSynSystemTime;
 begin
   s := DateTimeToIso8601(D,Expanded);
   if Expanded then
@@ -4463,6 +4532,16 @@ begin
     Check(Iso8601CheckAndDecode(Pointer(s),length(s),E));
     Check(Abs(D-E)<(1/SecsPerDay)); // we allow 999 ms error
   end;
+  st.FromDateTime(D);
+  s2.Clear;
+  DecodeDate(D,s2.Year,s2.Month,s2.Day);
+  DecodeTime(D,s2.Hour,s2.Minute,s2.Second,s2.MilliSecond);
+  Check(abs(st.MilliSecond-s2.MilliSecond)<=1); // allow 1 ms rounding error
+  st.MilliSecond := 0;
+  s2.MilliSecond := 0;
+  Check(st.IsEqual(s2)); // ensure conversion matches the RTL's
+  t := st.ToText(Expanded);
+  Check(Copy(t,1,length(s))=s);
   E := Iso8601ToDateTime(s);
   Check(Abs(D-E)<(1/SecsPerDay)); // we allow 999 ms error
   E := Iso8601ToDateTime(s+'Z');
@@ -4650,7 +4729,7 @@ begin
   end;
   dt := NowUTC;
   {$ifdef FPC}
-  CheckSame(_LocalTimeToUniversal(Now(), - GetLocalTimeOffset) - dt, 0, 1E-5,
+  CheckSame(_LocalTimeToUniversal(Now(), - GetLocalTimeOffset) - dt, 0, 1E-2,
     'NowUTC should not shift or truncate time');
   {$endif}
   sleep(200);
@@ -10087,7 +10166,7 @@ begin
   Check(CompressGZip(s,false)='gzip');
   Check(s=Data,'compressGZip');
   Check(gzr.Init(M.Memory,M.Position),'TGZRead');
-  Check(gzr.uncomplen=length(data));
+  Check(gzr.uncomplen32=Cardinal(length(data)));
   Check(gzr.crc32=crc0);
   Check(gzr.ToMem=data,'ToMem');
   st := TRawByteStringStream.Create;
@@ -10098,7 +10177,7 @@ begin
   finally
     st.Free;
   end;
-  SetLength(tmp,gzr.uncomplen div 5);
+  SetLength(tmp,gzr.uncomplen32 div 5);
   Check(gzr.ZStreamStart(pointer(tmp),length(tmp)),'ZStreamStart');
   s := '';
   repeat
@@ -10108,7 +10187,7 @@ begin
     s := s+copy(tmp,1,n);
   until false;
   check(gzr.ZStreamDone,'ZStreamDone');
-  Check(gzr.uncomplen=length(s));
+  Check(gzr.uncomplen32=Cardinal(length(s)));
   check(s=Data);
   s := Data;
   Check(CompressDeflate(s,true)='deflate');
@@ -11299,9 +11378,10 @@ end;
 type
   TBenchmark = (
     // non cryptographic hashes
-    bCRC32c, bXXHash32,
+    bCRC32c, bXXHash32, bHash32,
     // cryptographic hashes
-    bMD5, bSHA1, bHMACSHA1, bSHA256, bHMACSHA256, bSHA512, bHMACSHA512,
+    bMD5, bSHA1, bHMACSHA1, bSHA256, bHMACSHA256,
+    bSHA384, bHMACSHA384, bSHA512, bHMACSHA512,
     bSHA3_256, bSHA3_512,
     // encryption
     bRC4,
@@ -11325,6 +11405,7 @@ var b: TBenchmark;
     MD5: TMD5;
     SHA1: TSHA1;
     SHA256: TSHA256;
+    SHA384: TSHA384;
     SHA512: TSHA512;
     SHA3, SHAKE128, SHAKE256: TSHA3;
     RC4: TRC4;
@@ -11354,12 +11435,15 @@ begin
         dig.d1 := 0;
         case b of
         bXXHash32:   dig.d0 := xxHash32(0,pointer(data),SIZ[s]);
+        bHash32:     dig.d0 := Hash32(pointer(data),SIZ[s]);
         bCRC32c:     dig.d0 := crc32c(0,pointer(data),SIZ[s]);
         bMD5:        MD5.Full(pointer(data),SIZ[s],dig.h0);
-        bSHA1:       SHA1.Full(pointer(data),SIZ[s],PSHA1Digest(@dig)^);
-        bHMACSHA1:   HMAC_SHA1('secret',data,PSHA1Digest(@dig)^);
+        bSHA1:       SHA1.Full(pointer(data),SIZ[s],dig.b160);
+        bHMACSHA1:   HMAC_SHA1('secret',data,dig.b160);
         bSHA256:     SHA256.Full(pointer(data),SIZ[s],dig.Lo);
         bHMACSHA256: HMAC_SHA256('secret',data,dig.Lo);
+        bSHA384:     SHA384.Full(pointer(data),SIZ[s],dig.b384);
+        bHMACSHA384: HMAC_SHA384('secret',data,dig.b384);
         bSHA512:     SHA512.Full(pointer(data),SIZ[s],dig.b);
         bHMACSHA512: HMAC_SHA512('secret',data,dig.b);
         bSHA3_256:   SHA3.Full(pointer(data),SIZ[s],dig.Lo);
@@ -11374,7 +11458,7 @@ begin
         end;
         Check((b >= bRC4) or (dig.d0 <> 0) or (dig.d1 <> 0));
       end;
-      //NotifyTestSpeed(format('%s %s',[TXT[b],KB(SIZ[s])]),COUNT,SIZ[s]*COUNT,@timer);
+      //NotifyTestSpeed(format('%s %s',[TXT[b],SIZ[s]]),COUNT,SIZ[s]*COUNT,@timer);
       timer.ComputeTime;
       inc(time[b],timer.LastTimeInMicroSec);
       //if b in [bSHA3_512,high(b)] then AddConsole('');
@@ -18351,7 +18435,7 @@ begin
   C2 := THttpServerRequest.Create(nil,0,nil);
   P2 := protocol.Clone('');
   try
-    C1.Prepare('url','POST','headers',content,contentType,'');
+    C1.Prepare('url','POST','headers',content,contentType,'',false);
     noAnswer1 := opcode=focBinary;
     noAnswer2 := not noAnswer1;
     TWebSocketProtocolRestHook(protocol).InputToFrame(C1,noAnswer1,frame,head);

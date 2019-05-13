@@ -7,6 +7,7 @@ An Open Source Client-Server ORM/SOA framework
   http://mormot.net
 
 Contributors
+  Alan Chate
   Alexander (sha)
   Alexander (volax)
   AlexPirate
@@ -30,6 +31,7 @@ Contributors
   Eric Grange
   Esmond
   Esteban Martin (EMartin)
+  Eugene Ilyin
   Eva Freimann (EVaF)
   F-Vicente
   Goran Despalatovic (gigo)
@@ -37,8 +39,10 @@ Contributors
   Joe (jokusoft)
   Johan Bontes
   Jordi Tudela
+  Lagodny
   Leon Oosthuizen
   Maciej Izak (hnb)
+  Marcos Douglas B. Santos (mdbs99)
   Mario Moretti
   Marius Maximus (mariuszekpl)
   Martin Eckes
@@ -50,6 +54,8 @@ Contributors
   Michalis Kamburelis 
   MilesYou
   Mingda
+  Mr Yang (ysair)
+  Nicolas Marchand (MC)
   Nzsolt
   Oleg Tretyakov
   Ondrej (reddwarf)
