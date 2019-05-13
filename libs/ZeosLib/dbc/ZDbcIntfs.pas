@@ -147,6 +147,11 @@ type
     spPostgreSQL, spIB_FB, spMySQL, spNexusDB, spSQLite, spDB2, spAS400,
     spInformix, spCUBRID, spFoxPro);
 
+  {** Generic connection lost exception. }
+  EZSQLConnectionLost = class(EZSQLException);
+
+  TOnConnectionLostError = procedure(var AError: EZSQLConnectionLost) of Object;
+
   //TZTimeType = (ttTime, ttDate, ttDateTime, ttInterval);
 
 // Interfaces
@@ -224,13 +229,14 @@ type
 
   IImmediatelyReleasable = interface(IZInterface)
     ['{7AA5A5DA-5EC7-442E-85B0-CCCC71C13169}']
-    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable);
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
     function GetConSettings: PZConSettings;
   end;
 
   {** Database Connection interface. }
   IZConnection = interface(IZInterface)
     ['{8EEBBD1A-56D1-4EC0-B3BD-42B60591457F}']
+    procedure RegisterOnConnectionLostErrorHandler(Handler: TOnConnectionLostError);
     procedure RegisterStatement(const Value: IZStatement);
     procedure DeregisterStatement(const Statement: IZStatement);
 
@@ -575,7 +581,7 @@ type
     procedure SetLocateUpdates(Value: TZLocateUpdatesMode);
     function GetLocateUpdates: TZLocateUpdatesMode;
 
-    procedure AddBatch(const SQL: string); deprecated;
+    procedure AddBatch(const SQL: string);
     procedure AddBatchRequest(const SQL: string);
 
     procedure ClearBatch;
@@ -684,7 +690,11 @@ type
     function GetFloat(ParameterIndex: Integer): Single;
     function GetDouble(ParameterIndex: Integer): Double;
     function GetCurrency(ParameterIndex: Integer): Currency;
-    function GetBigDecimal(ParameterIndex: Integer): {$IFDEF BCD_TEST}TBCD{$ELSE}Extended{$ENDIF};
+    {$IFDEF BCD_TEST}
+    procedure GetBigDecimal(ParameterIndex: Integer; var Result: TBCD);
+    {$ELSE}
+    function GetBigDecimal(ParameterIndex: Integer): Extended;
+    {$ENDIF}
     function GetBytes(ParameterIndex: Integer): TBytes;
     function GetDate(ParameterIndex: Integer): TDateTime;
     function GetTime(ParameterIndex: Integer): TDateTime;
@@ -782,7 +792,7 @@ type
     {$IFNDEF NO_ANSISTRING}
     function GetAnsiStringByName(const ColumnName: string): AnsiString;
     {$ENDIF}
-    {$IFDEF WITH UTF8STRING}
+    {$IFNDEF NO_UTF8STRING}
     function GetUTF8StringByName(const ColumnName: string): UTF8String;
     {$ENDIF}
     function GetRawByteStringByName(const ColumnName: string): RawByteString;

@@ -116,7 +116,9 @@ type
   PAnsiChar = MarshaledAString;
   PPAnsiChar = ^PAnsiChar;
   {$IFEND}
-
+  {$IF not declared(PInt64Rec)}
+  PInt64Rec = ^Int64Rec;
+  {$IFEND}
 {$IFDEF FPC}
 {$IFDEF WITH_RAWBYTESTRING}
 Type
@@ -485,6 +487,10 @@ function Max(const A, B: NativeUInt): NativeUInt; overload; {$IFDEF WITH_INLINE}
 {$IF NOT DEFINED(FPC) AND NOT DECLARED(ReturnAddress)} // intrinsic since XE2
 {$DEFINE ZReturnAddress}
 function ReturnAddress: Pointer;
+{$IFEND}
+
+{$IF defined(CPUARM) and not defined(FPC)}
+function align(addr: NativeUInt; alignment: NativeUInt) : NativeUInt; inline;
 {$IFEND}
 
 var
@@ -976,6 +982,16 @@ begin
       Inc(P, L);
     end;
 end;
+
+{$IF defined(CPUARM) and not defined(FPC)}
+function align(addr: NativeUInt; alignment: NativeUInt) : NativeUInt;
+var
+  tmp: NativeUInt;
+begin
+  tmp := addr + (alignment-1);
+  result := tmp - (tmp mod alignment)
+end;
+{$IFEND}
 
 {$IFDEF ZReturnAddress}
 function ReturnAddress: Pointer;

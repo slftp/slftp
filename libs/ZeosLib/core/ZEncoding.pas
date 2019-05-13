@@ -1344,16 +1344,7 @@ begin
       SetLength(Dest, NewLen);
   end else begin
     NewLen := MapProc(Source, SourceBytes, @Buf[0]);
-    {$IFDEF PWIDECHAR_IS_PUNICODECHAR}
-    if (Pointer(Dest) = nil) or//empty
-       ({%H-}PRefCntInt(NativeUInt(Dest) - StringRefCntOffSet)^ <> 1) or { unique string ? }
-       (NewLen <> {%H-}PLengthInt(NativeUInt(Dest) - StringLenOffSet)^) then { length as expected ? }
-    {$ELSE}
-    if Length(Dest) <> NewLen then //WideString isn't ref counted
-    {$ENDIF}
-      System.SetString(Dest, PWideChar(@Buf[0]), NewLen)
-    else
-      {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Buf[0], Dest[1], NewLen shl 1);
+    System.SetString(Dest, PWideChar(@Buf[0]), NewLen);
   end;
 end;
 
@@ -1583,11 +1574,11 @@ next: c := cardinal(Source^);
       inc(Source);
       case c of
         0..$7f: begin
-            PWord(Dest)^ := Byte(c);
+            PByte(Dest)^ := Byte(c);
             inc(Dest);
             //if (NativeUint(Dest)<DestLen) and (NativeUint(Source)<SourceLen) then continue else break;
             if (NativeUint(Dest)<DestLen) and (NativeUint(Source)<SourceLen) //test if end is reached
-            then if PWord(Source+1)^ > $7f //next no ascii?
+            then if PByte(Source+1)^ > $7f //next no ascii?
               then goto next
               else goto loop_ascii_pairs
             else goto done;
@@ -1595,10 +1586,10 @@ next: c := cardinal(Source^);
         UTF16_HISURROGATE_MIN..UTF16_HISURROGATE_MAX:
           if (NativeUint(Source)>=SourceLen) or
              ((cardinal(Source^)<UTF16_LOSURROGATE_MIN) or (cardinal(Source^)>UTF16_LOSURROGATE_MAX)) then begin
-unmatch:    if (NativeUint(@Dest[3])>DestLen) or not (ccfReplacementCharacterForUnmatchedSurrogate in Flags)
+unmatch:    if (NativeUint(Dest+3)>DestLen) or not (ccfReplacementCharacterForUnmatchedSurrogate in Flags)
             then goto Done;//break;
             PWord(Dest)^ := $BFEF;
-            PWord(Dest+2)^ := $BD;
+            PByte(Dest+2)^ := $BD;
             inc(Dest,3);
             goto loop_ascii_pairs;//if (NativeUint(Dest)<DestLen) and (NativeUint(Source)<SourceLen) then continue else break;
           end else begin
@@ -1624,10 +1615,10 @@ unmatch:    if (NativeUint(@Dest[3])>DestLen) or not (ccfReplacementCharacterFor
       if NativeUint(Dest)+i>DestLen then
         goto Done;//break;
       for j := i-1 downto 1 do begin
-        PWord(Dest+j)^ := Word((c and $3f)+$80);
+        PByte(Dest+j)^ := Byte((c and $3f)+$80);
         c := c shr 6;
       end;
-      PWord(Dest)^ := Byte(Byte(c) or UTF8_FIRSTBYTE[i]);
+      PByte(Dest)^ := Byte(Byte(c) or UTF8_FIRSTBYTE[i]);
       inc(Dest,i);
       goto loop_ascii_pairs;//if (NativeUint(Dest)<DestLen) and (NativeUint(Source)<SourceLen) then continue else break;
     end; //until false;
@@ -1686,7 +1677,7 @@ begin
       if SourceBytes <= dsMaxWStringSize then begin //can we use a static buf? -> avoid memrealloc for the Result String
         wlen := PRaw2PUnicodeBuf(Source, @wBuf[0], sourceBytes, CP);
         ZSetString(nil, wlen, Result);
-        {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(wBuf[0], Result[1], wlen shl 1);
+        {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(wBuf[0], Pointer(Result)^, wlen shl 1);
       end else begin //nope Buf to small
         ZSetString(nil, SourceBytes, Result);
         wlen := PRaw2PUnicodeBuf(Source, Pointer(Result), sourceBytes, CP);
@@ -1848,7 +1839,7 @@ A2U:
               W := ZWideString(S); //random success
               {$ENDIF}
               BufCodePoints := Min(Length(W), BufCodePoints);
-              {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(W[1], Dest^, BufCodePoints shl 1);
+              {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Pointer(W)^, Dest^, BufCodePoints shl 1);
               Inc(Dest, BufCodePoints);
             {$ENDIF}
           {$ENDIF}
@@ -2000,7 +1991,7 @@ begin
               {$ENDIF}
               BufCodePoints := Min(Length(W), wlen);
               if BufCodePoints > 0 then
-                {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(W[1], Dest^, BufCodePoints shl 1);
+                {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Pointer(W)^, Dest^, BufCodePoints shl 1);
             {$ENDIF}
           {$ENDIF}
 A2U:      Result := SourceBytes - wlen + BufCodePoints;
@@ -2077,7 +2068,7 @@ begin
   if BufCodePoints <= SourceBytes then //no buffer overrun possible
     Result := PRaw2PUnicodeBuf(Source, Dest, SourceBytes, CP)
   else begin
-    if SourceBytes <= dsMaxWStringSize 
+    if SourceBytes <= dsMaxWStringSize
     then Buf := @sBuf[0]
     else Buf := AllocMem((SourceBytes+1) shl 1);
     Result := PRaw2PUnicodeBuf(Source, Buf, SourceBytes, CP);
