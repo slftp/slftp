@@ -132,7 +132,7 @@ type
     procedure ResetCursor; virtual;
     function WasNull: Boolean; virtual;
     function IsClosed: Boolean;
-    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable); virtual;
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); virtual;
 
     //======================================================================
     // Methods for accessing results by column index
@@ -685,7 +685,7 @@ begin
   if Null1 and Null2 then Result := 0
   else if Null1 then Result := -1
   else if Null2 then Result := 1
-  else Result := BcdCompare(TZVariant(V1).VBigDecimal, TZVariant(V2).VBigDecimal));
+  else Result := BcdCompare(TZVariant(V1).VBigDecimal, TZVariant(V2).VBigDecimal);
 end;
 
 function CompareBigDecimal_Desc(const Null1, Null2: Boolean; const V1, V2): Integer;
@@ -1322,8 +1322,10 @@ begin
       Result := EncodeDouble(IZResultSet(FWeakIntfPtrOfSelf).GetDouble(ColumnIndex));
     stCurrency:
       Result := EncodeCurrency(IZResultSet(FWeakIntfPtrOfSelf).GetCurrency(ColumnIndex));
-    stBigDecimal:
-      Result := EncodeBigDecimal(IZResultSet(FWeakIntfPtrOfSelf).GetBigDecimal(ColumnIndex));
+    stBigDecimal: begin
+                    InitializeVariant(Result, vtBigDecimal);
+                    IZResultSet(FWeakIntfPtrOfSelf).GetBigDecimal(ColumnIndex, Result.VBigDecimal);
+                  end;
     {$ELSE}
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := EncodeFloat(IZResultSet(FWeakIntfPtrOfSelf).GetBigDecimal(ColumnIndex));
@@ -3044,7 +3046,8 @@ begin
   RaiseUnsupportedException;
 end;
 
-procedure TZAbstractResultSet.ReleaseImmediat(const Sender: IImmediatelyReleasable);
+procedure TZAbstractResultSet.ReleaseImmediat(const Sender: IImmediatelyReleasable;
+  var AError: EZSQLConnectionLost);
 var ImmediatelyReleasable: IImmediatelyReleasable;
 begin
   if not FClosed and Assigned(Statement){virtual RS ! } then
@@ -3055,7 +3058,7 @@ begin
     LastWasNull := True;
     if Supports(Statement, IImmediatelyReleasable, ImmediatelyReleasable) and
        (ImmediatelyReleasable <> Sender) then
-      ImmediatelyReleasable.ReleaseImmediat(Sender);
+      ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
   end;
 end;
 
@@ -4469,7 +4472,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractReadOnlyResultSet.UpdateBigDecimal(ColumnIndex: Integer;
-  const Value: Extended);
+  const Value: {$IFDEF BCD_TEST}TBCD{$ELSE}Extended{$ENDIF});
 begin
   RaiseReadOnlyException;
 end;
@@ -5237,7 +5240,11 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZSimpleResultSet.GetBigDecimal(ColumnIndex: Integer): {$IFDEF BCD_TEST}TBCD{$ELSE}Extended{$ENDIF};
+{$IFDEF BCD_TEST}
+procedure TZSimpleResultSet.GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+{$ELSE}
+function TZSimpleResultSet.GetBigDecimal(ColumnIndex: Integer): Extended;
+{$ENDIF}
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stBigDecimal);

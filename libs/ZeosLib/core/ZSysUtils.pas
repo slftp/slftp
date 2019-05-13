@@ -200,34 +200,130 @@ function EndsWith(const Str, SubStr: RawByteString): Boolean; overload;
 }
 function EndsWith(const Str, SubStr: ZWideString): Boolean; overload;
 
-{**
+{** EH:
   Converts SQL PAnsiChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix and ThousandSeparators
-  @param Str an SQL PAnsiChar with comma or dot delimiter.
-  @param Def a default value if the PAnsiChar can not be converted.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
   @return a converted value or Def if conversion did fail.
 }
 function SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended; Len: Integer = 0): Extended; overload;
+
+
+{** EH:
+  Converts SQL PAnsiChar into float value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended; out Result: Extended; Len: Integer = 0); overload;
+
+
+{** EH:
+  Converts SQL PAnsiChar into currency value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency; out Result: Currency; Len: Integer = 0); overload;
+
+{** EH:
+  Converts SQL PAnsiChar into currency value.
+  Possible is SQLFloat, Float, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param DecimalSep a reference to decimal seperator to be used;
+          we will initialize this sep with '.' or replace it if with the Sep we found
+  @param Result return a converted value or Def if conversion did fail.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+}
+procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency; Var DecimalSep: Char; out Result: Currency; Len: Integer = 0); overload;
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
+{** EH:
+  Converts SQL PAnsiChar into double precison value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Double; out Result: Double; Len: Integer = 0); overload;
 {$IFEND}
+{** EH:
+  Converts SQL PAnsiChar into single precison value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Single; out Result: Single; Len: Integer = 0); overload;
 
-{**
-  Converts SQL PWideChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix and ThousandSeparators
-  @param Str an SQL PWideChar with comma or dot delimiter.
-  @param Def a default value if the string can not be converted.
+{** EH:
+  Converts SQL PWideChar into REAL10 value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
   @return a converted value or Def if conversion did fail.
 }
 function SQLStrToFloatDef(Value: PWideChar; const Def: Extended; Len: Integer = 0): Extended; overload;
+
+{** EH:
+  Converts a UTF16 buffer into REAL10 value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Extended; out Result: Extended; Len: Integer = 0); overload;
+
+{** EH:
+  Converts a UTF16 buffer into currency value.
+  Possible is SQLFloat, Float, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency; out Result: Currency; Len: Integer = 0); overload;
+
+{** EH:
+  Converts a UTF16 buffer into currency value.
+  Possible is SQLFloat, Float, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param DecimalSep a reference to decimal seperator to be used;
+          we will initialize this sep with '.' or replace it if with the Sep we found
+  @param Result return a converted value or Def if conversion did fail.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+}
+procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency; Var DecimalSep: Char; out Result: Currency; Len: Integer = 0); overload;
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
+{** EH:
+  Converts a UTF16 buffer into double precsion value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Double; out Result: Double; Len: Integer = 0); overload;
 {$IFEND}
+{** EH:
+  Converts a UTF16 buffer into single precsion value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to UTF16 data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Single; out Result: Single; Len: Integer = 0); overload;
 
 {**
@@ -259,7 +355,7 @@ function BufferToBytes(Buffer: Pointer; Length: Integer): TBytes; {$IFDEF WITH_I
 function StrToBoolEx(const Str: RawByteString; const CheckInt: Boolean = True): Boolean; overload;
 
 {**
-  Converts a string into boolean value.
+  Converts a zero terminated raw buffer into boolean value.
   @param Str a PAnsiChar value.
   @param CheckInt Check for "0" char too?
   @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
@@ -267,6 +363,15 @@ function StrToBoolEx(const Str: RawByteString; const CheckInt: Boolean = True): 
 }
 function StrToBoolEx(Str: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
+
+{**
+  Converts a raw buffer into boolean value.
+  @param Str a PAnsiChar value.
+  @param PEnd points to the end of the buffer.
+  @param CheckInt Check for "0" char too?
+  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
+  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
+}
 function StrToBoolEx(Buf, PEnd: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
@@ -278,7 +383,7 @@ function StrToBoolEx(Buf, PEnd: PAnsiChar; const CheckInt: Boolean = True;
 function StrToBoolEx(const Str: ZWideString; const CheckInt: Boolean = True): Boolean; overload;
 
 {**
-  Converts a string into boolean value.
+  Converts a zero terminated UTF16 buffer into boolean value.
   @param Str a PWideChar value.
   @param CheckInt Check for "0" char too?
   @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
@@ -286,6 +391,15 @@ function StrToBoolEx(const Str: ZWideString; const CheckInt: Boolean = True): Bo
 }
 function StrToBoolEx(Str: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
+
+{**
+  Converts a UTF16 buffer into boolean value.
+  @param Buf a PWideChar value.
+  @param PEnd points to the end of the buffer.
+  @param CheckInt Check for "0" char too?
+  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
+  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
+}
 function StrToBoolEx(Buf, PEnd: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
@@ -990,7 +1104,6 @@ function Trim(const Value: ZWideString): ZWideString; overload;
 {$IFDEF NO_RAW_HEXTOBIN}
 function HexToBin(Hex: PAnsiChar; Bin: PByte; BinBytes: Integer): Boolean;
 {$ENDIF}
-
 {**
    Creates a memory stream with copy of data in buffer.
    If buffer contains no data, creates an empty stream.
@@ -1063,7 +1176,49 @@ procedure ScaledOrdinal2Bcd(Value: Word; Scale: Byte; var Result: TBCD; Negative
 function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
 function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: ZWideString): ZWideString; overload;
 
+(*function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
+function StringReplaceAll_CI_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;*)
+
+function BcdToSQLRaw(const Value: TBCD): RawByteString; overload;
+function BcdToRaw(const Bcd: TBcd; Buf: PAnsiChar; DecimalSep: Char): LengthInt; overload;
+function RawToBCD(Value: PAnsiChar; Len: LengthInt): TBCD; overload;
+function RawToBCD(const Value: RawByteString): TBCD; overload;
+function BcdToSQLUni(const Value: TBCD): ZWideString;
+function BcdToUni(const Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
+function UniToBCD(Value: PWideChar; Len: LengthInt): TBCD; overload;
+function UniToBCD(const Value: ZWideString): TBCD; overload;
+
+procedure BCD2Int64(const Value: TBCD; out Result: Int64); overload;
+function BCD2Int64(const Value: TBCD): Int64; overload;
+procedure BCD2UInt64(const Value: TBCD; out Result: UInt64); overload;
+function BCD2UInt64(const Value: TBCD): UInt64; overload;
+
+function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+function TryUniToBcd(Buf: PWideChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+
+function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+function TryRawToBcd(Buf: PAnsiChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+
+function TryStr2BCD(const Value: String; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean;
+function Str2BCD(const Value: String{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): TBCD;
+
+procedure Double2BCD(const Value: Double; var Result: TBCD); overload;
+
+
+Type TCurrRoundToScale = 0..4;
+
+{** EH:
+   round a currency value half away from zero to it's exact scale digits
+   @param Value the value to be rounded
+   @param Scale the exact scale digt we want to round valid is 0..4. even if 4 is a nop
+   @return a rounded value
+}
+function RoundCurrTo(const Value: Currency; Scale: TCurrRoundToScale): Currency;
+
 var
+  ZBase100Byte2BcdNibbleLookup: array[0..99] of Byte;
   ZBcdNibble2Base100ByteLookup: array[0..153] of Byte;
 
 const
@@ -1072,9 +1227,13 @@ const
 
 implementation
 
-uses DateUtils, StrUtils, SysConst,
+uses DateUtils, StrUtils, SysConst{$IFDEF WITH_DBCONSTS}, DBConsts{$ENDIF},
   {$IF defined(WITH_RTLCONSTS_SInvalidGuidArray) or defined(TLIST_IS_DEPRECATED)}RTLConsts,{$IFEND}
   ZFastCode;
+
+var
+  ZBcdNibble2DwoDigitLookupW:   array[0..153] of Word;
+  ZBcdNibble2DwoDigitLookupLW:  array[0..153] of Cardinal;
 
 
 {**
@@ -1297,12 +1456,13 @@ begin
   end;
 end;
 
-{**
-  Converts SQL AnsiString/RawByteString into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix and ThousandSeparators
-  @param Str an SQL AnsiString/RawByteString with comma or dot delimiter.
-  @param Def a default value if the string can not be converted.
-  @return a converted value or Def if conversion was failt.
+{** EH:
+  Converts SQL PAnsiChar into float value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @return a converted value or Def if conversion did fail.
 }
 function SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended;
   Len: Integer = 0): Extended;
@@ -1379,6 +1539,14 @@ Fail:
   Result := False;
 end;
 
+{** EH:
+  Converts SQL PAnsiChar into float value.
+  Possible is SQLFloat, Float, Hex, Money+Suffix
+  @param Value an Pointer to raw data we want to convert.
+  @param Def a default value if the value can not be converted.
+  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
+  @param Result return a converted value or Def if conversion did fail.
+}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended;
   out Result: Extended; Len: Integer);
 var
@@ -1415,36 +1583,53 @@ end;
 
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency;
   out Result: Currency; Len: Integer);
-var
-  InvalidPos: Integer;
-  DynBuf: TBytes;
-  StatBuf: Array[0..32] of Byte;
-  PBuf: PByteArray;
+var InvalidPos: Integer;
 begin
   Result := Def;
-  if Assigned(Value) then
-  begin
-    Result := ValRawDbl(Pointer(Value), AnsiChar('.'), InvalidPos);
-    if InvalidPos <> 0 then //posible MoneyType
-      if (Ord((Value+InvalidPos-1)^) = Ord(',')) and (Ord((Value+Len*Ord(Len>0)-1)^) in [Ord('0')..Ord('9')]) then  //nope no money. Just a comma instead of dot.
-        RawToFloatDef(Value, AnsiChar(','), Def, Result)
-      else
-      begin
-        if Len = 0 then
-          Len := ZFastCode.StrLen(Value);
-        if (InvalidPos > 1) and (Ord((Value+InvalidPos-1)^) = Ord(' ')) then
-          Exit;//fixed width str
-        if Len > SizeOf(StatBuf)-1 then begin
-          SetLength(DynBuf, Len+1);
-          PBuf := Pointer(DynBuf);
-        end else
-          PBuf := @StatBuf[0];
-        if CurrToRawBuff(Value, PBuf, Len) then
-          RawToFloatDef(PAnsiChar(PBuf), AnsiChar('.'), Def, Result)
-        else
-          Result := Def;
-      end;
+  if Assigned(Value) then begin
+    if Len = 0 then
+      Len := ZFastCode.StrLen(Value);
+    InvalidPos := Len;
+    Result := ValRawCurr(PByteArray(Value), '.', InvalidPos);
+    if InvalidPos = Len then Exit;
+    if InvalidPos < Len then begin//posible MoneyType
+      if (Ord((Value+InvalidPos-1)^) = Ord(',')) and (Ord((Value+InvalidPos)^) in [Ord('0')..Ord('9')]) then begin //nope no money. Just a comma instead of dot.
+        InvalidPos := Len;
+        Result := ValRawCurr(PByteArray(Value), ',', InvalidPos);
+        if InvalidPos = Len then
+          Exit;
+      end
+    end;
+    if Ord((Value+InvalidPos-1)^) = Ord(' ') then Exit;
   end;
+  Result := Def;
+end;
+
+procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency; Var DecimalSep: Char; out Result: Currency; Len: Integer = 0); overload;
+var InvalidPos: Integer;
+begin
+  if Assigned(Value) then begin
+    if Len = 0 then
+      Len := ZFastCode.StrLen(Value);
+    if DecimalSep = #0 then
+      DecimalSep := '.';
+    InvalidPos := Len;
+    Result := ValRawCurr(PByteArray(Value), DecimalSep, InvalidPos);
+    if InvalidPos = Len then Exit;
+    if InvalidPos < Len then begin //posible MoneyType
+      if (Ord((Value+InvalidPos-1)^) in [Ord('.'), Ord(',')]) and (Ord((Value+InvalidPos-1)^) <> Ord(DecimalSep)) and (Ord((Value+InvalidPos)^) in [Ord('0')..Ord('9')]) then begin //nope no money. Just a comma instead of dot.
+        InvalidPos := Len;
+        if DecimalSep = '.'
+        then DecimalSep := ','
+        else DecimalSep := '.';
+        Result := ValRawCurr(PByteArray(Value), DecimalSep, InvalidPos);
+        if InvalidPos = Len then
+          Exit;
+      end;
+      if Ord((Value+InvalidPos-1)^) = Ord(' ') then Exit;
+    end;
+  end;
+  Result := Def;
 end;
 
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
@@ -1640,41 +1825,62 @@ begin
 end;
 
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency;
-  out Result: Currency; Len: Integer = 0);
-var
-  InvalidPos: Integer;
-  DynBuf: TWordDynArray;
-  StatBuf: Array[0..32] of Word;
-  PBuf: PWordArray;
+  out Result: Currency; Len: Integer);
+var InvalidPos: Integer;
 begin
-  Result := Def;
-  if Assigned(Value) then
-  begin
-    Result := ValUnicodeDbl(PWordArray(Value), WideChar('.'), InvalidPos);
-    if InvalidPos <> 0 then //posible MoneyType
-      if ((Value+InvalidPos-1)^ = ',') and (Ord((Value+Len*Ord(Len>0)-1)^) in [Ord('0')..Ord('9')]) then  //nope no money. Just a comma instead of dot.
-        UnicodeToFloatDef(Value, WideChar(','), Def, Result)
-      else
-      begin
-        if Len = 0 then
-          {$IFDEF WITH_PWIDECHAR_STRLEN}
-          Len := SysUtils.StrLen(Value);
-          {$ELSE}
-          Len := Length(Value);
-          {$ENDIF}
-        if (InvalidPos > 1) and ((Value+InvalidPos-1)^ = ' ') then
-          Exit;//fixed width str
-        if Len > SizeOf(StatBuf)-1 then begin
-          SetLength(DynBuf, Len+1);
-          PBuf := Pointer(DynBuf);
-        end else
-          PBuf := @StatBuf[0];
-        if CurrToUnicodeBuf(Value, PBuf, Len) then
-          UnicodeToFloatDef(PWideChar(PBuf), WideChar('.'), Def, Result)
-        else
-          Result := Def;
+  if Assigned(Value) then begin
+    if Len = 0 then
+      {$IFDEF WITH_PWIDECHAR_STRLEN}
+      Len := SysUtils.StrLen(Value);
+      {$ELSE}
+      Len := Length(Value);
+      {$ENDIF}
+    InvalidPos := Len;
+    Result := ValUnicodeCurr(PWordArray(Value), '.', InvalidPos);
+    if InvalidPos = Len then Exit;
+    if InvalidPos < Len then begin//posible MoneyType
+      if (Ord((Value+InvalidPos-1)^) = Ord(',')) and (Ord((Value+InvalidPos)^) in [Ord('0')..Ord('9')]) then begin //nope no money. Just a comma instead of dot.
+        InvalidPos := Len;
+        Result := ValUnicodeCurr(PWordArray(Value), ',', InvalidPos);
+        if InvalidPos = Len then
+          Exit;
       end;
+      if Ord((Value+InvalidPos-1)^) = Ord(' ') then Exit;
+    end;
   end;
+  Result := Def;
+end;
+
+procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency; Var DecimalSep: Char;
+  out Result: Currency; Len: Integer); overload;
+var InvalidPos: Integer;
+begin
+  if Assigned(Value) then begin
+    if Len = 0 then
+      {$IFDEF WITH_PWIDECHAR_STRLEN}
+      Len := SysUtils.StrLen(Value);
+      {$ELSE}
+      Len := Length(Value);
+      {$ENDIF}
+    if DecimalSep = #0 then
+      DecimalSep := '.';
+    InvalidPos := Len;
+    Result := ValUnicodeCurr(PWordArray(Value), DecimalSep, InvalidPos);
+    if InvalidPos = Len then Exit;
+    if InvalidPos < Len then begin//posible MoneyType
+      if (Ord((Value+InvalidPos-1)^) in [Ord('.'), Ord(',')]) and (Ord((Value+InvalidPos-1)^) <> Ord(DecimalSep)) and
+         (Ord((Value+InvalidPos)^) in [Ord('0')..Ord('9')]) then begin //nope no money. Just a comma instead of dot.
+        InvalidPos := Len;
+        if DecimalSep = '.'
+        then DecimalSep := ','
+        else DecimalSep := '.';
+        Result := ValUnicodeCurr(PWordArray(Value), DecimalSep, InvalidPos);
+        if InvalidPos = Len then Exit;
+      end;
+      if Ord((Value+InvalidPos-1)^) = Ord(' ') then Exit;
+    end;
+  end;
+  Result := Def;
 end;
 
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
@@ -3563,7 +3769,8 @@ Inc_dbl:          Inc(Buf, 2);
                   Continue;
                 end else
                   PByte(Buf)^ := Ord('0') + Hour;
-      Ord('n'): if EQ2 or (Minute >= 10) then begin
+      Ord('n'),
+      Ord('m'): if EQ2 or (Minute >= 10) then begin
                   PWord(Buf)^ := TwoDigitLookupW[Minute];
                   goto Inc_dbl;
                 end else
@@ -3693,6 +3900,7 @@ Inc_dbl:          Inc(Buf, 2);
                   continue;
                 end else
                   PWord(Buf)^ := Ord('0') + Hour;
+      Ord('m'),
       Ord('n'): if EQ2 or (Minute >= 10) then begin
                   PLongWord(Buf)^ := TwoDigitLookupLW[Minute];
                   goto Inc_dbl;
@@ -5976,6 +6184,7 @@ begin
     Inc(P);
   while (PEnd >= P) and (Ord(PEnd^) <= Ord(' ')) do
     Dec(PEnd);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(P, PEnd-P+1, Result);
 end;
 
@@ -6114,49 +6323,17 @@ begin
 end;
 {$ENDIF}
 
-procedure HexFiller;
-var
-  I{$IFDEF NO_RAW_HEXTOBIN}, v{$ENDIF}: Byte;
-  Hex: String;
-begin
-  for i := Low(Byte) to High(Byte) do
-  begin
-    Hex := IntToHex(I, 2);
-    {$IFDEF UNICODE}
-    TwoDigitLookupHexLW[i] := PLongWord(Pointer(Hex))^;
-    TwoDigitLookupHexW[i] := PWord(Pointer(RawByteString(Hex)))^;
-    {$ELSE}
-    TwoDigitLookupHexW[i] := PWord(Pointer(Hex))^;
-    TwoDigitLookupHexLW[i] := PCardinal(Pointer(ZWideString(Hex)))^;
-    {$ENDIF}
-  end;
-  {$IFDEF NO_RAW_HEXTOBIN}
-  //copy from Arnaud Bouchez syncommons.pas
-  Fillchar(ConvertHexToBin[0],SizeOf(ConvertHexToBin),255); // all to 255
-  V := 0;
-  for i := ord('0') to ord('9') do begin
-    ConvertHexToBin[i] := v;
-    inc(v);
-  end;
-  for i := ord('A') to ord('F') do begin
-    ConvertHexToBin[i] := v;
-    ConvertHexToBin[i+(ord('a')-ord('A'))] := v;
-    inc(v);
-  end;
-  {$ENDIF}
-end;
-
 {** EH:
    Encode a currency value to a TBCD
    @param value the currency to be converted
    @param Result the slow Delphi result bcd record to be filled
 }
+{$R-} {$Q-}
 procedure Currency2Bcd(const Value: Currency; var Result: TBCD);
 var V2: UInt64;
   iRec: Int64Rec absolute V2;
   Negative: Boolean;
 begin
-  {$R-} {$Q-}
   Negative := Value < 0;
   if Negative
   then V2 := UInt64(-PInt64(@Value)^)
@@ -6164,15 +6341,12 @@ begin
   if IRec.Hi = 0
   then ScaledOrdinal2Bcd(iRec.Lo, 4, Result, Negative)
   else ScaledOrdinal2Bcd(V2,      4, Result, Negative);
-  {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
-  {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 end;
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+{$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
 const
   SignSpecialPlacesArr: Array[Boolean] of Byte = ($00, $80);
-var
-  ZBase100Byte2BcdNibbleLookup: array[0..99] of Byte;
-  //{%H-}ZBcdNibble2Base100ByteLookup: array[0..153] of Byte;
 
 {** EH:
    Encode a scaled signed longlong to a TBCD
@@ -6204,33 +6378,35 @@ end;
    @param Result the slow Delphi result bcd record to be filled
    @param Negative the converted value was negative
 }
+ {$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: UInt64; Scale: Byte; var Result: TBCD; Negative: Boolean);
 var V2: UInt64;
+  B: Cardinal; //D7 int overflow -> reason unknown
   Precision, Place: Byte;
 begin
-  {$R-} {$Q-}
   Precision := GetOrdinalDigits(Value);
-  if Odd(Precision) then begin
-    v2 := Value div 10;
-    Result.Precision := Precision+1;
-    Result.Fraction[Precision div 2] := Byte(Value-(V2*10)) shl 4;
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or (Scale +1);
-    Value := V2;
-  end else begin
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
-    Result.Precision := Precision;
-  end;
-  if Precision > 1 then begin
-    for Place := (Precision div 2)-1 downto 1 do begin
-      v2 := Value div 100;
-      Result.Fraction[Place] := ZBase100Byte2BcdNibbleLookup[Byte(Value-(V2*100))];
+  Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
+  Result.Precision := Precision;
+  if Precision and 1 = 1 then
+    if Precision = 1 then begin
+      Result.Fraction[0] := Byte(Value) shl 4;
+      Exit;
+    end else begin
+      v2 := Value div 10;
+      B := (Value-(V2*10)) shl 4;
+      Result.Fraction[Precision shr 1] := Byte(B);
       Value := V2;
     end;
-    Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
+  for Place := (Precision shr 1)-1 downto 1 do begin
+    v2 := Value div 100;
+    B := Value-(V2*100);
+    Result.Fraction[Place] := ZBase100Byte2BcdNibbleLookup[Byte(B)];
+    Value := V2;
   end;
-  {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
-  {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
+  Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
 end;
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+{$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
 {** EH:
    Encode a scaled signed long to a TBCD
@@ -6238,15 +6414,15 @@ end;
    @param Scale the scale digits
    @param Result the slow Delphi result bcd record to be filled
 }
+{$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Integer; Scale: Byte; var Result: TBCD);
 begin
-  {$R-} {$Q-}
   if Value < 0
   then ScaledOrdinal2Bcd(Cardinal(-Value), Scale, Result, True)
   else ScaledOrdinal2Bcd(Cardinal(Value), Scale, Result, False);
-  {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
-  {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 end;
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+{$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
 {** EH:
    Encode a scaled unsigned long to a TBCD
@@ -6255,33 +6431,34 @@ end;
    @param Result the slow Delphi result bcd record to be filled
    @param Negative the converted value was negative
 }
+{$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Cardinal; Scale: Byte; var Result: TBCD; Negative: Boolean);
-var V2: Cardinal;
+var V2, B: Cardinal; //B: D7 int overflow -> reason unknown
   Precision, Place: Byte;
 begin
-  {$R-} {$Q-}
   Precision := GetOrdinalDigits(Value);
-  if Odd(Precision) then begin
-    v2 := Value div 10;
-    Result.Precision := Precision+1;
-    Result.Fraction[Precision div 2] := Byte(Value{%H-}-(V2*10)) shl 4;
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or (Scale +1);
-    Value := V2;
-  end else begin
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
-    Result.Precision := Precision;
-  end;
-  if Precision > 1 then begin
-    for Place := (Precision div 2)-1 downto 1 do begin
-      v2 := Value div 100;
-      Result.Fraction[Place] := ZBase100Byte2BcdNibbleLookup[Byte(Value{%H-}-(V2*100))];
+  Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
+  Result.Precision := Precision;
+  if Precision and 1 = 1 then
+    if Precision = 1 then begin
+      Result.Fraction[0] := Byte(Value) shl 4;
+      Exit;
+    end else begin
+      v2 := Value div 10;
+      B := Value{%H-}-(V2*10);
+      Result.Fraction[Precision shr 1] := B shl 4;
       Value := V2;
     end;
-    Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
+  for Place := (Precision shr 1)-1 downto 1 do begin
+    v2 := Value div 100;
+    B := Value{%H-}-(V2*100);
+    Result.Fraction[Place] := ZBase100Byte2BcdNibbleLookup[Byte(B)];
+    Value := V2;
   end;
-  {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
-  {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
+  Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
 end;
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+{$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
 {** EH:
    Encode a scaled signed short to a TBCD
@@ -6306,32 +6483,34 @@ end;
    @param Result the slow Delphi result bcd record to be filled
    @param Negative the converted value was negative
 }
+{$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Word; Scale: Byte; var Result: TBCD; Negative: Boolean);
-var V2: Word;
+var V2, B: Word;
   Precision: Byte;
 begin
-  {$R-} {$Q-}
   Precision := GetOrdinalDigits(Value);
-  if Odd(Precision) then begin
-    v2 := Value div 10;
-    Result.Precision := Precision+1;
-    Result.Fraction[Precision div 2] := Byte(Value-(V2*10)) shl 4;
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or (Scale +1);
-    Value := V2;
-  end else begin
-    Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
-    Result.Precision := Precision;
-  end;
+  Result.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or Scale;
+  Result.Precision := Precision;
+  if Precision and 1 = 1 then
+    if Precision = 1 then begin
+      Result.Fraction[0] := Byte(Value) shl 4;
+      Exit;
+    end else begin
+      v2 := Value div 10;
+      B := (Value-(V2*10)) shl 4;
+      Result.Fraction[Precision shr 1] := Byte(B);
+      Value := V2;
+    end;
   //unrolled version we're comming from a smallInt/word with max precision of 5
-  if Precision > 1 then
-    if Precision >= 4 then begin
-      v2 := Value div 100;
-      PWord(@Result.Fraction[0])^ := ZBase100Byte2BcdNibbleLookup[Byte(V2)]+ZBase100Byte2BcdNibbleLookup[Byte(Value-(V2*100))] shl 8;
-    end else
-      Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
-  {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
-  {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
+  if Precision >= 4 then begin
+    v2 := Value div 100;
+    B := Value-(V2*100);
+    PWord(@Result.Fraction[0])^ := ZBase100Byte2BcdNibbleLookup[Byte(V2)]+ZBase100Byte2BcdNibbleLookup[Byte(B)] shl 8;
+  end else
+    Result.Fraction[0] := ZBase100Byte2BcdNibbleLookup[Byte(Value)];
 end;
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+{$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
 function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString;
 var PSrc, PEnd: PAnsiChar;
@@ -6407,10 +6586,621 @@ begin
     IPos := PosEx(POld, PSrc, LOld, (PEnd-PSrc)+1, 1);
   until IPos = 0;
   if (PSrc <= PEnd) then begin
-    Move(PSrc^, PRes^, (NativeUInt(PEnd)-NativeUint(PSrc)+2));
+    Move(PSrc^, PRes^, (PAnsiChar(PEnd)-PAnsiChar(PSrc)+2));
     Inc(Pres, (PEnd-PSrc+1));
   end;
   SetLength(Result, L-(PResEnd-PRes));
+end;
+
+
+procedure BCD2Int64(const Value: TBCD; out Result: Int64);
+begin
+  Result := {$IFDEF UNICODE}UnicodeToInt64Def{$ELSE}RawToInt64Def{$ENDIF}(BcdToStr(Value), 0);
+end;
+
+function BCD2Int64(const Value: TBCD): Int64; overload;
+begin
+  BCD2Int64(Value, Result);
+end;
+
+procedure BCD2UInt64(const Value: TBCD; out Result: UInt64);
+begin
+  Result := {$IFDEF UNICODE}UnicodeToUInt64Def{$ELSE}RawToUInt64Def{$ENDIF}(BcdToStr(Value), Uint64(0));
+end;
+
+function BCD2UInt64(const Value: TBCD): UInt64;
+begin
+  BCD2UInt64(Value, Result);
+end;
+
+function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+begin
+  Result := TryUniToBCD(Value, BCD, {$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}FormatSettings.DecimalSeparator{$ELSE}'.'{$ENDIF});
+end;
+
+function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd; DecimalSep: Char): Boolean;
+begin
+  if Value <> ''
+  then Result := False
+  else Result := TryUniToBcd(Pointer(Value), Length(Value), BCD, DecimalSep);
+end;
+
+function TryUniToBcd(Buf: PWideChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean;
+var
+  Negative: Boolean;
+  DecimalPos, Exp: Integer;
+  Pos: Byte;
+  P, PEnd: PWideChar;
+label Fail, CompExp, Finalize, CheckPos;
+begin
+  FillChar(Bcd, SizeOf(Bcd), #0);
+  PEnd := Buf+Len;
+  // Skip leading white chars
+  while (Buf < PEnd) and ((PWord(Buf)^ <= Ord(' ')) and (Byte(PWord(Buf)^) in [Ord(' '), Ord(#6), Ord(#9), Ord(#10), Ord(#13), Ord(#14)])) do Inc(Buf);
+  Negative := Buf^ = '-';
+  Inc(Buf, Ord(Negative or (PWord(Buf)^ = Ord('+'))));
+  // Skip trailing white chars
+  while (PEnd > Buf) and ((PWord(PEnd-1)^ <= Ord('0')) and (Byte(PWord(PEnd-1)^) in [Ord(' '), Ord(#6), Ord(#9), Ord(#10), Ord(#13), Ord(#14), Ord('0')]))  do Dec(PEnd);
+  P := PEnd; //remainder for Exponent
+  // Skip trailing zeroes
+  while (PEnd > Buf) and (PWord(PEnd-1)^ = Ord('0')) do Dec(PEnd);
+  Pos := 0;
+  DecimalPos := -1;
+  if Buf = PEnd then
+    if PByte(PEnd)^ = Ord('0')
+    then goto Finalize
+    else goto Fail
+  else Inc(PEnd, Ord(PWord(PEnd)^ = Ord('0')));
+  // Skip leading zeroes
+  while (Buf < PEnd) and (PWord(Buf)^ = Ord('0')) do Inc(Buf);
+  while Buf < PEnd do begin
+    if PWord(Buf)^ = Ord(DecimalSep) then begin
+      if DecimalPos <> -1 then
+        goto Fail;
+      if Pos = 0 then
+        Inc(Pos)
+      else if (Pos = 1) and (PWord(Buf-1)^ = Ord('0')) then //strict left padd the bcd for fpc else BCDCompare fails even if the value is correct
+        Dec(Pos);
+      DecimalPos := Pos;
+      Inc(Buf);
+      if (Buf = PEnd) then
+        goto Finalize;
+    end else if (PWord(Buf)^ or $20 = Ord('e')) then
+      goto CompExp;
+
+    if (PWord(Buf)^ < Ord('0')) or (PWord(Buf)^ > Ord('9')) or
+       ((Pos = 64) and (DecimalPos = -1)) then
+      goto Fail;
+    if Pos < 64 then begin
+      if (Pos and 1) = 0
+      then Bcd.Fraction[Pos shr 1] := Byte(Ord(Buf^) - Ord('0')) * $10
+      else Bcd.Fraction[Pos shr 1] := (Bcd.Fraction[Pos shr 1] and $F0) + Byte(Ord(Buf^) - Ord('0'));
+      Inc(Pos);
+    end;
+    Inc(Buf);
+  end;
+  goto CheckPos;
+CompExp:
+  PEnd := P;
+  Exp := ValUnicodeInt(Buf+1, p);
+  if pEnd <> P
+  then goto Fail;
+  if DecimalPos < 0 then begin
+    DecimalPos := Pos;
+    Inc(Pos);
+  end;
+  if Exp < 0 then begin
+    if DecimalPos < -Exp then begin
+      bcd.Precision := Pos;
+      bcd.SignSpecialPlaces := Pos -1;
+      Exp := Pos - Exp;
+      Pos := Pos - DecimalPos;
+      if Exp > MaxFMTBcdFractionSize then
+        goto Fail;
+      if not NormalizeBcd(bcd, bcd, Exp, Pos)
+      then goto Fail;
+      Pos := Exp;
+    end else
+      Inc(DecimalPos, Exp);
+  end else begin
+    inc(DecimalPos, Exp);
+    if DecimalPos > Pos then begin
+      Pos := DecimalPos;
+      DecimalPos := -1;
+    end;
+  end;
+  goto Finalize;
+CheckPos:
+  if Buf <> PEnd then
+    goto Fail;
+Finalize:
+  if Pos = 0 then begin //zero
+    Bcd.Precision := 10;
+    Bcd.SignSpecialPlaces := 2;
+  end else begin
+    if Pos > MaxFMTBcdFractionSize
+    then goto Fail;
+    Bcd.Precision := Pos;
+    if DecimalPos = -1
+    then Bcd.SignSpecialPlaces := 0
+    else Bcd.SignSpecialPlaces := Byte(Pos - DecimalPos);
+    if Negative then
+      Bcd.SignSpecialPlaces := Bcd.SignSpecialPlaces or $80;
+  end;
+  Result := True;
+  Exit;
+Fail:
+  Result := False;
+end;
+
+function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean;
+begin
+  Result := TryRawToBCD(Value, BCD, {$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}FormatSettings.DecimalSeparator{$ELSE}'.'{$ENDIF});
+end;
+
+function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+begin
+  if Value <> ''
+  then Result := False
+  else Result := TryRawToBcd(Pointer(Value), Length(Value), BCD, DecimalSep);
+end;
+
+function TryRawToBcd(Buf: PAnsiChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean;
+var
+  Negative: Boolean;
+  DecimalPos, Exp: Integer;
+  Pos: Byte;
+  P, PEnd: PAnsiChar;
+label Fail, CompExp, Finalize, CheckPos;
+begin
+  FillChar(Bcd, SizeOf(Bcd), #0);
+  PEnd := Buf+Len;
+  // Skip leading white chars
+  while (Buf < PEnd) and (Byte(PByte(Buf)^) in [Ord(' '), Ord(#6), Ord(#9), Ord(#10), Ord(#13), Ord(#14)]) do Inc(Buf);
+  Negative := Buf^ = '-';
+  Inc(Buf, Ord(Negative or (PByte(Buf)^ = Ord('+'))));
+  Pos := 0;
+  DecimalPos := -1;
+  // Skip trailing white chars
+  while (PEnd > Buf) and (PByte(PEnd-1)^ in [Ord(' '), Ord(#6), Ord(#9), Ord(#10), Ord(#13), Ord(#14)])  do Dec(PEnd);
+  P := PEnd; //remainder for Exponent
+  while (PEnd > Buf) and (PByte(PEnd-1)^ = Ord('0')) do Dec(PEnd); //and pad trailing zeroes away
+  if Buf = PEnd then
+    if PByte(PEnd)^ = Ord('0')
+    then goto Finalize
+    else goto Fail
+  else Inc(PEnd, Ord(PByte(PEnd)^ = Ord('0')));
+  while Buf < PEnd do begin
+    if PByte(Buf)^ = Ord(DecimalSep) then begin
+      if DecimalPos <> -1 then
+        goto Fail;
+      if Pos = 0 then
+        Inc(Pos)
+      else if (Pos = 1) and (PByte(Buf-1)^ = Ord('0')) then //strict left padd the bcd for fpc else BCDCompare fails even if the value is correct
+        Dec(Pos);
+      DecimalPos := Pos;
+      Inc(Buf);
+      if (Buf = PEnd) then
+        goto Finalize;
+    end else if (PByte(Buf)^ or $20 = Ord('e')) then
+      goto CompExp;
+
+    if (PByte(Buf)^ < Ord('0')) or (PByte(Buf)^ > Ord('9')) or
+       ((Pos = 64) and (DecimalPos = -1)) then
+      goto Fail;
+    if Pos < 64 then begin
+      if (Pos and 1) = 0
+      then Bcd.Fraction[Pos shr 1] := (PByte(Buf)^ - Ord('0')) * $10
+      else Bcd.Fraction[Pos shr 1] := (Bcd.Fraction[Pos shr 1] and $F0) + (PByte(Buf)^ - Ord('0'));
+      Inc(Pos);
+    end;
+    Inc(Buf);
+  end;
+  goto CheckPos;
+CompExp:
+  PEnd := P;
+  Exp := ValRawInt(Buf+1, p);
+  if pEnd <> P
+  then goto Fail;
+  if DecimalPos < 0 then begin
+    DecimalPos := Pos;
+    Inc(Pos);
+  end;
+  if Exp < 0 then begin
+    if DecimalPos < -Exp then begin
+      bcd.Precision := Pos;
+      bcd.SignSpecialPlaces := Pos -1;
+      Exp := Pos - Exp;
+      Pos := Pos - DecimalPos;
+      if Exp > MaxFMTBcdFractionSize then //bcd overflow?
+        goto Fail;
+      if not NormalizeBcd(bcd, bcd, Exp, Pos)
+      then goto Fail;
+      Pos := Exp;
+    end else
+      Inc(DecimalPos, Exp);
+  end else begin
+    inc(DecimalPos, Exp);
+    if DecimalPos > Pos then begin
+      Pos := DecimalPos;
+      DecimalPos := -1;
+    end;
+  end;
+  goto Finalize;
+CheckPos:
+  if Buf <> PEnd then
+    goto Fail;
+Finalize:
+  if Pos = 0 then begin //zero
+    Bcd.Precision := 10;
+    Bcd.SignSpecialPlaces := 2;
+  end else begin
+    if Pos > MaxFMTBcdFractionSize
+    then goto Fail;
+    Bcd.Precision := Pos;
+    if DecimalPos = -1
+    then Bcd.SignSpecialPlaces := 0
+    else Bcd.SignSpecialPlaces := Pos - DecimalPos;
+    if Negative then
+      Bcd.SignSpecialPlaces := Bcd.SignSpecialPlaces or $80;
+  end;
+  Result := True;
+  Exit;
+Fail:
+  Result := False;
+end;
+
+function TryStr2BCD(const Value: String; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean;
+begin
+  if Value <> ''
+  then Result := {$IFDEF UNICODE}TryUniToBcd{$ELSE}TryRawToBcd{$ENDIF}(
+      Pointer(Value), Length(Value), BCD, {$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}FormatSettings.DecimalSeparator{$ELSE}'.'{$ENDIF})
+  else begin
+    FillChar(BCD, SizeOf(BCD), #0);
+    Result := False;
+  end;
+end;
+
+function Str2BCD(const Value: String{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): TBCD;
+begin
+  if not TryStr2BCD(Value, Result{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}{%H-},FormatSettings{$ENDIF}) then
+    raise EBcdException.CreateFmt(SInvalidBcdValue, [Value]);
+end;
+
+procedure Double2BCD(const Value: Double; var Result: TBCD);
+var Buffer: array[0..63] of Char;
+begin
+  {$IFDEF UNICODE}
+  TryUniToBCD(@Buffer[0], FloatToSqlUnicode(Value, @Buffer[0]), Result, '.');
+  {$ELSE}
+  TryRawToBCD(@Buffer[0], FloatToSqlRaw(Value, @Buffer[0]), Result, '.');
+  {$ENDIF}
+end;
+
+(*function GetStringReplaceAllIndices(Source, OldPattern: PAnsiChar; SourceLen, OldPatternLen: Integer): TIntegerDynArray; overload;
+var
+  iPos, L: Integer;
+  ArrIdx: Byte;
+  PosArr: Array[1..256] of Integer;
+begin
+  ArrIdx := 0;
+  Result := nil;
+  L := 0;
+  iPos := PosEx(OldPattern, Source, OldPatternLen, SourceLen);
+  while iPos > 0 do begin
+    if (ArrIdx = High(Byte)) then begin
+      SetLength(Result, L+ArrIdx);
+      Move(PosArr[1], Result[L], ArrIdx*SizeOf(Integer));
+      L := L + ArrIdx;
+      ArrIdx := 0;
+    end;
+    Inc(ArrIdx);
+    PosArr[ArrIdx] := iPos;
+    iPos := PosEx(OldPattern, Source, OldPatternLen, SourceLen, iPos+1);
+  end;
+  if ArrIdx > 0 then begin
+    SetLength(Result, L+ArrIdx);
+    Move(PosArr[1], Result[L], ArrIdx*SizeOf(Integer));
+  end;
+end;
+
+function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
+var AllIndices: TIntegerDynArray;
+  I, L, LS, LOP, LNP: Integer;
+  pS, pNP, pRes: PAnsiChar;
+begin
+  LS := Length(Source);
+  LNP := Length(NewPattern);
+  LOP := Length(OldPattern);
+  pS := Pointer(Source);
+  pNP := Pointer(NewPattern);
+  AllIndices := GetStringReplaceAllIndices(ps, Pointer(OldPattern), LS, LOP);
+  L := Length(AllIndices);
+  if L = 0 then begin
+    Result := Source;
+    Exit;
+  end;
+  SetLength(Result, LS+(L*(LNP-LOP)));
+  pRes := Pointer(Result);
+  for I := 0 to L-1 do begin
+    Move((Ps+Ps(I*IPos)^, PRes^, AllIndices[I]-Lop);
+
+  end;
+end;
+
+function StringReplaceAll_CI_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString;
+var AllIndices: TIntegerDynArray;
+  S, OP: RawByteString;
+begin
+  S := UpperCase(Source);
+  Op := UpperCase(OldPattern);
+  AllIndices := GetStringReplaceAllIndices(Pointer(S), Pointer(OP), Length(S), Length(Op));
+end;*)
+
+function BcdToSQLRaw(const Value: TBCD): RawByteString;
+var Digits: array[0..MaxFMTBcdFractionSize-1+1{sign}+1{dot}] of AnsiChar;
+begin
+  {$IFDEF FPC}Result := '';{$ENDIF}
+  ZSetString(PAnsiChar(@Digits[0]), BcdToRaw(Value, @Digits[0], '.'),Result)
+end;
+
+{** Egonhugeist:
+  Each half byte represents one niblle from 0..9 High nibble first means we read
+  big endian order from left to right. First half byte will be left shift by 4,
+  second will be added to first half byte. There are no other knwon rules!
+  All bytes until Precison div 2 must be valid. All trailing bytes are ignored.
+  Loops are done without half byte conversions.
+
+  Human readable examples to show what i mean:
+  Precison: 10 Scale: 8  Value: 12.34567891
+  FN DN       LN
+  12.34 56 78 91 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
+  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31<-
+  Precison: 11 Scale: 8  Value: 12.34567891
+  FN  DN          LN
+  01 2.3 45 67 89 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00<-nibbles
+  \/ \/ \/ \/  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3, n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31
+  Precison: 11 Scale: 9  Value: 12.34567891
+  FN DN         LN
+  12.34 56 78 91 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
+  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31
+  Precison: 17 Scale: 8  Value: 12.34567891
+           FN DN        LN
+  00 00 00 01 2.3 45 67 89 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
+  \/ \/ \/ \/  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3, n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31
+  Precison: 10 Scale: 0  Value: 1188888888
+  FN                   LN DN
+  11 88 88 88 88 88 88 88 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
+  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31
+  Precison: 17 Scale: 0  Value: 1188888888
+                                       DN
+        FN                       LN    Pr
+  00 00 01 18 88 88 88 88 88 88 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
+  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
+  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
+  0..9                          10 .. 19                      20..29                        30..31
+
+  FN is the nibble we start with. It's possible 2. half byte written and first half byte is zero.
+  LN is the nibble we end. It's possible 1. half byte written and second half byte is ignored.
+  DN is the decimal pos nibble. If Odd prec it's the nibble where second half byte is after the
+     decimal separator else it's the double nibble after the decimal separator.
+}
+function BcdToRaw(const Bcd: TBcd; Buf: PAnsiChar; DecimalSep: Char): LengthInt;
+var
+  PBuf, pCN{current nibble}, pDN{decimal nibble}, pLN{last bibble}, pFN{firts nibble}: PAnsiChar;
+  Scale, Precision, i: Integer;
+label zero;
+begin
+  PByte(Buf)^ := Ord('0');
+  Precision := Bcd.Precision;
+  if Precision = 0 then goto zero;
+  Scale := Bcd.SignSpecialPlaces and $3F;
+  if (Precision > MaxFMTBcdFractionSize) or (Scale > Precision) then
+    raise EBcdOverflowException.Create(SBcdOverflow);
+  pCN := @Bcd.Fraction[0]; //set first byte
+  pLN := pCN + ((Precision -1) shr 1); //pin last nibble byte
+  pDN := pLN+1-((Scale+Ord(Scale > 0)+(Precision and 1)) shr 1); //pin middle nibble or after decimal sep
+  while (pLN > pDN) and (PByte(pLN)^ = 0) do Dec(pLN);//skip trailing zeroes
+  while (pCN < pDN) and (PByte(pCN)^ = 0) do Inc(pCN);//skip leading zeroes
+  if (pCN = pLN) and (PByte(pCN)^ = 0) then begin
+zero: Result := 1;
+    Exit;
+  end;
+  PBuf := Buf;
+  pFN := pCN; //remainder
+  if (Bcd.SignSpecialPlaces and $80) = $80 then begin
+    pWord(Buf)^ := Ord('-')+Ord('0') shl 8;
+    Inc(Buf);
+  end;
+  for i := Ord(Scale = 0) to Ord(pFN < pDN) do begin
+    if (pCN = pDN) then begin //decimal byte in midde or before of next nibbles
+      if (Precision and 1) = (Scale and 1) then begin
+        Inc(Buf, Ord(pCN = pFN));
+        PByte(Buf)^ := Ord(DecimalSep);
+        pWord(Buf+1)^ := ZBcdNibble2DwoDigitLookupW[PByte(pCN)^];
+        Inc(Buf, 3);
+      end else begin
+        pWord(Buf)^ := ZBcdNibble2DwoDigitLookupW[PByte(pCN)^];
+        if (pDN = pLN) and (PByte(Buf+1)^ = Ord('0'))
+        then Inc(Buf)
+        else begin
+          PByte(Buf+2)^ := PByte(Buf+1)^;
+          PByte(Buf+1)^ := Ord(DecimalSep);
+          Inc(Buf, 3);
+        end;
+      end;
+      if (pCN <> pLN)
+      then pDN := pLN+1
+      else Break;
+    end else if (pCN > pFN) or ((PByte(pCN)^ shr 4) <> 0) then begin //regulare double digit
+      pWord(Buf)^ := ZBcdNibble2DwoDigitLookupW[PByte(pCN)^];
+      Inc(Buf, 2);
+    end else begin  // first half nibble
+      PByte(Buf)^ := Ord('0') + (PByte(pCN)^ and $0f);
+      Inc(Buf);
+    end;
+    inc(pCN);
+    while (pCN < pDN) do begin
+      pWord(Buf)^ := ZBcdNibble2DwoDigitLookupW[PByte(pCN)^];
+      Inc(Buf, 2);
+      inc(pCN);
+    end;
+  end;
+  if (pByte(Buf-1)^ = Ord ('0')) and ((Scale > 0) or ((Precision and 1 = 1) and (PByte(pLN)^ and $0f = 0))) then Dec(Buf);
+  Result := (Buf-PBuf);
+end;
+
+{** Egonhugeist:
+*}
+function BcdToUni(const Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
+var
+  pCN{current nibble}, pDN{decimal nibble}, pLN{last bibble}, pFN{firts nibble}: PAnsiChar;
+  PBuf: PWideChar;
+  Scale, Precision, i: Integer;
+label zero;
+begin
+  PWord(Buf)^ := Ord('0');
+  Precision := Bcd.Precision;
+  if Precision = 0 then goto zero;
+  Scale := Bcd.SignSpecialPlaces and $3F;
+  if (Precision > MaxFMTBcdFractionSize) or (Scale > Precision) then
+    raise EBcdOverflowException.Create(SBcdOverflow);
+  pCN := @Bcd.Fraction[0]; //set first byte
+  pLN := pCN + ((Precision -1) shr 1); //pin last nibble byte
+  pDN := pLN+1-((Scale+Ord(Scale > 0)+(Precision and 1)) shr 1); //pin middle nibble or after decimal sep
+  while (pLN > pDN) and (PByte(pLN)^ = 0) do Dec(pLN);//skip trailing zeroes
+  while (pCN < pDN) and (PByte(pCN)^ = 0) do Inc(pCN);//skip leading zeroes
+  if (pCN = pLN) and (PByte(pCN)^ = 0) then begin
+zero: Result := 1;
+    Exit;
+  end;
+  PBuf := Buf;
+  pFN := pCN; //remainder
+  if (Bcd.SignSpecialPlaces and $80) = $80 then begin
+    PCardinal(Buf)^ := Ord('-')+Ord('0') shl 16;
+    Inc(Buf);
+  end;
+  for i := Ord(Scale = 0) to Ord(pFN < pDN) do begin
+    if (pCN = pDN) then begin //decimal byte in midde or before of next nibbles
+      if (Precision and 1) = (Scale and 1) then begin
+        Inc(Buf, Ord(pCN = pFN));
+        PWord(Buf)^ := Ord(DecimalSep);
+        PCardinal(Buf+1)^ := ZBcdNibble2DwoDigitLookupLW[PByte(pCN)^];
+        Inc(Buf, 3);
+      end else begin
+        PCardinal(Buf)^ := ZBcdNibble2DwoDigitLookupLW[PByte(pCN)^];
+        if (pDN = pLN) and (PWord(Buf+1)^ = Ord('0'))
+        then Inc(Buf)
+        else begin
+          PWord(Buf+2)^ := PWord(Buf+1)^;
+          PWord(Buf+1)^ := Ord(DecimalSep);
+          Inc(Buf, 3);
+        end;
+      end;
+      if (pCN <> pLN)
+      then pDN := pLN+1
+      else Break;
+    end else if (pCN > pFN) or ((PByte(pCN)^ shr 4) <> 0) then begin //regulare double digit
+      PCardinal(Buf)^ := ZBcdNibble2DwoDigitLookupLW[PByte(pCN)^];
+      Inc(Buf, 2);
+    end else begin  // first half nibble
+      PWord(Buf)^ := Ord('0') + (PByte(pCN)^ and $0f);
+      Inc(Buf);
+    end;
+    inc(pCN);
+    while (pCN < pDN) do begin
+      PCardinal(Buf)^ := ZBcdNibble2DwoDigitLookupLW[PByte(pCN)^];
+      Inc(Buf, 2);
+      inc(pCN);
+    end;
+  end;
+  if (pByte(Buf-1)^ = Ord ('0')) and ((Scale > 0) or ((Precision and 1 = 1) and (PByte(pLN)^ and $0f = 0))) then Dec(Buf);
+  Result := (Buf-PBuf);
+end;
+
+function RawToBCD(Value: PAnsiChar; Len: LengthInt): TBCD;
+begin
+  if not TryRawToBCD(Value, Len, Result{%H-}, '.') then
+    raise EBcdException.CreateFmt(SInvalidBcdValue, [Value]);
+end;
+
+function RawToBCD(const Value: RawByteString): TBCD;
+begin
+  Result := RawToBCD(Pointer(Value), Length(Value));
+end;
+
+function BcdToSQLUni(const Value: TBCD): ZWideString;
+var Digits: array[0..MaxFMTBcdFractionSize-1+1{sign}+1{dot}] of WideChar;
+begin
+  {$IFDEF FPC}Result := '';{$ENDIF}
+  System.SetString(Result, PWideChar(@Digits[0]), BcdToUni(Value, @Digits[0], '.'));
+end;
+
+function UniToBCD(Value: PWideChar; Len: LengthInt): TBCD;
+begin
+  if not TryUniToBCD(Value, Len, Result{%H-}, '.') then
+    raise EBcdException.CreateFmt(SInvalidBcdValue, [Value]);
+end;
+
+function UniToBCD(const Value: ZWideString): TBCD;
+begin
+  Result := UniToBCD(Pointer(Value), Length(Value));
+end;
+
+
+{ for a better code align -> move out of method }
+{$IFNDEF CPU64}
+const CIntTable: array[TCurrRoundToScale] of Cardinal = (10000, 1000, 100, 10, 1);
+{$ENDIF}
+const CInt64Table: array[TCurrRoundToScale] of Int64  = (10000, 1000, 100, 10, 1);
+const PosHalfModulos: array [TCurrRoundToScale] of Integer = ( 4445,  445,  45,  5, 0);
+const NegHalfModulos: array [TCurrRoundToScale] of Integer = (-4445, -445, -45, -5, 0);
+
+{** EH:
+   round a currency value half away from zero to it's exact scale digits
+   @param Value the value to be rounded
+   @param Scale the exact scale digt we want to round valid is 0..4. even if 4 is a nop
+   @return a rounded value
+}
+function RoundCurrTo(const Value: Currency; Scale: TCurrRoundToScale): Currency;
+var Modulo: Integer;
+  {$IFNDEF CPU64}
+  sI64Rec: Int64Rec absolute Value;
+  dI64Rec: Int64Rec absolute Result;
+  {$ENDIF}
+  s64: Int64 absolute Value;
+  d64: Int64 absolute Result;
+begin
+  if Scale < 4 then begin
+    {$IFNDEF CPU64} //push trunc performance of positive tiny values
+    if sI64Rec.Hi = 0 then begin
+      dI64Rec.hi := sI64Rec.Lo div CIntTable[Scale];
+      dI64Rec.lo := dI64Rec.hi *   CIntTable[Scale];
+      Modulo := sI64Rec.Lo - dI64Rec.lo;
+      dI64Rec.Hi := 0;
+    end else {$ENDIF} begin
+      d64 := s64 div CInt64Table[Scale];
+      d64 := d64 *   CInt64Table[Scale];
+      Modulo := s64 - d64;
+    end;
+    if Scale > 0 then
+      if Modulo < 0 then begin
+        if Modulo >= NegHalfModulos[Scale] then
+          d64 := d64 - CInt64Table[Scale];
+      end else if Modulo >= PosHalfModulos[Scale] then
+        d64 := d64 + CInt64Table[Scale];
+  end else
+    Result := Value
 end;
 
 {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}
@@ -6424,12 +7214,47 @@ begin
 end;
 {$ENDIF}
 
+procedure HexFiller;
+var
+  I{$IFDEF NO_RAW_HEXTOBIN}, v{$ENDIF}: Byte;
+  Hex: String;
+begin
+  for i := Low(Byte) to High(Byte) do
+  begin
+    Hex := IntToHex(I, 2);
+    {$IFDEF UNICODE}
+    TwoDigitLookupHexLW[i] := PLongWord(Pointer(Hex))^;
+    TwoDigitLookupHexW[i] := PWord(Pointer(RawByteString(Hex)))^;
+    {$ELSE}
+    TwoDigitLookupHexW[i] := PWord(Pointer(Hex))^;
+    TwoDigitLookupHexLW[i] := PCardinal(Pointer(ZWideString(Hex)))^;
+    {$ENDIF}
+  end;
+  {$IFDEF NO_RAW_HEXTOBIN}
+  //copy from Arnaud Bouchez syncommons.pas
+  Fillchar(ConvertHexToBin[0],SizeOf(ConvertHexToBin),255); // all to 255
+  V := 0;
+  for i := ord('0') to ord('9') do begin
+    ConvertHexToBin[i] := v;
+    inc(v);
+  end;
+  for i := ord('A') to ord('F') do begin
+    ConvertHexToBin[i] := v;
+    ConvertHexToBin[i+(ord('a')-ord('A'))] := v;
+    inc(v);
+  end;
+  {$ENDIF}
+end;
+
 procedure BcdNibbleLookupFiller;
-var i: Byte;
+var i, n: Byte;
 begin
   for i := 0 to 99 do begin
-    ZBase100Byte2BcdNibbleLookup[i] := ((i div 10) shl 4) + (i mod 10);
-    ZBcdNibble2Base100ByteLookup[ZBase100Byte2BcdNibbleLookup[i]] := i;
+    N := ((i div 10) shl 4) + (i mod 10);
+    ZBase100Byte2BcdNibbleLookup[i] := N;
+    ZBcdNibble2Base100ByteLookup[N] := i;
+    ZBcdNibble2DwoDigitLookupW[N] := ZFastCode.TwoDigitLookupW[I];
+    ZBcdNibble2DwoDigitLookupLW[N] := ZFastCode.TwoDigitLookupLW[I];
   end;
 end;
 
