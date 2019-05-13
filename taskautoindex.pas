@@ -94,7 +94,7 @@ begin
   s := slot;
 
   Result := 0;
-  if not s.Dirlist(path, true, true) then // daydir might have change
+  if not s.Dirlist(path, true, true, true) then // daydir might have change
   begin
     if (not s.ReLogin) then
     begin
