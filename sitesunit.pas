@@ -117,7 +117,7 @@ type
     function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
     function bnc: String;
     function Cwd(dir: String; force: boolean = False): boolean;
-    function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
+    function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
     function Leechfile(dest: TStream; const filename: String; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
     //    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
     function RemoveFile(const dir, filename: String): boolean;
@@ -1874,7 +1874,7 @@ begin
 end;
 
 
-function TSiteSlot.Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False): boolean;
+function TSiteSlot.Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
 var
   cmd, list_everything: String;
 begin
@@ -1918,7 +1918,7 @@ begin
         exit;
       end;
 
-    if config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
+    if aIsForIndexing and config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
         cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al')
