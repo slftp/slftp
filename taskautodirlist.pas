@@ -204,7 +204,6 @@ begin
   begin
     ujraaddolas();
     readyerror := True;
-    irc_Addadmin(Format('s.site.working = sstDown for %s (so can''t autodirlist)',[s.site.Name]));
     exit;
   end;
 
@@ -214,7 +213,6 @@ begin
     begin
       ujraaddolas();
       readyerror := True;
-      irc_Addadmin(Format('s.status <> ssOnline for %s (so can''t autodirlist)',[s.site.Name]));
       exit;
     end;
   end;
@@ -332,7 +330,7 @@ begin
     if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
     begin
       reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
-      irc_Addadmin(Format('Request on %s is ready! Reqfill Command will be executed in %d s', [TPazoSite(p.sites[0]).Name, reqfill_delay]));
+      irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.sites[0]).Name, reqfill_delay]));
       rt := TRawTask.Create('', '', TPazoSite(p.sites[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
       rt.startat := IncSecond(now, reqfill_delay);
       try
