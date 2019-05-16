@@ -9,31 +9,27 @@ type
     pazo_id: integer;
     mainpazo: TPazo;
     ps1, ps2: TPazoSite; //< ps1 is sourcesite, ps2 is dstsite for TPazoRaceTask
-    constructor Create(const netname, channel: String; site1: String;
-      site2: String; pazo: TPazo);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
     destructor Destroy; override;
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    constructor Create(const netname, channel: String; site1: String;
-      site2: String; pazo: TPazo);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
     destructor Destroy; override;
   end;
 
   TPazoDirlistTask = class(TPazoTask)
     dir: String;
     is_pre: boolean;
-    incompleteFill: boolean;
-    constructor Create(const netname, channel: String; site: String;
-      pazo: TPazo; dir: String; is_pre: boolean; incompleteFill: boolean = False);
+    FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
 
   TPazoMkdirTask = class(TPazoTask)
     dir: String;
-    constructor Create(const netname, channel: String; site: String;
-      pazo: TPazo; dir: String);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -43,7 +39,7 @@ type
     event: TEvent;
     wait_for: String;
     destructor Destroy; override;
-    constructor Create(const netname, channel: String; site1: String);
+    constructor Create(const netname, channel, site1: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -51,15 +47,14 @@ type
   TPazoRaceTask = class(TPazoTask)
     dir: String;
     filename: String;
-    storfilename: String;
+    FFilenameForSTORCommand: String; //< filename used for transfering in STOR cmd, automatically lowercased if config convert_filenames_to_lowercase value is @true
     rank: integer;
     filesize: Int64;
     isSfv, IsNfo: Boolean;
     isSample, isProof, isCovers, isSubs: Boolean;
     dontRemoveOtherSources: boolean;
     dst: TWaitTask;
-    constructor Create(const netname, channel: String; site1: String;
-      site2: String; pazo: TPazo; dir, filename: String; filesize: Int64; rank: integer);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -75,7 +70,7 @@ const
   c_section = 'taskrace';
 
 
-constructor TPazoPlainTask.Create(const netname, channel: String; site1: String; site2: String; pazo: TPazo);
+constructor TPazoPlainTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
 begin
   // egy taszk letrehozasakor es felszabaditasakor a queue lock mindig aktiv
   //tasks can create a queue and release the lock still active
@@ -105,10 +100,10 @@ begin
   inherited;
 end;
 
-constructor TPazoTask.Create(const netname, channel: String; site1: String;
-  site2: String; pazo: TPazo);
+constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
+
   mainpazo.queuenumber.Increase;
 
   if ClassType = TPazoRaceTask then
@@ -153,12 +148,11 @@ end;
 
 
 { TPazoDirlistTask }
-constructor TPazoDirlistTask.Create(const netname, channel: String;
-  site: String; pazo: TPazo; dir: String; is_pre: boolean; incompleteFill: boolean = False);
+constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
-  self.incompleteFill := incompleteFill;
+  self.FDoIncFilling := aIsFromIncompleteFiller;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -369,8 +363,7 @@ begin
               except
                 on e: Exception do
                 begin
-                  Debug(dpError, c_section,
-                    Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                  Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
                 end;
               end;
             end;
@@ -401,15 +394,11 @@ begin
     end;
   end;
 
-  //TPazoDirlistTask.Create('', '', psrc.Name, p, '', False, True);
-  //incomplete_fill should be called like this from TKBThread.AddCompleteTransfers
-  //but need to add code before we can call it with TPazoDirlistTask.Create('', '', psrc.Name, p, '', False, True);
-
   //only thing we need to check how to get it work with non routable sites - we need to add them manually on TKBThread.AddCompleteTransfers
   //but will they be used on race? Or do slftp overwritte them?
 
-  //don't check the part below if it's an incomplete fill because we would stop there
-  if (not incompleteFill) then
+  // don't check the part below if it's an incomplete fill because we would stop there
+  if (not FDoIncFilling) then
   begin
 
     //check if we should give up with empty/incomplete/long release
@@ -602,8 +591,7 @@ end;
 
 
 { TPazoMkdirTask }
-constructor TPazoMkdirTask.Create(const netname, channel: String;
-  site: String; pazo: TPazo; dir: String);
+constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
 begin
   self.dir := dir;
   inherited Create(netname, channel, site, '', pazo);
@@ -1002,17 +990,16 @@ begin
 end;
 
 { TPazoRaceTask }
-constructor TPazoRaceTask.Create(const netname, channel: String;
-  site1, site2: String; pazo: TPazo; dir, filename: String; filesize: Int64; rank: integer);
+constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;
   if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
-    self.storfilename := lowercase(filename)
+    self.FFilenameForSTORCommand := lowercase(filename)
   else
-    self.storfilename := filename;
+    self.FFilenameForSTORCommand := filename;
 
   self.filesize := filesize;
 end;
@@ -1352,7 +1339,7 @@ begin
 
   if (sdst.site.sw = sswDrftpd) then
   begin
-    if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(storfilename)]) then
+    if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
       goto TryAgain;
     if not sdst.Read('PRET STOR') then
       goto TryAgain;
@@ -1373,7 +1360,7 @@ begin
   end;
 
 
-  if not sdst.Send('STOR %s', [sdst.TranslateFilename(storfilename)]) then
+  if not sdst.Send('STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
     goto TryAgain;
 
   if not sdst.Read('STOR') then
@@ -1386,7 +1373,7 @@ begin
   lastResponseCode := sdst.lastResponseCode;
   lastResponse := sdst.lastResponse;
 
-  Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(storfilename)]);
+  Debug(dpSpam, 'taskrace', '--> SENT: STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]);
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
 
@@ -2377,7 +2364,7 @@ end;
 
 
 { TWaitTask }
-constructor TWaitTask.Create(const netname, channel: String; site1: String);
+constructor TWaitTask.Create(const netname, channel, site1: String);
 begin
   inherited Create(netname, channel, site1);
   event := TEvent.Create(nil, False, False, '');

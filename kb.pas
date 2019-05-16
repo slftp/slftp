@@ -41,9 +41,6 @@ uses Classes, SyncObjs, encinifile, IniFiles, knowngroups;
 
 type
   TRelease = class
-
-    //incompleteFiller: boolean;
-
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
     rlsname: String;
