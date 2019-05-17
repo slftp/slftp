@@ -51,6 +51,7 @@ var
   maindir: String;
   releasenametofind: String;
   notdown: Boolean;
+  prestatus: Boolean;
   site: TSite;
   pdt: TPazoDirlistTask;
 begin
@@ -136,10 +137,15 @@ begin
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
 
-      for i := 1 to p.sites.Count - 1 do
+      for i := 0 to p.sites.Count - 1 do
       begin
         try
-          pdt := TPazoDirlistTask.Create(netname, channel, TPazoSite(p.sites[i]).name, p, '', True);
+          // Treat source sites for filling as presites, destination site is a normal race destination
+          if (i = 0) then
+            prestatus := False
+          else
+            prestatus := True;
+          pdt := TPazoDirlistTask.Create(netname, channel, TPazoSite(p.sites[i]).name, p, '', prestatus);
           AddTask(pdt);
         except
           on e: Exception do
@@ -326,8 +332,16 @@ begin
       Break;
     end;
 
-    //check if filecount on dst (p.sites[0]) is the same as on src (p.sites[1])
-    if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
+    (*
+      prefer completion folders over filecount comparison as that is more accurate
+      if the target site does not have completion folders due to missing dirscript
+      in the requests folder we fall back to comparing the filecount of all
+      (sub-)dirs and if those are equal we set cache_completed on the dirlist to
+      true to indicate the dirlist task can finish because the release is complete
+    *)
+    if ((TPazoSite(p.sites[0]).dirlist.complete_tag = '') and (TPazoSite(p.sites[1]).dirlist.done > 0) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
+      TPazoSite(p.sites[0]).dirlist.cache_completed := True;
+    if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.Complete)) then
     begin
       reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
       irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.sites[0]).Name, reqfill_delay]));
