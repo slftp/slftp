@@ -38,13 +38,13 @@
 
 program slftp;
 
-{$MODE Delphi} //< delphi compatible mode
+{$MODE Delphi} // delphi compatible mode
 
-// workaround for issues with ZeosLib prior v3.3.1 on 32-bit compiler
+// workaround for issues with ZeosLib on FPC 32-bit compiler (internal error)
 {$IFNDEF CPU64}
-  {$if FPC_FULLVERSION < 30301}
-    {$stop Sorry, due to some FPC issues you need at least FPC 3.3.1 for 32-bit }
-  {$ENDIF}
+  //{$if FPC_FULLVERSION < 30301}
+    {$stop Sorry, due to a FPC compiler issue you cannot compile 32-bit versions of slftp }
+  //{$ENDIF}
 {$ENDIF}
 
 {$if FPC_FULLVERSION < 30200}
@@ -56,7 +56,7 @@ program slftp;
 {$ENDIF}
 
 uses
-  {$IFDEF UNIX}
+  {$IFDEF LINUX}
     {$IFNDEF DEBUG}
       {$IFNDEF CPUARM}
         FastMM4,
