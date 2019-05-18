@@ -275,7 +275,7 @@ var
   mp3genres: TStringList;
   mp3languages: TStringList;
   mp3sources: TStringList;
-  tvtags: TStringList;
+  tvtags: TStringList; //< holds the list of tvtags from config file
   mp3types: TStringList;
   kb_list: TStringList;
   kb_thread: TKBThread;

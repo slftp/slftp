@@ -72,12 +72,12 @@ procedure TVInfoFireKbAdd(const aRls: String; msg: String = '<c3>[TVInfo]</c> %s
 
 function dbTVInfo_Process(const aNet, aChan, aNick: String; aMSG: String): boolean;
 
-{ Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
+{ Removes scene tagging for TV releases like languages or tvtags and tries to extract showname
   @param(rip Releasename with scene tagging)
   @param(showName Plain TV showname from @link(rip) without any scene tags) }
 procedure getShowValues(const rip: String; out showName: String); overload;
 
-{ Removes scene tagging for TV like languages or tvtags and tries to extract showname, season and episode from rip
+{ Removes scene tagging for TV releases like languages or tvtags and tries to extract showname, season and episode from rip
   @param(rip Releasename with scene tagging)
   @param(showName Plain TV showname from @link(rip) without any scene tags)
   @param(season Extracted season number from @link(rip))
@@ -147,6 +147,10 @@ var
   showDate : TDateTime;
 begin
   showName := rip;
+
+  // default values for not parsed/matched
+  season := -10;
+  episode := -10;
 
   rx := TRegexpr.Create;
   try
