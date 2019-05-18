@@ -38,7 +38,8 @@ uses
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
   tagsTests,
-  ircblowfish.plaintextTests;
+  ircblowfish.plaintextTests,
+  dbtvinfoTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -52,6 +53,7 @@ begin
   {* setup needed internal variables, etc *}
   InitialConfigSetup;
   InitialDebugSetup;
+  InitialKbSetup;
 
 
   // run all registered tests

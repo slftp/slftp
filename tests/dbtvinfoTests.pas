@@ -13,28 +13,26 @@ type
   TTestShowFunctions = class(TTestCase)
   published
     procedure ReplaceTVShowChars1;
-	procedure ReplaceTVShowChars2;
-	procedure ReplaceTVShowChars3;
-	procedure ReplaceTVShowChars4;
-	procedure ReplaceTVShowChars5;
+    procedure ReplaceTVShowChars2;
+    procedure ReplaceTVShowChars3;
+    procedure ReplaceTVShowChars4;
+    procedure ReplaceTVShowChars5;
     procedure GetShowValues1;
-	procedure GetShowValues2;
-	procedure GetShowValues3;
-	procedure GetShowValues4;
-	procedure GetShowValues5;
-	procedure GetShowValues6;
-	procedure GetShowValues7;
-	procedure GetShowValues8;
-	procedure GetShowValues9;
-	procedure GetShowValues10;
-	procedure GetShowValues11;
-	procedure GetShowValues12;
-	procedure GetShowValues13;
-	{
-	procedure GetShowValues14;
-	procedure GetShowValues15;
-	}
-	procedure GetShowValues16;
+    procedure GetShowValues2;
+    procedure GetShowValues3;
+    procedure GetShowValues4;
+    procedure GetShowValues5;
+    procedure GetShowValues6;
+    procedure GetShowValues7;
+    procedure GetShowValues8;
+    procedure GetShowValues9;
+    procedure GetShowValues10;
+    procedure GetShowValues11;
+    procedure GetShowValues12;
+    procedure GetShowValues13;
+    procedure GetShowValues14;
+    procedure GetShowValues15;
+    procedure GetShowValues16;
   end;
 
 implementation
@@ -378,7 +376,7 @@ begin
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
-{
+
 procedure TTestShowFunctions.GetShowValues14;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
@@ -387,8 +385,8 @@ var
 begin
   fInputStr := 'Kaya.Yanar.LIVE.All.Inclusive.GERMAN.720p.HDTV.x264-TVP';
   fExpectedResultStr := 'Kaya.Yanar.LIVE.All.Inclusive';
-  fSeason := 1;
-  fEpisode := 5;
+  fSeason := 0;
+  fEpisode := 0;
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -408,7 +406,7 @@ begin
   fInputStr := 'Nicky.Deuce.2013.720p.HDTV.x264-DEADPOOL';
   fExpectedResultStr := 'Nicky.Deuce';
   fSeason := 0;
-  fEpisode := 5;
+  fEpisode := 0;
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -418,7 +416,7 @@ begin
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
-}
+
 procedure TTestShowFunctions.GetShowValues16;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
