@@ -45,12 +45,14 @@ uses
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
   tagsTests,
-  ircblowfish.plaintextTests;
+  ircblowfish.plaintextTests,
+  dbtvinfoTests;
 
 begin
   {* setup needed internal variables, etc *}
   InitialConfigSetup;
   InitialDebugSetup;
+  InitialKbSetup;
 
   // run all registered tests
 {$IFDEF TextRunner}
