@@ -198,7 +198,7 @@ begin
       end;
     end;
 
-    rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
+    rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|E|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
     if rx.Exec(rip) then
     begin
       showname := rx.Match[1];
