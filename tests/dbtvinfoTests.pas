@@ -245,7 +245,7 @@ var
 begin
   fInputStr := 'The.Eccentric.Family.E03.Der.innere.Salon.des.Lehrmeisters.German.DL.ANiME.BDRiP.x264-ATAX';
   fExpectedResultStr := 'The.Eccentric.Family';
-  fSeason := 0;
+  fSeason := -10;
   fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
