@@ -124,7 +124,7 @@ begin
       Fetch(ss, '-', True, False);
 
       rc := FindSectionHandler(ss);
-      rls := rc.Create(releasename, ss);
+      rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
       kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
 
