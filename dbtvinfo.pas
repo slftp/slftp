@@ -84,7 +84,7 @@ procedure getShowValues(const rip: String; out showName: String); overload;
   @param(episode Extracted episode number from @link(rip)) }
 procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
 
-{ Does some replacing of normal scene names (and, at) with more reliable ones (&, @) for TV shows and replaces whitespaces with dots
+{ Replaces TV showname words (and, at) with (&, @) and replaces whitespaces with dots
   @param(aName TV showname)
   @param(forWebFetch If set to @true, it replaces whitespaces, dots and underscores with '+'' for better web search results)
   @returns(TV showname with replaced chars) }
@@ -125,8 +125,8 @@ begin
     fHelper := ReplaceText(fHelper, '_', '+');
   end;
 
-  // do not end up with 'tv+show+name+''
-  if fHelper[Length(fHelper)] = '+' then
+  // do not end up with 'tv.show.name.' or 'tv+show+name+'
+  if fHelper[Length(fHelper)] in ['.', '+'] then
     SetLength(fHelper, Length(fHelper) - 1);
 
   Result := fHelper;

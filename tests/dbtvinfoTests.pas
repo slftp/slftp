@@ -11,11 +11,12 @@ uses
 
 type
   TTestShowFunctions = class(TTestCase)
-  protected
-    procedure SetUpOnce; override;
-    procedure TeardownOnce; override;
   published
-    procedure PlainShowName1;
+    procedure ReplaceTVShowChars1;
+	  procedure ReplaceTVShowChars2;
+	  procedure ReplaceTVShowChars3;
+	  procedure ReplaceTVShowChars4;
+	  procedure ReplaceTVShowChars5;
     {
     procedure PlainShowName2;
     procedure PlainShowName3;
@@ -34,25 +35,79 @@ uses
 
 { TTestShowFunctions }
 
-procedure TTestShowFunctions.SetUpOnce;
-begin
-  writeln('hi');
-end;
-
-procedure TTestShowFunctions.TeardownOnce;
-begin
-  writeln('bye!');
-end;
-
-procedure TTestShowFunctions.PlainShowName1;
+procedure TTestShowFunctions.ReplaceTVShowChars1;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
-  fInputStr := 'Greys.Anatomy.S15E15.1080p.HDTV.x264-CRAVERS';
-  fExpectedResultStr := 'Greys.Anatomy.S14';
-  fOutputStr := replaceTVShowChars(fInputStr);
+  fInputStr := 'Greys Anatomy';
 
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  fExpectedResultStr := 'Greys.Anatomy';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+
+  fExpectedResultStr := 'Greys+Anatomy';
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+end;
+
+procedure TTestShowFunctions.ReplaceTVShowChars2;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Double Shot at Love';
+  
+  fExpectedResultStr := 'Double.Shot.@.Love';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  
+  fExpectedResultStr := 'Double+Shot+@+Love';
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+end;
+
+procedure TTestShowFunctions.ReplaceTVShowChars3;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Andromeda';
+  
+  fExpectedResultStr := 'Andromeda';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  
+  fExpectedResultStr := 'Andromeda';
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+end;
+
+procedure TTestShowFunctions.ReplaceTVShowChars4;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Alvin and the Chipmunks';
+  
+  fExpectedResultStr := 'Alvin.&.the.Chipmunks';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  fExpectedResultStr := 'Alvin+&+the+Chipmunks';
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+end;
+
+procedure TTestShowFunctions.ReplaceTVShowChars5;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Prison Break '; // additional whitespace test
+  
+  fExpectedResultStr := 'Prison.Break';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  fExpectedResultStr := 'Prison+Break';
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 {
 procedure TTestShowFunctions.PlainShowName1;
