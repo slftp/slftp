@@ -33,6 +33,9 @@ type
     procedure GetShowValues14;
     procedure GetShowValues15;
     procedure GetShowValues16;
+    procedure GetShowValues17;
+    procedure GetShowValues18;
+    procedure GetShowValues19;
   end;
 
 implementation
@@ -427,6 +430,66 @@ begin
   fExpectedResultStr := '2017.Flick.Electric.Co.Comedy.Gala';
   fSeason := -10;
   fEpisode := 1;
+  
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues17;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Biodiversite.Climat.L.Europe.Peut.Elle.Stopper.La.Catastrophe.28.Minutes.2018.DOC.FRENCH.720p.WEB.H264-SLiPS';
+  fExpectedResultStr := 'Biodiversite.Climat.L.Europe.Peut.Elle.Stopper.La.Catastrophe.28.Minutes';
+  fSeason := 0;
+  fEpisode := 0;
+  
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues18;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Super.League.2019.03.30.Lamia.vs.Panionios.GREEK.720p.HDTV.x264-IcHoR';
+  fExpectedResultStr := 'Super.League';
+  fSeason := -99;
+  fEpisode := 0;
+  
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues18;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Japan.von.oben.E03.Wiege.der.Tradition.GERMAN.DOKU.720p.HDTV.x264-BTVG';
+  fExpectedResultStr := 'Japan.von.oben';
+  fSeason := -10;
+  fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
