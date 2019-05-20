@@ -480,7 +480,7 @@ begin
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
 
-procedure TTestShowFunctions.GetShowValues18;
+procedure TTestShowFunctions.GetShowValues19;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
   fSeason, fOutSeason: integer;
