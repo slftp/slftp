@@ -469,7 +469,7 @@ begin
   fInputStr := 'Super.League.2019.03.30.Lamia.vs.Panionios.GREEK.720p.HDTV.x264-IcHoR';
   fExpectedResultStr := 'Super.League';
   fSeason := -99;
-  fEpisode := 0;
+  fEpisode := 1553904000;
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
