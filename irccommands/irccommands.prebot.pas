@@ -511,7 +511,7 @@ begin
           irc_addtext(netname, channel, 'Site <b>%s</b> has no precmd set.', [ps.Name]);
           exit;
         end;
-        if (s.working = sstUnknown) then
+        if (s.WorkingStatus = sstUnknown) then
         begin
           irc_addtext(netname, channel, 'Status of site <b>%s</b> is unknown.', [ps.Name]);
           exit;
@@ -541,7 +541,7 @@ begin
           if (ps.status <> rssNotAllowed) then
           begin
             s := FindSiteByName(netname, ps.Name);
-            if ((s <> nil) and (s.working = sstUp)) then
+            if ((s <> nil) and (s.WorkingStatus = sstUp)) then
               Break;
             //          s:= nil;
           end;
@@ -1254,7 +1254,7 @@ begin
           irc_addtext(Netname, Channel, '<c4<b>ERROR</c></b>: %s', [E.Message]);
       end;
 
-      if s.working <> sstUp then
+      if s.WorkingStatus <> sstUp then
       begin
         irc_addtext(Netname, Channel, 'Site <b>%s</b> is not marked as up.', [sitename]);
         Continue;
@@ -1306,7 +1306,7 @@ begin
         irc_addtext(Netname, Channel, '<c><b>ERROR</c></b>: %s', [E.Message]);
     end;
 
-    if s.working <> sstUp then
+    if s.WorkingStatus <> sstUp then
     begin
       irc_addtext(Netname, Channel, 'Site <b>%s</b> is not marked as up.', [sitename]);
       exit;
@@ -1406,7 +1406,7 @@ begin
       s := FindSiteByName(Netname, ps.Name);
       if s <> nil then
       begin
-        if (s.sectiondir[section] <> '') and (s.working = sstUnknown) then
+        if (s.sectiondir[section] <> '') and (s.WorkingStatus = sstUnknown) then
         begin
           irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.', [s.Name]);
           exit;

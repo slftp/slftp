@@ -127,7 +127,7 @@ begin
       Exit;
     end;
 
-    if s.working = sstDown then
+    if s.WorkingStatus = sstDown then
     begin
       irc_addtext(Netname, Channel, 'Site %s is down.', [ss]);
       exit;
@@ -349,7 +349,7 @@ begin
       Exit;
     end;
 
-    if s.working = sstDown then
+    if s.WorkingStatus = sstDown then
     begin
       irc_addtext(Netname, Channel, 'Site %s is down.', [ss]);
       exit;

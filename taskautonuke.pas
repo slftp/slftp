@@ -71,7 +71,7 @@ begin
   end;
 
 TryAgain:
-  if s.site.working = sstDown then
+  if s.site.WorkingStatus = sstDown then
   begin
     RetryNextTime();
     readyerror := True;
