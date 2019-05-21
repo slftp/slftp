@@ -583,19 +583,15 @@ begin
 
       if s.working <> sstUp then
       begin
+        case s.working of
+          sstUnknown: sss := 'unknown';
+          sstDown: sss := 'down';
+          sstTempDown: sss := 'temp down';
+          sstOutOfCredits: sss := 'out of credits';
+          sstOutOfSpace: sss := 'out of space';
+        end;
 
-        if s.working = sstUnknown then
-          sss := 'unknown';
-        if s.working = sstDown then
-          sss := 'down';
-        if s.working = sstMarkedDown then
-          sss := 'marked down';
-        if s.working = sstOutOfCreds then
-          sss := 'out of creds';
-        if s.working = sstOutOfSpace then
-          sss := 'out of space';
-        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.',
-          [s.Name, sss]);
+        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.', [s.Name, sss]);
       end;
 
       if s.working = sstUnknown then
