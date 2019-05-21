@@ -102,7 +102,7 @@
     {#} Replacing of <yyyy>, <yy>, <mm>, ... identifiers for sectiondir was missed in some places
     {#} No segmentation fault if terminal window is too big (#213)
     {#} Correctly apply <sample/proof/...>_dirs_priority to files
-    {#} Fix reqfiller not realizing requests are done
+    {#} reqfiller not realizing requests are done (#32)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
