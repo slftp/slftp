@@ -37,6 +37,7 @@ uses
     GUITestRunner,
   {$ENDIF}
   Classes, SysUtils,
+  mrdohutils,
   slftpUnitTestsSetup,
   // add all test units below
   Base64OpenSSLTests,
@@ -48,7 +49,18 @@ uses
   ircblowfish.plaintextTests,
   dbtvinfoTests;
 
+var
+  filecheck: String;
 begin
+  filecheck := CommonFileCheck;
+  if filecheck <> '' then
+  begin
+    System.Write(filecheck);
+    System.Write('Done. press <Enter> key to quit.');
+    System.Readln;
+    exit;
+  end;
+
   {* setup needed internal variables, etc *}
   InitialConfigSetup;
   InitialDebugSetup;
