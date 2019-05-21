@@ -56,7 +56,7 @@ begin
     end;
   end;
 
-  if not ((s.site.working = sstUp) and (readd)) then
+  if not ((s.site.WorkingStatus = sstUp) and (readd)) then
   begin
     // site is not up, we have to try to login
     if ((not readd) or (not s.site.markeddown)) then

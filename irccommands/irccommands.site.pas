@@ -670,7 +670,7 @@ begin
 
         s := TSite(sites[i]);
         s.markeddown := True;
-        s.working := sstDown;
+        s.WorkingStatus := sstDown;
         s.markeddown := True;
         s.RemoveAutoIndex;
         s.RemoveAutoBnctest;
@@ -696,7 +696,7 @@ begin
           Continue;
 
         s.markeddown := True;
-        s.working := sstDown;
+        s.WorkingStatus := sstDown;
         s.markeddown := True;
         s.RemoveAutoIndex;
         s.RemoveAutoBnctest;
@@ -762,7 +762,7 @@ begin
 
     try
       s.markeddown := True;
-      s.working := sstDown;
+      s.WorkingStatus := sstDown;
     except on E: Exception do
         irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
     end;

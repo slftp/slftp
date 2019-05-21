@@ -102,7 +102,7 @@ begin
       end;
 
       site := FindSiteByName(netname, sitename);
-      notdown := ((site <> nil) and (site.working <> sstDown));
+      notdown := ((site <> nil) and (site.WorkingStatus <> sstDown));
 
       if ((notdown) and (
         (site.isRouteableTo(site1)) or not
@@ -210,7 +210,7 @@ begin
     exit;
   end;
 
-  if s.site.working = sstDown then
+  if s.site.WorkingStatus = sstDown then
   begin
     RescheduleTask();
     readyerror := True;

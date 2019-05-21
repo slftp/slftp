@@ -205,7 +205,7 @@ begin
     exit;
   end;
 
-  if s.site.working = sstDown then
+  if s.site.WorkingStatus = sstDown then
   begin
     ReAddTask();
     readyerror := True;

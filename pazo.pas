@@ -1158,7 +1158,7 @@ begin
 
     try
       s := TSite(sitesunit.sites[i]);
-      if s.working = sstDown then
+      if s.WorkingStatus = sstDown then
         Continue;
       if s.PermDown then
         Continue;
@@ -1213,7 +1213,7 @@ begin
     s := TSite(sitesunit.sites[i]);
     if s.SkipPre then
       Continue;
-    if s.working = sstDown then
+    if s.WorkingStatus = sstDown then
       Continue;
     if s.PermDown then
       Continue;

@@ -508,7 +508,7 @@ begin
       end
       else
       begin
-        case s.working of
+        case s.WorkingStatus of
           sstUp: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOnline, s.Name]);
           sstDown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorOffline, s.Name]);
           sstUnknown: ss := ss + Format('<%s><b>%s</b></c> ', [globals.SiteColorUnknown, s.Name]);
@@ -613,7 +613,7 @@ begin
 
     if s.IsLeecher(user) then
     begin
-      if s.working = sstUp then
+      if s.WorkingStatus = sstUp then
         leech_up := leech_up + format('<b>%s</b> (%d/%d) ',
           [s.Name, s.FreeTraderSlots, s.FreeLeechSlots])
       else
@@ -622,7 +622,7 @@ begin
     end
     else if s.IsTrader(user) then
     begin
-      if s.working = sstUp then
+      if s.WorkingStatus = sstUp then
         ratio_up := ratio_up + format('<b>%s</b> (%d/%d) ',
           [s.Name, s.FreeTraderSlots, s.FreeLeechSlots])
       else

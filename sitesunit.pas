@@ -33,7 +33,7 @@ type
   TSiteFeatures = set of TSiteFeature;
 
   {
-  @value(sswUnknown unknown ftpd software)
+  @value(sswUnknown unknown FTPd software)
   @value(sswGlftpd glFTPd software)
   @value(sswDrftpd DrFTPD software)
   @value(sswIoftpd ioFTPD software)
@@ -149,7 +149,7 @@ type
 
   TSite = class
   private
-    fworking: TSiteStatus;
+    FWorkingStatus: TSiteStatus;
     fFeatures: TSiteFeatures;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
@@ -163,7 +163,7 @@ type
 
     function Software: TSiteSW;
 
-    procedure SetWorking(Value: TSiteStatus);
+    procedure SetWorking(const Value: TSiteStatus);
 
     function GetMaxDn: integer;
     procedure SetMaxDn(Value: integer);
@@ -213,17 +213,14 @@ type
     procedure SetNumUp(const Value: integer);
     procedure SetFreeSlots(const Value: integer);
 
-    function GetProxyName: String;
-    procedure SetProxyName(Value: String);
-
-    function GetSiteUsername: String;
-    procedure SetSiteUsername(Value: String);
-
-    function GetSitePassword: String;
-    procedure SetSitePassword(Value: String);
-
-    function GetSiteCountry: String;
-    procedure SetSiteCountry(Value: String);
+    function GetProxyName: String; //< function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!)
+    procedure SetProxyName(const Value: String); //< procedure for @link(ProxyName) property to write proxyname to inifile
+    function GetSiteUsername: String; //< function for @link(UserName) property to read username from inifile (default value: anonymous_slFtp)
+    procedure SetSiteUsername(const Value: String); //< procedure for @link(UserName) property to write username to inifile
+    function GetSitePassword: String; //< function for @link(PassWord) property to read password from inifile (default value: CR4P_P4$$W0RD)
+    procedure SetSitePassword(const Value: String); //< procedure for @link(PassWord) property to write password to inifile
+    function GetSiteCountry: String; //< function for @link(Country) property to read country from inifile (default value: ??)
+    procedure SetSiteCountry(const Value: String); //< procedure for @link(Country) property to write country to inifile
 
     function GetSiteMaxUpPerRip: integer;
     procedure SetSiteMaxUpPerRip(const Value: integer);
@@ -255,14 +252,13 @@ type
     function GetSkipBeingUploadedFiles: boolean;
     procedure SetSkipBeingUploadedFiles(Value: boolean);
 
-    function GetIRCNick: String;
-    procedure SetIRCNick(Value: String);
-
-    function GetSiteInfos: String;
-    procedure SetSiteInfos(Value: String);
+    function GetIRCNick: String; //< function for @link(IRCNick) property to read ircnick from inifile
+    procedure SetIRCNick(const Value: String); //< procedure for @link(IRCNick) property to write ircnick to inifile
+    function GetSiteInfos: String; //< function for @link(SiteInfos) property to read siteinfos from inifile
+    procedure SetSiteInfos(const Value: String); //< procedure for @link(SiteInfos) property to write siteinfos to inifile
 
     function GetLastKnownCredits: int64;
-    procedure SetLastKnownCredits(Value: int64);
+    procedure SetLastKnownCredits(const Value: int64);
 
     function GetUseAutoInvite: Boolean;
     procedure SetUseAutoInvite(Value: Boolean);
@@ -323,8 +319,8 @@ type
     procedure RecalcFreeslots;
     procedure FullLogin;
 
-    function GetSw: TSiteSw; //< function for sw property to read Site Software from inifile
-    procedure SetSw(Value: TSiteSw); //< procedure for sw property to write Site Software to inifile
+    function GetSw: TSiteSw; //< function for @link(sw) property to read Site Software from inifile
+    procedure SetSw(const Value: TSiteSw); //< procedure for @link(sw) property to write Site Software to inifile
 
     function GetRank(const section: String): integer;
     procedure SetRank(const section: String; Value: integer);
@@ -363,11 +359,11 @@ type
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
     property freeslots: integer read fFreeslots write SetFreeSlots;
-    property IRCNick: String read getircnick write setircnick;
-    property ProxyName: String read GetProxyName write SetProxyName;
-    property UserName: String read GetSiteUsername write SetSiteUsername;
-    property PassWord: String read GetSitePassword write SetSitePassword;
-    property Country: String read GetSiteCountry write SetSiteCountry;
+    property IRCNick: String read GetIRCNick write SetIRCNick; //< IRC username which is used for inviting to sitechannels
+    property ProxyName: String read GetProxyName write SetProxyName; //< Name of Proxy which is used for connecting to site
+    property UserName: String read GetSiteUsername write SetSiteUsername; //< Username to be used for login to site
+    property PassWord: String read GetSitePassword write SetSitePassword; //< Password to be used for login to site
+    property Country: String read GetSiteCountry write SetSiteCountry; //< Location (Country) of site
     property MaxUpPerRip: integer read GetSiteMaxUpPerRip write SetSiteMaxUpPerRip;
     property AutoBncTestInterval: integer read GetAutoBncTestInterval write SetAutoBncTestInterval; //< Interval in seconds for auto bnctest, zero means turned off
     property AutoNukeInterval: integer read GetAutoNukeInterval write SetAutoNukeInterval; //< Interval in seconds for autonuke, zero means turned off
@@ -375,16 +371,14 @@ type
     property AutoIndexInterval: integer read GetAutoIndexInterval write SetAutoIndexInterval; //< Interval in seconds for autoindex, zero means turned off
     property NextAutoIndexDateTime: TDateTime read GetNextAutoIndexDateTime write SetNextAutoIndexDateTime; //< timestamp of next autoindex run
     property AutoIndexSections: String read GetAutoIndexSections write SetAutoIndexSections; //< section(s) for autoindex
-
     property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
     property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
     property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
-
   published
-    property sw: TSiteSw read GetSw write SetSw;
+    property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
     property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
-    property working: TSiteStatus read fWorking write SetWorking;
+    property WorkingStatus: TSiteStatus read FWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
     property max_dn: integer read GetMaxDn write SetMaxDn;
     property max_pre_dn: integer read GetMaxPreDn write SetMaxPreDn;
     property max_up: integer read GetMaxUp write SetMaxUp;
@@ -404,8 +398,8 @@ type
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
-    property SiteInfos: String read GetSiteInfos write SetSiteInfos;
-    property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits;
+    property SiteInfos: String read GetSiteInfos write SetSiteInfos; //< holds the siteinfos information text
+    property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits; //< value for last known credit amount (NOT IMPLEMENTED!)
     property UseAutoInvite: Boolean read GetUseAutoInvite write SetUseAutoInvite;
 
     property IsUp: Boolean read GetIsUp;
@@ -438,7 +432,7 @@ function FeatResponseToFeature(const feature: String): TSiteFeature;
 function sslMethodToString(sitename: String): String; overload;
 function sslMethodToString(site: TSite): String; overload;
 
-{ Checks each sites working property and add it to a formated Stringlist for irc output
+{ Checks each sites @link(TSite.WorkingStatus) property and add it to a formated Stringlist for irc output
   Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
   @param(sitesup Stringlist for working (sstUp) sites)
   @param(sitesdn Stringlist for down (sstDown) sites)
@@ -548,7 +542,7 @@ begin
       Continue;
     end;
 
-    case s.working of
+    case s.WorkingStatus of
       sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
       sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
@@ -1546,14 +1540,14 @@ begin
     begin
       if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
       begin
-        site.working := sstDown;
+        site.WorkingStatus := sstDown;
         exit;
       end;
 
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
         irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
-        site.working := sstDown;
+        site.WorkingStatus := sstDown;
         exit;
       end;
 
@@ -1567,7 +1561,7 @@ begin
           exit;
         end;
       end;
-      site.working := sstDown;
+      site.WorkingStatus := sstDown;
     end;
   end;
 end;
@@ -1747,7 +1741,7 @@ begin
   fStatus := Value;
 
   if (fStatus = ssOnline) then
-    site.working := sstUp;
+    site.WorkingStatus := sstUp;
 end;
 
 function TSiteSlot.bnc: String;
@@ -2150,7 +2144,7 @@ begin
   if (Name = getAdminSiteName) then
   begin
     self.Name := Name;
-    working := sstUp;
+    WorkingStatus := sstUp;
 
     slots := TObjectList.Create();
     for i := 1 to admin_siteslots do
@@ -2168,7 +2162,7 @@ begin
   foutofannounce := 0;
   // nullazni a felfedezendo beallitasokat
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
-  working := sstUnknown;
+  WorkingStatus := sstUnknown;
   features := [];
 
   // rakjuk rendbe a direket
@@ -2345,7 +2339,7 @@ begin
     if TSite(sites[i]).Name = getAdminSiteName then
       continue;
 
-    case TSite(sites[i]).working of
+    case TSite(sites[i]).WorkingStatus of
       sstUnknown: Inc(unknown);
       sstUp: Inc(upsites);
       sstDown: Inc(downsites);
@@ -2366,11 +2360,11 @@ begin
   WCBool('skip_pre', Value);
 end;
 
-procedure TSite.SetWorking(Value: TSiteStatus);
+procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
-  if Value <> fWorking then
+  if Value <> FWorkingStatus then
   begin
-    fWorking := Value;
+    FWorkingStatus := Value;
 
     if Name = getAdminSiteName then
     begin
@@ -2378,40 +2372,45 @@ begin
       Exit;
     end;
 
-    if Value = sstUp then
-    begin
-      irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
-      markeddown := False;
+    case Value of
+      sstUp:
+        begin
+          irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
+          markeddown := False;
 
-      if AutoNukeInterval <> 0 then
-        AutoNuke;
-      if AutoIndexInterval <> 0 then
-        AutoIndex;
-      //if s.RCString('autologin','-1') <> '-1' then
-      if AutoBncTestInterval <> 0 then
-        AutoBnctest;
-      if AutoRulesStatus <> 0 then
-        AutoRules;
-      if AutoDirlistInterval <> 0 then
-        AutoDirlist;
-    end
-    else if Value = sstDown then
-    begin
-      irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
-      //removeing all tasks for the site...
-      //    RemoveAutoIndex;
-      //    RemoveAutoBnctest;
-      //    RemoveAutoRules;
-      //    RemoveAutoNuke;
-      //    RemoveAutoDirlist;
+          if AutoNukeInterval <> 0 then
+            AutoNuke;
+          if AutoIndexInterval <> 0 then
+            AutoIndex;
+          //if s.RCString('autologin','-1') <> '-1' then
+          if AutoBncTestInterval <> 0 then
+            AutoBnctest;
+          if AutoRulesStatus <> 0 then
+            AutoRules;
+          if AutoDirlistInterval <> 0 then
+            AutoDirlist;
+        end;
+      sstDown:
+        begin
+          irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
+          // really down, remove all tasks even auto*tasks
+
+          //removeing all tasks for the site...
+          //    RemoveAutoIndex;
+          //    RemoveAutoBnctest;
+          //    RemoveAutoRules;
+          //    RemoveAutoNuke;
+          //    RemoveAutoDirlist;
+
+          QueueEmpty(Name);
+        end;
+      sstTempDown:
+        begin
+          // just temp down, don't remove auto*tasks
+        end;
     end;
 
     SiteStat;
-  end;
-
-  if (Value = sstDown) then
-  begin
-    QueueEmpty(Name);
   end;
 end;
 
@@ -2531,7 +2530,7 @@ end;
 procedure TSite.SetDownSiteDueToCreditsOrSpace;
 begin
   markeddown := True;
-  working := sstDown;
+  WorkingStatus := sstDown;
   RemoveAutoIndex;
   RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
   RemoveAutoRules;
@@ -3347,7 +3346,7 @@ begin
   Result := TSiteSw(RCInteger('sw', 0));
 end;
 
-procedure TSite.SetSw(Value: TSiteSw);
+procedure TSite.SetSw(const Value: TSiteSw);
 begin
   WCInteger('sw', integer(Value));
 end;
@@ -3498,7 +3497,7 @@ begin
   Result := RCString('siteinfos', '');
 end;
 
-procedure TSite.SetSiteInfos(Value: String);
+procedure TSite.SetSiteInfos(const Value: String);
 begin
   WCString('siteinfos', Value);
 end;
@@ -3508,7 +3507,7 @@ begin
   Result := -1;
 end;
 
-procedure TSite.SetLastKnownCredits(Value: int64);
+procedure TSite.SetLastKnownCredits(const Value: int64);
 begin
   //
 end;
@@ -3525,7 +3524,7 @@ end;
 
 function TSite.GetIsUp: boolean;
 begin
-  Result := working = sstUp;
+  Result := WorkingStatus = sstUp;
 end;
 
 function TSite.GetAutoRulesStatus: integer;
@@ -3558,19 +3557,14 @@ begin
   WCBool('set_down_on_out_of_credits', Value);
 end;
 
-procedure TSite.SetIRCNick(Value: String);
-begin
-  WCString('ircnick', Value);
-end;
-
 function TSite.GetIRCNick: String;
 begin
   Result := RCString('ircnick', '');
 end;
 
-procedure TSite.SetProxyName(Value: String);
+procedure TSite.SetIRCNick(const Value: String);
 begin
-  WCString('proxyname', Value);
+  WCString('ircnick', Value);
 end;
 
 function TSite.GetProxyName;
@@ -3578,9 +3572,9 @@ begin
   Result := RCString('proxyname', '!!NOIN!!');
 end;
 
-procedure TSite.SetSiteUsername(Value: String);
+procedure TSite.SetProxyName(const Value: String);
 begin
-  WCString('username', Value);
+  WCString('proxyname', Value);
 end;
 
 function TSite.GetSiteUsername;
@@ -3588,9 +3582,9 @@ begin
   Result := RCString('username', 'anonymous_slFtp');
 end;
 
-procedure TSite.SetSitePassword(Value: String);
+procedure TSite.SetSiteUsername(const Value: String);
 begin
-  WCString('password', Value);
+  WCString('username', Value);
 end;
 
 function TSite.GetSitePassword;
@@ -3598,12 +3592,17 @@ begin
   Result := RCString('password', 'CR4P_P4$$W0RD');
 end;
 
+procedure TSite.SetSitePassword(const Value: String);
+begin
+  WCString('password', Value);
+end;
+
 function TSite.GetSiteCountry;
 begin
   Result := RCString('country', '??');
 end;
 
-procedure TSite.SetSiteCountry(Value: String);
+procedure TSite.SetSiteCountry(const Value: String);
 begin
   WCString('country', Value);
 end;

@@ -894,13 +894,13 @@ begin
           end;
         end;
 
-        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not s.markeddown) and (s.working <> sstDown)) then
+        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not s.markeddown) and (s.WorkingStatus <> sstDown)) then
         begin
           irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
-      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.working = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
+      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.WorkingStatus = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
