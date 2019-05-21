@@ -1342,6 +1342,15 @@ begin
   Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
+(*
+  The Done function counts all files inside a Dirlist that are considered done
+  Files from subdirs are included in this final count.
+  Directories themselves are not counted.
+
+  This function is mainly used for race stats, to determine how many files there
+  were in total and for reqfilling to check that source and target site contain
+  an equal amount of tiles.
+*)
 function TDirList.Done: Integer;
 var
   de: TDirlistEntry;
@@ -1357,7 +1366,7 @@ begin
       try
        de := TDirlistEntry(entries[i]);
         if de.skiplisted then Continue;
-        if de.done then inc(Result);
+        if ((de.done) and (not de.directory)) then inc(Result);
         if ((de.directory) and (de.subdirlist <> nil)) then
           inc(Result, de.subdirlist.Done);
       except
