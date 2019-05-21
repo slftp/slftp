@@ -416,7 +416,7 @@ var
         for i := 0 to x.Count - 1 do
         begin
           s := FindSiteByName('', x[i]);
-          if ((s <> nil) and (s.working = sstUp)) then
+          if ((s <> nil) and (s.WorkingStatus = sstUp)) then
             Routeable(x[i], y);
         end;
       finally
@@ -581,9 +581,9 @@ begin
         end;
       end;
 
-      if s.working <> sstUp then
+      if s.WorkingStatus <> sstUp then
       begin
-        case s.working of
+        case s.WorkingStatus of
           sstUnknown: sss := 'unknown';
           sstDown: sss := 'down';
           sstTempDown: sss := 'temp down';
@@ -594,7 +594,7 @@ begin
         irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.', [s.Name, sss]);
       end;
 
-      if s.working = sstUnknown then
+      if s.WorkingStatus = sstUnknown then
       begin
         irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.',
           [s.Name]);
@@ -602,7 +602,7 @@ begin
         break;
       end;
 
-      if ((ps.Name <> sitename) and (s.working = sstUp)) then
+      if ((ps.Name <> sitename) and (s.WorkingStatus = sstUp)) then
       begin
         Inc(addednumber);
         if y.IndexOf(ps.Name) = -1 then
@@ -821,7 +821,7 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [srcsitename]);
     exit;
   end;
-  if srcsite.working = sstDown then
+  if srcsite.WorkingStatus = sstDown then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [srcsitename]);
     exit;
@@ -834,7 +834,7 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [dstsitename]);
     exit;
   end;
-  if dstsite.working = sstDown then
+  if dstsite.WorkingStatus = sstDown then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [dstsitename]);
     exit;
@@ -1356,7 +1356,7 @@ begin
     exit;
   end;
 
-  if ((site.working = sstUnknown) or (site.working = sstDown)) then
+  if ((site.WorkingStatus = sstUnknown) or (site.WorkingStatus = sstDown)) then
   begin
     TSiteSlot(site.slots.Items[site.slots.Count - 1]).ReLogin();
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!', [site.Name]);
