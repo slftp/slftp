@@ -102,6 +102,7 @@
     {#} Replacing of <yyyy>, <yy>, <mm>, ... identifiers for sectiondir was missed in some places
     {#} No segmentation fault if terminal window is too big (#213)
     {#} Correctly apply <sample/proof/...>_dirs_priority to files
+    {#} reqfiller not realizing requests are done (#32)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -121,6 +122,7 @@
     {^} Send nfo for NFOFIX, SFVFIX, SAMPLEFIX, etc instead of creating only an empty dir
     {^} more reliable maxidle interval handling
     {^} Free and reassign slots faster on completed races of single files
+    {^} If available parse complete_tag on requests to determine completion
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
