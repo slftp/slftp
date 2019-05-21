@@ -2848,9 +2848,8 @@ var
   ssrc_found: boolean;
 begin
   Result := False;
-  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
-
   p := TPazo(pazo);
+  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
 
   // check if the release is incomplete on any site and gather valid sites for filling
   for i := 0 to p.sites.Count - 1 do
