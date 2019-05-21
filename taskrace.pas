@@ -190,7 +190,7 @@ begin
 
   // Check if we should abandon using PS1
   TryAgain:
-  if ((ps1.error) or (ps1.dirlistgaveup) or (ps1.status = rssNuked) or (slshutdown)) then
+  if ((ps1.error) or (ps1.dirlistgaveup and not FDoIncFilling) or (ps1.status = rssNuked) or (slshutdown)) then
   begin
     readyerror := True;
 
@@ -393,9 +393,6 @@ begin
       ps1.status := rssComplete;
     end;
   end;
-
-  //only thing we need to check how to get it work with non routable sites - we need to add them manually on TKBThread.AddCompleteTransfers
-  //but will they be used on race? Or do slftp overwritte them?
 
   // don't check the part below if it's an incomplete fill because we would stop there
   if (not FDoIncFilling) then
