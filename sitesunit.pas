@@ -41,17 +41,23 @@ type
   }
   TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd);
 
+  {
+  @abstract(data channel PROTection level)
+  @value(prNone nothing is encrypted)
+  @value(prProtP Communication and Data transfer encrypted/protected (TLS negotiation must take place on the data connection))
+  @value(prProtC Communication encrypted but transfers data unencrypted (data connection is made without TLS))
+  }
   TProtection = (prNone, prProtP, prProtC);
 
   {
   @value(sstUnknown unknown (not yet connected) status)
   @value(sstUp reachable and usable (UP) status)
-  @value(sstDown down status)
-  @value(sstMarkedDown marked as down because of temporary problems (MAYBE, NOT SURE ABOUT IT!))
-  @value(sstOutOfCreds no credits left)
+  @value(sstDown down status, no auto*tasks will be executed)
+  @value(sstTempDown marked as down because of temporary problems, auto*tasks will be executed)
+  @value(sstOutOfCredits no credits left)
   @value(sstOutOfSpace no space left)
   }
-  TSiteStatus = (sstUnknown, sstUp, sstDown, sstMarkedDown, sstOutOfCreds, sstOutOfSpace);
+  TSiteStatus = (sstUnknown, sstUp, sstDown, sstTempDown, sstOutOfCredits, sstOutOfSpace);
 
   {
   @value(srNone Site to Site (s2s) SSL not needed)
