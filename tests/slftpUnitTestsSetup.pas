@@ -13,9 +13,11 @@ uses
   configunit, debugunit, encinifile, kb, StrUtils;
 
 procedure InitialConfigSetup;
+var
+  fDefaultPassword: String;
 begin
-  // works with the default values only
-  config := TEncIniFile.Create('test', 'nopw');
+  fDefaultPassword := 'nopw';
+  ConfigInit(fDefaultPassword);
 end;
 
 procedure InitialDebugSetup;
