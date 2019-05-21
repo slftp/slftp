@@ -2766,11 +2766,9 @@ begin
 
   use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', True);
 
-  // disabled until we look deeper into issues with it
-  //enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
-  enable_try_to_complete := False;
-
+  enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
   try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 1100);
+
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
@@ -2845,67 +2843,59 @@ function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
   i, j: integer;
   psrc, pdest: TPazoSite;
-  sdest, ssrc: TSite;
+  ssrc, sdest: TSite;
   p: TPazo;
   ssrc_found: boolean;
-
 begin
   Result := False;
+  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
 
   p := TPazo(pazo);
 
-  Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
-
+  // check if the release is incomplete on any site and gather valid sites for filling
   for i := 0 to p.sites.Count - 1 do
   begin
     pdest := TPazoSite(p.sites[i]);
 
-    // checking if we want to try to complete the destination site
     if pdest.Name = getAdminSiteName then
       Continue;
+    // if complete, we don't need to fill it there
     if pdest.Complete then
       Continue;
     if pdest.status <> rssAllowed then
       Continue;
     if pdest.error then
     begin
-      Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
-        [pdest.Name, pdest.reason]));
+      Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [pdest.Name, pdest.reason]));
       Continue;
     end;
-    sdest := TSite(FindSiteByName('', pdest.Name));
+
+    sdest := FindSiteByName('', pdest.Name);
     if sdest = nil then
       Continue;
     if sdest.PermDown then
       Continue;
 
-    // Looking for possible source for trying to complete release on destination
-    ssrc_found := False;
-    psrc := nil;
-
+    // iterate through sites and find possible sources where rls is complete and create task
     for j := 0 to p.sites.Count - 1 do
     begin
       ssrc_found := False;
       psrc := TPazoSite(p.sites[j]);
 
-      if psrc = nil then
-        Continue;
       if psrc.Name = getAdminSiteName then
         Continue;
       if psrc.Name = pdest.Name then
         Continue;
-
+      // if not complete, we cannot use it as source to fill
+      if not psrc.Complete then
+        Continue;
       if psrc.error then
       begin
-        Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s',
-          [psrc.Name, psrc.reason]));
+        Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [psrc.Name, psrc.reason]));
         Continue;
       end;
 
-      if not psrc.Complete then
-        Continue;
-
-      ssrc := TSite(FindSiteByName('', psrc.Name));
+      ssrc := FindSiteByName('', psrc.Name);
       if ssrc = nil then
         Continue;
       if ssrc.PermDown then
@@ -2916,52 +2906,35 @@ begin
       else
         ssrc_found := True;
 
-      if ssrc_found then
-        break;
-
-      //will continue with next site if ssrc_found is FALSE
+      // continue with next site from list if current site has no route
       if not ssrc_found then
         continue;
 
-      if psrc = nil then
-      begin
-        irc_Addstats(Format('psrc is nil (%s)', [psrc.Name]));
-        Exit;
-      end;
-
-      ssrc := TSite(FindSiteByName('', psrc.Name));
-      if ssrc = nil then
-      begin
-        irc_Addstats(Format('ssrc is nil (%s)', [psrc.Name]));
-        Exit;
-      end;
-
+      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
       try
-        Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
         pdest.Clear;
-        //p.rls.incompleteFiller := True;
-        //AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', True));
+
+        // TODO: we need to check how to get it to work with non routable sites
+        // we need to add them manually here but will they be used on race? Or do slftp overwritte them somewhere?
+
         AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', False, True));
-        Result := True;
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, pdest.Name, psrc.Name]));
+
+        Result := True;
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
-            [e.Message]));
-          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
-            [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
+          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
           Result := False;
         end;
       end;
     end;
   end;
 
-  Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s',
-    [p.rls.rlsname]);
+  Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s', [p.rls.rlsname]);
 end;
 
 {
@@ -3288,8 +3261,6 @@ begin
 
           if enable_try_to_complete then
           begin
-
-            //           if ((not p.completezve) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
             if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
             begin
               RemovePazo(p.pazo_id);
