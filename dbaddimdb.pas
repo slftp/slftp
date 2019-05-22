@@ -58,7 +58,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, configunit, mystrings, FLRE,
-  queueunit, regexpr, debugunit, taskhttpimdb, pazo, mrdohutils;
+  queueunit, regexpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const
   section = 'dbaddimdb';
@@ -190,7 +190,22 @@ procedure dbaddimdb_SaveImdb(rls, imdb_id: String);
 var
   i: Integer;
   db_imdb: TDbImdb;
+  showname: String;
+  season: Integer;
+  episode: int64;
 begin
+  if config.ReadBool(section, 'skip_tv_releases', false) then
+  begin
+    getShowValues(rls, showname, season, episode);
+    (*
+      if getShowValues does not find tv-related info for rls then showname will
+      contain the same value as rls, otherwise it will contain a (shorter)
+      showname. season and/or episode will be set if the release is tv-related.
+    *)
+    if (rls <> showname) and ((season > 0) or (episode > 0)) then
+      exit;
+  end;
+
   dbaddimdb_cs.Enter;
   try
     i:= last_addimdb.IndexOf(rls);
