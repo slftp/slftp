@@ -1370,11 +1370,11 @@ begin
         vlang := '';
         if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
         begin
-          vlang := FindLanguageOnDirectory(rlsname, True);
+          vlang := FindMusicLanguageOnDirectory(rlsname);
         end
         else
         begin
-          vlang := FindLanguageOnDirectory(rlsname, False);
+          vlang := FindLanguageOnDirectory(rlsname);
         end;
         if vlang <> '' then
           languages.Add(vlang);
@@ -2692,10 +2692,7 @@ begin
   end;
 
   mp3languages := TStringList.Create;
-  mp3languages.Delimiter := ' ';
-  mp3languages.QuoteChar := '"';
-  mp3languages.CaseSensitive := False;
-  mp3languages.DelimitedText := UpperCase(config.ReadString(rsections, 'mp3languages', ''));
+  SLLoadMP3LanguagesFromIniFile(mp3languages);
 
 
   tvtags := TStringList.Create;

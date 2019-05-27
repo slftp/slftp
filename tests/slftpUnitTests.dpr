@@ -40,7 +40,8 @@ uses
   ircblowfish.CBCTests,
   tagsTests,
   ircblowfish.plaintextTests,
-  dbtvinfoTests;
+  dbtvinfoTests,
+  sllanguagebaseTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -65,6 +66,7 @@ begin
   InitialConfigSetup;
   InitialDebugSetup;
   InitialKbSetup;
+  InitialSLLanguagesSetup;
 
 
   // run all registered tests
