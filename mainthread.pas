@@ -228,18 +228,14 @@ begin
   IndexerInit;
   Socks5Init;
   MyCryptoInit;
-
   InitProxys;
-  SLLanguages_Init;
   InitmRdOHConfigFiles;
-
   dbaddpreInit;
   dbaddnfoInit;
   dbaddurlInit;
   dbaddgenreInit;
   dbaddimdbInit;
   dbtvinfoInit;
-
   ConsoleInit;
   Tasks_Init;
   QueueInit;
@@ -258,6 +254,7 @@ begin
   Precatcher_Init;
   RulesInit;
   SkiplistsInit;
+  SLLanguagesInit;
   TagsInit;
   //  EPrecatcherInit;
   NukeInit;
@@ -513,7 +510,7 @@ begin
   StatsUninit;
   UnInitProxys;
   UninitmRdOHConfigFiles;
-  SLLanguages_Uninit;
+  SLLanguagesUninit;
   UnInitglobalskiplist;
   TaskHttpImdbUnInit;
   dbaddpreUnInit;
