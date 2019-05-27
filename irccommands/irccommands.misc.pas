@@ -406,12 +406,9 @@ end;
 function IrcTestLanguageBase(const netname, channel, params: String): boolean;
 begin
   Result := False;
-
-  irc_addtext(Netname, Channel, 'Read language for: ' + params + ' (only new languagebase supported right now...)');
-  // if use_new_language_base then begin
-  // irc_addtext(netname,channel,'New languagebase...');
-  irc_addtext(Netname, Channel, 'language ->' + FindLanguageOnDirectory(params));
-
+  irc_addtext(Netname, Channel, Format('Read language for: %s', [params]));
+  irc_addtext(Netname, Channel, Format('language -> %s', [FindLanguageOnDirectory(params)]));
+  irc_addtext(Netname, Channel, Format('mp3 language -> %s', [FindMusicLanguageOnDirectory(params)]));
   Result := True;
 end;
 
