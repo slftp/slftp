@@ -9,6 +9,18 @@ uses
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
+
+  {
+  @value(sslNone no encryption used)
+  @value(sslImplicitSSLv23 implicit ssl handshake using SSLv23 after TCP connection was established)
+  @value(sslAuthSslSSLv23 AUTH SSL then ssl handshake using SSLv23)
+  @value(sslAuthTLSSSLv23 AUTH TLS then ssl handshake using SSLv23)
+  @value(sslAuthSslTLSv1 AUTH SSL then ssl handshake using TLSv1)
+  @value(sslAuthTlsTLSv1 AUTH TLS then ssl handshake using TLSv1)
+  @value(sslImplicitTLSv1 implicit ssl handshake using TLSv1 after TCP connection was established)
+  @value(sslAuthTlsTLSv1_2 AUTH TLS then ssl handshake using TLSv1.2)
+  @value(sslImplicitTLSv1_2 implicit ssl handshake using TLSv1.2 after TCP connection was established)
+  }
   TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
     sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
     sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
@@ -68,6 +80,7 @@ type
 
   TSite = class; // forward
 
+  { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
   TSiteSlot = class(TslTCPThread)
   private
     FLastIO: TDateTime;
@@ -99,7 +112,7 @@ type
     lastResponseCode: integer;
 
     ftodotask: TTask;
-    site: TSite;
+    site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
     procedure Quit;
     function Name: String;
@@ -147,6 +160,7 @@ type
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
 
+  { @abstract(Object which holds all the site informations) }
   TSite = class
   private
     FWorkingStatus: TSiteStatus;
@@ -181,8 +195,8 @@ type
     procedure SetConnect_timeout(const Value: integer);
     function Getsslmethod: TSSLMethods;
     procedure Setsslmethod(const Value: TSSLMethods);
-    function Getsslfxp: TSSLReq;
-    procedure Setsslfxp(const Value: TSSLReq);
+    function Getsslfxp: TSSLReq; //< function for @link(sslfxp) property to read sslfxp from inifile (default value: @link(TSSLReq.srNone))
+    procedure Setsslfxp(const Value: TSSLReq); //< procedure for @link(sslfxp) property to write sslfxp to inifile
     function GetPredir: String;
     procedure SetPredir(const Value: String);
     function Getlegacydirlist: boolean;
@@ -265,8 +279,8 @@ type
 
     function GetIsUp: Boolean;
 
-    function GetAutoRulesStatus: integer;
-    procedure SetAutoRulesStatus(const Value: integer);
+    function GetAutoRulesStatus: integer; //< function for @link(AutoRulesStatus) property to read autorules from inifile (default value: 0 -> disabled)
+    procedure SetAutoRulesStatus(const Value: integer); //< procedure for @link(AutoRulesStatus) property to write autorules to inifile
 
     function GetSetDownOnOutOfSpace: boolean;
     procedure SetSetDownOnOutOfSpace(const Value: boolean);
@@ -388,7 +402,7 @@ type
     property io_timeout: integer read Getio_timeout write Setio_timeout;
     property connect_timeout: integer read Getconnect_timeout write Setconnect_timeout;
     property sslmethod: TSSLMethods read Getsslmethod write Setsslmethod;
-    property sslfxp: TSSLReq read Getsslfxp write Setsslfxp;
+    property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
     property predir: String read GetPredir write SetPredir;
 
@@ -403,8 +417,8 @@ type
     property UseAutoInvite: Boolean read GetUseAutoInvite write SetUseAutoInvite;
 
     property IsUp: Boolean read GetIsUp;
-    property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus;
 
+    property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus; //< Interval in seconds for autorules, zero means turned off
     property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
     property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
   end;
@@ -413,38 +427,68 @@ function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
 
-function FindSiteByName(netname, sitename: String): TSite;
-function FindSlotByName(slotname: String): TSiteSlot;
+{ Iterates through @link(sites) and compares the entries with given aSitename.
+  @param(aNetname network name)
+  @param(aSitename sitename which is used for searching site in @link(sites))
+  @returns(@link(TSite) class of site if found and property @link(TSite.noannounce) is not @true, @nil otherwise) }
+function FindSiteByName(const aNetname, aSitename: String): TSite;
+
+{ Iterates through @link(sites) entries and their @link(TSite.slots) items and compares the slotname with given aSlotname.
+  @param(aSlotname slotname which is used for searching)
+  @returns(@link(TSiteSlot) class of slot, @nil otherwise) }
+function FindSlotByName(const aSlotname: String): TSiteSlot;
 procedure SitesInit;
 procedure SitesStart;
 procedure SitesUninit;
 function GiveSiteLastStart: TDateTime;
 
-{ Returns the admin_sitename from slftp.ini as uppercase }
+{ Get the ADMIN Sitename for internal tasks like IMDB/TV/ADDPRE/etc
+  @returns(uppercased admin_sitename from slftp.ini) }
 function getAdminSiteName: String;
 
-function SiteSoftWareToString(sitename: String): String; overload;
-function SiteSoftWareToString(site: TSite): String; overload;
+{ Get the used FTPd software as string.
+  NOTE: Does not check if a site with given sitename exists
+  @param(aSitename sitename as string)
+  @returns(FTPd software as string) }
+function SiteSoftWareToString(const aSitename: String): String; overload;
+
+{ Get the used FTPd software as string.
+  @param(aSite @link(TSite) class of a site)
+  @returns(FTPd software as string) }
+function SiteSoftWareToString(aSite: TSite): String; overload;
+
+{ Get the FTPd software enum for given FTPd software name.
+  @param(s FTPd software string)
+  @returns(@link(TSiteSw) if existing, otherwise @link(TSiteSw.sswUnknown)) }
 function StringToSiteSoftWare(s: String): TSiteSw;
 
-function FeatResponseToFeature(const feature: String): TSiteFeature;
+{ Convert String from FTPd response into internal used @link(TSiteFeature) enum
+  @param(aFeature Single FTPd FEAT response string)
+  @returns(@link(TSiteFeature) if enum entry found, otherwise @link(TSiteFeature.sfUnknown)) }
+function FeatResponseToFeature(const aFeature: String): TSiteFeature;
 
-function sslMethodToString(sitename: String): String; overload;
-function sslMethodToString(site: TSite): String; overload;
+{ Get the used @link(TSite.sslmethod) as string.
+  NOTE: Does not check if a site with given sitename exists
+  @param(aSitename sitename as string)
+  @returns(@link(TSite.sslmethod) as string) }
+function sslMethodToString(const aSitename: String): String; overload;
+
+{ Get the used @link(TSite.sslmethod) as string.
+  @param(aSite @link(TSite) class of a site)
+  @returns(@link(TSite.sslmethod) as string) }
+function sslMethodToString(aSite: TSite): String; overload;
 
 { Checks each sites @link(TSite.WorkingStatus) property and add it to a formated Stringlist for irc output
   Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
   @param(sitesup Stringlist for working (sstUp) sites)
   @param(sitesdn Stringlist for down (sstDown) sites)
   @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
-  @param(sitespd Stringlist for permdown (PermDown) sites)
-}
+  @param(sitespd Stringlist for permdown (PermDown) sites) }
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 
 var
-  sitesdat: TEncIniFile = nil;
-  sites: TObjectList = nil;
-  sitesautosend: TDateTime;
+  sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
+  sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
 
 implementation
 
@@ -470,16 +514,16 @@ begin
   Result := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
 end;
 
-function SiteSoftWareToString(sitename: String): String;
+function SiteSoftWareToString(const aSitename: String): String;
 begin
-  Result := SiteSoftWareToString(FindSiteByName('', sitename));
+  Result := SiteSoftWareToString(FindSiteByName('', aSitename));
 end;
 
-function SiteSoftWareToString(site: TSite): String;
+function SiteSoftWareToString(aSite: TSite): String;
 begin
   Result := 'Unknown';
 
-  case TSite(site).Software of
+  case TSite(aSite).Software of
     sswUnknown: Result := 'Unknown';
     sswGlftpd: Result := 'GlFTPD';
     sswDrftpd: Result := 'DrFTPD';
@@ -491,7 +535,7 @@ end;
 function StringToSiteSoftWare(s: String): TSiteSw;
 begin
   Result := sswUnknown;
-  s := AnsiLowerCase(s);
+  s := LowerCase(s);
 
   if s = 'glftpd' then
     Result := sswGlftpd;
@@ -503,15 +547,15 @@ begin
     Result := sswRaidenftpd;
 end;
 
-function sslMethodToString(sitename: String): String;
+function sslMethodToString(const aSitename: String): String;
 begin
-  Result := sslMethodToString(FindSiteByName('', sitename));
+  Result := sslMethodToString(FindSiteByName('', aSitename));
 end;
 
-function sslMethodToString(site: TSite): String;
+function sslMethodToString(aSite: TSite): String;
 begin
   Result := 'Unknown';
-  case TSite(site).sslmethod of
+  case TSite(aSite).sslmethod of
     sslNone: Result := ' no encryption used';
     sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
     sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
@@ -519,8 +563,8 @@ begin
     sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
     sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
     sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
-    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv12';
-    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv12 after TCP connection was established';
+    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv1.2';
+    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv1.2 after TCP connection was established';
   end;
 end;
 
@@ -550,20 +594,19 @@ begin
   end;
 end;
 
-function FeatResponseToFeature(const feature: string): TSiteFeature;
+function FeatResponseToFeature(const aFeature: string): TSiteFeature;
 var
-  helper: Integer;
+  fHelper: Integer;
 begin
   Result := sfUnknown;
-  helper := GetEnumValue(TypeInfo(TSiteFeature), feature);
-  if helper > -1 then
+  fHelper := GetEnumValue(TypeInfo(TSiteFeature), aFeature);
+  if fHelper > -1 then
   begin
-    Result := TSiteFeature(helper);
+    Result := TSiteFeature(fHelper);
   end;
 end;
 
-// NOTE: ez a fuggveny hivasahoz lokkolni KELL eloszor a mindensegit
-function FindSiteByName(netname, sitename: String): TSite;
+function FindSiteByName(const aNetname, aSitename: String): TSite;
 var
   i: integer;
   s: TSite;
@@ -573,12 +616,13 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites[i]);
-      if s.Name = sitename then
+      if s.Name = aSitename then
       begin
-        if ((netname <> '') and (netname <> 'CONSOLE') and (s.noannounce)) then
+        if ((aNetname <> '') and (aNetname <> 'CONSOLE') and (s.noannounce)) then
         begin
           exit;
         end;
+
         Result := s;
         break;
       end;
@@ -588,7 +632,7 @@ begin
   end;
 end;
 
-function FindSlotByName(slotname: String): TSiteSlot;
+function FindSlotByName(const aSlotname: String): TSiteSlot;
 var
   i, j: integer;
 begin
@@ -598,7 +642,7 @@ begin
     begin
       for j := 0 to TSite(sites[i]).slots.Count - 1 do
       begin
-        if TSiteSlot(TSite(sites[i]).slots[j]).Name = slotname then
+        if TSiteSlot(TSite(sites[i]).slots[j]).Name = aSlotname then
         begin
           Result := TSiteSlot(TSite(sites[i]).slots[j]);
           exit;
