@@ -2665,7 +2665,7 @@ begin
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
-  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', '');
+  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WebHD SATRip dTV');
 
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
@@ -2691,7 +2691,7 @@ begin
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
   mp3types.QuoteChar := '"';
-  mp3types.DelimitedText := config.ReadString(rsections, 'mp3types', '');
+  mp3types.DelimitedText := config.ReadString(rsections, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
 
   if FileExists(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo') then
   begin
