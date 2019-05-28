@@ -282,11 +282,8 @@ var
   kb_last_saved: TDateTime;
   kb_sectionhandlers: TStringList;
   kb_languages: TStringList;
-
   kb_lock: TCriticalSection;
-
   noannouncesections: TStringList;
-
   imdbcountries: TIniFile;
   kbevent: TEvent;
 
@@ -1430,7 +1427,6 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
-
 end;
 
 destructor TRelease.Destroy;
@@ -2728,9 +2724,6 @@ begin
   kb_languages := TStringList.Create;
   kb_languages.CaseSensitive := False;
   kb_languages.DelimitedText := ReplaceText(ReplaceText(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ''), #10, '');
-
-  //sectionhelper:= THashedStringList.Create;
-
   if FileExists(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo') then
   begin
     x := TStringList.Create;
@@ -2795,7 +2788,6 @@ begin
   mp3types.Free;
   kb_latest.Free;
   kb_skip.Free;
-  //sectionhelper.Free;
   tvtags.Free;
   kb_groupcheck_rls.Free;
 
