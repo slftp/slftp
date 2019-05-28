@@ -1,29 +1,27 @@
 {*******************************************************}
 {                                                       }
-{       CodeGear Delphi Visual Component Library        }
+{            Delphi Visual Component Library            }
 {                                                       }
-{           Copyright (c) 1995-2007 CodeGear            }
+{ Copyright(c) 1995-2018 Embarcadero Technologies, Inc. }
+{              All rights reserved                      }
 {                                                       }
 {*******************************************************}
 
 unit Clipbrd;
 
+{$HPPEMIT LEGACYHPP}
 {$R-,T-,H+,X+}
 
 interface
 
-uses
-  Messages, Classes, Windows,
-  {$IFDEF LINUX}
-    WinUtils, Graphics;
-  {$ENDIF}
-  {$IFDEF MSWINDOWS}
-    {$IFDEF UNICODE}
-      Vcl.Graphics;
-    {$ELSE}
-      Graphics;
-    {$ENDIF}
-  {$ENDIF}
+uses 
+{$IF DEFINED(CLR)}
+  WinUtils, System.Runtime.InteropServices, System.Security.Permissions,
+{$ENDIF}
+{$IF DEFINED(LINUX)}
+  WinUtils, 
+{$ENDIF}
+  Winapi.Windows, Winapi.Messages, System.Classes, System.SysUtils, Vcl.Graphics;
 
 var
   CF_PICTURE: Word;
@@ -59,11 +57,12 @@ var
     will be deleted by the clipboard.
   GetTextBuf - Retrieves
   AsText - Allows placing and retrieving text from the clipboard.  This property
-    is valid to retrieve if the CF_TEXT format is available.
+    is valid to retrieve if the CF_UNICODETEXT format is available.
   FormatCount - The number of formats in the Formats array.
   Formats - A list of all the formats available on the clipboard. }
 
 type
+  [UIPermission(SecurityAction.LinkDemand, Clipboard=UIPermissionClipboard.AllClipboard)]
   TClipboard = class(TPersistent)
   private
     FOpenRefCount: Integer;
@@ -76,16 +75,20 @@ type
     procedure AssignToBitmap(Dest: TBitmap);
     procedure AssignToMetafile(Dest: TMetafile);
     procedure AssignToPicture(Dest: TPicture);
-    function GetAsText: String;
+    function GetAsText: string;
     function GetClipboardWindow: HWND;
     function GetFormatCount: Integer;
     function GetFormats(Index: Integer): Word;
-    procedure SetAsText(const Value: String);
+    procedure SetAsText(const Value: string);
   protected
     procedure AssignTo(Dest: TPersistent); override;
-    procedure SetBuffer(Format: Word; var Buffer; Size: Integer);
     procedure WndProc(var Message: TMessage); virtual;
     procedure MainWndProc(var Message: TMessage);
+{$IF DEFINED(CLR)}
+    procedure SetBuffer(Format: Word; Buffer: TBytes; Size: Integer);
+{$ELSE}
+    procedure SetBuffer(Format: Word; var Buffer; Size: Integer);
+{$ENDIF}
     property Handle: HWND read GetClipboardWindow;
     property OpenRefCount: Integer read FOpenRefCount;
   public
@@ -95,16 +98,23 @@ type
     procedure Close; virtual;
     function GetComponent(Owner, Parent: TComponent): TComponent;
     function GetAsHandle(Format: Word): THandle;
-    function GetTextBuf(Buffer: PAnsiChar; BufSize: Integer): Integer;
     function HasFormat(Format: Word): Boolean;
     procedure Open; virtual;
     procedure SetComponent(Component: TComponent);
     procedure SetAsHandle(Format: Word; Value: THandle);
-    procedure SetTextBuf(Buffer: PAnsiChar);
-    property AsText: String read GetAsText write SetAsText;
+{$IF DEFINED(CLR)}
+    function GetTextBuf(var Buffer: string; BufSize: Integer): Integer;
+    procedure SetTextBuf(const Buffer: string);
+{$ELSE}
+    function GetTextBuf(Buffer: PChar; BufSize: Integer): Integer;
+    procedure SetTextBuf(Buffer: PChar);
+{$ENDIF}
+    property AsText: string read GetAsText write SetAsText;
     property FormatCount: Integer read GetFormatCount;
     property Formats[Index: Integer]: Word read GetFormats;
   end;
+
+  EClipboardException = class(Exception);
 
 function Clipboard: TClipboard;
 function SetClipboard(NewClipboard: TClipboard): TClipboard;
@@ -112,12 +122,14 @@ function SetClipboard(NewClipboard: TClipboard): TClipboard;
 implementation
 
 uses
-  SysUtils,
-  {$IFDEF UNICODE}
-    Vcl.Forms, Vcl.Consts
-  {$ELSE}
-    Forms, Consts
-  {$ENDIF};
+  Vcl.Forms, Vcl.Consts;
+
+const
+{$IF DEFINED(UNICODE)}
+  CTextFormat = CF_UNICODETEXT;
+{$ELSE}
+  CTextFormat = CF_TEXT;
+{$ENDIF}
 
 procedure TClipboard.Clear;
 begin
@@ -140,18 +152,17 @@ end;
 
 procedure TClipboard.Close;
 begin
-  if FOpenRefCount = 0 then Exit;
+  if FOpenRefCount = 0 then
+    Exit;
   Dec(FOpenRefCount);
   if FOpenRefCount = 0 then
   begin
     CloseClipboard;
     if FAllocated then
-{$IFDEF MSWINDOWS}
-      Classes.DeallocateHWnd(FClipboardWindow);
-{$ENDIF}
-{$IFDEF LINUX}
-      WinUtils.DeallocateHWnd(FClipboardWindow);
-{$ENDIF}
+    begin
+      DeallocateHWnd(FClipboardWindow);
+      FAllocated := False;
+    end;
     FClipboardWindow := 0;
   end;
 end;
@@ -163,21 +174,18 @@ begin
     FClipboardWindow := Application.Handle;
     if FClipboardWindow = 0 then
     begin
-{$IFDEF MSWINDOWS}
-      FClipboardWindow := Classes.AllocateHWnd(MainWndProc);
-{$ENDIF}
-{$IFDEF LINUX}
-      FClipboardWindow := WinUtils.AllocateHWnd(MainWndProc);
-{$ENDIF}
+      FClipboardWindow := AllocateHWnd(MainWndProc);
       FAllocated := True;
     end;
     if not OpenClipboard(FClipboardWindow) then
-      raise Exception.CreateRes(@SCannotOpenClipboard);
+      raise EClipboardException.CreateResFmt({$IFNDEF CLR}@{$ENDIF}SCannotOpenClipboard,
+        [SysErrorMessage(GetLastError)]);
     FEmptied := False;
   end;
   Inc(FOpenRefCount);
 end;
 
+[SecurityPermission(SecurityAction.InheritanceDemand, UnmanagedCode=True)]
 procedure TClipboard.WndProc(var Message: TMessage);
 begin
   with Message do
@@ -187,21 +195,34 @@ end;
 function TClipboard.GetComponent(Owner, Parent: TComponent): TComponent;
 var
   Data: THandle;
-  DataPtr: Pointer;
   MemStream: TMemoryStream;
   Reader: TReader;
+{$IF DEFINED(CLR)}
+  DataPtr: IntPtr;
+  Buffer: TBytes;
+{$ELSE}
+  DataPtr: Pointer;
+{$ENDIF}
 begin
   Result := nil;
   Open;
   try
     Data := GetClipboardData(CF_COMPONENT);
-    if Data = 0 then Exit;
+    if Data = 0 then
+      Exit;
     DataPtr := GlobalLock(Data);
-    if DataPtr = nil then Exit;
+    if DataPtr = nil then
+      Exit;
     try
       MemStream := TMemoryStream.Create;
       try
+{$IF DEFINED(CLR)}
+        SetLength(Buffer, GlobalSize(Data));
+        Marshal.Copy(DataPtr, Buffer, 0, Length(Buffer));
+        MemStream.WriteBuffer(Buffer, Length(Buffer));
+{$ELSE}
         MemStream.WriteBuffer(DataPtr^, GlobalSize(Data));
+{$ENDIF}
         MemStream.Position := 0;
         Reader := TReader.Create(MemStream, 256);
         try
@@ -228,10 +249,16 @@ begin
   end;
 end;
 
+{$IF DEFINED(CLR)}
+procedure TClipboard.SetBuffer(Format: Word; Buffer: TBytes; Size: Integer);
+var
+  DataPtr: IntPtr;
+{$ELSE}
 procedure TClipboard.SetBuffer(Format: Word; var Buffer; Size: Integer);
 var
-  Data: THandle;
   DataPtr: Pointer;
+{$ENDIF}
+  Data: THandle;
 begin
   Open;
   try
@@ -239,9 +266,18 @@ begin
     try
       DataPtr := GlobalLock(Data);
       try
+{$IF DEFINED(CLR)}
+        Marshal.Copy(Buffer, 0, DataPtr, Size);
+{$ELSE}
         Move(Buffer, DataPtr^, Size);
+{$ENDIF}
         Adding;
-        SetClipboardData(Format, Data);
+        if SetClipboardData(Format, Data) = 0 then
+          {$IF DEFINED(CLR)}
+		  raise OutOfMemoryException.Create(SOutOfResources);
+		  {$ELSE}
+		  raise EOutOfResources.CreateRes(@SOutOfResources);
+		  {$ENDIF}
       finally
         GlobalUnlock(Data);
       end;
@@ -261,44 +297,71 @@ begin
   MemStream := TMemoryStream.Create;
   try
     MemStream.WriteComponent(Component);
-    SetBuffer(CF_COMPONENT, MemStream.Memory^, MemStream.Size);
+    SetBuffer(CF_COMPONENT, MemStream.Memory{$IFNDEF CLR}^{$ENDIF}, MemStream.Size);
   finally
     MemStream.Free;
   end;
 end;
 
-function TClipboard.GetTextBuf(Buffer: PAnsiChar; BufSize: Integer): Integer;
+{$IF DEFINED(CLR)}
+function TClipboard.GetTextBuf(var Buffer: string; BufSize: Integer): Integer;
+begin
+  Buffer := GetAsText;
+  if Length(Buffer) > BufSize then
+    SetLength(Buffer, BufSize);
+  Result := Length(Buffer);
+end;
+{$ELSE}
+function TClipboard.GetTextBuf(Buffer: PChar; BufSize: Integer): Integer;
 var
   Data: THandle;
 begin
   Open;
-  Data := GetClipboardData(CF_TEXT);
-  if Data = 0 then Result := 0 else
-  begin
-    Result := StrLen(StrLCopy(Buffer, GlobalLock(Data), BufSize - 1));
-    GlobalUnlock(Data);
+  try
+    Data := GetClipboardData(CTextFormat);
+    if Data = 0 then
+      Result := 0
+    else
+    begin
+      Result := StrLen(StrLCopy(Buffer, GlobalLock(Data), BufSize - 1));
+      GlobalUnlock(Data);
+    end;
+  finally
+    Close;
   end;
-  Close;
 end;
+{$ENDIF}
 
-procedure TClipboard.SetTextBuf(Buffer: PAnsiChar);
+{$IF DEFINED(CLR)}
+procedure TClipboard.SetTextBuf(const Buffer: string);
 begin
-  SetBuffer(CF_TEXT, Buffer^, StrLen(Buffer) + 1);
+  SetAsText(Buffer);
 end;
+{$ELSE}
+procedure TClipboard.SetTextBuf(Buffer: PChar);
+begin
+  SetBuffer(CTextFormat, Buffer^, (StrLen(Buffer) * SizeOf(Char)) + SizeOf(Char));
+end;
+{$ENDIF}
 
-function TClipboard.GetAsText: String;
+function TClipboard.GetAsText: string;
 var
   Data: THandle;
 begin
   Open;
-  Data := GetClipboardData(CF_TEXT);
+  Data := GetClipboardData(CTextFormat);
   try
     if Data <> 0 then
-      Result := PAnsiChar(GlobalLock(Data))
+{$IF DEFINED(CLR)}
+      Result := Marshal.PtrToStringUni(GlobalLock(Data))
+{$ELSE}
+      Result := PChar(GlobalLock(Data))
+{$ENDIF}
     else
       Result := '';
   finally
-    if Data <> 0 then GlobalUnlock(Data);
+    if Data <> 0 then
+      GlobalUnlock(Data);
     Close;
   end;
 end;
@@ -310,9 +373,17 @@ begin
   Result := FClipboardWindow;
 end;
 
-procedure TClipboard.SetAsText(const Value: String);
+procedure TClipboard.SetAsText(const Value: string);
+{$IF NOT DEFINED(CLR)}
 begin
-  SetBuffer(CF_TEXT, PAnsiChar(Value)^, Length(Value) + 1);
+  SetBuffer(CTextFormat, PChar(Value)^, ByteLength(Value) + SizeOf(Char));
+{$ELSE}
+var
+  Buffer: TBytes;
+begin
+  Buffer := WideBytesOf(Value + #0);
+  SetBuffer(CTextFormat, Buffer, Length(Buffer))
+{$ENDIF}
 end;
 
 procedure TClipboard.AssignToPicture(Dest: TPicture);
@@ -335,7 +406,7 @@ begin
       end;
       Format := EnumClipboardFormats(Format);
     end;
-    raise Exception.CreateRes(@SInvalidClipFmt);
+    raise EClipboardException.CreateRes({$IFNDEF CLR}@{$ENDIF}SInvalidClipFmt);
   finally
     Close;
   end;
@@ -394,7 +465,8 @@ begin
     Palette := 0;
     Source.SaveToClipboardFormat(Format, Data, Palette);
     SetClipboardData(Format, Data);
-    if Palette <> 0 then SetClipboardData(CF_PALETTE, Palette);
+    if Palette <> 0 then
+      SetClipboardData(CF_PALETTE, Palette);
   finally
     Close;
   end;
@@ -491,14 +563,14 @@ function TClipboard.HasFormat(Format: Word): Boolean;
   end;
 
 begin
-  Result := IsClipboardFormatAvailable(Format) or ((Format = CF_PICTURE) and
-    HasAPicture);
+  Result := IsClipboardFormatAvailable(Format) or ((Format = CF_PICTURE) and HasAPicture);
 end;
 
 
 var
   FClipboard: TClipboard;
 
+[UIPermission(SecurityAction.LinkDemand, Clipboard=UIPermissionClipboard.AllClipboard)]
 function Clipboard: TClipboard;
 begin
   if FClipboard = nil then
@@ -506,6 +578,7 @@ begin
   Result := FClipboard;
 end;
 
+[UIPermission(SecurityAction.LinkDemand, Clipboard=UIPermissionClipboard.AllClipboard)]
 function SetClipboard(NewClipboard: TClipboard): TClipboard;
 begin
   Result := FClipboard;
@@ -532,11 +605,14 @@ begin
 end;
 
 initialization
-  { The following strings should not be localized }
-  CF_PICTURE := RegisterClipboardFormat('Delphi Picture');
-  CF_COMPONENT := RegisterClipboardFormat('Delphi Component');
+  CF_PICTURE := RegisterClipboardFormat('Delphi Picture'); { Do not localize }
+  CF_COMPONENT := RegisterClipboardFormat('Delphi Component'); { Do not localize }
   FClipboard := nil;
+
+{$IF NOT DEFINED(CLR)}
 finalization
   FClipboard.Free;
+{$ENDIF}
 end.
+
 
