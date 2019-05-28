@@ -845,14 +845,6 @@ begin
       begin
         word := Copy(word, 1, sender.Cursor - l);
 
-        (*
-        for i := 0 to sectionhelper.Count - 1 do
-          if AnsiStartsText(word, sectionhelper.Names[i]) then
-          begin
-            y.Add(sectionhelper.Names[i]);
-          end;
-        *)
-
         if y.Count > 0 then
         begin
           word := y[0];
