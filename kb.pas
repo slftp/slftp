@@ -2665,7 +2665,7 @@ begin
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
-  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WebHD SATRip dTV');
+  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
 
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
