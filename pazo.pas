@@ -79,7 +79,6 @@ type
     last_race: TDateTime;
 
     speed_from: TStringList;
-    //speed_to: TStringList; // not used
 
     activeTransfers: TStringList;
 
@@ -1322,8 +1321,8 @@ function mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
 begin
   try
     Result :=
-      CompareValue(StrToIntDef(list.ValueFromIndex[index2], 0),
-      StrToIntDef(list.ValueFromIndex[index1], 0));
+      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
+      StrToIntDef(list.ValueFromIndex[Index1], 0));
   except
     Result := 0;
   end;
@@ -1358,22 +1357,14 @@ begin
   s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := TStringList.Create;
-  // speed_to := TStringList.Create; // not used
-
   try
     sitesdat.ReadSectionValues('speed-from-' + Name, speed_from);
-    // sitesdat.ReadSectionValues('speed-to-' + Name, speed_to); // not used
-
     speed_from.CustomSort(myspeedcomparer);
-    // speed_to.CustomSort(myspeedcomparer); // not used
   except
     on e: Exception do
     begin
-      Debug(dpError, section,
-        Format('[EXCEPTION] TPazoSite.Create speed(s): %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Create speed(s): %s', [e.Message]));
       speed_from.Clear;
-      // speed_to.Clear; // not used
     end;
   end;
 end;
@@ -1389,10 +1380,7 @@ begin
   s_dirlisttasks.Free;
   s_racetasks.Free;
   s_mkdirtasks.Free;
-
   speed_from.Free;
-  // speed_to.Free; // not used
-
   inherited;
 end;
 
