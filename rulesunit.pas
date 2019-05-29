@@ -2,7 +2,8 @@ unit rulesunit;
 
 interface
 
-uses kb, slmasks, Classes, pazo, Contnrs;
+uses
+  Classes, pazo, slmasks, Contnrs;
 
 type
   TRuleNode = class
@@ -300,6 +301,11 @@ type
 
   TConditionClass = class of TCondition;
 
+  {
+  @value(raDrop Rule says we should drop, so we will drop it)
+  @value(raAllow Rule says we accept/allow it, so we will allow it)
+  @value(raDontmatch No matching rule, will be dropped)
+  }
   TRuleAction = (raDrop, raAllow, raDontmatch);
 
   TRule = class
@@ -339,494 +345,21 @@ var
 implementation
 
 uses
-  SysUtils, Types, Math, sitesunit, queueunit, mystrings, encinifile, debugunit, configunit,
-  knowngroups, DateUtils, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  SysUtils, Math, DateUtils, IdGlobal, {$IFDEF MSWINDOWS}Windows,{$ENDIF} configunit, sitesunit, mystrings, encinifile, debugunit,
+  ruleconditions.common, ruleconditions.zeroday, ruleconditions.mp3, ruleconditions.tv, ruleconditions.imdb, ruleconditions.mvid, ruleconditions.nfo;
 
 const
   dsection = 'rules';
-
-{$I rulesunit.inc}
 
 type
   TPrefixOperatorClass = class of TPrefixOperator;
   TInfixOperatorClass = class of TInfixOperator;
 
-  TConditionReleaseName = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionSection = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionInternal = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionAge = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  (*
-    TConditionPretime = class(TIntCondition)
-      function SupplyValue(r: TPazo): Integer; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-    TConditionPretimeFound = class(TBooleanCondition)
-      function SupplyValue(r: TPazo): Boolean; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-  *)
-  TConditionComplete = class(TAtCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionNotComplete = class(TAtCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionPre = class(TAtCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionAllowed = class(TAtCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionNotAllowed = class(TAtCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionGroup = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionFake = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionForeign = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionLanguage = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionYear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionKnownGroup = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionUnKnownGroup = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionSource = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionDestination = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionCompleteSource = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionNewdirSource = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionNuked = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TCondition0daySource = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTag = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionDisks = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionAutofollow = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionPred = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  (*###      MP3       ###*)
-  TConditionMP3Genre = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Year = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Language = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Foreign = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Source = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Live = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Type = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3Bootleg = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3NumDisks = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMP3VA = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  (*###      NFO       ###*)
-  TConditionNfoMGenre = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    constructor Create(parent: TRuleNode); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  (*###      IMDB       ###*)
-  TConditionIMDBYear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBLanguages = class(TListCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBCountries = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBGenres = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBScreens = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBStv = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBRating = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBVotes = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBldt = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBWide = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBfestival = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionIMDBCineyear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVShowName = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVtag = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVPremierYear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVCountry = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVLanguage = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVClassification = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVScripted = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVGenres = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVNetwork = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVRuntime = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVEndedYear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVRunning = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVStatus = class(TStringCondition)
-    function SupplyValue(r: TPazo): String; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVCurrentSeason = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVCurrentEpisiode = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVCurrentOnAir = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionTVDailyShow = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  {###      MVID    ###}
-  TConditionMVIDGenre = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDFiles = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDYear = class(TIntCondition)
-    function SupplyValue(r: TPazo): integer; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDVA = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDPAL = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDNTSC = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDLive = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionMVIDLanguage = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-
-  TConditionDefault = class(TBooleanCondition)
-    function SupplyValue(r: TPazo): boolean; override;
-    class function Name: String; override;
-    class function Description: String; override;
-  end;
-  // NE FELEJTSD EL LENT ADDOLNI A LISTABA !!!
-
 var
   prefixops: TClassList;
   infixops: TClassList;
 
-  { TInfixOperator }
+{ TInfixOperator }
 
 function TInfixOperator.AsText: String;
 begin
@@ -835,7 +368,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TInfixOperator.AsText : %s', [e.Message]);
+      Debug(dpError, dsection, 'TInfixOperator.AsText : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -850,7 +383,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TInfixOperator.AtConditionName : %s', [e.Message]);
+      Debug(dpError, dsection, 'TInfixOperator.AtConditionName : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -880,7 +413,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TPrefixOperator.AsText : %s', [e.Message]);
+      Debug(dpError, dsection, 'TPrefixOperator.AsText : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -893,7 +426,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TPrefixOperator.AtConditionName : %s', [e.Message]);
+      Debug(dpError, dsection, 'TPrefixOperator.AtConditionName : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -923,7 +456,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TOpeningBracketOperator.AsText : %s', [e.Message]);
+      Debug(dpError, dsection, 'TOpeningBracketOperator.AsText : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -946,7 +479,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TOpeningBracketOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TOpeningBracketOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -966,7 +499,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TOrOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TOrOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -986,7 +519,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TAndOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TAndOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1006,7 +539,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TBooleanOperator.AsText : %s', [e.Message]);
+      Debug(dpError, dsection, 'TBooleanOperator.AsText : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -1024,7 +557,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TBooleanOperator.GetSupplyValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TBooleanOperator.GetSupplyValue : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1037,7 +570,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TBooleanOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TBooleanOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1068,7 +601,7 @@ begin
     on e: Exception do
     begin
       Result := nil;
-      Debug(dpError, 'rules', 'TInOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TInOperator.GetOperandValue : %s', [e.Message]);
     end;
   end;
 end;
@@ -1080,7 +613,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TInOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TInOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1100,7 +633,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TNotInOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TNotInOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1120,7 +653,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TStringEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TStringEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1140,7 +673,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TStringNotEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TStringNotEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1166,7 +699,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1192,7 +725,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntNotEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntNotEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1218,7 +751,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntBiggerOrEqualThanOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntBiggerOrEqualThanOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1245,7 +778,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntBiggerThanOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntBiggerThanOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1271,7 +804,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntLowerThanOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntLowerThanOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1297,7 +830,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntLowerOrEqualThanOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntLowerOrEqualThanOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1321,8 +854,7 @@ begin
     for i := 0 to c.acceptedOperators.Count - 1 do
       Result := Result + TConditionOperatorClass(c.acceptedOperators[i]).Name + ' ';
 
-    Result := trim(Result);
-
+    Result := Trim(Result);
   finally
     c.Free;
   end;
@@ -1387,7 +919,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMaskOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMaskOperator.GetOperandValue : %s', [e.Message]);
       Result := nil;
     end;
   end;
@@ -1400,7 +932,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMaskOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMaskOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1420,7 +952,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TNotMaskOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TNotMaskOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1567,7 +1099,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TListOperand.FeedOperand : %s', [e.Message]);
+      Debug(dpError, dsection, 'TListOperand.FeedOperand : %s', [e.Message]);
       fValue := '';
       Result := False;
     end;
@@ -1589,7 +1121,7 @@ begin
     begin
       if (operand_read > 100) then
       begin
-        debugunit.Debug(dpError, 'rules', '[ERROR] TListOperand.Reparse count break', []);
+        Debug(dpError, dsection, '[ERROR] TListOperand.Reparse count break', []);
         break;
       end;
       Inc(operand_read);
@@ -1604,7 +1136,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TListOperand.Reparse : %s', [e.Message]);
+      Debug(dpError, dsection, 'TListOperand.Reparse : %s', [e.Message]);
       listValue.Clear;
     end;
   end;
@@ -1667,7 +1199,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TStringOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TStringOperator.GetOperandValue : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -1680,7 +1212,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TStringOperator.GetSupplyValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TStringOperator.GetSupplyValue : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -1720,7 +1252,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiStringOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiStringOperator.GetOperandValue : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -1735,8 +1267,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TMultiStringOperator.GetSupplyValues: %s', [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] TMultiStringOperator.GetSupplyValues: %s', [e.Message]));
       re.Clear;
       exit;
     end;
@@ -1762,7 +1293,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntOperator.GetOperandValue : %s', [e.Message]);
       Result := 0;
     end;
   end;
@@ -1775,7 +1306,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TIntOperator.GetSupplyValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TIntOperator.GetSupplyValue : %s', [e.Message]);
       Result := 0;
     end;
   end;
@@ -1793,7 +1324,6 @@ begin
   acceptedOperators.Add(TIntBiggerThanOperator);
   acceptedOperators.Add(TIntLowerThanOperator);
   acceptedOperators.Add(TIntLowerOrEqualThanOperator);
-
 end;
 
 { TStringCondition }
@@ -1855,7 +1385,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TNotOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TNotOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -1907,8 +1437,7 @@ begin
   end;
 end;
 
-function FireRuleSetB(p: TPazo; ps: TPazoSite;
-  sitenametomatch, sectiontomatch: String): TRuleAction;
+function FireRuleSetB(p: TPazo; ps: TPazoSite; const sitenametomatch, sectiontomatch: String): TRuleAction;
 var
   i: integer;
   ra: TRuleAction;
@@ -1927,9 +1456,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, 'rules',
-                Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s',
-                [e.Message, TRule(rtpl[i]).AsText(True)]));
+              Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s', [e.Message, TRule(rtpl[i]).AsText(True)]));
               Result := raDontmatch;
               exit;
             end;
@@ -1955,7 +1482,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB rtpl: %s', [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB rtpl: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
@@ -1973,9 +1500,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, 'rules',
-                Format('[EXCEPTION] FireRuleSetB(rules) r.Execute: %s %s',
-                [e.Message, TRule(rules[i]).AsText(True)]));
+              Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rules) r.Execute: %s %s', [e.Message, TRule(rules[i]).AsText(True)]));
               Result := raDontmatch;
               exit;
             end;
@@ -2001,7 +1526,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB rules: %s', [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB rules: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
@@ -2012,8 +1537,8 @@ function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 begin
 
   try
+    // first of all, we have the full generic rules
     Result := FireRuleSetB(p, ps, '*', '*');
-    // eloszor megnezzuk a teljesen generic ruleokat    = first watch a completely generic ruleokat
     if Result <> raDontMatch then
     begin
       exit;
@@ -2021,15 +1546,15 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB * *: %s', [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB * *: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
   end;
 
   try
+    // let's look at section global rules
     Result := FireRuleSetB(p, ps, '*', p.rls.section);
-    // most megnezzuk a sectionre globalis ruleokat = Now look at the sectional globalis ruleokat
     if Result <> raDontMatch then
     begin
       exit;
@@ -2037,16 +1562,15 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB * section: %s',
-        [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB * section: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
   end;
 
   try
+    // check out the site's global rules
     Result := FireRuleSetB(p, ps, ps.Name, '*');
-    // most megnezzuk a site globalis rulejait = Now look at the site globalis rulejait
     if Result <> raDontMatch then
     begin
       exit;
@@ -2054,16 +1578,15 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB site *: %s',
-        [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB site *: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
   end;
 
   try
+    // let's check the section's rules
     Result := FireRuleSetB(p, ps, ps.Name, p.rls.section);
-    // most megnezzuk a section rulejait. = Now look at the section rulejait.
     if Result <> raDontMatch then
     begin
       exit;
@@ -2071,15 +1594,13 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] FireRuleSetB site section: %s',
-        [e.Message]));
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB site section: %s', [e.Message]));
       Result := raDontmatch;
       exit;
     end;
   end;
 
-  // egyebkent droppoljuk, nem volt matching rule.  = I use droppoljuk, there was no matching rule.
-  //Result:= raDrop;
+  // we're going to drop it, there was no matching rule
   Result := raDontMatch;
   if ps.reason = '' then
     ps.reason := 'No matching rule';
@@ -2110,88 +1631,80 @@ begin
     exit;
 
   p.srcsite := ps.Name;
-  Debug(dpSpam, 'rules', '-> ' + Format('%s: %s %s',
-    [ps.Name, p.rls.section, p.rls.rlsname]));
+  Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
   y := TStringList.Create;
-  //sitesdat.ReadSectionValues('speed-from-'+ps.Name, y);
-  y.Assign(ps.speed_from);
-  (*
-    try
-      y.CustomSort(myspeedcomparer);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules CustomSort: %s', [e.Message]));
-      end;
-    end;
-  *)
-  for i := 0 to y.Count - 1 do
-  begin
-    try
-      if i > y.Count then
+  try
+    y.Assign(ps.speed_from);
+
+    for i := 0 to y.Count - 1 do
+    begin
+      try
+        if i > y.Count then
+          Break;
+      except
         Break;
-    except
-      Break;
-    end;
-    try
-      dstps := p.FindSite(y.Names[i]);
-      if dstps = nil then
-        Continue;
+      end;
 
-      if (dstps.Name <> ps.Name) then
-      begin
-        if (dstps.StatusRealPreOrShouldPre) then
+      try
+        dstps := p.FindSite(y.Names[i]);
+        if dstps = nil then
+          Continue;
+
+        if (dstps.Name <> ps.Name) then
         begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Affil';
-          Continue;
-        end;
-
-        if dstps.error then
-          Continue;
-
-        dstps_s := FindSiteByName('', dstps.Name);
-        if dstps_s = nil then
-          Continue;
-
-        if (dstps_s.WorkingStatus = sstDown) or (dstps_s.PermDown) then
-        begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Down';
-          Continue;
-        end;
-
-        p.dstsite := dstps.Name;
-        // aztan hogy allowed e...
-        if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
-        begin
-          if (ps.status in [rssShouldPre, rssRealPre]) then
+          if (dstps.StatusRealPreOrShouldPre) then
           begin
-            if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
-              dstps_s.GetRank(p.rls.section)) + 100) then
-              Result := True;
-          end
-          else
+            if (dstps.reason = '') then
+              dstps.reason := 'Affil';
+            Continue;
+          end;
+
+          if dstps.error then
+            Continue;
+
+          dstps_s := FindSiteByName('', dstps.Name);
+          if dstps_s = nil then
+            Continue;
+
+          if (dstps_s.WorkingStatus = sstDown) or (dstps_s.PermDown) then
           begin
-            if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
-              dstps_s.GetRank(p.rls.section)) then
-              Result := True;
+            if (dstps.reason = '') then
+              dstps.reason := 'Down';
+            Continue;
+          end;
+
+          p.dstsite := dstps.Name;
+          // i'm allowed to e ...
+          if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
+          begin
+            if (ps.status in [rssShouldPre, rssRealPre]) then
+            begin
+              if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
+                dstps_s.GetRank(p.rls.section)) + 100) then
+                Result := True;
+            end
+            else
+            begin
+              if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
+                dstps_s.GetRank(p.rls.section)) then
+                Result := True;
+            end;
           end;
         end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, 'rules', Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
-        Result := False;
-        Break;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, dsection, Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
+          Result := False;
+          Break;
+        end;
       end;
     end;
+    Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
+  finally
+    y.Free;
   end;
-  Debug(dpSpam, 'rules', '<- ' + Format('%s: %s %s',
-    [ps.Name, p.rls.section, p.rls.rlsname]));
-  y.Free;
 end;
 
 procedure RulesOrder(p: TPazo);
@@ -2203,59 +1716,62 @@ var
   fositeIndex, aktsiteIndex: integer;
 begin
   x := TStringList.Create;
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    try
-      x.Add(TPazoSite(p.sites[i]).Name);
-    except
-      break;
-    end;
-  end;
-
-  for i := 0 to x.Count - 1 do
-  begin
-    fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
-    for j := 0 to rtpl.Count - 1 do
+  try
+    for i := 0 to p.sites.Count - 1 do
     begin
-      r := TRule(rtpl[j]);
-      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+      try
+        x.Add(TPazoSite(p.sites[i]).Name);
+      except
+        break;
+      end;
+    end;
+
+    for i := 0 to x.Count - 1 do
+    begin
+      fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+      for j := 0 to rtpl.Count - 1 do
       begin
-        s := r.conditions.AtConditionName;
-        if s <> '' then
+        r := TRule(rtpl[j]);
+        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
         begin
-          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-          if (aktsiteIndex > fositeIndex) then
+          s := r.conditions.AtConditionName;
+          if s <> '' then
           begin
-            p.sites.Move(aktsiteIndex, fositeIndex);
-            fositeIndex := fositeIndex + 1;
-            // meg kell nezni egyezik e ezzel...
-            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
+            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            if (aktsiteIndex > fositeIndex) then
+            begin
+              p.sites.Move(aktsiteIndex, fositeIndex);
+              fositeIndex := fositeIndex + 1;
+              // must match this ...
+              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+            end;
+          end;
+        end;
+      end;
+
+      for j := 0 to rules.Count - 1 do
+      begin
+        r := TRule(rules[j]);
+        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
+        begin
+          s := r.conditions.AtConditionName;
+          if s <> '' then
+          begin
+            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            if (aktsiteIndex > fositeIndex) then
+            begin
+              p.sites.Move(aktsiteIndex, fositeIndex);
+              fositeIndex := fositeIndex + 1;
+              // must match this ...
+              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+            end;
           end;
         end;
       end;
     end;
-
-    for j := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[j]);
-      if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-      begin
-        s := r.conditions.AtConditionName;
-        if s <> '' then
-        begin
-          aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
-          if (aktsiteIndex > fositeIndex) then
-          begin
-            p.sites.Move(aktsiteIndex, fositeIndex);
-            fositeIndex := fositeIndex + 1;
-            // meg kell nezni egyezik e ezzel...
-            // fositeIndex:= p.sites.IndexOf(p.FindSite(x[i]));
-          end;
-        end;
-      end;
-    end;
+  finally
+    x.Free;
   end;
-  x.Free;
 end;
 
 procedure RulesSave;
@@ -2273,7 +1789,6 @@ begin
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
     a_sites_done := TStringList.Create;
-
     try
       a_rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
       for a_i := 0 to rules.Count - 1 do
@@ -2282,8 +1797,8 @@ begin
         a_sitename := a_r.sitename;
         if (a_sites_done.IndexOf(a_sitename) <> -1) or (a_sitename = '*') then
           continue;
-        a_siterules := TStringList.Create;
 
+        a_siterules := TStringList.Create;
         try
           for a_j := a_i to rules.Count - 1 do
           begin
@@ -2295,12 +1810,10 @@ begin
 
           a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
           a_sites_done.Add(a_sitename);
-
         finally
           a_siterules.Free;
         end;
       end;
-
     finally
       a_sites_done.Free;
     end;
@@ -2367,7 +1880,7 @@ begin
     rules := TObjectList.Create;
   end;
 
-  fst := TStringList.Create();
+  fst := TStringList.Create;
   try
     fst.LoadFromFile(ExtractFilePath(ParamStr(0)) + filename);
     for i := 0 to fst.Count - 1 do
@@ -2379,7 +1892,7 @@ begin
       end
       else
       begin
-        Debug(dpError, 'rules', '[ERROR] ' + error + ' loading ' + fst[i]);
+        Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + fst[i]);
       end;
     end;
   finally
@@ -2387,7 +1900,7 @@ begin
   end;
 end;
 
-procedure RulesReload();
+procedure RulesReload;
 var
   fst: TStringList;
   i: integer;
@@ -2400,6 +1913,7 @@ var
 begin
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
   split_site_data := config.ReadBool('sites', 'split_site_data', False);
+
   if (split_site_data) then
   begin
     FreeAndNil(rules);
@@ -2437,7 +1951,7 @@ begin
         end
         else
         begin
-          Debug(dpError, 'rules', '[ERROR] ' + error + ' loading ' + fst[i]);
+          Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + fst[i]);
         end;
       end;
     finally
@@ -2452,7 +1966,6 @@ begin
 {$ELSE}
   FindClose(SearchRec);
 {$ENDIF}
-
 end;
 
 procedure RulesStart;
@@ -2463,10 +1976,10 @@ var
   error: String;
   S: String;
 begin
-  // load rules tpl
-  RulesReload();
+  // load rules (rtpl)
+  RulesReload;
 
-  //beparszoljuk a szabalyokat
+  // load normal rules
   f := TEncStringlist.Create(passphrase);
   try
     f.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.rules');
@@ -2477,17 +1990,19 @@ begin
       if r <> nil then
         rules.Add(r);
     end;
-
   finally
     f.Free;
   end;
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
-    S := ExtractFilePath(ParamStr(0)) + 'slftp.rules'; // convert to split format
+    // convert to split format
+    S := ExtractFilePath(ParamStr(0)) + 'slftp.rules';
     if FileExists(S) then
         DeleteFile({$IFDEF UNICODE}PChar(S){$ELSE}PAnsiChar(S){$ENDIF});
-    RulesSave; // force saving in new split format
+
+    // force saving in new split format
+    RulesSave;
   end;
 end;
 
@@ -2538,7 +2053,7 @@ begin
   conditions.Add(TConditionMP3NumDisks);
   conditions.Add(TConditionMP3VA);
 
-  conditions.Add(TConditionNfoMGenre);
+  conditions.Add(TConditionNfoGenreMask);
 
   conditions.Add(TConditionTVShowName);
   conditions.Add(TConditionTVTag);
@@ -2554,7 +2069,7 @@ begin
   conditions.Add(TConditionTVRunning);
   conditions.Add(TConditionTVStatus);
   conditions.Add(TConditionTVCurrentSeason);
-  conditions.Add(TConditionTVCurrentEpisiode);
+  conditions.Add(TConditionTVCurrentEpisode);
   conditions.Add(TConditionTVCurrentOnAir);
   conditions.Add(TConditionTVDailyShow);
 
@@ -2569,7 +2084,6 @@ begin
   conditions.Add(TConditionIMDBfestival);
   conditions.Add(TConditionIMDBldt);
   conditions.Add(TConditionIMDBCineyear);
-
   conditions.Add(TConditionIMDBVotes);
 
   conditions.Add(TConditionMVIDGenre);
@@ -2590,187 +2104,20 @@ begin
   infixops := TClassList.Create;
   infixops.Add(TAndOperator);
   infixops.Add(TOrOperator);
-
 end;
 
 procedure RulesUninit;
 begin
-  Debug(dpSpam, 'rules', 'Uninit1');
+  Debug(dpSpam, dsection, 'Uninit1');
   conditions.Free;
   prefixops.Free;
   infixops.Free;
   rules.Free;
   rtpl.Free;
-  Debug(dpSpam, 'rules', 'Uninit2');
+  Debug(dpSpam, dsection, 'Uninit2');
 end;
 
-{ TConditionReleaseName }
-
-class function TConditionReleaseName.Description: String;
-begin
-result:=ReleaseNameDescription;
-end;
-
-function TConditionReleaseName.SupplyValue(r: TPazo): String;
-begin
-  try
-    Result := r.rls.rlsname;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionReleaseName.Name: String;
-begin
-  Result := 'releasename';
-end;
-
-{ TConditionSection }
-
-class function TConditionSection.Description: String;
-begin
-result:=SectionDescription;
-end;
-
-function TConditionSection.SupplyValue(r: TPazo): String;
-begin
-  try
-    Result := r.rls.section;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionSection.Name: String;
-begin
-  Result := 'section';
-end;
-
-{ TConditionNotComplete }
-
-class function TConditionNotComplete.Description: String;
-begin
-  Result := NotCompleteDescription;
-end;
-
-procedure TConditionNotComplete.SupplyValues(r: TPazo; re: TStringList);
-var
-  ps: TPazoSite;
-  i: integer;
-begin
-  try
-    for i := 0 to r.sites.Count - 1 do
-    begin
-      if i > r.sites.Count then
-        Break;
-      try
-        ps := TPazoSite(r.sites[i]);
-        if ((ps.status <> rssNotAllowed) and (not ps.Complete)) then
-          re.Add(ps.Name);
-      except
-        Continue;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionNotComplete.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionNotComplete.Name: String;
-begin
-  Result := 'notcomplete';
-end;
-
-{ TConditionComplete }
-
-class function TConditionComplete.Description: String;
-begin
-  Result := CompleteDescription;
-end;
-
-procedure TConditionComplete.SupplyValues(r: TPazo; re: TStringList);
-var
-  ps: TPazoSite;
-  i: integer;
-begin
-  try
-    for i := 0 to r.sites.Count - 1 do
-    begin
-      if i > r.sites.Count then
-        Break;
-      try
-        ps := TPazoSite(r.sites[i]);
-        if ps.Complete then
-          re.Add(ps.Name);
-      except
-        Continue;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionComplete.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionComplete.Name: String;
-begin
-  Result := 'complete';
-end;
-
-{ TConditionPre }
-
-class function TConditionPre.Description: String;
-begin
-  Result := PreDescription;
-end;
-
-procedure TConditionPre.SupplyValues(r: TPazo; re: TStringList);
-var
-  ps: TPazoSite;
-  i: integer;
-begin
-  try
-    for i := 0 to r.sites.Count - 1 do
-    begin
-      if i > r.sites.Count then
-        Break;
-      try
-        ps := TPazoSite(r.sites[i]);
-        if ps.status = rssRealPre then
-          re.Add(ps.Name);
-      except
-        Continue;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] TConditionPre.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionPre.Name: String;
-begin
-  Result := 'pre';
-end;
-
-{ TConditionAt }
+{ TAtOperator }
 
 function TAtOperator.AtConditionName: String;
 begin
@@ -2779,7 +2126,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TAtOperator.AtConditionName : %s', [e.Message]);
+      Debug(dpError, dsection, 'TAtOperator.AtConditionName : %s', [e.Message]);
       Result := '';
     end;
   end;
@@ -2788,704 +2135,6 @@ end;
 class function TAtOperator.Name: String;
 begin
   Result := '@';
-end;
-
-{ TConditionNotAllowed }
-
-class function TConditionNotAllowed.Description: String;
-begin
-  Result := NotAllowedDescription;
-end;
-
-procedure TConditionNotAllowed.SupplyValues(r: TPazo; re: TStringList);
-var
-  ps: TPazoSite;
-  i: integer;
-begin
-  try
-    for i := 0 to r.sites.Count - 1 do
-    begin
-      if i > r.sites.Count then
-        Break;
-      try
-        ps := TPazoSite(r.sites[i]);
-        if ps.status = rssNotAllowed then
-          re.Add(ps.Name);
-      except
-        Continue;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionNotAllowed.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionNotAllowed.Name: String;
-begin
-  Result := 'notallowed';
-end;
-
-{ TConditionAllowed }
-
-class function TConditionAllowed.Description: String;
-begin
-  Result := AllowedDescription;
-end;
-
-procedure TConditionAllowed.SupplyValues(r: TPazo; re: TStringList);
-var
-  ps: TPazoSite;
-  i: integer;
-begin
-  try
-    for i := 0 to r.sites.Count - 1 do
-    begin
-      if i > r.sites.Count then
-        Break;
-      try
-        ps := TPazoSite(r.sites[i]);
-        if ps.status = rssAllowed then
-          re.Add(ps.Name);
-      except
-        Continue;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] TConditionAllowed.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionAllowed.Name: String;
-begin
-  Result := 'allowed';
-end;
-
-{ TConditionGroup }
-
-class function TConditionGroup.Description: String;
-begin
-  Result := GroupDescription;
-end;
-
-function TConditionGroup.SupplyValue(r: TPazo): String;
-begin
-  try
-    Result := r.rls.groupname;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionGroup.Name: String;
-begin
-  Result := 'group';
-end;
-
-{ TConditionKnownGroup }
-
-class function TConditionKnownGroup.Description: String;
-begin
-  Result := KnownGroupDescription;
-end;
-
-function TConditionKnownGroup.SupplyValue(r: TPazo): boolean;
-begin
-  try
-    Result := r.rls.knowngroup = grp_known;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionKnownGroup.Name: String;
-begin
-  Result := 'knowngroup';
-end;
-
-{ TConditionUnKnownGroup }
-
-class function TConditionUnKnownGroup.Description: String;
-begin
-  Result := UnKnownGroupDescription;
-end;
-
-function TConditionUnKnownGroup.SupplyValue(r: TPazo): boolean;
-begin
-  try
-    Result := r.rls.knowngroup = grp_unknown;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionUnKnownGroup.Name: String;
-begin
-  Result := 'unknowngroup';
-end;
-
-{ TConditionSource }
-
-class function TConditionSource.Description: String;
-begin
-  Result := SourceDescription;
-end;
-
-function TConditionSource.SupplyValue(r: TPazo): String;
-begin
-  Result := r.srcsite;
-end;
-
-class function TConditionSource.Name: String;
-begin
-  Result := 'source';
-end;
-
-{ TConditionDestination }
-
-class function TConditionDestination.Description: String;
-begin
-  Result := DestinationDescription;
-end;
-
-function TConditionDestination.SupplyValue(r: TPazo): String;
-begin
-  Result := r.dstsite;
-end;
-
-class function TConditionDestination.Name: String;
-begin
-  Result := 'destination';
-end;
-
-{ TConditionNewdir }
-
-class function TConditionNewdirSource.Description: String;
-begin
-  Result := NewdirSourceDescription;
-end;
-
-function TConditionNewdirSource.SupplyValue(r: TPazo): boolean;
-var
-  x: TPazoSite;
-begin
-  Result := False;
-  try
-    x := r.FindSite(r.srcsite);
-    if (x <> nil) then
-      Result := x.status = rssAllowed;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionNewdirSource.Name: String;
-begin
-  Result := 'newdirsource';
-end;
-
-{ TConditionMP3Genre }
-
-class function TConditionMP3Genre.Description: String;
-begin
-  Result := 'Returns with the mp3 genre.' + #13#10;
-  Result := Result + 'Example: if mp3genre =~ *Metal* then ALLOW' + #13#10;
-end;
-
-function TConditionMP3Genre.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TMP3Release then
-      Result := TMP3Release(r.rls).mp3genre;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionMP3Genre.Name: String;
-begin
-  Result := 'mp3genre';
-end;
-
-{ TConditionMP3EYear }
-
-class function TConditionMP3Year.Description: String;
-begin
-  Result := 'Returns with the mp3 year' + #13#10;
-  Result := Result + 'Example: if mp3year < 2009 then DROP' + #13#10;
-end;
-
-function TConditionMP3Year.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3year;
-  except
-    Result := 0;
-  end;
-end;
-
-class function TConditionMP3Year.Name: String;
-begin
-  Result := 'mp3year';
-end;
-
-{ TConditionInternal }
-
-class function TConditionInternal.Description: String;
-begin
-  Result := 'Returns true, if the release is tagged as internal.' + #13#10;
-  Result := Result +
-    'Example: !ruleadd * * if internal && destination notin DUMP1, DUMP2 then DROP' + #13#10;
-end;
-
-function TConditionInternal.SupplyValue(r: TPazo): boolean;
-begin
-  try
-    Result := r.rls.internal;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionInternal.Name: String;
-begin
-  Result := 'internal';
-end;
-
-{ TConditionMP3Language }
-
-class function TConditionMP3Language.Description: String;
-begin
-  Result := 'Returns with mp3 rip''s language tag. Language is EN by default' +
-    #13#10;
-  Result := Result + 'Example: if mp3language != EN then DROP' + #13#10;
-end;
-
-function TConditionMP3Language.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if (r.rls is TMP3Release) then
-      Result := Uppercase(TMP3Release(r.rls).mp3lng);
-    //    Result:= TMP3Release(r.rls).mp3lng;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionMP3Language.Name: String;
-begin
-  Result := 'mp3language';
-end;
-
-function TConditionMP3Language.Hitelesit(const s: String): boolean;
-begin
-  try
-    Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionMP3Foreign }
-
-class function TConditionMP3Foreign.Description: String;
-begin
-  Result := 'Returns true, if the mp3 rip''s language is not EN.' + #13#10;
-  Result := Result + 'Example: if mp3foreign then DROP' + #13#10;
-end;
-
-function TConditionMP3Foreign.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3lng <> 'EN';
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionMP3Foreign.Name: String;
-begin
-  Result := 'mp3foreign';
-end;
-
-{ TConditionMP3Source }
-
-class function TConditionMP3Source.Description: String;
-begin
-  Result := 'Returns with the mp3 rip''s source.' + #13#10;
-  Result := Result + 'Example: if not ( mp3source in CD, CDR, DVD, VINYL ) then DROP' +
-    #13#10;
-end;
-
-function TConditionMP3Source.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3source;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionMP3Source.Name: String;
-begin
-  Result := 'mp3source';
-end;
-
-function TConditionMP3Source.Hitelesit(const s: String): boolean;
-begin
-  try
-    Result := mp3sources.IndexOfName(s) <> -1;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionMP3Live }
-
-class function TConditionMP3Live.Description: String;
-begin
-  Result :=
-    'Returns true, if the mp3 rip''s source is a live source. (You can define live source tags in slftp.ini i think)'
-    +
-    #13#10;
-  Result := Result + 'Example: if mp3live then DROP' + #13#10;
-end;
-
-function TConditionMP3Live.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if (r.rls is TMP3Release) then
-      with TMP3Release(r.rls) do
-        Result := ((mp3source = 'LIVE') or (mp3type('LIVE')));
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionMP3Live.Name: String;
-begin
-  Result := 'mp3live';
-end;
-
-{ TConditionDefault }
-
-class function TConditionDefault.Description: String;
-begin
-  Result := 'This condition simple matches anything, you can use it for default policy.' +
-    #13#10;
-  Result := Result +
-    'If there is no matching rule then no action is taken which is same as DROP by default.'
-    +
-    #13#10;
-  Result := Result + 'Example: if default then ALLOW' + #13#10;
-end;
-
-function TConditionDefault.SupplyValue(r: TPazo): boolean;
-begin
-  Result := True;
-end;
-
-class function TConditionDefault.Name: String;
-begin
-  Result := 'default';
-end;
-
-{ TConditionMP3Type }
-
-class function TConditionMP3Type.Description: String;
-begin
-  Result := 'Returns with the mp3 rip''s types.' + #13#10;
-  Result := Result + 'Example: if mp3type in Bootleg, Demo then DROP';
-end;
-
-procedure TConditionMP3Type.SupplyValues(r: TPazo; re: TStringList);
-var
-  mp: TMP3Release;
-begin
-  try
-    if r.rls is TMP3Release then
-    begin
-      mp := TMP3Release(r.rls);
-      if mp.mp3types1 <> '' then
-        re.Add(mp.mp3types1);
-      if mp.mp3types2 <> '' then
-        re.Add(mp.mp3types2);
-      if mp.mp3types3 <> '' then
-        re.Add(mp.mp3types3);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] TConditionMP3Type.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionMP3Type.Name: String;
-begin
-  Result := 'mp3type';
-end;
-
-{ TConditionMP3Bootleg }
-
-class function TConditionMP3Bootleg.Description: String;
-begin
-  Result := 'Returns true if the mp3 rip is bootleg.';
-end;
-
-function TConditionMP3Bootleg.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).bootleg;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionMP3Bootleg.Name: String;
-begin
-  Result := 'mp3bootleg';
-end;
-
-{ TConditionMP3LtNumCDs }
-
-class function TConditionMP3NumDisks.Description: String;
-begin
-  Result := 'Returns with the number of disks of an mp3 release' + #13#10;
-  Result := Result +
-    'We drop rips more than 2 DVD''s and everything else if more than 4 (cd''s):' + #13#10;
-  Result := Result + 'if mp3numdisks > 2 && mp3source = DVD then DROP' + #13#10;
-  Result := Result + 'if mp3numdisks > 4  then DROP' + #13#10;
-end;
-
-function TConditionMP3NumDisks.SupplyValue(r: TPazo): integer;
-begin
-  Result := 1;
-  try
-    if r.rls is TMP3Release then
-      Result := TMP3Release(r.rls).Numdisks;
-  except
-    Result := 1;
-  end;
-end;
-
-class function TConditionMP3NumDisks.Name: String;
-begin
-  Result := 'mp3numdisks';
-end;
-
-{ TConditionMP3VA }
-
-class function TConditionMP3VA.Description: String;
-begin
-  Result := 'Returns true if the mp3 rip is a compilation. (VA)';
-end;
-
-function TConditionMP3VA.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3_va;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionMP3VA.Name: String;
-begin
-  Result := 'mp3va';
-end;
-
-{ TConditionAgeGt }
-
-class function TConditionAge.Description: String;
-begin
-  Result :=
-    'This is useful for filtering old stuffs scanned by autodirlist in a not dated directory.'
-    +
-    #13#10;
-  Result := Result + 'It expects the parameter in seconds. Example: if age > 86400 then DROP'
-    + #13#10;
-end;
-
-function TConditionAge.SupplyValue(r: TPazo): integer;
-begin
-  try
-    Result := r.Age;
-  except
-    Result := 0;
-  end;
-end;
-
-class function TConditionAge.Name: String;
-begin
-  Result := 'age';
-end;
-
-{ TConditionNfoMGenre }
-
-class function TConditionNfoMGenre.Description: String;
-begin
-  Result := 'Checks for genre parsed from the nfo file. As its a stupid textfile, use masks.'
-    +
-    #13#10;
-  Result := Result +
-    'Note: nfogenre is for mdvdr/mv sections! For mp3 stuffs use mp3genre condition.' +
-    #13#10;
-  Result := Result +
-    'Genre string contains latin alphabet only, all other chars are replaced to spaces!' +
-    #13#10;
-  Result := Result + 'Example: if nfogenre =~ *Hip*Hop* then ALLOW' + #13#10;
-end;
-
-function TConditionNfoMGenre.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TNFORelease then
-      Result := TNFORelease(r.rls).nfogenre;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionNfoMGenre.Name: String;
-begin
-  Result := 'nfogenre';
-end;
-
-constructor TConditionNfoMGenre.Create(parent: TRuleNode);
-begin
-  inherited;
-  acceptedOperators.Clear;
-  acceptedOperators.Add(TMaskOperator);
-end;
-
-{ TConditionFake }
-
-class function TConditionFake.Description: String;
-begin
-  Result := FakeDescription;
-end;
-
-function TConditionFake.SupplyValue(r: TPazo): boolean;
-begin
-  try
-    Result := r.rls.Fake;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionFake.Name: String;
-begin
-  Result := 'fake';
-end;
-
-{ TConditionTVShowName }
-
-class function TConditionTVShowName.Description: String;
-begin
-  Result := TVShowNameDescription;
-end;
-
-function TConditionTVShowName.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-      Result := TTVRelease(r.rls).showname;
-  except
-    Result := '';
-  end;
-end;
-
-class function TConditionTVShowName.Name: String;
-begin
-  Result := 'tvshowname';
-end;
-
-{ TConditionForeign }
-
-class function TConditionForeign.Description: String;
-begin
-  Result :=ForeignDescription;
-end;
-
-function TConditionForeign.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-
-  try
-    if r.rls is TMP3Release then
-      exit;
-    if r.rls.languages.Count = 0 then
-      exit;
-    if (r.rls.languages[0] = 'English') then
-      exit;
-    Result := True;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionForeign.Name: String;
-begin
-  Result := 'foreign';
-end;
-
-{ TConditionLanguageA }
-
-class function TConditionLanguage.Description: String;
-begin
-  Result := LanguageDescription;
-end;
-
-procedure TConditionLanguage.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    re.Assign(r.rls.languages);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionLanguage.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-class function TConditionLanguage.Name: String;
-begin
-  Result := 'language';
 end;
 
 function InArray(var Name: String; elements: TClassList): TCRuleNode;
@@ -3621,7 +2270,7 @@ begin
     Inc(rule_read);
     if (rule_read > 250) then
     begin
-      debugunit.Debug(dpError, 'rules', '[iNFO] ParseRule count break', []);
+      debugunit.Debug(dpError, dsection, '[iNFO] ParseRule count break', []);
       break;
     end;
 
@@ -3806,7 +2455,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TRule.Execute : %s', [e.Message]);
+      Debug(dpError, dsection, 'TRule.Execute : %s', [e.Message]);
       Result := raDontmatch;
       exit;
     end;
@@ -3818,7 +2467,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TRule.Execute : %s', [e.Message]);
+      Debug(dpError, dsection, 'TRule.Execute : %s', [e.Message]);
       Result := raDontmatch;
       exit;
     end;
@@ -3914,7 +2563,8 @@ begin
 end;
 
 function TListCondition.SupplyValue(r: TPazo): String;
-var strList : TStringList;
+var
+  strList : TStringList;
 begin
   strList := TStringList.Create;
   try
@@ -3960,7 +2610,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiStringEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiStringEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -3980,7 +2630,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiStringNotEqualOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiStringNotEqualOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -4000,7 +2650,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiNotInOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiNotInOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -4030,7 +2680,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiInOperator.GetOperandValue : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiInOperator.GetOperandValue : %s', [e.Message]);
       Result := nil;
     end;
   end;
@@ -4055,7 +2705,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, 'rules', 'TMultiInOperator.Match : %s', [e.Message]);
+      Debug(dpError, dsection, 'TMultiInOperator.Match : %s', [e.Message]);
       Result := False;
     end;
   end;
@@ -4064,1191 +2714,6 @@ end;
 class function TMultiInOperator.Name: String;
 begin
   Result := 'in';
-end;
-
-{ TConditionCompleteSource }
-
-class function TConditionCompleteSource.Description: String;
-begin
-  Result := CompleteSourceDescription;
-
-end;
-
-class function TConditionCompleteSource.Name: String;
-begin
-  Result := 'completesource';
-end;
-
-function TConditionCompleteSource.SupplyValue(r: TPazo): boolean;
-var
-  x: TPazoSite;
-begin
-  Result := False;
-  try
-    x := r.FindSite(r.srcsite);
-    if (x <> nil) then
-      Result := x.Complete;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionYear }
-
-class function TConditionYear.Description: String;
-begin
-  Result := YearDescription;
-
-end;
-
-class function TConditionYear.Name: String;
-begin
-  Result := 'year';
-end;
-
-function TConditionYear.SupplyValue(r: TPazo): integer;
-begin
-  try
-    Result := r.rls.year;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TCondition0daySource }
-
-class function TCondition0daySource.Description: String;
-begin
-  Result := zerodaySourceDescription;
-end;
-
-function TCondition0daySource.Hitelesit(const s: String): boolean;
-begin
-  try
-    Result := nulldaysources.IndexOfName(s) <> -1;
-  except
-    Result := False;
-  end;
-end;
-
-class function TCondition0daySource.Name: String;
-begin
-  Result := '0daysource';
-end;
-
-function TCondition0daySource.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if (r.rls is T0dayRelease) then
-      Result := T0dayRelease(r.rls).nulldaysource;
-  except
-    Result := '';
-  end;
-end;
-
-
-{ TConditionAutofollow }
-class function TConditionAutofollow.Description: String;
-begin
-  Result := AutofollowDescription;
-end;
-
-class function TConditionAutofollow.Name: String;
-begin
-  Result := 'autofollow';
-end;
-
-function TConditionAutofollow.SupplyValue(r: TPazo): boolean;
-var
-  ps: TPazoSite;
-begin
-  Result := False;
-  try
-    ps := r.FindSite(r.dstsite);
-    if ps <> nil then
-    begin
-      Result := ps.ircevent;
-      if ((Result) and (not ps.Complete)) then
-        ps.firesourcesinstead := True;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-
-{ TConditionNuked }
-class function TConditionNuked.Description: String;
-begin
-  Result := NukeDescription;
-end;
-
-class function TConditionNuked.Name: String;
-begin
-  Result := 'nuked';
-end;
-
-function TConditionNuked.SupplyValue(r: TPazo): boolean;
-var
-  ps: TPazoSite;
-begin
-  Result := False;
-  try
-    ps := r.FindSite(r.dstsite);
-    if ps <> nil then
-    begin
-      if ps.status = rssNuked then
-        Result := True;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionPred }
-class function TConditionPred.Description: String;
-begin
-  Result := PredDescription;
-end;
-
-class function TConditionPred.Name: String;
-begin
-  Result := 'pred';
-end;
-
-function TConditionPred.SupplyValue(r: TPazo): boolean;
-begin
-  try
-    Result := r.rls.PredOnAnySite;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionDisks }
-class function TConditionDisks.Description: String;
-begin
-  Result := DisksDescription;
-end;
-
-class function TConditionDisks.Name: String;
-begin
-  Result := 'discs';
-end;
-
-function TConditionDisks.SupplyValue(r: TPazo): integer;
-begin
-  try
-    Result := r.rls.disks;
-  except
-    Result := 1;
-  end;
-end;
-
-(*
-{ TConditionPretime }
-
-class function TConditionPretime.Description: string;
-begin
-  Result:= 'This is useful for anyone who needs to abide by certain pretime rules on a site.'+ #13#10;
-  Result:= Result + 'It expects the parameter in seconds. Example: if pretime > 86400 && not pretimenotfound then DROP'+#13#10;
-end;
-
-function TConditionPretime.SupplyValue(r: TPazo): Integer;
-begin
-
-  Result:= SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretime.Name: string;
-begin
-  Result:= 'pretime';
-end;
-
-{ TConditionPretimeFound }
-
-class function TConditionPretimeFound.Description: string;
-begin
-  Result:= 'This is useful for anyone who needs to abide by certain pretime rules on a site.'+ #13#10;
-  Result:= Result + 'It expects the parameter as boolean. Example: if pretime > 86400 && not pretimefound then DROP'+#13#10;
-end;
-
-function TConditionPretimeFound.SupplyValue(r: TPazo): Boolean;
-begin
-
-  Result:= r.rls.pretimefound;// SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretimeFound.Name: string;
-begin
-  Result:= 'pretimefound';
-end;
-
-*)
-{ TConditionTVPremierYear }
-
-class function TConditionTVPremierYear.Description: String;
-begin
-  Result :=  TVPremierYearDescription;
-end;
-
-class function TConditionTVPremierYear.Name: String;
-begin
-  Result := 'tvpremieryear';
-end;
-
-function TConditionTVPremierYear.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).premier_year;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionTVCountry }
-
-class function TConditionTVCountry.Description: String;
-begin
-  Result := TVCountryDescription;
-end;
-
-class function TConditionTVCountry.Name: String;
-begin
-  Result := 'tvcountry';
-end;
-
-function TConditionTVCountry.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).country;
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-{ TConditionTVLanguage }
-
-class function TConditionTVLanguage.Description: String;
-begin
-  Result := TVLanguageDescription;
-end;
-
-class function TConditionTVLanguage.Name: String;
-begin
-  Result := 'tvlanguage';
-end;
-
-function TConditionTVLanguage.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).tvlanguage;
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-
-{ TConditionTVClassication }
-
-class function TConditionTVClassification.Description: String;
-begin
-  Result := TVClassificationDescription;
-end;
-
-class function TConditionTVClassification.Name: String;
-begin
-  Result := 'tvclassification';
-end;
-
-function TConditionTVClassification.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := lowercase(TTVRelease(r.rls).classification);
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-{ TConditionTVScripted }
-
-class function TConditionTVScripted.Description: String;
-begin
-  Result :=
-    TVScriptedDescription;
-end;
-
-class function TConditionTVScripted.Name: String;
-begin
-  Result := 'tvscripted';
-end;
-
-function TConditionTVScripted.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).scripted;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionTVGenres }
-
-class function TConditionTVGenres.Description: String;
-begin
-  Result := TVGenresDescription;
-end;
-
-class function TConditionTVGenres.Name: String;
-begin
-  Result := 'tvgenres';
-end;
-
-procedure TConditionTVGenres.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        re.Assign(TTVRelease(r.rls).genres);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionTVGenres.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionTVNetwork }
-
-class function TConditionTVNetwork.Description: String;
-begin
-  Result := TVNetworkDescription;
-end;
-
-class function TConditionTVNetwork.Name: String;
-begin
-  Result := 'tvnetwork';
-end;
-
-function TConditionTVNetwork.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).network;
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-{ TConditionTVRuntime }
-
-class function TConditionTVRuntime.Description: String;
-begin
-  Result := TVRuntimeDescription;
-end;
-
-class function TConditionTVRuntime.Name: String;
-begin
-  Result := 'tvruntime';
-end;
-
-function TConditionTVRuntime.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).runtime;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionTVEndedYear }
-
-class function TConditionTVEndedYear.Description: String;
-begin
-  Result :=  TVEndedYearDescription;
-end;
-
-class function TConditionTVEndedYear.Name: String;
-begin
-  Result := 'tvendedyear';
-end;
-
-function TConditionTVEndedYear.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).ended_year;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionTVStatus }
-
-class function TConditionTVStatus.Description: String;
-begin
-  Result := TVStatusDescription;
-end;
-
-class function TConditionTVStatus.Name: String;
-begin
-  Result := 'tvstatus';
-end;
-
-function TConditionTVStatus.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).status;
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-{ TConditionTVRunning }
-
-class function TConditionTVRunning.Description: String;
-begin
-  Result := TVRunningDescription;
-end;
-
-class function TConditionTVRunning.Name: String;
-begin
-  Result := 'tvrunning';
-end;
-
-function TConditionTVRunning.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).running;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-
-{ TConditionTVDailyShow }
-
-class function TConditionTVDailyShow.Description: String;
-begin
-  Result := TVDailyShowDescription;
-end;
-
-class function TConditionTVDailyShow.Name: String;
-begin
-  Result := 'tvdaily';
-end;
-
-function TConditionTVDailyShow.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).daily;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionTVCurrentEpisode }
-
-class function TConditionTVCurrentEpisiode.Description: String;
-begin
-  Result := TVCurrentEpisiodeDescription;
-end;
-
-class function TConditionTVCurrentEpisiode.Name: String;
-begin
-  Result := 'tvcurrentep';
-end;
-
-function TConditionTVCurrentEpisiode.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentepisode;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionTVCurrent }
-
-class function TConditionTVCurrentOnAir.Description: String;
-begin
-  Result := TVCurrentOnAirDescription;
-end;
-
-class function TConditionTVCurrentOnAir.Name: String;
-begin
-  Result := 'tvcurrent';
-end;
-
-function TConditionTVCurrentOnAir.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentair;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionTVCurrentSeason }
-
-class function TConditionTVCurrentSeason.Description: String;
-begin
-  Result := TVCurrentSeasonDescription;
-end;
-
-class function TConditionTVCurrentSeason.Name: String;
-begin
-  Result := 'tvcurrentseason';
-end;
-
-function TConditionTVCurrentSeason.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentseason;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionTag }
-class function TConditionTag.Description: String;
-begin
-  result := TagDescription;
-end;
-
-class function TConditionTag.Name: String;
-begin
-  Result := 'tag';
-end;
-
-procedure TConditionTag.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    re.Assign(r.rls.tags);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format('[EXCEPTION] TConditionTag.GetSupplyValues: %s',
-        [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionTVtag }
-class function TConditionTVtag.Description: String;
-begin
-  Result := TVtagDescription;
-end;
-
-class function TConditionTVtag.Name: String;
-begin
-  Result := 'tvtag';
-end;
-
-function TConditionTVtag.SupplyValue(r: TPazo): String;
-begin
-  Result := '';
-  try
-    if r.rls is TTvRelease then
-      Result := TTvRelease(r.rls).tvtag;
-  except
-    Result := '';
-  end;
-end;
-
-{ TConditionIMDBYear }
-class function TConditionIMDBYear.Description: String;
-begin
-  Result := IMDBYearDescription;
-end;
-
-class function TConditionIMDBYear.Name: String;
-begin
-  Result := 'imdbyear';
-end;
-
-function TConditionIMDBYear.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_year;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionIMDBLanguages }
-
-class function TConditionIMDBLanguages.Description: String;
-begin
-  Result := 'Returns with the list of the movie''s languages.';
-end;
-
-class function TConditionIMDBLanguages.Name: String;
-begin
-  Result := 'imdblanguages';
-end;
-
-procedure TConditionIMDBLanguages.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_languages);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionIMDBLanguages.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionIMDBCountries }
-
-class function TConditionIMDBCountries.Description: String;
-begin
-  Result := 'Returns with the list of the countries which cooperated in recording the movie.';
-end;
-
-class function TConditionIMDBCountries.Name: String;
-begin
-  Result := 'imdbcountries';
-end;
-
-procedure TConditionIMDBCountries.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_countries);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionIMDBCountries.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionIMDBGenres }
-
-class function TConditionIMDBGenres.Description: String;
-begin
-  Result := 'Returns with the list of the movie''s genres.';
-end;
-
-class function TConditionIMDBGenres.Name: String;
-begin
-  Result := 'imdbgenre';
-end;
-
-procedure TConditionIMDBGenres.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_genres);
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionIMDBGenres.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionIMDBScreens }
-
-class function TConditionIMDBScreens.Description: String;
-begin
-  Result := IMDBScreensDescription;
-end;
-
-class function TConditionIMDBScreens.Name: String;
-begin
-  Result := 'imdbscreens';
-end;
-
-function TConditionIMDBScreens.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_screens;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionIMDBRating }
-class function TConditionIMDBRating.Description: String;
-begin
-  Result := IMDBRatingDescription;
-end;
-
-class function TConditionIMDBRating.Name: String;
-begin
-  Result := 'imdbrating';
-end;
-
-function TConditionIMDBRating.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_rating;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-{ TConditionIMDBVotes }
-class function TConditionIMDBVotes.Description: String;
-begin
-  Result := IMDBVotesDescription;
-end;
-
-class function TConditionIMDBVotes.Name: String;
-begin
-  Result := 'imdbvotes';
-end;
-
-function TConditionIMDBVotes.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_votes;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-class function TConditionIMDBWide.Description: String;
-begin
-  Result := IMDBWideDescription;
-end;
-
-class function TConditionIMDBWide.Name: String;
-begin
-  Result := 'imdbwide';
-end;
-
-function TConditionIMDBWide.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_wide;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionIMDBldt.Description: String;
-begin
-  Result := IMDBLimitedDescription;
-end;
-
-class function TConditionIMDBldt.Name: String;
-begin
-  Result := 'imdblimited';
-end;
-
-function TConditionIMDBldt.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_ldt;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-class function TConditionIMDBFestival.Description: String;
-begin
-  Result := IMDBFestivalDescription;
-end;
-
-class function TConditionIMDBFestival.Name: String;
-begin
-  Result := 'imdbfestival';
-end;
-
-function TConditionIMDBFestival.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_festival;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionIMDBStv }
-class function TConditionIMDBStv.Description: String;
-begin
-  Result := IMDBSTVDescription;
-end;
-
-class function TConditionIMDBStv.Name: String;
-begin
-  Result := 'imdbstv';
-end;
-
-function TConditionIMDBStv.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_stvm;  //maybe rename this some more clear; stvm and stvs aren't clear yet
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-{ TConditionIMDBCineyear }
-class function TConditionIMDBCineyear.Description: String;
-begin
-  Result := IMDBCineYearDescription;
-end;
-
-class function TConditionIMDBCineyear.Name: String;
-begin
-  Result := 'imdbcineyear';
-end;
-
-function TConditionIMDBCineyear.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).CineYear;
-    end;
-  except
-    Result := 0;
-  end;
-end;
-
-(*
-
-class function TConditionIMDBGenres.Description: string;
-
-begin
-  Result:= 'Returns with the list of the movie''s genres.';
-end;
-
-class function TConditionIMDBGenres.Name: string;
-begin
-  Result:= 'imdbgenre';
-end;
-
-procedure TConditionIMDBGenres.SupplyValues(r: TPazo; re: TStringList);
-begin
-  if r.rls is TIMDBRelease then
-    re.Assign(TImdbRelease(r.rls).imdb_genres);
-end;
-
-*)
-
-{ TConditionMVIDGenre }
-
-class function TConditionMVIDGenre.Description: String;
-begin
-  Result := 'Returns the Genre parsed from nfo.' + #13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDGenre.Name: String;
-begin
-  Result := 'mvidgenre';
-end;
-
-procedure TConditionMVIDGenre.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TMVIDRelease then
-      re.Assign(TMvidRelease(r.rls).mvid_Genre);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionMVIDGenre.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionMVIDLanguage }
-
-class function TConditionMVIDLanguage.Description: String;
-begin
-  Result := 'Returns the Language parsed from nfo.' + #13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDLanguage.Name: String;
-begin
-  Result := 'mvidlanguage';
-end;
-
-procedure TConditionMVIDLanguage.SupplyValues(r: TPazo; re: TStringList);
-begin
-  try
-    if r.rls is TMVIDRelease then
-      re.Assign(TMvidRelease(r.rls).Languages);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, 'rules', Format(
-        '[EXCEPTION] TConditionMVIDLanguage.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
-  end;
-end;
-
-{ TConditionMVIDFiles }
-
-class function TConditionMVIDFiles.Description: String;
-begin
-  Result := 'Returns the number of files parsed from sfv. (yes ";" will not count)';
-  //+#13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDFiles.Name: String;
-begin
-  Result := 'mvidfiles';
-end;
-
-function TConditionMVIDFiles.SupplyValue(r: TPazo): integer;
-begin
-  Result := -1;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).FileCount;
-end;
-
-{ TConditionMVIDYear }
-
-class function TConditionMVIDYear.Description: String;
-begin
-  Result :=
-    'Returns with the year of the MVID  release date. Returns zero if NFO lookup is not yet ready.';
-  //+#13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDYear.Name: String;
-begin
-  Result := 'mvidyear';
-end;
-
-function TConditionMVIDYear.SupplyValue(r: TPazo): integer;
-begin
-  Result := 0;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_year;
-end;
-
-{ TConditionMVIDVA }
-
-class function TConditionMVIDVA.Description: String;
-begin
-  Result := 'Returns true if release is Various Artists (VA)'; //+#13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDVA.Name: String;
-begin
-  Result := 'mvidva';
-end;
-
-function TConditionMVIDVA.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_va;
-end;
-
-{ TConditionMVIDPAL }
-
-class function TConditionMVIDPAL.Description: String;
-begin
-  Result := 'Returns with the a boolean for PAL region.'; //+#13#10;
-  //  Result:= Result + '' +#13#10;
-end;
-
-class function TConditionMVIDPAL.Name: String;
-begin
-  Result := 'mvidpal';
-end;
-
-function TConditionMVIDPAL.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_pal;
-end;
-
-{ TConditionMVIDNTSC }
-
-class function TConditionMVIDNTSC.Description: String;
-begin
-  Result := 'Returns with the a boolean for NTSC region.'; //+#13#10;
-  //  Result:= Result + '' +#13#10;
-end;
-
-class function TConditionMVIDNTSC.Name: String;
-begin
-  Result := 'mvidntsc';
-end;
-
-function TConditionMVIDNTSC.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_ntsc;
-end;
-
-{ TConditionMVIDLIVE }
-
-class function TConditionMVIDLIVE.Description: String;
-begin
-  Result := 'Returns with the a boolean for LIVE type.'; //+#13#10;
-  //  Result:= Result + '' +#13#00;
-end;
-
-class function TConditionMVIDLIVE.Name: String;
-begin
-  Result := 'mvidlive';
-end;
-
-function TConditionMVIDLIVE.SupplyValue(r: TPazo): boolean;
-begin
-  Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_live;
 end;
 
 function FindConditionClassByName(const Name: String): TConditionClass;
@@ -5271,4 +2736,3 @@ begin
 end;
 
 end.
-
