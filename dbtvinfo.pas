@@ -95,8 +95,8 @@ function TVInfoDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks,
-  http, regexpr, debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, SynDBSQLite3, SynDB;
+  DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, regexpr,
+  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, SynDBSQLite3, SynDB;
 
 const
   section = 'tasktvinfo';
@@ -238,7 +238,7 @@ begin
 
       ltags := TStringlist.Create;
       try
-        ltags.Assign(kb_languages);
+        SLGetLanguagesExpression(ltags);
         ltags.Delimiter := '|';
 
         rx.Expression := '[._-\s]((19|20)\d{2}[._-\s]|720(p|i)|1080(p|i)|2160(p|i)|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';

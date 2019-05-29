@@ -43,13 +43,13 @@ type
   TRelease = class
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
-    rlsname: String;
-    rlsnamewithoutgrp: String;
+    rlsname: String; //< releasename
+    rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
     section: String;
     words: TStringList;
     tags: TStringList;
-    groupname: String;
-    internal: boolean;
+    groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
+    internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
     kb_event: String;
     languages: TStringList;
@@ -281,12 +281,8 @@ var
   kb_thread: TKBThread;
   kb_last_saved: TDateTime;
   kb_sectionhandlers: TStringList;
-  kb_languages: TStringList;
-
   kb_lock: TCriticalSection;
-
   noannouncesections: TStringList;
-
   imdbcountries: TIniFile;
   kbevent: TEvent;
 
@@ -328,7 +324,6 @@ var
   renamed_group_checker: boolean;
   renamed_release_checker: boolean;
 
-  use_new_language_base: boolean;
   enable_try_to_complete: boolean;
   try_to_complete_after: integer;
   kb_save_entries: integer;
@@ -1229,7 +1224,7 @@ begin
     if languages.Count <> 0 then
       Result := Result + 'Language(s): ' + languages.DelimitedText + #13#10;
 
-    Result := Result + 'Internal: ' + IntToStr(integer(internal)) + #13#10;
+    Result := Result + 'Internal: ' + BoolToStr(internal, True) + #13#10;
   except
     on e: Exception do
     begin
@@ -1240,7 +1235,7 @@ end;
 
 constructor TRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
-  vlang, s: String;
+  fLanguage, s: String;
   i, j: integer;
   rrgx: TRegExpr;
   ii: integer;
@@ -1293,7 +1288,7 @@ begin
 
     words.DelimitedText := s;
 
-    Internal := False;
+    internal := False;
 
     rrgx := TRegExpr.Create;
     try
@@ -1301,95 +1296,69 @@ begin
 
       rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
       if rrgx.Exec(rlsname) then
-        Internal := True;
+        internal := True;
 
-      //detect groupname
+      // detect groupname
       groupname := '';
       rrgx.Expression := '\-([^\-]+)$';
       if rrgx.Exec(rlsname) then
       begin
         groupname := rrgx.Match[1];
       end;
-
-      //old way if groupname not found by regex
-      if (groupname = '') then
-      begin
-        if uppercase(words.strings[words.Count - 1]) = 'INT' then
-          groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
-        else
-          groupname := words.strings[words.Count - 1];
-      end;
-
-      dots := 0;
-      number_of_chars := 0;
-      vowels := 0;
-      s := '';
-      for i := 1 to length(rlsname) do
-      begin
-        if 0 = Pos(rlsname[i], s) then
-        begin
-          Inc(number_of_chars);
-          s := s + rlsname[i];
-        end;
-        if rlsname[i] = '.' then
-          Inc(dots);
-        if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-          Inc(vowels);
-      end;
-
-      rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
-
-      if not use_new_language_base then
-      begin
-
-        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-        begin
-          for I := 0 to mp3languages.Count - 1 do
-          begin
-            rrgx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
-            if rrgx.Exec(rlsname) then
-            begin
-              languages.Add(mp3languages.strings[i]);
-              Break;
-            end;
-          end;
-        end;
-
-        for i := 0 to kb_languages.Count - 1 do
-        begin
-          if kb_languages[i] <> '' then
-          begin
-            for ii := 0 to tags.Count - 1 do
-              if uppercase(tags.Strings[ii]) = uppercase(kb_languages.Strings[i]) then
-                languages.Add(kb_languages.strings[i]);
-          end;
-        end;
-      end
-      else
-      begin
-        vlang := '';
-        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-        begin
-          vlang := FindMusicLanguageOnDirectory(rlsname);
-        end
-        else
-        begin
-          vlang := FindLanguageOnDirectory(rlsname);
-        end;
-        if vlang <> '' then
-          languages.Add(vlang);
-      end;
-
-      if (languages.Count = 0) then
-      begin
-        if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-          languages.Add('EN')
-        else
-          languages.Add('English');
-      end;
     finally
       rrgx.free;
     end;
+
+    // old way if groupname not found by regex
+    if (groupname = '') then
+    begin
+      if uppercase(words.strings[words.Count - 1]) = 'INT' then
+        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
+      else
+        groupname := words.strings[words.Count - 1];
+    end;
+
+    dots := 0;
+    number_of_chars := 0;
+    vowels := 0;
+    s := '';
+    for i := 1 to length(rlsname) do
+    begin
+      if 0 = Pos(rlsname[i], s) then
+      begin
+        Inc(number_of_chars);
+        s := s + rlsname[i];
+      end;
+      if rlsname[i] = '.' then
+        Inc(dots);
+      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+        Inc(vowels);
+    end;
+
+    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+
+    // language detection
+    fLanguage := '';
+    if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+    begin
+      fLanguage := FindMusicLanguageOnDirectory(rlsname);
+    end
+    else
+    begin
+      fLanguage := FindLanguageOnDirectory(rlsname);
+    end;
+
+    if fLanguage <> '' then
+      languages.Add(fLanguage);
+
+    if (languages.Count = 0) then
+    begin
+      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+        languages.Add('EN')
+      else
+        languages.Add('English');
+    end;
+
 
     knowngroup := IsKnownGroup(section, groupname);
 
@@ -1430,7 +1399,6 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
-
 end;
 
 destructor TRelease.Destroy;
@@ -1623,7 +1591,7 @@ begin
         exit;
       //We did not find out the year. Sucking, useless to continue.
 
-      if ((not Internal) and (evszamindex + 3 = tags.Count)) then
+      if ((not internal) and (evszamindex + 3 = tags.Count)) then
         groupname := tags[evszamindex + 1] + '_' + tags[evszamindex + 2]; //tweak
 
       //nyelvkod.
@@ -2697,7 +2665,7 @@ begin
 
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
-  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', '');
+  tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
 
   mp3sources := TStringList.Create;
   nulldaysources := TStringList.Create;
@@ -2723,13 +2691,7 @@ begin
   mp3types := TStringList.Create;
   mp3types.Delimiter := ' ';
   mp3types.QuoteChar := '"';
-  mp3types.DelimitedText := config.ReadString(rsections, 'mp3types', '');
-
-  kb_languages := TStringList.Create;
-  kb_languages.CaseSensitive := False;
-  kb_languages.DelimitedText := ReplaceText(ReplaceText(GetFileContents(ExtractFilePath(ParamStr(0)) + 'slftp.languages'), #13, ''), #10, '');
-
-  //sectionhelper:= THashedStringList.Create;
+  mp3types.DelimitedText := config.ReadString(rsections, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
 
   if FileExists(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo') then
   begin
@@ -2760,8 +2722,6 @@ begin
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
   renamed_group_checker := config.ReadBool(rsections, 'renamed_group_checker', True);
   renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', True);
-
-  use_new_language_base := config.ReadBool(rsections, 'use_new_language_base', True);
 
   enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
   try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 1100);
@@ -2795,7 +2755,6 @@ begin
   mp3types.Free;
   kb_latest.Free;
   kb_skip.Free;
-  //sectionhelper.Free;
   tvtags.Free;
   kb_groupcheck_rls.Free;
 
@@ -2807,8 +2766,6 @@ begin
     end;
   end;
   kb_sectionhandlers.Free;
-
-  kb_languages.Free;
 
   noannouncesections.Free;
   imdbcountries.Free;
