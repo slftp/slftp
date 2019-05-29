@@ -37,6 +37,9 @@ procedure SLLoadMP3LanguagesFromIniFile(var aStringList: TStringList);
 { Loads current values from files to @link(sllanguages) and @link(slmp3languages)
   @returns(Count of loaded languages and mp3 languages) }
 function SLLanguagesReload: String;
+{ Creates a list of all expression(s) for every language from @link(sllanguages), @italic(input list will be automatically cleared)
+  @param(aStringList Stringlist which should be used for storing the list of language expressions) }
+procedure SLGetLanguagesExpression(var aStringList: TStringList);
 { Iterates through @link(sllanguage) and searches with @link(TSLLanguages.Expression) in @link(aRlsname)
   @param(aRlsname string in which it searches for the language)
   @returns(@link(TSLLanguages.Language) string if found, otherwise default 'English') }
@@ -99,9 +102,6 @@ begin
 end;
 
 procedure SLLanguagesInit;
-var
-  i: integer;
-  y: TStringList;
 begin
   Debug(dpSpam, rsections, '-> Loading Language Base');
 
@@ -134,9 +134,6 @@ begin
 end;
 
 function SLLanguagesReload: String;
-var
-  i: integer;
-  y: TStringList;
 begin
   Debug(dpSpam, rsections, '-> Reload Language Base');
 
@@ -146,6 +143,29 @@ begin
   Result := Format('Reload done! %d languages and %d mp3 languages loaded.', [sllanguages.Count, slmp3languages.Count]);
 
   Debug(dpSpam, rsections, '<- Reload Language Base');
+end;
+
+procedure SLGetLanguagesExpression(var aStringList: TStringList);
+var
+  sllang: TSLLanguages;
+  fStrArray: TArray<String>;
+  fStr: String;
+begin
+  aStringList.Clear;
+
+  for sllang in sllanguages do
+  begin
+    if sllang.NeedsRegexMatching then
+    begin
+      fStrArray := sllang.Expression.Split(['|']);
+      for fStr in fStrArray do
+        aStringList.Append(fStr);
+    end
+    else
+    begin
+      aStringList.Append(sllang.Expression);
+    end;
+  end;
 end;
 
 function FindLanguageOnDirectory(const aRlsname: String): String;
