@@ -41,16 +41,17 @@
       parse_boxofficemojo_exact=0
       parse_boxofficemojo_always=0
       new_news_announce_interval=3
-      complete sections [http], [news] added/changed
       dbms=
+      complete sections [http], [news] added/changed
 
     1. compare your slftp.ini with the provided one in /dist folder, many changes
     2. update your helpfiles with the provided one in /dist/help folder
     3. delete slftp.pem, not needed!
-    4. delete your old slftp.news file (if existing)
-    5. create a folder 'databases' in slftp dir and move your databases into it
+    4. delete slftp.languages, not needed!
+    5. delete your old slftp.news file (if existing)
     6. delete your old stats.db file due to a wrong UNIQUE INDEX setting (if existing)
-    7. if you have problems with reusing existing databases, delete all .db files
+    7. create a folder 'databases' in slftp dir and move your databases into it
+    8. if you have problems with reusing existing databases, delete all .db files
 
 --===========================( KNOWN BUG in v1.5.* )================================-
 
@@ -85,6 +86,7 @@
     {+} Some unit tests are added, please help to add more!
     {+} Wildcard support for !setsocks5 SITE (#234)
     {+} Make TV-releases skippable for iMDB lookups (#232)
+    {+} Optimized code for release language detection (slftp.languagebase)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -104,6 +106,7 @@
     {#} No segmentation fault if terminal window is too big (#213)
     {#} Correctly apply <sample/proof/...>_dirs_priority to files
     {#} reqfiller not realizing requests are done (#32)
+    {#} !addtvmaze -s The.Twilight.Zone gaves wrong showname result (#241)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -126,6 +129,7 @@
     {^} If available parse complete_tag on requests to determine completion
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
+    {-} old language base (slftp.languages)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
 
 --=============================( SLFTP v1.5.5 )===================================-
