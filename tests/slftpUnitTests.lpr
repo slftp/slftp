@@ -48,7 +48,8 @@ uses
   tagsTests,
   ircblowfish.plaintextTests,
   dbtvinfoTests,
-  sllanguagebaseTests;
+  sllanguagebaseTests,
+  kbTests;
 
 var
   filecheck: String;
