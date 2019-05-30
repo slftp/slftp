@@ -41,7 +41,8 @@ uses
   tagsTests,
   ircblowfish.plaintextTests,
   dbtvinfoTests,
-  sllanguagebaseTests;
+  sllanguagebaseTests,
+  kbTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
