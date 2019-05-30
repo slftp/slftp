@@ -265,9 +265,9 @@ procedure kb_Stop;
 function kb_reloadsections: boolean;
 
 { Extracts groupname from release
-  @param(rlz releasename)
-  @returns(Groupname from input @link(rlz)) }
-function GetGroupname(const rlz: String): String;
+  @param(aRlz releasename)
+  @returns(Groupname from input @link(aRlz)) }
+function GetGroupname(const aRlz: String): String;
 
 var
   kb_sections: TStringList;
@@ -351,23 +351,23 @@ begin
   end;
 end;
 
-{ Removes groupname from release
-  @param(rlz releasename)
-  @returns(Releasename @link(rlz) without groupname) }
-function RemoveGroupname(const rlz: String): String;
+{ Removes '-groupname' from release
+  @param(aRlz releasename)
+  @returns(Releasename without '-groupname') }
+function RemoveGroupname(const aRlz: String): String;
 var
   fGroup: String;
 begin
-  fGroup := GetGroupname(rlz);
-  Result := ReplaceText(rlz, fGroup, '');
+  fGroup := GetGroupname(aRlz);
+  Result := ReplaceText(aRlz, '-' + fGroup, '');
 end;
 
-function GetGroupname(const rlz: String): String;
+function GetGroupname(const aRlz: String): String;
 var
   x: TStringList;
   s: String;
 begin
-  s := ReplaceText(rlz, '(', '');
+  s := ReplaceText(aRlz, '(', '');
   s := ReplaceText(s, ')', '');
   s := ReplaceText(s, '.', ' ');
   s := ReplaceText(s, '-', ' ');
@@ -377,8 +377,8 @@ begin
   try
     x.Delimiter := ' ';
     x.DelimitedText := s;
-    if uppercase(x.Strings[x.Count - 1]) = 'INT' then
-      Result := '-' + x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
+    if UpperCase(x.Strings[x.Count - 1]) = 'INT' then
+      Result := x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
     else
       Result := x.Strings[x.Count - 1];
   finally
