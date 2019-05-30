@@ -5,20 +5,20 @@ interface
 uses
   IniFiles;
 
-{ Just a helper function to initialize @link(globalgroupskip) and calls Rehashglobalskiplist afterwards }
+{ Just a helper function to create @link(globalgroupskip) object and calls Rehashglobalskiplist afterwards }
 procedure Initglobalskiplist;
 
 { Just a helper function to free @link(globalgroupskip) }
 procedure Uninitglobalskiplist;
 
-{ Reloads entries from skipgroups file and sets it to @link(globalgroupskip)
+{ Reloads entries from skipgroups file, clears @link(globalgroupskip) and adds the skipgroups afterwards
   @returns(@true on success, @false otherwise) }
 function Rehashglobalskiplist: boolean;
 
-{ Extracts groupname from @link(rls) and checks if it's in global skipped group list
-  @param(rls Releasename which should be checked against skipped group lists)
+{ Extracts groupname from @link(aRls) and checks if it's in global skipped group list
+  @param(aRls Releasename which should be checked against skipped group list)
   @returns(@true if in global skipped group list, @false otherwise) }
-function CheckIfGlobalSkippedGroup(const rls: String): boolean;
+function CheckIfGlobalSkippedGroup(const aRls: String): boolean;
 
 var
   globalgroupskip: THashedStringList; //< hashed list of all global skipped groups
@@ -26,7 +26,7 @@ var
 implementation
 
 uses
-  SysUtils, Classes, debugunit, Regexpr;
+  SysUtils, Classes, StrUtils, debugunit, kb;
 
 const
   section = 'globalskip';
@@ -54,9 +54,11 @@ begin
     x := TStringlist.Create;
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.skipgroups');
+
       globalgroupskip.Clear;
       globalgroupskip.Delimiter := ' ';
-      globalgroupskip.DelimitedText := x.text;
+      globalgroupskip.DelimitedText := x.Text;
+
       Result := True;
     finally
       x.free;
@@ -69,24 +71,19 @@ begin
   end;
 end;
 
-function CheckIfGlobalSkippedGroup(const rls: String): boolean;
+function CheckIfGlobalSkippedGroup(const aRls: String): boolean;
 var
-  r: TRegexpr;
+  fGroupname: String;
 begin
   Result := False;
-  r := TRegexpr.Create;
-  try
-    r.Expression := '\-([^\-]+)$';
-    if r.Exec(rls) then
-    begin
-      if globalgroupskip.IndexOf(r.Match[1]) <> -1 then
-        Result := True
-      else
-        Result := False;
-    end;
-  finally
-    r.free;
-  end;
+
+  fGroupname := GetGroupname(aRls);
+  fGroupname := ReplaceText(fGroupname, '_INT', '');
+
+  if globalgroupskip.IndexOf(fGroupname) <> -1 then
+    Result := True
+  else
+    Result := False;
 end;
 
 end.

@@ -107,6 +107,7 @@
     {#} Correctly apply <sample/proof/...>_dirs_priority to files
     {#} reqfiller not realizing requests are done (#32)
     {#} !addtvmaze -s The.Twilight.Zone gaves wrong showname result (#241)
+    {#} global skipped groups will also skip GRPNAME_INT
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
