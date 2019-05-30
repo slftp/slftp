@@ -49,7 +49,8 @@ uses
   ircblowfish.plaintextTests,
   dbtvinfoTests,
   sllanguagebaseTests,
-  kbTests;
+  kbTests,
+  globalskipunitTests;
 
 var
   filecheck: String;
@@ -68,6 +69,8 @@ begin
   InitialDebugSetup;
   InitialKbSetup;
   InitialSLLanguagesSetup;
+  InitialGlobalskiplistSetup;
+
 
   // run all registered tests
 {$IFDEF TextRunner}
