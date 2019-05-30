@@ -42,7 +42,8 @@ uses
   ircblowfish.plaintextTests,
   dbtvinfoTests,
   sllanguagebaseTests,
-  kbTests;
+  kbTests,
+  globalskipunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -68,6 +69,7 @@ begin
   InitialDebugSetup;
   InitialKbSetup;
   InitialSLLanguagesSetup;
+  InitialGlobalskiplistSetup;
 
 
   // run all registered tests
