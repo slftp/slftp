@@ -284,16 +284,25 @@ begin
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
-    if (s.lastResponseCode = 550) then
-    begin
-      if ( (0 <> Pos('FileNotFound', s.lastResponse)) OR (0 <> Pos('File not found', s.lastResponse)) OR (0 <> Pos('No such file or directory', s.lastResponse)) ) then
-      begin
-        // do nothing, file/dir not found
-      end;
-    end
-    else
-    begin
-      goto TryAgain;
+    case s.lastResponseCode of
+      421:
+        begin
+          s.DestroySocket(False);
+          goto TryAgain;
+        end;
+
+      550:
+        begin
+          if ( (0 <> Pos('FileNotFound', s.lastResponse)) OR (0 <> Pos('File not found', s.lastResponse)) OR (0 <> Pos('No such file or directory', s.lastResponse)) ) then
+          begin
+            // do nothing, file/dir not found
+          end;
+        end;
+
+      else
+        begin
+          goto TryAgain;
+        end;
     end;
   end
   else
