@@ -23,6 +23,7 @@ program slftpUnitTests;
 uses
   FastMM4,
   DUnitX.TestFramework,
+  DUnitX.Loggers.XML.NUnit,
   {$IFDEF TextRunner}
     DUnitX.Loggers.Console,
   {$ELSE}
@@ -52,6 +53,7 @@ var
   runner : ITestRunner;
   results : IRunResults;
   logger : ITestLogger;
+  nunitLogger : ITestLogger;
   filecheck: String;
 
 begin
@@ -83,6 +85,8 @@ begin
       // tell the runner how we will log things
       logger := TDUnitXConsoleLogger.Create(true);
       runner.AddLogger(logger);
+      nunitLogger := TDUnitXXMLNUnitFileLogger.Create(ExtractFilePath(ParamStr(0)) + 'dunitx-results.xml');
+      runner.AddLogger(nunitLogger);
 
       // run tests
       results := runner.Execute;
