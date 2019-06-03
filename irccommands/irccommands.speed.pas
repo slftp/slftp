@@ -11,8 +11,9 @@ function IrcSpeedTestCleanup(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, sitesunit, pazo, taskrace, taskspeedtest, irc, notify, taskfilesize, speedstatsunit,
-  kb, mystrings, dirlist, taskdirlist, configunit, queueunit, IdGlobal, irccommandsunit, UIntList;
+  SysUtils, Classes, Contnrs, SyncObjs, sitesunit, pazo, taskrace, taskspeedtest, irc, notify, taskfilesize,
+  speedstatsunit, kb, mystrings, dirlist, taskdirlist, configunit, queueunit, IdGlobal, irccommandsunit,
+  UIntList;
 
 const
   section = 'irccommands.speed';

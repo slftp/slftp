@@ -8,7 +8,7 @@ function IrcAnnounceIMDBInfo(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, dbaddimdb, irc;
+  SysUtils, Classes, Contnrs, SyncObjs, dbaddimdb, irc;
 
 const
   section = 'irccommands.imdb';

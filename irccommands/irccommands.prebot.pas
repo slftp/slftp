@@ -23,9 +23,9 @@ procedure PrebotUnInit;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, DateUtils, irc, sitesunit, configunit, dirlist, pazo, debugunit, queueunit,
-  mystrings, notify, taskdel, statsunit, kb, taskdirlist, taskraw, slmasks, skiplists, rulesunit,
-  irccommands.work, irccommands.site, irccommandsunit;
+  SysUtils, Classes, StrUtils, DateUtils, Contnrs, SyncObjs, irc, sitesunit, configunit, dirlist, pazo,
+  debugunit, queueunit, mystrings, notify, taskdel, statsunit, kb, taskdirlist, taskraw, slmasks, skiplists,
+  rulesunit, irccommands.work, irccommands.site, irccommandsunit;
 
 const
   section = 'irccommands.prebot';
