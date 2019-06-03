@@ -20,9 +20,9 @@ function IrcCheckForExistsRip(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, math, DateUtils, irccommandsunit, sitesunit, dirlist, pazo, kb, rulesunit,
-  mystrings, debugunit, tasklame, queueunit, notify, irc, taskrace, statsunit, nuke, globalskipunit,
-  configunit, mainthread, regexpr, taskraw, sltcp;
+  SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
+  kb, rulesunit, mystrings, debugunit, tasklame, queueunit, notify, irc, taskrace, statsunit, nuke,
+  globalskipunit, configunit, mainthread, regexpr, taskraw, sltcp;
 
 const
   section = 'irccommands.work';

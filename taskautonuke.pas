@@ -16,8 +16,8 @@ type
 implementation
 
 uses
-  Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, StrUtils,
-  dateutils, dirlist, SysUtils, irc, debugunit, nuke, mystrings;
+  Classes, StrUtils, DateUtils, Contnrs, Types, configunit, mainthread, sitesunit, precatcher,
+  kb, queueunit, dirlist, SysUtils, irc, debugunit, nuke, mystrings;
 
 const
   rsections = 'autonuke';
