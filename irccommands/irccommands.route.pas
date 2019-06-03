@@ -14,8 +14,8 @@ function IrcSpeedRecalc(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, irc, debugunit, speedstatsunit, sitesunit, rcmdline, mystrings,
-  irccommandsunit;
+  SysUtils, Classes, StrUtils, Contnrs, irc, debugunit, speedstatsunit, sitesunit,
+  rcmdline, mystrings, irccommandsunit;
 
 const
   section = 'irccommands.route';

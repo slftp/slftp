@@ -327,7 +327,6 @@ end;
 procedure irc_AddstatsB(const msgirc: String); overload;
 var
   fChanSettingsObj: TIrcChannelSettings;
-  i: Integer;
 begin
   try
     for fChanSettingsObj in IrcChanSettingsList.Values do
@@ -346,7 +345,7 @@ end;
 function irc_Addtext_by_key(const key, msg: String): Integer;
 var
   fChanSettingsObj: TIrcChannelSettings;
-  i, j: Integer;
+  i: Integer;
   s, ss: String;
 begin
   Result := 0;
@@ -357,9 +356,9 @@ begin
       begin
         inc(Result);
         s := msg;
-        for j := 1 to 1000 do
+        for i := 1 to 1000 do
         begin
-          ss := SubString(s, #13#10, j);
+          ss := SubString(s, #13#10, i);
           if ss = '' then
             break;
           irc_addtext(fChanSettingsObj.Netname, fChanSettingsObj.Channel, '%s', [ss]);

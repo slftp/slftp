@@ -449,7 +449,6 @@ end;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
 var
   i: integer;
-  sql: String;
   pretime: TDateTime;
   addpredata: TDbAddPre;
   fQuery: TQuery;

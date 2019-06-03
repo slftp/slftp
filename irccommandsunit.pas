@@ -354,7 +354,7 @@ procedure RawB(const netname, channel: String; sitename, dir, command: String; A
 implementation
 
 uses
-  SysUtils, debugunit, mystrings, notify, taskdirlist, queueunit, taskraw, sltcp;
+  SysUtils, Contnrs, debugunit, mystrings, notify, taskdirlist, queueunit, taskraw, sltcp;
 
 const
   section = 'irccommandsunit';
