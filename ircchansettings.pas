@@ -86,8 +86,6 @@ const
 { TIrcChannelSettings }
 
 constructor TIrcChannelSettings.Create(const aNetname, aChannel, aChanRoles: String; aChankey: String = ''; aInviteOnly: Boolean = True);
-var
-  fStrHelper: String;
 begin
   FNetname := aNetname;
   FChannel := aChannel;

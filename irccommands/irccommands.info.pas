@@ -24,7 +24,7 @@ function IrcFindUser(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, irc, sitesunit, mystrings, globals, irccommandsunit;
+  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, globals, irccommandsunit;
 
 const
   section = 'irccommands.info';

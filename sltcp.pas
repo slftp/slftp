@@ -3,14 +3,13 @@ unit sltcp;
 interface
 
 uses
-  Classes, mslproxys,Contnrs, SyncObjs, slstack, slssl, debugunit
-{$IFDEF FPC}
-{$IFNDEF MSWINDOWS}
-  , baseunix
-{$ENDIF}
-{$ENDIF}
-
-  ;
+  Classes, Contnrs, Types, SyncObjs,
+  {$IFDEF FPC}
+    {$IFNDEF MSWINDOWS}
+      baseunix,
+    {$ENDIF}
+  {$ENDIF}
+  mslproxys, slstack, slssl, debugunit;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -1769,7 +1768,8 @@ begin
       if ((listenSocket.error <> 'timeout') and (Assigned(Server.fOnAcceptError)) and (Server.fOnAcceptError(self, listensocket.error))) then
       begin
 //        debug(dpError, 'callback miatt kilepunk');
-        Break;
+        Break;
+
       end;
     end;
 

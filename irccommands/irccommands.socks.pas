@@ -12,7 +12,7 @@ function IrcSetSocks5(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, irc, sitesunit, mslproxys, regexpr, configunit, mystrings;
+  SysUtils, Classes, Contnrs, irc, sitesunit, mslproxys, regexpr, configunit, mystrings;
 
 const
   section = 'irccommands.socks';

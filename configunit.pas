@@ -35,8 +35,6 @@ var
   @param(aWipeString String which should be overwritten with value 'x')
 }
 procedure WipePass(var aWipeString: String);
-var
-  i: Integer;
 begin
   SetLength(aWipeString, 100);
   aWipeString := StringOfChar('x', Length(aWipeString));

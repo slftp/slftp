@@ -19,7 +19,7 @@ function IrcAutoRules(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, irc, sitesunit, rulesunit, regexpr, mystrings;
+  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, regexpr, mystrings;
 
 const
   section = 'irccommands.rules';

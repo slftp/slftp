@@ -32,7 +32,8 @@ function IrcInviteMyIRCNICK(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, irc, sitesunit, ircchansettings, ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit;
+  SysUtils, Classes, StrUtils, Types, Contnrs, irc, sitesunit, ircchansettings,
+  ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit;
 
 const
   section = 'irccommands.irc';
@@ -685,7 +686,6 @@ end;
 
 function IrcChannels(const netname, channel, params: String): boolean;
 var
-  i: integer;
   fChanSettings: TIrcChannelSettings;
   fNetworkName, fMode, fBlowkey: String;
 begin

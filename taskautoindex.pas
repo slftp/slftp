@@ -16,8 +16,8 @@ type
 implementation
 
 uses
-  SyncObjs, Classes, configunit, mainthread, sitesunit, precatcher, kb, queueunit, mystrings, dateutils,
-  dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
+  SyncObjs, Classes, DateUtils, Contnrs, configunit, mainthread, sitesunit, precatcher, kb, queueunit,
+  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
 
 const
   rsections = 'indexer';
