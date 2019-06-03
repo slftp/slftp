@@ -11,7 +11,7 @@ function IrcRankRecalc(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, StrUtils, Classes, irccommandsunit, sitesunit, irc, ranksunit, math, mystrings;
+  SysUtils, StrUtils, Classes, Contnrs, Math, irccommandsunit, sitesunit, irc, ranksunit, mystrings;
 
 const
   section = 'irccommands.rank';

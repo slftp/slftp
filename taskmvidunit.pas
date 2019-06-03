@@ -99,7 +99,6 @@ end;
 function TPazoMVIDTask.FetchGenre(const text: String): String;
 var
   i: Integer;
-  s: String;
 begin
   Result := '';
   i := Pos('genre', LowerCase(text));

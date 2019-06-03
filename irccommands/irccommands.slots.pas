@@ -9,7 +9,7 @@ function IrcDelayUpload(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, irc, mystrings, sitesunit, IdGlobal;
+  SysUtils, Classes, Contnrs, irc, mystrings, sitesunit, IdGlobal;
 
 const
   section = 'irccommands.slots';

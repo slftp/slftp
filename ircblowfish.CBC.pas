@@ -135,7 +135,6 @@ end;
 
 function TIrcBlowkeyCBC.EncryptMessage(const dText: String): String;
 var
-  fKeyLen: integer;
   fCTX: EVP_CIPHER_CTX;
   fInBufSize: integer;
   fInBufSizeMod: integer;
