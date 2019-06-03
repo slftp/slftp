@@ -13,7 +13,8 @@ function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: Strin
 implementation
 
 uses
-  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit, mslproxys, IdIOHandlerStack, IdExceptionCore;
+  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit,
+  mslproxys, IdExceptionCore;
 
 const
   section = 'http';
@@ -35,7 +36,6 @@ var
   fEncodedUrl: String;
   fProxyname: String;
   fSocks5: TmSLSocks5;
-  fIdIOHandlerStack: TIdIOHandlerStack;
   fNumErrors: Integer;
 begin
   Result := False;

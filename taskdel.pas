@@ -21,7 +21,7 @@ type
 implementation
 
 uses
-  sitesunit,  mystrings, dirlist, DebugUnit, irc;
+  Classes, Contnrs, sitesunit,  mystrings, dirlist, DebugUnit, irc;
 
 const
   section = 'del';

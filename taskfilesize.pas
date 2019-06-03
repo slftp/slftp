@@ -17,7 +17,7 @@ type
 implementation
 
 uses
-  Classes, debugunit, sitesunit, dirlist, SysUtils;
+  Classes, SysUtils, Contnrs, debugunit, sitesunit, dirlist;
 
 const
   section = 'taskfilesize';

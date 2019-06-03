@@ -17,9 +17,9 @@ function IrcAuto(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, Math, irccommandsunit, irc, regexpr, statsunit, mainthread, debugunit,
-  tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo, console,
-  precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
+  SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, regexpr, statsunit, mainthread,
+  debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
+  console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
   SynCommons, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
@@ -58,7 +58,6 @@ function IrcHelp(const netname, channel, params: String): boolean;
 var
   i: integer;
   s: String;
-  f: TextFile;
 begin
   if params <> '' then
   begin
@@ -119,12 +118,15 @@ end;
 
 function IrcUptime(const netname, channel, params: String): boolean;
 var
-  fProcessID, fCmdLine, fUsageInfo, fUnit: String;
+  fProcessID, fUnit: String;
+  {$IFDEF UNIX}
+    fCmdLine, fUsageInfo: String;
+    rr: TRegexpr;
+  {$ENDIF}
   {$IFDEF MSWINDOWS}
     fMemCounters: TProcessMemoryCounters;
   {$ENDIF}
   fMemUsage: double;
-  rr: TRegexpr;
 begin
   fProcessID := IntToStr(IdGlobal.CurrentProcessId);
 

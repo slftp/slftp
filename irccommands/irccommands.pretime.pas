@@ -13,7 +13,7 @@ function IrcSetupOffset(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, dbaddpre, irc, configunit, sitesunit, regexpr, mystrings;
+  SysUtils, Classes, DateUtils, Contnrs, dbaddpre, irc, configunit, sitesunit, regexpr, mystrings;
 
 const
   section = 'irccommands.pretime';

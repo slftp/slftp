@@ -8,7 +8,7 @@ function IrcSections(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, irccommandsunit, sitesunit, kb, irc, mystrings;
+  SysUtils, Classes, Contnrs, irccommandsunit, sitesunit, kb, irc, mystrings;
 
 const
   section = 'irccommands.section';
