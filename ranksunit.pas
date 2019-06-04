@@ -23,8 +23,16 @@ procedure RanksStart;
 procedure RanksRecalc(const netname, channel: String);
 procedure RanksProcess(p: TPazo);
 
-function RemoveRanks(sitename: String): boolean; overload;
-function RemoveRanks(sitename, section: String): boolean; overload;
+{ Removes all @link(TRankStat) for given @link(aSitename) from @link(ranks) list
+  @param(aSitename name of site which TRankStat should be deleted)
+  @returns(@true if successful, @false on exception) }
+function RemoveRanks(const aSitename: String): boolean; overload;
+
+{ Removes all @link(TRankStat) from @link(ranks) where given @link(aSitename) and @link(aSection) matches exactly the values from @link(TRankStat)
+  @param(aSitename name of site which TRankStat should be deleted)
+  @param(aSection name of section)
+  @returns(@true if successful, @false on exception) }
+function RemoveRanks(const aSitename, aSection: String): boolean; overload;
 
 function RanksReload: boolean;
 
@@ -35,7 +43,8 @@ var
 
 implementation
 
-uses Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, UIntList, DateUtils, IdGlobal;
+uses
+  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, UIntList, DateUtils, IdGlobal;
 
 const
   r_section = 'ranks';
@@ -43,8 +52,7 @@ const
 var
   rankslock: TCriticalSection;
 
-
-function RemoveRanks(sitename: String): boolean;
+function RemoveRanks(const aSitename: String): boolean;
 var
   i: Integer;
 begin
@@ -53,7 +61,7 @@ begin
     rankslock.Enter;
     try
       for i := ranks.Count - 1 downto 0 do
-        if TRankStat(ranks.Items[i]).sitename = sitename then
+        if TRankStat(ranks.Items[i]).sitename = aSitename then
           ranks.Delete(i);
     finally
       rankslock.Leave;
@@ -64,7 +72,7 @@ begin
   Result := True;
 end;
 
-function RemoveRanks(sitename, section: String): boolean;
+function RemoveRanks(const aSitename, aSection: String): boolean;
 var
   i: Integer;
   rank: TRankStat;
@@ -76,7 +84,7 @@ begin
       for i := ranks.Count - 1 downto 0 do
       begin
         rank := TRankStat(ranks.Items[i]);
-        if ((rank.sitename = sitename) and (rank.section = section)) then
+        if ((rank.sitename = aSitename) and (rank.section = aSection)) then
           ranks.Delete(i);
       end;
     finally
@@ -156,27 +164,6 @@ begin
   end;
 
   debug(dpMessage, r_section, '<-- RanksSave');
-end;
-
-
-function FindSite(const s: String; const section: String): Boolean; overload;
-begin
-  result := False;
-  if sitesdat.ReadString('site-' + s, 'username', '') = '' then
-    exit;
-  if sitesdat.ReadBool('site-' + s, section + '-ranklock', False) = True then
-    exit;
-  Result := True;
-end;
-
-function FindSite(const s: String): Boolean; overload;
-begin
-  Result := False;
-  if sitesdat.ReadString('site-' + s, 'username', '') = '' then
-    exit;
-  if sitesdat.ReadBool('site-' + s, 'ranklock', False) = True then
-    exit;
-  Result := True;
 end;
 
 function NewAverage(const sitename, section: String): Integer;
