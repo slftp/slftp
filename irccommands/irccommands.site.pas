@@ -669,13 +669,7 @@ begin
           Continue;
 
         s := TSite(sites[i]);
-        s.markeddown := True;
-        s.WorkingStatus := sstDown;
-        s.markeddown := True;
-        s.RemoveAutoIndex;
-        s.RemoveAutoBnctest;
-        s.RemoveAutoRules;
-        QueueEmpty(s.Name);
+        s.WorkingStatus := sstMarkedAsDownByUser;
       end;
     end
     else
@@ -695,13 +689,7 @@ begin
         if (s.PermDown) then
           Continue;
 
-        s.markeddown := True;
-        s.WorkingStatus := sstDown;
-        s.markeddown := True;
-        s.RemoveAutoIndex;
-        s.RemoveAutoBnctest;
-        s.RemoveAutoRules;
-        QueueEmpty(s.Name);
+        s.WorkingStatus := sstMarkedAsDownByUser;
       end;
     end;
   finally
@@ -761,9 +749,9 @@ begin
     end;
 
     try
-      s.markeddown := True;
       s.WorkingStatus := sstDown;
-    except on E: Exception do
+    except
+      on E: Exception do
         irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
     end;
 

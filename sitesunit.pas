@@ -65,11 +65,12 @@ type
   @value(sstUnknown unknown (not yet connected) status)
   @value(sstUp reachable and usable (UP) status)
   @value(sstDown down status, no auto*tasks will be executed)
-  @value(sstTempDown marked as down because of temporary problems, auto*tasks will be executed)
-  @value(sstOutOfCredits no credits left)
-  @value(sstOutOfSpace no space left)
+  @value(sstTempDown marked as down by slftp because of temporary problems, only autobnctasks will try to execute)
+  @value(sstMarkedAsDownByUser marked as down by user, no auto*tasks will be executed)
+  @value(sstOutOfCredits no credits left - NOT USED! (yet))
+  @value(sstOutOfSpace no space left - NOT USED! (yet))
   }
-  TSiteStatus = (sstUnknown, sstUp, sstDown, sstTempDown, sstOutOfCredits, sstOutOfSpace);
+  TSiteStatus = (sstUnknown, sstUp, sstDown, sstTempDown, sstMarkedAsDownByUser, sstOutOfCredits, sstOutOfSpace);
 
   {
   @value(srNone Site to Site (s2s) SSL not needed)
@@ -290,7 +291,6 @@ type
     procedure SetDownSiteDueToCreditsOrSpace;
   public
     emptyQueue: boolean;
-    markeddown: boolean;
     siteinvited: boolean;
 
     ffreeslots: integer;
@@ -481,7 +481,7 @@ function sslMethodToString(aSite: TSite): String; overload;
 { Checks each sites @link(TSite.WorkingStatus) property and add it to a formated Stringlist for irc output
   Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
   @param(sitesup Stringlist for working (sstUp) sites)
-  @param(sitesdn Stringlist for down (sstDown) sites)
+  @param(sitesdn Stringlist for down (sstDown, sstTempDown, sstMarkedAsDownByUser) sites)
   @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
   @param(sitespd Stringlist for permdown (PermDown) sites) }
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
@@ -588,7 +588,7 @@ begin
 
     case s.WorkingStatus of
       sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
-      sstDown: sitesdn.Add('<b>' + s.Name + '</b>');
+      sstDown, sstTempDown, sstMarkedAsDownByUser: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
   end;
@@ -1584,14 +1584,14 @@ begin
     begin
       if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
       begin
-        site.WorkingStatus := sstDown;
+        site.WorkingStatus := sstTempDown;
         exit;
       end;
 
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
         irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
-        site.WorkingStatus := sstDown;
+        site.WorkingStatus := sstTempDown;
         exit;
       end;
 
@@ -1605,7 +1605,8 @@ begin
           exit;
         end;
       end;
-      site.WorkingStatus := sstDown;
+
+      site.WorkingStatus := sstTempDown;
     end;
   end;
 end;
@@ -2386,7 +2387,7 @@ begin
     case TSite(sites[i]).WorkingStatus of
       sstUnknown: Inc(unknown);
       sstUp: Inc(upsites);
-      sstDown: Inc(downsites);
+      sstDown, sstTempDown, sstMarkedAsDownByUser: Inc(downsites);
     end;
     Inc(allsites);
   end;
@@ -2412,7 +2413,6 @@ begin
 
     if Name = getAdminSiteName then
     begin
-      markeddown := False;
       Exit;
     end;
 
@@ -2420,7 +2420,6 @@ begin
       sstUp:
         begin
           irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
-          markeddown := False;
 
           if AutoNukeInterval <> 0 then
             AutoNuke;
@@ -2434,23 +2433,28 @@ begin
           if AutoDirlistInterval <> 0 then
             AutoDirlist;
         end;
-      sstDown:
+      sstDown, sstMarkedAsDownByUser:
         begin
           irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
-          // really down, remove all tasks even auto*tasks
 
-          //removeing all tasks for the site...
-          //    RemoveAutoIndex;
-          //    RemoveAutoBnctest;
-          //    RemoveAutoRules;
-          //    RemoveAutoNuke;
-          //    RemoveAutoDirlist;
+          // removeing all tasks for the site
+          RemoveAutoIndex;
+          RemoveAutoBnctest;
+          RemoveAutoRules;
+          RemoveAutoNuke;
+          RemoveAutoDirlist;
 
           QueueEmpty(Name);
         end;
       sstTempDown:
         begin
-          // just temp down, don't remove auto*tasks
+          irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
+
+          // just temp down, removeing all tasks except autobnctest
+          RemoveAutoIndex;
+          RemoveAutoRules;
+          RemoveAutoNuke;
+          RemoveAutoDirlist;
         end;
     end;
 
@@ -2573,11 +2577,7 @@ end;
 
 procedure TSite.SetDownSiteDueToCreditsOrSpace;
 begin
-  markeddown := True;
-  WorkingStatus := sstDown;
-  RemoveAutoIndex;
-  RemoveAutoBnctest; // maybe remove, so autobnctest will set it up again...or find a better solution than cycling
-  RemoveAutoRules;
+  WorkingStatus := sstTempDown;
 end;
 
 procedure TSite.SetOutofSpace;
