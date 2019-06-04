@@ -480,17 +480,16 @@ begin
   p := TPazo(kb_list.Objects[pazo_id]);
   p.Clear;
 
-  // p.AddSites; // ha kozben valamelyik site up lett...
   try
-    p.AddSitesForSpread; // with skippre check.
+    p.AddSites(True);
   except
     on E: Exception do
     begin
       Irc_AddText(Netname, Channel,
-        '<c4><b>ERROR</c></b>: IrcSpread.AddSitesForSpread: %s',
+        '<c4><b>ERROR</c></b>: IrcSpread.AddSites for Spread: %s',
         [e.Message]);
       Debug(dpError, section,
-        Format('[EXCEPTION] IrcSpread.AddSitesForSpread: %s',
+        Format('[EXCEPTION] IrcSpread.AddSites for Spread: %s',
         [e.Message]));
     end;
   end;
@@ -587,6 +586,7 @@ begin
           sstUnknown: sss := 'unknown';
           sstDown: sss := 'down';
           sstTempDown: sss := 'temp down';
+          sstMarkedAsDownByUser: sss := 'marked down by user';
           sstOutOfCredits: sss := 'out of credits';
           sstOutOfSpace: sss := 'out of space';
         end;
@@ -821,7 +821,7 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [srcsitename]);
     exit;
   end;
-  if srcsite.WorkingStatus = sstDown then
+  if not (srcsite.WorkingStatus in [sstUnknown, sstUp]) then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [srcsitename]);
     exit;
@@ -834,7 +834,7 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [dstsitename]);
     exit;
   end;
-  if dstsite.WorkingStatus = sstDown then
+  if not (dstsite.WorkingStatus in [sstUnknown, sstUp]) then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [dstsitename]);
     exit;
@@ -1356,7 +1356,7 @@ begin
     exit;
   end;
 
-  if ((site.WorkingStatus = sstUnknown) or (site.WorkingStatus = sstDown)) then
+  if (site.WorkingStatus in [sstUnknown, sstDown]) then
   begin
     TSiteSlot(site.slots.Items[site.slots.Count - 1]).ReLogin();
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is offline do a bnctest.... hand a sec!', [site.Name]);

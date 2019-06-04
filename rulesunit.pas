@@ -1625,9 +1625,9 @@ begin
   ps_s := FindSiteByName('', ps.Name);
   if ps_s = nil then
     exit;
-  if ps_s.WorkingStatus = sstDown then
-    exit;
   if ps_s.PermDown then
+    exit;
+  if not (ps_s.WorkingStatus in [sstUnknown, sstUp]) then
     exit;
 
   p.srcsite := ps.Name;
@@ -1667,7 +1667,7 @@ begin
           if dstps_s = nil then
             Continue;
 
-          if (dstps_s.WorkingStatus = sstDown) or (dstps_s.PermDown) then
+          if (not (dstps_s.WorkingStatus in [sstUnknown, sstUp])) or (dstps_s.PermDown) then
           begin
             if (dstps.reason = '') then
               dstps.reason := 'Down';

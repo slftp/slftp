@@ -136,7 +136,7 @@ type
     autodirlist: boolean;
     srcsite: String;
     dstsite: String;
-    rls: TRelease;
+    rls: TRelease; //< holds the information of @link(kb.TRelease) or its descendant
 
     stopped: boolean;
     ready: boolean;
@@ -145,7 +145,7 @@ type
     readyat: TDateTime;
     lastTouch: TDateTime;
 
-    sites: TObjectList;
+    sites: TObjectList; //< list of @link(TPazoSite) which passed checks of @link(AddSites) and are now part of this @link(TPazo)
     sl: TSkipList;
 
     added: TDateTime;
@@ -176,8 +176,13 @@ type
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
     function AddSite(const sitename, maindir: String; delay: boolean = True): TPazoSite;
-    function AddSites(): boolean;
-    function AddSitesForSpread(): boolean;
+    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.sites) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
+      @returns(@true if at least one site was added, @false otherwise) }
+    function AddSites: boolean; overload;
+    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.sites) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
+      @param(aIsSpreadJob Set it to @true if its a spread job for purpose of preeing (skips some checks), @false otherwise)
+      @returns(@true if at least one site was added, @false otherwise) }
+    function AddSites(const aIsSpreadJob: boolean): boolean; overload;
     function PFileSize(const dir, filename: String): Int64;
     function PRegisterFile(const dir, filename: String; const filesize: Int64): integer;
   end;
@@ -1137,8 +1142,12 @@ begin
   end;
 end;
 
-// TODO: Add a calling value to skip skippre, don't respect delaysetup (not needed for spreading) and remove AddSitesForSpread() then.
 function TPazo.AddSites: boolean;
+begin
+  Result := AddSites(False);
+end;
+
+function TPazo.AddSites(const aIsSpreadJob: boolean): boolean;
 var
   s: TSite;
   i: integer;
@@ -1149,18 +1158,16 @@ begin
   for i := sitesunit.sites.Count - 1 downto 0 do
   begin
     try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-
-    try
       s := TSite(sitesunit.sites[i]);
-      if s.WorkingStatus = sstDown then
+      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
         Continue;
       if s.PermDown then
         Continue;
+      if aIsSpreadJob then
+      begin
+        if s.SkipPre then
+          Continue;
+      end;
 
       sectiondir := s.sectiondir[rls.section];
       if (sectiondir = '') then
@@ -1171,67 +1178,42 @@ begin
       if FindSite(s.Name) <> nil then
         Continue;
 
-      if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
+      if not aIsSpreadJob then
       begin
-        if not (DateTimeToUnix(rls.pretime) <> 0) then
-          Continue;
+        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
+        begin
+          if not (DateTimeToUnix(rls.pretime) <> 0) then
+            Continue;
 
-        if not (s.IsPretimeOk(rls.section, rls.pretime)) then
-          Continue;
+          if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+            Continue;
+        end;
       end;
 
       ps := TPazoSite.Create(self, s.Name, sectiondir);
-      ps.status := rssNotAllowed;
-      ps.DelaySetup;
+      if aIsSpreadJob then
+      begin
+        ps.status := rssAllowed;
+        // delaysetup not needed for spreading
+      end
+      else
+      begin
+        ps.status := rssNotAllowed;
+        ps.DelaySetup;
+      end;
+
       if s.IsAffil(rls.groupname) then
       begin
         Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
         ps.status := rssShouldPre;
       end;
-      sites.Add(ps);
 
-      Result := True;
+      sites.Add(ps);
     except
       Continue;
     end;
-  end;
-end;
 
-// just a copy of AddSites, but only for spread, to use skippre value...
-// maybe we can add it to AddSite, but i dont wanna messup any dev. of _xp :)
-function TPazo.AddSitesForSpread: boolean;
-var
-  s: TSite;
-  i: integer;
-  sectiondir: String;
-  ps: TPazoSite;
-begin
-  Result := False;
-  for i := 0 to sitesunit.sites.Count - 1 do
-  begin
-    s := TSite(sitesunit.sites[i]);
-    if s.SkipPre then
-      Continue;
-    if s.WorkingStatus = sstDown then
-      Continue;
-    if s.PermDown then
-      Continue;
-
-    sectiondir := s.sectiondir[rls.section];
-    if ((sectiondir <> '') and (nil = FindSite(s.Name))) then
-    begin
-      sectiondir := DatumIdentifierReplace(sectiondir);
-      ps := TPazoSite.Create(self, s.Name, sectiondir);
-      ps.status := rssAllowed; //rssNotAllowed;
-      if s.IsAffil(rls.groupname) then
-      begin
-        Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
-        ps.status := rssShouldPre;
-      end;
-      sites.Add(ps);
-
-      Result := True;
-    end;
+    Result := True;
   end;
 end;
 

@@ -59,7 +59,7 @@ begin
   if not ((s.site.WorkingStatus = sstUp) and (readd)) then
   begin
     // site is not up, we have to try to login
-    if ((not readd) or (not s.site.markeddown)) then
+    if ((not readd) or (not (s.site.WorkingStatus in [sstMarkedAsDownByUser]))) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);
