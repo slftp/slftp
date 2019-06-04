@@ -205,7 +205,7 @@ begin
     exit;
   end;
 
-  if s.site.WorkingStatus = sstDown then
+  if not (s.site.WorkingStatus in [sstUnknown, sstUp, sstMarkedAsDownByUser]) then
   begin
     ReAddTask();
     readyerror := True;
