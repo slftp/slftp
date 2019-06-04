@@ -91,14 +91,14 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites[i]);
-      if s.markeddown then
-      begin
-        irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.', [s.Name]);
-        Continue;
-      end;
       if (s.PermDown) then
       begin
         irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.', [s.Name]);
+        Continue;
+      end;
+      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
+      begin
+        irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.', [s.Name]);
         Continue;
       end;
 

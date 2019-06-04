@@ -71,7 +71,7 @@ begin
   end;
 
 TryAgain:
-  if s.site.WorkingStatus = sstDown then
+  if not (s.site.WorkingStatus in [sstUnknown, sstUp, sstMarkedAsDownByUser]) then
   begin
     RetryNextTime();
     readyerror := True;
