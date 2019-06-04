@@ -17,12 +17,14 @@ type
     procedure TestIsANumber;
     procedure TestOccurrencesOfNumbers;
     procedure TestDatumIdentifierReplace;
+    procedure TestSplitString;
+    procedure TestMyDateToStr;
   end;
 
 implementation
 
 uses
-  SysUtils, mystrings;
+  SysUtils, Classes, DateUtils, mystrings;
 
 { TTestMyStrings }
 
@@ -87,6 +89,44 @@ begin
   CheckEquals('/inc/mp3/2017/01/02/', DatumIdentifierReplace('/inc/mp3/<yyyy>/<mm>/<dd>/', fDateTime));
   CheckEquals('/inc/mp3/17/01/02/', DatumIdentifierReplace('/inc/mp3/<yy>/<mm>/<dd>/', fDateTime));
   CheckEquals('/inc/mvid/17/01/', DatumIdentifierReplace('/inc/mvid/<yy>/<ww>/', fDateTime));
+end;
+
+procedure TTestMyStrings.TestSplitString;
+var
+  fOutStrList, fExpectedResultList: TStringList;
+  fInputStr: String;
+  i: Integer;
+begin
+  fOutStrList := TStringList.Create;
+  try
+    fExpectedResultList := TStringList.Create;
+    try
+      fInputStr := 'this:is just:a:simple:UNIT:test for mystrings';
+      fExpectedResultList.CommaText := 'this, "is just", a, simple, UNIT, "test for mystrings"';
+
+      SplitString(fInputStr, ':', fOutStrList);
+
+      CheckEquals(fExpectedResultList.Count, fOutStrList.Count, 'Count of stringlist differs');
+
+      for i := 0 to fExpectedResultList.Count - 1 do
+        CheckEquals(fExpectedResultList[i], fOutStrList[i], fExpectedResultList[i] + '<>' + fOutStrList[i]);
+    finally
+      fExpectedResultList.Free;
+    end;
+  finally
+    fOutStrList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestMyDateToStr;
+var
+  fDateTime: TDateTime;
+begin
+  fDateTime := EncodeDateTime(2018, 10, 29, 13, 15, 31, 0); // 29/10/2018 13:15:31:0
+  CheckEquals('2018-10-29 13:15:31', MyDateToStr(fDateTime));
+
+  fDateTime := EncodeDateTime(2019, 6, 2, 3, 56, 8, 13); // 2/6/2019 3:56:8:31
+  CheckEquals('2019-06-02 03:56:08', MyDateToStr(fDateTime));
 end;
 
 initialization

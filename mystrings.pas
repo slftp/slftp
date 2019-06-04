@@ -45,19 +45,20 @@ uses Classes;
 function onlyEnglishAlpha(const S: String): String;
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 
-{
-  Normal RTL function RightStr('Hello, world!', 5): 'orld!''
-  This function RightStr('Hello, world!', 5): ', world!'
-}
+{ Normal RTL function RightStr('Hello, world!', 5): 'orld!''
+  This function RightStr('Hello, world!', 5): ', world!' }
 function RightStr(const Source: String; Count: integer): String;
 function SubString(const s, seperator: String; index: integer): String;
 function Count(const mi, miben: String): integer;
 function RPos(const SubStr: Char; const Str: String): integer;
 function MyStrToTime(const x: String): TDateTime;
-function MyDateToStr(x: TDateTime): String;
-function MyStrToDate(x: String): TDateTime;
-function myStrToFloat(s: String): double; overload;
-function myStrToFloat(s: String; def: double): double; overload;
+
+{ Converts input Datetime to String with 'yyyy-mm-dd hh:nn:ss' formatting
+  @param(x input TDateTime)
+  @returns(String formatted as 'yyyy-mm-dd hh:nn:ss') }
+function MyDateToStr(const x: TDateTime): String;
+function MyStrToDate(const x: String): TDateTime;
+function myStrToFloat(s: String; const def: double): double;
 function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
 
@@ -104,7 +105,12 @@ function Elsosor(var osszes: String): String;
   @param(aDatum datetime value or if zero, uses Now() to create current time value)
   @returns(replaced datum identifier string with given paramters) }
 function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0): String;
-procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
+
+{ Clears Stringlist @link(Dest) and splits @link(Source) by @link(Delimiter) to add each String separately to Stringlist
+  @param(Source String which should be splitted)
+  @param(Delimiter String which should be used to split @link(Source))
+  @param(Dest Stringlist with the separated Strings from @link(Source)) }
+procedure SplitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
 implementation
 
@@ -175,7 +181,7 @@ begin
   until False;
 end;
 
-function MyDateToStr(x: TDateTime): String;
+function MyDateToStr(const x: TDateTime): String;
 begin
   Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', x);
 end;
@@ -189,7 +195,7 @@ begin
   Result := EncodeTime(h, m, 0, 0);
 end;
 
-function MyStrToDate(x: String): TDateTime;
+function MyStrToDate(const x: String): TDateTime;
 var
   y, m, d, h, mm, s: integer;
 begin
@@ -203,7 +209,7 @@ begin
     Result := 0;
 end;
 
-function myStrToFloat(s: String; def: double): double;
+function myStrToFloat(s: String; const def: double): double;
 var
   x: String;
   d: integer;
@@ -227,11 +233,6 @@ begin
       Result := Result + e * StrToIntDef(x, 0) / Power(10, length(x));
     end;
   end;
-end;
-
-function myStrToFloat(s: String): double;
-begin
-  Result := myStrToFloat(s, -1);
 end;
 
 function MyCopy(b: array of byte; index, len: integer): String;
@@ -658,7 +659,7 @@ end;
 
 {$WARNINGS ON}
 
-procedure splitString(const Source: String; const Delimiter: String; const Dest: TStringList);
+procedure SplitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 var
   Count: integer;
   LStartpos, LEndepos, LSourcelength: integer;
@@ -675,7 +676,7 @@ begin
     if copy(Source, Count, LDelimiterLength) = Delimiter then
     begin
       LEndepos := Count;
-      dest.Add(Trim(copy(Source, LStartpos + 1, LEndepos - LStartpos - 1)));
+      Dest.Add(Trim(copy(Source, LStartpos + 1, LEndepos - LStartpos - 1)));
       LStartpos := Count + LDelimiterLength - 1;
       Inc(Count, LDelimiterLength);
     end
@@ -685,7 +686,7 @@ begin
     end;
   end;
   if LEndePos <> Count - LDelimiterLength then
-    dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
+    Dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
 end;
 
 function onlyEnglishAlpha(const S: String): String;
