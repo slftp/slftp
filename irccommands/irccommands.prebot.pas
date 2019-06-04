@@ -178,36 +178,44 @@ begin
     begin
       ps := TPazoSite(p.sites[i]);
       s  := FindSiteByName(netname, ps.Name);
+      if s = nil then
+      begin
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
+        Continue;
+      end;
+
       if s.Name = getAdminSiteName then
-        continue;
+        Continue;
+
+      if (s.PermDown) then
+      begin
+        irc_addtext(Netname, Channel, '<c10><b>DEBUG</c></b>: %s is perm down!', [ps.Name]);
+        Continue;
+      end;
+
+      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
+      begin
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
+        Continue;
+      end;
 
       if s.SkipPre then
       begin
         irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [ps.Name]);
-        continue;
+        Continue;
       end;
-
-
-      if s = nil then
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
-
-      if s.markeddown then
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
 
       if ps.status = rssNotAllowed then
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s status is NotAllowed', [ps.Name]);
-
-
-
-      if ((s <> nil) and (not s.markeddown) and (ps.status <> rssNotAllowed)) then
       begin
-        r := TDirlistTask.Create(netname, channel, ps.Name,
-          MyIncludeTrailingSlash(ps.maindir) + dir);
-        // r.announce:= ps.name+' dirlist ready...'; // we dont want this anymore because of the lag
-        tn.tasks.Add(r);
-        AddTask(r);
-        Inc(addednumber);
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s status is NotAllowed', [ps.Name]);
+        Continue;
       end;
+
+      r := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(ps.maindir) + dir);
+      // r.announce:= ps.name+' dirlist ready...'; // we dont want this anymore because of the lag
+      tn.tasks.Add(r);
+      AddTask(r);
+      Inc(addednumber);
     end;
 
     QueueFire;
@@ -487,7 +495,7 @@ begin
         Continue;
       end;
 
-      if s.markeddown then
+      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
       begin
         irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is marked as down!', [ps.Name]);
         exit;
@@ -499,7 +507,7 @@ begin
         exit;
       end;
 
-      if (s <> nil) and (not s.markeddown) and (ps.status <> rssNotAllowed) then
+      if (s <> nil) and (not (s.WorkingStatus in [sstMarkedAsDownByUser])) and (ps.status <> rssNotAllowed) then
       begin
         if (s.sectiondir[section] = '') then
         begin
@@ -543,7 +551,6 @@ begin
             s := FindSiteByName(netname, ps.Name);
             if ((s <> nil) and (s.WorkingStatus = sstUp)) then
               Break;
-            //          s:= nil;
           end;
         end;
 
@@ -594,7 +601,7 @@ begin
         continue;
       end;
 
-      if s.markeddown then
+      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
       begin
         irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is marked as down!', [ps.Name]);
         exit;
@@ -606,7 +613,7 @@ begin
         exit;
       end;
 
-      if ((s <> nil) and (ps.status <> rssNotAllowed) and (not s.markeddown)) then
+      if ((s <> nil) and (ps.status <> rssNotAllowed) and (not (s.WorkingStatus in [sstMarkedAsDownByUser]))) then
       begin
         try
           rc := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(s.sectiondir[section]), True);
@@ -975,17 +982,15 @@ var
           begin
             if site.PermDown then
             begin
-              irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' perm. down, skipping bnctest!</c>');
+              irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' perm down, skipping bnctest!</c>');
               Continue;
             end;
-            {
-            * might be done automatically for several reasons but site works again now
-            if site.markeddown then
+            if (site.WorkingStatus in [sstMarkedAsDownByUser]) then
             begin
               irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' is marked as down, skipping bnctest!</c>');
               Continue;
             end;
-            }
+
             ps := p.FindSite(site.Name);
             if ((ps <> nil) and (ps.status = rssNotAllowed)) then
               continue;
@@ -1263,8 +1268,7 @@ begin
       irc_addtext(Netname, Channel, 'Adding Task for: %s', [s.Name]);
       try
 
-        r := TDelreleaseTask.Create(Netname, Channel, s.Name, MyIncludeTrailingSlash(predir) +
-          dir);
+        r := TDelreleaseTask.Create(Netname, Channel, s.Name, MyIncludeTrailingSlash(predir) + dir);
         tn := AddNotify;
         tn.tasks.Add(r);
         AddTask(r);
@@ -1315,8 +1319,7 @@ begin
     irc_addtext(Netname, Channel, 'Adding Task for: %s', [s.Name]);
 
     try
-      r := TDelreleaseTask.Create(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) +
-        dir);
+      r := TDelreleaseTask.Create(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
       tn := AddNotify;
       tn.tasks.Add(r);
       AddTask(r);

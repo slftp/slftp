@@ -868,7 +868,7 @@ begin
           exit;
         end;
 
-        if (s.markeddown) then
+        if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
         begin
           irc_Addstats(Format('<c4>[SITE DOWN]</c> : %s %s @ <b>%s</b>', [section, rls, sitename]));
           exit;
@@ -889,13 +889,13 @@ begin
           end;
         end;
 
-        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not s.markeddown) and (s.WorkingStatus <> sstDown)) then
+        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not (s.WorkingStatus in [sstDown, sstMarkedAsDownByUser]))) then
         begin
           irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
         end;
       end;
 
-      if ((s <> nil) and (not s.markeddown) and (not s.PermDown) and (s.WorkingStatus = sstDown) and ((event = 'COMPLETE') or (event = 'PRE'))) then
+      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and ((event = 'COMPLETE') or (event = 'PRE'))) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -911,7 +911,7 @@ begin
     end;
 
     s := FindSiteByName(netname, psource.Name);
-    if ((s <> nil) and (s.markeddown)) then
+    if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
 
     psource.ircevent := True;

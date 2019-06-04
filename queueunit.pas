@@ -535,7 +535,8 @@ begin
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
-        s.markeddown := False;
+
+        s.WorkingStatus := sstUp;
         debug(dpMessage, section, '%s IS UP', [t.site1]);
       end;
       t.ready := True;
@@ -1477,7 +1478,7 @@ begin
           try
             if ((s.todotask = nil) and (s.status = ssOnline)) then
             begin
-              if ((s.site.markeddown) or ((s.site.maxidle <> 0) and
+              if ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
                 (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000))) then
               begin
                 AddQuitTask(s);
