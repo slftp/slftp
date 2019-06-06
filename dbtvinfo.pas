@@ -1095,7 +1095,7 @@ begin
         if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
           irc_SendUPDATE(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
 
-        kb_Add('', '', ps.Name, p.rls.section, '', 'UPDATE', p.rls.rlsname, '');
+        kb_Add('', '', ps.Name, p.rls.section, '', kbeUPDATE, p.rls.rlsname, '');
       except
         on e: Exception do
         begin

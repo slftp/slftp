@@ -110,7 +110,7 @@ begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
   extra := mystrings.RightStr(params, length(section) + length(rls) + 2);
-  kb_Add(Netname, Channel, '', section, extra, 'NEWDIR', rls, '', True);
+  kb_Add(Netname, Channel, '', section, extra, kbeNEWDIR, rls, '', True);
 
   Result := True;
 end;
@@ -118,6 +118,7 @@ end;
 function IrcKbAdd(const netname, channel, params: String): boolean;
 var
   sitename, event, section, rls_section, rls: String;
+  kb_event: TKBEventType;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
   event := UpperCase(SubString(params, ' ', 2));
@@ -137,22 +138,36 @@ begin
   end;
 
   // add to kb
-  kb_Add(Netname, Channel, sitename, rls_section, '', event, rls, '');
-  if event = 'NEWDIR' then
-    irc_addtext(Netname, Channel, format('<c2>-> [KB]</c> %s %s %s @ %s',
-      [event, rls_section, rls, '<b>' + sitename + '</b>']));
-  if event = 'PRE' then
-    irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
-      [event, rls_section, rls, '<b>' + sitename + '</b>']));
-  if event = 'ADDPRE' then
-    irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
-      [event, rls_section, rls, '<b>' + sitename + '</b>']));
-  if event = 'COMPLETE' then
-    irc_addtext(Netname, Channel, format('<c7><- [KB]</c> %s %s %s @ %s',
-      [event, rls_section, rls, '<b>' + sitename + '</b>']));
-  if event = 'NUKE' then
-    irc_addtext(Netname, Channel, format('<c4>-- [KB]</c> %s %s %s @ %s',
-      [event, rls_section, rls, '<b>' + sitename + '</b>']));
+  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+  kb_Add(Netname, Channel, sitename, rls_section, '', kb_event, rls, '');
+
+  case kb_event of
+    kbeNEWDIR:
+      begin
+        irc_addtext(Netname, Channel, format('<c2>-> [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
+    kbePRE:
+      begin
+        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
+    kbeADDPRE:
+      begin
+        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
+    kbeCOMPLETE:
+      begin
+        irc_addtext(Netname, Channel, format('<c7><- [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
+    kbeNUKE:
+      begin
+        irc_addtext(Netname, Channel, format('<c4>-- [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
+  end;
 
   Result := True;
 end;

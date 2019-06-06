@@ -384,11 +384,14 @@ end;
 procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: String; ts_data: TStringList);
 var
   genre, s, oldsection: String;
+  kb_event: TKBEventType;
 begin
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 
-  if event <> 'REQUEST' then
+  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+
+  if (kb_event <> kbeREQUEST) then
   begin
 
     if CheckIfGlobalSkippedGroup(rls) then
@@ -444,18 +447,15 @@ begin
     Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
   end;
 
-  if ((section = '') AND (event <> 'COMPLETE') AND (event <> 'NUKE')) then
+  if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
   begin
     irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
     MyDebug('No section?! ' + sitename + '@' + rls);
     exit;
   end;
 
-  if (event = '') then
-    event := 'NEWDIR';
-
   genre := '';
-  if ((event <> 'NEWDIR') and (FindSectionHandler(section).Name = 'TMP3Release')) then
+  if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
     // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
     // remove rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
@@ -478,7 +478,7 @@ begin
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
-      kb_Add('', '', sitename, section, genre, event, rls, '');
+      kb_Add('', '', sitename, section, genre, kb_event, rls, '');
     except
       on e: Exception do
       begin

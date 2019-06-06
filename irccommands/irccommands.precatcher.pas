@@ -14,7 +14,7 @@ function IrcDisplayMappings(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, precatcher, irc, ircchansettings, sitesunit, mystrings;
+  SysUtils, Classes, Contnrs, precatcher, irc, ircchansettings, sitesunit, mystrings, kb;
 
 const
   section = 'irccommands.precatcher';
@@ -81,6 +81,7 @@ end;
 function IrcPreadd(const netname, channel, params: String): boolean;
 var
   sitename, nn, channelname, botnicks, event, words, section: String;
+  kb_event: TKBEventType;
 begin
   Result := False;
 
@@ -92,7 +93,9 @@ begin
   words := SubString(params, ' ', 6);
   section := SubString(params, ' ', 7);
 
-  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and (event <> 'NUKE') and (event <> 'REQUEST')) then
+  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+
+  if (not (kb_event in [kbePRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;
@@ -165,6 +168,7 @@ end;
 function IrcCatchMod(const netname, channel, params: String): boolean;
 var
   index, sitename, nn, channelname, botnicks, event, words, section: String;
+  kb_event: TKBEventType;
 begin
   Result := False;
   index := UpperCase(SubString(params, ' ', 1));
@@ -182,8 +186,9 @@ begin
     Exit;
   end;
 
-  if ((event <> 'PRE') and (event <> 'COMPLETE') and (event <> 'NEWDIR') and
-    (event <> 'NUKE') and (event <> 'REQUEST')) then
+  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+
+  if (not (kb_event in [kbePRE, kbeCOMPLETe, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;

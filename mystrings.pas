@@ -39,6 +39,17 @@ interface
 
 uses Classes;
 
+type
+  // from http://softwareonastring.com/147/how-to-store-enums-without-losing-your-coding-freedom
+  TEnum<T> = class(TObject)
+  public
+    // Use reintroduce to prevent compiler complaint about hiding virtual method from
+    // TObject. Breaking polymorphism like this is no problem here, because we dont
+    // need polymorphism for this class.
+    class function ToString(const aEnumValue: T): string; reintroduce;
+    class function FromString(const aEnumString: string; const aDefault: T): T;
+  end;
+
 { Remove all non/special characters from String
   @param(S String which should be cleaned)
   @returns(String which only contains characters as [a-z] or [A-Z]) }
@@ -115,7 +126,7 @@ procedure SplitString(const Source: String; const Delimiter: String; const Dest:
 implementation
 
 uses
-  SysUtils, Math, StrUtils,
+  SysUtils, Math, StrUtils, typinfo, rtti,
   {$IFDEF MSWINDOWS}
     registry, Windows,
   {$ENDIF}
@@ -701,6 +712,38 @@ begin
       Result := Result + S[i];
     end;
   end;
+end;
+
+class function TEnum<T>.ToString(const aEnumValue: T): string;
+begin
+  Assert(PTypeInfo(TypeInfo(T)).Kind = tkEnumeration,
+    'Type parameter must be an enumeration');
+{$IFDEF FPC}
+  Result := GetEnumName(TypeInfo(T), integer(aEnumValue));
+{$ELSE}
+  Result := GetEnumName(TypeInfo(T), TValue.From<T>(aEnumValue).AsOrdinal);
+{$ENDIF}
+end;
+
+class function TEnum<T>.FromString(const aEnumString: string; const aDefault: T): T;
+var
+  OrdValue: Integer;
+begin
+  Assert(PTypeInfo(TypeInfo(T)).Kind = tkEnumeration,
+    'Type parameter must be an enumeration');
+
+  OrdValue := GetEnumValue(TypeInfo(T), aEnumString);
+{$IFDEF FPC}
+  if OrdValue > -1 then
+    Result := T(OrdValue)
+  else
+    Result := aDefault;
+{$ELSE}
+  if OrdValue < 0 then
+    Result := aDefault
+  else
+    Result := TValue.FromOrdinal(TypeInfo(T), OrdValue).AsType<T>;
+{$ENDIF}
 end;
 
 end.

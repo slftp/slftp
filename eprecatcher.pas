@@ -66,6 +66,7 @@ procedure TEPrecatcherThread.Execute;
 var
   ss: String;
   sitename, section, genre, event, rls, cdno: String;
+  kb_event: TKBEventType;
 begin
 
   while(true) do
@@ -93,10 +94,12 @@ begin
     rls:= Fetch(ss, '|', True, False);
     cdno:= Fetch(ss, '|', True, False);
 
+    kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+
     kb_add(
       '',
       '',
-      sitename, section, genre, event, rls, cdno
+      sitename, section, genre, kb_event, rls, cdno
     );
   end;
 
