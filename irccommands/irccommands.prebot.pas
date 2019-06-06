@@ -161,7 +161,7 @@ begin
       exit;
     end;
 
-    kb_Add(netname, channel, sitename, section, '', 'COMPLETE', dir, '', True);
+    kb_Add(netname, channel, sitename, section, '', kbeCOMPLETE, dir, '', True);
     i := kb_list.IndexOf(section + '-' + dir);
     if i = -1 then
     begin
@@ -956,7 +956,7 @@ var
 
       queue_lock.Enter;
       try
-        i := kb_add(netname, channel, sitename, section, '', 'NEWDIR', dir, '', True, False);
+        i := kb_add(netname, channel, sitename, section, '', kbeNEWDIR, dir, '', True, False);
       finally
         queue_lock.Leave;
       end;
@@ -1389,7 +1389,7 @@ begin
     exit;
   end;
 
-  pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR', dir, '', True);
+  pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', True);
   if pazo_id = -1 then
   begin
     exit;

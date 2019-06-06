@@ -252,7 +252,7 @@ ujra:
   if regiono = 'PAL' then mvr.mvid_pal := True;
   if regiono = 'NTSC' then mvr.mvid_ntsc := True;
 
-  kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'NEWDIR', mainpazo.rls.rlsname, '');
+  kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, kbeNEWDIR, mainpazo.rls.rlsname, '');
 
   Result := True;
   ready := True;

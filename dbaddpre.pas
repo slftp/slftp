@@ -32,7 +32,7 @@ type
     destructor Destroy; override;
   end;
 
-function dbaddpre_ADDPRE(const netname, channel, nickname: String; const params: String; const event: String): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
 function dbaddpre_GetRlz(const rls: String): TDateTime;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
 function dbaddpre_GetCount: integer;
@@ -340,7 +340,7 @@ begin
 
 end;
 
-function kb_Add_addpre(const rls, section, event: String): integer;
+function kb_Add_addpre(const rls, section: String; event: TKBEventType): integer;
 var
   rls_section: String;
   fSection: String;
@@ -366,7 +366,7 @@ begin
   Result := kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
 end;
 
-function dbaddpre_ADDPRE(const netname, channel, nickname: String; const params: String; const event: String): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
 var
   rls: String;
   rls_section: String;
@@ -382,7 +382,7 @@ begin
     if dbaddpre_mode <> apmNone then
       dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
 
-    if ((event = 'ADDPRE') and (kbadd_addpre)) or ((event = 'SITEPRE') and (kbadd_sitepre)) then
+    if ((event = kbeADDPRE) and (kbadd_addpre)) or ((event = kbeSITEPRE) and (kbadd_sitepre)) then
     begin
       kb_entry := FindReleaseInKbList('-' + rls);
 
@@ -655,7 +655,7 @@ begin
     try
       last_addpre_lock.Enter;
       try
-        dbaddpre_ADDPRE(net, chan, nick, msg, 'ADDPRE');
+        dbaddpre_ADDPRE(net, chan, nick, msg, kbeADDPRE);
       finally
         last_addpre_lock.Leave;
       end;

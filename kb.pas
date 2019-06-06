@@ -37,9 +37,22 @@ unit kb;
 
 interface
 
-uses Classes, SyncObjs, encinifile, IniFiles, knowngroups;
+uses Classes, SyncObjs, encinifile, IniFiles, knowngroups, typinfo;
 
 type
+  {
+  @value(kbeUNKNOWN UNKNOWN event, for anything we don't know or handle)
+  @value(kbePRE PRE event, triggered by new pres on sites)
+  @value(kbeNEWDIR NEWDIR event, triggered by new races on sites)
+  @value(kbeCOMPLETE COMPLETE event, triggered by completed races on sites)
+  @value(kbeREQUEST REQUEST event, triggered by requests on sites)
+  @value(kbeNUKE NUKE event, triggered by nukes on sites)
+  @value(kbeADDPRE ADDPRE event, ???)
+  @value(kbeSITEPRE SITEPRE event, ???)
+  @value(kbeUPDATE UPDATE event, triggered to re-check rules and routes)
+  }
+  TKBEventType = (kbeUNKNOWN, kbePRE, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeSITEPRE, kbeUPDATE);
+
   TRelease = class
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -51,7 +64,7 @@ type
     groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
     internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
-    kb_event: String;
+    kb_event: TKBEventType;
     languages: TStringList;
 
     legnagyobbcd: integer;
@@ -62,7 +75,7 @@ type
     fake: boolean;
     fakereason: String;
 
-    event: String;
+    event: TKBEventType;
 
     pretime: TDateTime;
     cpretime: int64;
@@ -249,7 +262,7 @@ type
   end;
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
-function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
@@ -268,6 +281,18 @@ function kb_reloadsections: boolean;
   @param(aRlz releasename)
   @returns(Groupname from input @link(aRlz)) }
 function GetGroupname(const aRlz: String): String;
+
+{ Converts a stringified event to a real KB Event
+  @param(aEvent event name as a string)
+  @param(aDefault default kb event if the string can't be converted to a kb event)
+  @returns(TKBEventType from input @link(aEvent), defaulting to @link(aDefault)
+    if @link(aEvent) can't be turned into a known event.) }
+function EventToTKBEventType(const aEvent: string; const aDefault: TKBEventType): TKBEventType;
+
+{ Converts a KB event to a readable string representation
+  @param(aEvent the kb event entry)
+  @returns(Eventname as a string) }
+function KBEventTypeToString(const aEvent: TKBEventType): String;
 
 var
   kb_sections: TStringList;
@@ -334,6 +359,17 @@ var
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
+
+
+function EventToTKBEventType(const aEvent: string; const aDefault: TKBEventType): TKBEventType;
+begin
+  Result := TEnum<TKBEventType>.FromString('kbe' + aEvent, aDefault);
+end;
+
+function KBEventTypeToString(const aEvent: TKBEventType): String;
+begin
+  Result := ReplaceText(TEnum<TKBEventType>.ToString(aEvent), 'kbe', '');
+end;
 
 function FindSectionHandler(const section: String): TCRelease;
 var
@@ -435,7 +471,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -523,7 +559,7 @@ var
   end;
 
 begin
-  debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, event, rls, cdno, integer(dontFire), integer(forceFire)]);
+  debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
 
@@ -666,7 +702,7 @@ begin
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
     begin
-      if event = 'NUKE' then
+      if (event = kbeNUKE) then
       begin
         // nuking an old rls not in kb
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
@@ -674,7 +710,7 @@ begin
         exit;
       end;
 
-      if event = 'COMPLETE' then
+      if (event = kbeCOMPLETE) then
       begin
         // complet an old rls not in kb
         irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
@@ -684,11 +720,11 @@ begin
 
       debug(dpSpam, rsections,
         'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
-        [event, rls, section]);
+        [KBEventTypeToString(event), rls, section]);
 
       // uj joveveny!
       rc := FindSectionHandler(section);
-      if event = 'PRE' then
+      if (event = kbePRE) then
       begin
         // no fakecheck needed, it's a pre from one of our sites
         r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
@@ -747,12 +783,12 @@ begin
       end;
 
       // announce event on admin chan
-      if (event = 'ADDPRE') then
+      if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
           irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
       end
-      else if (event = 'PRE') then
+      else if (event = kbePRE) then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
@@ -781,7 +817,7 @@ begin
     end
     else
     begin
-      if (event = 'PRE') then
+      if (event = kbePRE) then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
@@ -793,7 +829,7 @@ begin
 
       debug(dpSpam, rsections,
         'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
-        [event, rls, section]);
+        [KBEventTypeToString(event), rls, section]);
 
       if r.rlsname <> rls then
       begin
@@ -849,7 +885,7 @@ begin
     exit;
   end;
 
-  if (event <> 'ADDPRE') then
+  if (event <> kbeADDPRE) then
   begin
     psource := p.FindSite(sitename);
     if psource = nil then
@@ -859,7 +895,7 @@ begin
       // site not found in pazo but we got an event ...
       if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
       begin
-        if event = 'NUKE' then
+        if (event = kbeNUKE) then
           exit;
 
         if (s = nil) then
@@ -891,11 +927,11 @@ begin
 
         if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not (s.WorkingStatus in [sstDown, sstMarkedAsDownByUser]))) then
         begin
-          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, event]));
+          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
         end;
       end;
 
-      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and ((event = 'COMPLETE') or (event = 'PRE'))) then
+      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and (event in [kbeCOMPLETE, kbePRE])) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -921,7 +957,7 @@ begin
       psource.ts := ts;
     end;
 
-    if event = 'PRE' then
+    if (event = kbePRE) then
     begin
       if 1 <> Pos('PRE', section) then
       begin
@@ -934,13 +970,13 @@ begin
       r.PredOnAnySite := True;
       psource.Status := rssRealPre;
     end
-    else if ((event = 'COMPLETE') and (not psource.StatusRealPreOrShouldPre)) then
+    else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
       psource.dirlist.SetCompleteInfoFromIrc;
       psource.SetComplete(cdno);
     end;
 
-    if event = 'NUKE' then
+    if (event = kbeNUKE) then
     begin
       psource.Status := rssNuked;
       irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ <b>%s</b>',
@@ -967,7 +1003,7 @@ begin
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
-  if ((event <> 'NUKE') and (event <> 'ADDPRE')) then
+  if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
     kb_lock.Enter;
     try
@@ -983,12 +1019,12 @@ begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
-          [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
+          [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
       else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
-          [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, event]));
+          [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end;
     end;
   end;
@@ -1060,7 +1096,7 @@ begin
 
   // now add dirlist
   try
-    if ((event = 'NEWDIR') or (event = 'PRE') or (event = 'ADDPRE') or (event = 'UPDATE')) then
+    if (event in [kbeNEWDIR, kbePRE, kbeADDPRE, kbeUPDATE]) then
     begin
       for i := p.sites.Count - 1 downto 0 do
       begin
@@ -1081,7 +1117,7 @@ begin
           end;
 
           // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> 'UPDATE') then
+          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
             Continue;
 
           // Source site is PRE site for this group
@@ -1089,7 +1125,7 @@ begin
           begin
             r.PredOnAnySite := True;
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, event]));
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
@@ -1098,7 +1134,7 @@ begin
           if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
           begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, event]));
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt);
           end;
@@ -1117,11 +1153,11 @@ begin
   end;
 
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
-    [sitename, section, genre, event, rls, cdno, integer(dontFire),
+    [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre, event, rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -1129,8 +1165,6 @@ begin
   if (Trim(section) = '') then
     exit;
   if (Trim(rls) = '') then
-    exit;
-  if (Trim(event) = '') then
     exit;
   if section = 'TRASH' then
     exit;
@@ -1145,11 +1179,11 @@ begin
 
   try
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
-      [event, section, rls, sitename, genre, cdno]));
+      [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
     Result := kb_AddB(netname, channel, sitename, section, genre,
       event, rls, cdno, dontFire, forceFire, ts);
     Debug(dpMessage, 'kb', '<-- ' + Format('%s: %s %s @ %s (%s%s)',
-      [event, section, rls, sitename, genre, cdno]));
+      [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
   except
     on E: Exception do
     begin
@@ -2365,12 +2399,13 @@ function GetKbPazo(p: TPazo): String;
 begin
   Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
-    IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + p.rls.kb_event;
+    IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + KBEventTypeToString(p.rls.kb_event);
 end;
 
 procedure AddKbPazo(const line: String);
 var
-  section, rlsname, extra, event: String;
+  section, rlsname, extra: String;
+  event: TKBEventType;
   added: TDateTime;
   p: TPazo;
   r: TRelease;
@@ -2382,7 +2417,7 @@ begin
   extra := SubString(line, #9, 3);
   added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
   ctime := Strtoint64(SubString(line, #9, 5));
-  event := SubString(line, #9, 6);
+  event := EventToTKBEventType(SubString(line, #9, 6), kbeUNKNOWN);
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
 

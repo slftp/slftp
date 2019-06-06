@@ -271,7 +271,7 @@ begin
   queue_lock.Enter;
   try
     try
-      kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, 'UPDATE', mainpazo.rls.rlsname, '');
+      kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, kbeUPDATE, mainpazo.rls.rlsname, '');
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
       Console_Addline('', 'NFO for '+mainpazo.rls.rlsname+' added from '+s.Name);
     except

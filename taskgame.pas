@@ -115,7 +115,8 @@ var
   de: TDirListEntry;
   r: TPazoGameTask;
   d: TDirList;
-  event, nfofile: String;
+  nfofile: String;
+  event: TKBEventType;
 begin
   Result := False;
   s := slot;
@@ -202,9 +203,9 @@ ujra:
   if Parse(ss.DataString) then
   begin
     if j = 1 then
-      event := 'COMPLETE'
+      event := kbeCOMPLETE
     else
-      event := 'NEWDIR';
+      event := kbeNEWDIR;
 
     kb_add(netname, channel, ps1.name, mainpazo.rls.section, '', event, mainpazo.rls.rlsname, '');
   end;// else
