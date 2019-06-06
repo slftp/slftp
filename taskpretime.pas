@@ -98,7 +98,7 @@ begin
     exit;
   end;
 
-  kb_add(netname, channel, site1, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+  kb_add(netname, channel, site1, mainpazo.rls.section, '', kbeUPDATE, mainpazo.rls.rlsname, '');
   ready := True;
   Result := True;
 end;

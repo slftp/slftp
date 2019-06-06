@@ -628,7 +628,7 @@ begin
   // don't know why ps can be nil - have to check later
       if ps <> nil then
       begin
-        kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+        kb_add(netname, channel, ps.Name, mainpazo.rls.section, '', kbeUPDATE, mainpazo.rls.rlsname, '');
       end;
   except
     on e: Exception do

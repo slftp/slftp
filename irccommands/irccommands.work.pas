@@ -280,7 +280,7 @@ begin
     end;
 
     p := nil;
-    pazo_id := kb_add(netname, channel, sitename, section, genre, 'NEWDIR', dir, '', True);
+    pazo_id := kb_add(netname, channel, sitename, section, genre, kbeNEWDIR, dir, '', True);
     if pazo_id <> -1 then
       p := FindPazoById(pazo_id);
 
@@ -466,10 +466,10 @@ begin
   added := True;
   addednumber := 0;
   if 1 = Pos('PRE', section) then
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'PRE', dir, '',
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE, dir, '',
       True)
   else
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR',
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
       dir, '', True);
   if pazo_id = -1 then
   begin
@@ -626,10 +626,10 @@ begin
     end;
 
     if 1 = Pos('PRE', section) then
-      pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'PRE',
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE,
         dir, '', False, True)
     else
-      pazo_id := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR',
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
         dir, '', False, True);
     if pazo_id = -1 then
     begin
@@ -1053,7 +1053,7 @@ begin
     irc_addtext(Netname, Channel, '<c4><b>Error</c></b>: Skipped group found...');
 
   try
-    i := kb_Add(Netname, Channel, sitename, section, '', 'NEWDIR', dir, '', True);
+    i := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', True);
   except
     on E: Exception do
     begin

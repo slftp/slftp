@@ -129,7 +129,7 @@ begin
   imdb.SetImdbRelease(ir);
 
   try
-    kb_add(netname, channel, ps1.name, mainpazo.rls.section, '', 'UPDATE', mainpazo.rls.rlsname, '');
+    kb_add(netname, channel, ps1.name, mainpazo.rls.section, '', kbeUPDATE, mainpazo.rls.rlsname, '');
   except
     on e: Exception do
     begin
