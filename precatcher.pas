@@ -389,7 +389,7 @@ begin
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 
-  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+  kb_event := EventStringToTKBEventType(event);
 
   if (kb_event <> kbeREQUEST) then
   begin

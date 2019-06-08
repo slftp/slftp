@@ -138,7 +138,7 @@ begin
   end;
 
   // add to kb
-  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+  kb_event := EventStringToTKBEventType(event);
   kb_Add(Netname, Channel, sitename, rls_section, '', kb_event, rls, '');
 
   case kb_event of
