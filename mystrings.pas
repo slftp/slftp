@@ -40,13 +40,20 @@ interface
 uses Classes;
 
 type
-  // from http://softwareonastring.com/147/how-to-store-enums-without-losing-your-coding-freedom
+  {
+    @abstract(generic TEnum helper class for typesafe usage of enumerations
+    from http://softwareonastring.com/147/how-to-store-enums-without-losing-your-coding-freedom)
+  }
   TEnum<T> = class(TObject)
   public
-    // Use reintroduce to prevent compiler complaint about hiding virtual method from
-    // TObject. Breaking polymorphism like this is no problem here, because we dont
-    // need polymorphism for this class.
+  { Converts an enumeration element from the enumerated type to string
+    @param(aEnumValue element of enumeration type)
+    @returns(Name of enumeration as string) }
     class function ToString(const aEnumValue: T): string; reintroduce;
+  { Converts a string to an enumeration element from the enumerated type
+    @param(aEnumString Name of enum element which should be converted)
+    @param(aDefault element of enumeration type which should be used if conversion doesn't work)
+    @returns(enumeration element from the enumerated type) }
     class function FromString(const aEnumString: string; const aDefault: T): T;
   end;
 
@@ -131,6 +138,30 @@ uses
     registry, Windows,
   {$ENDIF}
   DateUtils, IdGlobal;
+
+class function TEnum<T>.ToString(const aEnumValue: T): string;
+begin
+  {$IFDEF FPC}
+    Result := GetEnumName(TypeInfo(T), integer(aEnumValue));
+  {$ELSE}
+    Result := GetEnumName(TypeInfo(T), TValue.From<T>(aEnumValue).AsOrdinal);
+  {$ENDIF}
+end;
+
+class function TEnum<T>.FromString(const aEnumString: string; const aDefault: T): T;
+var
+  OrdValue: Integer;
+begin
+  OrdValue := GetEnumValue(TypeInfo(T), aEnumString);
+  if OrdValue > -1 then
+  {$IFDEF FPC}
+    Result := T(OrdValue)
+  {$ELSE}
+    Result := TValue.FromOrdinal(TypeInfo(T), OrdValue).AsType<T>
+  {$ENDIF}
+  else
+    Result := aDefault;
+end;
 
 function Count(const mi, miben: String): integer;
 var
@@ -712,38 +743,6 @@ begin
       Result := Result + S[i];
     end;
   end;
-end;
-
-class function TEnum<T>.ToString(const aEnumValue: T): string;
-begin
-  Assert(PTypeInfo(TypeInfo(T)).Kind = tkEnumeration,
-    'Type parameter must be an enumeration');
-{$IFDEF FPC}
-  Result := GetEnumName(TypeInfo(T), integer(aEnumValue));
-{$ELSE}
-  Result := GetEnumName(TypeInfo(T), TValue.From<T>(aEnumValue).AsOrdinal);
-{$ENDIF}
-end;
-
-class function TEnum<T>.FromString(const aEnumString: string; const aDefault: T): T;
-var
-  OrdValue: Integer;
-begin
-  Assert(PTypeInfo(TypeInfo(T)).Kind = tkEnumeration,
-    'Type parameter must be an enumeration');
-
-  OrdValue := GetEnumValue(TypeInfo(T), aEnumString);
-{$IFDEF FPC}
-  if OrdValue > -1 then
-    Result := T(OrdValue)
-  else
-    Result := aDefault;
-{$ELSE}
-  if OrdValue < 0 then
-    Result := aDefault
-  else
-    Result := TValue.FromOrdinal(TypeInfo(T), OrdValue).AsType<T>;
-{$ENDIF}
 end;
 
 end.
