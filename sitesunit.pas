@@ -595,15 +595,8 @@ begin
 end;
 
 function FeatResponseToFeature(const aFeature: string): TSiteFeature;
-var
-  fHelper: Integer;
 begin
-  Result := sfUnknown;
-  fHelper := GetEnumValue(TypeInfo(TSiteFeature), aFeature);
-  if fHelper > -1 then
-  begin
-    Result := TSiteFeature(fHelper);
-  end;
+  Result := TEnum<TSiteFeature>.FromString('sf' + aFeature, sfUNKNOWN);
 end;
 
 function FindSiteByName(const aNetname, aSitename: String): TSite;
@@ -1139,7 +1132,7 @@ begin
     sf := sfloop.Trim();
     if sf.IndexOf(' ') > -1 then
       sf := sf.Split([' '])[0];
-    feature := FeatResponseToFeature('sf' + sf);
+    feature := FeatResponseToFeature(sf);
     if feature <> sfUnknown then
     begin
       features := features + [feature];
