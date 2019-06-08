@@ -93,7 +93,7 @@ begin
   words := SubString(params, ' ', 6);
   section := SubString(params, ' ', 7);
 
-  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+  kb_event := EventStringToTKBEventType(event);
 
   if (not (kb_event in [kbePRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin
@@ -186,7 +186,7 @@ begin
     Exit;
   end;
 
-  kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+  kb_event := EventStringToTKBEventType(event);
 
   if (not (kb_event in [kbePRE, kbeCOMPLETe, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin

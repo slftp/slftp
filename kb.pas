@@ -284,10 +284,9 @@ function GetGroupname(const aRlz: String): String;
 
 { Converts a stringified event to a real KB Event
   @param(aEvent event name as a string)
-  @param(aDefault default kb event if the string can't be converted to a kb event)
-  @returns(TKBEventType from input @link(aEvent), defaulting to @link(aDefault)
+  @returns(TKBEventType from input @link(aEvent), defaulting to @link(kbeUNKNOWN)
     if @link(aEvent) can't be turned into a known event.) }
-function EventToTKBEventType(const aEvent: string; const aDefault: TKBEventType): TKBEventType;
+function EventStringToTKBEventType(const aEvent: string): TKBEventType;
 
 { Converts a KB event to a readable string representation
   @param(aEvent the kb event entry)
@@ -361,9 +360,9 @@ var
   nomvdirlistgenre: boolean;
 
 
-function EventToTKBEventType(const aEvent: string; const aDefault: TKBEventType): TKBEventType;
+function EventStringToTKBEventType(const aEvent: string): TKBEventType;
 begin
-  Result := TEnum<TKBEventType>.FromString('kbe' + aEvent, aDefault);
+  Result := TEnum<TKBEventType>.FromString('kbe' + aEvent, kbeUNKNOWN);
 end;
 
 function KBEventTypeToString(const aEvent: TKBEventType): String;
@@ -2417,7 +2416,7 @@ begin
   extra := SubString(line, #9, 3);
   added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
   ctime := Strtoint64(SubString(line, #9, 5));
-  event := EventToTKBEventType(SubString(line, #9, 6), kbeUNKNOWN);
+  event := EventStringToTKBEventType(SubString(line, #9, 6));
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
   kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
 
