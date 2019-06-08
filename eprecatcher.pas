@@ -94,7 +94,7 @@ begin
     rls:= Fetch(ss, '|', True, False);
     cdno:= Fetch(ss, '|', True, False);
 
-    kb_event := EventToTKBEventType(event, kbeUNKNOWN);
+    kb_event := EventStringToTKBEventType(event);
 
     kb_add(
       '',
