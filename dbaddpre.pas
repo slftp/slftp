@@ -76,9 +76,7 @@ var
   SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
   addprecmd: TStringList;
-  siteprecmd: String;
   kbadd_addpre: boolean;
-  kbadd_sitepre: boolean;
 
   last_addpre: THashedStringList;
   last_addpre_lock: TCriticalSection;
@@ -382,7 +380,7 @@ begin
     if dbaddpre_mode <> apmNone then
       dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
 
-    if ((event = kbeADDPRE) and (kbadd_addpre)) or ((event = kbeSITEPRE) and (kbadd_sitepre)) then
+    if ((event = kbeADDPRE) and (kbadd_addpre)) then
     begin
       kb_entry := FindReleaseInKbList('-' + rls);
 
@@ -692,9 +690,7 @@ var
   db_pre_name: String;
 begin
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
-  siteprecmd := config.ReadString(section, 'siteprecmd', '!sitepre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
-  kbadd_sitepre := config.ReadBool(section, 'kbadd_sitepre', False);
 
   dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
   dbaddpre_plm1 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode', 0));

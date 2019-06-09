@@ -47,11 +47,10 @@ type
   @value(kbeCOMPLETE COMPLETE event, triggered by completed races on sites)
   @value(kbeREQUEST REQUEST event, triggered by requests on sites)
   @value(kbeNUKE NUKE event, triggered by nukes on sites)
-  @value(kbeADDPRE ADDPRE event, ???)
-  @value(kbeSITEPRE SITEPRE event, ???)
+  @value(kbeADDPRE ADDPRE event, triggered by !addpre/!sitepre announces picked up on IRC)
   @value(kbeUPDATE UPDATE event, triggered to re-check rules and routes)
   }
-  TKBEventType = (kbeUNKNOWN, kbePRE, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeSITEPRE, kbeUPDATE);
+  TKBEventType = (kbeUNKNOWN, kbePRE, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
 
   TRelease = class
     aktualizalva: boolean;
