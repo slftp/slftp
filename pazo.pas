@@ -541,7 +541,7 @@ begin
         begin
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-          // Create the dirlist task
+          // Create the mkdir task
           pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
 
           // add delay to mkdir if delay_upload enabled
