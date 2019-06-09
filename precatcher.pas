@@ -2,11 +2,11 @@ unit precatcher;
 
 interface
 
-uses Classes, Contnrs, slmasks, encinifile;
+uses Classes, Contnrs, slmasks, encinifile, kb;
 
 type
   TSection = class
-    eventtype: String;
+    eventtype: TKBEventType;
     section: String;
     words: TStringList;
 
@@ -67,7 +67,7 @@ var
 implementation
 
 uses
-  SysUtils, sitesunit, Dateutils, kb, irc, queueunit, mystrings,
+  SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
   console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
@@ -381,15 +381,13 @@ begin
   Result := rep_s;
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename, event, section, rls: String; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList);
 var
-  genre, s, oldsection: String;
-  kb_event: TKBEventType;
+  genre, s, oldsection, event: String;
 begin
+  event := KBEventTypeToString(kb_event);
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
-
-  kb_event := EventStringToTKBEventType(event);
 
   if (kb_event <> kbeREQUEST) then
   begin
@@ -497,7 +495,6 @@ var
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  //rls, chno, s: String; // chno isn't used
   rls, s: String;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
@@ -606,7 +603,6 @@ begin
           if (ts_data.IndexOf(ss.words[j]) = -1) then
           begin
             mind := False;
-            // Irc_AddText('','','count: %d',[j]);
             Break;
           end;
         end;
@@ -632,7 +628,7 @@ begin
             on e: Exception do
             begin
               MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
-              Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data.Text]));
+              Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, KBEventTypeToString(ss.eventtype), ss.section, rls, ts_data.Text]));
               exit;
             end;
           end;
@@ -640,33 +636,7 @@ begin
         end;
       end;
 
-
-      if sc.sections.Count = 0 then
-      begin
-        try
-
-          precatcher_lock.Enter;
-          try
-            ProcessReleaseVege(net, chan, nick, sc.sitename, '', '', rls, ts_data);
-          finally
-            precatcher_lock.Leave;
-          end;
-
-
-        except
-          on e: Exception do
-          begin
-            MyDebug('[EXCEPTION] ProcessReleaseVegeB section count = 0: %s', [e.Message]);
-            Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
-            irc_Adderror(Format('<c4>[EXCEPTION]</c> ProcessReleaseVegeB section count = 0 : %s', [e.Message]));
-            exit;
-          end;
-        end;
-      end
-      else
-      begin
-        MyDebug('No catcher event found.');
-      end;
+      MyDebug('No matching catcher event found.');
 
     finally
       ts_data.Free;
@@ -706,7 +676,7 @@ end;
 
 function ProcessChannels(s: String): boolean;
 var
-  network, chan, nick, sitename, words: String;
+  network, chan, nick, sitename, words, event, forced_section: String;
   sci: integer;
   sc: TSiteChan;
   section: TSection;
@@ -718,15 +688,20 @@ begin
   if (length(s) = 0) then
     exit;
 
-  if (Count(';', s) < 3) then
+  if (Count(';', s) < 6) then
     exit;
 
   network := UpperCase(SubString(s, ';', 1));
   chan := LowerCase(SubString(s, ';', 2));
   nickt := LowerCase(SubString(s, ';', 3));
   sitename := SubString(s, ';', 4);
+  event := SubString(s, ';', 5);
+  words := SubString(s, ';', 6);
+  forced_section := SubString(s, ';', 7);
 
   if (chan[1] <> '#') then
+    exit;
+  if (event = '') then
     exit;
 
   nickc := Count(',', nickt);
@@ -744,14 +719,9 @@ begin
     else
       sc := TSiteChan(cd.Objects[sci]);
 
-    if ((SubString(s, ';', 5) = '') and (SubString(s, ';', 7) = '')) then
-      Continue;
-
     section := TSection.Create;
-    section.section := SubString(s, ';', 7);
-    section.eventtype := SubString(s, ';', 5);
-
-    words := SubString(s, ';', 6);
+    section.section := forced_section;
+    section.eventtype := EventStringToTKBEventType(event);
 
     if (words <> '') then
       for i := 1 to Count(',', words) + 1 do
