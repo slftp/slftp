@@ -466,7 +466,7 @@ begin
   added := True;
   addednumber := 0;
   if 1 = Pos('PRE', section) then
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE, dir, '',
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '',
       True)
   else
     pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
@@ -626,7 +626,7 @@ begin
     end;
 
     if 1 = Pos('PRE', section) then
-      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE,
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD,
         dir, '', False, True)
     else
       pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
