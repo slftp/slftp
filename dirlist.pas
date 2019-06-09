@@ -646,7 +646,7 @@ begin
   // No need to parse the dir again if it's complete
   if cache_completed then exit;
 
-  debugunit.Debug(dpSpam, section, Format('--> ParseDirlist (%d entries)', [entries.Count]));
+  debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [full_path, site_name, entries.Count]));
 
   site := FindSiteByName('', site_name);
   if site = nil then
@@ -963,7 +963,7 @@ begin
     end;
   end;
 
-  debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist (%d entries)', [entries.Count]));
+  debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [full_path, site_name, entries.Count]));
 end;
 
 function TDirList.RegenerateSkiplist: Boolean;
