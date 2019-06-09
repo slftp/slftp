@@ -152,6 +152,11 @@ begin
         irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
           [event, rls_section, rls, '<b>' + sitename + '</b>']));
       end;
+    kbeSPREAD:
+      begin
+        irc_addtext(Netname, Channel, format('<c5>-> [KB]</c> %s %s %s @ %s',
+          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+      end;
     kbeADDPRE:
       begin
         irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
