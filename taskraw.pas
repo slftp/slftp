@@ -93,7 +93,7 @@ end;
 function TRawTask.Name: String;
 begin
   try
-    Result := Format('RAW %s -> %s', [site1, cmd]);
+    Result := Format('RAW %s (%s, %s)', [site1, dir, cmd]);
   except
     Result := 'RAW';
   end;
