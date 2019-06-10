@@ -6,6 +6,7 @@ uses
   Generics.Collections;
 
 type
+  { @abstract(General settings for an IRC Channel) }
   TIrcChannelSettings = class
   private
     FNetname: String; //< netname of IRC network
@@ -13,8 +14,8 @@ type
     FInviteOnly: Boolean; //< @true if channel is invite only (you have to invite yourself first), @false otherwise
     FChankey: String; //< chankey for @link(Channel) which is needed to join it
     FChanRoles: TList<string>; //< chanroles for @link(Channel), saved under 'names' entry in sites.dat
-    function GetChanRoles: String;
-    procedure SetChanRoles(const aChanRoles: String);
+    function GetChanRoles: String; //< returns the strings in @link(FChanRoles), delimited by a space
+    procedure SetChanRoles(const aChanRoles: String); //< adds the @link(aChanRoles) String (multiple roles should be delimited by a space) to @link(FChanRoles) if not added yet, every call to it clears the list as first step
   public
     { Creates a new TIrcChannelSettings entry which holds infos about Chankey, Chanroles and if channel is invite only
       @param(aNetname irc network name)
@@ -101,20 +102,25 @@ function TIrcChannelSettings.GetChanRoles: String;
 var
   fStrHelper: String;
 begin
+  Result := '';
   for fStrHelper in FChanRoles do
   begin
-    Result := Result + ' ' + fStrHelper;
+    Result := Result + fStrHelper + ' ';
   end;
+  Trim(Result);
 end;
 
 procedure TIrcChannelSettings.SetChanRoles(const aChanRoles: String);
 var
   fStrHelper: String;
 begin
+  FChanRoles.Clear;
+
   for fStrHelper in aChanRoles.Split([' ']) do
   begin
     FChanRoles.Add(fStrHelper);
   end;
+
   FChanRoles.Sort;
 end;
 

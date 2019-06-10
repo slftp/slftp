@@ -6,6 +6,7 @@ uses
   ircchansettings, SysUtils;
 
 type
+  { @abstract(CBC de/encryption for IRC Channel) }
   TIrcBlowkeyCBC = class(TIrcChannelSettings)
   const
     IV: array[0..7] of Byte = ($00, $00, $00, $00, $00, $00, $00, $00); //< standardized IV for CBC
