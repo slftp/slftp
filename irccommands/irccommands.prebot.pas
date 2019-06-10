@@ -555,7 +555,7 @@ begin
       precmd := ReplaceText(precmd, '<rlsname>', dir);
       precmd := ReplaceText(precmd, '<section>', sectiontype);
 
-      rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.predir), precmd);
+      rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]), precmd);
       rr.wantedslot := sr.slotname;
       tn2.tasks.Add(rr);
       AddTask(rr);
@@ -627,7 +627,7 @@ begin
       if s.SkipPre then
         Continue;
 
-      rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.predir));
+      rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]));
       rl.wantedslot := sr.slotname;
       tn3.tasks.Add(rl);
       AddTask(rl);
