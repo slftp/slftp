@@ -6,6 +6,7 @@ uses
   ircchansettings, SysUtils;
 
 type
+  { @abstract(Plaintext IRC Channel without any Blowfish de/encryption) }
   TIrcBlowkeyPlaintext = class(TIrcChannelSettings)
   private
     FBlowkey: String; //< blowkey for channel
