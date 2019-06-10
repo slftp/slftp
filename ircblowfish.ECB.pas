@@ -6,6 +6,7 @@ uses
   ircchansettings, delphiblowfish;
 
 type
+  { @abstract(ECB de/encryption for IRC Channel) }
   TIrcBlowkeyECB = class(TIrcChannelSettings)
   private
     FKeyData: TBlowfishData; //< generated blowfish data for @link(blowkey)
