@@ -34,29 +34,6 @@ const
 
 var
   batchqueue: TStringList;
-  webtags: TStringList;
-
-{ checks of section belongs to TMP3Release }
-function _IsMP3(const section: String): boolean;
-begin
-  Result := FindSectionHandler(section) = TMP3Release;
-end;
-
-{ checks if defined webtags occur in releasename }
-function _IsWebStuff(const rlsname: String): boolean;
-var
-  i: integer;
-begin
-  Result := False;
-  for i := 0 to webtags.Count - 1 do
-    if 0 < Pos(webtags[i], rlsname) then
-    begin
-      Result := True;
-      exit;
-    end;
-end;
-
-
 
 function IrcPrecmd(const netname, channel, params: String): boolean;
 var
@@ -212,7 +189,6 @@ begin
       end;
 
       r := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(ps.maindir) + dir);
-      // r.announce:= ps.name+' dirlist ready...'; // we dont want this anymore because of the lag
       tn.tasks.Add(r);
       AddTask(r);
       Inc(addednumber);
@@ -290,7 +266,6 @@ begin
 
         perfect     := 0;
         failed      := 0;
-        //      addednumber:= 0;
         checkedlist := TStringList.Create;
         try
           for i := 0 to tn.responses.Count - 1 do
@@ -298,11 +273,9 @@ begin
             sr := TSiteResponse(tn.responses[i]);
             if sr.sitename <> sitename then
             begin
-              //          inc(addednumber);
               d := TDirList.Create(sr.sitename, nil, nil, sr.response);
               try
                 d.UsefulFiles(aktfiles, aktsize);
-                //nfofound := d.hasnfo;
                 aksized := aktsize;
                 RecalcSizeValueAndUnit(aksized, aksizestring, 0);
               finally
@@ -316,9 +289,8 @@ begin
                   sttr := 'more';
                 if aktfiles < files then
                   sttr := 'less';
-                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) have %s file then %s (%d)', [sr.sitename, aktfiles, sttr, sitename, files]);
+                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) has %s files than %s (%d)', [sr.sitename, aktfiles, sttr, sitename, files]);
               end;
-
 
               if aktsize <> size then
               begin
@@ -328,7 +300,7 @@ begin
                 if aktsize < size then
                   sttr := 'smaller';
 
-                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) is %s then %s (%d)', [sr.sitename, aktsize, sttr, sitename, size]);
+                irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) is %s than %s (%d)', [sr.sitename, aktsize, sttr, sitename, size]);
               end;
 
               if ((aktfiles <> files) or (aktsize <> size)) then
@@ -345,14 +317,6 @@ begin
                 Inc(perfect);
                 checkedlist.Values['PERFECT'] := checkedlist.Values['PERFECT'] + ' ' + sr.sitename;
               end;
-
-              (*
-              if (not nfofound) then
-              begin
-                irc_addtext(netname, channel, 'ERROR: %s @ %s has no condom.', [Red(dir), Red(sr.sitename))]);
-                added:= False;
-              end;
-              *)
             end;
           end;
 
@@ -405,36 +369,19 @@ var
   precmd: String;
   mind, maxd: TDateTime;
   mins, maxs: String;
-  ripper: String;
-  genre: String;
   p: TPazo;
   ps: TPazoSite;
   sleep_value, pazo_id: integer;
-
-  procedure SetupGenre;
-  begin
-    genre := '';
-    if p.rls is TMP3Release then
-      genre := TMP3Release(p.rls).mp3genre;
-  end;
-
 begin
   Result := False;
-  //  exit;// egyelore tesztelunk nem preelunk
 
   try
     section := UpperCase(SubString(params, ' ', 1));
-    // instead of using Pos() equal comparison is needed to avoid detecting releasenames (e.g. PreMe.S01E01.HDTV.x264-TEST) as section
-    if (section = 'PRE') then
-    begin
-      dir := SubString(params, ' ', 2);
-      ripper := SubString(params, ' ', 3);
-    end
-    else
+    dir := SubString(params, ' ', 2);
+    if (dir = '') then
     begin
       section := 'PRE';
       dir := SubString(params, ' ', 1);
-      ripper := SubString(params, ' ', 2);
     end;
   except
     on E: Exception do
@@ -445,24 +392,11 @@ begin
   if sectiontype = '' then
     sectiontype := 'MP3';
 
-
-  if ripper = 'AP' then
-  begin
-    irc_addText(netname, channel, 'Syntax error.');
-    exit;
-  end;
-  if ((config.ReadBool('prebot', 'use_regpredb', False)) and (ripper = '')) then
-  begin
-    irc_addText(netname, channel, 'Who is the fish?');
-    exit;
-  end;
-
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
   begin
     irc_addText(netname, channel, 'Syntax error.');
     exit;
   end;
-
 
   queue_lock.Enter;
   try
@@ -507,77 +441,24 @@ begin
         exit;
       end;
 
-      if (s <> nil) and (not (s.WorkingStatus in [sstMarkedAsDownByUser])) and (ps.status <> rssNotAllowed) then
+      if (s.sectiondir[section] = '') then
       begin
-        if (s.sectiondir[section] = '') then
-        begin
-          irc_addtext(netname, channel, 'Site <b>%s</b> has no predir set.', [ps.Name]);
-          exit;
-        end;
-        if (s.sectionprecmd[section] = '') then
-        begin
-          irc_addtext(netname, channel, 'Site <b>%s</b> has no precmd set.', [ps.Name]);
-          exit;
-        end;
-        if (s.WorkingStatus = sstUnknown) then
-        begin
-          irc_addtext(netname, channel, 'Status of site <b>%s</b> is unknown.', [ps.Name]);
-          exit;
-        end;
+        irc_addtext(netname, channel, 'Site <b>%s</b> has no predir set.', [ps.Name]);
+        exit;
+      end;
+      if (s.sectionprecmd[section] = '') then
+      begin
+        irc_addtext(netname, channel, 'Site <b>%s</b> has no precmd set.', [ps.Name]);
+        exit;
+      end;
+      if (s.WorkingStatus = sstUnknown) then
+      begin
+        irc_addtext(netname, channel, 'Status of site <b>%s</b> is unknown.', [ps.Name]);
+        exit;
       end;
     end;
-
-
-    SetupGenre;
-    (* for debugging only
-    irc_addtext(channel, 'genre: %s ripper: %s section %s tracks: %d size: %d', [genre, ripper, section, osszesfajl, osszesmeret]);
-    exit;
-    *)
 
     ps := nil;
-
-    if ((genre = '') and (0 = Pos('dirfix', LowerCase(dir))) and
-      (0 = Pos('nfofix', LowerCase(dir)))) then
-    begin
-      if (p.rls is TMP3Release) then
-      begin
-        irc_addText(netname, channel, 'Fetching genre...');
-        s := nil;
-        for i := 0 to p.sites.Count - 1 do
-        begin
-          ps := TPazoSite(p.sites[i]);
-          if (ps.status <> rssNotAllowed) then
-          begin
-            s := FindSiteByName(netname, ps.Name);
-            if ((s <> nil) and (s.WorkingStatus = sstUp)) then
-              Break;
-          end;
-        end;
-
-        if s = nil then
-        begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
-          irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no valid site!',
-            [ps.Name]);
-          exit;
-        end;
-
-        if ps = nil then
-        begin // we are fucked somehow -- can't be happen anymore.. we add a check some lines approve ... but we will take it :)
-          irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s is no valid pazosite!');
-
-          exit;
-        end;
-
-        if not IrcLame(netname, channel, s.Name + ' ' + section + ' ' + dir + ' genre') then
-        begin
-          irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: No genre found!');
-          exit;
-        end;
-        SetupGenre;
-      end;
-    end;
-
-
     addednumber := 0;
     tn1 := AddNotify;
 
@@ -586,34 +467,16 @@ begin
       ps := TPazoSite(p.sites[i]);
       s := FindSiteByName(netname, ps.Name);
 
-      if s = nil then
-      begin
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is no valid site!', [ps.Name]);
-        exit;
-      end;
-
       if s.Name = getAdminSiteName then
         Continue;
 
       if s.SkipPre then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is no valid site!', [ps.Name]);
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked for skippre.!', [ps.Name]);
         continue;
       end;
 
-      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
-      begin
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> %s is marked as down!', [ps.Name]);
-        exit;
-      end;
-
-      if ps.status = rssNotAllowed then
-      begin
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> rip status for %s is not allowed!', [ps.Name]);
-        exit;
-      end;
-
-      if ((s <> nil) and (ps.status <> rssNotAllowed) and (not (s.WorkingStatus in [sstMarkedAsDownByUser]))) then
+      if (not (s.WorkingStatus in [sstMarkedAsDownByUser])) then
       begin
         try
           rc := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(s.sectiondir[section]), True);
@@ -624,7 +487,6 @@ begin
           on E: Exception do
             irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
         end;
-
       end;
     end;
 
@@ -665,7 +527,7 @@ begin
       try
         if d.Find(dir) = nil then
         begin
-          irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find the rip on <c4><b>%s</b></c>!', [sr.sitename]);
+          irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find the release on <c4><b>%s</b></c>!', [sr.sitename]);
           RemoveTN(tn1);
           exit;
         end;
@@ -676,11 +538,10 @@ begin
 
     if (SecondsBetween(Now, elozo) > 20) then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>%s</c>', ['It took too long, sorry...']);
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>%s</c>', ['Changing directories to predir took too long, sorry...']);
       RemoveTN(tn1);
       exit;
     end;
-
 
     tn2 := AddNotify;
     for i := 0 to tn1.responses.Count - 1 do
@@ -692,7 +553,6 @@ begin
 
       precmd := s.sectionprecmd[section];
       precmd := ReplaceText(precmd, '<rlsname>', dir);
-      precmd := ReplaceText(precmd, '<ripper>', ripper);
       precmd := ReplaceText(precmd, '<section>', sectiontype);
 
       rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.predir), precmd);
@@ -701,7 +561,7 @@ begin
       AddTask(rr);
     end;
 
-    RemoveTN(tn1); // ez mar nem kell
+    RemoveTN(tn1);
     irc_addtext(netname, channel, 'Sending pre...');
     QueueFire;
   finally
@@ -755,14 +615,10 @@ begin
 
     sleep_value := config.ReadInteger(rrsection, 'predir_re_examine_time', 5);
 
-    //  irc_addtext(netname, channel,'We will wait %dsec%ss and check the predirs over.. so hang %0:d sec%1:ss :)',[sleep_value,chr(39)]);
-    irc_addtext(netname, channel, 'We will wait ' + IntToStr(sleep_value) +
-      'sec' + Chr(39) + 's and check the predirs over.. so hang ' + IntToStr(
-      sleep_value) + ' sec' + Chr(39) + 's :)');
+    irc_addtext(netname, channel, 'We will wait %d seconds and check the predirs again..', [sleep_value]);
     sleep_value := sleep_value * 1000;
     Sleep(sleep_value);
 
-    // es most meg le kell csekkolni maradt e valami predirben
     tn3 := AddNotify;
     for i := 0 to tn2.responses.Count - 1 do
     begin
@@ -771,14 +627,13 @@ begin
       if s.SkipPre then
         Continue;
 
-      rl := TDirlistTask.Create(netname, channel, sr.sitename,
-        MyIncludeTrailingSlash(s.predir));
+      rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.predir));
       rl.wantedslot := sr.slotname;
       tn3.tasks.Add(rl);
       AddTask(rl);
     end;
-    RemoveTN(tn2); // most mar ez sem kell
-    irc_addtext(netname, channel, 'Checking if rip is still in any of the predirs...');
+    RemoveTN(tn2);
+    irc_addtext(netname, channel, 'Checking if release %s is still in any of the predirs...', [dir]);
     QueueFire;
   finally
     queue_lock.Leave;
@@ -820,31 +675,6 @@ begin
 
   if Result then
     irc_addtext(netname, channel, 'Pre successful.');
-  (*
-  // now notifying utraw
-  if(config.ReadBool('prebot', 'use_regpredb', False)) then begin
-  if genre = '' then genre:= 'Unknown';
-
-      DecimalSeparator:= '.';
-      addcmd:= config.ReadString('prebot', 'cmd', '');
-{      if addcmd <> '' then begin
-        addcmd:= ReplaceText(addcmd, '<date>', FormatDateTime('yyyy-mm-dd',Now));
-        addcmd:= ReplaceText(addcmd, '<ripper>', ripper);
-        addcmd:= ReplaceText(addcmd, '<rls>', dir);
-        addcmd:= ReplaceText(addcmd, '<files>', IntToStr(osszesfajl));
-        addcmd:= ReplaceText(addcmd, '<size>', IntToStr(osszesmeret));
-        osszesmeretf:= osszesmeret;
-        addcmd:= ReplaceText(addcmd, '<size_mb>', Format('%.1f',[osszesmeretf / 1024 / 1024]));
-        addcmd:= ReplaceText(addcmd, '<genre>', genre);
-        addcmd:= ReplaceText(addcmd, '<group>', group);
-
-//        irc_Addtext_by_key('GROUP',config.ReadString('prebot', 'nick', 'xxx'))
-//        irc_addText(config.ReadString('regpredb', 'net', 'xxx'), config.ReadString('regpredb', 'nick', 'xxx'), addcmd);
-
-      end;
-}
-  end;
-  *)
 end;
 
 function IrcPretest(const netname, channel, params: String): boolean;
@@ -903,7 +733,7 @@ end;
 
 function IrcBatchAdd(const netname, channel, params: String): boolean;
 var
-  sitename, section, dir, ripper: String;
+  sitename, section, dir: String;
   s: TSite;
   fInputRlsMask: TslMask;
   fDirlist: TDirList;
@@ -915,7 +745,7 @@ var
     ujkor;
   var
     s, ss: String;
-    sitename, section, dir, ripper: String;
+    sitename, section, dir: String;
     i:     integer;
     site:  TSite;
     p:     TPazo;
@@ -937,22 +767,6 @@ var
       sitename := SubString(s, #9, 1);
       section  := SubString(s, #9, 2);
       dir      := SubString(s, #9, 3);
-      ripper   := SubString(s, #9, 4);
-
-      if (_IsMP3(section)) then
-      begin
-        if not _IsWebStuff(dir) then
-        begin
-          irc_Addtext(netname, channel, '%slame %s %s %s', [irccmdprefix, sitename, section, dir]);
-          if not IrcLame(netname, channel, sitename + ' ' + dir) then
-          begin
-            irc_Addtext(netname, channel, 'ERROR: <c4>Lame checking returned error. Skipping.</c>');
-            goto ujkor;
-          end;
-        end
-        else
-          irc_Addtext(netname, channel, 'Webcrap detected, skipping lame checking.');
-      end;
 
       queue_lock.Enter;
       try
@@ -1024,8 +838,8 @@ var
       else
         irc_Addtext(netname, channel, 'preeeeing now....');
 
-      irc_Addtext(netname, channel, '%spre %s %s %s', [irccmdprefix, section, dir, ripper]);
-      IrcPre(netname, channel, section + ' ' + dir + ' ' + ripper);
+      irc_Addtext(netname, channel, '%spre %s %s', [irccmdprefix, section, dir]);
+      IrcPre(netname, channel, section + ' ' + dir);
 
       ujkor:
       queue_lock.Enter;
@@ -1048,7 +862,7 @@ var
   begin
     queue_lock.Enter;
     try
-      batchqueue.Add(sitename + #9 + section + #9 + dir + #9 + ripper);
+      batchqueue.Add(sitename + #9 + section + #9 + dir);
       if batchqueue.Count = 1 then
         _IrcBatch(netname, channel, params);
     finally
@@ -1062,11 +876,9 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
   dir      := SubString(params, ' ', 3);
-  ripper   := SubString(params, ' ', 4);
 
   if dir = '' then
   begin
-    ripper  := '';
     section := 'PRE';
     dir     := SubString(params, ' ', 2);
   end;
@@ -1082,25 +894,11 @@ begin
 
     if s.sectiondir[section] = '' then
     begin
-      ripper  := dir;
       dir     := SubString(params, ' ', 2);
       section := 'PRE';
     end;
   finally
     queue_lock.Leave;
-  end;
-
-  // todo: check why 'AP' is not allowed or what it does mean - maybe remove
-  if ripper = 'AP' then
-  begin
-    irc_addText(netname, channel, 'Syntax error.');
-    exit;
-  end;
-
-  if ((config.ReadBool('prebot', 'use_regpredb', False)) and (ripper = '')) then
-  begin
-    irc_addText(netname, channel, 'Who is the fish?');
-    exit;
   end;
 
   {$IFDEF UNICODE}
@@ -1151,18 +949,17 @@ end;
 
 function IrcBatchDel(const netname, channel, params: String): boolean;
 var
-  sitename, dir, ripper: String;
+  sitename, dir: String;
   i: integer;
 begin
   Result := False;
 
   sitename := SubString(params, ' ', 1);
   dir      := SubString(params, ' ', 2);
-  ripper   := SubString(params, ' ', 3);
 
   queue_lock.Enter;
   try
-    i := batchqueue.IndexOf(sitename + #9 + dir + #9 + ripper);
+    i := batchqueue.IndexOf(sitename + #9 + dir);
     if i <> -1 then
     begin
       batchqueue.Delete(i);
@@ -1190,7 +987,6 @@ begin
   rlsname := SubString(params, ' ', 3);
   section := UpperCase(SubString(params, ' ', 2));
   sitename := UpperCase(SubString(params, ' ', 1));
-  //xsites:=TStringlist.Create;
   try
     p := FindPazoByName(section, rlsname);
     if p <> nil then
@@ -1226,8 +1022,6 @@ begin
     on E: Exception do
       irc_addtext(Netname, Channel, '<c><b>ERROR</c></b>: %s', [E.Message]);
   end;
-
-  // sitename:= UpperCase( mystrings.RightStr(params, length(section)+length(rlsname)+2));
 
   if ((sitename = '*') or (sitename = '')) then
   begin
@@ -1274,12 +1068,12 @@ begin
         AddTask(r);
         QueueFire;
 
-        irc_addtext(Netname, Channel, 'Fireing %s @ %s ... hang a sec bro!', [dir, s.Name]);
+        irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
         tn.event.WaitFor($FFFFFFFF);
         // r.devent.WaitFor($FFFFFFFF);
 
         RemoveTN(tn);
-        irc_addtext(Netname, Channel, 'Site %s are done!', [s.Name]);
+        irc_addtext(Netname, Channel, 'Site %s is done!', [s.Name]);
 
       except
         on E: Exception do
@@ -1324,11 +1118,11 @@ begin
       tn.tasks.Add(r);
       AddTask(r);
       QueueFire;
-      irc_addtext(Netname, Channel, 'Fireing %s @ %s ... hang a sec bro!', [dir, s.Name]);
+      irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
       tn.event.WaitFor($FFFFFFFF);
 
       RemoveTN(tn);
-      irc_addtext(Netname, Channel, 'Site %s are done!', [s.Name]);
+      irc_addtext(Netname, Channel, 'Site %s is done!', [s.Name]);
     except
       on E: Exception do
         irc_addtext(Netname, Channel, '<c4><b>ERROR</c></b>: %s', [E.Message]);
@@ -1620,19 +1414,7 @@ begin
 
     i := StrToIntDef(spstatus, -1);
 
-    if i = -1 then
-    begin
-      irc_addText(netname, channel, 'Syntax error.');
-      exit;
-    end;
-
-    if i > 1 then
-    begin
-      irc_addText(netname, channel, 'Syntax error.');
-      exit;
-    end;
-
-    if i < 0 then
+    if ((i < 0) or (i > 1)) then
     begin
       irc_addText(netname, channel, 'Syntax error.');
       exit;
@@ -1666,19 +1448,7 @@ begin
     end;
     i := StrToIntDef(spstatus, -1);
 
-    if i = -1 then
-    begin
-      irc_addText(netname, channel, 'Syntax error.');
-      exit;
-    end;
-
-    if i > 1 then
-    begin
-      irc_addText(netname, channel, 'Syntax error.');
-      exit;
-    end;
-
-    if i < 0 then
+    if ((i < 0) or (i > 1)) then
     begin
       irc_addText(netname, channel, 'Syntax error.');
       exit;
@@ -1702,17 +1472,12 @@ end;
 procedure PrebotInit;
 begin
   batchqueue := TStringList.Create;
-
-  webtags := TStringList.Create;
-  webtags.Delimiter := ',';
-  webtags.DelimitedText := config.ReadString(section, 'webtags', '-WEB-');
 end;
 
 procedure PrebotUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   batchqueue.Free;
-  webtags.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
