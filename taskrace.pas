@@ -584,12 +584,12 @@ begin
   try
     if is_pre then
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' (* +
-      dir + ' ' *)+ ScheduleText
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
+      dir + ' ' + ScheduleText
     else
       Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' (* +
-      dir + ' ' *)+ ScheduleText;
+        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
+      dir + ' ' + ScheduleText;
   except
     Result := 'PDIRLIST';
   end;

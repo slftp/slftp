@@ -466,7 +466,7 @@ begin
   added := True;
   addednumber := 0;
   if 1 = Pos('PRE', section) then
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE, dir, '',
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '',
       True)
   else
     pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
@@ -534,22 +534,18 @@ begin
 
       if sp.SkipPre then
       begin
-        irc_addtext(Netname, Channel,
-          '<c8><b>INFO</c></b>: we skip %s for spread ',
-          [TSite(p.sites[i]).Name]);
+        irc_addtext(Netname, Channel, '<c8><b>INFO</c></b> we skip %s for spread, skip pre is set', [sp.Name]);
         Continue;
       end;
 
       try
-        FireRuleSet(p, ps);
+        if FireRuleSet(p, ps) = raAllow then
+          ps.status := rssAllowed;
       except
         on E: Exception do
         begin
-          Irc_AddText(Netname, Channel,
-            '<c4><b>ERROR</c></b>: IrcSpread.FireRuleSet: %s',
-            [e.Message]);
-          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRuleSet: %s',
-            [e.Message]));
+          Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcSpread.FireRuleSet: %s', [e.Message]);
+          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRuleSet: %s', [e.Message]));
         end;
       end;
 
@@ -558,12 +554,15 @@ begin
       except
         on E: Exception do
         begin
-          Irc_AddText(Netname, Channel,
-            '<c4><b>ERROR</c></b>: IrcSpread.FireRules: %s',
-            [e.Message]);
-          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRules: %s',
-            [e.Message]));
+          Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcSpread.FireRules: %s', [e.Message]);
+          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRules: %s', [e.Message]));
         end;
+      end;
+
+      if ps.status = rssNotAllowed then
+      begin
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping spread', [dir, ps.Name]);
+        Continue;
       end;
 
       try
@@ -571,12 +570,8 @@ begin
       except
         on E: Exception do
         begin
-          Irc_AddText(Netname, Channel,
-            '<c4><b>ERROR</c></b>: IrcSpread.FindSiteByName: %s',
-            [e.Message]);
-          Debug(dpError, section,
-            Format('[EXCEPTION] IrcSpread.FindSiteByName: %s',
-            [e.Message]));
+          Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcSpread.FindSiteByName: %s', [e.Message]);
+          Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FindSiteByName: %s', [e.Message]));
         end;
       end;
 
@@ -596,8 +591,7 @@ begin
 
       if s.WorkingStatus = sstUnknown then
       begin
-        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.',
-          [s.Name]);
+        irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is unknown.', [s.Name]);
         added := False;
         break;
       end;
@@ -616,8 +610,7 @@ begin
 
     if (addednumber = 0) then
     begin
-      irc_addtext(Netname, Channel, 'There are no sites up to spread to...');
-      added := False;
+      irc_addtext(Netname, Channel, 'There are no sites to spread to...');
     end;
 
     if not added then
@@ -626,11 +619,10 @@ begin
     end;
 
     if 1 = Pos('PRE', section) then
-      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbePRE,
-        dir, '', False, True)
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '', False, True)
     else
-      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
-        dir, '', False, True);
+      pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', False, True);
+
     if pazo_id = -1 then
     begin
       irc_addtext(Netname, Channel, 'Is it allowed anywhere at all?');
@@ -657,7 +649,7 @@ begin
       if p = nil then
       begin
         irc_addtext(Netname, Channel, 'No valid Pazo found for %s', [dir]);
-        exit; // ez a szituacio nem nagyon fordulhat elo
+        exit;
       end;
 
       if p.stopped then
@@ -1465,18 +1457,27 @@ end;
 
 function IrcCheckForExistsRip(const netname, channel, params: String): boolean;
 var
-  SOK, SBAD, predir, rip: String;
+  SOK, SBAD, predir: String;
+  section, rip: String;
   s:     TSite;
-  ii, I: integer;
+  ii, i: integer;
   d:     TDirlist;
   de:    TDirListEntry;
 begin
   Result := False;
-  rip    := params;
   SOK    := '';
   SBAD   := '';
 
-  for I := 0 to sites.Count - 1 do
+  section := UpperCase(SubString(params, ' ', 1));
+  rip := SubString(params, ' ', 2);
+
+  if (rip = '') then
+  begin
+    rip := SubString(params, ' ', 1);
+    section := 'PRE';
+  end;
+
+  for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites.Items[i]);
 
@@ -1485,11 +1486,11 @@ begin
 
     if s.SkipPre then
     begin
-      irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [s.Name]);
+      irc_addtext(netname, channel, '<c8><b>INFO</c></b>: Skip check for %s because skip pre is set.', [s.Name]);
       continue;
     end;
 
-    predir := s.sectiondir['PRE'];
+    predir := s.sectiondir[section];
     if predir = '' then
       Continue;
 
@@ -1523,8 +1524,10 @@ begin
     end;
   end;
 
-  irc_addtext(netname, channel, '<c3>%s</c>%s', [SOK]);
-  irc_addtext(netname, channel, '<c4>%s</c>%s', [SBAD]);
+  if (SOK <> '') then
+    irc_addtext(netname, channel, '<c3>Sites with rip %s</c> %s', [rip, Trim(SOK)]);
+  if (SBAD <> '') then
+    irc_addtext(netname, channel, '<c4>Sites without rip %s</c> %s', [rip, Trim(SBAD)]);
 
   Result := True;
 end;

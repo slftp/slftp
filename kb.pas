@@ -43,15 +43,15 @@ type
   {
   @value(kbeUNKNOWN UNKNOWN event, for anything we don't know or handle)
   @value(kbePRE PRE event, triggered by new pres on sites)
+  @value(kbeSPREAD SPREAD event, triggered by !spread)
   @value(kbeNEWDIR NEWDIR event, triggered by new races on sites)
   @value(kbeCOMPLETE COMPLETE event, triggered by completed races on sites)
   @value(kbeREQUEST REQUEST event, triggered by requests on sites)
   @value(kbeNUKE NUKE event, triggered by nukes on sites)
-  @value(kbeADDPRE ADDPRE event, ???)
-  @value(kbeSITEPRE SITEPRE event, ???)
+  @value(kbeADDPRE ADDPRE event, triggered by !addpre/!sitepre announces picked up on IRC)
   @value(kbeUPDATE UPDATE event, triggered to re-check rules and routes)
   }
-  TKBEventType = (kbeUNKNOWN, kbePRE, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeSITEPRE, kbeUPDATE);
+  TKBEventType = (kbeUNKNOWN, kbePRE, kbeSPREAD, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
 
   TRelease = class
     aktualizalva: boolean;
@@ -740,6 +740,10 @@ begin
           end;
         end;
       end
+      else if (event = kbeSPREAD) then
+      begin
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
+      end
       else
       begin
         r := rc.Create(rls, section);
@@ -791,6 +795,11 @@ begin
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+      end
+      else if (event = kbeSPREAD) then
+      begin
+        if spamcfg.ReadBool('kb', 'spread_rls', True) then
+          irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else
       begin
@@ -930,7 +939,7 @@ begin
         end;
       end;
 
-      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and (event in [kbeCOMPLETE, kbePRE])) then
+      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and (event in [kbeCOMPLETE, kbePRE, kbeSPREAD])) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -958,14 +967,16 @@ begin
 
     if (event = kbePRE) then
     begin
-      if 1 <> Pos('PRE', section) then
+      if (s <> nil) then
       begin
-        if (s <> nil) then
-        begin
-          if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', True))) then
-            s.AddAffil(r.groupname);
-        end;
+        if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', True))) then
+          s.AddAffil(r.groupname);
       end;
+      r.PredOnAnySite := True;
+      psource.Status := rssRealPre;
+    end
+    else if (event = kbeSPREAD) then
+    begin
       r.PredOnAnySite := True;
       psource.Status := rssRealPre;
     end
@@ -1095,7 +1106,7 @@ begin
 
   // now add dirlist
   try
-    if (event in [kbeNEWDIR, kbePRE, kbeADDPRE, kbeUPDATE]) then
+    if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
       for i := p.sites.Count - 1 downto 0 do
       begin

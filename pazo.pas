@@ -505,6 +505,9 @@ begin
       // Find the dirlist for destination site
       try
         dstdl := dst.dirlist.FindDirlist(dir, True);
+        // When in a subdir, pass along the DirType of the source site subdir
+        if (dstdl.parent <> nil) then
+          dstdl.parent.DirType := de.DirType;
       except
         Continue;
       end;
@@ -522,6 +525,9 @@ begin
       // find the dirlist entry
       try
         dde := dstdl.Find(de.filename);
+        // Pass along the DirType of the source site entry
+        if (dde <> nil) then
+          dde.DirType := de.DirType;
       except
         Continue;
       end;
@@ -1191,14 +1197,9 @@ begin
       end;
 
       ps := TPazoSite.Create(self, s.Name, sectiondir);
-      if aIsSpreadJob then
+      ps.status := rssNotAllowed;
+      if not aIsSpreadJob then
       begin
-        ps.status := rssAllowed;
-        // delaysetup not needed for spreading
-      end
-      else
-      begin
-        ps.status := rssNotAllowed;
         ps.DelaySetup;
       end;
 
