@@ -157,7 +157,7 @@ begin
       s  := FindSiteByName(netname, ps.Name);
       if s = nil then
       begin
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is no valid site!', [ps.Name]);
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is not a valid site!', [ps.Name]);
         Continue;
       end;
 
@@ -166,25 +166,25 @@ begin
 
       if (s.PermDown) then
       begin
-        irc_addtext(Netname, Channel, '<c10><b>DEBUG</c></b>: %s is perm down!', [ps.Name]);
+        irc_addtext(Netname, Channel, '<c10><b>DEBUG</c></b> %s is perm down!', [ps.Name]);
         Continue;
       end;
 
       if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
       begin
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s is marked as down!', [ps.Name]);
+        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is marked as down!', [ps.Name]);
         Continue;
       end;
 
       if s.SkipPre then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [ps.Name]);
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping check', [ps.Name]);
         Continue;
       end;
 
       if ps.status = rssNotAllowed then
       begin
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b>: %s status is NotAllowed', [ps.Name]);
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping check', [dir, ps.Name]);
         Continue;
       end;
 
@@ -425,7 +425,7 @@ begin
 
       if s.SkipPre then
       begin
-        irc_addtext(netname, channel, '<c7><b>INFO</c></b> %s is marked for skippre.', [ps.Name]);
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping pre', [ps.Name]);
         Continue;
       end;
 
@@ -437,23 +437,23 @@ begin
 
       if ps.status = rssNotAllowed then
       begin
-        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> rip status for %s is not allowed!', [ps.Name]);
-        exit;
+        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping pre', [dir, ps.Name]);
+        Continue;
       end;
 
       if (s.sectiondir[section] = '') then
       begin
-        irc_addtext(netname, channel, 'Site <b>%s</b> has no predir set.', [ps.Name]);
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> Site <b>%s</b> has no predir set.', [ps.Name]);
         exit;
       end;
       if (s.sectionprecmd[section] = '') then
       begin
-        irc_addtext(netname, channel, 'Site <b>%s</b> has no precmd set.', [ps.Name]);
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> Site <b>%s</b> has no precmd set.', [ps.Name]);
         exit;
       end;
       if (s.WorkingStatus = sstUnknown) then
       begin
-        irc_addtext(netname, channel, 'Status of site <b>%s</b> is unknown.', [ps.Name]);
+        irc_addtext(netname, channel, '<c4><b>ERROR</c></b> Status of site <b>%s</b> is unknown.', [ps.Name]);
         exit;
       end;
     end;
@@ -471,10 +471,10 @@ begin
         Continue;
 
       if s.SkipPre then
-      begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked for skippre.!', [ps.Name]);
         continue;
-      end;
+
+      if ps.status = rssNotAllowed then
+        Continue;
 
       if (not (s.WorkingStatus in [sstMarkedAsDownByUser])) then
       begin

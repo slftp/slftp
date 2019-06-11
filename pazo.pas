@@ -1197,14 +1197,9 @@ begin
       end;
 
       ps := TPazoSite.Create(self, s.Name, sectiondir);
-      if aIsSpreadJob then
+      ps.status := rssNotAllowed;
+      if not aIsSpreadJob then
       begin
-        ps.status := rssAllowed;
-        // delaysetup not needed for spreading
-      end
-      else
-      begin
-        ps.status := rssNotAllowed;
         ps.DelaySetup;
       end;
 
