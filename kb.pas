@@ -933,13 +933,14 @@ begin
           end;
         end;
 
-        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (not (s.WorkingStatus in [sstDown, sstMarkedAsDownByUser]))) then
+        if ((sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp])) then
         begin
           irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
         end;
       end;
 
-      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown]) and (event in [kbeCOMPLETE, kbePRE, kbeSPREAD])) then
+      // races/kb_adds are happening - site must be up again
+      if ((s <> nil) and (not s.PermDown) and (s.WorkingStatus in [sstDown, sstTempDown]) and (event in [kbeCOMPLETE, kbePRE, kbeSPREAD])) then
       begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
@@ -947,7 +948,7 @@ begin
           AddTask(l);
         except
           on E: Exception do
-            Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE loginTask : %s', [e.Message]);
+            Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE|SPREAD LoginTask : %s', [e.Message]);
         end;
       end;
 
