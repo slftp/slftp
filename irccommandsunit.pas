@@ -148,7 +148,7 @@ const
     (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 2; hlpgrp: 'prebot'),
     (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
     (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
-    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 1; maxparams: 1; hlpgrp: 'prebot'),
+    (cmd: 'prelist'; hnd: IrcListPreContent; minparams: 1; maxparams: 2; hlpgrp: 'prebot'),
     (cmd: 'prechecktime'; hnd: IrcSetReexamineTime; minparams: 0; maxparams: 1; hlpgrp: 'prebot'),
     (cmd: 'skippre'; hnd: IrcSetSkipPre; minparams: 1; maxparams: 2; hlpgrp: 'prebot'),
 

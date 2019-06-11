@@ -1247,17 +1247,25 @@ end;
 
 function IrcListPreContent(const netname, channel, params: String): boolean;
 var
-  s:      TSite;
-  ii, i:  integer;
-  predir: String;
-  d:      TDirlist;
-  de:     TDirListEntry;
-  plist:  TStringList;
+  s:        TSite;
+  ii, i:    integer;
+  sitename: String;
+  section:  String;
+  predir:   String;
+  d:        TDirlist;
+  de:       TDirListEntry;
+  plist:    TStringList;
 begin
   Result := False;
   plist  := TStringList.Create;
   try
-    if params = '*' then
+    sitename := UpperCase(SubString(params, ' ', 1));
+    section := UpperCase(SubString(params, ' ', 2));
+
+    if (section = '') then
+      section := 'PRE';
+
+    if sitename = '*' then
     begin
       for i := 0 to sites.Count - 1 do
       begin
@@ -1272,14 +1280,13 @@ begin
         end;
 
         try
-          predir := s.sectiondir['PRE'];
+          predir := s.sectiondir[section];
         except
           on E: Exception do
             irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
         end;
         if predir = '' then
         begin
-          irc_addtext(netname, channel, '', []);
           Continue;
         end;
 
@@ -1304,20 +1311,20 @@ begin
       end;
 
       for i := 0 to pList.Count - 1 do
-        irc_addtext(netname, channel, '%s ( %s )', [plist.Names[i], plist.ValueFromIndex[i]]);
+        irc_addtext(netname, channel, '%s ( %s )', [plist.Names[i], Trim(plist.ValueFromIndex[i])]);
 
     end
     else
     begin
-      s := FindSiteByName(netname, params);
+      s := FindSiteByName(netname, sitename);
       if s = nil then
       begin
-        irc_addtext(netname, channel, 'Site %s not found.', [s.Name]);
+        irc_addtext(netname, channel, 'Site %s not found.', [sitename]);
         exit;
       end;
 
       try
-        predir := s.sectiondir['PRE'];
+        predir := s.sectiondir[section];
       except
         on E: Exception do
           irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
@@ -1325,7 +1332,7 @@ begin
 
       if predir = '' then
       begin
-        irc_addtext(netname, channel, 'No valid path for section %s found on %s ', ['PRE', s.Name]);
+        irc_addtext(netname, channel, 'No valid path for section %s found on %s ', [section, s.Name]);
         exit;
       end;
 
