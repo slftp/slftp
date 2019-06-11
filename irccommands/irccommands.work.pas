@@ -1465,18 +1465,27 @@ end;
 
 function IrcCheckForExistsRip(const netname, channel, params: String): boolean;
 var
-  SOK, SBAD, predir, rip: String;
+  SOK, SBAD, predir: String;
+  section, rip: String;
   s:     TSite;
-  ii, I: integer;
+  ii, i: integer;
   d:     TDirlist;
   de:    TDirListEntry;
 begin
   Result := False;
-  rip    := params;
   SOK    := '';
   SBAD   := '';
 
-  for I := 0 to sites.Count - 1 do
+  section := UpperCase(SubString(params, ' ', 1));
+  rip := SubString(params, ' ', 2);
+
+  if (rip = '') then
+  begin
+    rip := SubString(params, ' ', 1);
+    section := 'PRE';
+  end;
+
+  for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites.Items[i]);
 
@@ -1485,11 +1494,11 @@ begin
 
     if s.SkipPre then
     begin
-      irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [s.Name]);
+      irc_addtext(netname, channel, '<c8><b>INFO</c></b>: Skip check for %s because skip pre is set.', [s.Name]);
       continue;
     end;
 
-    predir := s.sectiondir['PRE'];
+    predir := s.sectiondir[section];
     if predir = '' then
       Continue;
 
@@ -1523,8 +1532,10 @@ begin
     end;
   end;
 
-  irc_addtext(netname, channel, '<c3>%s</c>%s', [SOK]);
-  irc_addtext(netname, channel, '<c4>%s</c>%s', [SBAD]);
+  if (SOK <> '') then
+    irc_addtext(netname, channel, '<c3>Sites with rip %s</c> %s', [rip, Trim(SOK)]);
+  if (SBAD <> '') then
+    irc_addtext(netname, channel, '<c4>Sites without rip %s</c> %s', [rip, Trim(SBAD)]);
 
   Result := True;
 end;
