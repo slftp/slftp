@@ -87,6 +87,7 @@
     {+} Wildcard support for !setsocks5 SITE (#234)
     {+} Make TV-releases skippable for iMDB lookups (#232)
     {+} Optimized code for release language detection (slftp.languagebase)
+    {+} Support for rules-checking in !batch,!spread,!check,!pre cmds for groups
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -108,6 +109,8 @@
     {#} reqfiller not realizing requests are done (#32)
     {#} !addtvmaze -s The.Twilight.Zone gaves wrong showname result (#241)
     {#} global skipped groups will also skip GRPNAME_INT
+    {#} Fix !prelist for arbitrary PRE-sections and improve error handling (#212)
+    {#} !spread not realizing spreading was completed
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -128,6 +131,7 @@
     {^} more reliable maxidle interval handling
     {^} Free and reassign slots faster on completed races of single files
     {^} If available parse complete_tag on requests to determine completion
+    {^} Separate spread event to not clash with PRE events like addpre announces
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
