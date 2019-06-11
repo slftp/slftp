@@ -216,7 +216,9 @@ begin
 
   queue_lock.Enter;
   try
-    csl := FindSkipList('PRE');
+    csl := FindSkipList(section, False);
+    if (csl = nil) then
+      csl := FindSkipList('PRE', True);
 
     if tn.responses.Count <> addednumber then
     begin
