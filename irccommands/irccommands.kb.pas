@@ -144,33 +144,33 @@ begin
   case kb_event of
     kbeNEWDIR:
       begin
-        irc_addtext(Netname, Channel, format('<c2>-> [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c2>-> [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
     kbePRE:
       begin
-        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
     kbeSPREAD:
       begin
-        irc_addtext(Netname, Channel, format('<c5>-> [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c5>-> [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
     kbeADDPRE:
       begin
-        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c3>-> [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
     kbeCOMPLETE:
       begin
-        irc_addtext(Netname, Channel, format('<c7><- [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c7><- [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
     kbeNUKE:
       begin
-        irc_addtext(Netname, Channel, format('<c4>-- [KB]</c> %s %s %s @ %s',
-          [event, rls_section, rls, '<b>' + sitename + '</b>']));
+        irc_addtext(Netname, Channel, format('<c4>-- [KB]</c> %s %s %s @ <b>%s</b>',
+          [event, rls_section, rls, sitename]));
       end;
   end;
 
