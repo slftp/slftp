@@ -198,8 +198,6 @@ type
     procedure Setsslmethod(const Value: TSSLMethods);
     function Getsslfxp: TSSLReq; //< function for @link(sslfxp) property to read sslfxp from inifile (default value: @link(TSSLReq.srNone))
     procedure Setsslfxp(const Value: TSSLReq); //< procedure for @link(sslfxp) property to write sslfxp to inifile
-    function GetPredir: String;
-    procedure SetPredir(const Value: String);
     function Getlegacydirlist: boolean;
     procedure Setlegacydirlist(const Value: boolean);
     function GetSectionDir(const Name: String): String;
@@ -404,7 +402,6 @@ type
     property sslmethod: TSSLMethods read Getsslmethod write Setsslmethod;
     property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
-    property predir: String read GetPredir write SetPredir;
 
     property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
@@ -1373,13 +1370,6 @@ begin
       exit;
   end;
 
-  if (site.predir <> '') then
-  begin
-    if not Cwd(site.predir) then
-      if status = ssDown then
-        exit;
-  end;
-
   // successful login
   Result := True;
 
@@ -2203,20 +2193,6 @@ begin
   WorkingStatus := sstUnknown;
   features := [];
 
-  // rakjuk rendbe a direket
-  if ((RCString('predir', '') <> '') and (sectiondir['PRE'] = '')) then
-  begin
-    sectiondir['PRE'] := RCString('predir', '');
-    sitesdat.DeleteKey('site-' + self.Name, 'predir');
-  end;
-
-  // es a precmd-ket is
-  if ((RCString('precmd', '') <> '') and (sectionprecmd['PRE'] = '')) then
-  begin
-    sectionprecmd['PRE'] := RCString('precmd', '');
-    sitesdat.DeleteKey('site-' + self.Name, 'precmd');
-  end;
-
   slots := TObjectList.Create();
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
@@ -2546,16 +2522,6 @@ end;
 procedure TSite.Setsslfxp(const Value: TSSLReq);
 begin
   WCInteger('sslfxp', integer(Value));
-end;
-
-function TSite.GetPredir: String;
-begin
-  Result := sectiondir['PRE'];
-end;
-
-procedure TSite.SetPredir(const Value: String);
-begin
-  sectiondir['PRE'] := Value;
 end;
 
 function TSite.Getlegacydirlist: boolean;
