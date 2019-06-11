@@ -84,12 +84,26 @@ end;
 function IrcPredir(const netname, channel, params: String): boolean;
 var
   sitename: String;
+  section: String;
   predir: String;
 begin
   sitename := UpperCase(SubString(params, ' ', 1));
-  predir := SubString(params, ' ', 2);
+  section  := UpperCase(SubString(params, ' ', 2));
+  predir := SubString(params, ' ', 3);
 
-  Result := IrcSetDir(netname, channel, sitename + ' PRE ' + predir);
+  if (predir = '') then
+  begin
+    section := 'PRE';
+    predir := SubString(params, ' ', 2);
+  end;
+
+  if (Pos('PRE', section) <> 1) then
+  begin
+    irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Pre section <b>%s</b> is invalid. All pre sections must start with PRE.', [section]);
+    exit;
+  end;
+
+  Result := IrcSetDir(netname, channel, Format('%s %s %s', [sitename, section, predir]));
 end;
 
 function IrcCheck(const netname, channel, params: String): boolean;

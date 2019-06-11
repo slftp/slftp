@@ -140,7 +140,7 @@ const
 
     (cmd: 'PREBOT'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$prebot'),
     (cmd: 'setprecmd'; hnd: IrcPrecmd; minparams: 2; maxparams: - 1; hlpgrp: 'prebot'),
-    (cmd: 'setpredir'; hnd: IrcPredir; minparams: 2; maxparams: 2; hlpgrp: 'prebot'),
+    (cmd: 'setpredir'; hnd: IrcPredir; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
     (cmd: 'check'; hnd: IrcCheck; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
     (cmd: 'pre'; hnd: IrcPre; minparams: 1; maxparams: 2; hlpgrp: 'prebot'),
     (cmd: 'pretest'; hnd: IrcPretest; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
