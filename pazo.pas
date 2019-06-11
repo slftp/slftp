@@ -1988,7 +1988,7 @@ begin
     RemoveDirlistTasks(pazo.pazo_id, Name);
 
     if echomsg then
-      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name]));
+      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, pazo.errorreason]));
 
   except
     on e: Exception do
