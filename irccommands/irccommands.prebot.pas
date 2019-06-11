@@ -1027,35 +1027,23 @@ begin
   begin
     for i := 0 to sites.Count - 1 do
     begin
-      if (TSite(sites.Items[i]).Name = getAdminSiteName)
-        then
-        Continue;
-      if (TSite(sites.Items[i]).PermDown) then
+      s := TSite(sites.Items[i]);
+      if (s.Name = getAdminSiteName) then
         Continue;
 
-      s := FindSiteByName(Netname, TSite(sites.Items[i]).Name);
-      if s = nil then
+      if (s.PermDown) then
+        Continue;
+
+      predir := s.sectiondir[section];
+      if (predir = '') then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.',
-          [TSite(sites.Items[i]).Name]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> has no predir set.', [s.Name]);
         Continue;
-      end; // if s = nil then begin
-
-      try
-        predir := s.sectiondir[section];
-        if (predir = '') then
-        begin
-          irc_addtext(Netname, Channel, 'Site <b>%s</b> has no predir set.', [s.Name]);
-          Continue;
-        end; // if (predir = '') then begin
-      except
-        on E: Exception do
-          irc_addtext(Netname, Channel, '<c4<b>ERROR</c></b>: %s', [E.Message]);
       end;
 
       if s.WorkingStatus <> sstUp then
       begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> is not marked as up.', [sitename]);
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> is not marked as up.', [s.Name]);
         Continue;
       end;
 
@@ -1085,23 +1073,17 @@ begin
   begin
 
     s := FindSiteByName(Netname, sitename);
-
     if s = nil then
     begin
       irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
       exit;
-    end; // if s = nil then begin
+    end;
 
-    try
-      predir := s.sectiondir[section];
-      if (predir = '') then
-      begin
-        irc_addtext(Netname, Channel, 'Site <b>%s</b> has no predir set.', [sitename]);
-        exit;
-      end; // if (predir = '') then begin
-    except
-      on E: Exception do
-        irc_addtext(Netname, Channel, '<c><b>ERROR</c></b>: %s', [E.Message]);
+    predir := s.sectiondir[section];
+    if (predir = '') then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> has no predir set.', [sitename]);
+      exit;
     end;
 
     if s.WorkingStatus <> sstUp then
@@ -1279,12 +1261,7 @@ begin
           continue;
         end;
 
-        try
-          predir := s.sectiondir[section];
-        except
-          on E: Exception do
-            irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-        end;
+        predir := s.sectiondir[section];
         if predir = '' then
         begin
           Continue;
@@ -1323,13 +1300,7 @@ begin
         exit;
       end;
 
-      try
-        predir := s.sectiondir[section];
-      except
-        on E: Exception do
-          irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
-      end;
-
+      predir := s.sectiondir[section];
       if predir = '' then
       begin
         irc_addtext(netname, channel, 'No valid path for section %s found on %s ', [section, s.Name]);
