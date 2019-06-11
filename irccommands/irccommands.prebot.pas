@@ -538,7 +538,7 @@ begin
 
     if (SecondsBetween(Now, elozo) > 20) then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>%s</c>', ['Changing directories to predir took too long, sorry...']);
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>Changing directories to predir took too long, sorry...</c>');
       RemoveTN(tn1);
       exit;
     end;
