@@ -25,15 +25,22 @@ implementation
 uses
   SysUtils, Classes, StrUtils, DateUtils, Contnrs, SyncObjs, irc, sitesunit, configunit, dirlist, pazo,
   debugunit, queueunit, mystrings, notify, taskdel, statsunit, kb, taskdirlist, taskraw, slmasks, skiplists,
-  rulesunit, irccommands.work, irccommands.site, irccommandsunit;
+  rulesunit, irccommands.work, irccommands.site, irccommandsunit, Generics.Collections;
 
 const
   section = 'irccommands.prebot';
   { section in config file }
   rrsection = 'prebot';
 
+type
+  TBatchQueueItem = record
+    sitename: String;
+    section: String;
+    dir: String;
+  end;
+
 var
-  batchqueue: TStringList;
+  batchqueue: TList<TBatchQueueItem>;
 
 function IrcPrecmd(const netname, channel, params: String): boolean;
 var
@@ -756,33 +763,31 @@ var
   fDirlistEntry: TDirListEntry;
   i: Integer;
 
-  function _IrcBatch(const netname, channel, params: String): boolean;
-  label
-    ujkor;
+  function _IrcBatch(const netname, channel: String): boolean;
   var
-    s, ss: String;
+    ss: String;
     sitename, section, dir: String;
     i:     integer;
     site:  TSite;
     p:     TPazo;
     ps:    TPazoSite;
+    item:  TBatchQueueItem;
   begin
     while (True) do
     begin
       queue_lock.Enter;
       try
         if batchqueue.Count = 0 then
-        begin
           Break;
-        end;
-        s := batchqueue[0];
+        item := batchqueue.First();
+        batchqueue.Remove(item);
       finally
         queue_lock.Leave;
       end;
 
-      sitename := SubString(s, #9, 1);
-      section  := SubString(s, #9, 2);
-      dir      := SubString(s, #9, 3);
+      sitename := item.sitename;
+      section  := item.section;
+      dir      := item.dir;
 
       queue_lock.Enter;
       try
@@ -794,7 +799,7 @@ var
       if i = -1 then
       begin
         irc_Addtext(netname, channel, 'No Pazo found for ' + dir);
-        goto ujkor;
+        continue;
       end;
 
       queue_lock.Enter;
@@ -840,7 +845,7 @@ var
       if not IrcSpread(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Spreading returned error. Skipping.</c>');
-        goto ujkor;
+        continue;
       end
       else
         irc_Addtext(netname, channel, 'Checking now....');
@@ -849,23 +854,13 @@ var
       if not IrcCheck(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Checking returned error. Skipping.</c>');
-        goto ujkor;
+        continue;
       end
       else
         irc_Addtext(netname, channel, 'preeeeing now....');
 
       irc_Addtext(netname, channel, '%spre %s %s', [irccmdprefix, section, dir]);
       IrcPre(netname, channel, section + ' ' + dir);
-
-      ujkor:
-      queue_lock.Enter;
-      try
-        i := batchqueue.IndexOf(s);
-        if i = 0 then
-          batchqueue.Delete(0);
-      finally
-        queue_lock.Leave;
-      end;
     end;
 
     irc_Addtext(netname, channel, 'Batch queue is empty.');
@@ -875,12 +870,17 @@ var
   // helper function to reduce code duplication
   // adds a new entry to batchqueue
   procedure AddEntryToBatchQueue;
+  var
+    item: TBatchQueueItem;
   begin
     queue_lock.Enter;
     try
-      batchqueue.Add(sitename + #9 + section + #9 + dir);
+      item.sitename := sitename;
+      item.section := section;
+      item.dir := dir;
+      batchqueue.Add(item);
       if batchqueue.Count = 1 then
-        _IrcBatch(netname, channel, params);
+        _IrcBatch(netname, channel);
     finally
       queue_lock.Leave;
     end;
@@ -965,18 +965,30 @@ end;
 
 function IrcBatchDel(const netname, channel, params: String): boolean;
 var
-  sitename, dir: String;
+  sitename, section, dir: String;
   i: integer;
+  item: TBatchQueueItem;
 begin
   Result := False;
 
-  sitename := SubString(params, ' ', 1);
-  dir      := SubString(params, ' ', 2);
+  sitename := UpperCase(SubString(params, ' ', 1));
+  section  := UpperCase(SubString(params, ' ', 2));
+  dir      := SubString(params, ' ', 3);
+
+  if (dir = '') then
+  begin
+    section := 'PRE';
+    dir := SubString(params, ' ', 2);
+  end;
 
   queue_lock.Enter;
   try
-    i := batchqueue.IndexOf(sitename + #9 + dir);
-    if i <> -1 then
+    item.sitename := sitename;
+    item.section := section;
+    item.dir := dir;
+
+    i := batchqueue.IndexOf(item);
+    if (i <> -1) then
     begin
       batchqueue.Delete(i);
       Result := True;
@@ -1465,7 +1477,7 @@ end;
 
 procedure PrebotInit;
 begin
-  batchqueue := TStringList.Create;
+  batchqueue := TList<TBatchQueueItem>.Create;
 end;
 
 procedure PrebotUninit;
