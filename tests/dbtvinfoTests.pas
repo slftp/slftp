@@ -36,6 +36,7 @@ type
     procedure GetShowValues17;
     procedure GetShowValues18;
     procedure GetShowValues19;
+    procedure GetShowValues20;
   end;
 
 implementation
@@ -490,6 +491,26 @@ begin
   fExpectedResultStr := 'Japan.von.oben';
   fSeason := -10;
   fEpisode := 3;
+  
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues20;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'The.New.Frontier.S04E08.1080p.WEB.H264-EDHD';
+  fExpectedResultStr := 'The.New.Frontier';
+  fSeason := 4;
+  fEpisode := 8;
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
