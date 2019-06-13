@@ -94,6 +94,8 @@ var
   section: String;
   predir: String;
 begin
+  Result := False;
+
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
   predir := SubString(params, ' ', 3);
