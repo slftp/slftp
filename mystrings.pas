@@ -49,12 +49,12 @@ type
   { Converts an enumeration element from the enumerated type to string
     @param(aEnumValue element of enumeration type)
     @returns(Name of enumeration as string) }
-    class function ToString(const aEnumValue: T): string; reintroduce;
+    class function ToString(const aEnumValue: T): string; reintroduce; inline; static;
   { Converts a string to an enumeration element from the enumerated type
     @param(aEnumString Name of enum element which should be converted)
     @param(aDefault element of enumeration type which should be used if conversion doesn't work)
     @returns(enumeration element from the enumerated type) }
-    class function FromString(const aEnumString: string; const aDefault: T): T;
+    class function FromString(const aEnumString: string; const aDefault: T): T; inline; static;
   end;
 
 { Remove all non/special characters from String
