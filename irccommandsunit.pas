@@ -29,6 +29,7 @@ type
     c: TIRCCommandHandler;
     th: TMyIrcThread;
     Netname, Channel, CMD, Params: String;
+  protected
     procedure Execute; override;
   public
     constructor Create(c: TIRCCommandHandler; const netname, channel, params: String; cmd: String = '');
