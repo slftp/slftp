@@ -75,8 +75,6 @@ type
     fake: boolean;
     fakereason: String;
 
-    event: TKBEventType;
-
     pretime: TDateTime;
     cpretime: int64;
     PredOnAnySite: boolean; // { indicates if it's pred on any of your sites }
@@ -1283,7 +1281,6 @@ var
   fLanguage, s: String;
   i, j: integer;
   rrgx: TRegExpr;
-  ii: integer;
 begin
   try
     aktualizalva := False;
