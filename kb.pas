@@ -75,8 +75,6 @@ type
     fake: boolean;
     fakereason: String;
 
-    event: TKBEventType;
-
     pretime: TDateTime;
     cpretime: int64;
     PredOnAnySite: boolean; // { indicates if it's pred on any of your sites }
@@ -572,7 +570,7 @@ begin
       if i <> -1 then
       begin
         ss := kb_latest.ValueFromIndex[i];
-        if (ss <> section) then
+        if (ss.StartsWith('PRE') and (ss <> section)) then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
           exit;
@@ -1283,7 +1281,6 @@ var
   fLanguage, s: String;
   i, j: integer;
   rrgx: TRegExpr;
-  ii: integer;
 begin
   try
     aktualizalva := False;
