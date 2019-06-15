@@ -874,7 +874,7 @@ begin
     exit;
   end;
 
-  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (Pos('ARCH-', section) = 0) then
+  if (section <> 'SPEEDTEST') and (section <> 'REQUEST') and (not section.StartsWith('ARCH-')) and (not section.StartsWith('PRE')) then
   begin
     if (kb_sections.IndexOf(section) = -1) and (dir <> '') then
     begin
