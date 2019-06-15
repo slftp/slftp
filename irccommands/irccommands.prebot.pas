@@ -775,14 +775,11 @@ var
     ps:    TPazoSite;
     item:  TBatchQueueItem;
   begin
-    while (True) do
+    while (batchqueue.Count > 0) do
     begin
       queue_lock.Enter;
       try
-        if batchqueue.Count = 0 then
-          Break;
-        item := batchqueue.First();
-        batchqueue.Remove(item);
+        item := batchqueue.Extract(batchqueue.First);
       finally
         queue_lock.Leave;
       end;
