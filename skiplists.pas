@@ -35,7 +35,18 @@ type
     function AllowedDir(const dirname, filename: String): TSkipListFilter;
   end;
 
-function FindSkipList(const section: String): TSkipList;
+{ Find skiplist for specified section.
+  Fall back to default @link(TSkipList) if no matching section can be found.
+  @param(section Name of the section of which to return the skiplist)
+  @returns(@link(TSkipList) object of matching skiplist or default) }
+function FindSkipList(const section: String): TSkipList; overload;
+
+{ Find skiplist for specified section. If required fallback to default skiplist.
+  @param(section Name of the section of which to return the skiplist)
+  @param(fallback Set to @true if default skiplist should be returned
+    if @link(section) skiplist can't be found.)
+  @returns(@link(TSkipList) object if matching skiplist is found or nil otherwise) }
+function FindSkipList(const section: String; const fallback: boolean): TSkipList; overload;
 procedure SkiplistStart;
 procedure SkiplistsInit;
 procedure SkiplistsUninit;
@@ -326,6 +337,11 @@ begin
 end;
 
 function FindSkipList(const section: String): TSkipList;
+begin
+  Result := FindSkipList(section, True);
+end;
+
+function FindSkipList(const section: String; const fallback: boolean): TSkipList;
 var
   i: integer;
   s: TSkipList;
@@ -360,7 +376,7 @@ begin
   end;
 
   // Fallback to default skiplist if nothing is found
-  if Result = nil then
+  if (Result = nil) and (fallback) then
   begin
     irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIPLIST]</c> section <b>%s</b> not found in slftp.skip', [section]));
     Result := skiplist[0] as TSkipList;
