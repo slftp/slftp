@@ -55,8 +55,7 @@ begin
   hadCountry := False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
 
-  // TODO: guess this call is useless as name is already fine, so name == showName
-  getShowValues(name, showName);
+  showName := name;
 
   x := TRegExpr.Create;
   try
