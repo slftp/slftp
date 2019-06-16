@@ -317,13 +317,14 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks,
-  globalskipunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
   TSectionRelease = record
     section: String;
     r: TCRelease;
   end;
+
   TSectionHandlers = array[0..6] of TCRelease;
 
 const
@@ -356,7 +357,6 @@ var
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
-
 
 function EventStringToTKBEventType(const aEvent: string): TKBEventType;
 begin
@@ -2838,392 +2838,159 @@ end;
 
 function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
 var
-  i, j: integer;
-  psrc, pdest: TPazoSite;
-  ssrc, sdest: TSite;
+  i, j, rank: integer;
+  ps, sps: TPazoSite;
+  ss: TSite;
   p: TPazo;
-  ssrc_found: boolean;
+  rc: TCRelease;
+  rls: TRelease;
+  pdt: TPazoDirlistTask;
+  sources, destinations: TList<TPazoSite>;
+  site_allocation: TObjectDictionary<String, TStringList>;
+  ssites_info, dsites_info: TStringList;
 begin
   Result := False;
   p := TPazo(pazo);
   Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
 
-  // check if the release is incomplete on any site and gather valid sites for filling
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    pdest := TPazoSite(p.sites[i]);
+  sources := TList<TPazoSite>.Create;
+  destinations := TList<TPazoSite>.Create;
+  site_allocation := TObjectDictionary<String, TStringList>.Create([doOwnsValues]);
 
-    if pdest.Name = getAdminSiteName then
-      Continue;
-    // if complete, we don't need to fill it there
-    if pdest.Complete then
-      Continue;
-    if pdest.status <> rssAllowed then
-      Continue;
-    if pdest.error then
+  try
+    // check if the release is incomplete on any site and gather valid sites for filling
+    for i := 0 to p.sites.Count - 1 do
     begin
-      Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [pdest.Name, pdest.reason]));
-      Continue;
-    end;
+      ps := TPazoSite(p.sites[i]);
+      Debug(dpSpam, rsections, 'AddCompleteTransfers checking out %s', [ps.Name]);
 
-    sdest := FindSiteByName('', pdest.Name);
-    if sdest = nil then
-      Continue;
-    if sdest.PermDown then
-      Continue;
-
-    // iterate through sites and find possible sources where rls is complete and create task
-    for j := 0 to p.sites.Count - 1 do
-    begin
-      ssrc_found := False;
-      psrc := TPazoSite(p.sites[j]);
-
-      if psrc.Name = getAdminSiteName then
+      if ps.Name = getAdminSiteName then
         Continue;
-      if psrc.Name = pdest.Name then
-        Continue;
-      // if not complete, we cannot use it as source to fill
-      if not psrc.Complete then
-        Continue;
-      if psrc.error then
+      if ps.error then
       begin
-        Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [psrc.Name, psrc.reason]));
+        Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [ps.Name, ps.reason]));
         Continue;
       end;
 
-      ssrc := FindSiteByName('', psrc.Name);
-      if ssrc = nil then
+      ss := FindSiteByName('', ps.Name);
+      if ss = nil then
         Continue;
-      if ssrc.PermDown then
+      if ss.PermDown then
+      begin
+        Debug(dpSpam, rsections, 'AddCompleteTransfers %s ss is permdown', [ps.Name]);
         Continue;
+      end;
+      if (ss.WorkingStatus in [sstMarkedAsDownByUser]) then
+      begin
+        Debug(dpSpam, rsections, 'AddCompleteTransfers %s ss is marked down by user', [ps.Name]);
+        Continue;
+      end;
 
-      if config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False) then
-        ssrc_found := ssrc.isRouteableTo(sdest.Name)
+      if ps.Complete then
+      begin
+        sources.Add(ps);
+        Debug(dpSpam, rsections, 'AddCompleteTransfers taking %s as source', [ps.Name]);
+      end
       else
-        ssrc_found := True;
+      begin
+        if ps.status <> rssAllowed then
+        begin
+          Debug(dpSpam, rsections, 'AddCompleteTransfers %s not rssAllowed', [ps.Name]);
+          Continue;
+        end;
+        destinations.Add(ps);
+        Debug(dpSpam, rsections, 'AddCompleteTransfers taking %s as destination', [ps.Name]);
+      end;
+    end;
 
-      // continue with next site from list if current site has no route
-      if not ssrc_found then
-        continue;
+    if ((destinations.Count = 0) or (sources.Count = 0)) then
+    begin
+      Result := True;
+      exit;
+    end;
 
-      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s', [p.rls.rlsname, pdest.Name, psrc.Name]);
+    // Found at least one site that has the release, issue dirlists for each one and create pazo to send it to destinations
+    rc := FindSectionHandler(p.rls.section);
+    rls := rc.Create(p.rls.rlsname, p.rls.section);
+    p := PazoAdd(rls);
+    kb_list.AddObject('INC-' + p.rls.rlsname, p);
+
+    for ps in destinations do
+    begin
+      p.AddSite(ps.Name, ps.maindir);
+      site_allocation.Add(ps.Name, TStringList.Create);
+    end;
+
+    for sps in sources do
+    begin
+      site_allocation.Add(sps.Name, TStringList.Create);
+      ssites_info := site_allocation.Items[sps.Name];
+      for ps in destinations do
+      begin
+        // Check for every destination if its routable if we care about that
+        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ps.Name, 0);
+        if ((config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False)) and (rank = 0)) then
+          Continue;
+        ssites_info.Add(ps.Name);
+      end;
+      // Skip this source if there are no routable destinations available
+      if ssites_info.Count = 0 then
+        Continue;
+
+      ps := p.AddSite(sps.Name, sps.maindir);
+      // Add every destination and the real ranks (if available) or a default of 0 for routing source -> destination
+      for j := 0 to ssites_info.Count - 1 do
+      begin
+        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ssites_info[j], 0);
+        ps.AddDestination(ssites_info[j], rank);
+        dsites_info := site_allocation.Items[ssites_info[j]];
+        dsites_info.Add(sps.Name);
+      end;
+    end;
+
+    for ps in sources do
+    begin
       try
-        pdest.Clear;
-
-        // TODO: we need to check how to get it to work with non routable sites
-        // we need to add them manually here but will they be used on race? Or do slftp overwritte them somewhere?
-
-        AddTask(TPazoDirlistTask.Create('', '', psrc.Name, p, '', False, True));
-        irc_Addstats(Format(
-          '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
-          [p.rls.section, p.rls.rlsname, pdest.Name, psrc.Name]));
-
-        Result := True;
+        ssites_info := site_allocation.Items[ps.Name];
+        // if this source has no destination we dont need to issue a dirlist as it would not yield any race actions
+        if ssites_info.Count = 0 then
+          Continue;
+        pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
+        AddTask(pdt);
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
-          irc_AddError(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s', [e.Message]));
-          Result := False;
+          Debug(dpError, rsections, Format('[EXCEPTION] TAutoDirlistTask.ProcessRequest AddTask: %s', [e.Message]));
         end;
       end;
     end;
+    for ps in destinations do
+    begin
+      try
+        dsites_info := site_allocation.Items[ps.Name];
+        // if this destination has no matching sources we arent going to fill anything and as such dont need the dirlists
+        if dsites_info.Count = 0 then
+          Continue;
+        pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
+        AddTask(pdt);
+        irc_Addstats(Format(
+          '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
+          [p.rls.section, p.rls.rlsname, ps.Name, dsites_info.CommaText]));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] TAutoDirlistTask.ProcessRequest AddTask: %s', [e.Message]));
+        end;
+      end;
+    end;
+  finally
+    sources.Free;
+    destinations.Free;
+    site_allocation.Free;
   end;
 
   Debug(dpMessage, rsections, '<-- END AddCompleteTransfers %s', [p.rls.rlsname]);
 end;
-
-{
--- PREVIOUS VERSION --
-function TKBThread.AddCompleteTransfers(pazo: Pointer): boolean;
-var
-  j, i: integer;
-  ps, pss: TPazoSite;
-  p: TPazo;
-  inc_srcsite, inc_dstsite: TSite;
-  inc_srcdir, inc_dstdir: String;
-  inc_rc: TCRelease;
-  inc_rls: TRelease;
-  inc_p: TPazo;
-  inc_ps: TPazoSite;
-  inc_pd: TPazoDirlistTask;
-  sfound: boolean;
-  tts, ts, site: TSite;
-begin
-  Result := False;
-  p := TPazo(pazo);
-  //  sfound := False;
-
-  Debug(dpMessage, rsections, '--> AddCompleteTransfers %s', [p.rls.rlsname]);
-  irc_Addstats(Format('--> AddCompleteTransfers %s (%d)',
-    [p.rls.rlsname, p.sites.Count]));
-
-  for i := 0 to p.sites.Count - 1 do
-  begin
-    ps := TPazoSite(p.sites[i]);
-
-    irc_Addstats(Format('doing %s - status: %s error: %s',
-      [ps.Name, ps.StatusText, BoolToStr(ps.error, True)]));
-
-    (*
-      case status of
-        rssNotAllowed: Result:= Result + 'N';
-        rssNotAllowedButItsThere: Result:= 'NABIT';
-        rssAllowed: Result:= Result + 'A';
-        rssShouldPre: Result:= Result + 'S';
-        rssRealPre: Result:= Result + 'P';
-        rssComplete: Result:= Result + 'C';
-      end;
-    *)
-        //will be true if release is complete on site
-    if ps.Complete then
-    begin
-      irc_Addstats(Format('<c4>site %s is complete</c>', [ps.Name]));
-      Continue;
-    end;
-
-    //There is some error we need to check in later revs!
-    if ps.error then
-    begin
-      irc_Addstats(Format('<c4>Error: AddCompleteTransfers for %s (%s)</c>', [ps.Name, ps.reason]));
-      Continue;
-    end;
-
-    if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-      Continue;
-
-    //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-    if ps.status <> rssAllowed then //ps.status != rssAllowed
-    begin
-      irc_Addstats(Format('<c4>site %s is not rssAllowed (%s)</c>',
-        [ps.Name, ps.StatusText]));
-      Continue;
-    end;
-
-    irc_Addstats(Format('<c8>site %s will be checked</c>', [ps.Name]));
-
-    site := FindSiteByName('', ps.Name);
-    if site = nil then
-      Continue;
-    if site.PermDown then
-      Continue;
-
-    irc_Addstats(Format('<c8>site %s is checked</c>', [ps.Name]));
-
-    //checking if a irc chan is added for the site
-    if Precatcher_Sitehasachan(ps.Name) then
-    begin
-      pss := nil;
-      //sfound := False;
-
-      for j := 0 to p.sites.Count - 1 do
-      begin
-        pss := TPazoSite(p.sites[j]);
-        irc_Addstats(Format('do %s (%s) - status: %s error: %s Complete: %s',
-          [pss.Name, ps.Name, pss.StatusText, BoolToStr(pss.error, True),
-          BoolToStr(pss.Complete, True)]));
-
-        if pss.Name = ps.Name then //set pss := nil; too
-        begin
-          irc_Addstats(Format('<c7>%s = %s</c>', [pss.Name, ps.Name]));
-          pss := nil;
-          Continue;
-        end;
-
-        if not pss.Complete then
-        begin
-          irc_Addstats(Format('<c7>%s is not complete</c>', [pss.Name]));
-          pss := nil;
-          Continue;
-        end;
-
-        irc_Addstats(Format('<c9>complete site %s found!</c>', [pss.Name]));
-
-        if pss.destinations.IndexOf(ps) = -1 then //do we need that? for what???
-        begin
-          irc_Addstats(Format('<c7>no index on %s for %s</c>', [pss.Name,
-            ps.Name]));
-          pss := nil;
-          continue;
-        end;
-
-        if config.ReadBool(rsections,
-          'only_use_routable_sites_on_try_to_complete',
-          False) then
-        begin
-          ts := FindSiteByName('', ps.Name);
-          tts := FindSiteByName('', pss.Name);
-          sfound := tts.isRouteableTo(ts.Name);
-          //TSite.isRouteableFrom check sitesunit.pas
-          irc_Addstats(Format('routable part: %s (%s) <- %s - sfound: %s',
-            [ps.Name, ts.Name, pss.Name, BoolToStr(sfound, True)]));
-        end
-        else
-        begin
-          sfound := True; //use every site to complete
-        end;
-        (*
-                for k := 0 to pss.destinations.Count - 1 do
-                begin
-                  if TSite(pss.destinations.Items[k]).Name = ps.Name then
-                  begin
-                    if config.ReadBool(rsections,
-                      'only_use_routable_sites_on_try_to_complete', False) then
-                    begin
-                      sfound := TSite(pss).isRouteableTo(ps.Name);
-                      if sfound then
-                        break
-                      else
-                        continue;
-                    end
-                    else
-                    begin//if config.ReadBool(rsections,'only_use_routable_sites_on_try_to_complete',False) then begin
-                      sfound := True;
-                      break;
-                    end;
-                  end;//if TSite(pss.destinations.Items[k]).name = ps.name then begin
-                  if sfound then
-                    break
-                  else
-                    continue;
-                end;//for k := 0 to pss.destinations.Count - 1 do begin
-        *)
-        if sfound then
-          break
-        else
-        begin
-          Debug(dpMessage, rsections,
-            '--> site %s is not routable to %s for filling inc - trying next site',
-            [pss.Name, ps.Name]);
-          irc_Addstats(Format(
-            'site %s is not routable to %s for filling inc - trying next site',
-            [pss.Name, ps.Name]));
-          pss := nil;
-          continue;
-        end;
-      end; //for j:= 0 to p.sites.Count -1 do
-
-      irc_Addstats(Format('done with %s ->', [ps.Name]));
-
-      if pss = nil then
-      begin
-        irc_Addstats(Format('pss is nil (%s)', [ps.Name]));
-        Exit; //Continue; //Exit;
-      end;
-
-      site := FindSiteByName('', pss.Name);
-      if site = nil then
-      begin
-        irc_Addstats(Format('site is nil (%s)', [ps.Name]));
-        Exit; //Continue; //Exit;
-      end;
-      if site.PermDown then
-      begin
-        irc_Addstats(Format('site %s is permdown', [pss.Name]));
-        Exit; //Continue; //Exit;
-      end;
-
-      irc_Addstats(Format('done with %s and %s', [pss.Name, ps.Name]));
-
-      //if ps.Name = pss.Name then
-      //  Exit; //is already checked above in " for j := 0 to p.sites.Count - 1 do "
-
-      //if ((pss = nil) and (not pss.Complete)) then
-      // Exit; //is already checked above in " for j := 0 to p.sites.Count - 1 do "
-
-(*
-      if ps.Complete then
-        Exit; // Release is allready filled and complete!
-      if ps.error then
-        Exit; //There is some error we need to check in later revs!
-
-      if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        Continue;
-      //rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked
-      if ps.status <> rssAllowed then
-        Continue;
-
-     //if ps.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-       // Exit; //crap! checked seven lines before
-*)
-      if pss.Name = config.ReadString('sites', 'admin_sitename', 'SLFTP') then
-        Continue; //Exit;
-
-      (*
-            site := FindSiteByName('', ps.Name);
-            if site = nil then
-              Exit;
-            if site.PermDown then
-              Exit;
-
-      (*
-            site := FindSiteByName('', pss.Name);
-            if site = nil then
-              Continue; //Exit;
-            if site.PermDown then
-              Continue; //Exit;
-      *)
-
-            // ok, megvan minden.
-      Debug(dpMessage, rsections, 'Trying to complete %s on %s from %s',
-        [p.rls.rlsname, ps.Name, pss.Name]);
-      irc_Addstats(Format('Trying to complete %s on %s from %s',
-        [p.rls.rlsname, ps.Name, pss.Name]));
-      try
-        inc_srcsite := FindSiteByName('', pss.Name);
-        inc_dstsite := FindSiteByName('', ps.Name);
-        inc_srcdir := inc_srcsite.sectiondir[p.rls.section];
-        inc_srcdir := DatumIdentifierReplace(inc_srcdir);
-        inc_dstdir := inc_dstsite.sectiondir[p.rls.section];
-        inc_dstdir := DatumIdentifierReplace(inc_dstdir);
-
-        inc_rc := FindSectionHandler(p.rls.section);
-        inc_rls := inc_rc.Create(p.rls.rlsname, p.rls.section);
-        inc_p := PazoAdd(inc_rls);
-
-        inc_p.AddSite(inc_srcsite.Name, inc_srcdir, False);
-        inc_p.AddSite(inc_dstsite.Name, inc_dstdir, False);
-
-        kb_list.AddObject('TRANSFER-' +
-          IntToStr(RandomRange(10000000, 99999999)), inc_p);
-
-        inc_ps := inc_p.FindSite(inc_srcsite.Name);
-        inc_ps.AddDestination(inc_dstsite.Name, 9);
-        inc_ps := inc_p.FindSite(inc_dstsite.Name);
-        inc_ps.status := rssAllowed;
-        inc_ps.dirlist.need_mkdir := False;
-
-        inc_ps := inc_p.FindSite(inc_srcsite.Name);
-        inc_ps.dirlist.dirlistadded := True;
-        inc_pd := TPazoDirlistTask.Create('', '', inc_ps.Name, inc_p, '',
-          False);
-
-        irc_Addstats(Format(
-          '<c11>[<b>iNC %s</b>]</c> Trying to complete <b>%s</b> on %s from %s',
-          [p.rls.section, p.rls.rlsname, ps.Name, pss.Name]));
-
-        AddTask(inc_pd);
-        QueueFire;
-        Result := True;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections,
-            Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
-            [e.Message]));
-          irc_Addstats(Format('[EXCEPTION] TKBThread.AddCompleteTransfers.AddTask: %s',
-            [e.Message]));
-          Result := False;
-        end;
-      end;
-    end;
-  end;
-  begin
-    Debug(dpMessage, rsections, '<-- AddCompleteTransfers %s', [p.rls.rlsname]);
-    irc_Addstats(Format('<-- AddCompleteTransfers %s', [p.rls.rlsname]));
-  end;
-end;
-}
 
 procedure TKBThread.Execute;
 var
@@ -3240,9 +3007,11 @@ begin
       try
         for i := 0 to kb_list.Count - 1 do
         begin
-          if 1 = Pos('TRANSFER-', kb_list[i]) then
+          if kb_list[i].StartsWith('TRANSFER-') then
             Continue;
-          if 1 = Pos('REQUEST-', kb_list[i]) then
+          if kb_list[i].StartsWith('REQUEST-') then
+            Continue;
+          if kb_list[i].StartsWith('INC-') then
             Continue;
 
           try
