@@ -570,7 +570,7 @@ begin
       if i <> -1 then
       begin
         ss := kb_latest.ValueFromIndex[i];
-        if (ss.StartsWith('PRE') and (ss <> section)) then
+        if (not ss.StartsWith('PRE') and (ss <> section)) then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
           exit;
@@ -857,7 +857,7 @@ begin
         end;
       end;
 
-      if TPretimeLookupMOde(taskpretime_mode) <> plmNone then
+      if (event <> kbeSPREAD) and (TPretimeLookupMOde(taskpretime_mode) <> plmNone) then
       begin
         if (DateTimeToUnix(r.pretime) = 0) then
         begin
