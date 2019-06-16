@@ -5,8 +5,10 @@ interface
 { slftp prebot commands functions }
 function IrcPrecmd(const netname, channel, params: String): boolean;
 function IrcPredir(const netname, channel, params: String): boolean;
-function IrcCheck(const netname, channel, params: String): boolean;
-function IrcPre(const netname, channel, params: String): boolean;
+function IrcCheck(const netname, channel, params: String): boolean; overload;
+function IrcCheck(const netname, channel, params: String; const verbose: boolean): boolean; overload;
+function IrcPre(const netname, channel, params: String): boolean; overload;
+function IrcPre(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 function IrcPretest(const netname, channel, params: String): boolean;
 function IrcBatchAdd(const netname, channel, params: String): boolean;
 function IrcBatchDel(const netname, channel, params: String): boolean;
@@ -115,7 +117,12 @@ begin
   Result := IrcSetDir(netname, channel, Format('%s %s %s', [sitename, section, predir]));
 end;
 
-function IrcCheck(const netname, channel, params: String): boolean;
+function IrcCheck(const netname, channel, params: String): boolean; overload;
+begin
+  IrcCheck(netname, channel, params, True);
+end;
+
+function IrcCheck(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 var
   s: TSite;
   sttr, aksizestring, sizestring, predir, section, sitename, dir: String;
@@ -180,7 +187,8 @@ begin
       s  := FindSiteByName(netname, ps.Name);
       if s = nil then
       begin
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is not a valid site!', [ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is not a valid site!', [ps.Name]);
         Continue;
       end;
 
@@ -189,25 +197,29 @@ begin
 
       if (s.PermDown) then
       begin
-        irc_addtext(Netname, Channel, '<c10><b>DEBUG</c></b> %s is perm down!', [ps.Name]);
+        if verbose then
+          irc_addtext(Netname, Channel, '<c10><b>DEBUG</c></b> %s is perm down!', [ps.Name]);
         Continue;
       end;
 
       if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
       begin
-        irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is marked as down!', [ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c10><b>DEBUG</c></b> %s is marked as down!', [ps.Name]);
         Continue;
       end;
 
       if s.SkipPre then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping check', [ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping check', [ps.Name]);
         Continue;
       end;
 
       if ps.status = rssNotAllowed then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping check', [dir, ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping check', [dir, ps.Name]);
         Continue;
       end;
 
@@ -287,7 +299,8 @@ begin
 
       if added then
       begin
-        irc_addtext(netname, channel, '<b>%s</b> @ <b>%s</b> is %.2f %s in %d files.', [dir, sitename, sized, sizestring, files]);
+        if verbose then
+          irc_addtext(netname, channel, '<b>%s</b> @ <b>%s</b> is %.2f %s in %d files.', [dir, sitename, sized, sizestring, files]);
 
         perfect     := 0;
         failed      := 0;
@@ -307,7 +320,7 @@ begin
                 d.Free;
               end;
 
-              if aktfiles <> files then
+              if ((aktfiles <> files) and verbose) then
               begin
                 sttr := '';
                 if aktfiles > files then
@@ -317,14 +330,13 @@ begin
                 irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) has %s files than %s (%d)', [sr.sitename, aktfiles, sttr, sitename, files]);
               end;
 
-              if aktsize <> size then
+              if ((aktsize <> size) and verbose) then
               begin
                 sttr := '';
                 if aktsize > size then
                   sttr := 'bigger';
                 if aktsize < size then
                   sttr := 'smaller';
-
                 irc_addtext(netname, channel, '<c4><b>DEBUG</c></b>: %s (%d) is %s than %s (%d)', [sr.sitename, aktsize, sttr, sitename, size]);
               end;
 
@@ -376,7 +388,12 @@ begin
     Result := True;
 end;
 
-function IrcPre(const netname, channel, params: String): boolean;
+function IrcPre(const netname, channel, params: String): boolean; overload;
+begin
+  IrcPre(netname, channel, params, True);
+end;
+
+function IrcPre(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 var
   s: TSite;
   dir: String;
@@ -450,7 +467,8 @@ begin
 
       if s.SkipPre then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping pre', [ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is marked as skip pre, skipping pre', [ps.Name]);
         Continue;
       end;
 
@@ -515,7 +533,8 @@ begin
       end;
     end;
 
-    irc_addText(netname, channel, 'Changing working directory to the predir...');
+    if verbose then
+      irc_addText(netname, channel, 'Changing working directory to the predir.');
     elozo := Now;
 
   finally
@@ -527,7 +546,8 @@ begin
     try
       QueueFire;
       tn1.event.WaitFor($FFFFFFFF);
-      irc_addtext(netname, channel, 'dir change done...');
+      if verbose then
+        irc_addtext(netname, channel, 'Dir change to predirs done.');
     except
       on E: Exception do
         irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
@@ -540,7 +560,7 @@ begin
   try
     if tn1.responses.Count <> addednumber then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', ['<c4>We got different number of cwd responses...</c>']);
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>We got different number of cwd responses.</c>. Should be %d, is %d.', [addednumber, tn1.responses.Count]);
       RemoveTN(tn1);
       exit;
     end;
@@ -552,7 +572,7 @@ begin
       try
         if d.Find(dir) = nil then
         begin
-          irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find the release on <c4><b>%s</b></c>!', [sr.sitename]);
+          irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: Cant find %s on <c4><b>%s</b></c>!', [dir, sr.sitename]);
           RemoveTN(tn1);
           exit;
         end;
@@ -563,7 +583,7 @@ begin
 
     if (SecondsBetween(Now, elozo) > 20) then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>Changing directories to predir took too long, sorry...</c>');
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>Changing directories to predir took too long, sorry.</c>');
       RemoveTN(tn1);
       exit;
     end;
@@ -587,7 +607,8 @@ begin
     end;
 
     RemoveTN(tn1);
-    irc_addtext(netname, channel, 'Sending pre...');
+    if verbose then
+      irc_addtext(netname, channel, 'Sending site pre for %s', [dir]);
     QueueFire;
   finally
     queue_lock.Leave;
@@ -599,7 +620,7 @@ begin
   try
     if tn2.responses.Count <> addednumber then
     begin
-      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', ['<c4>We got different number of pre responses...</c>']);
+      irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>We got different number of pre responses. Should be %d, is %d.</c>', [addednumber, tn2.responses.Count]);
       RemoveTN(tn2);
       exit;
     end;
@@ -636,11 +657,12 @@ begin
       end;
     end;
 
-    irc_addtext(netname, channel, 'Ok. Fastest site was %s (%s), slowest %s (%s). Now sleeping some...', [mins, FormatDateTime('hh:nn:ss.zzz', mind), maxs, FormatDateTime('hh:nn:ss.zzz', maxd)]);
+    irc_addtext(netname, channel, '<c3><b>%s</b></c> <b>%s</b> - Fastest site was %s (%s), slowest %s (%s).', [section, dir, mins, FormatDateTime('hh:nn:ss.zzz', mind), maxs, FormatDateTime('hh:nn:ss.zzz', maxd)]);
 
     sleep_value := config.ReadInteger(rrsection, 'predir_re_examine_time', 5);
 
-    irc_addtext(netname, channel, 'We will wait %d seconds and check the predirs again..', [sleep_value]);
+    if verbose then
+      irc_addtext(netname, channel, 'We will wait %d seconds and check the predirs again.', [sleep_value]);
     sleep_value := sleep_value * 1000;
     Sleep(sleep_value);
 
@@ -658,7 +680,8 @@ begin
       AddTask(rl);
     end;
     RemoveTN(tn2);
-    irc_addtext(netname, channel, 'Checking if release %s is still in any of the predirs...', [dir]);
+    if verbose then
+      irc_addtext(netname, channel, 'Checking if %s is still in any of the predirs.', [dir]);
     QueueFire;
   finally
     queue_lock.Leave;
@@ -672,7 +695,7 @@ begin
     begin
       if tn3.responses.Count = 0 then
         RemoveTN(tn3);
-      irc_addtext(netname, channel, 'ERROR: %s', ['<c4>We got different number of dirlist responses...</c>']);
+      irc_addtext(netname, channel, 'ERROR: <c4>We got different number of dirlist responses. Should be %d, is %d</c>', [addednumber, tn3.responses.Count]);
       if tn3.responses.Count = 0 then
         exit;
     end;
@@ -686,7 +709,7 @@ begin
         if d.Find(dir) <> nil then
         begin
           added := False;
-          irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c> still has the rip in predir!', [sr.sitename]);
+          irc_addtext(netname, channel, 'ERROR: <c4><b>%s</b></c> still has %s in predir!', [sr.sitename, dir]);
         end;
       finally
         d.Free;
@@ -758,12 +781,13 @@ end;
 
 function IrcBatchAdd(const netname, channel, params: String): boolean;
 var
-  sitename, section, dir: String;
+  sitename, section, dir, verbosity: String;
   s: TSite;
   fInputRlsMask: TslMask;
   fDirlist: TDirList;
   fDirlistEntry: TDirListEntry;
   i: Integer;
+  verbose: boolean;
 
   function _IrcBatch(const netname, channel: String): boolean;
   var
@@ -816,12 +840,14 @@ var
           begin
             if site.PermDown then
             begin
-              irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' perm down, skipping bnctest!</c>');
+              if verbose then
+                irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' perm down, skipping bnctest!</c>');
               Continue;
             end;
             if (site.WorkingStatus in [sstMarkedAsDownByUser]) then
             begin
-              irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' is marked as down, skipping bnctest!</c>');
+              if verbose then
+                irc_addtext(netname, channel, '<c4>Site ' + site.Name + ' is marked as down, skipping bnctest!</c>');
               Continue;
             end;
 
@@ -837,32 +863,37 @@ var
       end;
 
       ss := Trim(ss);
-      irc_Addtext(netname, channel, '%sbnctest %s', [irccmdprefix, ss]);
+      if verbose then
+        irc_Addtext(netname, channel, '%sbnctest %s', [irccmdprefix, ss]);
       IrcBnctest(netname, channel, Trim(ss));
 
-      irc_Addtext(netname, channel, '%sspread %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcSpread(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
+      if verbose then
+        irc_Addtext(netname, channel, '%sspread %s %s %s', [irccmdprefix, sitename, section, dir]);
+      if not IrcSpread(netname, channel, Format('%s %s %s', [sitename, section, dir]), verbose) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Spreading returned error. Skipping.</c>');
         continue;
       end
-      else
+      else if verbose then
         irc_Addtext(netname, channel, 'Checking now....');
 
-      irc_Addtext(netname, channel, '%scheck %s %s %s', [irccmdprefix, sitename, section, dir]);
-      if not IrcCheck(netname, channel, Format('%s %s %s', [sitename, section, dir])) then
+      if verbose then
+        irc_Addtext(netname, channel, '%scheck %s %s %s', [irccmdprefix, sitename, section, dir]);
+      if not IrcCheck(netname, channel, Format('%s %s %s', [sitename, section, dir]), verbose) then
       begin
         irc_Addtext(netname, channel, 'ERROR: <c4>Checking returned error. Skipping.</c>');
         continue;
       end
-      else
+      else if verbose then
         irc_Addtext(netname, channel, 'preeeeing now....');
 
-      irc_Addtext(netname, channel, '%spre %s %s', [irccmdprefix, section, dir]);
-      IrcPre(netname, channel, section + ' ' + dir);
+      if verbose then
+        irc_Addtext(netname, channel, '%spre %s %s', [irccmdprefix, section, dir]);
+      IrcPre(netname, channel, Format('%s %s', [section, dir]), verbose);
     end;
 
-    irc_Addtext(netname, channel, 'Batch queue is empty.');
+    if verbose then
+      irc_Addtext(netname, channel, 'Batch queue is empty.');
     Result := True;
   end;
 
@@ -891,12 +922,19 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
   dir      := SubString(params, ' ', 3);
+  verbosity  := LowerCase(SubString(params, ' ', 4));
 
-  if dir = '' then
+  if ((dir = '') or (dir = '--verbose')) then
   begin
     section := 'PRE';
     dir     := SubString(params, ' ', 2);
+    verbosity := LowerCase(SubString(params, ' ', 3));
   end;
+
+  if (verbosity = '--verbose') then
+    verbose := True
+  else
+    verbose := False;
 
   queue_lock.Enter;
   try
@@ -932,7 +970,8 @@ begin
           for i := 0 to fDirlist.entries.Count - 1 do
           begin
             fDirlistEntry := TDirListEntry(fDirlist.entries[i]);
-            irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
+            if verbose then
+              irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
 
             if fDirlistEntry.directory then
             begin

@@ -7,7 +7,8 @@ function IrcDirlist(const netname, channel, params: String): boolean;
 function IrcAutoDirlist(const netname, channel, params: String): boolean;
 function IrcLatest(const netname, channel, params: String): boolean;
 function IrcLame(const netname, channel, params: String): boolean;
-function IrcSpread(const netname, channel, params: String): boolean;
+function IrcSpread(const netname, channel, params: String): boolean; overload;
+function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 function IrcTransfer(const netname, channel, params: String): boolean;
 function IrcCStop(const netname, channel, params: String): boolean;
 function IrcLookup(const netname, channel, params: String): boolean;
@@ -385,7 +386,12 @@ begin
 
 end;
 
-function IrcSpread(const netname, channel, params: String): boolean;
+function IrcSpread(const netname, channel, params: String): boolean; overload;
+begin
+  IrcSpread(netname, channel, params, True);
+end;
+
+function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 var
   sp, s: TSite;
   ps: TPazoSite;
@@ -401,18 +407,18 @@ var
   dd: double;
 
   // y-ba belepakolja az osszes olyan siteot amibe el lehet jutni honnanbol...   -- y into it packs all of the site into which you can reach honnanbol ...
-  procedure Routeable(honnan: String; y: TStringList);
+  procedure Routeable(source: String; y: TStringList);
   var
     x: TStringList;
     i: integer;
     s: TSite;
   begin
-    if - 1 = y.IndexOf(honnan) then
+    if -1 = y.IndexOf(source) then
     begin
-      y.Add(honnan);
+      y.Add(source);
       x := TStringList.Create;
       try
-        sitesdat.ReadSection('speed-from-' + honnan, x);
+        sitesdat.ReadSection('speed-from-' + source, x);
         for i := 0 to x.Count - 1 do
         begin
           s := FindSiteByName('', x[i]);
@@ -466,11 +472,9 @@ begin
   added := True;
   addednumber := 0;
   if 1 = Pos('PRE', section) then
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '',
-      True)
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '', True)
   else
-    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR,
-      dir, '', True);
+    pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', True);
   if pazo_id = -1 then
   begin
     Irc_AddText(Netname, Channel, 'Pazoid = %d', [pazo_id]);
@@ -534,7 +538,8 @@ begin
 
       if sp.SkipPre then
       begin
-        irc_addtext(Netname, Channel, '<c8><b>INFO</c></b> we skip %s for spread, skip pre is set', [sp.Name]);
+        if verbose then
+          irc_addtext(Netname, Channel, '<c8><b>INFO</c></b> we skip %s for spread, skip pre is set', [sp.Name]);
         Continue;
       end;
 
@@ -561,7 +566,8 @@ begin
 
       if ps.status = rssNotAllowed then
       begin
-        irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping spread', [dir, ps.Name]);
+        if verbose then
+          irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping spread', [dir, ps.Name]);
         Continue;
       end;
 
@@ -618,7 +624,7 @@ begin
       exit;
     end;
 
-    if 1 = Pos('PRE', section) then
+    if section.StartsWith('PRE') then
       pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeSPREAD, dir, '', False, True)
     else
       pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', False, True);
@@ -629,9 +635,7 @@ begin
       exit;
     end;
 
-    irc_addtext(Netname, Channel,
-      'Spread has started. Type %sstop <b>%d</b> if you want.',
-      [irccmdprefix, pazo_id]);
+    irc_addtext(Netname, Channel, 'Spread for %s has started. Type %sstop <b>%d</b> if you want.', [dir, irccmdprefix, pazo_id]);
 
     si := '-1';
     sj := '-1';
@@ -767,7 +771,8 @@ begin
           end;
 
         end;
-        IrcLineBreak(Netname, Channel, sss, AnsiChar('"'), '<b>STATUS</b>: ', 5);
+        if verbose then
+          IrcLineBreak(Netname, Channel, sss, AnsiChar('"'), '<b>STATUS</b>: ', 5);
         lastAnn := now();
       end;
     end;
