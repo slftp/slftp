@@ -145,7 +145,7 @@ const
     (cmd: 'check'; hnd: IrcCheck; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
     (cmd: 'pre'; hnd: IrcPre; minparams: 1; maxparams: 2; hlpgrp: 'prebot'),
     (cmd: 'pretest'; hnd: IrcPretest; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
-    (cmd: 'batch'; hnd: IrcBatchAdd; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
+    (cmd: 'batch'; hnd: IrcBatchAdd; minparams: 2; maxparams: 4; hlpgrp: 'prebot'),
     (cmd: 'batchdel'; hnd: IrcBatchDel; minparams: 2; maxparams: 2; hlpgrp: 'prebot'),
     (cmd: 'delrelease'; hnd: IrcDelrelease; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
     (cmd: 'delallrelease'; hnd: IrcDelallrelease; minparams: 2; maxparams: 3; hlpgrp: 'prebot'),
