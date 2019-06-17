@@ -33,15 +33,15 @@ uses
 procedure TTestMyStrings.TestTEnumToString;
 type
   TTestEnum = (teDEFAULT, teONE, teTWO, teThree, TEfour);
-  TTestWrongEnum = (tWeDEF, tWeNotThere);
+  //TTestWrongEnum = (tWeDEF, tWeNotThere);
 var
   fExpectedResult, fOutputStr: String;
 begin
   fOutputStr := TEnum<TTestEnum>.ToString(teTWO);
   fExpectedResult := 'teTWO';
   CheckEquals(fOutputStr, fExpectedResult, 'Enum to String conversion error');
-  //CheckEquals(TEnum<TTestEnum>.ToString(teone), 'teONE', 'Enum to String conversion error');
-  //CheckEquals(TEnum<TTestEnum>.ToString(tefour), 'TEfour', 'Enum to String conversion error');
+  CheckEquals(TEnum<TTestEnum>.ToString(teone), 'teONE', 'Enum to String conversion error');
+  CheckEquals(TEnum<TTestEnum>.ToString(tefour), 'TEfour', 'Enum to String conversion error');
 
   // does not compile as expected: Undeclared identifier: 'teNotThere'
   //CheckEquals(TEnum<TTestEnum>.ToString(teNotThere), 'teNotThere', 'Enum to String conversion error');
@@ -52,12 +52,12 @@ end;
 procedure TTestMyStrings.TestTEnumFromString;
 type
   TTestEnum = (teDEFAULT, teONE, teTWO, teThree, TEfour);
-  TTestWrongEnum = (tWeDEF, tWeNotThere);
+  //TTestWrongEnum = (tWeDEF, tWeNotThere);
 begin
   CheckEquals(Ord(TEnum<TTestEnum>.FromString('teTWO', teDEFAULT)), Ord(teTWO), 'String to Enum conversion error');
-  //CheckEquals(Ord(TEnum<TTestEnum>.FromString('teone', teDEFAULT)), Ord(teONE), 'String to Enum conversion error');
-  //CheckEquals(Ord(TEnum<TTestEnum>.FromString('tefour', teDEFAULT)), Ord(TEfour), 'String to Enum conversion error');
-  //CheckEquals(Ord(TEnum<TTestEnum>.FromString('teNotThere', teDEFAULT)), Ord(teDEFAULT), 'String to Enum conversion error');
+  CheckEquals(Ord(TEnum<TTestEnum>.FromString('teone', teDEFAULT)), Ord(teONE), 'String to Enum conversion error');
+  CheckEquals(Ord(TEnum<TTestEnum>.FromString('tefour', teDEFAULT)), Ord(TEfour), 'String to Enum conversion error');
+  CheckEquals(Ord(TEnum<TTestEnum>.FromString('teNotThere', teDEFAULT)), Ord(teDEFAULT), 'String to Enum conversion error');
 
   // does not compile as expected: Incompatible types: 'TTestEnum' and 'TTestWrongEnum'
   //CheckEquals(TEnum<TTestEnum>.FromString('tWeNotThere', tWeDEF), tWeNotThere, 'String to Enum conversion error');
