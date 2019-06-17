@@ -1,4 +1,4 @@
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{ea0e826b-e5b2-4f4f-bb7c-23a03fe7e342}</ProjectGuid>
         <MainSource>slftp.dpr</MainSource>
@@ -6,7 +6,7 @@
         <DCC_DCCCompiler>DCC32</DCC_DCCCompiler>
         <DCC_DependencyCheckOutputName>p:\apps\slftp\slftp.exe</DCC_DependencyCheckOutputName>
         <FrameworkType>None</FrameworkType>
-        <ProjectVersion>18.4</ProjectVersion>
+        <ProjectVersion>18.6</ProjectVersion>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
@@ -66,8 +66,8 @@
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
-        <DCC_ExeOutput>p:\apps\slftp</DCC_ExeOutput>
         <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\DFFLibV15_UIntList;libs\FastMM4;libs\FLRE;libs\Indy10\Core;libs\Indy10\Protocols;libs\Indy10\System;libs\LibTar;libs\lkJSON;libs\mORMot;libs\mORMot\SQLite3;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ExeOutput>p:\apps\slftp</DCC_ExeOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
