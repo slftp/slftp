@@ -60,7 +60,7 @@
     Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
- ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.2.3 Tokyo or newer - ON WINDOWS! **
+ ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
   ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
   
     {+} Blowfish CBC support (#124)
