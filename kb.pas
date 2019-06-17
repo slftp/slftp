@@ -2767,7 +2767,7 @@ begin
   renamed_release_checker := config.ReadBool(rsections, 'renamed_release_checker', True);
 
   enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
-  try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 1100);
+  try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 450);
 
   kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
 
@@ -2929,7 +2929,7 @@ begin
       begin
         // Check for every destination if its routable if we care about that
         rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ps.Name, 0);
-        if ((config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', False)) and (rank = 0)) then
+        if ((config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True)) and (rank = 0)) then
           Continue;
         ssites_info.Add(ps.Name);
       end;
