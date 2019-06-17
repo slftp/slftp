@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{7B1F2179-0D09-4B29-9949-7151CA03587A}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="slftp.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="slftpUnitTests.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="slftp">
+        <MSBuild Projects="slftp.dproj"/>
+    </Target>
+    <Target Name="slftp:Clean">
+        <MSBuild Projects="slftp.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="slftp:Make">
+        <MSBuild Projects="slftp.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="slftpUnitTests">
+        <MSBuild Projects="slftpUnitTests.dproj"/>
+    </Target>
+    <Target Name="slftpUnitTests:Clean">
+        <MSBuild Projects="slftpUnitTests.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="slftpUnitTests:Make">
+        <MSBuild Projects="slftpUnitTests.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="slftp;slftpUnitTests"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="slftp:Clean;slftpUnitTests:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="slftp:Make;slftpUnitTests:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
