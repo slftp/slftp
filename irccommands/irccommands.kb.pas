@@ -50,7 +50,7 @@ function IrcKbList(const netname, channel, params: String): boolean;
 var
   p: TPazo;
   i, db: integer;
-  section: String;
+  section, fExtraInfo: String;
   hits: integer;
 begin
   section := SubString(params, ' ', 1);
@@ -87,10 +87,18 @@ begin
     begin
       if ((section = '') or (p.rls.section = section)) then
       begin
-        irc_addtext(Netname, Channel,
-          '#%d %s %s %s [QueueNumber: %d (R:%d D:%d M:%d)]',
-          [p.pazo_id, p.rls.section, p.rls.rlsname, p.rls.ExtraInfo,
-          p.queuenumber.Value, p.racetasks.Value, p.dirlisttasks.Value, p.mkdirtasks.Value]);
+        fExtraInfo := p.rls.ShowExtraInfo;
+        if (fExtraInfo <> '') then
+          irc_addtext(Netname, Channel,
+            '#%d %s %s (%s) [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
+            [p.pazo_id, p.rls.section, p.rls.rlsname, fExtraInfo,
+            p.queuenumber.Value, p.racetasks.Value, p.dirlisttasks.Value, p.mkdirtasks.Value])
+        else
+          irc_addtext(Netname, Channel,
+            '#%d %s %s [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
+            [p.pazo_id, p.rls.section, p.rls.rlsname,
+            p.queuenumber.Value, p.racetasks.Value, p.dirlisttasks.Value, p.mkdirtasks.Value]);
+
         Inc(db);
       end;
     end
