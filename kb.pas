@@ -190,6 +190,7 @@ type
   end;
 
   TTVRelease = class(TRelease)
+    FLookupDone: Boolean;
     showname: String;
     episode: integer;
     season: integer;
@@ -224,6 +225,8 @@ type
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
+
+    property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and fully parsed, otherwise @false
   end;
 
   TMVIDRelease = class(TRelease)
@@ -1880,6 +1883,19 @@ function TTVRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
   db_tvinfo: TTVInfoDB;
+
+  procedure CreateTVLookupTask;
+  begin
+    try
+      AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
+      end;
+    end;
+  end;
+
 begin
   Result := False;
 
@@ -1887,56 +1903,58 @@ begin
   if showname = '' then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  // ugly shit
+  pazo := TPazo(p);
 
+  // check if we already have this showname in database
   try
     db_tvinfo := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
-      db_tvinfo := nil;
+      FreeAndNil(db_tvinfo);
       Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s', [e.Message]));
     end;
   end;
 
   if (db_tvinfo <> nil) then
   begin
-    db_tvinfo.ripname := rlsname; // caused the error
+    // showname was found in db
+    db_tvinfo.ripname := rlsname;
 
     if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
     begin
-      db_tvinfo.ripname := rlsname;
+      // try to update infos in database
       if not db_tvinfo.Update then
       begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
+
+      // trigger to get the updated data from database
+      CreateTVLookupTask;
     end
     else
     begin
+      // we have a recent set of data
       try
         db_tvinfo.SetTVDbRelease(self);
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s',
-            [e.Message]));
+          Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s', [e.Message]));
         end;
       end;
-      db_tvinfo.free;
-      Result := True;
-      exit;
     end;
+
+    FreeAndNil(db_tvinfo);
+  end
+  else
+  begin
+    // do websearch for a non existing showname in database
+    CreateTVLookupTask;
   end;
-  try
-    AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
-        [e.Message]));
-    end;
-  end;
+
   Result := True;
 end;
 
@@ -1990,6 +2008,8 @@ var
   i, j: integer;
 begin
   inherited Create(rlsname, section, False, savedpretime);
+
+  FLookupDone := False;
   showname := '';
   episode := -1;
   season := -1;
