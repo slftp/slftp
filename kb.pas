@@ -92,7 +92,9 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
-    function ExtraInfo: String; virtual;
+    { Get additional info which is specific for this class of TRelease
+      @returns(Empty String) }
+    function ShowExtraInfo: String; virtual;
     function Aktualizald(const extrainfo: String): boolean; virtual;
     function AsText(pazo_id: integer = -1): String; virtual;
     function Aktualizal(p: TObject): boolean; virtual;
@@ -107,6 +109,9 @@ type
     nulldaysource: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(nulldaysource)) }
+    function ShowExtraInfo: String; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
     function AsText(pazo_id: integer = -1): String; override;
@@ -126,7 +131,9 @@ type
 
     function Bootleg: boolean;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    function ExtraInfo: String; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(Mp3genre)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Numdisks: integer;
@@ -143,8 +150,10 @@ type
   TNFORelease = class(TRelease)
     nfogenre: String;
 
-    function ExtraInfo: String; override;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(nfogenre)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -168,9 +177,11 @@ type
     imdb_stvm: boolean;
     imdb_stvs: String;
 
-    function ExtraInfo: String; override;
-    destructor Destroy; override;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(imdb_id)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -203,9 +214,11 @@ type
     tvtag: String;
     tvlanguage: String;
 
-    function ExtraInfo: String; override;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(showname)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -224,9 +237,11 @@ type
     mvid_live: boolean;
     mvid_year: integer;
 
-    function ExtraInfo: String; override;
-    destructor Destroy; override;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(FileCount) as string) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -1435,7 +1450,7 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
 
-function TRelease.ExtraInfo: String;
+function TRelease.ShowExtraInfo: String;
 begin
   Result := '';
 end;
@@ -1755,7 +1770,7 @@ begin
   end;
 end;
 
-function TMP3Release.ExtraInfo: String;
+function TMP3Release.ShowExtraInfo: String;
 begin
   Result := Mp3genre;
 end;
@@ -1849,7 +1864,7 @@ begin
   Result := 'MDVDR MV MHD';
 end;
 
-function TNFORelease.ExtraInfo: String;
+function TNFORelease.ShowExtraInfo: String;
 begin
   Result := nfogenre;
 end;
@@ -1972,7 +1987,7 @@ end;
 constructor TTVRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   c_episode: int64;
-  j, i: integer;
+  i, j: integer;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   showname := '';
@@ -1988,16 +2003,15 @@ begin
   showname := ReplaceText(showname, '.', ' ');
   showname := ReplaceText(showname, '_', ' ');
 
-  for i:= 1 to words.Count -1 do
+  for i := 1 to words.Count - 1 do
   begin
-    j:= tvtags.IndexOf( words[i] );
+    j := tvtags.IndexOf(words[i]);
     if j <> -1 then
     begin
-      tvtag:= tvtags[j];
+      tvtag := tvtags[j];
       Break;
     end;
   end;
-
 end;
 
 class function TTVRelease.DefaultSections: String;
@@ -2005,9 +2019,9 @@ begin
   Result := 'TV TVDVDRIP TVDVDR TV720 TV1080';
 end;
 
-function TTVRelease.ExtraInfo: String;
+function TTVRelease.ShowExtraInfo: String;
 begin
-  Result := showname; // todo + egyeb infok, scripted, akarmi
+  Result := showname;
 end;
 
 class function TTVRelease.Name: String;
@@ -2022,6 +2036,7 @@ begin
 end;
 
 { T0DayRelease }
+
 function T0DayRelease.AsText(pazo_id: integer): String;
 begin
   Result := inherited AsText(pazo_id);
@@ -2064,6 +2079,11 @@ begin
     FakeCheck(self);
 end;
 
+function T0DayRelease.ShowExtraInfo: String;
+begin
+  Result := nulldaysource;
+end;
+
 class function T0DayRelease.DefaultSections: String;
 begin
   Result := '0DAY,PDA';
@@ -2075,6 +2095,7 @@ begin
 end;
 
 { TIMDBRelease }
+
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
@@ -2229,7 +2250,7 @@ begin
   inherited;
 end;
 
-function TIMDBRelease.ExtraInfo: String;
+function TIMDBRelease.ShowExtraInfo: String;
 begin
   Result := imdb_id;
 end;
@@ -2332,7 +2353,7 @@ begin
   inherited;
 end;
 
-function TMVIDRelease.ExtraInfo: String;
+function TMVIDRelease.ShowExtraInfo: String;
 begin
   Result := IntToStr(FileCount);
 end;
@@ -2346,7 +2367,7 @@ end;
 
 function GetKbPazo(p: TPazo): String;
 begin
-  Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ExtraInfo +
+  Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ShowExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
     IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + KBEventTypeToString(p.rls.kb_event);
 end;
