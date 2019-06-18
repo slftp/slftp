@@ -447,7 +447,6 @@ end;
 
 procedure TTVInfoDB.SetTVDbRelease(tr: TTVRelease);
 begin
-
   tr.showname := rls_showname;
   tr.thetvdbid := thetvdb_id;
   tr.tvrageid := tvrage_id;
@@ -525,9 +524,10 @@ begin
     end;
   end;
 
-  if config.ReadBool(section, 'post_lookup_infos', false) then
-    PostResults(rls_showname);
+  tr.FLookupDone := True;
 
+  if config.ReadBool(section, 'post_lookup_infos', False) then
+    PostResults(rls_showname);
 end;
 
 constructor TTVInfoDB.Create(const rls_showname: String);
