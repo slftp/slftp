@@ -162,6 +162,7 @@ type
   end;
 
   TIMDBRelease = class(TRelease)
+    FLookupDone: Boolean;
     imdb_id: String;
     imdb_year: integer;
     imdb_languages: TStringList;
@@ -174,7 +175,7 @@ type
     imdb_ldt: boolean;
     imdb_wide: boolean;
     imdb_festival: boolean;
-    imdb_stvm: boolean;
+    imdb_stvm: boolean; // TODO: rename this to make it more clear; stvm and stvs aren't clear yet
     imdb_stvs: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
@@ -187,6 +188,8 @@ type
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
+
+    property IsLookupDone: Boolean read FLookupDone; //< @true of IMDb Lookup is done and infos are fully added to @link(TIMDBRelease), otherwise @false
   end;
 
   TTVRelease = class(TRelease)
@@ -226,7 +229,7 @@ type
     class function Name: String; override;
     class function DefaultSections: String; override;
 
-    property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and fully parsed, otherwise @false
+    property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and infos are fully added to @link(TTVRelease), otherwise @false
   end;
 
   TMVIDRelease = class(TRelease)
@@ -2125,10 +2128,11 @@ var
   ir: TIMDBRelease;
 begin
   Result := False;
-  try
-    aktualizalva := True;
+  aktualizalva := True;
 
-    pazo := TPazo(p); // ugly shit
+  try
+    // ugly shit
+    pazo := TPazo(p);
 
     dbaddimdb_cs.Enter;
     try
@@ -2139,7 +2143,9 @@ begin
 
     if i = -1 then
     begin
-      // no imdb infos, check if we have a nfo
+      // no imdb infos
+
+      // check if we have a nfo
       i := last_addnfo.IndexOf(rlsname);
       if i <> -1 then
       begin
@@ -2148,19 +2154,12 @@ begin
         exit;
       end;
 
-      // no nfo start searching nfo
+      // no nfo, start searching nfo
       for j := pazo.sites.Count - 1 downto 0 do
       begin
-        try
-          if j < 0 then
-            Break;
-        except
-          Break;
-        end;
         ps := TPazoSite(pazo.sites[j]);
         try
           AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
-          Result := True;
         except
           on e: Exception do
           begin
@@ -2168,9 +2167,12 @@ begin
           end;
         end;
       end;
+
+      Result := True;
     end
     else
     begin
+      // we already have imdb infos
       try
         dbaddimdb_cs.Enter;
         try
@@ -2196,6 +2198,8 @@ begin
           ir.imdb_festival := imdbdata.imdb_festival;
           ir.imdb_stvm := imdbdata.imdb_stvm;
           ir.imdb_stvs := imdbdata.imdb_stvs;
+
+          ir.FLookupDone := True;
         end;
       except
         on e: Exception do
@@ -2203,16 +2207,15 @@ begin
           Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
         end;
       end;
+
       Result := True;
     end;
-
   except
     on e: Exception do
     begin
       Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
     end;
   end;
-
 end;
 
 function TIMDBRelease.Aktualizald(const extrainfo: String): boolean;
@@ -2247,10 +2250,11 @@ begin
   end;
 end;
 
-constructor TIMDBRelease.Create(const rlsname, section: String;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TIMDBRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
+
+  FLookupDone := False;
   imdb_id := '';
   imdb_languages := TStringList.Create;
   imdb_countries := TStringList.Create;
