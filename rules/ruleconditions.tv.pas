@@ -242,7 +242,7 @@ begin
   if r.rls is TTVRelease then
   begin
     if TTVRelease(r.rls).IsLookupDone then
-      Result := LowerCase(TTVRelease(r.rls).classification); // why lowercase?
+      Result := TTVRelease(r.rls).classification;
   end;
 end;
 
