@@ -17,6 +17,13 @@ REM
 set OPENSSL_NAME=openssl-1.0.2r
 
 REM
+REM Inject git commit into slftp.inc if .git exists
+REM
+if exist .git\ (
+    powershell "& {$gitrevv = git rev-parse --short HEAD; (Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '$gitrevv';\" | Set-Content .\slftp.inc }"
+)
+
+REM
 REM default: 64bit (2018!)
 REM
 if /I "%~1" == "" goto :slftp_64
@@ -183,3 +190,10 @@ echo Unknown target!
 echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean test test_32 test_64
 echo Default: slftp_64
 goto :eof
+
+REM
+REM Remove injected build rev from slftp.inc
+REM
+if exist .git\ (
+    powershell "& {(Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '';\" | Set-Content .\slftp.inc }"
+)
