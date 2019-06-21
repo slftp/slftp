@@ -36,7 +36,7 @@ type
 implementation
 
 uses
-  debugunit, IdSSLOpenSSLHeaders, Base64OpenSSL;
+  debugunit, IdSSLOpenSSLHeaders, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
@@ -54,12 +54,10 @@ var
   fArgOutLen: integer;
 begin
   Result := False;
-
-  SetLength(aOut, 0); // init
-
+  // init
+  SetLength(aOut, 0);
   fSuccess := False;
-  fOutLen := 255;
-
+  fOutLen := 0;
   fBytesLeft := aInSize;
   fBufPtr := aBufIn;
 
@@ -80,13 +78,11 @@ begin
       exit;
     end;
 
+    // zero in the first loop
     fArgOutLen := Length(aOut);
 
     SetLength(aOut, fArgOutLen + fOutLen);
-    if fArgOutLen = 0 then
-      Move(fTmpBuf[0], aOut[fArgOutLen], fOutLen) // init length is 0
-    else
-      Move(fTmpBuf[0], aOut[fArgOutLen + 1], fOutLen);
+    Move(fTmpBuf[0], aOut[fArgOutLen], fOutLen);
 
     Dec(fBytesLeft, fInSize);
     Inc(fBufPtr, fInSize);
@@ -94,7 +90,7 @@ begin
 
   fSuccess := (EVP_CipherFinal_ex(aCTX, @fTmpBuf[0], @fOutLen) = 1);
 
-  if (fSuccess) then
+  if ((fSuccess) and (fOutLen > 0)) then
   begin
     fArgOutLen := Length(aOut);
     SetLength(aOut, fArgOutLen + fOutLen);
@@ -139,10 +135,11 @@ var
   fCTX: EVP_CIPHER_CTX;
   fInBufSize: integer;
   fInBufSizeMod: integer;
-  fInBuf: array of Byte;
+  fInBuf: TBytes;
   fRealIV: array[0..7] of Byte;
   fSuccess: boolean;
-  eText, eTextBase64: TBytes;
+  eText: TBytes;
+  eTextBase64: String;
   dTextHelper: TBytes;
 begin
   Result := '';
@@ -193,18 +190,20 @@ begin
 
     // for some f*cked up reason, Mircryption's CBC blowfish does not use an
     // explicit IV, but prepends 8 bytes of random data to the actual string
-    // instead, so we have to do this too... }
+    // instead, so we have to do this too...
     {$IFDEF MSWINDOWS}
       // generate IV using screen/user input
       RAND_screen();
     {$ELSE}
-      // TODO: Add new stuff to random bytes from time to time
+      // generate IV using input string
+      // RAND_add() may be called with sensitive data such as user entered passwords. The seed values cannot be recovered from the PRNG output.
+      RAND_seed(@dText, Length(dText));
     {$ENDIF}
 
-    if (RAND_bytes(@fRealIV[0], 8) <> 1) then
+    if (RAND_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
     begin
       // fallback but deprecated in OpenSSL
-      if (RAND_pseudo_bytes(@fRealIV[0], 8) <> 1) then
+      if (RAND_pseudo_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
       begin
         Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
         exit;
@@ -229,21 +228,16 @@ begin
     end;
   end;
 
-  if (DoBase64Encode(eText, eTextBase64) < 1) then
+  {* do base64 encoding *}
+  eTextBase64 := DoBase64Encode(eText);
+  if (eTextBase64.Length = 0) then
   begin
     Debug(dpError, section, Format('[FiSH] Base64 Encode for %s failed!', [dText]));
     exit;
   end;
 
   // append * to mark it as CBC message
-  {$IFDEF UNICODE}
-    Result := TEncoding.UTF8.GetString(eTextBase64);
-  {$ELSE}
-    SetLength(Result, Length(eTextBase64));
-    move(eTextBase64[0], Result[1], Length(eTextBase64));
-  {$ENDIF}
-
-  Result := '+OK *' + Result;
+  Result := '+OK *' + eTextBase64;
 end;
 
 function TIrcBlowkeyCBC.DecryptMessage(const eText: String): String;
@@ -258,16 +252,8 @@ var
   i, fLength: integer;
   j: Byte;
   fCleanedBytes: TBytes;
-  eTextHelper: TBytes;
 begin
   Result := eText;
-
-  {$IFDEF UNICODE}
-    eTextHelper := TEncoding.UTF8.GetBytes(eText);
-  {$ELSE}
-    SetLength(eTextHelper, Length(eText));
-    move(eText[1], eTextHelper[0], Length(eText));
-  {$ENDIF}
 
   {* init struct for decryption *}
   EVP_CIPHER_CTX_init(@fCTX);
@@ -291,9 +277,10 @@ begin
       exit;
     end;
 
-    {* do base64 decryption *}
-    LengthB64Text := DoBase64Decode(eTextHelper, B64Text);
-    if (LengthB64Text < 1) then
+    {* do base64 decoding *}
+    B64Text := DoBase64DecodeToBytes(eText);
+    LengthB64Text := Length(B64Text);
+    if (LengthB64Text = 0) then
     begin
       Debug(dpError, section, Format('[FiSH] Base64 Decode for %s failed!', [eText]));
       exit;

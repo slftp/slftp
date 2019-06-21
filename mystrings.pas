@@ -37,7 +37,8 @@ unit mystrings;
 
 interface
 
-uses Classes;
+uses
+  SysUtils, Classes;
 
 type
   {
@@ -56,6 +57,26 @@ type
     @returns(enumeration element from the enumerated type) }
     class function FromString(const aEnumString: string; const aDefault: T): T; inline; static;
   end;
+
+{ Creates a base64 encoded string from @link(aInput)
+  @param(aInput String which should be encoded)
+  @returns(Base64 encoded String (does an automatic UTF8 1-byte string conversion)) }
+function DoBase64Encode(const aInput: String): String; overload; inline;
+
+{ Creates a base64 encoded string from @link(aInput)
+  @param(aInput Bytearray which should be encoded)
+  @returns(Base64 encoded String (does an automatic UTF8 1-byte string conversion)) }
+function DoBase64Encode(const aInput: TBytes): String; overload; inline;
+
+{ Creates a base64 decoded string from @link(aInput)
+  @param(aInput String which should be decoded)
+  @returns(Base64 decoded String (does an automatic UTF8 1-byte string conversion)) }
+function DoBase64DecodeToString(const aInput: String): String; inline;
+
+{ Creates a base64 decoded Bytearray from @link(aInput)
+  @param(aInput String which should be decoded (does an automatic UTF8 1-byte string conversion))
+  @returns(Base64 decoded Bytearray) }
+function DoBase64DecodeToBytes(const aInput: String): TBytes; inline;
 
 { Remove all non/special characters from String
   @param(S String which should be cleaned)
@@ -133,7 +154,12 @@ procedure SplitString(const Source: String; const Delimiter: String; const Dest:
 implementation
 
 uses
-  SysUtils, Math, StrUtils, typinfo, rtti,
+  {$IFDEF FPC}
+    base64,
+  {$ELSE}
+    NetEncoding,
+  {$ENDIF}
+  Math, StrUtils, typinfo, rtti,
   {$IFDEF MSWINDOWS}
     registry, Windows,
   {$ENDIF}
@@ -161,6 +187,61 @@ begin
   {$ENDIF}
   else
     Result := aDefault;
+end;
+
+{$IFDEF UNICODE}
+  { Removes default MIME linebreak after 76 chars }
+  procedure RemoveMIMELinebreak(var aInput: String); inline;
+  begin
+    aInput := aInput.Replace(sLineBreak, '', [rfReplaceAll, rfIgnoreCase]);
+  end;
+{$ENDIF}
+
+function DoBase64Encode(const aInput: String): String;
+begin
+  {$IFDEF UNICODE}
+    Result := TNetEncoding.Base64.Encode(aInput);
+    RemoveMIMELinebreak(Result);
+  {$ELSE}
+    Result := EncodeStringBase64(aInput);
+  {$ENDIF}
+end;
+
+function DoBase64Encode(const aInput: TBytes): String;
+begin
+  {$IFDEF UNICODE}
+    Result := TNetEncoding.Base64.EncodeBytesToString(aInput);
+    RemoveMIMELinebreak(Result);
+  {$ELSE}
+    SetLength(Result, Length(aInput));
+    move(aInput[0], Result[1], Length(aInput));
+
+    Result := DoBase64Encode(Result);
+  {$ENDIF}
+end;
+
+function DoBase64DecodeToString(const aInput: String): String;
+begin
+  {$IFDEF UNICODE}
+    Result := TNetEncoding.Base64.Decode(UTF8Encode(aInput));
+  {$ELSE}
+    Result := DecodeStringBase64(aInput);
+  {$ENDIF}
+end;
+
+function DoBase64DecodeToBytes(const aInput: String): TBytes;
+{$IFNDEF UNICODE}
+  var
+    fStrHelper: String;
+{$ENDIF}
+begin
+  {$IFDEF UNICODE}
+    Result := TNetEncoding.Base64.DecodeStringToBytes(UTF8Encode(aInput));
+  {$ELSE}
+    fStrHelper := DecodeStringBase64(aInput);
+    SetLength(Result, fStrHelper.Length);
+    move(fStrHelper[1], Result[0], fStrHelper.Length);
+  {$ENDIF}
 end;
 
 function Count(const mi, miben: String): integer;
