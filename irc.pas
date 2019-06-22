@@ -224,7 +224,6 @@ var
   direct_echo: TMyIrcThread;
   msgs: TStringList;
   i: Integer;
-
 begin
   if slshutdown then
     exit;
@@ -244,23 +243,24 @@ begin
   end;
 
   // okay it's not for the console
-  irc_message_lock.Enter;
   msgs := TStringList.Create;
+  irc_message_lock.Enter;
   try
-    msgs.Text := wraptext(msg, 256);
+    msgs.Text := WrapText(msg, 250);
     try
       if (config.ReadBool(section, 'direct_echo', False)) then
       begin
         direct_echo := FindIrcnetwork(netname);
         if (direct_echo <> nil) then
         begin
-          for I := 0 to msgs.Count - 1 do
+          for i := 0 to msgs.Count - 1 do
             direct_echo.IrcSendPrivMessage(channel + ' ' + msgs.Strings[i]);
         end;
       end
       else
       begin
-          for I := 0 to msgs.Count - 1 do begin
+          for i := 0 to msgs.Count - 1 do
+          begin
             irc_queue.Add(channel + ' ' + msgs.Strings[i]);
             irc_queue_nets.Add(netname);
           end;

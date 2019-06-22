@@ -35,16 +35,18 @@ type
 
 var
   // #testsl
-  TestValues1: array [0..2] of TItem = (
+  TestValues1: array [0..3] of TItem = (
     (_dText:'Hello guys!' ; _eText:'+OK *CXafm5eIlo8mQ12vArFSS6GLQYmTaGGF'),
     (_dText:'please call me noob' ; _eText:'+OK *KI4brpXJZaMbE+tDkerjjQ2F86KVgNohQAwSjNqWT20='),
-    (_dText:'Im a frénch gúy :]' ; _eText:'+OK *b8wj0Tj76xrndXAgMjzSdR4/lApZfQdUbdq3zkpVxrY=')
+    (_dText:'Im a frénch gúy :]' ; _eText:'+OK *b8wj0Tj76xrndXAgMjzSdR4/lApZfQdUbdq3zkpVxrY='),
+    (_dText:'[SKIP] : MP3 Najoua_Belyzel_-_Rendez-Vous_(De_La_Lune_Au_Soleil)-WEB-FR-2019-ZzZz @ XXXX "XXXX * if foreign && not language = German || mp3foreign && mp3language != DE then DROP" (UPDATE)' ; _eText:'+OK *jpmvB6OQwtebe9MKz+a/Rhe8IiifP5+S/DxR9+LLgRe7dECBBn/DuANkcjaYhHCnn37u9zob4Y+yjTBMUJJuKvpzLiQRoOukr7iBDOyrRNPAmqphtXWIVGFmaac7leXbbdXOViCPtyhUjuXOcL3q9Uol8r86jPvCuLD9tCWLOdnO73rWe8hYOmTRPNzIFdcrF7' + 'mrpPdzLtNZEXp/Hqgeg7W4YwCx9zfUjfhCBHokvPHCV6tZHuYIBCDSEMvdoRaSYuZikjKshOI=')
   );
   // #sltesting
-  TestValues2: array [0..2] of TItem = (
+  TestValues2: array [0..3] of TItem = (
     (_dText:'Hello guys!' ; _eText:'+OK *LNO+lAO4d5KTIfGV2nuCFtU+FirnW5hN'),
     (_dText:'please call me noob' ; _eText:'+OK *i/PCJijQodq2IbxisvlvwK6k1s/Dw+lCrvbq9sM09A0='),
-    (_dText:'Im a frénch gúy :]' ; _eText:'+OK */VOHZwapNbV7tMml1zf4TWSwxjG6VV6419VnVkRU3sM=')
+    (_dText:'Im a frénch gúy :]' ; _eText:'+OK */VOHZwapNbV7tMml1zf4TWSwxjG6VV6419VnVkRU3sM='),
+    (_dText:'[SKIP] : MP3 Najoua_Belyzel_-_Rendez-Vous_(De_La_Lune_Au_Soleil)-WEB-FR-2019-ZzZz @ XXXX "XXXX * if foreign && not language = German || mp3foreign && mp3language != DE then DROP" (COMPLETE)' ; _eText:'+OK *F0VWajKu7KLXb5SJbQpNLPhAdo8pb1tlwOT+Q5OLD6/Oj64ETCXeXEdO0zBMq+svj7nkbp6z1fi1PdDQ/U0q0jNbFeQ+hyrv1ByNz+GHMTMmXJQPiW57PQkzV5qQ9+BLwgkhOnbMF8RiQ1wu7ksGPBhveYtrR9kaGDim/9mIvyQKcJekf/ANp6gBsRLABfjcB' + '1q1lAGCpUU6EgttCygeg1Q0F08zWEIpdi1bsSXljOznBO0uojAebltLQmusQ1JkC6H2CMs0dkE=')
   );
 
 procedure TTestIrcBlowkeyCBC.LoadIndyOpenSSL;
