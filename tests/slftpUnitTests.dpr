@@ -58,8 +58,8 @@ uses
   mrdohutils,
   slftpUnitTestsSetup,
   // add all test units below
-  Base64OpenSSLTests,
   mystringsTests,
+  mystringsTests.Base64,
   httpTests,
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
