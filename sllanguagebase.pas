@@ -216,17 +216,20 @@ end;
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
 var
   i, j: integer;
-  fRlsnameUppercase: String;
+  fRlsnameStripped: String;
 begin
   Result := 'EN';
-  fRlsnameUppercase := UpperCase(aRlsname);
+  fRlsnameStripped := ReplaceText(aRlsname, '(', '');
+  fRlsnameStripped := ReplaceText(fRlsnameStripped, ')', '');
 
   for i := 0 to slmp3languages.Count - 1 do
   begin
-    j := Pos(slmp3languages[i], fRlsnameUppercase);
-    if (j <> 0) then
+    j := Pos(slmp3languages[i], fRlsnameStripped);
+    if (j > 1) then
     begin
-      if (aRlsname[j - 1] = '-') and (aRlsname[j + Length(slmp3languages[i])] = '-') then
+      if ((j + Length(slmp3languages[i])) >= Length(fRlsnameStripped)) then
+        Continue;
+      if (fRlsnameStripped[j - 1] = '-') and (fRlsnameStripped[j + Length(slmp3languages[i])] = '-') then
       begin
         Result := slmp3languages[i];
         break;
