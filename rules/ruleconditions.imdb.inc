@@ -1,8 +1,8 @@
 { Rule Descriptions for IMDB => TIMDBRelease }
 const
-  IMDBLookupDoneDescription: string = 'Returns true when the imdb lookup has been performed or no lookup is necessary.';
+  IMDBLookupDoneDescription: string = 'Returns true when the IMDB lookup has been performed, otherwise false.';
 
-  IMDBYearDescription: string = 'Returns with the year of the movie''s release date. Returns zero if IMDB lookup is not yet ready.';
+  IMDBYearDescription: string = 'Returns with the year of the movie''s release date.';
 
   IMDBLanguagesDescription: string = 'Returns with the list of the movie''s languages.';
 
@@ -10,18 +10,18 @@ const
 
   IMDBGenresDescription: string = 'Returns with the list of the movie''s genres.';
 
-  IMDBScreensDescription: string = 'Returns with the number of opening screens of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBScreensDescription: string = 'Returns with the number of opening screens of the movie.';
 
-  IMDBRatingDescription: string = 'Returns with the current IMDB rating of the movie MULTIPLIED by ten. (so max score is 100, min is 0) Returns zero if IMDB lookup is not yet ready.';
+  IMDBRatingDescription: string = 'Returns with the IMDB rating of the movie. (MULTIPLIED by ten: max score is 100, min score is 0)';
 
-  IMDBVotesDescription: string = 'Returns with the number of votes of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBVotesDescription: string = 'Returns with the number of IMDB votes of the movie.';
 
-  IMDBLimitedDescription: string = 'Returns with the a boolean for Limited. Returns false if IMDB lookup is not yet ready.';
+  IMDBLimitedDescription: string = 'Returns true if the movie is Limited, otherwise false.';
 
-  IMDBWideDescription: string = 'Returns with the a boolean for Wide (CINE). Returns false if IMDB lookup is not yet ready.';
+  IMDBWideDescription: string = 'Returns true if the movie is Wide (CINE), otherwise false.';
 
-  IMDBFestivalDescription: string = 'Returns with the a boolean for Festival. Returns false if IMDB lookup is not yet ready.';
+  IMDBFestivalDescription: string = 'Returns true if the movie was aired on a Festival, otherwise false.';
 
-  IMDBSTVDescription: string = 'Returns true, if the movie is STV (Reads Countries from slftp.imdbcountries). Returns false if IMDB lookup is not yet ready.';
+  IMDBSTVDescription: string = 'Returns true, if the movie is STV (Reads Countries from slftp.imdbcountries), otherwise false.';
 
-  IMDBCineYearDescription: string = 'Returns the Screeing year of the movie. Returns zero if IMDB lookup is not yet ready.';
+  IMDBCineYearDescription: string = 'Returns the screening year of the movie.';

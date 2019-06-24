@@ -2056,6 +2056,7 @@ begin
 
   conditions.Add(TConditionNfoGenreMask);
 
+  conditions.Add(TConditionTVLookupDone);
   conditions.Add(TConditionTVShowName);
   conditions.Add(TConditionTVTag);
   conditions.Add(TConditionTVPremierYear);

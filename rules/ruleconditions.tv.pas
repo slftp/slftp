@@ -6,6 +6,12 @@ uses
   Classes, pazo, rulesunit;
 
 type
+  TConditionTVLookupDone = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionTVShowName = class(TStringCondition)
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
@@ -118,6 +124,28 @@ const
 
 {$I ruleconditions.tv.inc}
 
+{ TConditionTVLookupDone }
+
+function TConditionTVLookupDone.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).IsLookupDone;
+  end;
+end;
+
+class function TConditionTVLookupDone.Name: String;
+begin
+  Result := 'tvlookupdone';
+end;
+
+class function TConditionTVLookupDone.Description: String;
+begin
+  Result := TVLookupDoneDescription;
+end;
+
 { TConditionTVShowName }
 
 function TConditionTVShowName.SupplyValue(r: TPazo): String;
@@ -126,8 +154,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).showname;
+    Result := TTVRelease(r.rls).showname;
   end;
 end;
 
@@ -149,8 +176,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).tvtag;
+    Result := TTVRelease(r.rls).tvtag;
   end;
 end;
 
@@ -172,8 +198,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).premier_year;
+    Result := TTVRelease(r.rls).premier_year;
   end;
 end;
 
@@ -195,8 +220,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).country;
+    Result := TTVRelease(r.rls).country;
   end;
 end;
 
@@ -218,8 +242,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).tvlanguage;
+    Result := TTVRelease(r.rls).tvlanguage;
   end;
 end;
 
@@ -241,8 +264,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).classification;
+    Result := TTVRelease(r.rls).classification;
   end;
 end;
 
@@ -264,8 +286,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).scripted;
+    Result := TTVRelease(r.rls).scripted;
   end;
 end;
 
@@ -286,8 +307,7 @@ begin
   try
     if r.rls is TTVRelease then
     begin
-      if TTVRelease(r.rls).IsLookupDone then
-        re.Assign(TTVRelease(r.rls).genres);
+      re.Assign(TTVRelease(r.rls).genres);
     end;
   except
     on E: Exception do
@@ -316,8 +336,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).network;
+    Result := TTVRelease(r.rls).network;
   end;
 end;
 
@@ -339,8 +358,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).runtime;
+    Result := TTVRelease(r.rls).runtime;
   end;
 end;
 
@@ -362,8 +380,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).ended_year;
+    Result := TTVRelease(r.rls).ended_year;
   end;
 end;
 
@@ -385,8 +402,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).running;
+    Result := TTVRelease(r.rls).running;
   end;
 end;
 
@@ -408,8 +424,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).status;
+    Result := TTVRelease(r.rls).status;
   end;
 end;
 
@@ -431,8 +446,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).currentseason;
+    Result := TTVRelease(r.rls).currentseason;
   end;
 end;
 
@@ -454,8 +468,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).currentepisode;
+    Result := TTVRelease(r.rls).currentepisode;
   end;
 end;
 
@@ -477,8 +490,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).currentair;
+    Result := TTVRelease(r.rls).currentair;
   end;
 end;
 
@@ -500,8 +512,7 @@ begin
 
   if r.rls is TTVRelease then
   begin
-    if TTVRelease(r.rls).IsLookupDone then
-      Result := TTVRelease(r.rls).daily;
+    Result := TTVRelease(r.rls).daily;
   end;
 end;
 
