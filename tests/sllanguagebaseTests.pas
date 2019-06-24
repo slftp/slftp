@@ -36,6 +36,10 @@ type
     procedure TestFindMusicLanguageOnDirectory12;
     procedure TestFindMusicLanguageOnDirectory13;
     procedure TestFindMusicLanguageOnDirectory14;
+    procedure TestFindMusicLanguageOnDirectory15;
+    procedure TestFindMusicLanguageOnDirectory16;
+    procedure TestFindMusicLanguageOnDirectory17;
+    procedure TestFindMusicLanguageOnDirectory18;
   end;
 
 implementation
@@ -303,6 +307,50 @@ var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
   fInputStr := 'Noodle-NO_Way-WEB-2019-KLIN';
+  fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory15;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Josipa_Lisac-Posve_Slobodna_(Suradnje_And_Etno)-2CD-HR-2018-IMT';
+  fExpectedResultStr := 'HR';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory16;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Momoiro_Clover_Z-BLAST-JA-BLURAY-RETAIL-x264-2017-DARKFLiX';
+  fExpectedResultStr := 'JA';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory17;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Amir-Etats_DAmour_(Paris_A_Nous_Les_Jeux)-FR-720p-x264-2017-PmV';
+  fExpectedResultStr := 'FR';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory18;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Dej_Loaf-No_Fear-DVDRip-x264-2017-SRPx';
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);

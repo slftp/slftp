@@ -6,7 +6,7 @@ uses
   SysUtils, Classes, Contnrs, Generics.Collections;
 
 type
- { @abstract(Class for language and its expression(s) in scene tagging) }
+  { @abstract(Class for language and its expression(s) in scene tagging) }
   TSLLanguages = class
   private
     FLanguage: String; //< language (text before equality sign in file)
@@ -27,15 +27,25 @@ type
     property NeedsRegexMatching: Boolean read FIsRegexExpression; //< @true if @link(Expression) is a regex pattern, @false otherwise
   end;
 
-{ Just a helper function to initialize @link(sllanguages) with languages from slftp.languagebase and @link(slmp3languages) with infos from @link(kb.mp3languages) }
+  { @abstract(Class for music language in scene tagging) }
+  TMusicLanguage = class
+  private
+    FLanguageCode: String; //< uppercased music language code
+    FLanguageCodeLength: Integer; //< String length of @link(FLanguageCode)
+  public
+    { Just a helper function to create a new @link(TMusicLanguage) class
+      @param(aLanguageCode Language code) }
+    constructor Create(const aLanguageCode: String);
+    property LanguageCode: String read FLanguageCode; //< music language code
+    property Length: Integer read FLanguageCodeLength; //< length of @link(LanguageCode)
+  end;
+
+{ Just a helper function to initialize @link(sllanguages) with languages from slftp.languagebase and @link(slmusiclanguages) with infos from [kb] section }
 procedure SLLanguagesInit;
-{ Just a helper function to free @link(sllanguages) and @link(slmp3languages) }
+{ Just a helper function to free @link(sllanguages) and @link(slmusiclanguages) }
 procedure SLLanguagesUninit;
-{ Reads mp3languages from kb section in slftp inifile and stores them uppercased in @link(aStringList), @italic(list will be automatically cleared)
-  @param(aStringList Stringlist which should be used for storing MP3 languages) }
-procedure SLLoadMP3LanguagesFromIniFile(var aStringList: TStringList);
-{ Loads current values from files to @link(sllanguages) and @link(slmp3languages)
-  @returns(Count of loaded languages and mp3 languages) }
+{ Loads current values from files to @link(sllanguages) and @link(slmusiclanguages)
+  @returns(Count of loaded languages and music languages) }
 function SLLanguagesReload: String;
 { Creates a list of all expression(s) for every language from @link(sllanguages), @italic(input list will be automatically cleared)
   @param(aStringList Stringlist which should be used for storing the list of language expressions) }
@@ -44,22 +54,22 @@ procedure SLGetLanguagesExpression(var aStringList: TStringList);
   @param(aRlsname string in which it searches for the language)
   @returns(@link(TSLLanguages.Language) string if found, otherwise default 'English') }
 function FindLanguageOnDirectory(const aRlsname: String): String;
-{ Iterates through @link(slmp3languages) and searches with each string of it in @link(aRlsname)
+{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname)
   @param(aRlsname string in which it searches for the language)
-  @returns(Language string of matched @link(slmp3languages) if found, otherwise default 'EN') }
+  @returns(Language string of matched @link(slmusiclanguages) if found, otherwise default 'EN') }
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
-
-var
-  sllanguages: TObjectList<TSLLanguages>; //< Holds @link(TSLLanguages) objects with the expressions/language from slftp.languagebase
-  slmp3languages: TStringList; //< Holds mp3 languages from kb section from inifile (same as @link(kb.mp3languages))
 
 implementation
 
 uses
-  configunit, mystrings, debugunit, Regexpr, StrUtils;
+  StrUtils, configunit, mystrings, debugunit, Regexpr;
 
 const
   rsections = 'sllanguagebase';
+
+var
+  sllanguages: TObjectList<TSLLanguages>; //< Holds @link(TSLLanguages) objects with the expressions/language from slftp.languagebase
+  slmusiclanguages: TObjectList<TMusicLanguage>; //< Holds music languages from kb section in inifile
 
 { Reads languages from slftp.languagebase and stores them in @link(aObjectList), @italic(list will be automatically cleared)
   @param(aObjectList ObjectList which should be used for storing languages) }
@@ -90,15 +100,49 @@ begin
   end;
 end;
 
+{ Reads languages from slftp.ini [kb] and stores them in @link(aObjectList), @italic(list will be automatically cleared)
+  @param(aObjectList ObjectList which should be used for storing music languages) }
+procedure _SLLoadMusicLanguagesFromIniFile(var aObjectList: TObjectList<TMusicLanguage>);
+var
+  i: Integer;
+  y: TStringList;
+  fMusicLanguage: TMusicLanguage;
+begin
+  aObjectList.Clear;
+
+  y := TStringList.Create;
+  try
+    y.Delimiter := ' ';
+    y.QuoteChar := '"';
+    y.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
+
+    for i := 0 to y.Count - 1 do
+    begin
+      fMusicLanguage := TMusicLanguage.Create(y.Strings[i]);
+      aObjectList.Add(fMusicLanguage);
+    end;
+  finally
+    y.Free;
+  end;
+end;
+
 { TSLLanguages }
 
 constructor TSLLanguages.Create(const aLanguage, aExpression: String; const aFileIndex: integer; const aIsRegexExpression: Boolean);
 begin
   FLanguage := aLanguage;
   FExpression := LowerCase(aExpression);
-  FExpressionLength := Length(aExpression);
+  FExpressionLength := aExpression.Length;
   FFileIndex := aFileIndex;
   FIsRegexExpression := aIsRegexExpression;
+end;
+
+{ TMusicLanguage }
+
+constructor TMusicLanguage.Create(const aLanguageCode: String);
+begin
+  FLanguageCode := aLanguageCode;
+  FLanguageCodeLength := aLanguageCode.Length;
 end;
 
 procedure SLLanguagesInit;
@@ -110,27 +154,17 @@ begin
 
   Debug(dpSpam, rsections, Format('<- Ready - Languages loaded: %d', [sllanguages.Count]));
 
-  slmp3languages := TStringList.Create;
-  SLLoadMP3LanguagesFromIniFile(slmp3languages);
-  Debug(dpSpam, rsections, Format('<- Ready - MP3 Languages loaded: %d', [slmp3languages.Count]));
+  slmusiclanguages := TObjectList<TMusicLanguage>.Create(True);
+  _SLLoadMusicLanguagesFromIniFile(slmusiclanguages);
+  Debug(dpSpam, rsections, Format('<- Ready - Music Languages loaded: %d', [slmusiclanguages.Count]));
 end;
 
 procedure SLLanguagesUninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
   sllanguages.Free;
-  slmp3languages.Free;
+  slmusiclanguages.Free;
   Debug(dpSpam, rsections, 'Uninit2');
-end;
-
-procedure SLLoadMP3LanguagesFromIniFile(var aStringList: TStringList);
-begin
-  aStringList.Clear;
-
-  aStringList.Delimiter := ' ';
-  aStringList.QuoteChar := '"';
-  aStringList.CaseSensitive := False;
-  aStringList.DelimitedText := UpperCase(config.ReadString('kb', 'mp3languages', ''));
 end;
 
 function SLLanguagesReload: String;
@@ -138,9 +172,9 @@ begin
   Debug(dpSpam, rsections, '-> Reload Language Base');
 
   _ReadLanguagesFromIniFile(sllanguages);
-  SLLoadMP3LanguagesFromIniFile(slmp3languages);
+  _SLLoadMusicLanguagesFromIniFile(slmusiclanguages);
 
-  Result := Format('Reload done! %d languages and %d mp3 languages loaded.', [sllanguages.Count, slmp3languages.Count]);
+  Result := Format('Reload done! %d languages and %d music languages loaded.', [sllanguages.Count, slmusiclanguages.Count]);
 
   Debug(dpSpam, rsections, '<- Reload Language Base');
 end;
@@ -215,23 +249,25 @@ end;
 
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
 var
-  i, j: integer;
+  j, fRlsLen: integer;
   fRlsnameStripped: String;
+  fMusicLanguage: TMusicLanguage;
 begin
   Result := 'EN';
   fRlsnameStripped := ReplaceText(aRlsname, '(', '');
   fRlsnameStripped := ReplaceText(fRlsnameStripped, ')', '');
+  fRlsLen := Length(fRlsnameStripped);
 
-  for i := 0 to slmp3languages.Count - 1 do
+  for fMusicLanguage in slmusiclanguages do
   begin
-    j := Pos(slmp3languages[i], fRlsnameStripped);
+    j := Pos(fMusicLanguage.LanguageCode, fRlsnameStripped);
     if (j > 1) then
     begin
-      if ((j + Length(slmp3languages[i])) >= Length(fRlsnameStripped)) then
+      if ((j + fMusicLanguage.Length) >= fRlsLen) then
         Continue;
-      if (fRlsnameStripped[j - 1] = '-') and (fRlsnameStripped[j + Length(slmp3languages[i])] = '-') then
+      if (fRlsnameStripped[j - 1] = '-') and (fRlsnameStripped[j + fMusicLanguage.Length] = '-') then
       begin
-        Result := slmp3languages[i];
+        Result := fMusicLanguage.LanguageCode;
         break;
       end;
     end;

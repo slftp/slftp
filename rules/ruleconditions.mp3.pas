@@ -128,11 +128,18 @@ end;
 
 function TConditionMP3Language.Hitelesit(const s: String): boolean;
 begin
+  // Hitelesit = authenticate
+  // therefore I guess it should validate if the input s is a valid music language ???
+  // is input s the parsed language from releasename?
+  Result := True;
+{
   try
-    Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
+    //Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
+    Result := AnsiSameText(s, 'EN');
   except
     Result := False;
   end;
+}
 end;
 
 function TConditionMP3Language.SupplyValue(r: TPazo): String;
@@ -140,7 +147,7 @@ begin
   Result := '';
   try
     if (r.rls is TMP3Release) then
-      Result := Uppercase(TMP3Release(r.rls).mp3lng);
+      Result := TMP3Release(r.rls).mp3lng;
   except
     Result := '';
   end;
