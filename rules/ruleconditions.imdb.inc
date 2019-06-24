@@ -1,5 +1,7 @@
 { Rule Descriptions for IMDB => TIMDBRelease }
 const
+  IMDBLookupDoneDescription: string = 'Returns true when the imdb lookup has been performed or no lookup is necessary.';
+
   IMDBYearDescription: string = 'Returns with the year of the movie''s release date. Returns zero if IMDB lookup is not yet ready.';
 
   IMDBLanguagesDescription: string = 'Returns with the list of the movie''s languages.';

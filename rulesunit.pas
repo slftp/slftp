@@ -2074,6 +2074,7 @@ begin
   conditions.Add(TConditionTVCurrentOnAir);
   conditions.Add(TConditionTVDailyShow);
 
+  conditions.Add(TConditionIMDBLookupDone);
   conditions.Add(TConditionIMDBYear);
   conditions.Add(TConditionIMDBLanguages);
   conditions.Add(TConditionIMDBCountries);
