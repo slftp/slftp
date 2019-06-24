@@ -408,7 +408,7 @@ begin
   Result := False;
   irc_addtext(Netname, Channel, Format('Read language for: %s', [params]));
   irc_addtext(Netname, Channel, Format('language -> %s', [FindLanguageOnDirectory(params)]));
-  irc_addtext(Netname, Channel, Format('mp3 language -> %s', [FindMusicLanguageOnDirectory(params)]));
+  irc_addtext(Netname, Channel, Format('music language -> %s', [FindMusicLanguageOnDirectory(params)]));
   Result := True;
 end;
 
