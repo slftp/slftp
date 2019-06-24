@@ -6,6 +6,12 @@ uses
   Classes, pazo, rulesunit;
 
 type
+  TConditionIMDBLookupDone = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionIMDBYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
     class function Name: String; override;
@@ -88,6 +94,28 @@ const
 
 {$I ruleconditions.imdb.inc}
 
+{ TConditionIMDBLookupDone }
+
+function TConditionIMDBLookupDone.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).IsLookupDone;
+  end;
+end;
+
+class function TConditionIMDBLookupDone.Name: String;
+begin
+  Result := 'imdblookupdone';
+end;
+
+class function TConditionIMDBLookupDone.Description: String;
+begin
+  Result := IMDBLookupDoneDescription;
+end;
+
 { TConditionIMDBYear }
 
 function TConditionIMDBYear.SupplyValue(r: TPazo): integer;
@@ -96,8 +124,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_year;
+    Result := TIMDBRelease(r.rls).imdb_year;
   end;
 end;
 
@@ -118,8 +145,7 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TIMDBRelease(r.rls).IsLookupDone then
-        re.Assign(TIMDBRelease(r.rls).imdb_languages);
+      re.Assign(TIMDBRelease(r.rls).imdb_languages);
     end;
   except
     on E: Exception do
@@ -147,8 +173,7 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TIMDBRelease(r.rls).IsLookupDone then
-        re.Assign(TIMDBRelease(r.rls).imdb_countries);
+      re.Assign(TIMDBRelease(r.rls).imdb_countries);
     end;
   except
     on E: Exception do
@@ -176,8 +201,7 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TIMDBRelease(r.rls).IsLookupDone then
-        re.Assign(TIMDBRelease(r.rls).imdb_genres);
+      re.Assign(TIMDBRelease(r.rls).imdb_genres);
     end;
   except
     on E: Exception do
@@ -206,8 +230,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_screens;
+    Result := TIMDBRelease(r.rls).imdb_screens;
   end;
 end;
 
@@ -229,8 +252,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_rating;
+    Result := TIMDBRelease(r.rls).imdb_rating;
   end;
 end;
 
@@ -252,8 +274,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_votes;
+    Result := TIMDBRelease(r.rls).imdb_votes;
   end;
 end;
 
@@ -275,8 +296,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_ldt;
+    Result := TIMDBRelease(r.rls).imdb_ldt;
   end;
 end;
 
@@ -298,8 +318,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_wide;
+    Result := TIMDBRelease(r.rls).imdb_wide;
   end;
 end;
 
@@ -321,8 +340,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_festival;
+    Result := TIMDBRelease(r.rls).imdb_festival;
   end;
 end;
 
@@ -344,8 +362,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).imdb_stvm;
+    Result := TIMDBRelease(r.rls).imdb_stvm;
   end;
 end;
 
@@ -367,8 +384,7 @@ begin
 
   if r.rls is TIMDBRelease then
   begin
-    if TIMDBRelease(r.rls).IsLookupDone then
-      Result := TIMDBRelease(r.rls).CineYear;
+    Result := TIMDBRelease(r.rls).CineYear;
   end;
 end;
 
