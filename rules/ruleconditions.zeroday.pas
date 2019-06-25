@@ -7,7 +7,7 @@ uses
 
 type
   TCondition0daySource = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -25,7 +25,7 @@ const
 
 { TCondition0daySource }
 
-function TCondition0daySource.Hitelesit(const s: String): boolean;
+function TCondition0daySource.Verify(const s: String): boolean;
 begin
   try
     Result := nulldaysources.IndexOfName(s) <> -1;
