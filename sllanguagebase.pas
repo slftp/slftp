@@ -58,6 +58,10 @@ function FindLanguageOnDirectory(const aRlsname: String): String;
   @param(aRlsname string in which it searches for the language)
   @returns(Language string of matched @link(slmusiclanguages) if found, otherwise default 'EN') }
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
+{ Iterates through @link(slmusiclanguages) and compares to @link(aLanguage)
+  @param(aLanguage string with a language to compare to, to check for existance)
+  @returns(@True if string @link(aLanguage) is a valid language code in @link(slmusiclanguages), otherwise @False) }
+function VerifyMusicLanguage(const aLanguage: String): boolean;
 
 implementation
 
@@ -270,6 +274,22 @@ begin
         Result := fMusicLanguage.LanguageCode;
         break;
       end;
+    end;
+  end;
+end;
+
+function VerifyMusicLanguage(const aLanguage: String): boolean;
+var
+  fMusicLanguage: TMusicLanguage;
+begin
+  Result := False;
+
+  for fMusicLanguage in slmusiclanguages do
+  begin
+    if (fMusicLanguage.LanguageCode = aLanguage) then
+    begin
+      Result := True;
+      break;
     end;
   end;
 end;
