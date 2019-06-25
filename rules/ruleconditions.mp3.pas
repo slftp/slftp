@@ -3,7 +3,7 @@ unit ruleconditions.mp3;
 interface
 
 uses
-  Classes, pazo, rulesunit;
+  Classes, pazo, rulesunit, sllanguagebase;
 
 type
   TConditionMP3Genre = class(TStringCondition)
@@ -128,15 +128,11 @@ end;
 
 function TConditionMP3Language.Verify(const s: String): boolean;
 begin
-  Result := True;
-{
   try
-    //Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
-    Result := AnsiSameText(s, 'EN');
+    Result := VerifyMusicLanguage(s);
   except
     Result := False;
   end;
-}
 end;
 
 function TConditionMP3Language.SupplyValue(r: TPazo): String;
