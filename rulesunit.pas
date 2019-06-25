@@ -74,7 +74,7 @@ type
   TStringOperand = class(TOperand)
   private
     fValue: String;
-    nelegyenhitelesites: boolean;
+    skipVerification: boolean;
   public
     function AsText: String; override;
     function Value: String;
@@ -252,7 +252,7 @@ type
   TCondition = class(TRuleNode)
     acceptedOperators: TClassList;
 
-    function Hitelesit(const s: String): boolean; virtual;
+    function Verify(const s: String): boolean; virtual;
     function AsText: String; override;
     function Match(p: TPazo): boolean; override;
     class function Description: String; virtual; abstract;
@@ -877,7 +877,7 @@ begin
   inherited;
 end;
 
-function TCondition.Hitelesit(const s: String): boolean;
+function TCondition.Verify(const s: String): boolean;
 begin
   Result := True;
 end;
@@ -1005,9 +1005,9 @@ begin
     exit;
   end;
 
-  if not nelegyenhitelesites then
+  if not skipVerification then
   begin
-    Result := TConditionOperator(parent).condition.hitelesit(s);
+    Result := TConditionOperator(parent).condition.Verify(s);
     if not Result then
       exit;
   end
@@ -1157,7 +1157,7 @@ end;
 constructor TMaskOperand.Create(parent: TRuleNode);
 begin
   inherited;
-  nelegyenhitelesites := True;
+  skipVerification := True;
 end;
 
 destructor TMaskOperand.Destroy;

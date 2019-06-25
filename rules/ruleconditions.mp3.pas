@@ -19,7 +19,7 @@ type
   end;
 
   TConditionMP3Language = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -32,7 +32,7 @@ type
   end;
 
   TConditionMP3Source = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -126,11 +126,8 @@ end;
 
 { TConditionMP3Language }
 
-function TConditionMP3Language.Hitelesit(const s: String): boolean;
+function TConditionMP3Language.Verify(const s: String): boolean;
 begin
-  // Hitelesit = authenticate
-  // therefore I guess it should validate if the input s is a valid music language ???
-  // is input s the parsed language from releasename?
   Result := True;
 {
   try
@@ -188,7 +185,7 @@ end;
 
 { TConditionMP3Source }
 
-function TConditionMP3Source.Hitelesit(const s: String): boolean;
+function TConditionMP3Source.Verify(const s: String): boolean;
 begin
   try
     Result := mp3sources.IndexOfName(s) <> -1;
