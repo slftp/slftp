@@ -73,16 +73,16 @@ procedure TVInfoFireKbAdd(const aRls: String; msg: String = '<c3>[TVInfo]</c> %s
 function dbTVInfo_Process(const aNet, aChan, aNick: String; aMSG: String): boolean;
 
 { Removes scene tagging for TV releases like languages or tvtags and tries to extract showname
-  @param(rip Releasename with scene tagging)
-  @param(showName Plain TV showname from @link(rip) without any scene tags) }
-procedure getShowValues(const rip: String; out showName: String); overload;
+  @param(aRlsname Releasename with scene tagging)
+  @param(showName Plain TV showname from @link(aRlsname) without any scene tags) }
+procedure getShowValues(const aRlsname: String; out showName: String); overload;
 
-{ Removes scene tagging for TV releases like languages or tvtags and tries to extract showname, season and episode from rip
-  @param(rip Releasename with scene tagging)
-  @param(showName Plain TV showname from @link(rip) without any scene tags)
-  @param(season Extracted season number from @link(rip))
-  @param(episode Extracted episode number from @link(rip)) }
-procedure getShowValues(const rip: String; out showName: String; out season: integer; out episode: int64); overload;
+{ Removes scene tagging for TV releases like languages or tvtags and tries to extract showname, season and episode from releasename
+  @param(aRlsname Releasename with scene tagging)
+  @param(showName Plain TV showname from @link(aRlsname) without any scene tags)
+  @param(season Extracted season number from @link(aRlsname))
+  @param(episode Extracted episode number from @link(aRlsname)) }
+procedure getShowValues(const aRlsname: String; out showName: String; out season: integer; out episode: int64); overload;
 
 { Replaces TV showname words (and, at) with (&, @) and replaces whitespaces with dots
   @param(aName TV showname)
@@ -132,21 +132,21 @@ begin
   Result := fHelper;
 end;
 
-procedure getShowValues(const rip: String; out showName: String);
+procedure getShowValues(const aRlsname: String; out showName: String);
 var
-  season: integer;
-  episode: int64;
+  fSeason: integer;
+  fEpisode: int64;
 begin
-  getShowValues(rip, showName, season, episode);
+  getShowValues(aRlsname, showName, fSeason, fEpisode);
 end;
 
-procedure getShowValues(const rip: String; out showname: String; out season: integer; out episode: int64);
+procedure getShowValues(const aRlsname: String; out showName: String; out season: integer; out episode: int64);
 var
   rx: TRegexpr;
   ttags, ltags: TStringlist;
-  showDate : TDateTime;
+  showDate: TDateTime;
 begin
-  showName := rip;
+  showName := aRlsname;
 
   // default values for not parsed/matched
   season := -10;
@@ -157,12 +157,18 @@ begin
     rx.ModifierI := True;
     rx.ModifierG := True;
 
+
     (* dated shows like Stern.TV.2016.01.27.GERMAN.Doku.WS.dTV.x264-FiXTv *)
     (* YYYY/MM/DD *)
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
-    if rx.Exec(rip) then
+    if rx.Exec(aRlsname) then
     begin
       showname := rx.Match[1];
+
+      {$IFDEF DEBUG}
+        Debug(dpMessage, section, Format('getShowValues-case-1 - matches: %s %s %s %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4]]));
+      {$ENDIF}
+
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]))
        and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), 0, 0 , 0, 0 , showDate) then
       begin
@@ -171,22 +177,37 @@ begin
       end
       else
       begin
-        irc_Adderror('<c4><b>ERROR</c></b>: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
-        Debug(dpError, section, 'ERROR: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
+        irc_Adderror('<c4><b>getShowValues ERROR</c></b>: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
+        Debug(dpError, section, 'getShowValues ERROR: ' + rx.Match[4] + '-' + rx.Match[3] + '-' + rx.Match[2] + ' is no valid date.');
       end;
+
+      {$IFDEF DEBUG}
+        Debug(dpMessage, section, Format('getShowValues-case-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+      {$ENDIF}
+
       exit;
     end;
 
 
     (* regular series tagging like S01E02 and 1x02 *)
     rx.Expression := '(.*?)[._-](S(\d{1,3})(E(\d{1,3}))?|(\d+)x(\d+))';
-    if rx.Exec(rip) then
+    if rx.Exec(aRlsname) then
     begin
       showname := rx.Match[1];
+
+      {$IFDEF DEBUG}
+        Debug(dpMessage, section, Format('getShowValues-case-2 - matches: %s %s %s %s %s', [rx.Match[1], rx.Match[3], rx.Match[5], rx.Match[6], rx.Match[7]]));
+      {$ENDIF}
+
       if StrToIntDef(rx.Match[3], 0) > 0 then
       begin
         season := StrToIntDef(rx.Match[3], 0);
         episode := StrToIntDef(rx.Match[5], 0);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-2-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
+
         exit;
       end;
 
@@ -194,39 +215,77 @@ begin
       begin
         season := StrToIntDef(rx.Match[6], 0);
         episode := StrToIntDef(rx.Match[7], 0);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-2-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
+
         exit;
       end;
     end;
 
+
     rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|E|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
-    if rx.Exec(rip) then
+    if rx.Exec(aRlsname) then
     begin
       showname := rx.Match[1];
+
+      {$IFDEF DEBUG}
+        Debug(dpMessage, section, Format('getShowValues-case-3 - matches: %s %s %s', [rx.Match[1], rx.Match[5], rx.Match[7]]));
+      {$ENDIF}
+
       episode := StrToIntDef(rx.Match[7], 0);
 
       if StrToIntDef(rx.Match[5], 0) > 0 then
-        episode := StrToIntDef(rx.Match[5], 0)
+      begin
+        episode := StrToIntDef(rx.Match[5], 0);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-3-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
+      end
       else
+      begin
         episode := StrToIntDef(rx.Match[7], 0);
-      Exit;
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-3-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
+      end;
+
+      exit;
     end;
 
+
     rx.Expression := '(.*?)[._-]((W|V|S(taffel|eason|aison))[._]?(\d{1,3})[._]?)?(SE|DIS[CK]|Y|E|EPS?|VOL(UME)?)[._]?(\d{1,3}).*?';
-    if rx.Exec(rip) then
+    if rx.Exec(aRlsname) then
     begin
       showname := rx.Match[1];
+
+      {$IFDEF DEBUG}
+        Debug(dpMessage, section, Format('getShowValues-case-4 - matches: %s %s %s', [rx.Match[1], rx.Match[4], rx.Match[7]]));
+      {$ENDIF}
 
       if StrToIntDef(rx.Match[4], 0) > 0 then
       begin
         episode := StrToIntDef(rx.Match[4], 0);
         season := StrToIntDef(rx.Match[4], 0);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-4-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
       end
       else
       begin
         episode := StrToIntDef(rx.Match[7], 0);
         season := StrToIntDef(rx.Match[7], 0);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-4-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
       end;
-      Exit;
+
+      exit;
     end;
 
 
@@ -242,9 +301,14 @@ begin
         ltags.Delimiter := '|';
 
         rx.Expression := '[._-\s]((19|20)\d{2}[._-\s]|720(p|i)|1080(p|i)|2160(p|i)|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';
+        showName := rx.Replace(aRlsname, '', False);
         season := 0;
         episode := 0;
-        showName := rx.Replace(rip, '', False);
+
+        {$IFDEF DEBUG}
+          Debug(dpMessage, section, Format('getShowValues-case-5 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        {$ENDIF}
+
       finally
         ltags.free;
       end;
