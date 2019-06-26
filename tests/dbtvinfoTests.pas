@@ -37,6 +37,18 @@ type
     procedure GetShowValues18;
     procedure GetShowValues19;
     procedure GetShowValues20;
+    procedure GetShowValues21;
+    procedure GetShowValues22;
+    procedure GetShowValues23;
+    procedure GetShowValues24;
+    procedure GetShowValues25;
+    procedure GetShowValues26;
+    procedure GetShowValues27;
+    {
+    procedure GetShowValues28;
+    procedure GetShowValues29;
+    procedure GetShowValues30;
+    }
   end;
 
 implementation
@@ -521,6 +533,208 @@ begin
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
 
+procedure TTestShowFunctions.GetShowValues21;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Rescue.Me.S07D02.COMPLETE.BLURAY-BluBlade';
+  fExpectedResultStr := 'Rescue.Me';
+  fSeason := 7;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues22;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Crashing.US.S02.COMPLETE.BLURAY-WESTCOAST';
+  fExpectedResultStr := 'Crashing.US';
+  fSeason := 2;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues23;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Father.Brown.2013.S04D03.COMPLETE.BLURAY-PFa';
+  fExpectedResultStr := 'Father.Brown.2013';
+  fSeason := 4;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues24;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'No.Offence.S03.MULTi.COMPLETE.BLURAY-SharpHD';
+  fExpectedResultStr := 'No.Offence';
+  fSeason := 3;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues25;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'All.Round.To.Mrs.Browns.S02D01.PAL.DVD9-WaLMaRT';
+  fExpectedResultStr := 'All.Round.To.Mrs.Browns';
+  fSeason := 2;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues26;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Designated.Survivor.S02.D01.MULTi.COMPLETE.BLURAY-SharpHD';
+  fExpectedResultStr := 'Designated.Survivor';
+  fSeason := 2;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues27;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Doctor.Who.2005.S10.Part.One.D01.COMPLETE.BLURAY-OCULAR';
+  fExpectedResultStr := 'Doctor.Who.2005';
+  fSeason := 10;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+{
+procedure TTestShowFunctions.GetShowValues28;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Alarm.fuer.Cobra.11.die.Autobahnpolizei.Staffel.30.German.1996.WS.PAL.DVDR-OldsMan';
+  fExpectedResultStr := 'Alarm.fuer.Cobra.11.die.Autobahnpolizei';
+  fSeason := 30;
+  fEpisode := -10;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues29;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Designated.Survivor.Staffel.S02E01.German.DL.DUBBED.720p.WebHD.x264-AIDA';
+  fExpectedResultStr := 'Designated.Survivor';
+  fSeason := 2;
+  fEpisode := 1;
+
+  getShowValues(fInputStr, fOutputStr);
+  // not equally is expected because its a group tagging failure
+  CheckNotEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  // not equally is expected because its a group tagging failure
+  CheckNotEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues30;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Adam.sucht.Eva.Gestrandet.im.Paradies.Best.of.Staffel.1-4.GERMAN.720p.HDTV.x264-RTL';
+  fExpectedResultStr := 'Adam.sucht.Eva.Gestrandet.im.Paradies.Best.of';
+  fSeason := 1;
+  fEpisode := -10;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+}
 initialization
   {$IFDEF FPC}
     RegisterTest('dbtvinfo', TTestShowFunctions.Suite);
