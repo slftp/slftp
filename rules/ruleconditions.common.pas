@@ -786,7 +786,7 @@ end;
 procedure TConditionTag.SupplyValues(r: TPazo; re: TStringList);
 begin
   try
-    re.Assign(r.rls.tags);
+    re.Assign(r.rls.words);
   except
     on E: Exception do
     begin

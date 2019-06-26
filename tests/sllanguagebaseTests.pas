@@ -30,6 +30,16 @@ type
     procedure TestFindMusicLanguageOnDirectory6;
     procedure TestFindMusicLanguageOnDirectory7;
     procedure TestFindMusicLanguageOnDirectory8;
+    procedure TestFindMusicLanguageOnDirectory9;
+    procedure TestFindMusicLanguageOnDirectory10;
+    procedure TestFindMusicLanguageOnDirectory11;
+    procedure TestFindMusicLanguageOnDirectory12;
+    procedure TestFindMusicLanguageOnDirectory13;
+    procedure TestFindMusicLanguageOnDirectory14;
+    procedure TestFindMusicLanguageOnDirectory15;
+    procedure TestFindMusicLanguageOnDirectory16;
+    procedure TestFindMusicLanguageOnDirectory17;
+    procedure TestFindMusicLanguageOnDirectory18;
   end;
 
 implementation
@@ -232,6 +242,116 @@ var
 begin
   fInputStr := 'Alonzo-Suis-Moi-FR-1080p-x264-2017-iUF';
   fExpectedResultStr := 'FR';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory9;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Noodle-No-WEB-2019-KLIN';
+  fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory10;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Noodle-NO-WEB-2019-KLIN';
+  fExpectedResultStr := 'NO';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory11;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'NO-odle-No-WEB-2019-KLIN';
+  fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory12;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Noodle-No-WEB-2019-KLIN-NO';
+  fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory13;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Noodle-(NO)-WEB-2019-KLIN';
+  fExpectedResultStr := 'NO';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory14;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Noodle-NO_Way-WEB-2019-KLIN';
+  fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory15;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Josipa_Lisac-Posve_Slobodna_(Suradnje_And_Etno)-2CD-HR-2018-IMT';
+  fExpectedResultStr := 'HR';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory16;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Momoiro_Clover_Z-BLAST-JA-BLURAY-RETAIL-x264-2017-DARKFLiX';
+  fExpectedResultStr := 'JA';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory17;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Amir-Etats_DAmour_(Paris_A_Nous_Les_Jeux)-FR-720p-x264-2017-PmV';
+  fExpectedResultStr := 'FR';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory18;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Dej_Loaf-No_Fear-DVDRip-x264-2017-SRPx';
+  fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
