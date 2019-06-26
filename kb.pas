@@ -59,13 +59,12 @@ type
     rlsname: String; //< releasename
     rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
     section: String;
-    words: TStringList;
-    tags: TStringList;
+    words: TStringList; //< list of all words which occur in @link(rlsname), replaces ().-_ with whitespace to determine them
     groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
     internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
     kb_event: TKBEventType;
-    languages: TStringList;
+    languages: TStringList; //< contains the language string which is detected from @link(rlsname)
 
     legnagyobbcd: integer;
     sample: boolean;
@@ -119,14 +118,12 @@ type
 
   TMP3Release = class(TRelease)
     mp3year: integer;
-    mp3lng: String;
+    mp3lng: String; //< mapped language from @link(TRelease.language), remains for backward compatibility of mp3language rule
     mp3genre: String;
     mp3source: String;
     mp3types1: String;
     mp3types2: String;
     mp3types3: String;
-
-    //    mp3flac:boolean;
     mp3_numdisks: integer;
     mp3_number_of: String;
 
@@ -295,7 +292,6 @@ var
   kb_sections: TStringList;
   nulldaysources: TStringList;
   mp3genres: TStringList;
-  mp3languages: TStringList;
   mp3sources: TStringList;
   tvtags: TStringList; //< holds the list of tvtags from config file
   mp3types: TStringList;
@@ -1312,10 +1308,6 @@ begin
     languages := TStringList.Create;
     languages.CaseSensitive := False;
 
-    tags := TStringList.Create;
-    tags.Delimiter := ' ';
-    tags.CaseSensitive := False;
-
     words := TStringList.Create;
     words.Delimiter := ' ';
     words.CaseSensitive := False;
@@ -1325,8 +1317,6 @@ begin
     s := ReplaceText(s, '.', ' ');
     s := ReplaceText(s, '-', ' ');
     s := ReplaceText(s, '_', ' ');
-
-    tags.DelimitedText := s;
 
     words.DelimitedText := s;
 
@@ -1354,7 +1344,7 @@ begin
     // old way if groupname not found by regex
     if (groupname = '') then
     begin
-      if uppercase(words.strings[words.Count - 1]) = 'INT' then
+      if UpperCase(words.strings[words.Count - 1]) = 'INT' then
         groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
       else
         groupname := words.strings[words.Count - 1];
@@ -1389,24 +1379,13 @@ begin
     begin
       fLanguage := FindLanguageOnDirectory(rlsname);
     end;
-
-    if fLanguage <> '' then
-      languages.Add(fLanguage);
-
-    if (languages.Count = 0) then
-    begin
-      if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
-        languages.Add('EN')
-      else
-        languages.Add('English');
-    end;
-
+    languages.Add(fLanguage);
 
     knowngroup := IsKnownGroup(section, groupname);
 
-    for i := tags.Count - 1 downto 0 do
+    for i := words.Count - 1 downto 0 do
     begin
-      year := StrToIntDef(tags[i], 0);
+      year := StrToIntDef(words[i], 0);
       if year > 1900 then
         break;
     end;
@@ -1414,16 +1393,16 @@ begin
       year := 0;
 
     disks := 1;
-    for i := tags.Count - 1 downto 0 do
+    for i := words.Count - 1 downto 0 do
     begin
-      if AnsiContainsText(tags[i], 'disc') then
+      if AnsiContainsText(words[i], 'disc') then
       begin
         disks := 0;
         j := 1;
-        while (j <= length(tags[i])) do
+        while (j <= length(words[i])) do
         begin
-          if tags[i][j] in ['0'..'9'] then
-            disks := disks * 10 + Ord(tags[i][j]) - 48
+          if words[i][j] in ['0'..'9'] then
+            disks := disks * 10 + Ord(words[i][j]) - 48
           else
             Break;
           Inc(j);
@@ -1446,7 +1425,6 @@ end;
 destructor TRelease.Destroy;
 begin
   words.Free;
-  tags.Free;
   languages.Free;
   inherited;
 end;
@@ -1602,7 +1580,7 @@ end;
 constructor TMP3Release.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   evszamindex, i: integer;
-  kotojelekszama: integer;
+  fNumberOfDashes: integer;
   types: integer;
   j: integer;
   szo, szamoknelkul: String;
@@ -1612,116 +1590,96 @@ begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
 
-  if tags.Count < 3 then
+  if words.Count < 3 then
     exit;
 
-  if words.Count > 3 then
-  begin
-    try
-      mp3year := 0;
-      evszamindex := 0;
-      for i := 1 to 3 do
-        if Evszam(tags[tags.Count - i]) then
+  try
+    mp3year := 0;
+    evszamindex := 0;
+    for i := 1 to 3 do
+      if Evszam(words[words.Count - i]) then
+      begin
+        evszamindex := words.Count - i;
+        Break;
+      end;
+
+    if mp3year = 0 then
+      mp3year := year;
+    if mp3year = 0 then
+      exit;
+    //We did not find out the year. Sucking, useless to continue.
+
+    if ((not internal) and (evszamindex + 3 = words.Count)) then
+      groupname := words[evszamindex + 1] + '_' + words[evszamindex + 2]; //tweak
+
+    // use language from TRelease ancestor
+    mp3lng := Trim(languages.Text);
+
+    fNumberOfDashes := 0;
+    for i := 1 to length(rlsname) do
+    begin
+      if rlsname[i] = '-' then
+      begin
+        Inc(fNumberOfDashes);
+        if (fNumberOfDashes = 2) then
+          Break;
+      end;
+    end;
+
+    if fNumberOfDashes < 2 then
+      exit;
+
+    types := 0;
+    mp3_numdisks := 1;
+
+    for i := words.Count - 1 downto 1 do
+    begin
+      //1CD 99DVD
+      szo := ' ' + words[i] + ' ';
+      db := 0;
+      NumberOfDisksTag(words[i], szamoknelkul, db);
+      for j := 0 to mp3sources.Count - 1 do
+      begin
+        if (AnsiContainsText(mp3sources.ValueFromIndex[j], szo)) then
         begin
-          evszamindex := tags.Count - i;
+          AddSource(mp3sources.Names[j]);
+          Break;
+        end
+        else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
+          szamoknelkul))) then
+        begin
+          AddSource(mp3sources.Names[j]);
+          mp3_numdisks := db;
+          mp3_number_of := words[i];
           Break;
         end;
-
-      if mp3year = 0 then
-        mp3year := year;
-      if mp3year = 0 then
-        exit;
-      //We did not find out the year. Sucking, useless to continue.
-
-      if ((not internal) and (evszamindex + 3 = tags.Count)) then
-        groupname := tags[evszamindex + 1] + '_' + tags[evszamindex + 2]; //tweak
-
-      //nyelvkod.
-      lrx := TRegexpr.Create;
-      try
-        lrx.ModifierI := True;
-        for I := 0 to mp3languages.Count - 1 do
-        begin
-          lrx.Expression := '[\-](' + mp3languages[i] + ')[\-]';
-          if lrx.Exec(rlsname) then
-          begin
-            mp3lng := mp3languages[i];
-            Break;
-          end;
-        end;
-
-        if mp3lng = '' then
-          mp3lng := 'EN';
-
-        kotojelekszama := 0;
-        for i := 1 to length(rlsname) do
-        begin
-          if rlsname[i] = '-' then
-          begin
-            Inc(kotojelekszama);
-            if (kotojelekszama = 2) then
-              Break;
-          end;
-        end;
-
-        if kotojelekszama < 2 then
-          exit;
-
-        types := 0;
-        mp3_numdisks := 1;
-
-        //for i:= 0 to words.Count -1 do
-        for i := words.Count - 1 downto 1 do //from 0day.
-        //for i:= kezdoindex to evszamindex-1 do <-- oSource!
-        begin
-          //1CD 99DVD
-
-          szo := ' ' + words[i] + ' ';
-          db := 0;
-          NumberOfDisksTag(words[i], szamoknelkul, db);
-          for j := 0 to mp3sources.Count - 1 do
-          begin
-            if (AnsiContainsText(mp3sources.ValueFromIndex[j], szo)) then
-            begin
-              AddSource(mp3sources.Names[j]);
-              Break;
-            end
-            else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
-              szamoknelkul))) then
-            begin
-              AddSource(mp3sources.Names[j]);
-              mp3_numdisks := db;
-              mp3_number_of := words[i];
-              Break;
-            end;
-          end;
-
-          if ((types < 3) and (mp3types.IndexOf(words[i]) <> -1)) then
-          begin
-            Inc(types);
-            case types of
-              1: mp3types1 := words[i];
-              2: mp3types2 := words[i];
-              3: mp3types3 := words[i];
-            end;
-          end;
-        end; // end of tag kereses
-
-        lrx.ModifierI := True;
-        lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
-
-        mp3_va := lrx.Exec(rlsname);
-
-      finally
-        lrx.Free;
       end;
 
-      AddSource('CD'); // default
-    except
-      on e: Exception do
+      if ((types < 3) and (mp3types.IndexOf(words[i]) <> -1)) then
       begin
-        Debug(dpError, rsections, 'TMP3Release.Create : %s', [e.Message]);
+        Inc(types);
+        case types of
+          1: mp3types1 := words[i];
+          2: mp3types2 := words[i];
+          3: mp3types3 := words[i];
+        end;
       end;
+    end;
+
+    lrx := TRegexpr.Create;
+    try
+      lrx.ModifierI := True;
+      lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+      mp3_va := lrx.Exec(rlsname);
+    finally
+      lrx.Free;
+    end;
+
+    AddSource('CD'); // default
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TMP3Release.Create : %s', [e.Message]);
     end;
   end;
 
@@ -1746,7 +1704,6 @@ begin
 
   try
     Result := Result + 'Year: ' + IntToStr(mp3year) + #13#10;
-    Result := Result + 'Language: ' + mp3lng + #13#10;
     if mp3genre <> '' then
       Result := Result + 'Genre: ' + mp3genre + #13#10;
     Result := Result + 'Source: ' + mp3source + #13#10;
@@ -2045,9 +2002,9 @@ begin
   showname := ReplaceText(showname, '.', ' ');
   showname := ReplaceText(showname, '_', ' ');
 
-  for i:= 1 to tags.Count -1 do
+  for i:= 1 to words.Count -1 do
   begin
-    j:= tvtags.IndexOf( tags[i] );
+    j:= tvtags.IndexOf( words[i] );
     if j <> -1 then
     begin
       tvtag:= tvtags[j];
@@ -2702,10 +2659,6 @@ begin
     Inc(i);
   end;
 
-  mp3languages := TStringList.Create;
-  SLLoadMP3LanguagesFromIniFile(mp3languages);
-
-
   tvtags := TStringList.Create;
   tvtags.CaseSensitive := False;
   tvtags.DelimitedText := config.ReadString(rsections, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
@@ -2792,7 +2745,6 @@ begin
   kbevent.Free;
   kb_sections.Free;
   mp3genres.Free;
-  mp3languages.Free;
   nulldaysources.Free;
   mp3sources.Free;
   mp3types.Free;
