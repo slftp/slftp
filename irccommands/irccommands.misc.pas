@@ -208,41 +208,64 @@ function IrcSetAutoInvite(const netname, channel, params: String): boolean;
 var
   sitename, value: String;
   site: TSite;
+  i: integer;
+
+  function _IrcSetAutoInvite(const netname, channel, value: String; const site: TSite): boolean;
+  begin
+    Result := False;
+    if site.IRCNick = '' then
+    begin
+      irc_addtext(Netname, Channel, 'You have to define an IRC Nick for <b>%s</b>.', [site.Name]);
+      Exit;
+    end;
+
+    if value = '' then
+    begin
+      irc_addtext(Netname, Channel, 'Autoinvite for %s: <b>%s</b>', [site.Name, BoolToStr(site.UseAutoInvite, True)]);
+    end
+    else if ((value = '1') or (value = '0')) then
+    begin
+      if value = '1' then
+        site.UseAutoInvite := True;
+      if value = '0' then
+        site.UseAutoInvite := False;
+
+      irc_addtext(Netname, Channel, 'Autoinvite for %s: <b>%s</b>', [site.Name, BoolToStr(site.UseAutoInvite, True)]);
+    end;
+    Result := True;
+  end;
+
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   value := SubString(params, ' ', 2);
 
-  site := FindSiteByName(Netname, sitename);
-  if site = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
-    Exit;
-  end;
-
-  if site.IRCNick = '' then
-  begin
-    irc_addtext(Netname, Channel, 'You have to define an IRC Nick for <b>%s</b>.', [sitename]);
-    Exit;
-  end;
-
-  if value = '' then
-  begin
-    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite, True)]);
-  end
-  else if ((value = '1') or (value = '0')) then
-  begin
-    if value = '1' then
-      site.UseAutoInvite := True;
-    if value = '0' then
-      site.UseAutoInvite := False;
-
-    irc_addtext(Netname, Channel, 'Autoinvite: <b>%s</b>', [BoolToStr(site.UseAutoInvite, True)]);
-  end
-  else
+  if (not ((value = '') or (value = '0') or (value = '1'))) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error. Wrong value parameter!');
     Exit;
+  end;
+
+  if sitename = '*' then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      site := TSite(sites.Items[i]);
+      if (site.Name = getAdminSiteName) then
+        Continue;
+
+      _IrcSetAutoInvite(netname, channel, value, site);
+    end;
+  end
+  else
+  begin
+    site := FindSiteByName(Netname, sitename);
+    if site = nil then
+    begin
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
+      Exit;
+    end;
+    _IrcSetAutoInvite(netname, channel, value, site);
   end;
 
   Result := True;
