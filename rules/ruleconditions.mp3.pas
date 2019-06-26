@@ -3,7 +3,7 @@ unit ruleconditions.mp3;
 interface
 
 uses
-  Classes, pazo, rulesunit;
+  Classes, pazo, rulesunit, sllanguagebase;
 
 type
   TConditionMP3Genre = class(TStringCondition)
@@ -19,7 +19,7 @@ type
   end;
 
   TConditionMP3Language = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -32,7 +32,7 @@ type
   end;
 
   TConditionMP3Source = class(TStringCondition)
-    function Hitelesit(const s: String): boolean; override;
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -126,10 +126,10 @@ end;
 
 { TConditionMP3Language }
 
-function TConditionMP3Language.Hitelesit(const s: String): boolean;
+function TConditionMP3Language.Verify(const s: String): boolean;
 begin
   try
-    Result := ((AnsiSameText(s, 'EN')) or (mp3languages.IndexOf(s) <> -1));
+    Result := VerifyMusicLanguage(s);
   except
     Result := False;
   end;
@@ -140,7 +140,7 @@ begin
   Result := '';
   try
     if (r.rls is TMP3Release) then
-      Result := Uppercase(TMP3Release(r.rls).mp3lng);
+      Result := TMP3Release(r.rls).mp3lng;
   except
     Result := '';
   end;
@@ -181,7 +181,7 @@ end;
 
 { TConditionMP3Source }
 
-function TConditionMP3Source.Hitelesit(const s: String): boolean;
+function TConditionMP3Source.Verify(const s: String): boolean;
 begin
   try
     Result := mp3sources.IndexOfName(s) <> -1;
