@@ -59,12 +59,12 @@ type
     rlsname: String; //< releasename
     rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
     section: String;
-    words: TStringList;
+    words: TStringList; //< list of all words which occur in @link(rlsname), replaces ().-_ with whitespace to determine them
     groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
     internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
     kb_event: TKBEventType;
-    languages: TStringList;
+    languages: TStringList; //< contains the language string which is detected from @link(rlsname)
 
     legnagyobbcd: integer;
     sample: boolean;
@@ -118,14 +118,12 @@ type
 
   TMP3Release = class(TRelease)
     mp3year: integer;
-    mp3lng: String;
+    mp3lng: String; //< mapped language from @link(TRelease.language), remains for backward compatibility of mp3language rule
     mp3genre: String;
     mp3source: String;
     mp3types1: String;
     mp3types2: String;
     mp3types3: String;
-
-    //    mp3flac:boolean;
     mp3_numdisks: integer;
     mp3_number_of: String;
 
@@ -1346,7 +1344,7 @@ begin
     // old way if groupname not found by regex
     if (groupname = '') then
     begin
-      if uppercase(words.strings[words.Count - 1]) = 'INT' then
+      if UpperCase(words.strings[words.Count - 1]) = 'INT' then
         groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
       else
         groupname := words.strings[words.Count - 1];
@@ -1706,7 +1704,6 @@ begin
 
   try
     Result := Result + 'Year: ' + IntToStr(mp3year) + #13#10;
-    Result := Result + 'Language: ' + mp3lng + #13#10;
     if mp3genre <> '' then
       Result := Result + 'Genre: ' + mp3genre + #13#10;
     Result := Result + 'Source: ' + mp3source + #13#10;
