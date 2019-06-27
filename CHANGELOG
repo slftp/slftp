@@ -44,8 +44,18 @@
       dbms=
       complete sections [http], [news] added/changed
 
+    NEW slftp.spamconf parameter(s):
+        global_skip_group=1
+
+    NEW rules tvlookupdone/imdblookupdone
+      these replace previous imdbyear/tvpremieryear = 0 DROP constructs
+      prior to any tv-related rules use "ifnot tvlookupdone then DROP"
+      prior to any imdb-related rules use "ifnot imdblookupdone then DROP"
+      this ensures the rules are only evaluated once the lookup has been finished
+      to prevent wrong trades from being executed based on missing/no information
+
     1. compare your slftp.ini with the provided one in /dist folder, many changes
-    2. update your helpfiles with the provided one in /dist/help folder
+    2. update your helpfiles with the provided ones in /dist/help folder
     3. delete slftp.pem, not needed!
     4. delete slftp.languages, not needed!
     5. delete your old slftp.news file (if existing)
@@ -57,7 +67,6 @@
 
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
-    Enable try to complete is unstable at the moment. It's recommended to set enable_try_to_complete=0
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
@@ -85,9 +94,11 @@
     {+} (internal) SITE FEAT response parsing (#237)
     {+} Some unit tests are added, please help to add more!
     {+} Wildcard support for !setsocks5 SITE (#234)
+    {+} Wildcard support for !autoinvite (#247)
     {+} Make TV-releases skippable for iMDB lookups (#232)
     {+} Optimized code for release language detection (slftp.languagebase)
     {+} Support for rules-checking in !batch,!spread,!check,!pre cmds for groups
+    {+} New rules tvlookupdone and imdblookupdone (#67)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -97,6 +108,8 @@
     {#} Double free of TNukeQueueItem (#203)
     {#} !batch looses sites in bnctest output over time (#216)
     {#} !prelist parameter count (#212)
+    {#} Fix !prelist for arbitrary PRE-sections and improve error handling (#212)
+    {#} Don't require PRE sections to be configured in precatcher (#182)
     {#} Wrong mp3genre detected on IRC announce (#114)
     {#} !raw command timeout/error handling (#225)
     {#} !slots command didn't supported showing of siteslots for all sites (#230)
@@ -109,8 +122,10 @@
     {#} reqfiller not realizing requests are done (#32)
     {#} !addtvmaze -s The.Twilight.Zone gaves wrong showname result (#241)
     {#} global skipped groups will also skip GRPNAME_INT
-    {#} Fix !prelist for arbitrary PRE-sections and improve error handling (#212)
     {#} !spread not realizing spreading was completed
+    {#} Ignore PRE sections for duplicate kb race check, to be able to race own releases
+    {#} !addtvinfo showed wrong results for some shows like 'The.New.Frontier' or 'The.Twilight.Zone' (#246)
+    {#} Try to complete works again and also supports non-routable sites as sources
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -132,6 +147,9 @@
     {^} Free and reassign slots faster on completed races of single files
     {^} If available parse complete_tag on requests to determine completion
     {^} Separate spread event to not clash with PRE events like addpre announces
+    {^} Allow handling of multiple PRE sections through !setpredir (#182)
+    {^} !batch output is less verbose by default (#217)
+    {^} Reduce amount of MP3 language mismatches by case-sensitive checks (#245)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)

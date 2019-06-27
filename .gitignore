@@ -21,7 +21,9 @@ __history
 *.BAK
 *.bak
 *.stackdump
+*.stat
 *.stats
+*.tvsconfig
 bin/*
 Win32/*
 Win64/*

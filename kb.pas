@@ -76,15 +76,15 @@ type
 
     pretime: TDateTime;
     cpretime: int64;
-    PredOnAnySite: boolean; // { indicates if it's pred on any of your sites }
+    PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     pretimefound: boolean;
     pretimefrom: String;
 
-    //fakecheckinghez
-    dots: integer;
+    // for fake checking
+    dots: integer; //< amount of dots ('.') in @link(rlsname)
     number_of_chars: integer;
-    vowels: integer;
+    vowels: integer; //< amount of vowels [aeiouAEIOU] in @link(rlsname)
 
     year: integer;
 
@@ -92,15 +92,12 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
-
-    function ExtraInfo: String; virtual;
-
+    { Get additional info which is specific for this class of TRelease
+      @returns(Empty String) }
+    function ShowExtraInfo: String; virtual;
     function Aktualizald(const extrainfo: String): boolean; virtual;
-
     function AsText(pazo_id: integer = -1): String; virtual;
-
     function Aktualizal(p: TObject): boolean; virtual;
-
     procedure SetPretime(TimeStamp: int64 = 0);
     class function Name: String; virtual;// abstract;
     class function DefaultSections: String; virtual; abstract;
@@ -110,7 +107,11 @@ type
   T0DayRelease = class(TRelease)
   public
     nulldaysource: String;
+
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(nulldaysource)) }
+    function ShowExtraInfo: String; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
     function AsText(pazo_id: integer = -1): String; override;
@@ -126,14 +127,13 @@ type
     mp3types3: String;
     mp3_numdisks: integer;
     mp3_number_of: String;
-
     mp3_va: boolean;
 
     function Bootleg: boolean;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    //    destructor Destroy; override;
-    function ExtraInfo: String; override;
-
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(Mp3genre)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Numdisks: integer;
@@ -149,9 +149,11 @@ type
 
   TNFORelease = class(TRelease)
     nfogenre: String;
-    function ExtraInfo: String; override;
+
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    //    destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(nfogenre)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -160,6 +162,7 @@ type
   end;
 
   TIMDBRelease = class(TRelease)
+    FLookupDone: Boolean;
     imdb_id: String;
     imdb_year: integer;
     imdb_languages: TStringList;
@@ -172,20 +175,25 @@ type
     imdb_ldt: boolean;
     imdb_wide: boolean;
     imdb_festival: boolean;
-    imdb_stvm: boolean;
+    imdb_stvm: boolean; // TODO: rename this to make it more clear; stvm and stvs aren't clear yet
     imdb_stvs: String;
 
-    function ExtraInfo: String; override;
-    destructor Destroy; override;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(imdb_id)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
+
+    property IsLookupDone: Boolean read FLookupDone; //< @true of IMDb Lookup is done and infos are fully added to @link(TIMDBRelease), otherwise @false
   end;
 
   TTVRelease = class(TRelease)
+    FLookupDone: Boolean;
     showname: String;
     episode: integer;
     season: integer;
@@ -208,35 +216,38 @@ type
     thetvdbid: String;
     tvrageid: String;
     tvtag: String;
-    tvlanguage:String;
-    //    currentAir:boolean;
-    function ExtraInfo: String; override;
+    tvlanguage: String;
+
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(showname)) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
+
+    property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and infos are fully added to @link(TTVRelease), otherwise @false
   end;
 
   TMVIDRelease = class(TRelease)
     FileCount: integer;
-    //   mvid_Genre:string;
     mvid_Genre: TStringList;
-    //   mvid_languages:string;
-    mvid_languages: TStringList;
+    // TRelease.languages are mapped for mvidlanguage rule
     mvid_source: String;
     mvid_pal: boolean;
     mvid_ntsc: boolean;
     mvid_va: boolean;
     mvid_live: boolean;
     mvid_year: integer;
-    function ExtraInfo: String; override;
-    destructor Destroy; override;
+
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    //    constructor Create(const rlsname, section: String; FakeChecking: Boolean = True); override;
-    //    constructor CustomCreate(const rlsname, section: String; FakeChecking: Boolean = True;Pretime:int64 = -1); override;
+    destructor Destroy; override;
+    { Get additional info which is specific for this class of TRelease
+      @returns(@link(FileCount) as string) }
+    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -257,7 +268,7 @@ type
   end;
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
@@ -316,11 +327,6 @@ uses
   globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
-  TSectionRelease = record
-    section: String;
-    r: TCRelease;
-  end;
-
   TSectionHandlers = array[0..6] of TCRelease;
 
 const
@@ -1162,7 +1168,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -1235,9 +1241,9 @@ function TRelease.AsText(pazo_id: integer = -1): String;
 begin
   Result := '';
   try
-    Result := '<b>' + rlsname + '</b>';
+    Result := Format('<b>%s</b>', [rlsname]);
     if pazo_id <> -1 then
-      Result := Result + ' (' + IntToStr(pazo_id) + ')';
+      Result := Result + Format(' (%d)', [pazo_id]);
     Result := Result + #13#10;
 
     Result := Result + 'Knowngroup: ';
@@ -1248,22 +1254,22 @@ begin
     if knowngroup = grp_notconfigured then
       Result := Result + '?';
     Result := Result + #13#10;
+
     if (DateTimeToUnix(pretime) = 0) then
       Result := Result + 'Pretime not found!' + #13#10
     else
-      Result := Result + 'Pretime: ' + dbaddpre_GetPreduration(pretime) +
-        ' (' + FormatDateTime('yyyy-mm-dd hh:nn:ss', pretime) + ')' + #13#10;
+      Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', pretime)]) + #13#10;
 
     if disks <> 1 then
-      Result := Result + 'Disks: ' + IntToStr(disks) + #13#10;
+      Result := Result + Format('Disks: %d', [disks]) + #13#10;
 
     if fake then
-      Result := Result + 'Fake: ' + fakereason + #13#10;
+      Result := Result + Format('Fake: %s', [fakereason]) + #13#10;
 
     if languages.Count <> 0 then
-      Result := Result + 'Language(s): ' + languages.DelimitedText + #13#10;
+      Result := Result + Format('Language: %s', [languages.DelimitedText]) + #13#10;
 
-    Result := Result + 'Internal: ' + BoolToStr(internal, True) + #13#10;
+    Result := Result + Format('Internal: %s', [BoolToStr(internal, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1450,7 +1456,7 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
 
-function TRelease.ExtraInfo: String;
+function TRelease.ShowExtraInfo: String;
 begin
   Result := '';
 end;
@@ -1703,18 +1709,18 @@ begin
   Result := inherited AsText(pazo_id);
 
   try
-    Result := Result + 'Year: ' + IntToStr(mp3year) + #13#10;
+    Result := Result + Format('Year: %d', [mp3year]) + #13#10;
     if mp3genre <> '' then
-      Result := Result + 'Genre: ' + mp3genre + #13#10;
-    Result := Result + 'Source: ' + mp3source + #13#10;
+      Result := Result + Format('Genre: %s', [mp3genre]) + #13#10;
+    Result := Result + Format('Source: %s', [mp3source]) + #13#10;
     if mp3types1 <> '' then
-      Result := Result + 'Type1: ' + mp3types1 + #13#10;
+      Result := Result + Format('Type1: %s', [mp3types1]) + #13#10;
     if mp3types2 <> '' then
-      Result := Result + 'Type2: ' + mp3types2 + #13#10;
+      Result := Result + Format('Type2: %s', [mp3types2]) + #13#10;
     if mp3types3 <> '' then
-      Result := Result + 'Type3: ' + mp3types3 + #13#10;
-    Result := Result + 'Disks: ' + IntToStr(mp3_numdisks) + #13#10;
-    Result := Result + 'VA: ' + IntToStr(integer(mp3_va)) + #13#10;
+      Result := Result + Format('Type3: %s', [mp3types3]) + #13#10;
+    Result := Result + Format('Disks: %d', [mp3_numdisks]) + #13#10;
+    Result := Result + Format('VA: %s', [BoolToStr(mp3_va, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1770,7 +1776,7 @@ begin
   end;
 end;
 
-function TMP3Release.ExtraInfo: String;
+function TMP3Release.ShowExtraInfo: String;
 begin
   Result := Mp3genre;
 end;
@@ -1843,7 +1849,7 @@ function TNFORelease.AsText(pazo_id: integer = -1): String;
 begin
   Result := inherited AsText(pazo_id);
   try
-    Result := Result + 'nfo genre: ' + nfogenre + #13#10;
+    Result := Result + Format('nfo genre: %s', [nfogenre]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1864,7 +1870,7 @@ begin
   Result := 'MDVDR MV MHD';
 end;
 
-function TNFORelease.ExtraInfo: String;
+function TNFORelease.ShowExtraInfo: String;
 begin
   Result := nfogenre;
 end;
@@ -1880,6 +1886,19 @@ function TTVRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
   db_tvinfo: TTVInfoDB;
+
+  procedure CreateTVLookupTask;
+  begin
+    try
+      AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
+      end;
+    end;
+  end;
+
 begin
   Result := False;
 
@@ -1887,56 +1906,58 @@ begin
   if showname = '' then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  // ugly shit
+  pazo := TPazo(p);
 
+  // check if we already have this showname in database
   try
     db_tvinfo := getTVInfoByShowName(self.showname);
   except
     on e: Exception do
     begin
-      db_tvinfo := nil;
+      FreeAndNil(db_tvinfo);
       Debug(dpError, rsections, Format('Exception in TTVRelease.Aktualizal.getTVInfoByShowName: %s', [e.Message]));
     end;
   end;
 
   if (db_tvinfo <> nil) then
   begin
-    db_tvinfo.ripname := rlsname; // caused the error
+    // showname was found in db
+    db_tvinfo.ripname := rlsname;
 
     if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
     begin
-      db_tvinfo.ripname := rlsname;
+      // try to update infos in database
       if not db_tvinfo.Update then
       begin
         Debug(dpError, rsections, Format('[ERROR] updating of %s failed.', [showname]));
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
+
+      // trigger to get the updated data from database
+      CreateTVLookupTask;
     end
     else
     begin
+      // we have a recent set of data
       try
         db_tvinfo.SetTVDbRelease(self);
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s',
-            [e.Message]));
+          Debug(dpError, rsections, Format('Exception in SetTVDbRelease: %s', [e.Message]));
         end;
       end;
-      db_tvinfo.free;
-      Result := True;
-      exit;
     end;
+
+    FreeAndNil(db_tvinfo);
+  end
+  else
+  begin
+    // do websearch for a non existing showname in database
+    CreateTVLookupTask;
   end;
-  try
-    AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s',
-        [e.Message]));
-    end;
-  end;
+
   Result := True;
 end;
 
@@ -1950,31 +1971,32 @@ function TTVRelease.AsText(pazo_id: integer): String;
 begin
   Result := inherited AsText(pazo_id);
   try
-    Result := Result + 'Show name: ' + showname + #13#10;
-    Result := Result + 'http://www.tvmaze.com/shows/' + showid + '/' + lowercase(ReplaceText(showname, ' ', '-')) + #13#10;
-    Result := Result + 'Season: ' + IntToStr(season) + #13#10;
-    Result := Result + 'Episode: ' + IntToStr(episode) + #13#10;
+    Result := Result + Format('Show name: %s', [showname]) + #13#10;
+    Result := Result + Format('URL: http://www.tvmaze.com/shows/%s/%s', [showid, Lowercase(ReplaceText(showname, ' ', '-'))]) + #13#10;
+    Result := Result + Format('Season: %d', [season]) + #13#10;
+    Result := Result + Format('Episode: %d', [episode]) + #13#10;
     if premier_year <> -1 then
-      Result := Result + 'Premier: ' + IntToStr(premier_year) + #13#10;
+      Result := Result + Format('Premier: %d', [premier_year]) + #13#10;
     if ended_year > 0 then
-      Result := Result + 'Ended: ' + IntToStr(ended_year) + #13#10;
+      Result := Result + Format('Ended: %d', [ended_year]) + #13#10;
     if country <> '' then
-      Result := Result + 'Country: ' + country + #13#10;
+      Result := Result + Format('Country: %s', [country]) + #13#10;
     if classification <> '' then
-      Result := Result + 'Classification: ' + classification + #13#10;
-    Result := Result + 'Scripted: ' + IntToStr(integer(scripted)) + #13#10;
+      Result := Result + Format('Classification: %s', [classification]) + #13#10;
+    Result := Result + Format('Scripted: %s', [BoolToStr(scripted, True)]) + #13#10;
     if genres.Count > 0 then
-      Result := Result + 'Genres: ' + genres.CommaText + #13#10;
+      Result := Result + Format('Genres: %s', [genres.CommaText]) + #13#10;
     if network <> '' then
-      Result := Result + 'Network: ' + network + #13#10;
-   if tvlanguage <> '' then Result := Result + 'TV Language: ' + tvlanguage + #13#10;
-    Result := Result + 'Running: ' + IntToStr(integer(running)) + #13#10;
+      Result := Result + Format('Network: %s', [network]) + #13#10;
+    if tvlanguage <> '' then
+      Result := Result + Format('TV Language: %s', [tvlanguage]) + #13#10;
+    Result := Result + Format('Running: %s', [BoolToStr(running, True)]) + #13#10;
     if status <> '' then
-      Result := Result + 'Status: ' + status + #13#10;
-    Result := Result + 'Current Season: ' + BoolToStr(currentseason, True) + #13#10;
-    Result := Result + 'Current Episode: ' + BoolToStr(currentepisode, True) + #13#10;
-    Result := Result + 'Current on Air: ' + BoolToStr(currentair, True) + #13#10;
-    Result := Result + 'Daily: ' + BoolToStr(daily, True) + #13#10;
+      Result := Result + Format('Status: %s', [status]) + #13#10;
+    Result := Result + Format('Current Season: %s', [BoolToStr(currentseason, True)]) + #13#10;
+    Result := Result + Format('Current Episode: %s', [BoolToStr(currentepisode, True)]) + #13#10;
+    Result := Result + Format('Current on Air: %s', [BoolToStr(currentair, True)]) + #13#10;
+    Result := Result + Format('Daily: %s', [BoolToStr(daily, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1986,9 +2008,11 @@ end;
 constructor TTVRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
   c_episode: int64;
-  j, i: integer;
+  i, j: integer;
 begin
   inherited Create(rlsname, section, False, savedpretime);
+
+  FLookupDone := False;
   showname := '';
   episode := -1;
   season := -1;
@@ -2002,16 +2026,15 @@ begin
   showname := ReplaceText(showname, '.', ' ');
   showname := ReplaceText(showname, '_', ' ');
 
-  for i:= 1 to words.Count -1 do
+  for i := 1 to words.Count - 1 do
   begin
-    j:= tvtags.IndexOf( words[i] );
+    j := tvtags.IndexOf(words[i]);
     if j <> -1 then
     begin
-      tvtag:= tvtags[j];
+      tvtag := tvtags[j];
       Break;
     end;
   end;
-
 end;
 
 class function TTVRelease.DefaultSections: String;
@@ -2019,9 +2042,9 @@ begin
   Result := 'TV TVDVDRIP TVDVDR TV720 TV1080';
 end;
 
-function TTVRelease.ExtraInfo: String;
+function TTVRelease.ShowExtraInfo: String;
 begin
-  Result := showname; // todo + egyeb infok, scripted, akarmi
+  Result := showname;
 end;
 
 class function TTVRelease.Name: String;
@@ -2036,11 +2059,12 @@ begin
 end;
 
 { T0DayRelease }
+
 function T0DayRelease.AsText(pazo_id: integer): String;
 begin
   Result := inherited AsText(pazo_id);
   try
-    Result := Result + '0daysource: ' + nulldaysource + #13#10;
+    Result := Result + Format('0daysource: %s', [nulldaysource]) + #13#10;
   except
     on e: Exception do
     begin
@@ -2078,6 +2102,11 @@ begin
     FakeCheck(self);
 end;
 
+function T0DayRelease.ShowExtraInfo: String;
+begin
+  Result := nulldaysource;
+end;
+
 class function T0DayRelease.DefaultSections: String;
 begin
   Result := '0DAY,PDA';
@@ -2089,6 +2118,7 @@ begin
 end;
 
 { TIMDBRelease }
+
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
 var
   pazo: TPazo;
@@ -2098,10 +2128,11 @@ var
   ir: TIMDBRelease;
 begin
   Result := False;
-  try
-    aktualizalva := True;
+  aktualizalva := True;
 
-    pazo := TPazo(p); // ugly shit
+  try
+    // ugly shit
+    pazo := TPazo(p);
 
     dbaddimdb_cs.Enter;
     try
@@ -2112,7 +2143,9 @@ begin
 
     if i = -1 then
     begin
-      // no imdb infos, check if we have a nfo
+      // no imdb infos
+
+      // check if we have a nfo
       i := last_addnfo.IndexOf(rlsname);
       if i <> -1 then
       begin
@@ -2121,19 +2154,12 @@ begin
         exit;
       end;
 
-      // no nfo start searching nfo
+      // no nfo, start searching nfo
       for j := pazo.sites.Count - 1 downto 0 do
       begin
-        try
-          if j < 0 then
-            Break;
-        except
-          Break;
-        end;
         ps := TPazoSite(pazo.sites[j]);
         try
           AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
-          Result := True;
         except
           on e: Exception do
           begin
@@ -2141,9 +2167,12 @@ begin
           end;
         end;
       end;
+
+      Result := True;
     end
     else
     begin
+      // we already have imdb infos
       try
         dbaddimdb_cs.Enter;
         try
@@ -2169,6 +2198,8 @@ begin
           ir.imdb_festival := imdbdata.imdb_festival;
           ir.imdb_stvm := imdbdata.imdb_stvm;
           ir.imdb_stvs := imdbdata.imdb_stvs;
+
+          ir.FLookupDone := True;
         end;
       except
         on e: Exception do
@@ -2176,16 +2207,15 @@ begin
           Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
         end;
       end;
+
       Result := True;
     end;
-
   except
     on e: Exception do
     begin
       Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
     end;
   end;
-
 end;
 
 function TIMDBRelease.Aktualizald(const extrainfo: String): boolean;
@@ -2197,21 +2227,21 @@ function TIMDBRelease.AsText(pazo_id: integer): String;
 begin
   Result := inherited AsText(pazo_id);
   try
-    Result := Result + 'IMDB id: ' + imdb_id + #13#10;
-    Result:= Result + 'IMDB URL: <l>http://imdb.com/title/' + imdb_id + '</l>' + #13#10;
-    Result := Result + 'IMDB year: ' + IntToStr(imdb_year) + #13#10;
-    Result := Result + 'IMDB Cineyear: ' + IntToStr(cineyear) + #13#10;
-    Result := Result + 'IMDB languages: ' + imdb_languages.DelimitedText + #13#10;
-    Result := Result + 'IMDB countries: ' + imdb_countries.DelimitedText + #13#10;
-    Result := Result + 'IMDB genres: ' + imdb_genres.DelimitedText + #13#10;
-    Result := Result + 'IMDB screens: ' + IntToStr(imdb_screens) + #13#10;
-    Result := Result + 'IMDB rating: ' + IntToStr(imdb_rating) + #13#10;
-    Result := Result + 'IMDB votes: ' + IntToStr(imdb_votes) + #13#10;
-    Result := Result + 'IMDB Festival: ' + IntToStr(integer(imdb_festival)) + #13#10;
-    Result := Result + 'IMDB Limited: ' + IntToStr(integer(imdb_ldt)) + #13#10;
-    Result := Result + 'IMDB Natowide: ' + IntToStr(integer(imdb_wide)) + #13#10;
-    Result := Result + 'IMDB STV: ' + IntToStr(integer(imdb_stvm)) + #13#10;
-    Result := Result + 'IMDB STVS: ' + imdb_stvs + #13#10;
+    Result := Result + Format('IMDB id: %s', [imdb_id]) + #13#10;
+    Result := Result + Format('IMDB URL: https://imdb.com/title/%s', [imdb_id]) + #13#10;
+    Result := Result + Format('IMDB year: %d', [imdb_year]) + #13#10;
+    Result := Result + Format('IMDB Cineyear: %d', [cineyear]) + #13#10;
+    Result := Result + Format('IMDB languages: %s', [imdb_languages.DelimitedText]) + #13#10;
+    Result := Result + Format('IMDB countries: %s', [imdb_countries.DelimitedText]) + #13#10;
+    Result := Result + Format('IMDB genres: %s', [imdb_genres.DelimitedText]) + #13#10;
+    Result := Result + Format('IMDB screens: %d', [imdb_screens]) + #13#10;
+    Result := Result + Format('IMDB rating: %d', [imdb_rating]) + #13#10;
+    Result := Result + Format('IMDB votes: %d', [imdb_votes]) + #13#10;
+    Result := Result + Format('IMDB Festival: %s', [BoolToStr(imdb_festival, True)]) + #13#10;
+    Result := Result + Format('IMDB Limited: %s', [BoolToStr(imdb_ldt, True)]) + #13#10;
+    Result := Result + Format('IMDB Natowide: %s', [BoolToStr(imdb_wide, True)]) + #13#10;
+    Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm)]) + #13#10;
+    Result := Result + Format('IMDB STVS: %s', [imdb_stvs]) + #13#10;
   except
     on e: Exception do
     begin
@@ -2220,10 +2250,11 @@ begin
   end;
 end;
 
-constructor TIMDBRelease.Create(const rlsname, section: String;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
+constructor TIMDBRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 begin
   inherited Create(rlsname, section, False, savedpretime);
+
+  FLookupDone := False;
   imdb_id := '';
   imdb_languages := TStringList.Create;
   imdb_countries := TStringList.Create;
@@ -2243,7 +2274,7 @@ begin
   inherited;
 end;
 
-function TIMDBRelease.ExtraInfo: String;
+function TIMDBRelease.ShowExtraInfo: String;
 begin
   Result := imdb_id;
 end;
@@ -2281,15 +2312,14 @@ function TMVIDRelease.AsText(pazo_id: integer): String;
 begin
   Result := inherited AsText(pazo_id);
   try
-    // Result:= Result + 'Language: '+languages.CommaText+#13#10; since rev 314 we use langeuage from TRelease and mapp it in the rules unit over. so mvidlanguage is still active!
-    Result := Result + 'MVID Genre: ' + mvid_Genre.CommaText + #13#10;
-    Result := Result + 'MVID Year: ' + IntToStr(mvid_year) + #13#10;
-    Result := Result + 'MVID Files: ' + IntToStr(integer(FileCount)) + #13#10;
-    Result := Result + 'MVID Source: ' + mvid_source + #13#10;
-    Result := Result + 'MVID Region PAL: ' + IntToStr(integer(mvid_pal)) + #13#10;
-    Result := Result + 'MVID Region NTSC: ' + IntToStr(integer(mvid_ntsc)) + #13#10;
-    Result := Result + 'VA: ' + IntToStr(integer(mvid_va)) + #13#10;
-    Result := Result + 'Live: ' + IntToStr(integer(mvid_live)) + #13#10;
+    Result := Result + Format('MVID Genre: %s', [mvid_Genre.CommaText]) + #13#10;
+    Result := Result + Format('MVID Year: %d', [mvid_year]) + #13#10;
+    Result := Result + Format('MVID Files: %d', [FileCount]) + #13#10;
+    Result := Result + Format('MVID Source: %s', [mvid_source]) + #13#10;
+    Result := Result + Format('MVID Region PAL: %s', [BoolToStr(mvid_pal, True)]) + #13#10;
+    Result := Result + Format('MVID Region NTSC: %s', [BoolToStr(mvid_ntsc, True)]) + #13#10;
+    Result := Result + Format('VA: %s', [BoolToStr(mvid_va, True)]) + #13#10;
+    Result := Result + Format('Live: %s', [BoolToStr(mvid_live, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -2344,11 +2374,10 @@ end;
 destructor TMVIDRelease.Destroy;
 begin
   mvid_Genre.Free;
-  //  mvid_languages.Free;
   inherited;
 end;
 
-function TMVIDRelease.ExtraInfo: String;
+function TMVIDRelease.ShowExtraInfo: String;
 begin
   Result := IntToStr(FileCount);
 end;
@@ -2362,7 +2391,7 @@ end;
 
 function GetKbPazo(p: TPazo): String;
 begin
-  Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ExtraInfo +
+  Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ShowExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
     IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + KBEventTypeToString(p.rls.kb_event);
 end;
