@@ -12,8 +12,8 @@ var
 implementation
 
 uses
-  Classes, SysUtils, configunit, debugunit, LibTar, mystrings, uintlist,
-  statsunit, indexer, dbtvinfo, dbaddpre, StrUtils, globals
+  Classes, SysUtils, configunit, debugunit, LibTar, mystrings,
+  statsunit, indexer, dbtvinfo, dbaddpre, StrUtils, globals, Generics.Collections
   {$IFDEF MSWINDOWS}
     , Windows
   {$ENDIF};
@@ -154,12 +154,12 @@ procedure DeleteOldBackups(s: String);
 var
   sr: TSearchRec;
   files: TStringList;
-  ages: TIntList;
+  ages: TList<integer>;
   i: integer;
   oldest_date, oldest_index: integer;
 begin
   files := TStringList.Create;
-  ages := TIntList.Create;
+  ages := TList<integer>.Create;
   try
     s := MyIncludeTrailingSlash(s);
     ForceDirectories(s);
