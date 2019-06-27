@@ -223,7 +223,7 @@ var
               1 : Result := 1;
               2 : Result := -1;
             end
-          else if ((tpr1.IsSample) and (tpr2.IsSample)) then
+          else
             Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
       end;
@@ -243,7 +243,7 @@ var
               1 : Result := 1;
               2 : Result := -1;
             end
-          else if ((tpr1.IsProof) and (tpr2.IsProof)) then
+          else
             Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
       end;
@@ -263,7 +263,7 @@ var
               1 : Result := 1;
               2 : Result := -1;
             end
-          else if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
+          else
             Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
       end;
@@ -283,7 +283,7 @@ var
               1 : Result := 1;
               2 : Result := -1;
             end
-          else if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
+          else
             Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
       end;
