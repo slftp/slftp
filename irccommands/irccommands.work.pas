@@ -388,7 +388,7 @@ end;
 
 function IrcSpread(const netname, channel, params: String): boolean; overload;
 begin
-  IrcSpread(netname, channel, params, True);
+  Result := IrcSpread(netname, channel, params, True);
 end;
 
 function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
