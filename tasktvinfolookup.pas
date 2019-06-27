@@ -225,7 +225,7 @@ begin
   date := UnixToDateTime(3817); //1.1.1990 031337
 
   {$IFDEF MSWINDOWS}
-    GetLocaleFormatSettings(1033, formatSettings);
+    formatSettings := TFormatSettings.Create('en-US');
   {$ELSE}
     formatSettings := DefaultFormatSettings;
   {$ENDIF}
