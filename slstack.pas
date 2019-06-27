@@ -97,11 +97,9 @@ implementation
 uses slhelper;
 
 function slStackInit(var error: String): Boolean;
-{$IFDEF MSWINDOWS}
-var
-  sData: TWSAData;
-{$ENDIF}
 begin
+  Result := False;
+
   {$IFDEF MSWINDOWS}
     try
       InitializeWinSock;
