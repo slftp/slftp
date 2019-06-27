@@ -1262,8 +1262,9 @@ procedure TMultiStringOperator.GetSupplyValues(p: TPazo; re: TStringList);
 begin
   try
     if (condition is TListCondition) then
-     TListCondition(condition).SupplyValues(p, re)
-    else TMultiStringCondition(condition).SupplyValues(p, re);
+      TListCondition(condition).SupplyValues(p, re)
+    else
+      TMultiStringCondition(condition).SupplyValues(p, re);
   except
     on E: Exception do
     begin
@@ -2055,6 +2056,7 @@ begin
 
   conditions.Add(TConditionNfoGenreMask);
 
+  conditions.Add(TConditionTVLookupDone);
   conditions.Add(TConditionTVShowName);
   conditions.Add(TConditionTVTag);
   conditions.Add(TConditionTVPremierYear);
@@ -2073,6 +2075,7 @@ begin
   conditions.Add(TConditionTVCurrentOnAir);
   conditions.Add(TConditionTVDailyShow);
 
+  conditions.Add(TConditionIMDBLookupDone);
   conditions.Add(TConditionIMDBYear);
   conditions.Add(TConditionIMDBLanguages);
   conditions.Add(TConditionIMDBCountries);

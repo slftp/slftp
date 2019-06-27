@@ -6,6 +6,12 @@ uses
   Classes, pazo, rulesunit;
 
 type
+  TConditionIMDBLookupDone = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionIMDBYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
     class function Name: String; override;
@@ -88,19 +94,37 @@ const
 
 {$I ruleconditions.imdb.inc}
 
+{ TConditionIMDBLookupDone }
+
+function TConditionIMDBLookupDone.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).IsLookupDone;
+  end;
+end;
+
+class function TConditionIMDBLookupDone.Name: String;
+begin
+  Result := 'imdblookupdone';
+end;
+
+class function TConditionIMDBLookupDone.Description: String;
+begin
+  Result := IMDBLookupDoneDescription;
+end;
+
 { TConditionIMDBYear }
 
 function TConditionIMDBYear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_year;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_year;
   end;
 end;
 
@@ -121,15 +145,13 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_languages);
+      re.Assign(TIMDBRelease(r.rls).imdb_languages);
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, dsection, Format('[EXCEPTION] TConditionIMDBLanguages.GetSupplyValues: %s', [e.Message]));
       re.Clear;
-      exit;
     end;
   end;
 end;
@@ -151,15 +173,13 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_countries);
+      re.Assign(TIMDBRelease(r.rls).imdb_countries);
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, dsection, Format('[EXCEPTION] TConditionIMDBCountries.GetSupplyValues: %s', [e.Message]));
       re.Clear;
-      exit;
     end;
   end;
 end;
@@ -181,15 +201,13 @@ begin
   try
     if r.rls is TIMDBRelease then
     begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        re.Assign(TImdbRelease(r.rls).imdb_genres);
+      re.Assign(TIMDBRelease(r.rls).imdb_genres);
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, dsection, Format('[EXCEPTION] TConditionIMDBGenres.GetSupplyValues: %s', [e.Message]));
       re.Clear;
-      exit;
     end;
   end;
 end;
@@ -209,14 +227,10 @@ end;
 function TConditionIMDBScreens.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_screens;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_screens;
   end;
 end;
 
@@ -235,14 +249,10 @@ end;
 function TConditionIMDBRating.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_rating;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_rating;
   end;
 end;
 
@@ -261,14 +271,10 @@ end;
 function TConditionIMDBVotes.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_votes;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_votes;
   end;
 end;
 
@@ -287,14 +293,10 @@ end;
 function TConditionIMDBldt.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_ldt;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_ldt;
   end;
 end;
 
@@ -313,14 +315,10 @@ end;
 function TConditionIMDBWide.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_wide;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_wide;
   end;
 end;
 
@@ -339,14 +337,10 @@ end;
 function TConditionIMDBFestival.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_festival;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_festival;
   end;
 end;
 
@@ -365,14 +359,10 @@ end;
 function TConditionIMDBStv.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).imdb_stvm;  // TODO: rename this to make it more clear; stvm and stvs aren't clear yet
-    end;
-  except
-    Result := False;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).imdb_stvm;
   end;
 end;
 
@@ -391,14 +381,10 @@ end;
 function TConditionIMDBCineyear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TIMDBRelease then
-    begin
-      if TImdbRelease(r.rls).imdb_id <> '' then
-        Result := TImdbRelease(r.rls).CineYear;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TIMDBRelease then
+  begin
+    Result := TIMDBRelease(r.rls).CineYear;
   end;
 end;
 

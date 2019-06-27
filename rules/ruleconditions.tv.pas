@@ -6,6 +6,12 @@ uses
   Classes, pazo, rulesunit;
 
 type
+  TConditionTVLookupDone = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionTVShowName = class(TStringCondition)
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
@@ -118,16 +124,37 @@ const
 
 {$I ruleconditions.tv.inc}
 
+{ TConditionTVLookupDone }
+
+function TConditionTVLookupDone.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).IsLookupDone;
+  end;
+end;
+
+class function TConditionTVLookupDone.Name: String;
+begin
+  Result := 'tvlookupdone';
+end;
+
+class function TConditionTVLookupDone.Description: String;
+begin
+  Result := TVLookupDoneDescription;
+end;
+
 { TConditionTVShowName }
 
 function TConditionTVShowName.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-      Result := TTVRelease(r.rls).showname;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).showname;
   end;
 end;
 
@@ -146,11 +173,10 @@ end;
 function TConditionTVtag.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTvRelease then
-      Result := TTvRelease(r.rls).tvtag;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).tvtag;
   end;
 end;
 
@@ -169,14 +195,10 @@ end;
 function TConditionTVPremierYear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).premier_year;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).premier_year;
   end;
 end;
 
@@ -195,14 +217,10 @@ end;
 function TConditionTVCountry.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).country;
-    end;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).country;
   end;
 end;
 
@@ -221,14 +239,10 @@ end;
 function TConditionTVLanguage.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).tvlanguage;
-    end;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).tvlanguage;
   end;
 end;
 
@@ -247,14 +261,10 @@ end;
 function TConditionTVClassification.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := lowercase(TTVRelease(r.rls).classification);
-    end;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).classification;
   end;
 end;
 
@@ -273,14 +283,10 @@ end;
 function TConditionTVScripted.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).scripted;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).scripted;
   end;
 end;
 
@@ -301,15 +307,13 @@ begin
   try
     if r.rls is TTVRelease then
     begin
-      if TTVRelease(r.rls).showid <> '' then
-        re.Assign(TTVRelease(r.rls).genres);
+      re.Assign(TTVRelease(r.rls).genres);
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, dsection, Format('[EXCEPTION] TConditionTVGenres.GetSupplyValues: %s', [e.Message]));
       re.Clear;
-      exit;
     end;
   end;
 end;
@@ -329,14 +333,10 @@ end;
 function TConditionTVNetwork.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).network;
-    end;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).network;
   end;
 end;
 
@@ -355,14 +355,10 @@ end;
 function TConditionTVRuntime.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).runtime;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).runtime;
   end;
 end;
 
@@ -381,14 +377,10 @@ end;
 function TConditionTVEndedYear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).ended_year;
-    end;
-  except
-    Result := 0;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).ended_year;
   end;
 end;
 
@@ -407,14 +399,10 @@ end;
 function TConditionTVRunning.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).running;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).running;
   end;
 end;
 
@@ -433,14 +421,10 @@ end;
 function TConditionTVStatus.SupplyValue(r: TPazo): String;
 begin
   Result := '';
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).status;
-    end;
-  except
-    Result := '';
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).status;
   end;
 end;
 
@@ -459,14 +443,10 @@ end;
 function TConditionTVCurrentSeason.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentseason;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).currentseason;
   end;
 end;
 
@@ -485,14 +465,10 @@ end;
 function TConditionTVCurrentEpisode.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentepisode;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).currentepisode;
   end;
 end;
 
@@ -511,14 +487,10 @@ end;
 function TConditionTVCurrentOnAir.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).currentair;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).currentair;
   end;
 end;
 
@@ -537,14 +509,10 @@ end;
 function TConditionTVDailyShow.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  try
-    if r.rls is TTVRelease then
-    begin
-      if TTVRelease(r.rls).showid <> '' then
-        Result := TTVRelease(r.rls).daily;
-    end;
-  except
-    Result := False;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).daily;
   end;
 end;
 

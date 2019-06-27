@@ -1,10 +1,12 @@
 { Rule Descriptions for TV => TTVRelease }
 const
+  TVLookupDoneDescription: string = 'Returns true when the TV lookup has been performed, otherwise false.';
+
   TVShowNameDescription: string = 'Returns with the tvshow''s name. This is the part before the S01E01, 1x12, E01, etc tag.';
 
-  TVtagDescription: string = 'Returns the "tv tag" of the release name if matched with tvtags in slftp.ini.';
+  TVtagDescription: string = 'Returns the "tv tag" of the releasename, tries to match with tvtags in slftp.ini.';
 
-  TVPremierYearDescription: string = 'Returns with the year of premiere (based on TVMaze). Returns zero if lookup is not ready yet.';
+  TVPremierYearDescription: string = 'Returns with the year of premiere (based on TVMaze).';
 
   TVCountryDescription: string = 'Returns with the Country field parsed from TVMaze.';
 
@@ -12,24 +14,24 @@ const
 
   TVClassificationDescription: string = 'Returns with the Classification field parsed from TVMaze.';
 
-  TVScriptedDescription: string = 'Returns with the Classification field parsed from TVMaze. Returns false if lookup is not ready yet.';
+  TVScriptedDescription: string = 'Returns true if the show is scripted, otherwise false.';
 
   TVGenresDescription: string = 'Returns with the Genres field parsed from TVMaze.';
 
   TVNetworkDescription: string = 'Returns with the Network field parsed from TVMaze.';
 
-  TVRuntimeDescription: string = 'Returns with the Runtime field parsed from TVMaze. Returns 0 if lookup is not ready yet';
+  TVRuntimeDescription: string = 'Returns with the Runtime field parsed from TVMaze.';
 
-  TVEndedYearDescription: string = 'Returns with the end year field parsed from TVMaze. Returns 0 if lookup is not ready yet';
+  TVEndedYearDescription: string = 'Returns with the end year field parsed from TVMaze.';
 
-  TVRunningDescription: string = 'Returns with the Status field parsed from TVMaze. Returns false if lookup is not ready yet.';
+  TVRunningDescription: string = 'Returns true if the show is still running, otherwise false.';
 
   TVStatusDescription: string = 'Returns with the Status field parsed from TVMaze.';
 
-  TVCurrentSeasonDescription: string = 'Returns true when the rip has the same season number as the database. Returns false when we have no value.';
+  TVCurrentSeasonDescription: string = 'Returns true when the releasename has the same season number as the database, otherwise false.';
 
-  TVCurrentEpisodeDescription: string = 'Returns true when the rip has the same episode number as the database. Returns false when we have no value.';
+  TVCurrentEpisodeDescription: string = 'Returns true when the releasename has the same episode number as the database, otherwise false.';
 
-  TVCurrentOnAirDescription: string = 'Returns true when the rip has the same season and episode number as the database. Returns false when we have no value.';
+  TVCurrentOnAirDescription: string = 'Returns true when the releasename has the same season and episode number as the database, otherwise false.';
 
-  TVDailyShowDescription: string = 'Returns true when the show airs daily. Returns false when we have no value.';
+  TVDailyShowDescription: string = 'Returns true when the show airs daily, otherwise false.';
