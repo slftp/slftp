@@ -208,7 +208,7 @@ end;
 
 function FindLanguageOnDirectory(const aRlsname: String): String;
 var
-  i, j: integer;
+  j: integer;
   lrx: TRegexpr;
   sllang: TSLLanguages;
   fRlsnameLowercase: String;
