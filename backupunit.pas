@@ -151,15 +151,17 @@ begin
 end;
 
 procedure DeleteOldBackups(s: String);
+type
+  TFileInfoRec = record
+    filename: String;
+    age: TDateTime;
+  end;
 var
   sr: TSearchRec;
-  files: TStringList;
-  ages: TList<integer>;
-  i: integer;
-  oldest_date, oldest_index: integer;
+  records: TList<TFileInfoRec>;
+  rec, oldest_record: TFileInfoRec;
 begin
-  files := TStringList.Create;
-  ages := TList<integer>.Create;
+  records := TList<TFileInfoRec>.Create;
   try
     s := MyIncludeTrailingSlash(s);
     ForceDirectories(s);
@@ -177,67 +179,43 @@ begin
         if (not AnsiContainsText(sr.Name, '-custom-')) then
         begin
           Debug(dpMessage, '<- BACKUP ->', 'found backup: ' + sr.Name);
-          files.Add(sr.Name);
-          ages.Add(sr.Time);
+          rec.filename := sr.Name;
+          rec.age := sr.TimeStamp;
+          records.Add(rec);
         end
         else
         begin
           Debug(dpMessage, '<- BACKUP ->', 'ignored: ' + sr.Name);
         end;
       until FindNext(sr) <> 0;
-      {$IFDEF MSWINDOWS}
-        SysUtils.FindClose(sr);
-      {$ELSE}
-        FindClose(sr);
-      {$ENDIF}
 
-      // remove oldest backups until we have reach the max backups  we want
-      while (files.Count > config.ReadInteger(section, 'keep_backups', 10)) do
+      {$IFDEF MSWINDOWS}SysUtils.{$ENDIF}FindClose(sr);
+
+      // remove oldest backups until we have reach the max backups we want to keep
+      while ((records.Count > 0) and (records.Count > config.ReadInteger(section, 'keep_backups', 10))) do
       begin
-        oldest_index := -1;
-        oldest_date := 0;
-        for i := 0 to ages.Count - 1 do
+        oldest_record := records.First;
+        for rec in records do
         begin
-          if ((oldest_date = 0) or (ages[i] < oldest_date)) then
+          if (rec.age < oldest_record.age) then
           begin
-            oldest_index := i;
-            oldest_date := ages[i];
+            oldest_record := rec;
           end;
         end;
 
-        // no backup left to delete
-        if oldest_index < 0 then
-          Break;
-
         // delete the file
         try
-          {$IFDEF MSWINDOWS}
-            DeleteFile({$IFDEF UNICODE}PChar(s + files[oldest_index]){$ELSE}PAnsiChar(s + files[oldest_index]){$ENDIF});
-          {$ELSE}
-            DeleteFile(s + files[oldest_index]);
-          {$ENDIF}
+          DeleteFile({$IFDEF UNICODE}PChar{$ELSE}PAnsiChar{$ENDIF}(s + oldest_record.filename));
         except
           on e: Exception do
             Debug(dpError, section, Format('[EXCEPTION] DeleteOldBackups: %s', [e.Message]));
         end;
 
-        // remove file from list
-        files.BeginUpdate;
-        try
-          try
-            files.Delete(oldest_index);
-          except
-            continue;
-          end;
-        finally
-          files.EndUpdate;
-        end;
-        ages.Delete(oldest_index);
+        records.Remove(oldest_record);
       end;
     end;
   finally
-    ages.Free;
-    files.Free;
+    records.Free;
   end;
 end;
 
