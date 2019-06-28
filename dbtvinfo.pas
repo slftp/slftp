@@ -850,6 +850,7 @@ var
   fQuery: TQuery;
 begin
   fCount := 0;
+  Result := 1;
 
   SQLite3Lock.Enter;
   try
