@@ -13,7 +13,7 @@ implementation
 uses
   SysUtils, Classes, Contnrs, SyncObjs, sitesunit, pazo, taskrace, taskspeedtest, irc, notify, taskfilesize,
   speedstatsunit, kb, mystrings, dirlist, taskdirlist, configunit, queueunit, IdGlobal, irccommandsunit,
-  UIntList;
+  Generics.Collections;
 
 const
   section = 'irccommands.speed';
@@ -321,7 +321,7 @@ var
   fsfilesizemb: double;
   speedtestsites: TStringList;
   speedtestfilenames: TStringList;
-  speedtestfilesizes: TIntList;
+  speedtestfilesizes: TList<integer>;
 begin
   Result := False;
   fssitename := '';
@@ -395,7 +395,7 @@ begin
 
   speedtestsites := TStringList.Create;
   speedtestfilenames := TStringList.Create;
-  speedtestfilesizes := TIntList.Create;
+  speedtestfilesizes := TList<integer>.Create;
   try
     if tn.responses.Count <> added then
     begin

@@ -52,7 +52,7 @@
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;DUnitX.MemoryLeakMonitor;$(DCC_Namespace)</DCC_Namespace>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
-        <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\DFFLibV15_UIntList;libs\FastMM4;libs\FLRE;libs\Indy10\Core;libs\Indy10\Protocols;libs\Indy10\System;libs\LibTar;libs\lkJSON;libs\mORMot;libs\mORMot\SQLite3;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;tests;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\FastMM4;libs\FLRE;libs\Indy10\Core;libs\Indy10\Protocols;libs\Indy10\System;libs\LibTar;libs\lkJSON;libs\mORMot;libs\mORMot\SQLite3;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;tests;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_ExeOutput>p:\apps\slftp</DCC_ExeOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">

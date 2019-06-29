@@ -39,7 +39,7 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, UIntList, Math, IdGlobal;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal;
 
 const
   r_section = 'speedstats';

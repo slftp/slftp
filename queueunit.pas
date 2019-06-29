@@ -63,6 +63,10 @@ var
   // config
   maxassign: integer;
   maxassign_delay: integer;
+  sample_dirs_priority: Integer; //< value for priority in queue sorter for sample dirs from slftp.ini
+  proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
+  subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
+  cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
 
 procedure QueueFire;
 begin
@@ -77,16 +81,13 @@ begin
   end;
 end;
 
-
 function QueueSorter(Item1, Item2: Pointer): integer;
 var
   i1, i2: TTask;
   tp1, tp2: TPazoTask;
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
-  sample_dirs_priority, proof_dirs_priority, subs_dirs_priority, cover_dirs_priority: Integer;
-
-  begin
+begin
   // compare:  1 Item1 is before Item2
   // compare: -1 Item1 is after Item2
   try
@@ -211,80 +212,100 @@ var
       // Sample dir priority
       if (tpr1.IsSample) or (tpr2.IsSample) then
       begin
-        sample_dirs_priority := config.ReadInteger('queue', 'sample_dirs_priority', 1);
-        if ((sample_dirs_priority > 0) and (sample_dirs_priority <= 2)) then
-          if ((tpr1.IsSample) and (not tpr2.IsSample)) then
-            case sample_dirs_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
-            case sample_dirs_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end
-          else if ((tpr1.IsSample) and (tpr2.IsSample)) then
-            Result := CompareValue(tpr2.rank, tpr1.rank);
+        if ((tpr1.IsSample) and (not tpr2.IsSample)) then
+        begin
+          case sample_dirs_priority of
+            0: Result := 0;
+            1: Result := -1;
+            2: Result := 1;
+          end;
+        end
+        else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
+        begin
+          case sample_dirs_priority of
+            0: Result := 0;
+            1: Result := 1;
+            2: Result := -1;
+          end;
+        end
+        else
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+
         exit;
       end;
 
       // Proof priority
       if (tpr1.IsProof) or (tpr2.IsProof) then
       begin
-        proof_dirs_priority := config.ReadInteger('queue', 'proof_dirs_priority', 2);
-        if ((proof_dirs_priority > 0) and (proof_dirs_priority <= 2)) then
-          if ((tpr1.IsProof) and (not tpr2.IsProof)) then
-            case proof_dirs_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
-            case proof_dirs_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end
-          else if ((tpr1.IsProof) and (tpr2.IsProof)) then
-            Result := CompareValue(tpr2.rank, tpr1.rank);
+        if ((tpr1.IsProof) and (not tpr2.IsProof)) then
+        begin
+          case proof_dirs_priority of
+            0: Result := 0;
+            1: Result := -1;
+            2: Result := 1;
+          end;
+        end
+        else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
+        begin
+          case proof_dirs_priority of
+            0: Result := 0;
+            1: Result := 1;
+            2: Result := -1;
+          end;
+        end
+        else
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+
         exit;
       end;
 
       // Subs priority
       if (tpr1.IsSubs) or (tpr2.IsSubs) then
       begin
-        subs_dirs_priority := config.ReadInteger('queue', 'subs_dirs_priority', 2);
-        if ((subs_dirs_priority > 0) and (subs_dirs_priority <= 2)) then
-          if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
-            case subs_dirs_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
-            case subs_dirs_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end
-          else if ((tpr1.IsSubs) and (tpr2.IsSubs)) then
-            Result := CompareValue(tpr2.rank, tpr1.rank);
+        if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
+        begin
+          case subs_dirs_priority of
+            0: Result := 0;
+            1: Result := -1;
+            2: Result := 1;
+          end;
+        end
+        else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
+        begin
+          case subs_dirs_priority of
+            0: Result := 0;
+            1: Result := 1;
+            2: Result := -1;
+          end;
+        end
+        else
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+
         exit;
       end;
 
       // Covers priority
       if (tpr1.IsCovers) or (tpr2.IsCovers) then
       begin
-        cover_dirs_priority := config.ReadInteger('queue', 'cover_dirs_priority', 2);
-        if ((cover_dirs_priority > 0) and (cover_dirs_priority <= 2)) then
-          if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
-            case cover_dirs_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
-            case cover_dirs_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end
-          else if ((tpr1.IsCovers) and (tpr2.IsCovers)) then
-            Result := CompareValue(tpr2.rank, tpr1.rank);
+        if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
+        begin
+          case cover_dirs_priority of
+            0: Result := 0;
+            1: Result := -1;
+            2: Result := 1;
+          end;
+        end
+        else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
+        begin
+          case cover_dirs_priority of
+            0: Result := 0;
+            1: Result := 1;
+            2: Result := -1;
+          end;
+        end
+        else
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+
         exit;
       end;
 
@@ -1537,6 +1558,21 @@ begin
   // config
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
+  sample_dirs_priority := config.ReadInteger(section, 'sample_dirs_priority', 1);
+  if not (sample_dirs_priority in [0..2]) then
+    sample_dirs_priority := 1;
+
+  proof_dirs_priority := config.ReadInteger(section, 'proof_dirs_priority', 2);
+  if not (proof_dirs_priority in [0..2]) then
+    proof_dirs_priority := 2;
+
+  subs_dirs_priority := config.ReadInteger(section, 'subs_dirs_priority', 2);
+  if not (subs_dirs_priority in [0..2]) then
+    subs_dirs_priority := 2;
+
+  cover_dirs_priority := config.ReadInteger(section, 'cover_dirs_priority', 2);
+  if not (cover_dirs_priority in [0..2]) then
+    cover_dirs_priority := 2;
 end;
 
 procedure QueueUninit;

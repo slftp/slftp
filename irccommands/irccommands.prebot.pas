@@ -119,7 +119,7 @@ end;
 
 function IrcCheck(const netname, channel, params: String): boolean; overload;
 begin
-  IrcCheck(netname, channel, params, True);
+  Result := IrcCheck(netname, channel, params, True);
 end;
 
 function IrcCheck(const netname, channel, params: String; const verbose: boolean): boolean; overload;
@@ -390,7 +390,7 @@ end;
 
 function IrcPre(const netname, channel, params: String): boolean; overload;
 begin
-  IrcPre(netname, channel, params, True);
+  Result := IrcPre(netname, channel, params, True);
 end;
 
 function IrcPre(const netname, channel, params: String; const verbose: boolean): boolean; overload;
