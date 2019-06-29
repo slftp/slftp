@@ -186,6 +186,10 @@ uses
 const
   section = 'dirlist';
 
+var
+  image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
+  video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
+
 {$I common.inc}
 
 { TDirList }
@@ -997,12 +1001,10 @@ end;
 
 function DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
 var
-    i1, i2: TDirlistEntry;
-    c1, c2: Integer;
-    i1IsImage, i1IsVideo: Boolean;
-    i2IsImage, i2IsVideo: Boolean;
-    image_files_priority, video_files_priority: Integer;
-
+  i1, i2: TDirlistEntry;
+  c1, c2: Integer;
+  i1IsImage, i1IsVideo: Boolean;
+  i2IsImage, i2IsVideo: Boolean;
 begin
   (*
      Result := -1 (i1 wins)
@@ -1050,18 +1052,16 @@ begin
       i2IsImage := AnsiMatchText(i2.Extension, ImageFileExtensions);
       if (i1IsImage) or (i2IsImage) then
       begin
-        image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
-        if (image_files_priority > 0) and (image_files_priority <= 2) then
-          if ((i1IsImage) and (not i2IsImage)) then
-            case image_files_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not i1IsImage) and (i2IsImage)) then
-            case image_files_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end;
+        if ((i1IsImage) and (not i2IsImage)) then
+          case image_files_priority of
+            1 : Result := -1;
+            2 : Result := 1;
+          end
+        else if ((not i1IsImage) and (i2IsImage)) then
+          case image_files_priority of
+            1 : Result := 1;
+            2 : Result := -1;
+          end;
 
         //Debug(dpSpam, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
         exit;
@@ -1072,18 +1072,16 @@ begin
       i2IsVideo := AnsiMatchText(i2.Extension, VideoFileExtensions);
       if (i1IsVideo) or (i2IsVideo) then
       begin
-        video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
-        if (video_files_priority > 0) and (video_files_priority <= 2) then
-          if ((i1IsVideo) and (not i2IsVideo)) then
-            case video_files_priority of
-              1 : Result := -1;
-              2 : Result := 1;
-            end
-          else if ((not i1IsVideo) and (i2IsVideo)) then
-            case video_files_priority of
-              1 : Result := 1;
-              2 : Result := -1;
-            end;
+        if ((i1IsVideo) and (not i2IsVideo)) then
+          case video_files_priority of
+            1 : Result := -1;
+            2 : Result := 1;
+          end
+        else if ((not i1IsVideo) and (i2IsVideo)) then
+          case video_files_priority of
+            1 : Result := 1;
+            2 : Result := -1;
+          end;
 
         //Debug(dpSpam, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
         exit;
@@ -1983,6 +1981,14 @@ procedure DirlistInit;
 begin
   global_skip := config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)');
   useful_skip := config.ReadString(section, 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
+
+  image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
+  if not (image_files_priority in [0..2]) then
+    image_files_priority := 2;
+
+  video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
+  if not (video_files_priority in [0..2]) then
+    video_files_priority := 2;
 end;
 
 end.

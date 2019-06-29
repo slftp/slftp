@@ -44,7 +44,7 @@ var
 implementation
 
 uses
-  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, UIntList, DateUtils, IdGlobal;
+  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal;
 
 const
   r_section = 'ranks';

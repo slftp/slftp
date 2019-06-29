@@ -644,7 +644,7 @@ begin
 
                 // [EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) HTTPImdb Class.1983.PAL.FULL.MULTi.DVDR-VFC : tt0085346: "22 July 1983" is not a valid date format
                 {$IFDEF MSWINDOWS}
-                  GetLocaleFormatSettings(1033, formatSettings);
+                  formatSettings := TFormatSettings.Create('en-US');
                 {$ELSE}
                   formatSettings := DefaultFormatSettings;
                 {$ENDIF}
