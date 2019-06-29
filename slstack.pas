@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  IdSSLOpenSSLHeaders, debugunit, StrUtils,
+  slssl, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -94,7 +94,7 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper;
+uses slhelper, StrUtils;
 
 function slStackInit(var error: String): Boolean;
 begin
@@ -1084,62 +1084,44 @@ begin
     end;
   end;
 end;
-
 {$ENDIF}
 
 function slRecv(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Integer;
 begin
-  Result:= -1;
+  Result := -1;
   try
-    if slsocket.socket = slsocketerror then exit;
+    if slsocket.socket = slsocketerror then
+      exit;
 
-{$IFDEF FPC}
-    Result:= fprecv(slSocket.socket, @buffer, bufsize, {$IFDEF MSWINDOWS} 0 {$ELSE} MSG_NOSIGNAL {$ENDIF});
-{$ELSE}
-    Result:= recv(slSocket.socket, buffer, bufsize, {$IFDEF MSWINDOWS} 0 {$ELSE} MSG_NOSIGNAL {$ENDIF});
-{$ENDIF}
+    {$IFDEF FPC}
+      Result := fprecv(slSocket.socket, @buffer, bufsize, {$IFDEF MSWINDOWS}0{$ELSE}MSG_NOSIGNAL{$ENDIF});
+    {$ELSE}
+      Result := recv(slSocket.socket, buffer, bufsize, {$IFDEF MSWINDOWS}0{$ELSE}MSG_NOSIGNAL{$ENDIF});
+    {$ENDIF}
     if Result <= 0 then
     begin
-      error:= 'recv failed: '+slLastError;
+      error := 'recv failed: ' + slLastError;
       if 0 < Pos('Operation now in progress', error) then
-        error:= 'Connection lost';
+        error := 'Connection lost';
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'slstack', Format('[EXCEPTION] slRecv: %s', [e.Message]));
-      Result:= -1;
+      Result := -1;
     end;
   end;
 end;
 
-
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
 begin
   try
-    Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
-    try
-      if Result <= 0 then
-        EIdOpenSSLAPISSLError.RaiseException(ssl, Result);
-    except
-      on e: EIdOpenSSLAPISSLError do
-      begin
-        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
-        error := 'sslread failed: ' + e.Message;
-        if 0 < Pos('zero return', error) then
-          error := 'Connection lost';
-
-        Result := -1; // for backward compatibility
-      end;
-      on e: Exception do
-      begin
-        //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_read Exception: %s %s', [e.Message, e.ClassName]));
-        error := 'sslread Exception failed: ' + e.Message;
-        if 0 < Pos('zero return', error) then
-          error := 'Connection lost (Exception)';
-
-        Result := -1; // for backward compatibility
-      end;
+    Result := slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
+    if Result <= 0 then
+    begin
+      error := 'sslread failed: ' + slSSL_LastError(ssl, Result);
+      if 0 < Pos('zero return', error) then
+        error := 'Connection lost';
     end;
   except
     on e: Exception do
@@ -1156,31 +1138,16 @@ var
 begin
   Result := True;
   try
-    rc := SSL_write(ssl, PAnsiChar(@buffer), bufsize);
+    rc := slSSL_write(ssl, PAnsiChar(@buffer), bufsize);
     if rc <= 0 then
     begin
-      try
-        EIdOpenSSLAPISSLError.RaiseException(ssl, rc);
-      except
-        on e: EIdOpenSSLAPISSLError do
-        begin
-          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write failure: %s %s - Return Code: %d - Error Code: %d', [e.Message, e.ClassName, e.RetCode, e.ErrorCode]));
-          error := 'sslwrite failed: ' + e.Message;
-        end;
-        on e: Exception do
-        begin
-          //Debug(dpError, 'slstack', Format('[EXCEPTION] SSL_write Exception: %s %s', [e.Message, e.ClassName]));
-          error := 'sslwrite Exception failed: ' + e.Message;
-        end;
-      end;
-
+      error := 'sslwrite failed: ' + slSSL_LastError(ssl, rc);
       Result := False;
     end
-    else
-    if rc < bufsize then
+    else if rc < bufsize then
     begin
-      Result := False;
       error := 'Couldnt send all the data';
+      Result := False;
     end;
   except
     on e: Exception do
@@ -1192,34 +1159,35 @@ begin
 end;
 
 function slSend(slSocket: TslSocket; var buffer; bufsize: Integer; var error: String): Boolean;
-var rc: Integer;
+var
+  rc: Integer;
 begin
-  Result:= False;
+  Result := False;
   try
-    if slsocket.socket = slsocketerror then exit;
+    if slsocket.socket = slsocketerror then
+      exit;
 
-    Result:= True;
-{$IFDEF FPC}
-    rc:= fpsend(slSocket.socket, @buffer, bufsize, {$IFDEF MSWINDOWS} 0 {$ELSE} MSG_NOSIGNAL {$ENDIF});
-{$ELSE}
-    rc:= send(slSocket.socket, buffer, bufsize, {$IFDEF MSWINDOWS} 0 {$ELSE} MSG_NOSIGNAL {$ENDIF});
-{$ENDIF}
+    Result := True;
+    {$IFDEF FPC}
+      rc := fpsend(slSocket.socket, @buffer, bufsize, {$IFDEF MSWINDOWS}0{$ELSE}MSG_NOSIGNAL{$ENDIF});
+    {$ELSE}
+      rc := send(slSocket.socket, buffer, bufsize, {$IFDEF MSWINDOWS}0{$ELSE}MSG_NOSIGNAL{$ENDIF});
+    {$ENDIF}
     if rc <= 0 then
     begin
-      error:= 'send failed: '+slLastError;
-      Result:= False;
+      error := 'send failed: '+ slLastError;
+      Result := False;
     end
-    else
-    if rc < bufsize then
+    else if rc < bufsize then
     begin
-      Result:= False;
-      error:= 'Couldnt send all the data';
+      error := 'Couldnt send all the data';
+      Result := False;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'slstack', Format('[EXCEPTION] slSend: %s', [e.Message]));
-      Result:= False;
+      Result := False;
     end;
   end;
 end;
