@@ -813,40 +813,46 @@ begin
 end;
 
 function slSSL_LastError(): String;
-var s: String;
-    db: Integer;
-    i: Cardinal;
+var
+  s: String;
+  db: Integer;
+  i: Cardinal;
 begin
-  Result:= '';
+  Result := '';
   SetLength(s, 255);
-  db:= 0;
-  while(true)do
+  db := 0;
+  while (true) do
   begin
-    i:= slERR_get_error();
-    if i = 0 then Break;
+    i := slERR_get_error();
+    if i = 0 then
+      Break;
     slERR_error_string(i, @s[1]);
     inc(db);
-    if Result <> '' then Result := Result + ' / ';
-    Result:= Result + s;
+
+    if Result <> '' then
+      Result := Result + ' / ';
+
+    Result := Result + s;
   end;
 
-  if db = 0 then Result:= 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
+  if db = 0 then
+    Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
 function slSSL_LastError(ssl: PSSL; ec: Integer): String;
 begin
-    ec:= slSSL_get_error(ssl, ec);
-    case ec of
-      OPENSSL_SSL_ERROR_NONE: Result:= 'no error';
-      OPENSSL_SSL_ERROR_SSL: Result:= 'ssl error';
-      OPENSSL_SSL_ERROR_SYSCALL: Result:= 'syscall error';
-      OPENSSL_SSL_ERROR_WANT_CONNECT: Result:= 'want connect';
-      OPENSSL_SSL_ERROR_WANT_READ: Result:= 'want read';
-      OPENSSL_SSL_ERROR_WANT_WRITE: Result:= 'want write';
-      OPENSSL_SSL_ERROR_WANT_X509_LOOKUP: Result:= 'x509 lookup wanted';
-      OPENSSL_SSL_ERROR_ZERO_RETURN: Result:= 'zero return';
-    else
-      Result:= 'unknown error';
-    end;
+  ec := slSSL_get_error(ssl, ec);
+  case ec of
+    OPENSSL_SSL_ERROR_NONE: Result := 'no error';
+    OPENSSL_SSL_ERROR_SSL: Result := 'ssl error';
+    OPENSSL_SSL_ERROR_SYSCALL: Result := 'syscall error';
+    OPENSSL_SSL_ERROR_WANT_CONNECT: Result := 'want connect';
+    OPENSSL_SSL_ERROR_WANT_READ: Result := 'want read';
+    OPENSSL_SSL_ERROR_WANT_WRITE: Result := 'want write';
+    OPENSSL_SSL_ERROR_WANT_X509_LOOKUP: Result := 'x509 lookup wanted';
+    OPENSSL_SSL_ERROR_ZERO_RETURN: Result := 'zero return';
+  else
+    Result := 'unknown error';
+  end;
 end;
 
 initialization

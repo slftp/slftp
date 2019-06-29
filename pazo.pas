@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, UIntList, globals, IdThreadSafe;
+  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -51,7 +51,7 @@ type
     pazo: TPazo;
     //sources: TObjectList;
     destinations: TObjectList;
-    destinationRanks: TIntList;
+    destinationRanks: TList<integer>;
     dirlist: TDirList;
 
     delay_leech: integer;
@@ -1324,7 +1324,7 @@ begin
   self.Name := Name;
   //sources:= TObjectList.Create(False);
   destinations := TObjectList.Create(False);
-  destinationRanks := TIntList.Create;
+  destinationRanks := TList<integer>.Create;
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
   if dirlist <> nil then
