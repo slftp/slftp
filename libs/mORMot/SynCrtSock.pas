@@ -1311,7 +1311,7 @@ type
     // internal TSynThreadPool.PendingContextCount+ThreadCount exceeds this limit
     // - increase this value if you don't have any load-balancing in place, and
     // in case of e.g. many 503 HTTP answers or if many "QueueFull" messages
-    // appear in HTTP.sys log files (normaly in
+    // appear in HTTP.sys log files (normally in
     // C:\Windows\System32\LogFiles\HTTPERR\httperr*.log) - may appear with
     // thousands of concurrent clients accessing at once the same server -
   	// see @http://msdn.microsoft.com/en-us/library/windows/desktop/aa364501
@@ -2052,6 +2052,7 @@ type
     // - e.g. 'http://unix:/path/to/socket.sock:/url/path'
     Layer: TCrtSocketLayer;
     /// fill the members from a supplied URI
+    // - returns TRUE is at least the Server has been extracted, FALSE on error
     function From(aURI: SockString; const DefaultPort: SockString=''): boolean;
     /// compute the whole normalized URI
     function URI: SockString;
@@ -2572,7 +2573,7 @@ function HttpPost(const server, port: SockString; const url, Data, DataType: Soc
 function AuthorizationBearer(const AuthToken: SockString): SockString;
 
 /// compute the '1.2.3.4' text representation of a raw IP4 binary
-procedure IP4Text(const ip4addr; var result: SockString);
+procedure IP4Text(const ip4addr; var result: SockString); overload;
 
 const
   /// the layout of TSMTPConnection.FromText method
@@ -6502,7 +6503,7 @@ begin
         SockRecvLn(Line);
         Len := HttpChunkToHex32(pointer(Line)); // get chunk length in hexa
       end;
-      if Len=0 then begin // ignore next line (normaly void)
+      if Len=0 then begin // ignore next line (normally void)
         SockRecvLn;
         break;
       end;
