@@ -41,7 +41,6 @@
 {********************************************************@}
 {.$DEFINE ZEOS_TEST_ONLY}
 {.$DEFINE GENERIC_INDEX}
-{.$DEFINE BCD_TEST}
 //common compilation directives
 {$DEFINE ZEOS72UP}
 {$DEFINE ZEOS73UP}
@@ -169,6 +168,7 @@
             {$UNDEF VER150BELOW}      //found in ZTestBugCompPostgreSql.pas
 
             {$IF CompilerVersion >= 20} //Delphi 2009+
+              {$DEFINE WITH_varUString} //Variant now supports refcounted UnicodeStrings
               {$DEFINE HAVE_CS_TRYENTER} //TCriticalSection has method TryEnter
               {$UNDEF WITH_OVERLOAD_BUG}                  //2009+ has no problems with ambiguous overload (byte/word)
               {$UNDEF WITH_DEPRECATED_EXTRACTFIELDNAME} //DB.pas proc ExtractFieldName String overload is no more deprecated -> Unicode}
@@ -209,6 +209,7 @@
                 {$DEFINE DELPHI14_UP}                 // used in ZTestStoredProcedure.pas only
 
                 {$IF CompilerVersion >= 22} //Delphi XE+
+                  {$DEFINE WITH_tagVARIANT_UINT64}          // ActivX.tagVariant supports UInt64 Values
                   {$DEFINE WITH_FORMATSETTINGS}
                   {$DEFINE WITH_UNICODEFROMLOCALECHARS}
                   {$DEFINE WITH_RTLCONSTS_SInvalidGuidArray}
