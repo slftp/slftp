@@ -40,13 +40,6 @@ program slftp;
 
 {$MODE Delphi} // delphi compatible mode
 
-// workaround for issues with ZeosLib on FPC 32-bit compiler (internal error)
-{$IFNDEF CPU64}
-  //{$if FPC_FULLVERSION < 30301}
-  //    {$stop Sorry, due to a FPC compiler issue you cannot compile 32-bit versions of slftp }
-  //{$ENDIF}
-{$ENDIF}
-
 {$if FPC_FULLVERSION < 30200}
   {$stop Please upgrade your Free Pascal Compiler version to at least 3.2.0 }
 {$endif}
