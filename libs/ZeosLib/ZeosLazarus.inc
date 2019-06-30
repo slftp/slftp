@@ -103,13 +103,17 @@
        {$DEFINE PWIDECHAR_IS_PUNICODECHAR}
        {$DEFINE WITH_FTGUID} //TStringField descendant TGuidField is supported 
        {$DEFINE FPC2_6UP}
-       {$DEFINE FPC2_6DOWN}
     {$IFEND}
 
     {$IF FPC_FULLVERSION>=30000}
        {$DEFINE FPC3_0UP}
-       {$UNDEF FPC2_6DOWN}
+	{$ELSE}
+       {$DEFINE FPC2_6DOWN}	
     {$ENDIF}
+	
+	{$IF FPC_FULLVERSION>=30200}
+	   {$UNDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}
+	{$ENDIF}
 
     {$IFDEF LCL}
       {$DEFINE WITH_LCONVENCODING} //Only available for Lazarus
@@ -149,6 +153,8 @@
   {$IFEND}
   {$IF FPC_FULLVERSION>30000}       // will be introduced in 3.0+
     {.$UNDEF MISS_RBS_SETSTRING_OVERLOAD} //SetString overload for RawByteString is available now
+    {$DEFINE WITH_tagVARIANT_UINT64} //ActiveX tagVariant supports Int64/uInt64 values not sure about the proper FPC version here
+    {$DEFINE WITH_varUString} //Variant now supports refcounted UnicodeStrings
     {$UNDEF WITH_RAWBYTESTRING_CONVERSION_BUG} //issue seems to be fixed
     {$DEFINE WITH_VIRTUAL_TFIELD_BIND} //TField has procedure Bind(Binding: Boolean);
     {$IF FPC_FULLVERSION>=30100}
