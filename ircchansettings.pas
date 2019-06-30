@@ -150,6 +150,7 @@ function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebug
 var
   fChanSettingsObj: TIrcChannelSettings;
   fItem: TPair<string, TIrcChannelSettings>;
+  fNetChanHelper: String;
 begin
   Result := nil;
 
@@ -162,9 +163,10 @@ begin
   else
   begin
     // slower fallback case insensitive approach
+    fNetChanHelper := LowerCase(aNetname + aChannel);
     for fItem in IrcChanSettingsList do
     begin
-      if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fItem.Key, aNetname + aChannel) then
+      if (fNetChanHelper = LowerCase(fItem.Key)) then
       begin
         Result := fItem.Value;
         exit;
