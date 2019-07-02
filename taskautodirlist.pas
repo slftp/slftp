@@ -68,7 +68,6 @@ begin
   i := kb_list.IndexOf('REQUEST-' + site1 + '-' + releasenametofind);
   if i <> -1 then
   begin
-    irc_Addadmin(Format('already sending request %s to %s', [releasenametofind, site1]));
     exit;
   end;
 
