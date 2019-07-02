@@ -564,7 +564,7 @@ begin
     exit;
   end;
 
-  uurl := 'https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode';
+  uurl := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [sid]);
 
   if not HttpGetUrl(uurl, tvmaz, fHttpGetErrMsg) then
   begin
@@ -673,13 +673,16 @@ var
   tvdb: TTVInfoDB;
   sname: String;
   fHttpGetErrMsg: String;
+  url: String;
 begin
   // remove 'scene' tagging
   getShowValues(rls, sname);
   ReplaceText(sname, '.', ' ');
   ReplaceText(sname, '_', ' ');
 
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
+  url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+
+  if not HttpGetUrl(url, response, fHttpGetErrMsg) then
   begin
     Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
     irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
@@ -697,7 +700,7 @@ begin
     exit;
   end;
 
-  tvdb := parseTVMazeInfos(response, sname);
+  tvdb := parseTVMazeInfos(response, sname, url);
   try
     if tvdb <> nil then
       saveTVInfos(tvmaze_id, tvdb, rls, False);
