@@ -59,41 +59,27 @@ begin
   d := TDirList.Create(s.site.Name, nil, nil, s.lastResponse);
   d.dirlist_lock.Enter;
   try
+    // use RemoveFile with CWD into dir to ensure glftpd/pzs-ng clears the complete dirs
     for i := 0 to d.entries.Count - 1 do
     begin
       de := TDirListEntry(d.entries[i]);
       if not de.directory then
-      begin
-        if not s.RemoveFile(dir, de.filename) then
-        begin
-          Result := False;
-          Break;
-        end;
-      end;
+        s.RemoveFile(dir, de.filename, True);
     end;
 
-    if Result then
+    s.RemoveFile(dir, '.debug', True);
+    s.RemoveFile(dir, '.imdb', True);
+    s.RemoveFile(dir, '.message', True);
+
+    for i := 0 to d.entries.Count - 1 do
     begin
-      for i := 0 to d.entries.Count - 1 do
-      begin
-        de := TDirListEntry(d.entries[i]);
-        if ((de.filename = '.') or (de.filename = '..')) then Continue;
-        if de.directory then
-        begin
-          if not RemoveDir(slot, dir + de.filename) then
-          begin
-            Result := False;
-            Break;
-          end;
-        end;
-      end;
+      de := TDirListEntry(d.entries[i]);
+      if ((de.filename = '.') or (de.filename = '..')) then Continue;
+      if de.directory then
+        RemoveDir(slot, dir + de.filename);
     end;
 
-    if Result then
-    begin
-      // and let's get out the main directory
-      Result := s.RemoveDir(dir);
-    end;
+    Result := s.RemoveDir(dir);
   finally
     d.dirlist_lock.Leave;
     d.Free;
