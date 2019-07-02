@@ -27,7 +27,7 @@ type
     function Name: String; override;
   end;
 
-function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
+function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 
 implementation
@@ -347,7 +347,7 @@ begin
   end;
 end;
 
-function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
+function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 var
   tvr: TTVInfoDB;
   i: integer;
