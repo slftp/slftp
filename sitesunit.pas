@@ -140,7 +140,17 @@ type
     function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
     function Leechfile(dest: TStream; const filename: String; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
     //    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
-    function RemoveFile(const dir, filename: String): boolean;
+{ Remove file from directory on ftp. Do not force CWD into the directory, only if required by legacydirlist
+  @param(dir directory in which the file is located that needs to be deleted)
+  @param(filename name of the file that is supposed to be deleted)
+  @returns(@true if file could be removed, @false otherwise) }
+    function RemoveFile(const dir, filename: String): boolean; overload;
+{ Remove file from directory on ftp. Force change of working directory to dir if required.
+  @param(dir directory in which the file is located that needs to be deleted)
+  @param(filename name of the file that is supposed to be deleted)
+  @param(forcecwd if @true CWD to dir before deleting the file)
+  @returns(@true if file could be removed, @false otherwise) }
+    function RemoveFile(const dir, filename: String; const forcecwd: boolean): boolean; overload;
     function RemoveDir(dir: String): boolean;
     function SendProtP: boolean;
     function SendProtC: boolean;
@@ -1789,13 +1799,18 @@ begin
 end;
 
 function TSiteSlot.RemoveFile(const dir, filename: String): boolean;
+begin
+  Result := RemoveFile(dir, filename, False);
+end;
+
+function TSiteSlot.RemoveFile(const dir, filename: String; const forcecwd: boolean): boolean;
 var
   cmd: String;
 begin
   Result := False;
-  if site.legacydirlist then
+  if ((site.legacydirlist) or (forcecwd)) then
   begin
-    if not Cwd(dir) then
+    if not Cwd(dir, forcecwd) then
       exit;
     cmd := 'DELE ' + filename;
   end
