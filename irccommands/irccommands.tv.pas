@@ -87,6 +87,7 @@ var
   i, sresMAXi: integer;
   res: TStringlist;
   showname: String;
+  url: String;
   fHttpGetErrMsg: String;
 begin
   result := False;
@@ -137,7 +138,8 @@ begin
 
   if StrToIntDef(sid, -1) > -1 then
   begin
-    if not HttpGetUrl('https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode', resp, fHttpGetErrMsg) then
+    url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [sid]);
+    if not HttpGetUrl(url, resp, fHttpGetErrMsg) then
     begin
       // TODO: maybe not showing correct stuff when no info was found
       irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze API search for %s --> %s', [ssname, fHttpGetErrMsg]));
@@ -152,7 +154,7 @@ begin
       Exit;
     end;
 
-    tvr := parseTVMazeInfos(resp, ssname);
+    tvr := parseTVMazeInfos(resp, ssname, url);
     tvr.rls_showname := mystrings.RightStr(params, length(sid) + 1);
     try
       tvr.Save;
@@ -230,6 +232,7 @@ var
   respo, tvmaze_id, tv_showname: String;
   otvr, newtvi: TTVInfoDB;
   fHttpGetErrMsg: String;
+  url: String;
 begin
   Result := false;
 
@@ -260,7 +263,8 @@ begin
     exit;
   end;
 
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
+  url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+  if not HttpGetUrl(url, respo, fHttpGetErrMsg) then
   begin
     if tv_showname <> '' then
       Irc_AddText(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze Update for %s (ID: %s) --> %s', [tv_showname, tvmaze_id, fHttpGetErrMsg]))
@@ -276,7 +280,7 @@ begin
   end;
 
   try
-    newtvi := parseTVMazeInfos(respo);
+    newtvi := parseTVMazeInfos(respo, '', url);
     if newtvi = nil then
       Exit;
 

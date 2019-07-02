@@ -665,6 +665,7 @@ var
   rls_name: String;
   respo: String;
   fHttpGetErrMsg: String;
+  url: String;
 begin
   Result := False;
   // Update asked from irc. Update and exit.
@@ -683,7 +684,8 @@ begin
   rls_name := self.ripname;
   Result := False;
 
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
+  url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+  if not HttpGetUrl(url, respo, fHttpGetErrMsg) then
   begin
     Debug(dpError, section, Format('[FAILED] TVMaze API Update: --> %s ', [fHttpGetErrMsg]));
     irc_Adderror(Format('<c4>[FAILED]</c> TVMaze API Update --> %s', [fHttpGetErrMsg]));
@@ -697,7 +699,7 @@ begin
   end;
 
   try
-    self := parseTVMazeInfos(respo);
+    self := parseTVMazeInfos(respo, '', url);
   except on e: Exception do
     begin
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
