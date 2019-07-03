@@ -49,7 +49,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_64
 del /q *.exe *.dcu
@@ -60,7 +60,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_32_debug
 del /q *.exe *.dcu
@@ -71,7 +71,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_64_debug
 del /q *.exe *.dcu
@@ -82,12 +82,12 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :clean
 echo --- Cleaning files ---
 del /q *.exe *.dcu
-goto :eof
+goto :eof;
 
 :test_32
 del /q *.exe *.dcu *.dll
@@ -135,7 +135,7 @@ if errorlevel 1 (
 cd tests
 del /q *.exe *.dcu *.dll
 cd ..
-goto :eof
+goto :eof;
 
 :test_64
 del /q *.exe *.dcu *.dll
@@ -183,17 +183,19 @@ if errorlevel 1 (
 cd tests
 del /q *.exe *.dcu *.dll
 cd ..
-goto :eof
+goto :eof;
 
 :error
 echo Unknown target!
 echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean test test_32 test_64
 echo Default: slftp_64
-goto :eof
+goto :eof;
 
 REM
 REM Remove injected build rev from slftp.inc
 REM
+:eof
 if exist .git\ (
     powershell "& {(Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '';\" | Set-Content .\slftp.inc }"
 )
+exit /B
