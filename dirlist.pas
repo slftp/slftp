@@ -39,8 +39,8 @@ type
 
     filename: String; //< filename
     filenamelc: String; //< lowercase filename
-    filesize: Int64;
-    fExtension: String; //< file extension, inclusive the '.' prefix such as '.nfo'
+    filesize: Int64; //< filesize
+    fExtension: String; //< file extension, includes the '.' prefix - such as '.nfo'
 
     skiplisted: Boolean;
     racedbyme: Boolean; //< @true if we send this file to the site
@@ -1930,7 +1930,7 @@ begin
         begin
           skiplisted := True;
           dirlist.skipped.Add(filename);
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s/%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, dirlist.full_path, filename]));
           exit;
         end;
       end;
@@ -1941,7 +1941,7 @@ begin
       begin
         skiplisted := True;
         dirlist.skipped.Add(filename);
-        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, s, filename]));
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s/%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, dirlist.full_path, filename]));
       end
       else
       begin
@@ -1961,7 +1961,7 @@ begin
         begin
           skiplisted := True;
           dirlist.skipped.Add(filename);
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s/%s', [dirlist.site_name, dirlist.skiplist.sectionname, dirlist.full_path, filename]));
         end
         else
         begin
@@ -1970,7 +1970,7 @@ begin
       end
       else
       begin
-        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s', [dirlist.site_name, dirlist.skiplist.sectionname, filename]));
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s/%s', [dirlist.site_name, dirlist.skiplist.sectionname, dirlist.full_path, filename]));
         skiplisted := True;
       end;
     end;
