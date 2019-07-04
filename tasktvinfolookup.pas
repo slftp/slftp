@@ -27,7 +27,7 @@ type
     function Name: String; override;
   end;
 
-function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
+function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 
 implementation
@@ -347,7 +347,7 @@ begin
   end;
 end;
 
-function parseTVMazeInfos(const jsonStr: String; Showname: String = ''; uurl: String = ''): TTVInfoDB;
+function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 var
   tvr: TTVInfoDB;
   i: integer;
@@ -355,6 +355,7 @@ var
   js: TlkJSONobject;
   season, episode: Integer;
   date: TDateTime;
+  fStrHelper: String;
 begin
   Result := nil;
   js := nil;
@@ -482,6 +483,15 @@ begin
       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
         tvr.tv_endedyear := StrtoIntdef(Copy(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value), 1, 4), -1);
 
+    if ((js.Field['rating'].SelfType <> jsNull) and (js.Field['rating'].Field['average'].SelfType <> jsNull)) then
+    begin
+      fStrHelper := String(js.Field['rating'].Field['average'].Value);
+      fStrHelper := fStrHelper.Replace('.', '').Replace(',', '');
+      tvr.tv_rating := StrToIntDef(fStrHelper, -1);
+    end
+    else
+      tvr.tv_rating := -1;
+
     tvr.last_updated := DateTimeToUnix(now());
     Result := tvr;
   finally
@@ -564,7 +574,7 @@ begin
     exit;
   end;
 
-  uurl := 'https://api.tvmaze.com/shows/' + sid + '?embed[]=nextepisode&embed[]=previousepisode';
+  uurl := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [sid]);
 
   if not HttpGetUrl(uurl, tvmaz, fHttpGetErrMsg) then
   begin
@@ -673,13 +683,16 @@ var
   tvdb: TTVInfoDB;
   sname: String;
   fHttpGetErrMsg: String;
+  url: String;
 begin
   // remove 'scene' tagging
   getShowValues(rls, sname);
   ReplaceText(sname, '.', ' ');
   ReplaceText(sname, '_', ' ');
 
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', response, fHttpGetErrMsg) then
+  url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+
+  if not HttpGetUrl(url, response, fHttpGetErrMsg) then
   begin
     Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
     irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
@@ -697,7 +710,7 @@ begin
     exit;
   end;
 
-  tvdb := parseTVMazeInfos(response, sname);
+  tvdb := parseTVMazeInfos(response, sname, url);
   try
     if tvdb <> nil then
       saveTVInfos(tvmaze_id, tvdb, rls, False);

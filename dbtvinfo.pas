@@ -30,6 +30,7 @@ type
     tv_next_season: integer;
     tv_next_ep: integer;
     tv_next_date: integer;
+    tv_rating: integer;
     last_updated: integer;
     tv_daily: boolean;
     constructor Create(const rls_showname: String); //overload;
@@ -388,8 +389,8 @@ begin
     fQuery := TQuery.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
       fQuery.SQL.Text := 'INSERT OR IGNORE INTO infos ' +
-        '(tvdb_id, premiered_year, country, status, classification, network, genre, ended_year, last_updated, tvrage_id, tvmaze_id, airdays, next_date, next_season, next_episode, tv_language) VALUES ' +
-        '(:tvdb_id, :premiered_year, :country, :status, :classification, :network, :genre, :ended_year, :last_updated, :tvrage_id, :tvmaze_id, :airdays, :next_date, :next_season, :next_episode, :tv_language)';
+        '(tvdb_id, premiered_year, country, status, classification, network, genre, ended_year, last_updated, tvrage_id, tvmaze_id, airdays, next_date, next_season, next_episode, tv_language, rating) VALUES ' +
+        '(:tvdb_id, :premiered_year, :country, :status, :classification, :network, :genre, :ended_year, :last_updated, :tvrage_id, :tvmaze_id, :airdays, :next_date, :next_season, :next_episode, :tv_language, :rating)';
 
       fQuery.ParamByName('tvdb_id').AsInteger := StrToIntDef(thetvdb_id, -1);
       fQuery.ParamByName('premiered_year').AsInteger := tv_premiered_year;
@@ -407,6 +408,7 @@ begin
       fQuery.ParamByName('next_season').AsInteger := tv_next_season;
       fQuery.ParamByName('next_episode').AsInteger := tv_next_ep;
       fQuery.ParamByName('tv_language').AsString := tv_language;
+      fQuery.ParamByName('rating').AsInteger := tv_rating;
       try
          If fQuery.ExecSQLAndReturnUpdateCount > 0 then
           last_updated := DateTimeToUnix(now())
@@ -465,6 +467,7 @@ begin
   tr.currentepisode := false;
   tr.currentair := false;
   tr.tvlanguage := tv_language;
+  tr.tvrating := tv_rating;
 
   if YearOf(now) = tv_next_season then
   begin
@@ -538,6 +541,7 @@ begin
   self.tv_days := TStringList.Create;
   self.tv_days.QuoteChar := '"';
   self.tv_endedyear := -1;
+  self.tv_rating := -1;
   self.last_updated:= 3817;
 end;
 
@@ -567,36 +571,39 @@ begin
   toStats := Boolean((netname = '') and (channel = ''));
   if ((rls = '') or (tvmaze_id = rls)) then
     rls := rls_showname;
-  try
 
+  try
     if config.ReadBool(section, 'use_new_announce_style', True) then
     begin
       if tv_endedyear > 0 then
-        toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> (%s - %s) - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), IntToStr(tv_endedyear), tv_url]))
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> (%d - %d) - <b>TVMaze info</b> %s', [rls, tv_premiered_year, tv_endedyear, tv_url]))
       else
-        toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %s - <b>TVMaze info</b> %s', [rls, IntToStr(tv_premiered_year), tv_url]));
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> - <b>Premiere Year</b> %d - <b>TVMaze info</b> %s', [rls, tv_premiered_year, tv_url]));
 
       if ((tv_next_season > 0) and (tv_next_ep > 0)) then
-        toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
 
-      toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
-      toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s', [tv_country, tv_network,tv_language]));
-      toAnnounce.add(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
+      toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
+      if (tv_rating > 0) then
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s - <b>Rating</b> %d/100', [tv_country, tv_network, tv_language, tv_rating]))
+      else
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s', [tv_country, tv_network, tv_language]));
+
+      toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end
     else
     begin
-
       if tv_endedyear > 0 then
-        toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s - %s) - %s', [rls, IntToStr(tv_premiered_year), IntToStr(tv_endedyear), tv_url]))
+        toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s - %s) - %s', [rls, IntToStr(tv_premiered_year), IntToStr(tv_endedyear), tv_url]))
       else
-        toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls, IntToStr(tv_premiered_year), tv_url]));
+        toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c0><b>info for</c></b> ...........: <b>%s</b> (%s) - %s', [rls, IntToStr(tv_premiered_year), tv_url]));
 
       if ((tv_next_season > 0) and (tv_next_ep > 0)) then
-        toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Season/Episode (Date)</c></b> ...........: <b>%d.%d</b> (%s)', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
+        toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Season/Episode (Date)</c></b> ...........: <b>%d.%d</b> (%s)', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
 
-      toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText, tv_classification, tv_status]));
-      toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
-      toAnnounce.add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(last_updated))]));
+      toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText, tv_classification, tv_status]));
+      toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
+      toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Last update</c></b> ....: <b>%s</b>', [FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(last_updated))]));
     end;
 
     for I := 0 to toAnnounce.Count - 1 do
@@ -624,7 +631,7 @@ begin
       fQuery.SQL.Text := 'UPDATE infos SET ' +
         'tvdb_id = :thetvdb_id, tvrage_id = :tvrage_id, status = :status, country = :country, tv_language = :tv_language, network = :network, ' +
         'classification = :classification, genre = :genre, airdays = :airdays, premiered_year = :premiered_year, ended_year = :ended_year, next_date = :next_date, ' +
-        'next_season = :next_season, next_episode = :next_episode, last_updated = :last_updated WHERE tvmaze_id = :tvmaze_id';
+        'next_season = :next_season, next_episode = :next_episode, rating = :rating, last_updated = :last_updated WHERE tvmaze_id = :tvmaze_id';
 
       fQuery.ParamByName('thetvdb_id').AsInteger := StrToIntDef(thetvdb_id, -1);
       fQuery.ParamByName('tvrage_id').AsInteger := StrToIntDef(tvrage_id, -1);
@@ -640,6 +647,7 @@ begin
       fQuery.ParamByName('next_date').AsInteger := tv_next_date;
       fQuery.ParamByName('next_season').AsInteger := tv_next_season;
       fQuery.ParamByName('next_episode').AsInteger := tv_next_ep;
+      fQuery.ParamByName('rating').AsInteger := tv_rating;
       fQuery.ParamByName('last_updated').AsInt64 := DateTimeToUnix(now());
       fQuery.ParamByName('tvmaze_id').AsInteger := StrToInt(tvmaze_id);
       try
@@ -665,6 +673,7 @@ var
   rls_name: String;
   respo: String;
   fHttpGetErrMsg: String;
+  url: String;
 begin
   Result := False;
   // Update asked from irc. Update and exit.
@@ -683,7 +692,8 @@ begin
   rls_name := self.ripname;
   Result := False;
 
-  if not HttpGetUrl('https://api.tvmaze.com/shows/' + tvmaze_id + '?embed[]=nextepisode&embed[]=previousepisode', respo, fHttpGetErrMsg) then
+  url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+  if not HttpGetUrl(url, respo, fHttpGetErrMsg) then
   begin
     Debug(dpError, section, Format('[FAILED] TVMaze API Update: --> %s ', [fHttpGetErrMsg]));
     irc_Adderror(Format('<c4>[FAILED]</c> TVMaze API Update --> %s', [fHttpGetErrMsg]));
@@ -697,7 +707,7 @@ begin
   end;
 
   try
-    self := parseTVMazeInfos(respo);
+    self := parseTVMazeInfos(respo, '', url);
   except on e: Exception do
     begin
       irc_Adderror(Format('<c4>[EXCEPTION]</c> TTVInfoDB.Update: %s', [e.Message]));
@@ -975,6 +985,7 @@ begin
           tvi.tv_next_season := StrToIntDef(fQuery.FieldByName('next_season').AsString, -1);
           tvi.tv_next_ep := StrToIntDef(fQuery.FieldByName('next_episode').AsString, -1);
           tvi.tv_days.CommaText := fQuery.FieldByName('airdays').AsString;
+          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, -1);
           tvi.tv_language:= fQuery.FieldByName('tv_language').AsString;
 
           tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
@@ -1056,6 +1067,7 @@ begin
           tvi.tv_next_season := StrToIntDef(fQuery.FieldByName('next_season').AsString, 0); // why 0, -1 in getTVInfoByShowName?
           tvi.tv_next_ep := StrToIntDef(fQuery.FieldByName('next_episode').AsString, 0); // why 0, -1 in getTVInfoByShowName?
           tvi.tv_days.CommaText := fQuery.FieldByName('airdays').AsString;
+          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, 0); // why 0, -1 in getTVInfoByShowName?
           tvi.tv_language:= fQuery.FieldByName('tv_language').AsString;
 
           tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
@@ -1222,6 +1234,17 @@ begin
             fQuery.SQL.Text := 'PRAGMA user_version = 3';
             fQuery.ExecSQL;
           end;
+        3:
+          begin
+            fQuery.SQL.Text := 'ALTER TABLE infos ADD COLUMN rating INTEGER';
+            fQuery.ExecSQL;
+
+            // release the SQL statement, results and bound parameters before reopen
+            fQuery.Close;
+
+            fQuery.SQL.Text := 'PRAGMA user_version = 4';
+            fQuery.ExecSQL;
+          end;
       end;
     except
       on e: Exception do
@@ -1264,6 +1287,7 @@ begin
       'next_date INTEGER,' +
       'next_season INTEGER,' +
       'next_episode INTEGER,' +
+      'rating INTEGER,' +
       'airdays TEXT,' +
       'tv_language TEXT,' +
       'PRIMARY KEY (tvmaze_id ASC)' +
