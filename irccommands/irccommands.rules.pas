@@ -12,7 +12,6 @@ function IrcAllRuleDel(const netname, channel, params: String): boolean; // TODO
 function IrcRules(const netname, channel, params: String): boolean;
 function IrcRuleList(const netname, channel, params: String): boolean;
 function IrcRuleHelp(const netname, channel, params: String): boolean;
-function IrcRulesLoad(const netname, channel, params: String): boolean; // TODO: what should it do? Maybe remove?
 function IrcRuleCopy(const netname, channel, params: String): boolean;
 function IrcAutoRules(const netname, channel, params: String): boolean;
 
@@ -523,11 +522,6 @@ begin
   end;
 
   Result := True;
-end;
-
-function IrcRulesLoad(const netname, channel, params: String): boolean;
-begin
-  Result := False;
 end;
 
 function IrcRuleCopy(const netname, channel, params: String): boolean;
