@@ -35,3 +35,5 @@ const
   TVCurrentOnAirDescription: string = 'Returns true when the releasename has the same season and episode number as the database, otherwise false.';
 
   TVDailyShowDescription: string = 'Returns true when the show airs daily, otherwise false.';
+
+  TVRatingDescription: string = 'Returns with the TMaze rating of the show. (MULTIPLIED by ten: max score is 100, min score is 0)';
