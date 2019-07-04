@@ -12,7 +12,6 @@ function IrcAllRuleDel(const netname, channel, params: String): boolean; // TODO
 function IrcRules(const netname, channel, params: String): boolean;
 function IrcRuleList(const netname, channel, params: String): boolean;
 function IrcRuleHelp(const netname, channel, params: String): boolean;
-function IrcRulesLoad(const netname, channel, params: String): boolean; // TODO: what should it do? Maybe remove?
 function IrcRuleCopy(const netname, channel, params: String): boolean;
 function IrcAutoRules(const netname, channel, params: String): boolean;
 
@@ -525,15 +524,10 @@ begin
   Result := True;
 end;
 
-function IrcRulesLoad(const netname, channel, params: String): boolean;
-begin
-  Result := False;
-end;
-
 function IrcRuleCopy(const netname, channel, params: String): boolean;
 var
   rr, r: TRule;
-  rule, error, src_s, dst_s, src_section: String;
+  rule, error, src_s, dst_s, src_section, dst_section: String;
   ss: TSite;
   i: integer;
 begin
@@ -541,6 +535,10 @@ begin
   src_s := UpperCase(SubString(params, ' ', 1));
   dst_s := UpperCase(SubString(params, ' ', 2));
   src_section := UpperCase(SubString(params, ' ', 3));
+  dst_section := UpperCase(SubString(params, ' ', 4));
+
+  if (dst_section = '') then
+    dst_section := src_section;
 
   ss := FindSiteByName('', src_s);
   if ss = nil then
@@ -561,7 +559,7 @@ begin
     r := TRule(rules.Items[i]);
     if ((r.sitename = src_s) and (r.section = src_section)) then
     begin
-      rule := dst_s + ' ' + src_section + ' ' + r.AsText(False);
+      rule := dst_s + ' ' + dst_section + ' ' + r.AsText(False);
       rr := nil;
       rr := AddRule(rule, error);
       if ((rr = nil) or (error <> '')) then
@@ -575,7 +573,7 @@ begin
 
   RulesSave;
 
-  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, src_section]);
+  Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, dst_section]);
   Result := True;
 end;
 

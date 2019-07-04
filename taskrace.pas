@@ -583,15 +583,13 @@ function TPazoDirlistTask.Name: String;
 begin
   try
     if is_pre then
-      Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' PRE ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
-      dir + ' ' + ScheduleText
+      Result := Format('DIRLIST : %d <b>%s</b> <b>PRE</b> %s %s %s %s', [pazo_id, site1, mainpazo.rls.section,
+        mainpazo.rls.rlsname, dir, ScheduleText])
     else
-      Result := 'PDIRLIST ' + site1 + ' ' + IntToStr(pazo_id) + ' ' +
-        mainpazo.rls.section + ' ' + mainpazo.rls.rlsname + ' ' +
-      dir + ' ' + ScheduleText;
+      Result := Format('DIRLIST : %d <b>%s</b> %s %s %s %s', [pazo_id, site1, mainpazo.rls.section,
+        mainpazo.rls.rlsname, dir, ScheduleText]);
   except
-    Result := 'PDIRLIST';
+    Result := 'DIRLIST';
   end;
 end;
 
@@ -989,7 +987,7 @@ end;
 function TPazoMkdirTask.Name: String;
 begin
   try
-    Result := 'MKDIR ' + IntToStr(pazo_id) + ' <b>' + site1 + '</b> ' + mainpazo.rls.rlsname + ' ' + dir;
+    Result := Format('MKDIR : %d <b>%s</b> %s %s', [pazo_id, site1, mainpazo.rls.rlsname, dir]);
   except
     Result := 'MKDIR';
   end;
@@ -2358,10 +2356,10 @@ function TPazoRaceTask.Name: String;
 begin
   try
     if mainpazo.rls = nil then
-      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s (%d)',
+      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s (%d)',
         [pazo_id, site1, site2, filename, rank])
     else
-      Result := Format('RACE %d <b>%s</b>-><b>%s</b>: %s %s (%d)',
+      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s %s (%d)',
         [pazo_id, site1, site2, mainpazo.rls.rlsname, filename, rank]);
   except
     Result := 'RACE';
@@ -2405,7 +2403,7 @@ end;
 function TWaitTask.Name: String;
 begin
   try
-    Result := 'WAITTASK :' + wait_for;
+    Result := Format('WAITTASK : %s', [wait_for]);
   except
     Result := 'WAITTASK';
   end;
