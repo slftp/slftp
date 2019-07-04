@@ -355,6 +355,7 @@ var
   js: TlkJSONobject;
   season, episode: Integer;
   date: TDateTime;
+  fStrHelper: String;
 begin
   Result := nil;
   js := nil;
@@ -481,6 +482,15 @@ begin
     else
       if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
         tvr.tv_endedyear := StrtoIntdef(Copy(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value), 1, 4), -1);
+
+    if ((js.Field['rating'].SelfType <> jsNull) and (js.Field['rating'].Field['average'].SelfType <> jsNull)) then
+    begin
+      fStrHelper := String(js.Field['rating'].Field['average'].Value);
+      fStrHelper := fStrHelper.Replace('.', '').Replace(',', '');
+      tvr.tv_rating := StrToIntDef(fStrHelper, -1);
+    end
+    else
+      tvr.tv_rating := -1;
 
     tvr.last_updated := DateTimeToUnix(now());
     Result := tvr;

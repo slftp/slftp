@@ -114,6 +114,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionTVRating = class(TIntCondition)
+    function SupplyValue(r: TPazo): integer; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
 implementation
 
 uses
@@ -524,6 +530,28 @@ end;
 class function TConditionTVDailyShow.Description: String;
 begin
   Result := TVDailyShowDescription;
+end;
+
+{ TConditionTVRating }
+
+function TConditionTVRating.SupplyValue(r: TPazo): integer;
+begin
+  Result := 0;
+
+  if r.rls is TTVRelease then
+  begin
+    Result := TTVRelease(r.rls).tvrating;
+  end;
+end;
+
+class function TConditionTVRating.Name: String;
+begin
+  Result := 'tvrating';
+end;
+
+class function TConditionTVRating.Description: String;
+begin
+  Result := TVRatingDescription;
 end;
 
 end.
