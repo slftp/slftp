@@ -250,7 +250,7 @@ const
     (cmd: 'rules'; hnd: IrcRules; minparams: 2; maxparams: 2; hlpgrp: 'rules'),
     (cmd: 'rulelist'; hnd: IrcRuleList; minparams: 0; maxparams: 1; hlpgrp: 'rules'),
     (cmd: 'rulehelp'; hnd: IrcRuleHelp; minparams: 1; maxparams: 1; hlpgrp: 'rules'),
-    (cmd: 'rulecp'; hnd: IrcRuleCopy; minparams: 3; maxparams: 3; hlpgrp: 'rules'),
+    (cmd: 'rulecp'; hnd: IrcRuleCopy; minparams: 3; maxparams: 4; hlpgrp: 'rules'),
     (cmd: 'autorules'; hnd: IrcAutoRules; minparams: 1; maxparams: 2; hlpgrp: 'rules'),
 
     (cmd: 'KB'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$kb'),
