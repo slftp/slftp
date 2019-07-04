@@ -20,7 +20,7 @@ REM
 REM Inject git commit into slftp.inc if .git exists
 REM
 if exist .git\ (
-    powershell "& {$gitrevv = git rev-parse --short HEAD; (Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '$gitrevv';\" | Set-Content .\slftp.inc }"
+  powershell "& {$gitrevv = git rev-parse --short HEAD; (Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '$gitrevv';\" | Set-Content .\slftp.inc }"
 )
 
 REM
@@ -41,7 +41,7 @@ if /I "%~1" == "test_64" goto :test_64
 goto :error
 
 :slftp_32
-del /q *.exe *.dcu
+del /q /s *slftp*.exe *.dcu
 echo --- Compiling Win32 RELEASE slftp.exe ---
 echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
 "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
@@ -49,10 +49,10 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_64
-del /q *.exe *.dcu
+del /q /s *slftp*.exe *.dcu
 echo --- Compiling Win64 RELEASE slftp.exe ---
 echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
 "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
@@ -60,10 +60,10 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_32_debug
-del /q *.exe *.dcu
+del /q /s *slftp*.exe *.dcu
 echo --- Compiling Win32 DEBUG slftp.exe ---
 echo "%CC_32%" %CDBFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
 "%CC_32%" %CDBFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
@@ -71,10 +71,10 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :slftp_64_debug
-del /q *.exe *.dcu
+del /q /s *slftp*.exe *.dcu
 echo --- Compiling Win64 DEBUG slftp.exe ---
 echo "%CC_64%" %CDBFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
 "%CC_64%" %CDBFLAGS% %CC_EXTRAS% %CINCLUDES% slftp.dpr
@@ -82,42 +82,42 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof
+goto :eof;
 
 :clean
 echo --- Cleaning files ---
-del /q *.exe *.dcu
-goto :eof
+del /q /s *slftp*.exe *.dcu
+goto :eof;
 
 :test_32
-del /q *.exe *.dcu *.dll
+del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win32 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
 powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
 if errorlevel 1 (
-   echo Failure reason for downloading OpenSSL is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for downloading OpenSSL is %errorlevel%
+exit /b %errorlevel%
 )
 echo - Extracting OpenSSL libraries -
 powershell expand-archive %OPENSSL_NAME%-i386-win32.zip
 if errorlevel 1 (
-   echo Failure reason for extracting is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for extracting is %errorlevel%
+exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
 copy /Y %OPENSSL_NAME%-i386-win32\libeay32.dll libeay32.dll
 copy /Y %OPENSSL_NAME%-i386-win32\ssleay32.dll ssleay32.dll
 if errorlevel 1 (
-   echo Failure reason for copying is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for copying is %errorlevel%
+exit /b %errorlevel%
 )
 echo - Removing temp OpenSSL stuff -
 del /Q %OPENSSL_NAME%-i386-win32.zip
 rmdir /Q /S %OPENSSL_NAME%-i386-win32
 if errorlevel 1 (
-   echo Failure reason for deleting is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for deleting is %errorlevel%
+exit /b %errorlevel%
 )
 cd ..
 echo - Compiling -
@@ -132,13 +132,11 @@ if errorlevel 1 (
    echo Failure reason for running tests is %errorlevel%
    exit /b %errorlevel%
 )
-cd tests
-del /q *.exe *.dcu *.dll
-cd ..
-goto :eof
+REM - do a cleanup -
+goto :clean;
 
 :test_64
-del /q *.exe *.dcu *.dll
+del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
@@ -180,20 +178,20 @@ if errorlevel 1 (
    echo Failure reason for running tests is %errorlevel%
    exit /b %errorlevel%
 )
-cd tests
-del /q *.exe *.dcu *.dll
-cd ..
-goto :eof
+REM - do a cleanup -
+goto :clean;
 
 :error
 echo Unknown target!
 echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean test test_32 test_64
 echo Default: slftp_64
-goto :eof
+goto :eof;
 
 REM
 REM Remove injected build rev from slftp.inc
 REM
+:eof
 if exist .git\ (
-    powershell "& {(Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '';\" | Set-Content .\slftp.inc }"
+  powershell "& {(Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '';\" | Set-Content .\slftp.inc }"
 )
+exit /B

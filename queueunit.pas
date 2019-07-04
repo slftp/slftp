@@ -1288,7 +1288,7 @@ begin
   while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run := Now();
-    Debug(dpSpam, section, 'Queue Iteration begin %d', [tasks.Count]);
+    Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
       queueth.main_lock.Enter();
       try
@@ -1519,7 +1519,7 @@ begin
         end;
       end;
 
-      Debug(dpSpam, section, 'Queue Iteration end %d', [tasks.Count]);
+      Debug(dpSpam, section, 'Queue Iteration end [%d tasks]', [tasks.Count]);
     except
       on e: Exception do
       begin

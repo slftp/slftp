@@ -99,6 +99,8 @@
     {+} Optimized code for release language detection (slftp.languagebase)
     {+} Support for rules-checking in !batch,!spread,!check,!pre cmds for groups
     {+} New rules tvlookupdone and imdblookupdone (#67)
+    {+} !rulecp can now copy rules to a differently named target section (#249)
+    {+} New rule tvrating analog to imdbrating (#228)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -126,6 +128,7 @@
     {#} Ignore PRE sections for duplicate kb race check, to be able to race own releases
     {#} !addtvinfo showed wrong results for some shows like 'The.New.Frontier' or 'The.Twilight.Zone' (#246)
     {#} Try to complete works again and also supports non-routable sites as sources
+    {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
