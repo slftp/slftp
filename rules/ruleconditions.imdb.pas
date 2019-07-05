@@ -18,6 +18,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionIMDBCurrentYear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionIMDBLanguages = class(TListCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: String; override;
@@ -84,6 +90,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionIMDBCurrentCineyear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
 implementation
 
 uses
@@ -100,7 +112,7 @@ function TConditionIMDBLookupDone.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).IsLookupDone;
   end;
@@ -122,7 +134,7 @@ function TConditionIMDBYear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_year;
   end;
@@ -138,12 +150,34 @@ begin
   Result := IMDBYearDescription;
 end;
 
+{ TConditionIMDBCurrentYear }
+
+function TConditionIMDBCurrentYear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if (r.rls is TIMDBRelease) then
+  begin
+    Result := (TIMDBRelease(r.rls).imdb_year = r.rls.CurrentYear);
+  end;
+end;
+
+class function TConditionIMDBCurrentYear.Name: String;
+begin
+  Result := 'imdbcurrentyear';
+end;
+
+class function TConditionIMDBCurrentYear.Description: String;
+begin
+  Result := IMDBCurrentYearDescription;
+end;
+
 { TConditionIMDBLanguages }
 
 procedure TConditionIMDBLanguages.SupplyValues(r: TPazo; re: TStringList);
 begin
   try
-    if r.rls is TIMDBRelease then
+    if (r.rls is TIMDBRelease) then
     begin
       re.Assign(TIMDBRelease(r.rls).imdb_languages);
     end;
@@ -171,7 +205,7 @@ end;
 procedure TConditionIMDBCountries.SupplyValues(r: TPazo; re: TStringList);
 begin
   try
-    if r.rls is TIMDBRelease then
+    if (r.rls is TIMDBRelease) then
     begin
       re.Assign(TIMDBRelease(r.rls).imdb_countries);
     end;
@@ -199,7 +233,7 @@ end;
 procedure TConditionIMDBGenres.SupplyValues(r: TPazo; re: TStringList);
 begin
   try
-    if r.rls is TIMDBRelease then
+    if (r.rls is TIMDBRelease) then
     begin
       re.Assign(TIMDBRelease(r.rls).imdb_genres);
     end;
@@ -228,7 +262,7 @@ function TConditionIMDBScreens.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_screens;
   end;
@@ -250,7 +284,7 @@ function TConditionIMDBRating.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_rating;
   end;
@@ -272,7 +306,7 @@ function TConditionIMDBVotes.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_votes;
   end;
@@ -294,7 +328,7 @@ function TConditionIMDBldt.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_ldt;
   end;
@@ -316,7 +350,7 @@ function TConditionIMDBWide.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_wide;
   end;
@@ -338,7 +372,7 @@ function TConditionIMDBFestival.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_festival;
   end;
@@ -360,7 +394,7 @@ function TConditionIMDBStv.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).imdb_stvm;
   end;
@@ -382,7 +416,7 @@ function TConditionIMDBCineyear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
 
-  if r.rls is TIMDBRelease then
+  if (r.rls is TIMDBRelease) then
   begin
     Result := TIMDBRelease(r.rls).CineYear;
   end;
@@ -396,6 +430,28 @@ end;
 class function TConditionIMDBCineyear.Description: String;
 begin
   Result := IMDBCineYearDescription;
+end;
+
+{ TConditionIMDBCurrentCineyear }
+
+function TConditionIMDBCurrentCineyear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if (r.rls is TIMDBRelease) then
+  begin
+    Result := (TIMDBRelease(r.rls).CineYear = r.rls.CurrentYear);
+  end;
+end;
+
+class function TConditionIMDBCurrentCineyear.Name: String;
+begin
+  Result := 'imdbcurrentcineyear';
+end;
+
+class function TConditionIMDBCurrentCineyear.Description: String;
+begin
+  Result := IMDBCurrentCineYearDescription;
 end;
 
 end.

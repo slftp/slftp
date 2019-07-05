@@ -18,6 +18,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionMP3CurrentYear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionMP3Language = class(TStringCondition)
     function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
@@ -122,6 +128,28 @@ end;
 class function TConditionMP3Year.Description: String;
 begin
   Result := MP3YearDescription;
+end;
+
+{ TConditionMP3CurrentYear }
+
+function TConditionMP3CurrentYear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if (r.rls is TMP3Release) then
+  begin
+    Result := (TMP3Release(r.rls).mp3year = r.rls.CurrentYear);
+  end;
+end;
+
+class function TConditionMP3CurrentYear.Name: String;
+begin
+  Result := 'mp3currentyear';
+end;
+
+class function TConditionMP3CurrentYear.Description: String;
+begin
+  Result := MP3CurrentYearDescription;
 end;
 
 { TConditionMP3Language }

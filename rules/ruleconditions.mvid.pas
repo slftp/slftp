@@ -24,6 +24,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionMVIDCurrentYear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionMVIDVA = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
     class function Name: String; override;
@@ -127,6 +133,28 @@ end;
 class function TConditionMVIDYear.Description: String;
 begin
   Result := MVIDYearDescription;
+end;
+
+{ TConditionMVIDCurrentYear }
+
+function TConditionMVIDCurrentYear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if (r.rls is TMVIDRelease) then
+  begin
+    Result := (TMVIDRelease(r.rls).mvid_year = r.rls.CurrentYear);
+  end;
+end;
+
+class function TConditionMVIDCurrentYear.Name: String;
+begin
+  Result := 'mvidcurrentyear';
+end;
+
+class function TConditionMVIDCurrentYear.Description: String;
+begin
+  Result := MVIDCurrentYearDescription;
 end;
 
 { TConditionMVIDVA }
