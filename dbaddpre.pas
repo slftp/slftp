@@ -497,7 +497,7 @@ begin
             fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
             fQuery.ParamByName('release').AsString := rls;
             fQuery.ParamByName('section').AsString := rls_section;
-            fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now());
+            fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now(), False);
             fQuery.ParamByName('source').AsString := Source;
             try
               fQuery.ExecSQL;
@@ -538,7 +538,7 @@ begin
 
           fQuery.ParamByName('release').AsString := rls;
           fQuery.ParamByName('section').AsString := rls_section;
-          fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now());
+          fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now(), False);
           try
             fQuery.ExecSQL;
           except
@@ -614,7 +614,7 @@ function dbaddpre_GetPreduration(const rlz_pretime: TDateTime): String;
 var
   preage: int64;
 begin
-  preage := DateTimeToUnix(Now) - DateTimeToUnix(rlz_pretime);
+  preage := DateTimeToUnix(Now()) - DateTimeToUnix(rlz_pretime);
   if preage >= 604800 then
     Result := Format('%2.2d Weeks %1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
       [preage div 604800, (preage div 86400) mod 7, (preage div 3600) mod
