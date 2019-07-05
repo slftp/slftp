@@ -51,6 +51,10 @@ const
 
   YearDescription: string = 'Returns with the year tag of the release name. Returns with zero if year tag is not present.';
 
+  CurrentYearDescription: string = 'Returns true, if the year tag of the release name equals the current year.' + #13#10
+    + 'Note: If no year is present, it will return false.' + #13#10
+    + 'Example: !ruleadd * X264-1080 ifnot currentyear then DROP' + #13#10;
+
   KnownGroupDescription: string = 'Returns true, if the groupname is known.' + #13#10
     + 'Note: If no known groups is set for a section in slftp.knowngroups, this condition wont match at all!' + #13#10
     + 'Example: !ruleadd * * ifnot knowngroup then DROP' + #13#10;

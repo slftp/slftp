@@ -103,6 +103,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionCurrentYear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionKnownGroup = class(TBooleanCondition)
     function SupplyValue(r: TPazo): boolean; override;
     class function Name: String; override;
@@ -622,6 +628,23 @@ end;
 class function TConditionYear.Description: String;
 begin
   Result := YearDescription;
+end;
+
+{ TConditionCurrentYear }
+
+function TConditionCurrentYear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := (r.rls.year = r.rls.CurrentYear);
+end;
+
+class function TConditionCurrentYear.Name: String;
+begin
+  Result := 'currentyear';
+end;
+
+class function TConditionCurrentYear.Description: String;
+begin
+  Result := CurrentYearDescription;
 end;
 
 { TConditionKnownGroup }

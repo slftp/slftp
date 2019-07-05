@@ -6,6 +6,8 @@ const
 
   MVIDYearDescription: string = 'Returns with the year of the MVID release date. Returns zero if NFO lookup is not yet ready.';
 
+  MVIDCurrentYearDescription: string = 'Returns true, if the year of the MVID release equals the current year.';
+
   MVIDVADescription: string = 'Returns true if release is Various Artists (VA). Returns false if NFO lookup is not yet ready.';
 
   MVIDPALDescription: string = 'Returns with the a boolean for PAL region. Returns false if NFO lookup is not yet ready.';

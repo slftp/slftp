@@ -2029,6 +2029,7 @@ begin
   conditions.Add(TConditionForeign);
   conditions.Add(TConditionLanguage);
   conditions.Add(TConditionYear);
+  conditions.Add(TConditionCurrentYear);
   conditions.Add(TConditionTag);
   conditions.Add(TConditionDisks);
   conditions.Add(TConditionKnownGroup);
@@ -2045,6 +2046,7 @@ begin
 
   conditions.Add(TConditionMP3Genre);
   conditions.Add(TConditionMP3Year);
+  conditions.Add(TConditionMP3CurrentYear);
   conditions.Add(TConditionMP3Language);
   conditions.Add(TConditionMP3Foreign);
   conditions.Add(TConditionMP3Source);
@@ -2078,6 +2080,7 @@ begin
 
   conditions.Add(TConditionIMDBLookupDone);
   conditions.Add(TConditionIMDBYear);
+  conditions.Add(TConditionIMDBCurrentYear);
   conditions.Add(TConditionIMDBLanguages);
   conditions.Add(TConditionIMDBCountries);
   conditions.Add(TConditionIMDBGenres);
@@ -2087,12 +2090,14 @@ begin
   conditions.Add(TConditionIMDBWide);
   conditions.Add(TConditionIMDBfestival);
   conditions.Add(TConditionIMDBldt);
-  conditions.Add(TConditionIMDBCineyear);
   conditions.Add(TConditionIMDBVotes);
+  conditions.Add(TConditionIMDBCineyear);
+  conditions.Add(TConditionIMDBCurrentCineyear);
 
   conditions.Add(TConditionMVIDGenre);
   conditions.Add(TConditionMVIDFiles);
   conditions.Add(TConditionMVIDYear);
+  conditions.Add(TConditionMVIDCurrentYear);
   conditions.Add(TConditionMVIDLanguage);
   conditions.Add(TConditionMVIDPAL);
   conditions.Add(TConditionMVIDNTSC);

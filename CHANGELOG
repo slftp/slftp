@@ -97,10 +97,11 @@
     {+} Wildcard support for !autoinvite (#247)
     {+} Make TV-releases skippable for iMDB lookups (#232)
     {+} Optimized code for release language detection (slftp.languagebase)
-    {+} Support for rules-checking in !batch,!spread,!check,!pre cmds for groups
+    {+} Support for rules-checking in !batch, !spread, !check, !pre cmds for groups
     {+} New rules tvlookupdone and imdblookupdone (#67)
     {+} !rulecp can now copy rules to a differently named target section (#249)
     {+} New rule tvrating analog to imdbrating (#228)
+    {+} New rules currentyear, imdbcurrentyear, imdbcurrentcineyear, mp3currentyear and mvidcurrentyear (#29)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omiting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
