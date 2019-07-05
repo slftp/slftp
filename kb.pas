@@ -54,6 +54,9 @@ type
   TKBEventType = (kbeUNKNOWN, kbePRE, kbeSPREAD, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
 
   TRelease = class
+  private
+    FCurrentYear: Integer; //< Value of the current year (e.g. 2019)
+  public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
     rlsname: String; //< releasename
@@ -102,6 +105,8 @@ type
     class function Name: String; virtual;// abstract;
     class function DefaultSections: String; virtual; abstract;
     class function SectionAccepted(const section: String): boolean;
+
+    property CurrentYear: Integer read FCurrentYear;
   end;
 
   T0DayRelease = class(TRelease)
@@ -1398,6 +1403,8 @@ begin
     end;
     if year < 1900 then
       year := 0;
+
+    FCurrentYear := StrToInt(FormatDateTime('yyyy', Now));
 
     disks := 1;
     for i := words.Count - 1 downto 0 do
