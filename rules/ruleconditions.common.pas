@@ -30,19 +30,6 @@ type
     class function Description: String; override;
   end;
 
-  (*
-    TConditionPretime = class(TIntCondition)
-      function SupplyValue(r: TPazo): Integer; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-    TConditionPretimeFound = class(TBooleanCondition)
-      function SupplyValue(r: TPazo): Boolean; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-  *)
-
   TConditionComplete = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: String; override;
@@ -274,42 +261,6 @@ class function TConditionAge.Description: String;
 begin
   Result := AgeDescription;
 end;
-
-(*
-{ TConditionPretime }
-
-function TConditionPretime.SupplyValue(r: TPazo): Integer;
-begin
-  Result := SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretime.Name: string;
-begin
-  Result := 'pretime';
-end;
-
-class function TConditionPretime.Description: string;
-begin
-  Result := PretimeDescription
-end;
-
-{ TConditionPretimeFound }
-
-function TConditionPretimeFound.SupplyValue(r: TPazo): Boolean;
-begin
-  Result := r.rls.pretimefound;// SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretimeFound.Name: string;
-begin
-  Result := 'pretimefound';
-end;
-
-class function TConditionPretimeFound.Description: string;
-begin
-  Result := PretimeFoundDescription;
-end;
-*)
 
 { TConditionComplete }
 

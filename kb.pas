@@ -77,12 +77,11 @@ type
     fake: boolean;
     fakereason: String;
 
-    pretime: TDateTime;
-    cpretime: int64;
-    PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
+    pretime: int64; //< UTC pretime for release
+    pretimefrom: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
 
     pretimefound: boolean;
-    pretimefrom: String;
+    PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     // for fake checking
     dots: integer; //< amount of dots ('.') in @link(rlsname)
@@ -732,7 +731,7 @@ begin
       if (event = kbePRE) then
       begin
         // no fakecheck needed, it's a pre from one of our sites
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
         irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
@@ -748,7 +747,7 @@ begin
       end
       else if (event = kbeSPREAD) then
       begin
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
       end
       else
       begin
@@ -809,7 +808,7 @@ begin
       end
       else
       begin
-        if (DateTimeToUnix(r.pretime) = 0) then
+        if (r.pretime = 0) then
         begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
@@ -867,10 +866,10 @@ begin
 
       if (event <> kbeSPREAD) and (TPretimeLookupMOde(taskpretime_mode) <> plmNone) then
       begin
-        if (DateTimeToUnix(r.pretime) = 0) then
+        if (r.pretime = 0) then
         begin
           r.SetPretime;
-          if (DateTimeToUnix(r.pretime) <> 0) then
+          if (r.pretime <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
@@ -926,7 +925,7 @@ begin
 
         if (TPretimeLookupMode(taskpretime_mode) <> plmNone) then
         begin
-          if (DateTimeToUnix(r.pretime) = 0) then
+          if (r.pretime = 0) then
           begin
             irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>', [section, rls, sitename]));
             exit;
@@ -1261,10 +1260,10 @@ begin
       Result := Result + '?';
     Result := Result + #13#10;
 
-    if (DateTimeToUnix(pretime) = 0) then
+    if (pretime = 0) then
       Result := Result + 'Pretime not found!' + #13#10
     else
-      Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', pretime)]) + #13#10;
+      Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(pretime, False))]) + #13#10;
 
     if disks <> 1 then
       Result := Result + Format('Disks: %d', [disks]) + #13#10;
@@ -1300,8 +1299,7 @@ begin
     if SavedPretime > -1 then
     begin
       try
-        self.pretime := UnixToDateTime(Savedpretime);
-        self.cpretime := SavedPretime;
+        self.pretime := SavedPretime;
       except
         on e: Exception do
           irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)', [rlsname, SavedPretime, e.Message]));
@@ -1450,8 +1448,7 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime := UnixToDateTime(TimeStamp);
-    cpretime := TimeStamp;
+    pretime := TimeStamp;
     pretimefrom := 'Parameter';
   end
   else
@@ -1459,7 +1456,6 @@ begin
     resu := getPretime(rlsname);
     pretime := resu.pretime;
     pretimefrom := resu.mode;
-    cpretime := datetimetounix(pretime);
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
@@ -2403,7 +2399,7 @@ function GetKbPazo(p: TPazo): String;
 begin
   Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ShowExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
-    IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + KBEventTypeToString(p.rls.kb_event);
+    IntToStr(p.rls.pretime) + #9 + KBEventTypeToString(p.rls.kb_event);
 end;
 
 procedure AddKbPazo(const line: String);

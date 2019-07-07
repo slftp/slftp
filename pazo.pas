@@ -1188,7 +1188,7 @@ begin
       begin
         if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
         begin
-          if not (DateTimeToUnix(rls.pretime) <> 0) then
+          if not (rls.pretime <> 0) then
             Continue;
 
           if not (s.IsPretimeOk(rls.section, rls.pretime)) then

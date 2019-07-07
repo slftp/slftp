@@ -2017,8 +2017,6 @@ begin
   conditions.Add(TConditionSection);
   conditions.Add(TConditionInternal);
   conditions.Add(TConditionAge);
-  //  conditions.Add(TConditionPretime);
-  //  conditions.Add(TConditionPretimeFound);
   conditions.Add(TConditionComplete);
   conditions.Add(TConditionNotComplete);
   conditions.Add(TConditionPre);

@@ -21,20 +21,6 @@ type
       function Name: String; override;
   end;
 
-  TSLOffset = class
-    private
-      fNewtime, fOldtime: int64;
-      fvalue: String;
-    public
-      constructor Create;
-      function ReCalcTimeStamp(const oldtime: int64): boolean;
-      property NewTimeStamp: int64 read fNewtime;
-      property OldTimeStamp: int64 read fOldtime;
-  end;
-
-function PrepareTimestamp(const TimeStamp: int64): int64; overload;
-function PrepareTimestamp(const DateTime: TDateTime): TDateTime; overload;
-
 implementation
 
 uses
@@ -144,9 +130,8 @@ begin
       begin
         if prex.Exec(response.strings[i]) then
         begin
-          vctime := PrepareTimestamp(StrToInt(prex.Match[2]));
-          mainpazo.rls.cpretime := vctime;
-          mainpazo.rls.pretime := UnixToDateTime(vctime);
+          vctime := StrToInt(prex.Match[2]);
+          mainpazo.rls.pretime := vctime;
           Result := True;
         end;
       end;
@@ -172,73 +157,6 @@ begin
   except
     Result := '.:PRETIME:.';
   end;
-end;
-
-function PrepareTimestamp(const DateTime: TDateTime): TDateTime;
-begin
-  result := UnixToDateTime(PrepareTimestamp(DateTimeToUnix(DateTime)));
-end;
-
-function PrepareTimestamp(const TimeStamp: int64): int64;
-var
-  vof: TSLOffset;
-begin
-  Result := TimeStamp;
-
-  vof := TSLOffset.Create;
-  try
-    try
-      if vof.ReCalcTimeStamp(TimeStamp) then
-        Result := vof.NewTimeStamp
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, format('[EXCEPTION] PrepareTimestamp: %s', [E.Message]));
-      end;
-    end;
-  finally
-    vof.Free;
-  end;
-end;
-
-constructor TSLOffset.Create;
-begin
-  fvalue := config.ReadString(section, 'offset', '0');
-end;
-
-function TSLOffset.ReCalcTimeStamp(const oldtime: int64): boolean;
-var
-  r: TRegexpr;
-  vval: int64;
-begin
-  Result := False;
-
-  fNewtime := fOldtime;
-  if fvalue = '0' then
-    exit;
-
-  r := TRegexpr.Create;
-  try
-    r.Expression := '^(\+|\-)([\d]+)$';
-
-    if r.Exec(fvalue) then
-    begin
-      vval := StrToInt(r.Match[2]);
-      vval := vval * 3600;
-      fNewtime := 0;
-      fOldtime := oldtime;
-
-      if r.Match[1] = '+' then
-        fNewtime := fOldtime + vval;
-      if r.Match[1] = '-' then
-        fNewtime := fOldtime - vval;
-    end;
-
-  finally
-    r.Free;
-  end;
-
-  Result := True;
 end;
 
 end.
