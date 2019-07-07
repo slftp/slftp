@@ -2,12 +2,13 @@ unit dbaddpre;
 
 interface
 
-uses Classes, IniFiles, irc, kb;
+uses
+  Classes, kb;
 
 type
   TPretimeResult = record
-    pretime: TDateTime;
-    mode: String;
+    pretime: Int64; //< UTC pretime
+    mode: String; //< method from @link(TPretimeLookupMode) which was used to get pretime
   end;
 
   {
@@ -18,25 +19,25 @@ type
   }
   TPretimeLookupMode = (plmNone, plmHTTP, plmMYSQL, plmSQLITE);
   {
-  @value(apmMem uses a run-time filled list of pretimes)
+  @value(apmMemory uses a run-time filled list of pretimes)
   @value(apmSQLITE SQLite database)
   @value(apmMYSQL MySQL/MariaDB)
   @value(apmNone no saving and no lookup)
   }
-  TAddPreMode = (apmMem, apmSQLITE, apmMYSQL, apmNone);
+  TAddPreMode = (apmMemory, apmSQLITE, apmMYSQL, apmNone);
 
   TDbAddPre = class
     rls: String;
-    pretime: TDateTime;
-    constructor Create(const rls: String; const pretime: TDateTime);
+    pretime: Int64;
+    constructor Create(const rls: String; const pretime: Int64);
     destructor Destroy; override;
   end;
 
 function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
-function dbaddpre_GetRlz(const rls: String): TDateTime;
+function dbaddpre_GetRlz(const rls: String): Int64;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
 function dbaddpre_GetCount: integer;
-function dbaddpre_GetPreduration(const rlz_pretime: TDateTime): String;
+function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 function dbaddpre_Status: String;
 
 function dbaddpre_Process(const net, chan, nick: String; msg: String): boolean;
@@ -47,13 +48,19 @@ procedure dbaddpreUnInit;
 
 function getPretime(const rlz: String): TPretimeResult;
 
-function ReadPretimeOverHTTP(const rls: String): TDateTime;
-function ReadPretimeOverMYSQL(const rls: String): TDateTime;
-function ReadPretimeOverSQLITE(const rls: String): TDateTime;
+function ReadPretimeOverHTTP(const rls: String): Int64;
+function ReadPretimeOverMYSQL(const rls: String): Int64;
+function ReadPretimeOverSQLITE(const rls: String): Int64;
 
 function GetPretimeMode: TPretimeLookupMode;
-function pretimeModeToString(mode: TPretimeLookupMode): String;
-function addPreModeToString(mode: TAddPreMode): String;
+{ Convert Pretime Lookup Mode to String
+  @param(aPretimeLookupMode Pretime mode from @link(TPretimeLookupMode))
+  @returns(Pretime mode as String without prefix) }
+function pretimeModeToString(aPretimeLookupMode: TPretimeLookupMode): String;
+{ Convert Addpre Mode to String
+  @param(aAddPreMode Addpre mode from @link(TAddPreMode))
+  @returns(Addpre mode as String without prefix) }
+function addPreModeToString(aAddPreMode: TAddPreMode): String;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 procedure setPretimeMode_Two(mode: TPretimeLookupMode);
@@ -65,8 +72,8 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, configunit, mystrings, console, sitesunit, regexpr,
-  debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
+  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, regexpr, IniFiles,
+  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
 
 const
   section = 'dbaddpre';
@@ -107,33 +114,19 @@ begin
   Result := dbaddpre_plm1;
 end;
 
-function pretimeModeToString(mode: TPretimeLookupMode): String;
+function pretimeModeToString(aPretimeLookupMode: TPretimeLookupMode): String;
 begin
-  Result := 'None';
-
-  case mode of
-    plmNone: Result := 'None';
-    plmHTTP: Result := 'HTTP';
-    plmMYSQL: Result := 'MYSQL';
-    plmSQLITE: Result := 'SQLite';
-  end;
+  Result := ReplaceText(TEnum<TPretimeLookupMode>.ToString(aPretimeLookupMode), 'plm', '');
 end;
 
-function addPreModeToString(mode: TAddPreMode): String;
+function addPreModeToString(aAddPreMode: TAddPreMode): String;
 begin
-  Result := 'Memory';
-
-  case mode of
-    apmMem: Result := 'Memory';
-    apmSQLITE: Result := 'SQLITE';
-    apmMYSQL: Result := 'MYSQL';
-    apmNone: Result := 'Skip';
-  end;
+  Result := ReplaceText(TEnum<TAddPreMode>.ToString(aAddPreMode), 'apm', '');
 end;
 
 { TDbAddPre }
 
-constructor TDbAddPre.Create(const rls: String; const pretime: TDateTime);
+constructor TDbAddPre.Create(const rls: String; const pretime: Int64);
 begin
   self.rls := rls;
   self.pretime := pretime;
@@ -149,7 +142,7 @@ begin
   Result := config.readString(section, 'url', '');
 end;
 
-function ReadPretimeOverHTTP(const rls: String): TDateTime;
+function ReadPretimeOverHTTP(const rls: String): Int64;
 var
   response: TStringList;
   prex: TRegexpr;
@@ -159,7 +152,7 @@ var
   fHttpGetErrMsg: String;
   fStrHelper: String;
 begin
-  Result := UnixToDateTime(0);
+  Result := 0;
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
@@ -194,28 +187,27 @@ begin
       if read_count > 500 then
       begin
         irc_addtext('CONSOLE', 'ADMIN', 'Read count higher then 500');
-        Result := UnixToDateTime(0);
+        Result := 0;
         break;
       end;
       if prex.Exec(response.strings[i]) then
       begin
         Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response.DelimitedText]);
 
-        if (StrToIntDef(prex.Match[2], 0) <> 0) and
-          (StrToIntDef(prex.Match[2], 0) <> 1295645417) then
+        if (StrToIntDef(prex.Match[2], 0) <> 0) then
         begin
-          Result := UnixToDateTime(StrToIntDef(prex.Match[2], 0));
-          if ((DaysBetween(Now(), Result) > 30) and
+          Result := StrToIntDef(prex.Match[2], 0);
+          if ((DaysBetween(Now(), UnixToDateTime(Result, False)) > 30) and
             config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
           begin
             //        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
-            Result := UnixToDateTime(0);
+            Result := 0;
           end;
         end
         else
         begin
           //      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
-          Result := UnixToDateTime(0);
+          Result := 0;
         end;
       end;
     end;
@@ -225,11 +217,11 @@ begin
   end;
 end;
 
-function ReadPretimeOverSQLITE(const rls: String): TDateTime;
+function ReadPretimeOverSQLITE(const rls: String): Int64;
 var
   fQuery: TQuery;
 begin
-  Result := UnixToDateTime(0);
+  Result := 0;
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
@@ -242,7 +234,7 @@ begin
       try
         fQuery.Open;
         if not fQuery.IsEmpty then
-          Result := UnixToDateTime(fQuery.FieldByName('ts').AsInt64);
+          Result := fQuery.FieldByName('ts').AsInt64;
       except
         on e: Exception do
         begin
@@ -258,12 +250,12 @@ begin
   end;
 end;
 
-function ReadPretimeOverMYSQL(const rls: String): TDateTime;
+function ReadPretimeOverMYSQL(const rls: String): Int64;
 var
   fQuery: TQuery;
   fTimeField, fTableName, fReleaseField: String;
 begin
-  Result := UnixToDateTime(0);
+  Result := 0;
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
@@ -278,7 +270,7 @@ begin
     try
       fQuery.Open;
       if not fQuery.IsEmpty then
-        Result := UnixToDateTime(fQuery.FieldByName(fTimeField).AsInt64);
+        Result := fQuery.FieldByName(fTimeField).AsInt64;
     except
       on e: Exception do
       begin
@@ -293,8 +285,8 @@ end;
 
 function getPretime(const rlz: String): TPretimeResult;
 begin
-  Result.pretime := UnixToDateTime(0);
-  Result.mode := 'None';
+  Result.pretime := 0;
+  Result.mode := pretimeModeToString(plmNone);
   if rlz = '' then
     irc_adderror('GETPRETIME --> No RLZ value!');
 
@@ -307,14 +299,13 @@ begin
     begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d',
         [config.ReadInteger('taskpretime', 'mode', 0)]);
-      Result.pretime := UnixToDateTime(0);
+      Result.pretime := 0;
     end;
   end;
 
-  if (result.pretime <> UnixToDateTime(0)) then
+  if (Result.pretime > 0) then
   begin
     Result.mode := pretimeModeToString(dbaddpre_plm1);
-    Result.pretime := PrepareTimestamp(Result.pretime);
     exit;
   end;
 
@@ -327,15 +318,14 @@ begin
     begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode_2 : %d',
         [config.ReadInteger('taskpretime', 'mode_2', 0)]);
-      Result.pretime := UnixToDateTime(0);
+      Result.pretime := 0;
     end;
   end;
-  if datetimetounix(Result.pretime) > 0 then
+
+  if Result.pretime > 0 then
   begin
     Result.mode := pretimeModeToString(dbaddpre_plm2);
-    Result.pretime := PrepareTimestamp(Result.pretime);
   end;
-
 end;
 
 function kb_Add_addpre(const rls, section: String; event: TKBEventType): integer;
@@ -399,15 +389,15 @@ begin
   Result := True;
 end;
 
-function dbaddpre_GetRlz(const rls: String): TDateTime;
+function dbaddpre_GetRlz(const rls: String): Int64;
 var
   i: integer;
   addpredata: TDbAddPre;
 begin
-  Result := UnixToDateTime(0);
+  Result := 0;
 
   case dbaddpre_mode of
-    apmMem:
+    apmMemory:
       begin
         try
           last_addpre_lock.Enter;
@@ -415,7 +405,7 @@ begin
             i := last_addpre.IndexOf(rls);
             if i = -1 then
             begin
-              Result := UnixToDateTime(0);
+              Result := 0;
               exit;
             end;
             addpredata := TDbAddPre(last_addpre.Objects[i]);
@@ -428,7 +418,7 @@ begin
           on e: Exception do
           begin
             Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
-            Result := UnixToDateTime(0);
+            Result := 0;
             exit;
           end;
         end;
@@ -447,7 +437,7 @@ end;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
 var
   i: integer;
-  pretime: TDateTime;
+  pretime: Int64;
   addpredata: TDbAddPre;
   fQuery: TQuery;
   fTableName, fReleaseField, fSectionField, fTimeField, fSourceField: String;
@@ -455,16 +445,16 @@ begin
   Result := False;
 
   pretime := dbaddpre_GetRlz(rls);
-  if pretime <> UnixToDateTime(0) then
+  if pretime <> 0 then
     exit;
 
   case dbaddpre_mode of
-    apmMem:
+    apmMemory:
       begin
         try
           last_addpre_lock.Enter;
           try
-            addpredata := TDbAddPre.Create(rls, Now());
+            addpredata := TDbAddPre.Create(rls, DateTimeToUnix(Now(), False));
             last_addpre.AddObject(rls, addpredata);
 
             i := last_addpre.Count;
@@ -565,7 +555,7 @@ var
 begin
   Result := 0;
   case dbaddpre_mode of
-    apmMem:
+    apmMemory:
       begin
         Result := last_addpre.Count;
       end;
@@ -610,11 +600,11 @@ begin
   end;
 end;
 
-function dbaddpre_GetPreduration(const rlz_pretime: TDateTime): String;
+function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 var
   preage: int64;
 begin
-  preage := DateTimeToUnix(Now()) - DateTimeToUnix(rlz_pretime);
+  preage := DateTimeToUnix(Now(), False) - rlz_pretime;
   if preage >= 604800 then
     Result := Format('%2.2d Weeks %1.1d Days %2.2d Hour %2.2d Min %2.2d Sec',
       [preage div 604800, (preage div 86400) mod 7, (preage div 3600) mod
