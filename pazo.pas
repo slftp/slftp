@@ -516,12 +516,6 @@ begin
       if dstdl = nil then Continue;
       if dstdl.error then Continue;
 
-      // we are in a subdir and the dir has not been mkdir'ed
-      if (dir <> '') then
-      begin
-        if ((dstdl.parent <> nil) and (dstdl.parent.dirlist.need_mkdir)) then Continue;
-      end;
-
       // find the dirlist entry
       try
         dde := dstdl.Find(de.filename);
