@@ -13,12 +13,6 @@ const
     + 'It expects the parameter in seconds.' + #13#10
     + 'Example: if age > 86400 then DROP' + #13#10;
 
-  PretimeDescription: string = 'This is useful for anyone who needs to abide by certain pretime rules on a site. It expects the parameter in seconds.' + #13#10
-    + 'Example: if pretime > 86400 && not pretimenotfound then DROP' + #13#10;
-
-  PretimeFoundDescription: string = 'This is useful for anyone who needs to abide by certain pretime rules on a site. It expects the parameter as boolean.' + #13#10
-    + 'Example: if pretime > 86400 && not pretimefound then DROP' + #13#10;
-
   CompleteDescription: string = 'Returns with the list of the sites, where the release is complete.' + #13#10
     + 'Example: if complete @ SITENAME && source != SITENAME then DROP' + #13#10;
 

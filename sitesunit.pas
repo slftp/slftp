@@ -364,7 +364,7 @@ type
     function IsLeecher(user: String): boolean;
     function IsTrader(user: String): boolean;
 
-    function IsPretimeOk(const section: String; rlz_pretime: TDateTime): boolean;
+    function IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
@@ -2636,7 +2636,7 @@ begin
   end;
 end;
 
-function TSite.IsPretimeOk(const section: String; rlz_pretime: TDateTime): boolean;
+function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
 var
   sec_pretime: integer;
 begin
@@ -2654,7 +2654,7 @@ begin
     sec_pretime := sectionpretime[section];
   end;
 
-  if (SecondsBetween(Now(), rlz_pretime) < sec_pretime) then
+  if ((DateTimeToUnix(Now(), False) - rlz_pretime) < sec_pretime) then
   begin
     Result := True;
   end
