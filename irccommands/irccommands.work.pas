@@ -6,7 +6,6 @@ interface
 function IrcDirlist(const netname, channel, params: String): boolean;
 function IrcAutoDirlist(const netname, channel, params: String): boolean;
 function IrcLatest(const netname, channel, params: String): boolean;
-function IrcLame(const netname, channel, params: String): boolean;
 function IrcSpread(const netname, channel, params: String): boolean; overload;
 function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 function IrcTransfer(const netname, channel, params: String): boolean;
@@ -22,7 +21,7 @@ implementation
 
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
-  kb, rulesunit, mystrings, debugunit, tasklame, queueunit, notify, irc, taskrace, statsunit, nuke,
+  kb, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
   globalskipunit, configunit, mainthread, regexpr, taskraw, sltcp;
 
 const
@@ -220,170 +219,6 @@ begin
   end;
 
   Result := True;
-end;
-
-function IrcLame(const netname, channel, params: String): boolean;
-var
-  s: TSite;
-  i: integer;
-  sitename, section, predir, dir: String;
-  d: TDirlist;
-  de: TDirListEntry;
-  added: boolean;
-  l: TLameTask;
-  tn: TTaskNotify;
-  addednumber: integer;
-  sr: TSiteResponse;
-  genre: String;
-  genremode: boolean;
-  pazo_id: integer;
-  p: TPazo;
-begin
-  Result := False;
-
-  sitename := UpperCase(SubString(params, ' ', 1));
-  section := UpperCase(SubString(params, ' ', 2));
-  genre := '';
-
-  //really needed?
-  queue_lock.Enter;
-  try
-    s := FindSiteByName(netname, sitename);
-    if s = nil then
-    begin
-      irc_addtext(netname, channel, 'Site <b>%s</b> not found.', [sitename]);
-      exit;
-    end;
-
-    predir := s.sectiondir[section];
-
-    dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
-    if ((dir = '') and (predir = '')) then
-    begin
-      section := 'PRE';
-      predir := s.sectiondir[section];
-      dir := mystrings.RightStr(params, length(sitename) + 1);
-    end;
-
-    genremode := 'genre' = SubString(dir, ' ', 2);
-    dir := SubString(dir, ' ', 1);
-
-    if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
-    begin
-      irc_addText(netname, channel, 'Syntax error.');
-      exit;
-    end;
-
-    if (predir = '') then
-    begin
-      irc_addtext(netname, channel, 'Site <b>%s</b> has no predir set.', [sitename]);
-      exit;
-    end;
-
-    p := nil;
-    pazo_id := kb_add(netname, channel, sitename, section, genre, kbeNEWDIR, dir, '', True);
-    if pazo_id <> -1 then
-      p := FindPazoById(pazo_id);
-
-  //really needed?
-  finally
-    queue_lock.Leave;
-  end;
-
-  d := DirlistB(netname, channel, sitename, MyIncludeTrailingSlash(predir) + dir);
-  try
-    if d <> nil then
-    begin
-      added := False;
-      addednumber := 0;
-      queue_lock.Enter;
-      d.dirlist_lock.Enter;
-      try
-        tn := AddNotify;
-        for i := 0 to d.entries.Count - 1 do
-        begin
-          de := TDirListEntry(d.entries[i]);
-          if ((not de.directory) and (de.Extension = '.mp3')) then
-          begin
-            if p <> nil then
-              p.PRegisterFile('', de.filename, de.filesize);
-
-            added := True;
-            Inc(addednumber);
-            if ((not genremode) or (addednumber = 1)) then
-            begin
-              l := TLameTask.Create(netname, channel, sitename, MyIncludeTrailingSlash(predir) + dir, de.filename, de.filesize, genremode);
-              l.announce := de.filename + ' lame ready';
-              tn.tasks.Add(l);
-              AddTask(l);
-            end;
-
-          end;
-        end;
-        //d.Free;
-        QueueFire;
-      finally
-        d.dirlist_lock.Leave;
-        queue_lock.Leave;
-      end;
-
-      if added then
-      begin
-        tn.event.WaitFor($FFFFFFFF);
-
-        queue_lock.Enter;
-        try
-          if ((tn.responses.Count = addednumber) or (genremode)) then
-          begin
-            for i := 0 to tn.responses.Count - 1 do
-            begin
-              sr := TSiteResponse(tn.responses[i]);
-              if not genremode then
-              begin
-                if ((1 <> Pos('LAME3.97.0 vbr mtrh V2 Joint 32 18.6 4 1 0 0 / ID3v1.1', sr.response)) or (0 = Pos('/ ID3v2', sr.response))) then
-                begin
-                  irc_addtext(netname, channel, 'ERROR: <c4>%s</c>', [sr.response]);
-                  added := False;
-                end;
-              end;
-              genre := Copy(SubString(sr.response, ' / ', 2), 9, 1000);
-            end;
-
-            if added then
-            begin
-              {
-              genres.Values[dir] := genre;
-              fajldb.Values[dir] := IntToStr(osszesfajl);
-              fajlmeret.Values[dir] := IntToStr(osszesmeret);
-              }
-
-              p.rls.Aktualizald(genre);
-
-              if not genremode then
-                irc_addtext(netname, channel, 'LAME and ID3v1.1 are perfect in %d files, genre is %s.', [addednumber, genre]);
-              Result := True;
-            end;
-          end
-          else
-          begin
-            irc_addtext(netname, channel, 'ERROR: %s', ['<c4>different number of responses...</c>']);
-          end;
-
-          RemoveTN(tn);
-        finally
-          queue_lock.Leave;
-        end;
-      end
-      else
-        irc_addtext(netname, channel, 'ERROR: %s', ['<c4>No mp3 files found.</c>']);
-    end
-    else
-      irc_addtext(netname, channel, 'ERROR: %s', ['<c4>couldnt dirlist...</c>']);
-
-  finally
-    d.Free;
-  end;
-
 end;
 
 function IrcSpread(const netname, channel, params: String): boolean; overload;
