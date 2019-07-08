@@ -1938,7 +1938,8 @@ begin
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
 
-      // trigger to get the updated data from database
+      // triggers SetTVDbRelease inside the task to get the updated data set to TTVRelease
+      // TODO: the complete behavior should really be overhauled!
       CreateTVLookupTask;
     end
     else
