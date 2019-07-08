@@ -1778,11 +1778,12 @@ begin
             if i < 0 then Break;
             try
               de := TDirlistEntry(dirlist.entries[i]);
-              if (de.racedbyme and de.Useful) then inc(sum, de.filesize);
+              if (de.racedbyme and de.Useful) then
+                Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d (sum: %d)',
-                [i, fsname, de.filename, de.filesize, sum]));
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s useful %s (sum: %d)',
+                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.Useful, True), sum]));
             except
               on E: Exception do
               begin
