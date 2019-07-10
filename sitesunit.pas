@@ -139,17 +139,16 @@ type
     function Cwd(dir: String; force: boolean = False): boolean;
     function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
     function Leechfile(dest: TStream; const filename: String; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
-    //    function DirlistD(dir: string; forcecwd: Boolean=False; use_custom_cmd:Boolean = False; fulldirlist: Boolean= False): Boolean;
-{ Remove file from directory on ftp. Do not force CWD into the directory, only if required by legacydirlist
-  @param(dir directory in which the file is located that needs to be deleted)
-  @param(filename name of the file that is supposed to be deleted)
-  @returns(@true if file could be removed, @false otherwise) }
+    { Remove file from directory on ftp. Do not force CWD into the directory, only if required by legacydirlist
+      @param(dir directory in which the file is located that needs to be deleted)
+      @param(filename name of the file that is supposed to be deleted)
+      @returns(@true if file could be removed, @false otherwise) }
     function RemoveFile(const dir, filename: String): boolean; overload;
-{ Remove file from directory on ftp. Force change of working directory to dir if required.
-  @param(dir directory in which the file is located that needs to be deleted)
-  @param(filename name of the file that is supposed to be deleted)
-  @param(forcecwd if @true CWD to dir before deleting the file)
-  @returns(@true if file could be removed, @false otherwise) }
+    { Remove file from directory on ftp. Force change of working directory to dir if required.
+      @param(dir directory in which the file is located that needs to be deleted)
+      @param(filename name of the file that is supposed to be deleted)
+      @param(forcecwd if @true CWD to dir before deleting the file)
+      @returns(@true if file could be removed, @false otherwise) }
     function RemoveFile(const dir, filename: String; const forcecwd: boolean): boolean; overload;
     function RemoveDir(dir: String): boolean;
     function SendProtP: boolean;
@@ -206,8 +205,10 @@ type
     procedure SetConnect_timeout(const Value: integer);
     function Getsslmethod: TSSLMethods;
     procedure Setsslmethod(const Value: TSSLMethods);
-    function Getsslfxp: TSSLReq; //< function for @link(sslfxp) property to read sslfxp from inifile (default value: @link(TSSLReq.srNone))
-    procedure Setsslfxp(const Value: TSSLReq); //< procedure for @link(sslfxp) property to write sslfxp to inifile
+    { function for @link(sslfxp) property to read sslfxp from inifile (default value: @link(TSSLReq.srNone)) }
+    function Getsslfxp: TSSLReq;
+    { procedure for @link(sslfxp) property to write sslfxp to inifile }
+    procedure Setsslfxp(const Value: TSSLReq);
     function Getlegacydirlist: boolean;
     procedure Setlegacydirlist(const Value: boolean);
     function GetSectionDir(const Name: String): String;
@@ -216,8 +217,9 @@ type
     procedure SetSectionPrecmd(Name: String; const Value: String);
     function GetAffils: String;
     procedure SetAffils(Value: String);
-    function GetSectionPreTime(Name: String): integer;
-    procedure SetSectionPreTime(Name: String; const Value: integer);
+    function GetSectionPreTime(const Name: String): integer;
+    procedure SetSectionPreTime(const Name: String; const Value: integer);
+
     function GetSections: String;
     procedure SettSections(Value: String);
     function GetLeechers: String;
@@ -236,14 +238,22 @@ type
     procedure SetNumUp(const Value: integer);
     procedure SetFreeSlots(const Value: integer);
 
-    function GetProxyName: String; //< function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!)
-    procedure SetProxyName(const Value: String); //< procedure for @link(ProxyName) property to write proxyname to inifile
-    function GetSiteUsername: String; //< function for @link(UserName) property to read username from inifile (default value: anonymous_slFtp)
-    procedure SetSiteUsername(const Value: String); //< procedure for @link(UserName) property to write username to inifile
-    function GetSitePassword: String; //< function for @link(PassWord) property to read password from inifile (default value: CR4P_P4$$W0RD)
-    procedure SetSitePassword(const Value: String); //< procedure for @link(PassWord) property to write password to inifile
-    function GetSiteCountry: String; //< function for @link(Country) property to read country from inifile (default value: ??)
-    procedure SetSiteCountry(const Value: String); //< procedure for @link(Country) property to write country to inifile
+    { function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!) }
+    function GetProxyName: String;
+    { procedure for @link(ProxyName) property to write proxyname to inifile }
+    procedure SetProxyName(const Value: String);
+    { function for @link(UserName) property to read username from inifile (default value: anonymous_slFtp) }
+    function GetSiteUsername: String;
+    { procedure for @link(UserName) property to write username to inifile }
+    procedure SetSiteUsername(const Value: String);
+    { function for @link(PassWord) property to read password from inifile (default value: CR4P_P4$$W0RD) }
+    function GetSitePassword: String;
+    { procedure for @link(PassWord) property to write password to inifile }
+    procedure SetSitePassword(const Value: String);
+    { function for @link(Country) property to read country from inifile (default value: ??) }
+    function GetSiteCountry: String;
+    { procedure for @link(Country) property to write country to inifile }
+    procedure SetSiteCountry(const Value: String);
 
     function GetSiteMaxUpPerRip: integer;
     procedure SetSiteMaxUpPerRip(const Value: integer);
@@ -275,10 +285,14 @@ type
     function GetSkipBeingUploadedFiles: boolean;
     procedure SetSkipBeingUploadedFiles(Value: boolean);
 
-    function GetIRCNick: String; //< function for @link(IRCNick) property to read ircnick from inifile
-    procedure SetIRCNick(const Value: String); //< procedure for @link(IRCNick) property to write ircnick to inifile
-    function GetSiteInfos: String; //< function for @link(SiteInfos) property to read siteinfos from inifile
-    procedure SetSiteInfos(const Value: String); //< procedure for @link(SiteInfos) property to write siteinfos to inifile
+    { function for @link(IRCNick) property to read ircnick from inifile }
+    function GetIRCNick: String;
+    { procedure for @link(IRCNick) property to write ircnick to inifile }
+    procedure SetIRCNick(const Value: String);
+    { function for @link(SiteInfos) property to read siteinfos from inifile }
+    function GetSiteInfos: String;
+    { procedure for @link(SiteInfos) property to write siteinfos to inifile }
+    procedure SetSiteInfos(const Value: String);
 
     function GetLastKnownCredits: int64;
     procedure SetLastKnownCredits(const Value: int64);
@@ -288,8 +302,10 @@ type
 
     function GetIsUp: Boolean;
 
-    function GetAutoRulesStatus: integer; //< function for @link(AutoRulesStatus) property to read autorules from inifile (default value: 0 -> disabled)
-    procedure SetAutoRulesStatus(const Value: integer); //< procedure for @link(AutoRulesStatus) property to write autorules to inifile
+    { function for @link(AutoRulesStatus) property to read autorules from inifile (default value: 0 -> disabled) }
+    function GetAutoRulesStatus: integer;
+    { procedure for @link(AutoRulesStatus) property to write autorules to inifile }
+    procedure SetAutoRulesStatus(const Value: integer);
 
     function GetSetDownOnOutOfSpace: boolean;
     procedure SetSetDownOnOutOfSpace(const Value: boolean);
@@ -341,8 +357,10 @@ type
     procedure RecalcFreeslots;
     procedure FullLogin;
 
-    function GetSw: TSiteSw; //< function for @link(sw) property to read Site Software from inifile
-    procedure SetSw(const Value: TSiteSw); //< procedure for @link(sw) property to write Site Software to inifile
+    { function for @link(sw) property to read Site Software from inifile }
+    function GetSw: TSiteSw;
+    { procedure for @link(sw) property to write Site Software to inifile }
+    procedure SetSw(const Value: TSiteSw);
 
     function GetRank(const section: String): integer;
     procedure SetRank(const section: String; Value: integer);
@@ -357,8 +375,6 @@ type
     function IsSection(const section: String): boolean;
     function IsAffil(const aAffil: String): boolean;
     function AddAffil(const affil: String): boolean;
-    // TODO function DelAffil(affil: string): Boolean;
-//    function SetAffils(affils: String): String;
     function SetAffilsALL(affils: String): String;
     function IsUser(user: String): boolean;
     function IsLeecher(user: String): boolean;
@@ -377,7 +393,7 @@ type
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
-    property sectionpretime[Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
+    property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
     property freeslots: integer read fFreeslots write SetFreeSlots;
@@ -435,7 +451,7 @@ procedure SlotsFire;
 procedure SiteAutoStart;
 
 { Iterates through @link(sites) and compares the entries with given aSitename.
-  @param(aNetname network name)
+  @param(aNetname network name, use '' or 'CONSOLE' to bypass check)
   @param(aSitename sitename which is used for searching site in @link(sites))
   @returns(@link(TSite) class of site if found and property @link(TSite.noannounce) is not @true, @nil otherwise) }
 function FindSiteByName(const aNetname, aSitename: String): TSite;
@@ -2619,12 +2635,12 @@ begin
   WCString('affils', Value);
 end;
 
-function TSite.GetSectionPreTime(Name: String): integer;
+function TSite.GetSectionPreTime(const Name: String): integer;
 begin
   Result := RCInteger('pretime-' + Name, -1);
 end;
 
-procedure TSite.SetSectionPreTime(Name: String; const Value: integer);
+procedure TSite.SetSectionPreTime(const Name: String; const Value: integer);
 begin
   if Value <> -10 then
   begin
