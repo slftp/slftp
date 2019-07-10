@@ -49,9 +49,7 @@ type
     Name: String;
     maindir: String;
     pazo: TPazo;
-    //sources: TObjectList;
-    destinations: TObjectList;
-    destinationRanks: TList<integer>;
+    destinations: TObjectDictionary<TPazoSite, integer>; //< key = destination site, value = rank
     dirlist: TDirList;
 
     delay_leech: integer; //< value of delay for leeching from site in seconds
@@ -87,7 +85,9 @@ type
     function Complete: boolean;
 
     function Age: integer;
+    { Create formatted output string for !kbshow }
     function AsText: String;
+    { Create formatted output string for [ROUTES] announce }
     function RoutesText: String;
     function DirlistGaveUpAndSentNoFiles: Boolean;
     procedure DelaySetup;
@@ -168,7 +168,9 @@ type
     procedure Clear;
     function StatusText: String;
     function Age: integer;
+    { Output TPazo info and infos from @link(TPazo.sites) for !kbshow }
     function AsText: String;
+    { headline for [ROUTES] announce and print infos for every TPazoSite }
     function RoutesText: String;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     function FullStats: String;
@@ -437,8 +439,9 @@ function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
   dst: TPazoSite;
+  dstrank: Integer;
   dstdl: TDirList;
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
@@ -471,22 +474,11 @@ begin
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
-  for i := destinations.Count - 1 downto 0 do
+  for fPair in destinations do
   begin
+    dst := fPair.Key;
+    dstrank := fPair.Value;
     try
-      if i < 0 then Break;
-    except
-      Break;
-    end;
-
-    // set destination
-    try
-      try
-        dst := TPazoSite(destinations[i]);
-      except
-        Continue;
-      end;
-
       if error then exit;
       if dst.error then Continue;
 
@@ -605,7 +597,7 @@ begin
 
           // Create the race task
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
-          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
+          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
 
           // Set file type for subdirs
           if (dstdl.parent <> nil) then
@@ -724,8 +716,10 @@ var
   ps: TPazoSite;
 begin
   Result := rls.AsText(pazo_id);
-  Result := Result + 'Age: ' + IntToStr(age) + 's' + #13#10;
-  Result := Result + 'Sites: ' + IntToStr(sites.Count) + '' + #13#10;
+
+  Result := Result + Format('Age: %ds %s', [age, #13#10]);
+  Result := Result + Format('Sites: %d %s', [sites.Count, #13#10]);
+
   for i := 0 to sites.Count - 1 do
   begin
     try
@@ -744,7 +738,9 @@ var
   i: integer;
   ps: TPazoSite;
 begin
-  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(sites.Count) + ' sites)' + #13#10;
+  Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, sites.Count]);
+  Result := Result + #13#10;
+
   for i := 0 to sites.Count - 1 do
   begin
     try
@@ -1079,7 +1075,6 @@ function TPazo.FullStats: String;
 var
   i: integer;
   ps: TPazoSite;
-  //    mysources: TObjectList;
 begin
   Result := '';
 
@@ -1268,16 +1263,8 @@ begin
         if ps.error then
           exit;
 
-        i := destinations.Indexof(ps);
-        if i = -1 then
-        begin
-          Result := True;
-          destinations.Add(ps);
-          destinationRanks.Add(rank);
-          //i:= ps.sources.IndexOf(self);
-          //if i = -1 then
-          //  ps.sources.Add(self);
-        end;
+        destinations.AddOrSetValue(ps, rank);
+        Result := True;
       end
       else
         pazo.errorreason := 'AddDest - PazoSite is NIL';
@@ -1287,8 +1274,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
       Result := False;
     end;
   end;
@@ -1316,9 +1302,8 @@ begin
   self.maindir := maindir;
   self.pazo := pazo;
   self.Name := Name;
-  //sources:= TObjectList.Create(False);
-  destinations := TObjectList.Create(False);
-  destinationRanks := TList<integer>.Create;
+  // just a collection of pointers, no TPazoSite is created -> does not own any object
+  destinations := TObjectDictionary<TPazoSite, Integer>.Create([]);
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
   if dirlist <> nil then
@@ -1349,9 +1334,7 @@ end;
 destructor TPazoSite.Destroy;
 begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
-  //sources.Free;
   destinations.Free;
-  destinationRanks.Free;
   dirlist.Free;
   activeTransfers.Free;
   s_dirlisttasks.Free;
@@ -1529,7 +1512,6 @@ function TPazoSite.SetFileError(const netname, channel, dir, filename: String): 
 var
   dl: TDirList;
   de: TDirlistEntry;
-
 begin
   Result := False;
   try
@@ -1566,7 +1548,6 @@ function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
-
 begin
   Result := False;
 
@@ -1585,15 +1566,12 @@ begin
       begin
         exit;
       end;
-
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s', [e.Message]));
       end;
     end;
-
   finally
     rrgx.Free;
   end;
@@ -1637,15 +1615,13 @@ begin
     if (not de.megvanmeg) then
     begin
       de.megvanmeg := True;
-      // crashes
       RemovePazoRace(pazo.pazo_id, Name, dir, filename);
     end;
 
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
       Result := False;
     end;
   end;
@@ -1655,7 +1631,6 @@ end;
 function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean;
 var
   dl: TDirList;
-
 begin
   Result := False;
   try
@@ -1671,7 +1646,7 @@ begin
     finally
       pazo.cs.Leave;
     end;
-    // crash
+
     RemovePazoRace(pazo.pazo_id, Name, dir, filename);
   except
     on E: Exception do
@@ -1871,10 +1846,10 @@ end;
 
 function TPazoSite.AsText: String;
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
-  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) + ' items)';
+  Result := Result + Format(': %s (%d items)', [maindir, dirlist.entries.Count]);
 
   if (dirlist.Complete) then
   begin
@@ -1882,22 +1857,19 @@ begin
   end;
   Result := Result + #13#10;
 
-  //Result:= Result + 'Sources: ';
-  //for i:= 0 to sources.Count -1 do
-  //  Result:= Result + TPazoSite(sources[i]).name+' ';
-  //Result:= Result + #13#10;
-
   Result := Result + 'Destinations: ';
-  for i := 0 to destinations.Count - 1 do
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr( destinationRanks[i]) + ')' + ' ';
+  for fPair in destinations do
+    Result := Result + Format('%s (%d) ', [fPair.Key.Name, fPair.Value]);
+
+  Result := Result + #13#10;
 
   if ((dirlist.GetCompleteInfo <> 'Not Complete') and (not StatusRealPreOrShouldPre)) then
   begin
-    Result := Result + #13#10;
     Result := Result + 'Completion Time: ' + TimeToStr(dirlist.date_completed) + ' via ' + dirlist.GetCompleteInfo;
+    Result := Result + Format('Completion Time: %s via %s', [TimeToStr(dirlist.date_completed), dirlist.GetCompleteInfo]);
+    Result := Result + #13#10;
   end;
 
-  Result := Result + #13#10;
   Result := Result + 'Status: ';
   case status of
     rssNotAllowed: Result := Result + '<c4>not allowed</c> (' + reason + ')';
@@ -1913,13 +1885,20 @@ end;
 
 function TPazoSite.RoutesText: String;
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
 begin
-  Result := '<u>' + Name + '</u> ->';
-  for i := 0 to destinations.Count - 1 do
+  Result := '<u>' + Name + '</u> -> ';
+
+  for fPair in destinations do
   begin
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(destinationRanks[i]) + ')' + ' ';
+    if (fPair.Key.delay_upload > 0) then
+      Result := Result + Format('%s(%d) [delayed up for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_upload])
+    else if (fPair.Key.delay_leech > 0) then
+      Result := Result + Format('%s(%d) [delayed leech for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_leech])
+    else
+      Result := Result + Format('%s(%d) ', [fPair.Key.Name, fPair.Value]);
   end;
+
   Result := Result + #13#10;
 end;
 

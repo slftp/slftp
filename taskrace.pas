@@ -501,20 +501,12 @@ begin
     // check if one dst need more dirlist
     if (not itwasadded) then
     begin
-      for i := ps1.destinations.Count - 1 downto 0 do
+      for ps in ps1.destinations.Keys do
       begin
-        try
-          if i > ps1.destinations.Count then
-            Break;
-        except
-          Break;
-        end;
         if itwasadded then
           Break;
 
         try
-          ps := TPazoSite(ps1.destinations[i]);
-
           if (ps.error) then
             Continue;
           if (ps.dirlistgaveup) then
