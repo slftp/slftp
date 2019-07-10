@@ -888,7 +888,7 @@ begin
   end;
 
   Result := p.pazo_id;
-  if p.sites.Count = 0 then
+  if p.PazoSitesList.Count = 0 then
     exit;
 
   if CheckIfGlobalSkippedGroup(rls) then
@@ -1047,7 +1047,7 @@ begin
 
   try
     // check rules for site only if needed
-    for i := p.sites.Count - 1 downto 0 do
+    for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -1055,7 +1055,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter;
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
@@ -1071,7 +1071,7 @@ begin
     end;
 
     // now add all dst
-    for i := p.sites.Count - 1 downto 0 do
+    for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -1079,7 +1079,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter;
       try
         FireRules(p, ps);
@@ -1114,7 +1114,7 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.sites.Count - 1 downto 0 do
+      for i := p.PazoSitesList.Count - 1 downto 0 do
       begin
         try
           if i < 0 then
@@ -1123,7 +1123,7 @@ begin
           Break;
         end;
         try
-          ps := TPazoSite(p.sites[i]);
+          ps := TPazoSite(p.PazoSitesList[i]);
 
           // dirlist not available
           if ps.dirlist = nil then
@@ -2162,9 +2162,9 @@ begin
       end;
 
       // no nfo, start searching nfo
-      for j := pazo.sites.Count - 1 downto 0 do
+      for j := pazo.PazoSitesList.Count - 1 downto 0 do
       begin
-        ps := TPazoSite(pazo.sites[j]);
+        ps := TPazoSite(pazo.PazoSitesList[j]);
         try
           AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
         except
@@ -2847,9 +2847,9 @@ begin
 
   try
     // check if the release is incomplete on any site and gather valid sites for filling
-    for i := 0 to p.sites.Count - 1 do
+    for i := 0 to p.PazoSitesList.Count - 1 do
     begin
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       Debug(dpSpam, rsections, 'AddCompleteTransfers checking out %s', [ps.Name]);
 
       if ps.Name = getAdminSiteName then
@@ -3041,16 +3041,16 @@ begin
               end;
             end;
 
-            for j := 0 to p.sites.Count - 1 do
+            for j := 0 to p.PazoSitesList.Count - 1 do
             begin
               try
-                if j > p.sites.Count then
+                if j > p.PazoSitesList.Count then
                   Break;
               except
                 Break;
               end;
               try
-                ps := TPazoSite(p.sites[j]);
+                ps := TPazoSite(p.PazoSitesList[j]);
                 if (ps.dirlist = nil) then
                   Continue;
 

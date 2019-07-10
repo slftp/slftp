@@ -632,8 +632,8 @@ begin
 
   try
     ps := FindMostCompleteSite(mainpazo);
-    if ((ps = nil) and (mainpazo.sites.Count > 0)) then
-      ps := TPazoSite(mainpazo.sites[0]);
+    if ((ps = nil) and (mainpazo.PazoSitesList.Count > 0)) then
+      ps := TPazoSite(mainpazo.PazoSitesList[0]);
   // don't know why ps can be nil - have to check later
       if ps <> nil then
       begin
