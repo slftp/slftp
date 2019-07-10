@@ -238,7 +238,7 @@ var
   y: TStringList;
   sdone, ssss, ss, si, sj, sss: String;
   added: boolean;
-  ii, i, addednumber: integer;
+  addednumber: integer;
   dd: double;
 
   // y-ba belepakolja az osszes olyan siteot amibe el lehet jutni honnanbol...   -- y into it packs all of the site into which you can reach honnanbol ...
@@ -366,9 +366,8 @@ begin
       exit;
     end;
 
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      ps := TPazoSite(p.sites[i]);
       sp := FindSiteByName('', ps.Name);
 
       if sp.SkipPre then
@@ -543,17 +542,9 @@ begin
 
         sss := '';
 
-        for ii := 0 to p.sites.Count - 1 do
+        for ps in p.PazoSitesList do
         begin
           sj := '?';
-          ps := TPazoSite(p.sites[ii]);
-          if ps = nil then
-          begin
-            irc_addtext(Netname, Channel,
-              '<c8>DEBUG<b></c></b>: %s is not a valid pazo site.',
-              [TPazoSite(p.sites[ii]).Name]);
-            Continue;
-          end;
 
           if ps.Name = ssite then
             Continue;
@@ -728,7 +719,7 @@ begin
   ps_dst := p.FindSite(dstsite.Name);
   ps_dst.status := rssAllowed;
 
-  ps_src := TPazoSite(p.sites[0]);
+  ps_src := TPazoSite(p.PazoSitesList[0]);
   ps_src.dirlist.dirlistadded := True;
 
   pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);

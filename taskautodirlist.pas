@@ -135,7 +135,7 @@ begin
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
 
-      for i := 0 to p.sites.Count - 1 do
+      for ps in p.PazoSitesList do
       begin
         try
           (*
@@ -148,7 +148,7 @@ begin
             prestatus := False
           else
             prestatus := True;
-          pdt := TPazoDirlistTask.Create(netname, channel, TPazoSite(p.sites[i]).name, p, '', prestatus);
+          pdt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', prestatus);
           AddTask(pdt);
         except
           on e: Exception do
@@ -325,7 +325,7 @@ var
   rt: TRawTask;
   reqfill_delay: Integer;
 begin
-  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.sites[0]).Name, TPazoSite(p.sites[1]).Name, irccmdprefix, p.pazo_id]));
+  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, TPazoSite(p.PazoSitesList[1]).Name, irccmdprefix, p.pazo_id]));
 
   while (true) do
   begin
@@ -342,13 +342,13 @@ begin
       (sub-)dirs and if those are equal we set cache_completed on the dirlist to
       true to indicate the dirlist task can finish because the release is complete
     *)
-    if ((TPazoSite(p.sites[0]).dirlist.complete_tag = '') and (TPazoSite(p.sites[1]).dirlist.done > 0) and (TPazoSite(p.sites[0]).dirlist.done = TPazoSite(p.sites[1]).dirlist.done)) then
-      TPazoSite(p.sites[0]).dirlist.cache_completed := True;
-    if ((p.ready) and (TPazoSite(p.sites[0]).dirlist.Complete)) then
+    if ((TPazoSite(p.PazoSitesList[0]).dirlist.complete_tag = '') and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0) and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
+      TPazoSite(p.PazoSitesList[0]).dirlist.cache_completed := True;
+    if ((p.ready) and (TPazoSite(p.PazoSitesList[0]).dirlist.Complete)) then
     begin
       reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
-      irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.sites[0]).Name, reqfill_delay]));
-      rt := TRawTask.Create('', '', TPazoSite(p.sites[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
+      irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
+      rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
       rt.startat := IncSecond(now, reqfill_delay);
       try
         AddTask(rt);

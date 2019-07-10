@@ -270,12 +270,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.Complete then
           re.Add(ps.Name);
       except
@@ -310,12 +310,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ((ps.status <> rssNotAllowed) and (not ps.Complete)) then
           re.Add(ps.Name);
       except
@@ -350,12 +350,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssRealPre then
           re.Add(ps.Name);
       except
@@ -390,12 +390,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssAllowed then
           re.Add(ps.Name);
       except
@@ -430,12 +430,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssNotAllowed then
           re.Add(ps.Name);
       except

@@ -130,7 +130,7 @@ var
   nfofound, added: boolean;
   sr: TSiteResponse;
   d: TDirList;
-  failed, perfect, aktfiles, addednumber, i, files: integer;
+  i, failed, perfect, aktfiles, addednumber, files: integer;
   aktsize, size: Int64;
   p: TPazo;
   ps: TPazoSite;
@@ -178,12 +178,10 @@ begin
 
     p := TPazo(kb_list.Objects[i]);
 
-
     addednumber := 0;
     tn := AddNotify;
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      ps := TPazoSite(p.sites[i]);
       s  := FindSiteByName(netname, ps.Name);
       if s = nil then
       begin
@@ -451,9 +449,8 @@ begin
 
     p := TPazo(kb_list.Objects[pazo_id]);
 
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      ps := TPazoSite(p.sites[i]);
       s := FindSiteByName(netname, ps.Name);
 
       if s = nil then
@@ -505,9 +502,8 @@ begin
     addednumber := 0;
     tn1 := AddNotify;
 
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      ps := TPazoSite(p.sites[i]);
       s := FindSiteByName(netname, ps.Name);
 
       if s.Name = getAdminSiteName then
@@ -1242,10 +1238,8 @@ begin
 
   FireRules(p, p.FindSite(sitename));
 
-  for i := 0 to p.sites.Count - 1 do
+  for ps in p.PazoSitesList do
   begin
-    ps := TPazoSite(p.sites[i]);
-
     if (ps.Name <> sitename) then
     begin
       s := FindSiteByName(Netname, ps.Name);
@@ -1262,10 +1256,8 @@ begin
 
   added := False;
   tn := AddNotify;
-  for i := 0 to p.sites.Count - 1 do
+  for ps in p.PazoSitesList do
   begin
-    ps := TPazoSite(p.sites[i]);
-
     if (ps.Name <> sitename) then
     begin
       if (ps.status <> rssNotAllowed) then

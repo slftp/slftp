@@ -1715,21 +1715,18 @@ var
   r: TRule;
   s: String;
   fositeIndex, aktsiteIndex: integer;
+  ps: TPazoSite;
 begin
   x := TStringList.Create;
   try
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      try
-        x.Add(TPazoSite(p.sites[i]).Name);
-      except
-        break;
-      end;
+      x.Add(ps.Name);
     end;
 
     for i := 0 to x.Count - 1 do
     begin
-      fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+      fositeIndex := p.PazoSitesList.IndexOf(p.FindSite(x[i]));
       for j := 0 to rtpl.Count - 1 do
       begin
         r := TRule(rtpl[j]);
@@ -1738,13 +1735,11 @@ begin
           s := r.conditions.AtConditionName;
           if s <> '' then
           begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
             if (aktsiteIndex > fositeIndex) then
             begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
+              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
               fositeIndex := fositeIndex + 1;
-              // must match this ...
-              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
             end;
           end;
         end;
@@ -1758,13 +1753,11 @@ begin
           s := r.conditions.AtConditionName;
           if s <> '' then
           begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
             if (aktsiteIndex > fositeIndex) then
             begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
+              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
               fositeIndex := fositeIndex + 1;
-              // must match this ...
-              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
             end;
           end;
         end;
