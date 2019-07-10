@@ -54,8 +54,8 @@ type
     destinationRanks: TList<integer>;
     dirlist: TDirList;
 
-    delay_leech: integer;
-    delay_upload: integer;
+    delay_leech: integer; //< value of delay for leeching from site in seconds
+    delay_upload: integer; //< value of delay for uploading to site in seconds
 
     s_dirlisttasks: TIdThreadSafeInt32;
     s_racetasks: TIdThreadSafeInt32;
@@ -2010,39 +2010,16 @@ end;
 
 procedure TPazoSite.DelaySetup;
 var
-  minv, maxv: integer;
+  fSite: TSite;
 begin
   if not Assigned(pazo.rls) then
     exit;
 
-  minv := sitesdat.ReadInteger('site-' + Name, 'delayleech-' + pazo.rls.section
-    +
-    '-min', 0);
-  maxv := sitesdat.ReadInteger('site-' + Name, 'delayleech-' + pazo.rls.section
-    +
-    '-max', 0);
-  if minv <= 0 then
-  begin
-    minv := sitesdat.ReadInteger('site-' + Name, 'delayleech-global-min', 0);
-    maxv := sitesdat.ReadInteger('site-' + Name, 'delayleech-global-max', 0);
-  end;
+  fSite := FindSiteByName('', Name);
+  delay_leech := fSite.delayleech[pazo.rls.section];
+  delay_upload := fSite.delayupload[pazo.rls.section];
 
-  if minv > 0 then
-    delay_leech := RandomRange(minv, maxv);
-
-  minv := sitesdat.ReadInteger('site-' + Name, 'delayupload-' + pazo.rls.section
-    + '-min', 0);
-  maxv := sitesdat.ReadInteger('site-' + Name, 'delayupload-' + pazo.rls.section
-    + '-max', 0);
-  if minv <= 0 then
-  begin
-    minv := sitesdat.ReadInteger('site-' + Name, 'delayupload-global-min', 0);
-    maxv := sitesdat.ReadInteger('site-' + Name, 'delayupload-global-max', 0);
-  end;
-
-  if minv > 0 then
-    delay_upload := RandomRange(minv, maxv);
-
+  Debug(dpSpam, section, 'DelaySetup %s: %d s for delayleech, %d s for delayupload', [Name, delay_leech, delay_upload]);
 end;
 
 end.
