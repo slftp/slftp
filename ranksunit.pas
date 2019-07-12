@@ -210,11 +210,11 @@ begin
   fcomplete := 0;
   lcomplete := 0;
 
-  for i := 0 to p.sites.Count - 1 do
+  for i := 0 to p.PazoSitesList.Count - 1 do
   begin
-    try if i > p.sites.Count then Break; except Break; end;
+    try if i > p.PazoSitesList.Count then Break; except Break; end;
     try
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       if (ps.dirlist = nil) then
         Continue;
 
@@ -233,7 +233,7 @@ begin
   end;
 
   if (lcomplete = 0) or (fcomplete = 0) then exit; // if we didnt catch any announces
-  if db < Round(p.sites.Count * config.ReadInteger(r_section, 'percent_of_sites_to_score', 30) / 100) then exit; // if we have not enough sites
+  if db < Round(p.PazoSitesList.Count * config.ReadInteger(r_section, 'percent_of_sites_to_score', 30) / 100) then exit; // if we have not enough sites
 
   minduration := MillisecondsBetween(fcomplete, p.added);
   maxduration := MillisecondsBetween(lcomplete, p.added);
@@ -244,11 +244,11 @@ begin
   // minduration  .. maxduration
   // 9               1
 
-  for i := 0 to p.sites.Count - 1 do
+  for i := 0 to p.PazoSitesList.Count - 1 do
   begin
-    try if i > p.sites.Count then Break; except Break; end;
+    try if i > p.PazoSitesList.Count then Break; except Break; end;
     try
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       if ((ps.dirlist <> nil) and (ps.dirlist.date_completed <> 0)) then
       begin
         d := Millisecondsbetween(ps.dirlist.date_completed, p.added);

@@ -88,8 +88,9 @@ var
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
 begin
-  // compare:  1 Item1 is before Item2
-  // compare: -1 Item1 is after Item2
+  // compare: -1 Item1 is before Item2
+  // compare:  1 Item1 is after Item2
+  // ref: https://www.freepascal.org/docs-html/rtl/classes/tstringlist.customsort.html
   try
     i1 := TTask(item1);
     i2 := TTask(item2);
@@ -147,6 +148,7 @@ begin
         Result := 0;
         exit;
       end;
+      // give priority to mkdir tasks that affect maindirs (not a subdir mkdir)
       if ((tpm1.dir = '') and (tpm2.dir <> '')) then
       begin
         Result := -1;

@@ -27,6 +27,7 @@ __history
 bin/*
 Win32/*
 Win64/*
+tests/openssl-*
 
 # Visual Studio Code
 .vscode/*
