@@ -49,13 +49,11 @@ type
     Name: String;
     maindir: String;
     pazo: TPazo;
-    //sources: TObjectList;
-    destinations: TObjectList;
-    destinationRanks: TList<integer>;
+    destinations: TObjectDictionary<TPazoSite, integer>; //< key = destination site, value = rank
     dirlist: TDirList;
 
-    delay_leech: integer;
-    delay_upload: integer;
+    delay_leech: integer; //< value of delay for leeching from site in seconds
+    delay_upload: integer; //< value of delay for uploading to site in seconds
 
     s_dirlisttasks: TIdThreadSafeInt32;
     s_racetasks: TIdThreadSafeInt32;
@@ -87,7 +85,9 @@ type
     function Complete: boolean;
 
     function Age: integer;
+    { Create formatted output string for !kbshow }
     function AsText: String;
+    { Create formatted output string for [ROUTES] announce }
     function RoutesText: String;
     function DirlistGaveUpAndSentNoFiles: Boolean;
     procedure DelaySetup;
@@ -99,8 +99,8 @@ type
     function MkdirReady(const dir: String): boolean;
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
-    function AddDestination(ps: TPazoSite; const rank: integer): boolean; overload;
-    constructor Create(pazo: TPazo; const Name, maindir: String);
+    function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
+    constructor Create(const pazo: TPazo; const Name, maindir: String);
     destructor Destroy; override;
     procedure ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
     function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
@@ -119,8 +119,8 @@ type
   TPazo = class
   private
     lastannounceconsole: String;
-    lastannounceirc: String;
-    lastannounceroutes: String;
+    lastannounceirc: String; //< last announce string for [STATS] after race
+    lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
     procedure QueueEvent(Sender: TObject; Value: integer);
     function StatsAllFiles: integer;
   public
@@ -145,7 +145,7 @@ type
     readyat: TDateTime;
     lastTouch: TDateTime;
 
-    sites: TObjectList; //< list of @link(TPazoSite) which passed checks of @link(AddSites) and are now part of this @link(TPazo)
+    PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
     sl: TSkipList;
 
     added: TDateTime;
@@ -168,18 +168,20 @@ type
     procedure Clear;
     function StatusText: String;
     function Age: integer;
+    { Show @link(rls), @link(age), @link(PazoSitesList) count and infos for each item in @link(PazoSitesList) for !kbshow }
     function AsText: String;
+    { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     function FullStats: String;
-    constructor Create(rls: TRelease; const pazo_id: integer);
+    constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
     function AddSite(const sitename, maindir: String; delay: boolean = True): TPazoSite;
-    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.sites) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
+    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.PazoSitesList) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites: boolean; overload;
-    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.sites) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
+    { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.PazoSitesList) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
       @param(aIsSpreadJob Set it to @true if its a spread job for purpose of preeing (skips some checks), @false otherwise)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites(const aIsSpreadJob: boolean): boolean; overload;
@@ -190,7 +192,7 @@ type
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
 function FindPazoByRls(const rlsname: String): TPazo;
-function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
+function PazoAdd(const rls: TRelease): TPazo;
 procedure PazoInit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
@@ -200,7 +202,7 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults;
 
 const
   section = 'pazo';
@@ -247,7 +249,7 @@ var
 begin
   Result := nil;
   try
-    for i := pazo.sites.Count - 1 downto 0 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -255,7 +257,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(pazo.sites[i]);
+      ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.lookupforcedhere then
       begin
         ps.lookupforcedhere := False;
@@ -264,7 +266,7 @@ begin
       end;
     end;
 
-    for i := pazo.sites.Count - 1 downto 0 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -272,7 +274,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(pazo.sites[i]);
+      ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.ts <> 0 then
       begin
         Result := ps;
@@ -280,7 +282,7 @@ begin
       end;
     end;
 
-    for i := pazo.sites.Count - 1 downto 0 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -288,7 +290,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(pazo.sites[i]);
+      ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.Complete) then
       begin
         Result := ps;
@@ -296,7 +298,7 @@ begin
       end;
     end;
 
-    for i := pazo.sites.Count - 1 downto 0 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -304,7 +306,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(pazo.sites[i]);
+      ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.ircevent) then
       begin
         Result := ps;
@@ -312,7 +314,7 @@ begin
       end;
     end;
 
-    for i := pazo.sites.Count - 1 downto 0 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -320,7 +322,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(pazo.sites[i]);
+      ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.status in [rssAllowed, rssRealPre, rssComplete]) then
       begin
         Result := ps;
@@ -332,11 +334,9 @@ begin
   end;
 end;
 
-function PazoAdd(rls: TRelease): TPazo; //; addlocal: Boolean = False
+function PazoAdd(const rls: TRelease): TPazo;
 begin
   Result := TPazo.Create(rls, local_pazo_id);
-  //  if  addlocal then
-  //    pazos.Add(Result);
   Inc(local_pazo_id);
 end;
 
@@ -437,8 +437,9 @@ function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
   dst: TPazoSite;
+  dstrank: Integer;
   dstdl: TDirList;
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
@@ -471,22 +472,11 @@ begin
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
-  for i := destinations.Count - 1 downto 0 do
+  for fPair in destinations do
   begin
+    dst := fPair.Key;
+    dstrank := fPair.Value;
     try
-      if i < 0 then Break;
-    except
-      Break;
-    end;
-
-    // set destination
-    try
-      try
-        dst := TPazoSite(destinations[i]);
-      except
-        Continue;
-      end;
-
       if error then exit;
       if dst.error then Continue;
 
@@ -515,12 +505,6 @@ begin
       // Dirlist for destination site not available
       if dstdl = nil then Continue;
       if dstdl.error then Continue;
-
-      // we are in a subdir and the dir has not been mkdir'ed
-      if (dir <> '') then
-      begin
-        if ((dstdl.parent <> nil) and (dstdl.parent.dirlist.need_mkdir)) then Continue;
-      end;
 
       // find the dirlist entry
       try
@@ -611,7 +595,7 @@ begin
 
           // Create the race task
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
-          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, destinationRanks[i]);
+          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
 
           // Set file type for subdirs
           if (dstdl.parent <> nil) then
@@ -686,35 +670,18 @@ begin
   Result := TPazoSite.Create(self, sitename, maindir);
   if delay then
     Result.DelaySetup;
-  sites.Add(Result);
+  PazoSitesList.Add(Result);
 end;
 
 function TPazo.Age: integer;
 var
-  i: integer;
   ps: TPazoSite;
   a: integer;
 begin
-  (*
-      ts: TDateTime;
-
-    if ts <> 0 then
-    begin
-      Result:= SecondsBetween(Now, ts);
-      exit;
-    end;
-  *)
-
   Result := -1;
-  for i := sites.Count - 1 downto 0 do
+
+  for ps in PazoSitesList do
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-    ps := TPazoSite(sites[i]);
     a := ps.Age;
     if ((a <> -1) and ((Result = -1) or (Result < a))) then
       Result := a;
@@ -726,43 +693,29 @@ end;
 
 function TPazo.AsText: String;
 var
-  i: integer;
   ps: TPazoSite;
 begin
   Result := rls.AsText(pazo_id);
-  Result := Result + 'Age: ' + IntToStr(age) + 's' + #13#10;
-  Result := Result + 'Sites: ' + IntToStr(sites.Count) + '' + #13#10;
-  for i := 0 to sites.Count - 1 do
+
+  Result := Result + Format('Age: %ds %s', [age, #13#10]);
+  Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
+
+  for ps in PazoSitesList do
   begin
-    try
-      if i > sites.Count then
-        Break;
-    except
-      Break;
-    end;
-    ps := TPazoSite(sites[i]);
     Result := Result + ps.AsText;
   end;
 end;
 
 function TPazo.RoutesText: String;
 var
-  i: integer;
   ps: TPazoSite;
 begin
-  Result := '<c3>[ROUTES]</c> : <b>' + rls.rlsname + '</b> (' + IntToStr(sites.Count) + ' sites)' + #13#10;
-  for i := 0 to sites.Count - 1 do
+  Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
+  Result := Result + #13#10;
+
+  for ps in PazoSitesList do
   begin
-    try
-      ps := TPazoSite(sites[i]);
-      Result := Result + ps.RoutesText;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText : %s', [e.Message]));
-        break;
-      end;
-    end;
+    Result := Result + ps.RoutesText;
   end;
 
   if (Result <> lastannounceroutes) then
@@ -773,7 +726,6 @@ begin
   begin
     Result := '';
   end;
-
 end;
 
 function TPazo.PRegisterFile(const dir, filename: String; const filesize: Int64): integer;
@@ -832,7 +784,7 @@ begin
   end;
 end;
 
-constructor TPazo.Create(rls: TRelease; const pazo_id: integer);
+constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
 begin
   if rls <> nil then
   begin
@@ -857,7 +809,7 @@ begin
   main_dirlist := nil;
 
   readyerror := False;
-  sites := TObjectList.Create(False);
+  PazoSitesList := TObjectList<TPazoSite>.Create(True);
   self.pazo_id := pazo_id;
   stopped := False;
   ready := False;
@@ -876,7 +828,7 @@ end;
 destructor TPazo.Destroy;
 begin
   Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
-  sites.Free;
+  PazoSitesList.Free;
   queuenumber.Free;
   dirlisttasks.Free;
   racetasks.Free;
@@ -889,21 +841,15 @@ end;
 
 function TPazo.FindSite(const sitename: String): TPazoSite;
 var
-  i: integer;
+  ps: TPazoSite;
 begin
   Result := nil;
   try
-    for i := sites.Count - 1 downto 0 do
+    for ps in PazoSitesList do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      if TPazoSite(sites[i]).Name = sitename then
+      if ps.Name = sitename then
       begin
-        Result := TPazoSite(sites[i]);
+        Result := ps;
         Break;
       end;
     end;
@@ -970,24 +916,24 @@ end;
 
 function TPazo.StatsAllFiles: integer;
 var
-  i, j: integer;
+  j: integer;
+  ps: TPazoSite;
 begin
   Result := 0;
   if main_dirlist = nil then
   begin
-    for i := 0 to sites.Count - 1 do
+    for ps in PazoSitesList do
     begin
-      j := TPazoSite(sites[i]).dirlist.Done;
+      j := ps.dirlist.Done;
       if Result < j then
         Result := j;
     end;
   end
   else
     Result := main_dirlist.Done;
-
 end;
 
-function CompareCompleteTimes(pazo1, pazo2: TPazoSite): Integer;
+function _CompareCompleteTimes({$IFDEF FPC}constref{$ELSE}const{$ENDIF} pazo1, pazo2: TPazoSite): Integer;
 begin
   if (pazo1.StatusRealPreOrShouldPre and pazo2.StatusRealPreOrShouldPre) then
     Result := CompareText(pazo1.Name, pazo2.name)
@@ -1021,10 +967,10 @@ end;
 
 function TPazo.Stats(const console: boolean; withdirlist: boolean = True): String;
 var
-  i, numComplete: integer;
+  numComplete: integer;
   ps: TPazoSite;
   s: TSite;
-  sitesSorted: TObjectList;
+  sitesSorted: TObjectList<TPazoSite>;
   completeTimeReference: TDateTime;
   secondsAfter: Int64;
 begin
@@ -1032,15 +978,15 @@ begin
   numComplete := 1;
   completeTimeReference := 0;
 
-  sitesSorted := TObjectList.Create(False);
+  sitesSorted := TObjectList<TPazoSite>.Create(False);
   try
-    sitesSorted.Assign(sites);
-    sitesSorted.Sort(@CompareCompleteTimes);
+    // add references to original sites list and sort them
+    sitesSorted.AddRange(PazoSitesList);
+    sitesSorted.Sort(TComparer<TPazoSite>.Construct(_CompareCompleteTimes));
 
-    for i := 0 to sitesSorted.Count - 1 do
+    for ps in sitesSorted do
     begin
       try
-        ps := TPazoSite(sitesSorted[i]);
         if ps.status = rssNotAllowed then
           Continue;
         s := FindSiteByName('', ps.Name);
@@ -1078,20 +1024,16 @@ begin
   finally
     sitesSorted.Free;
   end;
-
 end;
 
 function TPazo.FullStats: String;
 var
-  i: integer;
   ps: TPazoSite;
-  //    mysources: TObjectList;
 begin
   Result := '';
 
-  for i := 0 to sites.Count - 1 do
+  for ps in PazoSitesList do
   begin
-    ps := TPazoSite(sites[i]);
     if ps.status = rssNotAllowed then
       Continue;
 
@@ -1107,21 +1049,16 @@ end;
 
 function TPazo.StatusText: String;
 var
-  i: integer;
+  ps: TPazoSite;
 begin
   Result := '';
-  for i := 0 to sites.Count - 1 do
+  for ps in PazoSitesList do
   begin
-    try
-      if i > sites.Count then
-        Break;
-    except
-      Break
-    end;
-    Result := Result + TPazoSite(sites[i]).StatusText;
-    if i <> sites.Count - 1 then
-      Result := Result + ' ';
+    Result := Result + ps.StatusText + ' ';
   end;
+
+  // remove superfluous whitespace
+  Result.TrimRight;
 end;
 
 procedure TPazo.Clear;
@@ -1135,7 +1072,7 @@ begin
     readyerror := False;
     errorreason := '';
     cache_files.Clear;
-    sites.Clear;
+    PazoSitesList.Clear;
     main_dirlist := nil;
 
     self.cleared := True;
@@ -1188,7 +1125,7 @@ begin
       begin
         if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
         begin
-          if not (DateTimeToUnix(rls.pretime) <> 0) then
+          if not (rls.pretime <> 0) then
             Continue;
 
           if not (s.IsPretimeOk(rls.section, rls.pretime)) then
@@ -1205,11 +1142,10 @@ begin
 
       if s.IsAffil(rls.groupname) then
       begin
-        Debug(dpMessage, section, '[IsAffilShouldPre] Site: %s - affil: %s - rlsName: %s - affils: %s ', [ps.Name, rls.groupname, rls.rlsname, s.siteaffils]);
         ps.status := rssShouldPre;
       end;
 
-      sites.Add(ps);
+      PazoSitesList.Add(ps);
     except
       Continue;
     end;
@@ -1247,9 +1183,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section,
-          Format('[EXCEPTION] TPazoSite.AddDestination: %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
         Result := False;
       end;
     end;
@@ -1258,9 +1192,7 @@ begin
     pazo.errorreason := 'AddDest - PazoSite is NIL';
 end;
 
-function TPazoSite.AddDestination(ps: TPazoSite; const rank: integer): boolean;
-var
-  i: integer;
+function TPazoSite.AddDestination(const ps: TPazoSite; const rank: integer): boolean;
 begin
   Result := False;
   if error = True then
@@ -1274,16 +1206,8 @@ begin
         if ps.error then
           exit;
 
-        i := destinations.Indexof(ps);
-        if i = -1 then
-        begin
-          Result := True;
-          destinations.Add(ps);
-          destinationRanks.Add(rank);
-          //i:= ps.sources.IndexOf(self);
-          //if i = -1 then
-          //  ps.sources.Add(self);
-        end;
+        destinations.AddOrSetValue(ps, rank);
+        Result := True;
       end
       else
         pazo.errorreason := 'AddDest - PazoSite is NIL';
@@ -1293,14 +1217,13 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
       Result := False;
     end;
   end;
 end;
 
-function mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
+function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
 begin
   try
     Result :=
@@ -1311,7 +1234,7 @@ begin
   end;
 end;
 
-constructor TPazoSite.Create(pazo: TPazo; const Name, maindir: String);
+constructor TPazoSite.Create(const pazo: TPazo; const Name, maindir: String);
 begin
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
   inherited Create;
@@ -1322,9 +1245,8 @@ begin
   self.maindir := maindir;
   self.pazo := pazo;
   self.Name := Name;
-  //sources:= TObjectList.Create(False);
-  destinations := TObjectList.Create(False);
-  destinationRanks := TList<integer>.Create;
+  // just a collection of pointers, no TPazoSite is created -> does not own any object
+  destinations := TObjectDictionary<TPazoSite, Integer>.Create([]);
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
   if dirlist <> nil then
@@ -1342,7 +1264,7 @@ begin
   speed_from := TStringList.Create;
   try
     sitesdat.ReadSectionValues('speed-from-' + Name, speed_from);
-    speed_from.CustomSort(myspeedcomparer);
+    speed_from.CustomSort(_mySpeedComparer);
   except
     on e: Exception do
     begin
@@ -1355,9 +1277,7 @@ end;
 destructor TPazoSite.Destroy;
 begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
-  //sources.Free;
   destinations.Free;
-  destinationRanks.Free;
   dirlist.Free;
   activeTransfers.Free;
   s_dirlisttasks.Free;
@@ -1535,7 +1455,6 @@ function TPazoSite.SetFileError(const netname, channel, dir, filename: String): 
 var
   dl: TDirList;
   de: TDirlistEntry;
-
 begin
   Result := False;
   try
@@ -1572,7 +1491,6 @@ function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
-
 begin
   Result := False;
 
@@ -1591,15 +1509,12 @@ begin
       begin
         exit;
       end;
-
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s',
-          [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s', [e.Message]));
       end;
     end;
-
   finally
     rrgx.Free;
   end;
@@ -1622,11 +1537,6 @@ begin
       dl.LastChanged := Now();
       Result := True;
     end;
-    (*
-        if ((dl.parent <> nil) and (dl.parent.Sample)) then
-          dl.cache_completed:= True;
-      *)
-        //inc(de.tradeCount);
 
     if (AnsiLowerCase(de.Extension) = '.sfv') then
     begin
@@ -1643,15 +1553,13 @@ begin
     if (not de.megvanmeg) then
     begin
       de.megvanmeg := True;
-      // crashes
       RemovePazoRace(pazo.pazo_id, Name, dir, filename);
     end;
 
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
       Result := False;
     end;
   end;
@@ -1661,15 +1569,15 @@ end;
 function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean;
 var
   dl: TDirList;
-
 begin
   Result := False;
   try
     dl := dirlist.FindDirlist(dir);
     if dl = nil then
+    begin
       pazo.errorreason := 'Dirlist is NIL';
-    if dl = nil then
       exit;
+    end;
 
     pazo.cs.Enter;
     try
@@ -1677,7 +1585,7 @@ begin
     finally
       pazo.cs.Leave;
     end;
-    // crash
+
     RemovePazoRace(pazo.pazo_id, Name, dir, filename);
   except
     on E: Exception do
@@ -1784,11 +1692,12 @@ begin
             if i < 0 then Break;
             try
               de := TDirlistEntry(dirlist.entries[i]);
-              if (de.racedbyme and de.Useful) then inc(sum, de.filesize);
+              if (de.racedbyme and de.Useful) then
+                Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d (sum: %d)',
-                [i, fsname, de.filename, de.filesize, sum]));
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s useful %s (sum: %d)',
+                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.Useful, True), sum]));
             except
               on E: Exception do
               begin
@@ -1876,10 +1785,10 @@ end;
 
 function TPazoSite.AsText: String;
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
-  Result := Result + ': ' + maindir + ' (' + IntToStr(dirlist.entries.Count) + ' items)';
+  Result := Result + Format(': %s (%d items)', [maindir, dirlist.entries.Count]);
 
   if (dirlist.Complete) then
   begin
@@ -1887,22 +1796,19 @@ begin
   end;
   Result := Result + #13#10;
 
-  //Result:= Result + 'Sources: ';
-  //for i:= 0 to sources.Count -1 do
-  //  Result:= Result + TPazoSite(sources[i]).name+' ';
-  //Result:= Result + #13#10;
-
-  Result := Result + 'Destinations: ';
-  for i := 0 to destinations.Count - 1 do
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr( destinationRanks[i]) + ')' + ' ';
+  Result := Result + 'Destinations:';
+  for fPair in destinations do
+  begin
+    Result := Result + Format(' %s(%d)', [fPair.Key.Name, fPair.Value]);
+  end;
+  Result := Result + #13#10;
 
   if ((dirlist.GetCompleteInfo <> 'Not Complete') and (not StatusRealPreOrShouldPre)) then
   begin
+    Result := Result + Format('Completion Time: %s via %s', [TimeToStr(dirlist.date_completed), dirlist.GetCompleteInfo]);
     Result := Result + #13#10;
-    Result := Result + 'Completion Time: ' + TimeToStr(dirlist.date_completed) + ' via ' + dirlist.GetCompleteInfo;
   end;
 
-  Result := Result + #13#10;
   Result := Result + 'Status: ';
   case status of
     rssNotAllowed: Result := Result + '<c4>not allowed</c> (' + reason + ')';
@@ -1918,13 +1824,23 @@ end;
 
 function TPazoSite.RoutesText: String;
 var
-  i: integer;
+  fPair: TPair<TPazoSite, Integer>;
 begin
-  Result := '<u>' + Name + '</u> ->';
-  for i := 0 to destinations.Count - 1 do
+  Result := '<u>' + Name + '</u> -> ';
+
+  for fPair in destinations do
   begin
-    Result := Result + TPazoSite(destinations[i]).Name + '(' + IntToStr(destinationRanks[i]) + ')' + ' ';
+    if (fPair.Key.delay_upload > 0) then
+      Result := Result + Format('%s(%d) [delayed up for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_upload])
+    else if (fPair.Key.delay_leech > 0) then
+      Result := Result + Format('%s(%d) [delayed leech for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_leech])
+    else
+      Result := Result + Format('%s(%d) ', [fPair.Key.Name, fPair.Value]);
   end;
+
+  // remove superfluous whitespace
+  Result.TrimRight;
+
   Result := Result + #13#10;
 end;
 
@@ -1933,9 +1849,9 @@ begin
   Result := Name;
 
   if ((status = rssRealPre) and (pazo.main_dirlist <> self.dirlist)) then
-    Result := Name + '-' + IntToStr(pazo.main_dirlist.Done)
+    Result := Format('%s-%d', [Name, pazo.main_dirlist.Done])
   else if dirlist <> nil then
-    Result := Name + '-' + IntToStr(dirlist.Done);
+    Result := Format('%s-%d', [Name, dirlist.Done]);
 end;
 
 function TPazoSite.StatusText: String;
@@ -1970,8 +1886,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Clear: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Clear: %s', [e.Message]));
     end;
   end;
 end;
@@ -2015,39 +1930,16 @@ end;
 
 procedure TPazoSite.DelaySetup;
 var
-  minv, maxv: integer;
+  fSite: TSite;
 begin
   if not Assigned(pazo.rls) then
     exit;
 
-  minv := sitesdat.ReadInteger('site-' + Name, 'delayleech-' + pazo.rls.section
-    +
-    '-min', 0);
-  maxv := sitesdat.ReadInteger('site-' + Name, 'delayleech-' + pazo.rls.section
-    +
-    '-max', 0);
-  if minv <= 0 then
-  begin
-    minv := sitesdat.ReadInteger('site-' + Name, 'delayleech-global-min', 0);
-    maxv := sitesdat.ReadInteger('site-' + Name, 'delayleech-global-max', 0);
-  end;
+  fSite := FindSiteByName('', Name);
+  delay_leech := fSite.delayleech[pazo.rls.section];
+  delay_upload := fSite.delayupload[pazo.rls.section];
 
-  if minv > 0 then
-    delay_leech := RandomRange(minv, maxv);
-
-  minv := sitesdat.ReadInteger('site-' + Name, 'delayupload-' + pazo.rls.section
-    + '-min', 0);
-  maxv := sitesdat.ReadInteger('site-' + Name, 'delayupload-' + pazo.rls.section
-    + '-max', 0);
-  if minv <= 0 then
-  begin
-    minv := sitesdat.ReadInteger('site-' + Name, 'delayupload-global-min', 0);
-    maxv := sitesdat.ReadInteger('site-' + Name, 'delayupload-global-max', 0);
-  end;
-
-  if minv > 0 then
-    delay_upload := RandomRange(minv, maxv);
-
+  Debug(dpSpam, section, 'DelaySetup %s: %d s for delayleech, %d s for delayupload', [Name, delay_leech, delay_upload]);
 end;
 
 end.

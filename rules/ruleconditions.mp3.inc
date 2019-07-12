@@ -6,6 +6,10 @@ const
   MP3YearDescription: string = 'Returns with the mp3 year' + #13#10
     + 'Example: if mp3year < 2009 then DROP' + #13#10;
 
+  MP3CurrentYearDescription: string = 'Returns true, if the mp3 year of the release name equals the current year.' + #13#10
+    + 'Note: If no mp3 year is present, it will return false.' + #13#10
+    + 'Example: !ruleadd DUMP MP3 ifnot mp3currentyear then DROP' + #13#10;
+
   MP3LanguageDescription: string = 'Returns with mp3 rip''s language tag. Language is EN by default.' + #13#10
     + 'Example: if mp3language != EN then DROP' + #13#10;
 

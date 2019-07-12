@@ -240,8 +240,8 @@ begin
 
     s := FindSiteByName(Netname, ss);
     ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
-    if p.sites.Count > 1 then
-      TPazoSite(p.sites[0]).AddDestination(ps, 1)
+    if p.PazoSitesList.Count > 1 then
+      TPazoSite(p.PazoSitesList[0]).AddDestination(ps, 1)
     else
       firstsite := ps;
   end;
@@ -252,9 +252,8 @@ begin
     exit;
   end;
 
-  for i := 1 to p.sites.Count - 1 do
+  for ps in p.PazoSitesList do
   begin
-    ps := TPazoSite(p.sites[i]);
     irc_addtext(Netname, Channel, 'Speedtesting %s -> %s  ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
     t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, '', fsfilename, fsfilesize, 1);
@@ -448,7 +447,7 @@ begin
 
       s := FindSiteByName(Netname, ss);
       ps := p.AddSite(ss, s.sectiondir['SPEEDTEST']);
-      if p.sites.Count > 1 then
+      if p.PazoSitesList.Count > 1 then
         ps.AddDestination(firstsite, 1)
       else
         firstsite := ps;
@@ -460,15 +459,13 @@ begin
       exit;
     end;
 
-    for i := 1 to p.sites.Count - 1 do
+    for i := 1 to p.PazoSitesList.Count - 1 do
     begin
-
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
 
       if not IrcSpeedTestCleanup(Netname, Channel, firstsite.Name) then
       begin
-        irc_addtext(Netname, Channel,
-          'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
+        irc_addtext(Netname, Channel, 'ERROR: cant remove speedtest file on site %s', [firstsite.Name]);
         exit;
       end;
 

@@ -907,7 +907,7 @@ begin
 
   if Names = '' then
   begin
-    irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [fChanSettings.ChanRoles]));
+    irc_addtext_b(Netname, Channel, format('Channel role(s): %s', [fChanSettings.ChanRoles]));
     Result := True;
     exit;
   end;
@@ -935,7 +935,7 @@ begin
 
     if Names = '' then
     begin
-      irc_addtext_b(Netname, Channel, format('Channel name(s): %s', [fChanSettings.ChanRoles]));
+      irc_addtext_b(Netname, Channel, format('Channel role(s): %s', [fChanSettings.ChanRoles]));
     end
     else if Names = '-' then
     begin

@@ -30,19 +30,6 @@ type
     class function Description: String; override;
   end;
 
-  (*
-    TConditionPretime = class(TIntCondition)
-      function SupplyValue(r: TPazo): Integer; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-    TConditionPretimeFound = class(TBooleanCondition)
-      function SupplyValue(r: TPazo): Boolean; override;
-      class function Name: string; override;
-      class function Description: string; override;
-    end;
-  *)
-
   TConditionComplete = class(TAtCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: String; override;
@@ -99,6 +86,12 @@ type
 
   TConditionYear = class(TIntCondition)
     function SupplyValue(r: TPazo): integer; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
+  TConditionCurrentYear = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
     class function Name: String; override;
     class function Description: String; override;
   end;
@@ -269,42 +262,6 @@ begin
   Result := AgeDescription;
 end;
 
-(*
-{ TConditionPretime }
-
-function TConditionPretime.SupplyValue(r: TPazo): Integer;
-begin
-  Result := SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretime.Name: string;
-begin
-  Result := 'pretime';
-end;
-
-class function TConditionPretime.Description: string;
-begin
-  Result := PretimeDescription
-end;
-
-{ TConditionPretimeFound }
-
-function TConditionPretimeFound.SupplyValue(r: TPazo): Boolean;
-begin
-  Result := r.rls.pretimefound;// SecondsBetween(Now, r.rls.pretime);
-end;
-
-class function TConditionPretimeFound.Name: string;
-begin
-  Result := 'pretimefound';
-end;
-
-class function TConditionPretimeFound.Description: string;
-begin
-  Result := PretimeFoundDescription;
-end;
-*)
-
 { TConditionComplete }
 
 procedure TConditionComplete.SupplyValues(r: TPazo; re: TStringList);
@@ -313,12 +270,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.Complete then
           re.Add(ps.Name);
       except
@@ -353,12 +310,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ((ps.status <> rssNotAllowed) and (not ps.Complete)) then
           re.Add(ps.Name);
       except
@@ -393,12 +350,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssRealPre then
           re.Add(ps.Name);
       except
@@ -433,12 +390,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssAllowed then
           re.Add(ps.Name);
       except
@@ -473,12 +430,12 @@ var
   i: integer;
 begin
   try
-    for i := 0 to r.sites.Count - 1 do
+    for i := 0 to r.PazoSitesList.Count - 1 do
     begin
-      if i > r.sites.Count then
+      if i > r.PazoSitesList.Count then
         Break;
       try
-        ps := TPazoSite(r.sites[i]);
+        ps := TPazoSite(r.PazoSitesList[i]);
         if ps.status = rssNotAllowed then
           re.Add(ps.Name);
       except
@@ -622,6 +579,23 @@ end;
 class function TConditionYear.Description: String;
 begin
   Result := YearDescription;
+end;
+
+{ TConditionCurrentYear }
+
+function TConditionCurrentYear.SupplyValue(r: TPazo): boolean;
+begin
+  Result := (r.rls.year = r.rls.CurrentYear);
+end;
+
+class function TConditionCurrentYear.Name: String;
+begin
+  Result := 'currentyear';
+end;
+
+class function TConditionCurrentYear.Description: String;
+begin
+  Result := CurrentYearDescription;
 end;
 
 { TConditionKnownGroup }

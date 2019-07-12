@@ -357,8 +357,8 @@ begin
       begin
         p.rls.Aktualizal(p);
         ps := FindMostCompleteSite(p);
-        if ((ps = nil) and (p.sites.Count > 0)) then
-          ps:= TPazoSite(p.sites[0]);
+        if ((ps = nil) and (p.PazoSitesList.Count > 0)) then
+          ps:= TPazoSite(p.PazoSitesList[0]);
 
         if (ps <> nil) then
         begin

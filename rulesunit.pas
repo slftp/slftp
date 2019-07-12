@@ -1715,21 +1715,18 @@ var
   r: TRule;
   s: String;
   fositeIndex, aktsiteIndex: integer;
+  ps: TPazoSite;
 begin
   x := TStringList.Create;
   try
-    for i := 0 to p.sites.Count - 1 do
+    for ps in p.PazoSitesList do
     begin
-      try
-        x.Add(TPazoSite(p.sites[i]).Name);
-      except
-        break;
-      end;
+      x.Add(ps.Name);
     end;
 
     for i := 0 to x.Count - 1 do
     begin
-      fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
+      fositeIndex := p.PazoSitesList.IndexOf(p.FindSite(x[i]));
       for j := 0 to rtpl.Count - 1 do
       begin
         r := TRule(rtpl[j]);
@@ -1738,13 +1735,11 @@ begin
           s := r.conditions.AtConditionName;
           if s <> '' then
           begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
             if (aktsiteIndex > fositeIndex) then
             begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
+              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
               fositeIndex := fositeIndex + 1;
-              // must match this ...
-              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
             end;
           end;
         end;
@@ -1758,13 +1753,11 @@ begin
           s := r.conditions.AtConditionName;
           if s <> '' then
           begin
-            aktsiteIndex := p.sites.IndexOf(p.FindSite(s));
+            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
             if (aktsiteIndex > fositeIndex) then
             begin
-              p.sites.Move(aktsiteIndex, fositeIndex);
+              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
               fositeIndex := fositeIndex + 1;
-              // must match this ...
-              // fositeIndex := p.sites.IndexOf(p.FindSite(x[i]));
             end;
           end;
         end;
@@ -2017,8 +2010,6 @@ begin
   conditions.Add(TConditionSection);
   conditions.Add(TConditionInternal);
   conditions.Add(TConditionAge);
-  //  conditions.Add(TConditionPretime);
-  //  conditions.Add(TConditionPretimeFound);
   conditions.Add(TConditionComplete);
   conditions.Add(TConditionNotComplete);
   conditions.Add(TConditionPre);
@@ -2029,6 +2020,7 @@ begin
   conditions.Add(TConditionForeign);
   conditions.Add(TConditionLanguage);
   conditions.Add(TConditionYear);
+  conditions.Add(TConditionCurrentYear);
   conditions.Add(TConditionTag);
   conditions.Add(TConditionDisks);
   conditions.Add(TConditionKnownGroup);
@@ -2045,6 +2037,7 @@ begin
 
   conditions.Add(TConditionMP3Genre);
   conditions.Add(TConditionMP3Year);
+  conditions.Add(TConditionMP3CurrentYear);
   conditions.Add(TConditionMP3Language);
   conditions.Add(TConditionMP3Foreign);
   conditions.Add(TConditionMP3Source);
@@ -2078,6 +2071,7 @@ begin
 
   conditions.Add(TConditionIMDBLookupDone);
   conditions.Add(TConditionIMDBYear);
+  conditions.Add(TConditionIMDBCurrentYear);
   conditions.Add(TConditionIMDBLanguages);
   conditions.Add(TConditionIMDBCountries);
   conditions.Add(TConditionIMDBGenres);
@@ -2087,12 +2081,14 @@ begin
   conditions.Add(TConditionIMDBWide);
   conditions.Add(TConditionIMDBfestival);
   conditions.Add(TConditionIMDBldt);
-  conditions.Add(TConditionIMDBCineyear);
   conditions.Add(TConditionIMDBVotes);
+  conditions.Add(TConditionIMDBCineyear);
+  conditions.Add(TConditionIMDBCurrentCineyear);
 
   conditions.Add(TConditionMVIDGenre);
   conditions.Add(TConditionMVIDFiles);
   conditions.Add(TConditionMVIDYear);
+  conditions.Add(TConditionMVIDCurrentYear);
   conditions.Add(TConditionMVIDLanguage);
   conditions.Add(TConditionMVIDPAL);
   conditions.Add(TConditionMVIDNTSC);
