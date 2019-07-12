@@ -54,6 +54,9 @@ type
   TKBEventType = (kbeUNKNOWN, kbePRE, kbeSPREAD, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
 
   TRelease = class
+  private
+    FCurrentYear: Integer; //< Value of the current year (e.g. 2019)
+  public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
     rlsname: String; //< releasename
@@ -74,12 +77,11 @@ type
     fake: boolean;
     fakereason: String;
 
-    pretime: TDateTime;
-    cpretime: int64;
-    PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
+    pretime: int64; //< UTC pretime for release
+    pretimefrom: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
 
     pretimefound: boolean;
-    pretimefrom: String;
+    PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     // for fake checking
     dots: integer; //< amount of dots ('.') in @link(rlsname)
@@ -102,6 +104,8 @@ type
     class function Name: String; virtual;// abstract;
     class function DefaultSections: String; virtual; abstract;
     class function SectionAccepted(const section: String): boolean;
+
+    property CurrentYear: Integer read FCurrentYear;
   end;
 
   T0DayRelease = class(TRelease)
@@ -727,7 +731,7 @@ begin
       if (event = kbePRE) then
       begin
         // no fakecheck needed, it's a pre from one of our sites
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
         irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
@@ -743,7 +747,7 @@ begin
       end
       else if (event = kbeSPREAD) then
       begin
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now()));
+        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
       end
       else
       begin
@@ -804,7 +808,7 @@ begin
       end
       else
       begin
-        if (DateTimeToUnix(r.pretime) = 0) then
+        if (r.pretime = 0) then
         begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
@@ -862,10 +866,10 @@ begin
 
       if (event <> kbeSPREAD) and (TPretimeLookupMOde(taskpretime_mode) <> plmNone) then
       begin
-        if (DateTimeToUnix(r.pretime) = 0) then
+        if (r.pretime = 0) then
         begin
           r.SetPretime;
-          if (DateTimeToUnix(r.pretime) <> 0) then
+          if (r.pretime <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
@@ -884,7 +888,7 @@ begin
   end;
 
   Result := p.pazo_id;
-  if p.sites.Count = 0 then
+  if p.PazoSitesList.Count = 0 then
     exit;
 
   if CheckIfGlobalSkippedGroup(rls) then
@@ -921,7 +925,7 @@ begin
 
         if (TPretimeLookupMode(taskpretime_mode) <> plmNone) then
         begin
-          if (DateTimeToUnix(r.pretime) = 0) then
+          if (r.pretime = 0) then
           begin
             irc_Addstats(Format('<c7>[NO PRETIME]</c> :  %s %s @ <b>%s</b>', [section, rls, sitename]));
             exit;
@@ -1043,7 +1047,7 @@ begin
 
   try
     // check rules for site only if needed
-    for i := p.sites.Count - 1 downto 0 do
+    for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -1051,7 +1055,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter;
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
@@ -1067,7 +1071,7 @@ begin
     end;
 
     // now add all dst
-    for i := p.sites.Count - 1 downto 0 do
+    for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
         if i < 0 then
@@ -1075,7 +1079,7 @@ begin
       except
         Break;
       end;
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter;
       try
         FireRules(p, ps);
@@ -1110,7 +1114,7 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.sites.Count - 1 downto 0 do
+      for i := p.PazoSitesList.Count - 1 downto 0 do
       begin
         try
           if i < 0 then
@@ -1119,7 +1123,7 @@ begin
           Break;
         end;
         try
-          ps := TPazoSite(p.sites[i]);
+          ps := TPazoSite(p.PazoSitesList[i]);
 
           // dirlist not available
           if ps.dirlist = nil then
@@ -1256,10 +1260,10 @@ begin
       Result := Result + '?';
     Result := Result + #13#10;
 
-    if (DateTimeToUnix(pretime) = 0) then
+    if (pretime = 0) then
       Result := Result + 'Pretime not found!' + #13#10
     else
-      Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', pretime)]) + #13#10;
+      Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(pretime, False))]) + #13#10;
 
     if disks <> 1 then
       Result := Result + Format('Disks: %d', [disks]) + #13#10;
@@ -1295,8 +1299,7 @@ begin
     if SavedPretime > -1 then
     begin
       try
-        self.pretime := UnixToDateTime(Savedpretime);
-        self.cpretime := SavedPretime;
+        self.pretime := SavedPretime;
       except
         on e: Exception do
           irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)', [rlsname, SavedPretime, e.Message]));
@@ -1399,6 +1402,8 @@ begin
     if year < 1900 then
       year := 0;
 
+    FCurrentYear := StrToInt(FormatDateTime('yyyy', Now));
+
     disks := 1;
     for i := words.Count - 1 downto 0 do
     begin
@@ -1443,8 +1448,7 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime := UnixToDateTime(TimeStamp);
-    cpretime := TimeStamp;
+    pretime := TimeStamp;
     pretimefrom := 'Parameter';
   end
   else
@@ -1452,7 +1456,6 @@ begin
     resu := getPretime(rlsname);
     pretime := resu.pretime;
     pretimefrom := resu.mode;
-    cpretime := datetimetounix(pretime);
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
@@ -1935,7 +1938,8 @@ begin
         irc_AddError(Format('<c4><b>ERROR</c></b>: updating of %s failed.', [showname]));
       end;
 
-      // trigger to get the updated data from database
+      // triggers SetTVDbRelease inside the task to get the updated data set to TTVRelease
+      // TODO: the complete behavior should really be overhauled!
       CreateTVLookupTask;
     end
     else
@@ -2158,9 +2162,9 @@ begin
       end;
 
       // no nfo, start searching nfo
-      for j := pazo.sites.Count - 1 downto 0 do
+      for j := pazo.PazoSitesList.Count - 1 downto 0 do
       begin
-        ps := TPazoSite(pazo.sites[j]);
+        ps := TPazoSite(pazo.PazoSitesList[j]);
         try
           AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
         except
@@ -2396,7 +2400,7 @@ function GetKbPazo(p: TPazo): String;
 begin
   Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ShowExtraInfo +
     #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
-    IntToStr(DateTimeToUnix(p.rls.pretime)) + #9 + KBEventTypeToString(p.rls.kb_event);
+    IntToStr(p.rls.pretime) + #9 + KBEventTypeToString(p.rls.kb_event);
 end;
 
 procedure AddKbPazo(const line: String);
@@ -2843,9 +2847,9 @@ begin
 
   try
     // check if the release is incomplete on any site and gather valid sites for filling
-    for i := 0 to p.sites.Count - 1 do
+    for i := 0 to p.PazoSitesList.Count - 1 do
     begin
-      ps := TPazoSite(p.sites[i]);
+      ps := TPazoSite(p.PazoSitesList[i]);
       Debug(dpSpam, rsections, 'AddCompleteTransfers checking out %s', [ps.Name]);
 
       if ps.Name = getAdminSiteName then
@@ -3037,16 +3041,16 @@ begin
               end;
             end;
 
-            for j := 0 to p.sites.Count - 1 do
+            for j := 0 to p.PazoSitesList.Count - 1 do
             begin
               try
-                if j > p.sites.Count then
+                if j > p.PazoSitesList.Count then
                   Break;
               except
                 Break;
               end;
               try
-                ps := TPazoSite(p.sites[j]);
+                ps := TPazoSite(p.PazoSitesList[j]);
                 if (ps.dirlist = nil) then
                   Continue;
 

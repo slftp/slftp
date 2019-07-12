@@ -1105,9 +1105,9 @@ begin
   begin
     dbtvinfo := getTVInfoByShowID(tv_showid);
     try
-      // only do the task for non existing shows or if the last update is too old
-      if ( (dbtvinfo = nil) or (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) ) then
+      if (dbtvinfo = nil) then
       begin
+        // create an INSERT task for non existing show
         try
           AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
         except
@@ -1116,6 +1116,14 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
             exit;
           end;
+        end;
+      end
+      else if (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) then
+      begin
+        // UPDATE the show because our infos are too old
+        if not dbtvinfo.Update then
+        begin
+          Debug(dpMessage, section, Format('[ERROR] updating of %s with ID %s failed.', [rls, tv_showid]));
         end;
       end;
     finally
@@ -1163,8 +1171,8 @@ begin
   if (p <> nil) then
   begin
     ps := FindMostCompleteSite(p);
-    if ((ps = nil) and (p.sites.Count > 0)) then
-      ps := TPazoSite(p.sites[0]);
+    if ((ps = nil) and (p.PazoSitesList.Count > 0)) then
+      ps := TPazoSite(p.PazoSitesList[0]);
 
     if (ps <> nil) then
     begin

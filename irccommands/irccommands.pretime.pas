@@ -8,7 +8,6 @@ function IrcSetupPretimeMode2(const netname, channel, params: String): boolean;
 function IrcSetupADDPreMode(const netname, channel, params: String): boolean;
 function IrcFindPretime(const netname, channel, params: String): boolean;
 function IrcSetPretime(const netname, channel, params: String): boolean;
-function IrcSetupOffset(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -90,14 +89,14 @@ begin
   end;
 
   resu := getPretime(params);
-  pt := resu.pretime;
-  if datetimetounix(pt) > 15 then
-    irc_addtext(Netname, Channel, 'PRETIME %s ~ %s %s (%s)', [params,
-      dbaddpre_GetPreduration(pt), FormatDateTime('yyyy-mm-dd hh:nn:ss', pt), resu.mode])
+  pt := UnixToDateTime(resu.pretime, False);
+  if resu.pretime > 15 then
+    irc_addtext(Netname, Channel, 'PRETIME %s ~ %s ~ %s (%s)', [params,
+      dbaddpre_GetPreduration(resu.pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', pt), resu.mode])
   else
   begin
     irc_addtext(Netname, Channel, 'No valid pretime -> ' +
-      IntToStr(datetimetounix(pt)));
+      IntToStr(resu.pretime));
   end;
   Result := True;
 end;
@@ -177,42 +176,6 @@ begin
       x.Free;
     end;
   end;
-
-  Result := True;
-end;
-
-function IrcSetupOffset(const netname, channel, params: String): boolean;
-var
-  r: TRegexpr;
-begin
-  Result := False;
-
-  if params <> '' then
-  begin
-
-    r := TRegexpr.Create;
-    try
-      r.Expression := '^(\+|\-)([\d]+)$';
-
-      if r.Exec(params) then
-      begin
-        irc_addtext(Netname, Channel, 'Will change Offset value from %s to %s', [config.ReadString('taskpretime', 'offset', 'Not Found!'), params]);
-        config.WriteString('taskpretime', 'offset', params);
-        config.UpdateFile;
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-        exit;
-      end;
-
-    finally
-      r.Free;
-    end;
-
-  end;
-
-  irc_addtext(Netname, Channel, 'Offset value: %s', [config.ReadString('taskpretime', 'offset', 'Not Found!')]);
 
   Result := True;
 end;

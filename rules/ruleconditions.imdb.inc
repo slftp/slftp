@@ -4,6 +4,8 @@ const
 
   IMDBYearDescription: string = 'Returns with the year of the movie''s release date.';
 
+  IMDBCurrentYearDescription: string = 'Returns true, if the year of the movie''s release date equals the current year.';
+
   IMDBLanguagesDescription: string = 'Returns with the list of the movie''s languages.';
 
   IMDBCountriesDescription: string = 'Returns with the list of the countries which cooperated in recording the movie.';
@@ -25,3 +27,5 @@ const
   IMDBSTVDescription: string = 'Returns true, if the movie is STV (Reads Countries from slftp.imdbcountries), otherwise false.';
 
   IMDBCineYearDescription: string = 'Returns the screening year of the movie.';
+
+  IMDBCurrentCineYearDescription: string = 'Returns true, if the screening year of the movie equals the current year.';
