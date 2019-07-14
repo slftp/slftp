@@ -1830,12 +1830,12 @@ begin
 
   for fPair in destinations do
   begin
+    Result := Result + Format('%s(%d) ', [fPair.Key.Name, fPair.Value]);
+
     if (fPair.Key.delay_upload > 0) then
-      Result := Result + Format('%s(%d) [delayed up for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_upload])
+      Result := Result + Format('[delayed upload for %ds] ', [fPair.Key.delay_upload])
     else if (fPair.Key.delay_leech > 0) then
-      Result := Result + Format('%s(%d) [delayed leech for %ds] ', [fPair.Key.Name, fPair.Value, fPair.Key.delay_leech])
-    else
-      Result := Result + Format('%s(%d) ', [fPair.Key.Name, fPair.Value]);
+      Result := Result + Format('[delayed leech for %ds] ', [fPair.Key.delay_leech]);
   end;
 
   // remove superfluous whitespace
