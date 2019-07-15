@@ -22,6 +22,11 @@ type
     procedure TestFindLanguageOnDirectory8;
     procedure TestFindLanguageOnDirectory9;
     procedure TestFindLanguageOnDirectory10;
+    procedure TestFindLanguageOnDirectory11;
+    procedure TestFindLanguageOnDirectory12;
+    procedure TestFindLanguageOnDirectory13;
+    procedure TestFindLanguageOnDirectory14;
+    procedure TestFindLanguageOnDirectory15;
     procedure TestFindMusicLanguageOnDirectory1;
     procedure TestFindMusicLanguageOnDirectory2;
     procedure TestFindMusicLanguageOnDirectory3;
@@ -154,6 +159,61 @@ var
 begin
   fInputStr := 'Spider-Man.Into.The.Spider-Verse.2018.PLDUB.DUAL.2160p.UHD.BluRay.x265-FLAME';
   fExpectedResultStr := 'Polish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory11;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'OldYoungLesbianLove.19.07.15.Zazie.Skymm.And.Alexa.Si.Caught.Red.Handed.XXX.2160p.MP4-KTR';
+  fExpectedResultStr := 'English';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory12;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Dirka.Po.Franciji.2019.5.Etapa.SI.720p.HDTV.x264-RADiOACTiVE';
+  fExpectedResultStr := 'Slovenian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory13;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'WTA.French.Open.2019.Final.Ashleigh.Barty.vs.Marketa.Vondrousova.HDTV.x264-WiNNiNG';
+  fExpectedResultStr := 'English';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory14;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Kinderen.Van.De.Collaboratie.S01E02.FLEMISH.WEB.H264-MERCATOR';
+  fExpectedResultStr := 'Flemish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory15;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Just.Another.Immigrant.S01E04.NLSUBBED.WEB.H264-MERCATOR';
+  fExpectedResultStr := 'Dutch';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
