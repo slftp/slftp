@@ -49,6 +49,8 @@ type
     procedure GetShowValues29;
     procedure GetShowValues30;
     }
+    procedure GetShowValues31;
+    procedure GetShowValues32;
   end;
 
 implementation
@@ -735,6 +737,47 @@ begin
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
 }
+
+procedure TTestShowFunctions.GetShowValues31;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'UFC.Fight.Night.155.Prelims.REAL.1080p.HDTV.x264-VERUM';
+  fExpectedResultStr := 'UFC';
+  fSeason := 0;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues32;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'UFC.Fight.Night.155.REPACK.INTERNAL.REAL.WEB.H264-LEViTATE';
+  fExpectedResultStr := 'UFC';
+  fSeason := 0;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
 initialization
   {$IFDEF FPC}
     RegisterTest('dbtvinfo', TTestShowFunctions.Suite);
