@@ -27,6 +27,26 @@ type
     procedure TestFindLanguageOnDirectory13;
     procedure TestFindLanguageOnDirectory14;
     procedure TestFindLanguageOnDirectory15;
+    procedure TestFindLanguageOnDirectory16;
+    procedure TestFindLanguageOnDirectory17;
+    procedure TestFindLanguageOnDirectory18;
+    procedure TestFindLanguageOnDirectory19;
+    procedure TestFindLanguageOnDirectory20;
+    procedure TestFindLanguageOnDirectory21;
+    procedure TestFindLanguageOnDirectory22;
+    procedure TestFindLanguageOnDirectory23;
+    procedure TestFindLanguageOnDirectory24;
+    procedure TestFindLanguageOnDirectory25;
+    procedure TestFindLanguageOnDirectory26;
+    procedure TestFindLanguageOnDirectory27;
+    procedure TestFindLanguageOnDirectory28;
+    procedure TestFindLanguageOnDirectory29;
+    procedure TestFindLanguageOnDirectory30;
+    procedure TestFindLanguageOnDirectory31;
+    procedure TestFindLanguageOnDirectory32;
+    procedure TestFindLanguageOnDirectory33;
+    procedure TestFindLanguageOnDirectory34;
+    procedure TestFindLanguageOnDirectory35;
     procedure TestFindMusicLanguageOnDirectory1;
     procedure TestFindMusicLanguageOnDirectory2;
     procedure TestFindMusicLanguageOnDirectory3;
@@ -214,6 +234,226 @@ var
 begin
   fInputStr := 'Just.Another.Immigrant.S01E04.NLSUBBED.WEB.H264-MERCATOR';
   fExpectedResultStr := 'Dutch';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory16;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Divine.Land.Heroes.Vol32.FiNAL.ChineseBiG5.Comic.RETAiL.eBook-OurSky';
+  fExpectedResultStr := 'Chinese';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory17;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Rarlab.WinRAR.v3.80.Incl.DOSRAR.BELARUSSIAN.Cracked-F4CG';
+  fExpectedResultStr := 'Belarusian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory18;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'The.Amazing.World.Of.Gumball.S01E18.The.Refund.BULGARiAN.WEBRiP.x264-CNBG';
+  fExpectedResultStr := 'Bulgarian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory19;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Shrek.2.2004.ESTONiAN.1080p.HDTV.h264-EMX';
+  fExpectedResultStr := 'Estonian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory20;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Tinker.Bell.And.The.Secret.Of.The.Wings.2012.iNTERNAL.FiNNiSH.BDRip.x264-PiER';
+  fExpectedResultStr := 'Finnish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory21;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Black.Lightning.S02E04.ITALIAN.1080p.WEB.x264-CPY';
+  fExpectedResultStr := 'Italian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory22;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Rajd.Polski.Update.1.1.1.PL-PROPHET';
+  fExpectedResultStr := 'Polish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory23;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Deep.State.S02E06.POLISH.720p.HDTV.x264-A4O';
+  fExpectedResultStr := 'Polish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory24;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Bricsys.BricsCAD.Platinum.v19.2.10.1.PORTUGUESE.LINUX.UBUNTU.X64-AMPED';
+  fExpectedResultStr := 'Portuguese';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory25;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'PornMegaLoad.19.05.21.Joana.Bliss.Romanian.Idol.XXX.1080p.MP4-KTR';
+  fExpectedResultStr := 'English';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory26;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Orizont.2015.ROMANiAN.720p.HDTV.x264-RADiOACTiVE';
+  fExpectedResultStr := 'Romanian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory27;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Nubiles.net_19.07.15.Linda.Maers.Russian.Cutie.XXX.IMAGESET-FuGLi';
+  fExpectedResultStr := 'Russian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory28;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Zhivaya.priroda.Rossiya.Bashkortostan.Khrebet.Eraktash.15.09.15.2015.RUSSiAN.1080p.HDTV.H264-I_KnoW';
+  fExpectedResultStr := 'Russian';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory29;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'FAKings.19.07.12.Paola.Hard.Bae.SPANISH.XXX.720p.MP4-KTR';
+  fExpectedResultStr := 'Spanish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory30;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Die.goettliche.Ordnung.2017.Swissgerman.1080p.BluRay.x264-ETM';
+  fExpectedResultStr := 'Swissgerman';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory31;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Mit.dem.Bauch.durch.die.Wand.SWiSSGERMAN.DOKU.DVDRiP.x264-DEFLOW';
+  fExpectedResultStr := 'Swissgerman';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory32;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Daniel.Spicer.The.Turkish.Psychedelic.Music.Explosion.Anadolu.Psych.1965-1980.2018.RETAiL.ePub.eBook-VENTOLiN';
+  fExpectedResultStr := 'English';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory33;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Dr.Dolittle.3.2006.iNTERNAL.TURKiSH.DVDRip.X264-MULTiPLY';
+  fExpectedResultStr := 'Turkish';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory34;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Marina.Lewycka.-.A.Short.History.Of.Tractors.In.Ukrainian.2006.Retail.EPUB.eBook-BitBook';
+  fExpectedResultStr := 'English';
+
+  fOutputStr := FindLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindLanguageOnDirectory35;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Boxing.2018.12.02.Deontay.Wilder.Vs.Tyson.Fury.UKRAINIAN.PDTV.x264-PLUTONiUM';
+  fExpectedResultStr := 'Ukrainian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
