@@ -1193,7 +1193,7 @@ end;
 
 procedure dbTVInfoStart;
 const
-  CurrentDbVersion: integer = 3;
+  CurrentDbVersion: integer = 4;
 var
   fDBName: String;
   fUserVersion: integer;
@@ -1228,7 +1228,7 @@ begin
           end;
         0:
           begin
-            fQuery.SQL.Text := 'PRAGMA user_version = ' + IntToStr(CurrentDbVersion);
+            fQuery.SQL.Text := Format('PRAGMA user_version = %d', [CurrentDbVersion]);
             fQuery.ExecSQL;
           end;
         2:
