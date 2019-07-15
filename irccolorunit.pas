@@ -69,7 +69,7 @@ begin
     if colrx.Exec(smsg) then
     begin
       repeat
-        s := Format('%s%s%s%:0s', [mColorChar, colrx.Match[1], colrx.Match[2]]);
+        s := Format('%s%.2d%s%:0s', [mColorChar, StrToInt(colrx.Match[1]), colrx.Match[2]]);
         smsg := StringReplace(smsg, colrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
       until not colrx.ExecNext;
     end;
@@ -78,7 +78,7 @@ begin
     if bcolrx.Exec(smsg) then
     begin
       repeat
-        s := Format('%s%s%s%:0s', [bColorChar, bcolrx.Match[1], bcolrx.Match[2]]);
+        s := Format('%s%.2d%s%:0s', [bColorChar, StrToInt(bcolrx.Match[1]), bcolrx.Match[2]]);
         smsg := StringReplace(smsg, bcolrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
       until not bcolrx.ExecNext;
     end;
