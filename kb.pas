@@ -891,7 +891,7 @@ begin
   if p.PazoSitesList.Count = 0 then
     exit;
 
-  if CheckIfGlobalSkippedGroup(rls) then
+  if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
   begin
     irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a global skipped group!', [grp, rls]));
     debug(dpSpam, rsections, 'Group %s pred %s in %s but it is a global skipped group', [grp, rls, section]);
