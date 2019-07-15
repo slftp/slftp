@@ -218,8 +218,6 @@ begin
 
   lrx := TRegexpr.Create;
   try
-    lrx.ModifierI := True;
-
     for sllang in sllanguages do
     begin
       if sllang.NeedsRegexMatching then
