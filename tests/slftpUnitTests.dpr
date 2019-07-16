@@ -68,7 +68,8 @@ uses
   dbtvinfoTests,
   sllanguagebaseTests,
   kbTests,
-  globalskipunitTests;
+  globalskipunitTests,
+  irccolorunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
