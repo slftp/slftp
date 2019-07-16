@@ -572,20 +572,25 @@ function IrcFindSection(const netname, channel, params: String): boolean;
 var
   s: TSite;
   i: integer;
-  section: String;
+  section, fSitesList: String;
 begin
   section := UpperCase(SubString(params, ' ', 1));
+  fSitesList := '';
 
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-
-    if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+    if (s.Name = getAdminSiteName) then
+      Continue;
+    if (s.PermDown) then
       Continue;
 
     if s.IsSection(section) then
-      irc_addtext(Netname, Channel, '<b>%s</b>: Free trader and leech slots: %d %d', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
+      fSitesList := fSitesList + ' ' + s.Name;
   end;
+
+  if (fSitesList <> '') then
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> added on: %s', [section, fSitesList]);
 
   Result := True;
 end;

@@ -154,6 +154,7 @@
     {^} Allow handling of multiple PRE sections through !setpredir (#182)
     {^} !batch output is less verbose by default (#217)
     {^} Reduce amount of MP3 language mismatches by case-sensitive checks (#245)
+    {^} !findsection ignores permdown sites in output (#253)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
