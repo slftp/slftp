@@ -50,7 +50,8 @@ uses
   dbtvinfoTests,
   sllanguagebaseTests,
   kbTests,
-  globalskipunitTests;
+  globalskipunitTests,
+  irccolorunitTests;
 
 var
   filecheck: String;
