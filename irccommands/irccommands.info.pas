@@ -42,12 +42,13 @@ begin
     exit;
   end;
 
-  // TODO: Rework this and improve helpfile
-
   x := TStringList.Create;
   try
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
-    irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s', [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
+    irc_addtext(Netname, Channel, ' username/irc nick/proxyname: %s / %s / %s', [s.UserName, s.IRCNick, s.ProxyName]);
+    irc_addtext(Netname, Channel, ' name/link speed/location/size: %s / %s / %s / %s', [s.SiteFullName, s.SiteLinkSpeed, s.Country, s.SiteSize]);
+    irc_addtext(Netname, Channel, ' notes: %s', [s.SiteNotes]);
+    irc_addtext(Netname, Channel, ' infos: %s', [s.SiteInfos]);
     irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
@@ -60,10 +61,6 @@ begin
       if 1 = Pos('affils-', x[i]) then
         irc_addtext(Netname, Channel, ' %s: %s', [x[i], s.RCString(x[i], '')]);
     end;
-
-    if s.RCString('notes', '') <> '' then
-      irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
-
   finally
     x.Free;
   end;
@@ -86,7 +83,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('name', Name); // TODO: Add property
+  s.SiteFullName := Name;
   irc_addtext(Netname, Channel, Name);
 
   Result := True;
@@ -107,7 +104,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('link', link); // TODO: Add property
+  s.SiteLinkSpeed := link;
   irc_addtext(Netname, Channel, link);
 
   Result := True;
@@ -224,7 +221,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('size', size); // TODO: Add property to TSite
+  s.SiteSize := size;
   irc_addtext(Netname, Channel, size);
 
   Result := True;
@@ -275,7 +272,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('notes', notes);
+  s.SiteNotes := notes;
   irc_addtext(Netname, Channel, notes);
 
   Result := True;

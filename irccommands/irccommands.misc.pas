@@ -275,7 +275,7 @@ begin
     exit;
   end;
 
-  // TODO: Add property
+  // TODO: Add property, seems it's never read from TSite! only from TSiteSlot...
   if ident <> '' then
     s.WCString('ident', ident)
   else
