@@ -220,22 +220,14 @@ type
     function GetSectionPreTime(const Name: String): integer;
     procedure SetSectionPreTime(const Name: String; const Value: integer);
 
-    { function for @link(delayleech) property to read min and max values from inifile.
+    { function for @link(delayleech) property to get a random value between min and max values from inifile.
       @param(aSection sectionname, uses global value if no value for given section is specified)
-      @returns(If minvalue <= 0 then random value between min and max value, otherwise 0) }
+      @returns(random value between min and max value if at least max value is set, otherwise 0) }
     function GetDelayLeech(const aSection: String): integer;
-    { procedure for @link(delayleech) property to write min and max value to inifile.
-      @param(aSection sectionname including specification for '-min' or '-max')
-      @param(Value Value which should be set for sectionname) }
-    procedure SetDelayLeech(const aSection: String; const Value: integer);
-    { function for @link(delayupload) property to read min and max values from inifile.
+    { function for @link(delayupload) property to get a random value between min and max values from inifile.
       @param(aSection sectionname, uses global value if no value for given section is specified)
-      @returns(If minvalue <= 0 then random value between min and max value, otherwise 0) }
+      @returns(random value between min and max value if at least max value is set, otherwise 0) }
     function GetDelayUpload(const aSection: String): integer;
-    { procedure for @link(delayupload) property to write min and max value to inifile.
-      @param(aSection sectionname including specification for '-min' or '-max')
-      @param(Value Value which should be set for sectionname) }
-    procedure SetDelayUpload(const aSection: String; const Value: integer);
 
     function GetSections: String;
     procedure SettSections(Value: String);
@@ -391,6 +383,40 @@ type
     function isRouteableTo(const sitename: String): boolean;
     function isRouteableFrom(const sitename: String): boolean;
 
+    { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
+      @param(aSection sectionname)
+      @returns(minvalue if set, otherwise 0) }
+    function GetDelayLeechMin(const aSection: String): integer;
+    { helper function for getting delayleech (see @link(delayleech)) max value from inifile.
+      @param(aSection sectionname)
+      @returns(maxvalue if set, otherwise 0) }
+    function GetDelayLeechMax(const aSection: String): integer;
+    { helper procedure for setting delayleech (see @link(delayleech)) min value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayLeechMin(const aSection: String; const Value: integer);
+    { helper procedure for setting delayleech (see @link(delayleech)) max value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayLeechMax(const aSection: String; const Value: integer);
+
+    { helper function for getting delayupload (see @link(delayupload)) min value from inifile.
+      @param(aSection sectionname)
+      @returns(minvalue if set, otherwise 0) }
+    function GetDelayUploadMin(const aSection: String): integer;
+    { helper function for getting delayupload (see @link(delayupload)) max value from inifile.
+      @param(aSection sectionname)
+      @returns(maxvalue if set, otherwise 0) }
+    function GetDelayUploadMax(const aSection: String): integer;
+    { helper procedure for setting delayupload (see @link(delayupload)) min value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayUploadMin(const aSection: String; const Value: integer);
+    { helper procedure for setting delayupload (see @link(delayupload)) max value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayUploadMax(const aSection: String; const Value: integer);
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -398,8 +424,8 @@ type
     property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
-    property delayleech[const aSection: String]: integer read GetDelayLeech write SetDelayLeech; //< returns random value between min and max seconds for delaying leech from aSection
-    property delayupload[const aSection: String]: integer read GetDelayUpload write SetDelayUpload; //< returns random value between min and max seconds for delaying upload into aSection
+    property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
+    property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
     property freeslots: integer read fFreeslots write SetFreeSlots;
     property IRCNick: String read GetIRCNick write SetIRCNick; //< IRC username which is used for inviting to sitechannels
     property ProxyName: String read GetProxyName write SetProxyName; //< Name of Proxy which is used for connecting to site
@@ -2656,31 +2682,66 @@ begin
   end;
 end;
 
+function TSite.GetDelayLeechMin(const aSection: String): integer;
+begin
+  Result := RCInteger('delayleech-' + aSection + '-min', 0);
+end;
+
+function TSite.GetDelayLeechMax(const aSection: String): integer;
+begin
+  Result := RCInteger('delayleech-' + aSection + '-max', 0);
+end;
+
+procedure TSite.SetDelayLeechMin(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayleech-' + aSection + '-min', Value);
+end;
+
+procedure TSite.SetDelayLeechMax(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayleech-' + aSection + '-max', Value);
+end;
+
 function TSite.GetDelayLeech(const aSection: String): integer;
 var
   fMinValue, fMaxValue: Integer;
 begin
   Result := 0;
 
-  fMinValue := RCInteger('delayleech-' + aSection + '-min', 0);
+  fMinValue := GetDelayLeechMin(aSection);
   if fMinValue <= 0 then
   begin
-    fMinValue := RCInteger('delayleech-global-min', 0);
+    fMinValue := GetDelayLeechMin('global');
   end;
 
-  fMaxValue := RCInteger('delayleech-' + aSection + '-max', 0);
+  fMaxValue := GetDelayLeechMax(aSection);
   if fMaxValue <= 0 then
   begin
-    fMaxValue := RCInteger('delayleech-global-max', 0);
+    fMaxValue := GetDelayLeechMax('global');
   end;
 
-  if fMinValue > 0 then
+  if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
 end;
 
-procedure TSite.SetDelayLeech(const aSection: String; const Value: integer);
+function TSite.GetDelayUploadMin(const aSection: String): integer;
 begin
-  WCInteger('delayleech-' + aSection, Value);
+  Result := RCInteger('delayupload-' + aSection + '-min', 0);
+end;
+
+function TSite.GetDelayUploadMax(const aSection: String): integer;
+begin
+  Result := RCInteger('delayupload-' + aSection + '-max', 0);
+end;
+
+procedure TSite.SetDelayUploadMin(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayupload-' + aSection + '-min', Value);
+end;
+
+procedure TSite.SetDelayUploadMax(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayupload-' + aSection + '-max', Value);
 end;
 
 function TSite.GetDelayUpload(const aSection: String): integer;
@@ -2689,25 +2750,20 @@ var
 begin
   Result := 0;
 
-  fMinValue := RCInteger('delayupload-' + aSection + '-min', 0);
+  fMinValue := GetDelayUploadMin(aSection);
   if fMinValue <= 0 then
   begin
-    fMinValue := RCInteger('delayupload-global-min', 0);
+    fMinValue := GetDelayUploadMin('global');
   end;
 
-  fMaxValue := RCInteger('delayupload-' + aSection + '-max', 0);
+  fMaxValue := GetDelayUploadMax(aSection);
   if fMaxValue <= 0 then
   begin
-    fMaxValue := RCInteger('delayupload-global-max', 0);
+    fMaxValue := GetDelayUploadMax('global');
   end;
 
-  if fMinValue > 0 then
+  if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
-end;
-
-procedure TSite.SetDelayUpload(const aSection: String; const Value: integer);
-begin
-  WCInteger('delayupload-' + aSection, Value);
 end;
 
 function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
