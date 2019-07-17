@@ -239,11 +239,6 @@ type
 
     function GetSections: String;
     procedure SettSections(Value: String);
-    function GetLeechers: String;
-    procedure SettLeechers(Value: String);
-    function GetTraders: String;
-    procedure SettTraders(Value: String);
-    function GetUsers: String;
     function GetNoannounce: boolean;
     procedure SetNoAnnounce(const Value: boolean);
     function FetchAutoIndex: TAutoIndexTask;
@@ -384,18 +379,11 @@ type
     function GetRankLock(const section: String): integer;
     procedure SetRankLock(const section: String; Value: integer);
 
-    function FreeLeechSlots: integer;
-    function FreeTraderSlots: integer;
     function SetSections(const sections: String; remove: boolean = False): String;
-    function SetLeechers(const users: String; remove: boolean): String;
-    function SetTraders(const users: String; remove: boolean): String;
     function IsSection(const section: String): boolean;
     function IsAffil(const aAffil: String): boolean;
     function AddAffil(const affil: String): boolean;
     function SetAffilsALL(affils: String): String;
-    function IsUser(user: String): boolean;
-    function IsLeecher(user: String): boolean;
-    function IsTrader(user: String): boolean;
 
     function IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
     function GetPretime(const section: String): String;
@@ -404,9 +392,6 @@ type
     function isRouteableFrom(const sitename: String): boolean;
 
     property sections: String read GetSections write SettSections;
-    property leechers: String read GetLeechers write SettLeechers;
-    property traders: String read GetTraders write SettTraders;
-    property users: String read GetUsers;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
@@ -2813,26 +2798,6 @@ begin
   end;
 end;
 
-function TSite.IsUser(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := leechers;
-    Result := x.IndexOf(user) <> -1;
-    if not Result then
-    begin
-      x.DelimitedText := traders;
-      Result := x.IndexOf(user) <> -1;
-    end;
-  finally
-    x.Free;
-  end;
-end;
-
 function TSite.SetSections(const sections: String; remove: boolean): String;
 var
   x: TStringList;
@@ -2860,101 +2825,6 @@ begin
     end;
     x.Sort;
     self.sections := x.DelimitedText;
-    Result := x.DelimitedText;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.SetLeechers(const users: String; remove: boolean): String;
-var
-  x: TStringList;
-  ss: String;
-  voltmar: boolean;
-  i, maxleechers: integer;
-begin
-  voltmar := True;
-  maxleechers := RCInteger('maxleechers', -1);
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := self.leechers;
-    //  irc_addtexT('debug: '+IntToStr(maxleechers)+' '+x.DelimitedText);
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(users, ' ', i);
-      if ss = '' then
-        Break;
-
-      if x.IndexOf(ss) <> -1 then
-      begin
-        if remove then
-          x.Delete(x.IndexOf(ss));
-      end
-      else
-      begin
-        if ((maxleechers = -1) or (x.Count + 1 <= maxleechers)) then
-          x.Add(ss)
-        else
-        begin
-          if not voltmar then
-          begin
-            // irc_Addtext('Limit reached');
-            voltmar := True;
-          end;
-        end;
-      end;
-    end;
-    x.Sort;
-    self.leechers := x.DelimitedText;
-    Result := x.DelimitedText;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.SetTraders(const users: String; remove: boolean): String;
-var
-  x: TStringList;
-  ss: String;
-  i, maxtraders: integer;
-  voltmar: boolean;
-begin
-  maxtraders := RCInteger('maxtraders', -1);
-  voltmar := False;
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := self.traders;
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(users, ' ', i);
-      if ss = '' then
-        Break;
-
-      if x.IndexOf(ss) <> -1 then
-      begin
-        if remove then
-          x.Delete(x.IndexOf(ss));
-      end
-      else
-      begin
-        if ((maxtraders = -1) or (x.Count + 1 <= maxtraders)) then
-          x.Add(ss)
-        else
-        begin
-          if not voltmar then
-          begin
-            // irc_Addtext('Limit reached');
-            voltmar := True;
-          end;
-        end;
-      end;
-    end;
-    x.Sort;
-    self.traders := x.DelimitedText;
     Result := x.DelimitedText;
   finally
     x.Free;
@@ -3018,73 +2888,6 @@ begin
     end
     else
       Result := False;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.GetLeechers: String;
-begin
-  Result := RCString('leechers', '');
-end;
-
-function TSite.GetTraders: String;
-begin
-  Result := RCString('traders', '');
-end;
-
-procedure TSite.SettLeechers(Value: String);
-begin
-  WCString('leechers', Value);
-end;
-
-procedure TSite.SettTraders(Value: String);
-begin
-  WCString('traders', Value);
-end;
-
-function TSite.GetUsers: String;
-begin
-  Result := Format('<b>%s</b> %s', [leechers, traders]);
-end;
-
-function TSite.FreeLeechSlots: integer;
-var
-  x: TStringList;
-begin
-  Result := RCInteger('maxleechers', -1);
-  if Result = -1 then
-    exit;
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := leechers;
-    if x.Count <= Result then
-      Dec(Result, x.Count)
-    else
-      Result := 0;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.FreeTraderSlots: integer;
-var
-  x: TStringList;
-begin
-  Result := RCInteger('maxtraders', -1);
-  if Result = -1 then
-    exit;
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := traders;
-    if x.Count <= Result then
-      Dec(Result, x.Count)
-    else
-      Result := 0;
   finally
     x.Free;
   end;
@@ -3391,36 +3194,6 @@ begin
     Result := self.sw
   else
     Result := TSiteSw(sitesdat.ReadInteger('site-' + Name, 'sw', integer(sswUnknown))); // TODO: maybe use self.GetSw for it?
-end;
-
-function TSite.IsLeecher(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := leechers;
-    Result := x.IndexOf(user) <> -1;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.IsTrader(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := traders;
-    Result := x.IndexOf(user) <> -1;
-  finally
-    x.Free;
-  end;
 end;
 
 function TSite.GetNoannounce: boolean;

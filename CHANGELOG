@@ -161,6 +161,7 @@
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
     {-} !setoffset no longer required or supported
     {-} Remove !lame and associated classes
+    {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
