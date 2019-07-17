@@ -135,6 +135,7 @@ var
   fCTX: EVP_CIPHER_CTX;
   fInBufSize: integer;
   fInBufSizeMod: integer;
+  fDTextLength: Integer;
   fInBuf: TBytes;
   fRealIV: array[0..7] of Byte;
   fSuccess: boolean;
@@ -143,12 +144,13 @@ var
   dTextHelper: TBytes;
 begin
   Result := '';
+  fDTextLength := Length(dText);
 
   {$IFDEF UNICODE}
     dTextHelper := TEncoding.UTF8.GetBytes(dText);
   {$ELSE}
-    SetLength(dTextHelper, Length(dText));
-    move(dText[1], dTextHelper[0], Length(dText));
+    SetLength(dTextHelper, fDTextLength);
+    move(dText[1], dTextHelper[0], fDTextLength);
   {$ENDIF}
 
   FillChar(fRealIV[0], Length(fRealIV), 0);
@@ -188,17 +190,13 @@ begin
     // important for padding
     FillChar(fInBuf[0], fInBufSize, 0);
 
-    // for some f*cked up reason, Mircryption's CBC blowfish does not use an
-    // explicit IV, but prepends 8 bytes of random data to the actual string
-    // instead, so we have to do this too...
-    {$IFDEF MSWINDOWS}
-      // generate IV using screen/user input
-      RAND_screen();
-    {$ELSE}
-      // generate IV using input string
-      // RAND_add() may be called with sensitive data such as user entered passwords. The seed values cannot be recovered from the PRNG output.
-      RAND_seed(@dText, Length(dText));
-    {$ENDIF}
+    { for some f*cked up reason, Mircryption's CBC blowfish does not use an
+      explicit IV, but prepends 8 bytes of random data to the actual string
+      instead, so we have to do this too...
+      generate IV using input string }
+    // RAND_add() may be called with sensitive data such as user entered passwords.
+    // The seed values cannot be recovered from the PRNG output.
+    RAND_seed(@dText, fDTextLength);
 
     if (RAND_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
     begin
