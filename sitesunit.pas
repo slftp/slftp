@@ -280,6 +280,23 @@ type
     function GetAutoDirlistSections: String;
     procedure SetAutoDirlistSections(const Value: String);
 
+    { function for @link(SiteFullName) property to read full sitename from inifile }
+    function GetSiteFullName: String;
+    { procedure for @link(SiteFullName) property to write full sitename to inifile }
+    procedure SetSiteFullName(const Value: String);
+    { function for @link(SiteLinkSpeed) property to read link speed from inifile }
+    function GetSiteLinkSpeed: String;
+    { procedure for @link(SiteLinkSpeed) property to write link speed to inifile }
+    procedure SetSiteLinkSpeed(const Value: String);
+    { function for @link(SiteSize) property to read site size from inifile }
+    function GetSiteSize: String;
+    { procedure for @link(SiteSize) property to write site size to inifile }
+    procedure SetSiteSize(const Value: String);
+    { function for @link(SiteNotes) property to read additional notes from inifile }
+    function GetSiteNotes: String;
+    { procedure for @link(SiteNotes) property to write additional notes to inifile }
+    procedure SetSiteNotes(const Value: String);
+
     function GetNoLoginMSG: boolean;
     procedure SetNoLoginMSG(Value: boolean);
 
@@ -442,6 +459,10 @@ type
     property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
     property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
     property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
+    property SiteFullName: String read GetSiteFullName write SetSiteFullName; //< full name of site
+    property SiteLinkSpeed: String read GetSiteLinkSpeed write SetSiteLinkSpeed; //< link speed of site
+    property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
+    property SiteNotes: String read GetSiteNotes write SetSiteNotes; //< additional notes for the site
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
     property features: TSiteFeatures read fFeatures write fFeatures;
@@ -3641,6 +3662,46 @@ end;
 procedure TSite.SetAutoDirlistSections(const Value: String);
 begin
   WCString('autodirlistsections', Value);
+end;
+
+function TSite.GetSiteFullName;
+begin
+  Result := RCString('name', '??');
+end;
+
+procedure TSite.SetSiteFullName(const Value: String);
+begin
+  WCString('name', Value);
+end;
+
+function TSite.GetSiteLinkSpeed;
+begin
+  Result := RCString('link', '??');
+end;
+
+procedure TSite.SetSiteLinkSpeed(const Value: String);
+begin
+  WCString('link', Value);
+end;
+
+function TSite.GetSiteSize;
+begin
+  Result := RCString('size', '??');
+end;
+
+procedure TSite.SetSiteSize(const Value: String);
+begin
+  WCString('size', Value);
+end;
+
+function TSite.GetSiteNotes;
+begin
+  Result := RCString('notes', '??');
+end;
+
+procedure TSite.SetSiteNotes(const Value: String);
+begin
+  WCString('notes', Value);
 end;
 
 function TSite.GetNoLoginMSG: boolean;
