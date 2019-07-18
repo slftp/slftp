@@ -51,6 +51,7 @@ type
     }
     procedure GetShowValues31;
     procedure GetShowValues32;
+    procedure GetShowValues33;
   end;
 
 implementation
@@ -766,6 +767,26 @@ var
 begin
   fInputStr := 'UFC.Fight.Night.155.REPACK.INTERNAL.REAL.WEB.H264-LEViTATE';
   fExpectedResultStr := 'UFC';
+  fSeason := 0;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues33;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'The.Final.Quarter.2019.720p.HDTV.x264-CBFM';
+  fExpectedResultStr := 'The.Final.Quarter';
   fSeason := 0;
   fEpisode := 0;
 
