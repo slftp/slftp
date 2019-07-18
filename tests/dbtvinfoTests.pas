@@ -746,7 +746,7 @@ var
   fEpisode, fOutEpisode: int64;
 begin
   fInputStr := 'UFC.Fight.Night.155.Prelims.REAL.1080p.HDTV.x264-VERUM';
-  fExpectedResultStr := 'UFC';
+  fExpectedResultStr := 'UFC.Fight.Night.155.Prelims';
   fSeason := 0;
   fEpisode := 0;
 
@@ -766,7 +766,7 @@ var
   fEpisode, fOutEpisode: int64;
 begin
   fInputStr := 'UFC.Fight.Night.155.REPACK.INTERNAL.REAL.WEB.H264-LEViTATE';
-  fExpectedResultStr := 'UFC';
+  fExpectedResultStr := 'UFC.Fight.Night.155';
   fSeason := 0;
   fEpisode := 0;
 
