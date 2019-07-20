@@ -54,10 +54,15 @@ end;
 
 constructor TEPrecatcherThread.Create;
 begin
-  inherited Create(True);
+  {$IFDEF DEBUG}
+    inherited Create('ExternalPreCatcher', True);
+  {$ELSE}
+    inherited Create(True);
+  {$ENDIF}
+
   if not BindHost(config.ReadString(rsections, 'bindhost', '')) then
     Debug(dpError, rsections, error);
-  BindPort:= config.ReadInteger(rsections, 'bindport', 16666);
+  BindPort := config.ReadInteger(rsections, 'bindport', 16666);
   if not GetSocket(true) then
     Debug(dpError, rsections, error);
 end;

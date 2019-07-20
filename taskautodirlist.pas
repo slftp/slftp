@@ -313,11 +313,15 @@ end;
 
 constructor TReqFillerThread.Create(p: Tpazo; const secdir, rlsname: String);
 begin
+  inherited Create(False);
+  {$IFDEF DEBUG}
+    NameThreadForDebugging('ReqFiller');
+  {$ENDIF}
+  FreeOnTerminate := True;
+
   self.p := p;
   self.secdir := secdir;
   self.rlsname := rlsname;
-  inherited Create(False);
-  FreeOnTerminate := True;
 end;
 
 procedure TReqFillerThread.Execute;

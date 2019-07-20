@@ -92,7 +92,7 @@ type
     function IrcConnect: Boolean;
     procedure IrcQuit;
     function ChanNicks(const chan: String): String;
-    constructor Create(const netname: String);
+    constructor Create(const aNetname: String);
     procedure Execute; override;
     destructor Destroy; override;
 
@@ -548,31 +548,36 @@ end;
 
 { TMyIrcThread }
 
-constructor TMyIrcThread.Create(const netname: String);
+constructor TMyIrcThread.Create(const aNetname: String);
 begin
-  irc_lock := TCriticalSection.Create;
+  {$IFDEF DEBUG}
+    inherited Create(aNetname, False);
+  {$ELSE}
+    inherited Create(False);
+  {$ENDIF}
+  Debug(dpMessage, section, 'IRC thread for %s started', [aNetname]);
 
+  self.netname := aNetname;
+  status := 'creating...';
+
+  irc_lock := TCriticalSection.Create;
   channels := TStringList.Create;
 
   irc_last_written := Now;
-
-  self.netname := netname;
-  status := 'creating...';
   shouldquit := False;
   shouldrestart := False;
+  //flood := config.ReadInteger(section, 'flood', 333);
+  console_add_ircwindow(aNetname);
 
-  //  flood:= config.ReadInteger(section, 'flood', 333);
-  Debug(dpMessage, section, 'Irc thread for %s has started', [netname]);
-  console_add_ircwindow(netname);
-  if sitesdat.ReadString('ircnet-' + netname, 'host', '') <> '' then
+  // TODO: remove this as its not needed anymore
+  if sitesdat.ReadString('ircnet-' + aNetname, 'host', '') <> '' then
   begin
     // converting old entries to new
-    sitesdat.WriteString('ircnet-' + netname, 'bnc_host-0', sitesdat.ReadString('ircnet-' + netname, 'host', ''));
-    sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-0', sitesdat.ReadInteger('ircnet-' + netname, 'port', 0));
-    sitesdat.DeleteKey('ircnet-' + netname, 'host');
-    sitesdat.DeleteKey('ircnet-' + netname, 'port');
+    sitesdat.WriteString('ircnet-' + aNetname, 'bnc_host-0', sitesdat.ReadString('ircnet-' + aNetname, 'host', ''));
+    sitesdat.WriteInteger('ircnet-' + aNetname, 'bnc_port-0', sitesdat.ReadInteger('ircnet-' + aNetname, 'port', 0));
+    sitesdat.DeleteKey('ircnet-' + aNetname, 'host');
+    sitesdat.DeleteKey('ircnet-' + aNetname, 'port');
   end;
-  inherited Create(False);
 end;
 
 destructor TMyIrcThread.Destroy;
