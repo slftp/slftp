@@ -91,7 +91,7 @@ type
     aktdir: String;
     prot: TProtection;
     kilepve: boolean;
-    no: integer;
+    FSlotNumber: integer; //< number of slot
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
@@ -120,7 +120,7 @@ type
     procedure Fire;
     function Login(kill: boolean = False): boolean;
     procedure Execute; override;
-    constructor Create(site: TSite; no: integer);
+    constructor Create(const aSite: TSite; const aSlotNumber: integer);
     destructor Destroy; override;
     function RCBool(const Name: String; def: boolean): boolean;
     function RCInteger(const Name: String; const def: integer): integer;
@@ -849,12 +849,17 @@ begin
   end;
 end;
 
-constructor TSiteSlot.Create(site: TSite; no: integer);
+constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
-  self.site := site;
-  self.no := no;
-  debug(dpSpam, section, 'Slot %s is creating', [Name]);
+  {$IFDEF DEBUG}
+    inherited Create(Format('%s/%d', [aSite.Name, aSlotNumber]), False);
+  {$ELSE}
+    inherited Create(False);
+  {$ENDIF}
+  debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
 
+  self.site := aSite;
+  self.FSlotNumber := aSlotNumber;
   todotask := nil;
   event := TEvent.Create(nil, False, False, Name);
   kilepve := False;
@@ -871,7 +876,7 @@ begin
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
-  if (self.site.Name <> getAdminSiteName) then
+  if (site.Name <> getAdminSiteName) then
   begin
     if not site.PermDown then
     begin
@@ -883,13 +888,12 @@ begin
       status := ssMarkedDown;
   end;
 
-  debug(dpSpam, section, 'Slot %s has created', [Name]);
-  inherited Create(False);
+  debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
 
 function TSiteSlot.Name: String;
 begin
-  Result := Format('%s/%d', [site.Name, no]);
+  Result := Format('%s/%d', [site.Name, FSlotNumber]);
 end;
 
 procedure TSiteSlot.DestroySocket(down: boolean);

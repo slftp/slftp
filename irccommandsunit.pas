@@ -353,14 +353,18 @@ const
 
 constructor TIRCCommandThread.Create(c: TIRCCommandHandler; const netname, channel, params: String; cmd: String = '');
 begin
+  inherited Create(False);
+  {$IFDEF DEBUG}
+    NameThreadForDebugging('IRC Command');
+  {$ENDIF}
+  FreeOnTerminate := True;
+
   self.c := c;
   self.Netname := netname;
   self.th := th;
   self.Channel := channel;
   self.Params := params;
   self.CMD := cmd;
-  inherited Create(False);
-  FreeOnTerminate := True;
 end;
 
 procedure TIRCCommandThread.Execute;
