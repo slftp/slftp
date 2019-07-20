@@ -87,7 +87,7 @@ type
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
-    mdtmre: TRegExpr;
+    mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
     prot: TProtection;
     kilepve: boolean;
@@ -128,8 +128,10 @@ type
     function RCString(const Name, def: String): String;
 
     procedure Stop; override;
-
-    function MdtmSeconds(filename: String): integer;
+    { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
+      @param(aFilename Filename)
+      @returns(On successful parsing seconds from MTDM response, otherwise 0) }
+    function MdtmSeconds(const aFilename: String): integer;
     function Read(read_cmd: String = ''): boolean; overload;
     function Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
     function Send(const s: String): boolean; overload;
@@ -341,8 +343,6 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
-
-    // siteinvited: Boolean;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -875,7 +875,7 @@ begin
   begin
     if not site.PermDown then
     begin
-      // ha autologin be van kapcsolva akkor -- If auto login is enabled then
+      // if autologin is turned on then
       if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
         AddLoginTask;
     end
@@ -2251,12 +2251,15 @@ var
   i, j: integer;
   ss, affils: String;
 begin
+  debug(dpSpam, section, 'Start creating of site %s', [Name]);
+  slots := TObjectList.Create();
+  self.Name := Name;
+  features := [];
+
   if (Name = getAdminSiteName) then
   begin
-    self.Name := Name;
     WorkingStatus := sstUp;
 
-    slots := TObjectList.Create();
     for i := 1 to admin_siteslots do
       slots.Add(TSiteSlot.Create(self, i - 1));
 
@@ -2264,24 +2267,21 @@ begin
 
     exit;
   end;
-  //  siteinvited:= False;
-  self.Name := Name;
 
-  debug(dpSpam, section, 'Site %s is creating', [Name]);
-
+  siteinvited := False;
   foutofannounce := 0;
-  // nullazni a felfedezendo beallitasokat
+  // reset to explore it again on first login
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
-  features := [];
 
-  slots := TObjectList.Create();
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
 
-  for i := 1 to 1000 do // convert section affils to new global affil format
+  // TODO: remove as its been here for a while now...
+  // convert section affils to new global affil format
+  for i := 1 to 1000 do
   begin
     ss := SubString(self.sections, ' ', i);
     if ss = '' then
@@ -2299,7 +2299,7 @@ begin
     end;
   end;
 
-  debug(dpSpam, section, 'Site %s has created', [Name]);
+  debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
@@ -3356,13 +3356,14 @@ begin
   end;
 end;
 
-function TSiteSlot.MdtmSeconds(filename: String): integer;
+function TSiteSlot.MdtmSeconds(const aFilename: String): integer;
+var
+  fStrHelper: String;
 begin
   Result := 0;
+  fStrHelper := TranslateFilename(aFilename);
 
-  filename := TranslateFilename(filename);
-
-  if not Send('MDTM %s', [filename]) then
+  if not Send('MDTM %s', [fStrHelper]) then
     exit;
   if not Read('MDTM') then
     exit;

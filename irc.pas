@@ -1745,6 +1745,7 @@ begin
 
       status := 'offline';
       Continue;
+
       hiba:
       if (not shouldquit) then
       begin
@@ -1754,16 +1755,19 @@ begin
 
       m := config.ReadInteger(section, 'sleep_on_error', 60);
       for i := 1 to m do
+      begin
         if (not shouldquit) then
         begin
           status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
           Sleep(1000);
         end;
+      end;
+
       if not shouldquit then
-        Begin
-          Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
-          BncCsere;
-        End;
+      begin
+        Debug(dpError, section, netname + ': ' + status + 'time elapsed... now Reconnecting');
+        BncCsere;
+      end;
     except
       on e: Exception do
       begin
