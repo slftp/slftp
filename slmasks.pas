@@ -4,18 +4,22 @@ interface
 
 uses
   // TODO: Replace delphimasks file with Masks file from Delphi Rio when FPC has fixed the issues with it...
-  {$IFDEF FPC}delphimasks{$ELSE}Masks{$ENDIF}, RegExpr;
+  {$IFDEF FPC}delphimasks{$ELSE}Masks{$ENDIF}, SyncObjs, RegExpr;
 
 type
+  {
+    @abstract(Inbuilt Mask/Regex class with automatic handling of concurrent access)
+  }
   TslMask = class
   private
-    fMask: String; //< actual mask used for @link(dm) or @link(rm)
+    FLock: TCriticalSection; //< lock to avoid concurrent access
+    FMask: String; //< actual mask used for @link(dm) or @link(rm)
     dm: TMask; //< simple mask
     rm: TRegExpr; //< regex mask
   public
     function Matches(const s: String): Boolean;
     constructor Create(const mask: String);
-    property mask: String read fMask;
+    property mask: String read FMask;
     destructor Destroy; override;
   end;
 
@@ -27,13 +31,13 @@ uses
 const
   ssection = 'slmasks';
 
-
 { TslMask }
+
 constructor TslMask.Create(const mask: String);
 var
   l: Integer;
 begin
-  fMask := mask;
+  FMask := mask;
   l := Length(mask);
 
   if l = 0 then
@@ -53,6 +57,8 @@ begin
   end
   else
     dm := TMask.Create(mask);
+
+  FLock := TCriticalSection.Create;
 end;
 
 destructor TslMask.Destroy;
@@ -67,6 +73,8 @@ begin
     FreeAndNil(rm);
   end;
 
+  FLock.Free;
+
   inherited;
 end;
 
@@ -74,15 +82,20 @@ function TslMask.Matches(const s: String): Boolean;
 begin
   Result := False;
 
-  if Assigned(dm) then
-    Result := dm.Matches(s)
-  else if Assigned(rm) then
-  begin
-    try
-      Result := rm.Exec(s)
-    except on e: Exception do
-      debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s',[mask, e.Message]);
+  FLock.Enter;
+  try
+    if Assigned(dm) then
+      Result := dm.Matches(s)
+    else if Assigned(rm) then
+    begin
+      try
+        Result := rm.Exec(s)
+      except on e: Exception do
+        debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
+      end;
     end;
+  finally
+    FLock.Leave;
   end;
 end;
 

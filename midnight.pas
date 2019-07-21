@@ -75,15 +75,14 @@ var
 begin
   Result := False;
 
+  m := Timeof(Now);
+  if ((m >= m_ends) and (m <= m_starts)) then
+    exit;
+
   for fMidnightMask in MidnightSections do
   begin
     if fMidnightMask.Matches(aSection) then
     begin
-      m := Timeof(Now);
-
-      if ((m >= m_ends) and (m <= m_starts)) then
-        exit;
-
       // it's midnight
       Result := True;
       exit;
