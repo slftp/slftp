@@ -2812,7 +2812,7 @@ constructor TKBThread.Create;
 begin
   inherited Create(False);
   {$IFDEF DEBUG}
-    NameThreadForDebugging('KB');
+    NameThreadForDebugging('KB', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
   kbevent := TEvent.Create(nil, False, False, 'kb');

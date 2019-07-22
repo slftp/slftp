@@ -355,7 +355,7 @@ constructor TIRCCommandThread.Create(c: TIRCCommandHandler; const netname, chann
 begin
   inherited Create(False);
   {$IFDEF DEBUG}
-    NameThreadForDebugging('IRC Command');
+    NameThreadForDebugging('IRC Command', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
 
