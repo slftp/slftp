@@ -94,7 +94,8 @@ begin
       if ((y.Strings[i][1] = '[') and (y.Strings[i][Length(y.Strings[i])] = ']')) then
         Continue;
 
-      fIsRegexPattern := {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(SubString(y.Strings[i], '=', 2), '|');
+      // chars which indicate regex use
+      fIsRegexPattern := (SubString(y.Strings[i], '=', 2).IndexOfAny(['|', '[']) <> -1);
 
       sllang := TSLLanguages.Create(SubString(y.Strings[i], '=', 1), SubString(y.Strings[i], '=', 2), i, fIsRegexPattern);
       aObjectList.Add(sllang);
