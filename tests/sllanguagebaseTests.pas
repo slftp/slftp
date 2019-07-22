@@ -122,7 +122,7 @@ procedure TTestSLLanguageBase.TestFindLanguageOnDirectory5;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
-  fInputStr := 'Microsoft.Office.Professional.Plus.2016.Arabic.VL.x86.ISO-SCC';
+  fInputStr := 'The.Story.of.Jesus.for.Children.2000.iNTERNAL.ARABiC.DVDRip.X264-MULTiPLY';
   fExpectedResultStr := 'Arabic';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
@@ -365,7 +365,7 @@ var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
   fInputStr := 'Nubiles.net_19.07.15.Linda.Maers.Russian.Cutie.XXX.IMAGESET-FuGLi';
-  fExpectedResultStr := 'Russian';
+  fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
