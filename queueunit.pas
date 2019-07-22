@@ -365,7 +365,7 @@ constructor TQueueThread.Create;
 begin
   inherited Create(False);
   {$IFDEF DEBUG}
-    NameThreadForDebugging('Queue');
+    NameThreadForDebugging('Queue', self.ThreadID);
   {$ENDIF}
 
   main_lock := TCriticalSection.Create;

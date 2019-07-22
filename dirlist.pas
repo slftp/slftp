@@ -329,7 +329,7 @@ begin
       //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, full_path]);
       for tag in SpecialDirsTags do
       begin
-        if AnsiContainsText(full_path, tag) then
+        if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(full_path, tag) then
         begin
           debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [full_path, tag]);
           Result := hasnfo;
