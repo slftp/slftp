@@ -71,6 +71,7 @@ begin
   InitialKbSetup;
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
+  InitialTagsSetup;
 
 
   // run all registered tests

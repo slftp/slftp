@@ -111,7 +111,8 @@ label
   ujra;
 var
   s: TSiteSlot;
-  i, j, k: Integer;
+  i: Integer;
+  j, fTagCompleteType: TTagCompleteType;
   de: TDirListEntry;
   r: TPazoGameTask;
   d: TDirList;
@@ -145,7 +146,7 @@ ujra:
       exit;
     end;
 
-    j := 0;
+    j := tctUNMATCHED;
     nfofile := '';
     d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
     d.dirlist_lock.Enter;
@@ -158,9 +159,9 @@ ujra:
 
         if ((de.Directory) or (de.filesize = 0)) then
         begin
-          k := TagComplete(de.filenamelc);
-          if j = 0 then j := k;
-          if k = 1 then j := k;
+          fTagCompleteType := TagComplete(de.filenamelc);
+          if j = tctUNMATCHED then j := fTagCompleteType;
+          if fTagCompleteType = tctCOMPLETE then j := fTagCompleteType;
         end;
       end;
     finally
@@ -202,7 +203,7 @@ ujra:
 
   if Parse(ss.DataString) then
   begin
-    if j = 1 then
+    if j = tctCOMPLETE then
       event := kbeCOMPLETE
     else
       event := kbeNEWDIR;

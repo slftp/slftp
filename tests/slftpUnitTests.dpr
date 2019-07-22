@@ -97,6 +97,7 @@ begin
   InitialKbSetup;
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
+  InitialTagsSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;
