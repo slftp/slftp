@@ -1311,19 +1311,17 @@ begin
       begin
         s := TSite(sites.Items[i]);
         if s.Name = getAdminSiteName then
-          continue;
+          Continue;
+
+        if s.PermDown then
+          Continue;
 
         if s.SkipPre then
-        begin
-          irc_addtext(netname, channel, '<c8><b>INFO</c></b>: we skip check for %s ', [s.Name]);
-          continue;
-        end;
+          Continue;
 
         predir := s.sectiondir[section];
         if predir = '' then
-        begin
           Continue;
-        end;
 
         d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
         d.dirlist_lock.Enter;
