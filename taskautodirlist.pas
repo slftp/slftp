@@ -315,7 +315,7 @@ constructor TReqFillerThread.Create(p: Tpazo; const secdir, rlsname: String);
 begin
   inherited Create(False);
   {$IFDEF DEBUG}
-    NameThreadForDebugging('ReqFiller');
+    NameThreadForDebugging('ReqFiller', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
 

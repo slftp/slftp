@@ -24,6 +24,7 @@ __history
 *.stat
 *.stats
 *.tvsconfig
+_dcu/*
 bin/*
 Win32/*
 Win64/*
