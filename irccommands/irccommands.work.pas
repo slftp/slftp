@@ -644,6 +644,11 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [srcsitename]);
     exit;
   end;
+  if (srcsite.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [srcsitename]);
+    exit;
+  end;
   if not (srcsite.WorkingStatus in [sstUnknown, sstUp]) then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> is down.', [srcsitename]);
@@ -655,6 +660,11 @@ begin
   if dstsite = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [dstsitename]);
+    exit;
+  end;
+  if (dstsite.PermDown) then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> is perm down.', [dstsitename]);
     exit;
   end;
   if not (dstsite.WorkingStatus in [sstUnknown, sstUp]) then
