@@ -72,7 +72,7 @@ label
   ujra;
 var
   s: TSiteSlot;
-  j: Integer;
+  fTagCompleteType: TTagCompleteType;
   r: TPazoGenreDirlistTask;
   d: TDirList;
   tagfile, genre: String;
@@ -130,8 +130,8 @@ ujra:
   try
       d := TDirlist.Create(s.site.Name, nil, nil, s.lastResponse);
     try
-      j := TagComplete(d.complete_tag);
-      if j <> 0 then
+      fTagCompleteType := TagComplete(d.complete_tag);
+      if fTagCompleteType <> tctUNMATCHED then
         tagfile := d.complete_tag;
     finally
       d.Free;
@@ -156,7 +156,7 @@ ujra:
     end;
   end;
 
-  if ((j = 0) or (genre = '')) then
+  if ((fTagCompleteType = tctUNMATCHED) or (genre = '')) then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin

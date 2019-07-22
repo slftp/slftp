@@ -642,7 +642,8 @@ var
   added: Boolean;
   dirmaszk, username, groupname, datum, filename: String;
   filesize: Int64;
-  i, j: Integer;
+  i: Integer;
+  fTagCompleteType: TTagCompleteType;
   rrgx, splx: TRegExpr;
 begin
   added := False;
@@ -740,8 +741,8 @@ begin
           // Dont add complete tags to dirlist entries
           if ((dirmaszk[1] = 'd') or (filesize < 1)) then
           begin
-            j := TagComplete(filename);
-            if (j <> 0) then
+            fTagCompleteType := TagComplete(filename);
+            if (fTagCompleteType <> tctUNMATCHED) then
             begin
               complete_tag := filename;
               Continue;
@@ -1181,16 +1182,17 @@ begin
 end;
 
 function TDirList.CompleteByTag: Boolean;
-var i: Integer;
+var
+  i: TTagCompleteType;
 begin
-  Result:= False;
+  Result := False;
   if (complete_tag = '') then
     exit;
 
-  i:= TagComplete(complete_tag);
-  if (i = 1) then
+  i := TagComplete(complete_tag);
+  if (i = tctCOMPLETE) then
   begin
-    Result:= True;
+    Result := True;
     exit;
   end;
 end;

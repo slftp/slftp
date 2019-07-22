@@ -150,7 +150,8 @@ label
   ujra;
 var
   s: TSiteSlot;
-  filecount, i, j, k: Integer;
+  filecount, i: Integer;
+  j, fTagCompleteType: TTagCompleteType;
   de: TDirListEntry;
   r: TPazoMVIDTask;
   d: TDirList;
@@ -184,7 +185,7 @@ ujra:
       exit;
     end;
 
-    j := 0;
+    j := tctUNMATCHED;
     filecount :=0;
     nfofile := '';
     d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
@@ -198,9 +199,9 @@ ujra:
 
         if ((de.Directory) or (de.filesize = 0)) then
         begin
-          k := TagComplete(de.filenamelc);
-          if j = 0 then j := k;
-          if k = 1 then j := k;
+          fTagCompleteType := TagComplete(de.filenamelc);
+          if j = tctUNMATCHED then j := fTagCompleteType;
+          if fTagCompleteType = tctCOMPLETE then j := fTagCompleteType;
         end;
 
         if ((not de.Directory) and (de.filesize > 0) and (de.Extension <> '.jpg') and (de.Extension <> '.gif') and (de.Extension <> '.nfo') and (de.Extension <> '.sfv')) then
