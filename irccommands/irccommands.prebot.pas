@@ -950,11 +950,7 @@ begin
     queue_lock.Leave;
   end;
 
-  {$IFDEF UNICODE}
-    if ContainsText(dir, '*') then
-  {$ELSE}
-    if AnsiContainsText(dir, '*') then
-  {$ENDIF}
+  if (dir.IndexOfAny(['*', '?']) <> -1) then
   begin
     irc_Addtext(netname, channel, 'Doing a wildcard match for <b>%s</b> on %s/%s', [dir, sitename, section]);
     fInputRlsMask := TslMask.Create(dir);
