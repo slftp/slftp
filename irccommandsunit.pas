@@ -52,7 +52,7 @@ const
     'section' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..240] of TIrcCommand = (
+  ircCommandsArray: array[1..239] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -86,7 +86,6 @@ const
     (cmd: 'sslfxp'; hnd: IrcSslfxp; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'sslmethod'; hnd: IrcSslmethod; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'legacycwd'; hnd: IrcLegacyCwd; minparams: 1; maxparams: 2; hlpgrp: 'site'),
-    (cmd: 'nologinmsg'; hnd: IrcNoLoginMSG; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'skipinc'; hnd: IrcSkipBeingUploadedFiles; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'fetchuser'; hnd: IrcSiteUserFetch; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'usefornfodownload'; hnd: IrcUseForNFOdownload; minparams: 1; maxparams: 2; hlpgrp: 'site'),

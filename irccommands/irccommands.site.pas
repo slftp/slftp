@@ -22,7 +22,6 @@ function IrcTimeout(const netname, channel, params: String): boolean;
 function IrcSslfxp(const netname, channel, params: String): boolean;
 function IrcSslmethod(const netname, channel, params: String): boolean;
 function IrcLegacyCwd(const netname, channel, params: String): boolean;
-function IrcNoLoginMSG(const netname, channel, params: String): boolean;
 function IrcSkipBeingUploadedFiles(const netname, channel, params: String): boolean;
 function IrcSiteUserFetch(const netname, channel, params: String): boolean;
 function IrcUseForNFOdownload(const netname, channel, params: String): boolean;
@@ -1434,93 +1433,6 @@ begin
     finally
       x.Free;
     end;
-  end;
-
-  Result := True;
-end;
-
-function IrcNoLoginMSG(const netname, channel, params: String): boolean;
-var
-  svalue, sname: String;
-  ss: TSite;
-  i: integer;
-begin
-  Result := False;
-  sname := UpperCase(SubString(params, ' ', 1));
-  svalue := SubString(params, ' ', 2);
-
-  if sname = '*' then
-  begin
-    for i := 0 to sites.Count - 1 do
-    begin
-      ss := TSite(sites.Items[i]);
-      if (ss.Name = getAdminSiteName) then
-        Continue;
-      if ss.PermDown then
-        Continue;
-
-      if svalue = '' then
-      begin
-        if (ss.sw = sswGlftpd) then
-        begin
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
-        end
-        else
-        begin
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
-        end;
-      end
-      else if ((svalue = '1') or (svalue = '0')) then
-      begin
-        if (ss.sw = sswGlftpd) then
-        begin
-          ss.NoLoginMSG := StrToBoolDef(svalue, False);
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
-        end
-        else
-        begin
-          irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
-        end;
-      end
-      else
-        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
-    end;
-  end
-  else
-  begin
-    ss := FindSiteByName('', sname);
-    if ss = nil then
-    begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
-      Result := True;
-      exit;
-    end;
-
-    if svalue = '' then
-    begin
-      if (ss.sw = sswGlftpd) then
-      begin
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
-      end;
-    end
-    else if ((svalue = '1') or (svalue = '0')) then
-    begin
-      if (ss.sw = sswGlftpd) then
-      begin
-        ss.NoLoginMSG := StrToBoolDef(svalue, False);
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: %d', [ss.Name, Ord(ss.NoLoginMSG)]);
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, '%s NoLogin MSG: Not supported on %s', [ss.Name, SiteSoftWareToSTring(ss)]);
-      end;
-    end
-    else
-      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
   end;
 
   Result := True;

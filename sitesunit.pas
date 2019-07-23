@@ -299,9 +299,6 @@ type
     { procedure for @link(SiteNotes) property to write additional notes to inifile }
     procedure SetSiteNotes(const Value: String);
 
-    function GetNoLoginMSG: boolean;
-    procedure SetNoLoginMSG(Value: boolean);
-
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
 
@@ -480,7 +477,6 @@ type
     property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
 
-    property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
     property SkipBeingUploadedFiles: boolean read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
@@ -1381,12 +1377,6 @@ begin
 
   un := self.site.UserName;
   upw := self.site.PassWord;
-
-  // to bypass welcome message you have to use '-' as first char on your password
-  // WORKS ONLY @ GLFTPD
-  if site.sw = sswGlftpd then
-    if self.site.NoLoginMSG then
-      upw := '-' + upw;
 
   // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
@@ -3707,16 +3697,6 @@ end;
 procedure TSite.SetSiteNotes(const Value: String);
 begin
   WCString('notes', Value);
-end;
-
-function TSite.GetNoLoginMSG: boolean;
-begin
-  Result := RCBool('nologinmsg', False);
-end;
-
-procedure TSite.SetNoLoginMSG(Value: boolean);
-begin
-  WCBool('nologinmsg', Value);
 end;
 
 function TSite.GetUseForNFOdownload: integer;
