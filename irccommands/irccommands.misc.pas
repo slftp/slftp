@@ -4,7 +4,6 @@ interface
 
 { slftp misc commands functions }
 function IrcRaw(const netname, channel, params: String): boolean;
-function IrcManageUser(const netname, channel, params: String): boolean;
 function IrcInvite(const netname, channel, params: String): boolean;
 function IrcSiteChan(const netname, channel, params: String): boolean;
 function IrcSetAutoInvite(const netname, channel, params: String): boolean;
@@ -72,67 +71,6 @@ begin
       Result := False;
     end;
   end;
-end;
-
-function IrcManageUser(const netname, channel, params: String): boolean;
-var
-  command, username: String;
-  s: TSite;
-  i, j: integer;
-  x, y: TStringList;
-begin
-  Result := False;
-  username := UpperCase(SubString(params, ' ', 1));
-  command := mystrings.RightStr(params, length(username) + 1);
-
-  x := TStringList.Create;
-  y := TStringList.Create;
-  try
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := TSite(sites[i]);
-      if (s.PermDown) then
-      begin
-        irc_addtext(Netname, Channel, 'Skipping site %s, cause its perm down.', [s.Name]);
-        Continue;
-      end;
-      if (s.WorkingStatus in [sstMarkedAsDownByUser]) then
-      begin
-        irc_addtext(Netname, Channel, 'Skipping site %s, cause its marked down.', [s.Name]);
-        Continue;
-      end;
-
-      x.DelimitedText := s.leechers;
-      if x.IndexOf(username) <> -1 then
-      begin
-        y.Add(s.Name);
-        Continue;
-      end;
-
-      x.DelimitedText := s.traders;
-      j := x.IndexOf(username);
-      if j <> -1 then
-      begin
-        y.Add(s.Name);
-        Continue;
-      end;
-    end;
-
-    if y.Count = 0 then
-    begin
-      irc_addtext(Netname, Channel, 'User %s not found on any sites', [username]);
-      exit;
-    end;
-
-    for i := 0 to y.Count - 1 do
-      RawB(Netname, Channel, y[i], '', command);
-
-  finally
-    x.Free;
-    y.Free;
-  end;
-
-  Result := True;
 end;
 
 function IrcInvite(const netname, channel, params: String): boolean;
@@ -337,7 +275,7 @@ begin
     exit;
   end;
 
-  // TODO: Add property
+  // TODO: Add property, seems it's never read from TSite! only from TSiteSlot...
   if ident <> '' then
     s.WCString('ident', ident)
   else

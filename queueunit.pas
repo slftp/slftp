@@ -356,8 +356,6 @@ begin
   end;
 end;
 
-
-
 procedure QueueStart;
 begin
   QueueStat;
@@ -365,8 +363,12 @@ end;
 
 constructor TQueueThread.Create;
 begin
-  main_lock := TCriticalSection.Create();
   inherited Create(False);
+  {$IFDEF DEBUG}
+    NameThreadForDebugging('Queue', self.ThreadID);
+  {$ENDIF}
+
+  main_lock := TCriticalSection.Create;
 end;
 
 destructor TQueueThread.Destroy;

@@ -68,7 +68,8 @@ uses
   dbtvinfoTests,
   sllanguagebaseTests,
   kbTests,
-  globalskipunitTests;
+  globalskipunitTests,
+  irccolorunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -96,6 +97,7 @@ begin
   InitialKbSetup;
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
+  InitialTagsSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

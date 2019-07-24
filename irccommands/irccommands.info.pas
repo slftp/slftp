@@ -11,15 +11,9 @@ function IrcSetAffils(const netname, channel, params: String): boolean;
 function IrcSize(const netname, channel, params: String): boolean;
 function IrcCountry(const netname, channel, params: String): boolean;
 function IrcNotes(const netname, channel, params: String): boolean;
-function IrcUsers(const netname, channel, params: String): boolean;
-function IrcLeechers(const netname, channel, params: String): boolean;
-function IrcTraders(const netname, channel, params: String): boolean;
-function IrcUserslots(const netname, channel, params: String): boolean;
-function IrcFreeslots(const netname, channel, params: String): boolean;
 function IrcFindAffil(const netname, channel, params: String): boolean;
 function IrcFindCountry(const netname, channel, params: String): boolean;
 function IrcFindSection(const netname, channel, params: String): boolean;
-function IrcFindUser(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -48,12 +42,13 @@ begin
     exit;
   end;
 
-  // TODO: Rework this and improve helpfile
-
   x := TStringList.Create;
   try
     irc_addtext(Netname, Channel, '<b>Site</b> %s:', [s.Name]);
-    irc_addtext(Netname, Channel, ' name/speed/location/size: %s / %s / %s / %s', [s.RCString('name', '??'), s.RCString('link', '??'), s.Country, s.RCString('size', '??')]);
+    irc_addtext(Netname, Channel, ' username/irc nick/proxyname: %s / %s / %s', [s.UserName, s.IRCNick, s.ProxyName]);
+    irc_addtext(Netname, Channel, ' name/link speed/location/size: %s / %s / %s / %s', [s.SiteFullName, s.SiteLinkSpeed, s.Country, s.SiteSize]);
+    irc_addtext(Netname, Channel, ' notes: %s', [s.SiteNotes]);
+    irc_addtext(Netname, Channel, ' infos: %s', [s.SiteInfos]);
     irc_addtext(Netname, Channel, ' sections: %s', [s.sections]);
 
     sitesdat.ReadSection('site-' + sitename, x);
@@ -66,15 +61,6 @@ begin
       if 1 = Pos('affils-', x[i]) then
         irc_addtext(Netname, Channel, ' %s: %s', [x[i], s.RCString(x[i], '')]);
     end;
-
-    x.DelimitedText := s.leechers;
-    irc_addtext(Netname, Channel, ' leechers (%d/%d):B %s', [x.Count, s.RCInteger('maxleechers', -1), x.DelimitedText]);
-    x.DelimitedText := s.traders;
-    irc_addtext(Netname, Channel, ' traders (%d/%d):B %s', [x.Count, s.RCInteger('maxtraders', -1), x.DelimitedText]);
-
-    if s.RCString('notes', '') <> '' then
-      irc_addtext(Netname, Channel, ' notes: ' + s.RCString('notes', ''));
-
   finally
     x.Free;
   end;
@@ -97,7 +83,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('name', Name); // TODO: Add property
+  s.SiteFullName := Name;
   irc_addtext(Netname, Channel, Name);
 
   Result := True;
@@ -118,7 +104,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('link', link); // TODO: Add property
+  s.SiteLinkSpeed := link;
   irc_addtext(Netname, Channel, link);
 
   Result := True;
@@ -235,7 +221,7 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('size', size); // TODO: Add property to TSite
+  s.SiteSize := size;
   irc_addtext(Netname, Channel, size);
 
   Result := True;
@@ -286,196 +272,8 @@ begin
     irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
     exit;
   end;
-  s.WCString('notes', notes);
+  s.SiteNotes := notes;
   irc_addtext(Netname, Channel, notes);
-
-  Result := True;
-end;
-
-function IrcUsers(const netname, channel, params: String): boolean;
-var
-  ss, sitename: String;
-  s: TSite;
-  x, y: TStringList;
-  i, j: integer;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-
-  if sitename <> '' then
-  begin
-    s := FindSiteByName(Netname, sitename);
-    if s = nil then
-    begin
-      irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-      exit;
-    end;
-    ss := s.users;
-  end
-  else
-  begin
-    x := TStringList.Create;
-    y := TStringList.Create;
-    try
-      for i := 0 to sites.Count - 1 do
-      begin
-        s := TSite(sites[i]);
-        x.DelimitedText := s.leechers;
-        for j := 0 to x.Count - 1 do
-          if y.IndexOf(x[j]) = -1 then
-            y.Add(x[j]);
-        x.DelimitedText := s.traders;
-        for j := 0 to x.Count - 1 do
-          if y.IndexOf(x[j]) = -1 then
-            y.Add(x[j]);
-      end;
-
-      y.Sort;
-
-      ss := '';
-      for i := 0 to y.Count - 1 do
-      begin
-        if ss <> '' then
-          ss := ss + ' ';
-        if (((i + 1) mod 10) = 0) then
-        begin
-          irc_addtext(Netname, Channel, ss);
-          ss := '';
-        end;
-
-        ss := ss + y[i];
-      end;
-
-    finally
-      x.Free;
-      y.Free;
-    end;
-
-  end;
-  if (trim(ss) <> '') then
-    irc_addtext(Netname, Channel, ss);
-
-  Result := True;
-end;
-
-function IrcLeechers(const netname, channel, params: String): boolean;
-var
-  leecherlist, sitename, users: String;
-  i: Integer;
-  s: TSite;
-  x: TStringList;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  users := mystrings.RightStr(params, length(sitename) + 1);
-
-  x := TStringList.Create;
-  try
-    x.commatext := sitename;
-
-    for i := 0 to x.Count - 1 do
-    begin
-      leecherlist := '';
-
-      s := FindSiteByName(Netname, x.Strings[i]);
-      if s = nil then
-      begin
-        irc_addtext(Netname, Channel, 'Site %s not found.', [x.Strings[i]]);
-        Continue;
-      end;
-
-      leecherlist := s.SetLeechers(users, True);
-      if leecherlist <> '' then
-      begin
-        irc_addText(Netname, Channel, 'Leecher list for <b>%s</b>: %s', [s.Name, leecherlist]);
-      end;
-
-    end;
-  finally
-    x.Free;
-  end;
-
-  Result := True;
-end;
-
-function IrcTraders(const netname, channel, params: String): boolean;
-var
-  ss, sitename, users: String;
-  s: TSite;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  users := mystrings.RightStr(params, length(sitename) + 1);
-
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-    exit;
-  end;
-  ss := s.SetTraders(users, True);
-  if ss <> '' then
-    irc_addtext(Netname, Channel, ss);
-
-  Result := True;
-end;
-
-function IrcUserslots(const netname, channel, params: String): boolean;
-var
-  sitename: String;
-  s: TSite;
-  leechslots, ratioslots: integer;
-begin
-  Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  leechslots := StrToIntDef(SubString(params, ' ', 2), -1);
-  ratioslots := StrToIntDef(SubString(params, ' ', 3), -1);
-
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
-  begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
-    exit;
-  end;
-
-  // TODO: Add property to TSite
-  s.WCInteger('maxleechers', leechslots);
-  s.WCInteger('maxtraders', ratioslots);
-
-  Result := True;
-end;
-
-function IrcFreeslots(const netname, channel, params: String): boolean;
-var
-  s: TSite;
-  i: integer;
-  db: integer;
-  ss: String;
-begin
-  Result := False;
-
-  db := 0;
-  ss := '';
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-
-    if (TSite(sites.Items[i]).Name = getAdminSiteName) then
-      Continue;
-
-    ss := ss + format('<b>%s</b> (%d/%d) ', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
-    Inc(db);
-
-    if db >= 5 then
-    begin
-      irc_addtext(Netname, Channel, ss);
-      ss := '';
-      db := 0;
-    end;
-  end;
-
-  if ss <> '' then
-    irc_addtext(Netname, Channel, ss);
 
   Result := True;
 end;
@@ -572,74 +370,25 @@ function IrcFindSection(const netname, channel, params: String): boolean;
 var
   s: TSite;
   i: integer;
-  section: String;
+  section, fSitesList: String;
 begin
   section := UpperCase(SubString(params, ' ', 1));
+  fSitesList := '';
 
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-
-    if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+    if (s.Name = getAdminSiteName) then
+      Continue;
+    if (s.PermDown) then
       Continue;
 
     if s.IsSection(section) then
-      irc_addtext(Netname, Channel, '<b>%s</b>: Free trader and leech slots: %d %d', [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
+      fSitesList := fSitesList + ' ' + s.Name;
   end;
 
-  Result := True;
-end;
-
-function IrcFindUser(const netname, channel, params: String): boolean;
-var
-  s: TSite;
-  i: integer;
-  user: String;
-  leech_up: String;
-  leech_dn: String;
-  ratio_up: String;
-  ratio_dn: String;
-begin
-  user := SubString(params, ' ', 1);
-
-  leech_up := '';
-  leech_dn := '';
-  ratio_up := '';
-  ratio_dn := '';
-
-  for i := 0 to sites.Count - 1 do
-  begin
-    s := TSite(sites[i]);
-
-    if s.IsLeecher(user) then
-    begin
-      if s.WorkingStatus = sstUp then
-        leech_up := leech_up + format('<b>%s</b> (%d/%d) ',
-          [s.Name, s.FreeTraderSlots, s.FreeLeechSlots])
-      else
-        leech_dn := leech_dn + format('<b>%s</b> (%d/%d) ',
-          [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
-    end
-    else if s.IsTrader(user) then
-    begin
-      if s.WorkingStatus = sstUp then
-        ratio_up := ratio_up + format('<b>%s</b> (%d/%d) ',
-          [s.Name, s.FreeTraderSlots, s.FreeLeechSlots])
-      else
-        ratio_dn := ratio_dn + format('<b>%s</b> (%d/%d) ',
-          [s.Name, s.FreeTraderSlots, s.FreeLeechSlots]);
-    end;
-
-  end;
-
-  if leech_up <> '' then
-    irc_addtext(Netname, Channel, 'Leech up: %s', [leech_up]);
-  if leech_dn <> '' then
-    irc_addtext(Netname, Channel, 'Leech dn: %s', [leech_dn]);
-  if ratio_up <> '' then
-    irc_addtext(Netname, Channel, 'Ratio up: %s', [ratio_up]);
-  if ratio_dn <> '' then
-    irc_addtext(Netname, Channel, 'Ratio dn: %s', [ratio_dn]);
+  if (fSitesList <> '') then
+    irc_addtext(Netname, Channel, 'Section <b>%s</b> added on: %s', [section, fSitesList]);
 
   Result := True;
 end;
