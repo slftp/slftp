@@ -112,7 +112,8 @@ type
   public
     shouldquit: Boolean;
     procedure Execute; virtual; abstract;
-    constructor Create(createSuspended: Boolean = True);
+    constructor Create(createSuspended: Boolean = True); overload;
+    constructor Create(const aThreadName: String; createSuspended: Boolean = True); overload;
     destructor Destroy; override;
     procedure Start;
     procedure Stop; virtual;
@@ -1825,8 +1826,19 @@ end;
 constructor TslTCPThread.Create(createSuspended: Boolean = True);
 begin
   inherited Create;
-  OnWaitingforSocket:= WFS;
-  connectionThread:= TslCCHThread.Create(self, createSuspended);
+  OnWaitingforSocket := WFS;
+  connectionThread := TslCCHThread.Create(self, createSuspended);
+end;
+
+constructor TslTCPThread.Create(const aThreadName: String; createSuspended: Boolean = True);
+begin
+  inherited Create;
+  OnWaitingforSocket := WFS;
+  connectionThread := TslCCHThread.Create(self, createSuspended);
+
+  {$IFDEF DEBUG}
+    connectionThread.NameThreadForDebugging(aThreadName, connectionThread.ThreadID);
+  {$ENDIF}
 end;
 
 destructor TslTCPThread.Destroy;
@@ -1837,11 +1849,11 @@ end;
 
 procedure TslTCPThread.Start;
 begin
-{$IFDEF MSWINDOWS}
-connectionThread.Resume;
-{$ELSE}
-  connectionThread.Start;
-{$ENDIF}
+  {$IFDEF MSWINDOWS}
+    connectionThread.Resume;
+  {$ELSE}
+    connectionThread.Start;
+  {$ENDIF}
 end;
 
 procedure TslTCPThread.Stop;
@@ -1852,27 +1864,27 @@ end;
 
 procedure TslTCPThread.WFS(socket: TslTCPSocket; var ShouldQuit: Boolean);
 begin
-  Shouldquit:= self.shouldquit;
+  Shouldquit := self.shouldquit;
 end;
 
 { TslCCHThread }
 
 constructor TslCCHThread.Create(owner: TslTCPThread; createSuspended: Boolean = True);
 begin
-  fTh:= owner;
   inherited Create(createSuspended);
-  FreeOnTerminate:= True;
+  fTh := owner;
+  FreeOnTerminate := True;
 end;
 
 destructor TslCCHThread.Destroy;
 begin
-  fTh.thread_running:= False;
+  fTh.thread_running := False;
   inherited;
 end;
 
 procedure TslCCHThread.Execute;
 begin
-  fTh.thread_running:= True;
+  fTh.thread_running := True;
   fTh.Execute();
 end;
 

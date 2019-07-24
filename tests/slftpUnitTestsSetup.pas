@@ -8,11 +8,12 @@ procedure InitialDebugSetup;
 procedure InitialKbSetup;
 procedure InitialSLLanguagesSetup;
 procedure InitialGlobalskiplistSetup;
+procedure InitialTagsSetup;
 
 implementation
 
 uses
-  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit;
+  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags;
 
 procedure InitialConfigSetup;
 var
@@ -40,6 +41,11 @@ end;
 procedure InitialGlobalskiplistSetup;
 begin
   Initglobalskiplist;
+end;
+
+procedure InitialTagsSetup;
+begin
+  TagsInit;
 end;
 
 end.

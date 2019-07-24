@@ -87,11 +87,11 @@ type
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
-    mdtmre: TRegExpr;
+    mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
     prot: TProtection;
     kilepve: boolean;
-    no: integer;
+    FSlotNumber: integer; //< number of slot
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
@@ -120,7 +120,7 @@ type
     procedure Fire;
     function Login(kill: boolean = False): boolean;
     procedure Execute; override;
-    constructor Create(site: TSite; no: integer);
+    constructor Create(const aSite: TSite; const aSlotNumber: integer);
     destructor Destroy; override;
     function RCBool(const Name: String; def: boolean): boolean;
     function RCInteger(const Name: String; const def: integer): integer;
@@ -128,8 +128,10 @@ type
     function RCString(const Name, def: String): String;
 
     procedure Stop; override;
-
-    function MdtmSeconds(filename: String): integer;
+    { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
+      @param(aFilename Filename)
+      @returns(On successful parsing seconds from MTDM response, otherwise 0) }
+    function MdtmSeconds(const aFilename: String): integer;
     function Read(read_cmd: String = ''): boolean; overload;
     function Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
     function Send(const s: String): boolean; overload;
@@ -220,30 +222,17 @@ type
     function GetSectionPreTime(const Name: String): integer;
     procedure SetSectionPreTime(const Name: String; const Value: integer);
 
-    { function for @link(delayleech) property to read min and max values from inifile.
+    { function for @link(delayleech) property to get a random value between min and max values from inifile.
       @param(aSection sectionname, uses global value if no value for given section is specified)
-      @returns(If minvalue <= 0 then random value between min and max value, otherwise 0) }
+      @returns(random value between min and max value if at least max value is set, otherwise 0) }
     function GetDelayLeech(const aSection: String): integer;
-    { procedure for @link(delayleech) property to write min and max value to inifile.
-      @param(aSection sectionname including specification for '-min' or '-max')
-      @param(Value Value which should be set for sectionname) }
-    procedure SetDelayLeech(const aSection: String; const Value: integer);
-    { function for @link(delayupload) property to read min and max values from inifile.
+    { function for @link(delayupload) property to get a random value between min and max values from inifile.
       @param(aSection sectionname, uses global value if no value for given section is specified)
-      @returns(If minvalue <= 0 then random value between min and max value, otherwise 0) }
+      @returns(random value between min and max value if at least max value is set, otherwise 0) }
     function GetDelayUpload(const aSection: String): integer;
-    { procedure for @link(delayupload) property to write min and max value to inifile.
-      @param(aSection sectionname including specification for '-min' or '-max')
-      @param(Value Value which should be set for sectionname) }
-    procedure SetDelayUpload(const aSection: String; const Value: integer);
 
     function GetSections: String;
     procedure SettSections(Value: String);
-    function GetLeechers: String;
-    procedure SettLeechers(Value: String);
-    function GetTraders: String;
-    procedure SettTraders(Value: String);
-    function GetUsers: String;
     function GetNoannounce: boolean;
     procedure SetNoAnnounce(const Value: boolean);
     function FetchAutoIndex: TAutoIndexTask;
@@ -293,8 +282,22 @@ type
     function GetAutoDirlistSections: String;
     procedure SetAutoDirlistSections(const Value: String);
 
-    function GetNoLoginMSG: boolean;
-    procedure SetNoLoginMSG(Value: boolean);
+    { function for @link(SiteFullName) property to read full sitename from inifile }
+    function GetSiteFullName: String;
+    { procedure for @link(SiteFullName) property to write full sitename to inifile }
+    procedure SetSiteFullName(const Value: String);
+    { function for @link(SiteLinkSpeed) property to read link speed from inifile }
+    function GetSiteLinkSpeed: String;
+    { procedure for @link(SiteLinkSpeed) property to write link speed to inifile }
+    procedure SetSiteLinkSpeed(const Value: String);
+    { function for @link(SiteSize) property to read site size from inifile }
+    function GetSiteSize: String;
+    { procedure for @link(SiteSize) property to write site size to inifile }
+    procedure SetSiteSize(const Value: String);
+    { function for @link(SiteNotes) property to read additional notes from inifile }
+    function GetSiteNotes: String;
+    { procedure for @link(SiteNotes) property to write additional notes to inifile }
+    procedure SetSiteNotes(const Value: String);
 
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
@@ -337,8 +340,6 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
-
-    // siteinvited: Boolean;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -384,18 +385,11 @@ type
     function GetRankLock(const section: String): integer;
     procedure SetRankLock(const section: String; Value: integer);
 
-    function FreeLeechSlots: integer;
-    function FreeTraderSlots: integer;
     function SetSections(const sections: String; remove: boolean = False): String;
-    function SetLeechers(const users: String; remove: boolean): String;
-    function SetTraders(const users: String; remove: boolean): String;
     function IsSection(const section: String): boolean;
     function IsAffil(const aAffil: String): boolean;
     function AddAffil(const affil: String): boolean;
     function SetAffilsALL(affils: String): String;
-    function IsUser(user: String): boolean;
-    function IsLeecher(user: String): boolean;
-    function IsTrader(user: String): boolean;
 
     function IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
     function GetPretime(const section: String): String;
@@ -403,18 +397,49 @@ type
     function isRouteableTo(const sitename: String): boolean;
     function isRouteableFrom(const sitename: String): boolean;
 
+    { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
+      @param(aSection sectionname)
+      @returns(minvalue if set, otherwise 0) }
+    function GetDelayLeechMin(const aSection: String): integer;
+    { helper function for getting delayleech (see @link(delayleech)) max value from inifile.
+      @param(aSection sectionname)
+      @returns(maxvalue if set, otherwise 0) }
+    function GetDelayLeechMax(const aSection: String): integer;
+    { helper procedure for setting delayleech (see @link(delayleech)) min value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayLeechMin(const aSection: String; const Value: integer);
+    { helper procedure for setting delayleech (see @link(delayleech)) max value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayLeechMax(const aSection: String; const Value: integer);
+
+    { helper function for getting delayupload (see @link(delayupload)) min value from inifile.
+      @param(aSection sectionname)
+      @returns(minvalue if set, otherwise 0) }
+    function GetDelayUploadMin(const aSection: String): integer;
+    { helper function for getting delayupload (see @link(delayupload)) max value from inifile.
+      @param(aSection sectionname)
+      @returns(maxvalue if set, otherwise 0) }
+    function GetDelayUploadMax(const aSection: String): integer;
+    { helper procedure for setting delayupload (see @link(delayupload)) min value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayUploadMin(const aSection: String; const Value: integer);
+    { helper procedure for setting delayupload (see @link(delayupload)) max value in inifile.
+      @param(aSection sectionname)
+      @param(Value Value to be set) }
+    procedure SetDelayUploadMax(const aSection: String; const Value: integer);
+
     property sections: String read GetSections write SettSections;
-    property leechers: String read GetLeechers write SettLeechers;
-    property traders: String read GetTraders write SettTraders;
-    property users: String read GetUsers;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
     property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write SetNumDn;
     property num_up: integer read fNumUp write SetNumUp;
-    property delayleech[const aSection: String]: integer read GetDelayLeech write SetDelayLeech; //< returns random value between min and max seconds for delaying leech from aSection
-    property delayupload[const aSection: String]: integer read GetDelayUpload write SetDelayUpload; //< returns random value between min and max seconds for delaying upload into aSection
+    property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
+    property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
     property freeslots: integer read fFreeslots write SetFreeSlots;
     property IRCNick: String read GetIRCNick write SetIRCNick; //< IRC username which is used for inviting to sitechannels
     property ProxyName: String read GetProxyName write SetProxyName; //< Name of Proxy which is used for connecting to site
@@ -431,6 +456,10 @@ type
     property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
     property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
     property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
+    property SiteFullName: String read GetSiteFullName write SetSiteFullName; //< full name of site
+    property SiteLinkSpeed: String read GetSiteLinkSpeed write SetSiteLinkSpeed; //< link speed of site
+    property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
+    property SiteNotes: String read GetSiteNotes write SetSiteNotes; //< additional notes for the site
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
     property features: TSiteFeatures read fFeatures write fFeatures;
@@ -448,7 +477,6 @@ type
     property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
 
-    property NoLoginMSG: boolean read GetNoLoginMSG write SetNoLoginMSG;
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
     property SkipBeingUploadedFiles: boolean read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
@@ -817,12 +845,17 @@ begin
   end;
 end;
 
-constructor TSiteSlot.Create(site: TSite; no: integer);
+constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
-  self.site := site;
-  self.no := no;
-  debug(dpSpam, section, 'Slot %s is creating', [Name]);
+  {$IFDEF DEBUG}
+    inherited Create(Format('%s/%d', [aSite.Name, aSlotNumber]), False);
+  {$ELSE}
+    inherited Create(False);
+  {$ENDIF}
+  debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
 
+  self.site := aSite;
+  self.FSlotNumber := aSlotNumber;
   todotask := nil;
   event := TEvent.Create(nil, False, False, Name);
   kilepve := False;
@@ -839,11 +872,11 @@ begin
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
-  if (self.site.Name <> getAdminSiteName) then
+  if (site.Name <> getAdminSiteName) then
   begin
     if not site.PermDown then
     begin
-      // ha autologin be van kapcsolva akkor -- If auto login is enabled then
+      // if autologin is turned on then
       if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
         AddLoginTask;
     end
@@ -851,13 +884,12 @@ begin
       status := ssMarkedDown;
   end;
 
-  debug(dpSpam, section, 'Slot %s has created', [Name]);
-  inherited Create(False);
+  debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
 
 function TSiteSlot.Name: String;
 begin
-  Result := Format('%s/%d', [site.Name, no]);
+  Result := Format('%s/%d', [site.Name, FSlotNumber]);
 end;
 
 procedure TSiteSlot.DestroySocket(down: boolean);
@@ -1345,12 +1377,6 @@ begin
 
   un := self.site.UserName;
   upw := self.site.PassWord;
-
-  // to bypass welcome message you have to use '-' as first char on your password
-  // WORKS ONLY @ GLFTPD
-  if site.sw = sswGlftpd then
-    if self.site.NoLoginMSG then
-      upw := '-' + upw;
 
   // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
@@ -2219,12 +2245,15 @@ var
   i, j: integer;
   ss, affils: String;
 begin
+  debug(dpSpam, section, 'Start creating of site %s', [Name]);
+  slots := TObjectList.Create();
+  self.Name := Name;
+  features := [];
+
   if (Name = getAdminSiteName) then
   begin
-    self.Name := Name;
     WorkingStatus := sstUp;
 
-    slots := TObjectList.Create();
     for i := 1 to admin_siteslots do
       slots.Add(TSiteSlot.Create(self, i - 1));
 
@@ -2232,24 +2261,21 @@ begin
 
     exit;
   end;
-  //  siteinvited:= False;
-  self.Name := Name;
 
-  debug(dpSpam, section, 'Site %s is creating', [Name]);
-
+  siteinvited := False;
   foutofannounce := 0;
-  // nullazni a felfedezendo beallitasokat
+  // reset to explore it again on first login
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
-  features := [];
 
-  slots := TObjectList.Create();
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
 
-  for i := 1 to 1000 do // convert section affils to new global affil format
+  // TODO: remove as its been here for a while now...
+  // convert section affils to new global affil format
+  for i := 1 to 1000 do
   begin
     ss := SubString(self.sections, ' ', i);
     if ss = '' then
@@ -2267,7 +2293,7 @@ begin
     end;
   end;
 
-  debug(dpSpam, section, 'Site %s has created', [Name]);
+  debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
@@ -2671,31 +2697,66 @@ begin
   end;
 end;
 
+function TSite.GetDelayLeechMin(const aSection: String): integer;
+begin
+  Result := RCInteger('delayleech-' + aSection + '-min', 0);
+end;
+
+function TSite.GetDelayLeechMax(const aSection: String): integer;
+begin
+  Result := RCInteger('delayleech-' + aSection + '-max', 0);
+end;
+
+procedure TSite.SetDelayLeechMin(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayleech-' + aSection + '-min', Value);
+end;
+
+procedure TSite.SetDelayLeechMax(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayleech-' + aSection + '-max', Value);
+end;
+
 function TSite.GetDelayLeech(const aSection: String): integer;
 var
   fMinValue, fMaxValue: Integer;
 begin
   Result := 0;
 
-  fMinValue := RCInteger('delayleech-' + aSection + '-min', 0);
+  fMinValue := GetDelayLeechMin(aSection);
   if fMinValue <= 0 then
   begin
-    fMinValue := RCInteger('delayleech-global-min', 0);
+    fMinValue := GetDelayLeechMin('global');
   end;
 
-  fMaxValue := RCInteger('delayleech-' + aSection + '-max', 0);
+  fMaxValue := GetDelayLeechMax(aSection);
   if fMaxValue <= 0 then
   begin
-    fMaxValue := RCInteger('delayleech-global-max', 0);
+    fMaxValue := GetDelayLeechMax('global');
   end;
 
-  if fMinValue > 0 then
+  if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
 end;
 
-procedure TSite.SetDelayLeech(const aSection: String; const Value: integer);
+function TSite.GetDelayUploadMin(const aSection: String): integer;
 begin
-  WCInteger('delayleech-' + aSection, Value);
+  Result := RCInteger('delayupload-' + aSection + '-min', 0);
+end;
+
+function TSite.GetDelayUploadMax(const aSection: String): integer;
+begin
+  Result := RCInteger('delayupload-' + aSection + '-max', 0);
+end;
+
+procedure TSite.SetDelayUploadMin(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayupload-' + aSection + '-min', Value);
+end;
+
+procedure TSite.SetDelayUploadMax(const aSection: String; const Value: integer);
+begin
+  WCInteger('delayupload-' + aSection + '-max', Value);
 end;
 
 function TSite.GetDelayUpload(const aSection: String): integer;
@@ -2704,25 +2765,20 @@ var
 begin
   Result := 0;
 
-  fMinValue := RCInteger('delayupload-' + aSection + '-min', 0);
+  fMinValue := GetDelayUploadMin(aSection);
   if fMinValue <= 0 then
   begin
-    fMinValue := RCInteger('delayupload-global-min', 0);
+    fMinValue := GetDelayUploadMin('global');
   end;
 
-  fMaxValue := RCInteger('delayupload-' + aSection + '-max', 0);
+  fMaxValue := GetDelayUploadMax(aSection);
   if fMaxValue <= 0 then
   begin
-    fMaxValue := RCInteger('delayupload-global-max', 0);
+    fMaxValue := GetDelayUploadMax('global');
   end;
 
-  if fMinValue > 0 then
+  if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
-end;
-
-procedure TSite.SetDelayUpload(const aSection: String; const Value: integer);
-begin
-  WCInteger('delayupload-' + aSection, Value);
 end;
 
 function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
@@ -2813,26 +2869,6 @@ begin
   end;
 end;
 
-function TSite.IsUser(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := leechers;
-    Result := x.IndexOf(user) <> -1;
-    if not Result then
-    begin
-      x.DelimitedText := traders;
-      Result := x.IndexOf(user) <> -1;
-    end;
-  finally
-    x.Free;
-  end;
-end;
-
 function TSite.SetSections(const sections: String; remove: boolean): String;
 var
   x: TStringList;
@@ -2860,101 +2896,6 @@ begin
     end;
     x.Sort;
     self.sections := x.DelimitedText;
-    Result := x.DelimitedText;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.SetLeechers(const users: String; remove: boolean): String;
-var
-  x: TStringList;
-  ss: String;
-  voltmar: boolean;
-  i, maxleechers: integer;
-begin
-  voltmar := True;
-  maxleechers := RCInteger('maxleechers', -1);
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := self.leechers;
-    //  irc_addtexT('debug: '+IntToStr(maxleechers)+' '+x.DelimitedText);
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(users, ' ', i);
-      if ss = '' then
-        Break;
-
-      if x.IndexOf(ss) <> -1 then
-      begin
-        if remove then
-          x.Delete(x.IndexOf(ss));
-      end
-      else
-      begin
-        if ((maxleechers = -1) or (x.Count + 1 <= maxleechers)) then
-          x.Add(ss)
-        else
-        begin
-          if not voltmar then
-          begin
-            // irc_Addtext('Limit reached');
-            voltmar := True;
-          end;
-        end;
-      end;
-    end;
-    x.Sort;
-    self.leechers := x.DelimitedText;
-    Result := x.DelimitedText;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.SetTraders(const users: String; remove: boolean): String;
-var
-  x: TStringList;
-  ss: String;
-  i, maxtraders: integer;
-  voltmar: boolean;
-begin
-  maxtraders := RCInteger('maxtraders', -1);
-  voltmar := False;
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := self.traders;
-    for i := 1 to 1000 do
-    begin
-      ss := SubString(users, ' ', i);
-      if ss = '' then
-        Break;
-
-      if x.IndexOf(ss) <> -1 then
-      begin
-        if remove then
-          x.Delete(x.IndexOf(ss));
-      end
-      else
-      begin
-        if ((maxtraders = -1) or (x.Count + 1 <= maxtraders)) then
-          x.Add(ss)
-        else
-        begin
-          if not voltmar then
-          begin
-            // irc_Addtext('Limit reached');
-            voltmar := True;
-          end;
-        end;
-      end;
-    end;
-    x.Sort;
-    self.traders := x.DelimitedText;
     Result := x.DelimitedText;
   finally
     x.Free;
@@ -3018,73 +2959,6 @@ begin
     end
     else
       Result := False;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.GetLeechers: String;
-begin
-  Result := RCString('leechers', '');
-end;
-
-function TSite.GetTraders: String;
-begin
-  Result := RCString('traders', '');
-end;
-
-procedure TSite.SettLeechers(Value: String);
-begin
-  WCString('leechers', Value);
-end;
-
-procedure TSite.SettTraders(Value: String);
-begin
-  WCString('traders', Value);
-end;
-
-function TSite.GetUsers: String;
-begin
-  Result := Format('<b>%s</b> %s', [leechers, traders]);
-end;
-
-function TSite.FreeLeechSlots: integer;
-var
-  x: TStringList;
-begin
-  Result := RCInteger('maxleechers', -1);
-  if Result = -1 then
-    exit;
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := leechers;
-    if x.Count <= Result then
-      Dec(Result, x.Count)
-    else
-      Result := 0;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.FreeTraderSlots: integer;
-var
-  x: TStringList;
-begin
-  Result := RCInteger('maxtraders', -1);
-  if Result = -1 then
-    exit;
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := traders;
-    if x.Count <= Result then
-      Dec(Result, x.Count)
-    else
-      Result := 0;
   finally
     x.Free;
   end;
@@ -3393,36 +3267,6 @@ begin
     Result := TSiteSw(sitesdat.ReadInteger('site-' + Name, 'sw', integer(sswUnknown))); // TODO: maybe use self.GetSw for it?
 end;
 
-function TSite.IsLeecher(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := leechers;
-    Result := x.IndexOf(user) <> -1;
-  finally
-    x.Free;
-  end;
-end;
-
-function TSite.IsTrader(user: String): boolean;
-var
-  x: TStringList;
-begin
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.CaseSensitive := False;
-    x.DelimitedText := traders;
-    Result := x.IndexOf(user) <> -1;
-  finally
-    x.Free;
-  end;
-end;
-
 function TSite.GetNoannounce: boolean;
 begin
   Result := RCBool('noannounce', False);
@@ -3506,13 +3350,14 @@ begin
   end;
 end;
 
-function TSiteSlot.MdtmSeconds(filename: String): integer;
+function TSiteSlot.MdtmSeconds(const aFilename: String): integer;
+var
+  fStrHelper: String;
 begin
   Result := 0;
+  fStrHelper := TranslateFilename(aFilename);
 
-  filename := TranslateFilename(filename);
-
-  if not Send('MDTM %s', [filename]) then
+  if not Send('MDTM %s', [fStrHelper]) then
     exit;
   if not Read('MDTM') then
     exit;
@@ -3814,14 +3659,44 @@ begin
   WCString('autodirlistsections', Value);
 end;
 
-function TSite.GetNoLoginMSG: boolean;
+function TSite.GetSiteFullName;
 begin
-  Result := RCBool('nologinmsg', False);
+  Result := RCString('name', '??');
 end;
 
-procedure TSite.SetNoLoginMSG(Value: boolean);
+procedure TSite.SetSiteFullName(const Value: String);
 begin
-  WCBool('nologinmsg', Value);
+  WCString('name', Value);
+end;
+
+function TSite.GetSiteLinkSpeed;
+begin
+  Result := RCString('link', '??');
+end;
+
+procedure TSite.SetSiteLinkSpeed(const Value: String);
+begin
+  WCString('link', Value);
+end;
+
+function TSite.GetSiteSize;
+begin
+  Result := RCString('size', '??');
+end;
+
+procedure TSite.SetSiteSize(const Value: String);
+begin
+  WCString('size', Value);
+end;
+
+function TSite.GetSiteNotes;
+begin
+  Result := RCString('notes', '??');
+end;
+
+procedure TSite.SetSiteNotes(const Value: String);
+begin
+  WCString('notes', Value);
 end;
 
 function TSite.GetUseForNFOdownload: integer;

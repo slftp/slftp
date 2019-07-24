@@ -50,7 +50,8 @@ uses
   dbtvinfoTests,
   sllanguagebaseTests,
   kbTests,
-  globalskipunitTests;
+  globalskipunitTests,
+  irccolorunitTests;
 
 var
   filecheck: String;
@@ -70,6 +71,7 @@ begin
   InitialKbSetup;
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
+  InitialTagsSetup;
 
 
   // run all registered tests

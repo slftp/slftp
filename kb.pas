@@ -891,7 +891,7 @@ begin
   if p.PazoSitesList.Count = 0 then
     exit;
 
-  if CheckIfGlobalSkippedGroup(rls) then
+  if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
   begin
     irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a global skipped group!', [grp, rls]));
     debug(dpSpam, rsections, 'Group %s pred %s in %s but it is a global skipped group', [grp, rls, section]);
@@ -2811,6 +2811,9 @@ end;
 constructor TKBThread.Create;
 begin
   inherited Create(False);
+  {$IFDEF DEBUG}
+    NameThreadForDebugging('KB', self.ThreadID);
+  {$ENDIF}
   FreeOnTerminate := True;
   kbevent := TEvent.Create(nil, False, False, 'kb');
 end;
@@ -3079,13 +3082,11 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s',
-          [e.Message]);
+        Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s', [e.Message]);
       end;
     end;
 
-    if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) >
-      kb_save_entries)) then
+    if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
     begin
       try
         kb_lock.Enter;

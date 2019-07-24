@@ -14,45 +14,65 @@ uses
 const
   section = 'irccommands.slots';
 
-procedure _DisplayDelay(Netname, Channel, s1, s2, s3: String);
+procedure _DisplayDelay(const aNetname, aChannel: String; const aSite: TSite; const aTipus, aSection: String);
 var
   minv, maxv: integer;
 begin
-  minv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-min',
-    0);
-  maxv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max',
-    0);
-  if (minv = 0) or (maxv = 0) then
-    irc_addtext(Netname, Channel, 'Delaying ' + s2 + ' feature is disabled for site %s, section: %s', [s1, s3])
+  if (aTipus = 'leech') then
+  begin
+    minv := aSite.GetDelayLeechMin(aSection);
+    maxv := aSite.GetDelayLeechMax(aSection);
+  end
+  else if (aTipus = 'upload') then
+  begin
+    minv := aSite.GetDelayUploadMin(aSection);
+    maxv := aSite.GetDelayUploadMax(aSection);
+  end
   else
-    irc_addtext(Netname, Channel, 'Delay ' + s2 + ' on site %s, section %s: min delay %d, max delay: %d', [s1, s3, minv, maxv]);
+  begin
+    irc_addtext(aNetname, aChannel, 'Cannot get delay%s values for section <b>%s</b>', [aTipus, aSection]);
+    exit;
+  end;
 
+  if (maxv = 0) then
+    irc_addtext(aNetname, aChannel, 'Delaying %s feature is disabled for site %s, section: %s', [aTipus, aSite.Name, aSection])
+  else
+    irc_addtext(aNetname, aChannel, 'Delaying %s on site %s for section %s: min delay %d, max delay: %d', [aTipus, aSite.Name, aSection, minv, maxv]);
 end;
 
-procedure _DisplayAllDelay(Netname, Channel, s1, s2: String);
+procedure _DisplayAllDelay(const aNetname, aChannel: String; const aSite: TSite; const aTipus: String);
 var
   x: TStringList;
   minv, maxv: integer;
   i: integer;
-  s, s3: String;
+  s, fSection: String;
 begin
   x := TStringList.Create;
   try
-    sitesdat.ReadSection('site-' + s1, x);
+    sitesdat.ReadSection('site-' + aSite.Name, x);
     for i := 0 to x.Count - 1 do
     begin
-      if ((1 = Pos('delay' + s2, x[i])) and (0 <> Pos('-min', x[i]))) then
+      if ((1 = Pos('delay' + aTipus, x[i])) and (0 <> Pos('-min', x[i]))) then
       begin
         s := x[i];
         Fetch(s, '-', True, False);
-        s3 := Fetch(s, '-', True, False);
-        minv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-min', 0);
-        maxv := sitesdat.ReadInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max', 0);
+        fSection := Fetch(s, '-', True, False);
 
-        if (minv = 0) or (maxv = 0) then
-          irc_addtext(Netname, Channel, 'Delaying ' + s2 + ' feature is disabled for site %s, section: %s', [s1, s3])
+        if (aTipus = 'leech') then
+        begin
+          minv := aSite.GetDelayLeechMin(fSection);
+          maxv := aSite.GetDelayLeechMax(fSection);
+        end
+        else if (aTipus = 'upload') then
+        begin
+          minv := aSite.GetDelayUploadMin(fSection);
+          maxv := aSite.GetDelayUploadMax(fSection);
+        end;
+
+        if (maxv = 0) then
+          irc_addtext(aNetname, aChannel, 'Delaying %s feature is disabled for site %s, section: %s', [aTipus, aSite.Name, fSection])
         else
-          irc_addtext(Netname, Channel, 'Delay ' + s2 + ' on site %s, section %s: min delay %d, max delay: %d', [s1, s3, minv, maxv]);
+          irc_addtext(aNetname, aChannel, 'Delaying %s on site %s for section %s: min delay %d, max delay: %d', [aTipus, aSite.Name, fSection, minv, maxv]);
       end;
     end;
   finally
@@ -60,28 +80,55 @@ begin
   end;
 end;
 
-procedure _DeleteDelay(Netname, Channel, s1, s2, s3: String);
+procedure _DeleteDelay(const aNetname, aChannel: String; const aSite: TSite; const aTipus, aSection: String);
 begin
-  sitesdat.DeleteKey('site-' + s1, 'delay' + s2 + '-' + s3 + '-min');
-  sitesdat.DeleteKey('site-' + s1, 'delay' + s2 + '-' + s3 + '-max');
-  irc_addtext(Netname, Channel, s3 + ' ' + s2 + ' delay is deleted on site ' + s1 + '.');
+  if (aTipus = 'leech') then
+  begin
+    aSite.SetDelayLeechMin(aSection, 0);
+    aSite.SetDelayLeechMax(aSection, 0);
+  end
+  else if (aTipus = 'upload') then
+  begin
+    aSite.SetDelayUploadMin(aSection, 0);
+    aSite.SetDelayUploadMax(aSection, 0);
+  end
+  else
+  begin
+    irc_addtext(aNetname, aChannel, 'Cannot delete delay%s for section <b>%s</b>', [aTipus, aSection]);
+    exit;
+  end;
+
+  irc_addtext(aNetname, aChannel, '%s %s delay is deleted on site %s', [aSection, aTipus, aSite.Name]);
 end;
 
-procedure _SpecifyDelay(Netname, Channel, s1, s2, s3: String; minv, maxv: integer);
+procedure _SpecifyDelay(const aNetname, aChannel: String; aSite: TSite; const aTipus, aSection: String; minv, maxv: integer);
 begin
   if minv < 0 then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+    irc_addtext(aNetname, aChannel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
   if maxv < minv then
   begin
-    irc_addtext(Netname, Channel, 'Max is smaller than min.');
+    irc_addtext(aNetname, aChannel, 'Max is smaller than min.');
     exit;
   end;
 
-  sitesdat.WriteInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-min', minv);
-  sitesdat.WriteInteger('site-' + s1, 'delay' + s2 + '-' + s3 + '-max', maxv);
+  if (aTipus = 'leech') then
+  begin
+    aSite.SetDelayLeechMin(aSection, minv);
+    aSite.SetDelayLeechMax(aSection, maxv);
+  end
+  else if (aTipus = 'upload') then
+  begin
+    aSite.SetDelayUploadMin(aSection, minv);
+    aSite.SetDelayUploadMax(aSection, maxv);
+  end
+  else
+  begin
+    irc_addtext(aNetname, aChannel, 'Cannot set delay%s for section <b>%s</b>', [aTipus, aSection]);
+    exit;
+  end;
 end;
 
 function IrcDelayLeech(const netname, channel, params: String): boolean;
@@ -91,48 +138,62 @@ var
   sitename, section, s: String;
   minv, maxv: integer;
   i: integer;
+  site: TSite;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   if sitename <> '*' then
-    if nil = FindSiteByName(Netname, sitename) then
+  begin
+    site := FindSiteByName(Netname, sitename);
+    if site = nil then
     begin
       irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
       exit;
     end;
+  end;
 
   section := UpperCase(SubString(params, ' ', 2));
   if section = '-' then
   begin
+    // delete value
     if sitename = '*' then
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+        site := TSite(sites.Items[i]);
+        if (site.Name = getAdminSiteName) then
           Continue;
-        if TSite(sites.Items[i]).PermDown then
+        if site.PermDown then
           Continue;
-        _DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus, 'global');
+
+        _DeleteDelay(Netname, Channel, site, tipus, 'global');
       end;
     end
     else
-      _DeleteDelay(Netname, Channel, sitename, tipus, 'global');
+    begin
+      _DeleteDelay(Netname, Channel, site, tipus, 'global');
+    end;
   end
   else if section = '' then
   begin
+    // display value
     if sitename = '*' then
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+        site := TSite(sites.Items[i]);
+        if (site.Name = getAdminSiteName) then
           Continue;
-        if TSite(sites.Items[i]).PermDown then
+        if site.PermDown then
           Continue;
-        _DisplayAllDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus);
+
+        _DisplayAllDelay(Netname, Channel, site, tipus);
       end;
     end
     else
-      _DisplayAllDelay(Netname, Channel, sitename, tipus);
+    begin
+      _DisplayAllDelay(Netname, Channel, site, tipus);
+    end;
   end
   else
   begin
@@ -146,16 +207,17 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+          site := TSite(sites.Items[i]);
+          if (site.Name = getAdminSiteName) then
             Continue;
-          if TSite(sites.Items[i]).PermDown then
+          if site.PermDown then
             Continue;
-          _SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
-            section, minv, maxv);
+
+          _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
         end;
       end
       else
-        _SpecifyDelay(Netname, Channel, sitename, tipus, section, minv, maxv);
+        _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
     end
     else
     begin
@@ -167,16 +229,19 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
               Continue;
-            if TSite(sites.Items[i]).PermDown then
+            if site.PermDown then
               Continue;
-            _DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name,
-              tipus, section);
+
+            _DeleteDelay(Netname, Channel, site, tipus, section);
           end;
         end
         else
-          _DeleteDelay(Netname, Channel, sitename, tipus, section);
+        begin
+          _DeleteDelay(Netname, Channel, site, tipus, section);
+        end;
       end
       else if s = '' then
       begin
@@ -184,16 +249,19 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
               Continue;
-            if TSite(sites.Items[i]).PermDown then
+            if site.PermDown then
               Continue;
-            _DisplayDelay(Netname, Channel, TSite(sites.Items[i]).Name,
-              tipus, section);
+
+            _DisplayDelay(Netname, Channel, site, tipus, section);
           end;
         end
         else
-          _DisplayDelay(Netname, Channel, sitename, tipus, section);
+        begin
+          _DisplayDelay(Netname, Channel, site, tipus, section);
+        end;
       end
       else
       begin
@@ -204,19 +272,23 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
               Continue;
-            if TSite(sites.Items[i]).PermDown then
+            if site.PermDown then
               Continue;
-            _SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
-              section, minv, maxv);
+
+            _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
           end;
         end
         else
-          _SpecifyDelay(Netname, Channel, sitename, tipus, section, minv, maxv);
+        begin
+          _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
+        end;
       end;
     end;
   end;
+
   Result := True;
 end;
 
@@ -227,15 +299,19 @@ var
   sitename, section, s: String;
   minv, maxv: integer;
   i: integer;
+  site: TSite;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   if sitename <> '*' then
-    if nil = FindSiteByName(Netname, sitename) then
+  begin
+    site := FindSiteByName(Netname, sitename);
+    if site = nil then
     begin
       irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
       exit;
     end;
+  end;
 
   section := UpperCase(SubString(params, ' ', 2));
   if section = '-' then
@@ -244,33 +320,39 @@ begin
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+        site := TSite(sites.Items[i]);
+        if (site.Name = getAdminSiteName) then
           Continue;
-        if TSite(sites.Items[i]).PermDown then
+        if site.PermDown then
           Continue;
-        _DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
-          'global');
+
+        _DeleteDelay(Netname, Channel, site, tipus, 'global');
       end;
     end
     else
-      _DeleteDelay(Netname, Channel, sitename, tipus, 'global');
+    begin
+      _DeleteDelay(Netname, Channel, site, tipus, 'global');
+    end;
   end
   else if section = '' then
   begin
-
     if sitename = '*' then
     begin
       for i := 0 to sites.Count - 1 do
       begin
-        if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+        site := TSite(sites.Items[i]);
+        if (site.Name = getAdminSiteName) then
           Continue;
-        if TSite(sites.Items[i]).PermDown then
+        if site.PermDown then
           Continue;
-        _DisplayAllDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus);
+
+        _DisplayAllDelay(Netname, Channel, site, tipus);
       end;
     end
     else
-      _DisplayAllDelay(Netname, Channel, sitename, tipus);
+    begin
+      _DisplayAllDelay(Netname, Channel, site, tipus);
+    end;
   end
   else
   begin
@@ -284,16 +366,19 @@ begin
       begin
         for i := 0 to sites.Count - 1 do
         begin
-          if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+          site := TSite(sites.Items[i]);
+          if (site.Name = getAdminSiteName) then
             Continue;
-          if TSite(sites.Items[i]).PermDown then
+          if site.PermDown then
             Continue;
-          _SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
-            section, minv, maxv);
+
+          _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
         end;
       end
       else
-        _SpecifyDelay(Netname, Channel, sitename, tipus, section, minv, maxv);
+      begin
+        _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
+      end;
     end
     else
     begin
@@ -305,16 +390,19 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
               Continue;
-            if TSite(sites.Items[i]).PermDown then
+            if site.PermDown then
               Continue;
-            _DeleteDelay(Netname, Channel, TSite(sites.Items[i]).Name,
-              tipus, section);
+
+            _DeleteDelay(Netname, Channel, site, tipus, section);
           end;
         end
         else
-          _DeleteDelay(Netname, Channel, sitename, tipus, section);
+        begin
+          _DeleteDelay(Netname, Channel, site, tipus, section);
+        end;
       end
       else if s = '' then
       begin
@@ -322,16 +410,19 @@ begin
         begin
           for i := 0 to sites.Count - 1 do
           begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
               Continue;
-            if TSite(sites.Items[i]).PermDown then
+            if site.PermDown then
               Continue;
-            _DisplayDelay(Netname, Channel, TSite(sites.Items[i]).Name,
-              tipus, section);
+
+            _DisplayDelay(Netname, Channel, site, tipus, section);
           end;
         end
         else
-          _DisplayDelay(Netname, Channel, sitename, tipus, section);
+        begin
+          _DisplayDelay(Netname, Channel, site, tipus, section);
+        end;
       end
       else
       begin
@@ -342,15 +433,22 @@ begin
         if sitename = '*' then
         begin
           for i := 0 to sites.Count - 1 do
-            _SpecifyDelay(Netname, Channel, TSite(sites.Items[i]).Name, tipus,
-              section, minv, maxv);
+          begin
+            site := TSite(sites.Items[i]);
+            if (site.Name = getAdminSiteName) then
+              Continue;
+            if site.PermDown then
+              Continue;
+
+            _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
+          end;
         end
         else
-          _SpecifyDelay(Netname, Channel, sitename, tipus, section, minv, maxv);
+        begin
+          _SpecifyDelay(Netname, Channel, site, tipus, section, minv, maxv);
+        end;
       end;
-
     end;
-
   end;
 
   Result := True;
