@@ -10,19 +10,19 @@ type
   TSLLanguages = class
   private
     FLanguage: String; //< language (text before equality sign in file)
-    FExpression: String; //< lowercased expression(s) which are used in tagging for these language (text after equality sign in file)
+    FExpression: String; //< expression(s) which are used in tagging for these language (text after equality sign in file)
     FExpressionLength: Integer; //< String length of @link(FExpression)
     FFileIndex: integer; //< row number from file with the infos
     FIsRegexExpression: Boolean; //< if @true it uses slower regex matching, otherwise it uses fast RTL Pos() matching
   public
     { Just a helper function to create a new @link(TSLLanguages) class
       @param(aLanguage language)
-      @param(aExpression expression(s) for these language (automatically lowercased))
+      @param(aExpression expression(s) for these language)
       @param(aFileIndex row number in file)
-      @param(aIsRegexExpression set to @true if Language should be found via regex matching, otherwise set it to @false ) }
+      @param(aIsRegexExpression set to @true if Language should be found via regex matching (indicated by | in expression), otherwise set it to @false ) }
     constructor Create(const aLanguage, aExpression: String; const aFileIndex: integer; const aIsRegexExpression: Boolean);
     property Language: String read FLanguage; //< language
-    property Expression: String read FExpression; //< lowercased expression(s) which are used in tagging for these language
+    property Expression: String read FExpression; //< expression(s) which are used in tagging for these language
     property ExpressionLength: Integer read FExpressionLength; //< String length of @link(Expression)
     property NeedsRegexMatching: Boolean read FIsRegexExpression; //< @true if @link(Expression) is a regex pattern, @false otherwise
   end;
@@ -94,7 +94,8 @@ begin
       if ((y.Strings[i][1] = '[') and (y.Strings[i][Length(y.Strings[i])] = ']')) then
         Continue;
 
-      fIsRegexPattern := {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(SubString(y.Strings[i], '=', 2), '|');
+      // chars which indicate regex use
+      fIsRegexPattern := (SubString(y.Strings[i], '=', 2).IndexOfAny(['|', '[']) <> -1);
 
       sllang := TSLLanguages.Create(SubString(y.Strings[i], '=', 1), SubString(y.Strings[i], '=', 2), i, fIsRegexPattern);
       aObjectList.Add(sllang);
@@ -135,7 +136,7 @@ end;
 constructor TSLLanguages.Create(const aLanguage, aExpression: String; const aFileIndex: integer; const aIsRegexExpression: Boolean);
 begin
   FLanguage := aLanguage;
-  FExpression := LowerCase(aExpression);
+  FExpression := aExpression;
   FExpressionLength := aExpression.Length;
   FFileIndex := aFileIndex;
   FIsRegexExpression := aIsRegexExpression;
@@ -209,17 +210,14 @@ end;
 function FindLanguageOnDirectory(const aRlsname: String): String;
 var
   j: integer;
-  lrx: TRegexpr;
+  lrx: TRegExpr;
   sllang: TSLLanguages;
-  fRlsnameLowercase: String;
 begin
   Result := 'English';
-  fRlsnameLowercase := LowerCase(aRlsname);
 
-  lrx := TRegexpr.Create;
+  lrx := TRegExpr.Create;
   try
-    lrx.ModifierI := True;
-
+    lrx.ModifierI := False;
     for sllang in sllanguages do
     begin
       if sllang.NeedsRegexMatching then
@@ -233,7 +231,7 @@ begin
       end
       else
       begin
-        j := Pos(sllang.Expression, fRlsnameLowercase);
+        j := Pos(sllang.Expression, aRlsname);
         if (j <> 0) then
         begin
           // make sure its [\.\-\_]language[\.\-\_]
@@ -245,7 +243,6 @@ begin
         end;
       end;
     end;
-
   finally
     lrx.Free;
   end;

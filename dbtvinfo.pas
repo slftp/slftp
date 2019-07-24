@@ -164,7 +164,7 @@ begin
     rx.Expression := '(.*)[\._-](\d{4})[\.\-](\d{2})[\.\-](\d{2}|\d{2}[\.\-]\d{2}[\.\-]\d{4})[\._-](.*)';
     if rx.Exec(aRlsname) then
     begin
-      showname := rx.Match[1];
+      showName := rx.Match[1];
 
       {$IFDEF DEBUG}
         Debug(dpMessage, section, Format('getShowValues-case-1 - matches: %s %s %s %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4]]));
@@ -194,7 +194,7 @@ begin
     rx.Expression := '(.*?)[._-](S(\d{1,3})(E(\d{1,3}))?|(\d+)x(\d+))';
     if rx.Exec(aRlsname) then
     begin
-      showname := rx.Match[1];
+      showName := rx.Match[1];
 
       {$IFDEF DEBUG}
         Debug(dpMessage, section, Format('getShowValues-case-2 - matches: %s %s %s %s %s', [rx.Match[1], rx.Match[3], rx.Match[5], rx.Match[6], rx.Match[7]]));
@@ -229,7 +229,7 @@ begin
     rx.Expression := '(.*?)[._-]((S(taffel)?)(\d{1,3}))?[._]?(D|E|EP|Episode|DVD[._]?|Part[_.]?)(\d{1,3})(.*?)';
     if rx.Exec(aRlsname) then
     begin
-      showname := rx.Match[1];
+      showName := rx.Match[1];
 
       {$IFDEF DEBUG}
         Debug(dpMessage, section, Format('getShowValues-case-3 - matches: %s %s %s', [rx.Match[1], rx.Match[5], rx.Match[7]]));
@@ -261,7 +261,7 @@ begin
     rx.Expression := '(.*?)[._-]((W|V|S(taffel|eason|aison))[._]?(\d{1,3})[._]?)?(SE|DIS[CK]|Y|E|EPS?|VOL(UME)?)[._]?(\d{1,3}).*?';
     if rx.Exec(aRlsname) then
     begin
-      showname := rx.Match[1];
+      showName := rx.Match[1];
 
       {$IFDEF DEBUG}
         Debug(dpMessage, section, Format('getShowValues-case-4 - matches: %s %s %s', [rx.Match[1], rx.Match[4], rx.Match[7]]));
@@ -301,8 +301,16 @@ begin
         SLGetLanguagesExpression(ltags);
         ltags.Delimiter := '|';
 
-        rx.Expression := '[._-\s]((19|20)\d{2}[._-\s]|720(p|i)|1080(p|i)|2160(p|i)|' + ltags.DelimitedText + '|' + ttags.DelimitedText + ').*$';
-        showName := rx.Replace(aRlsname, '', False);
+        // language and tvtags (needs to be removed first due to enforcing of .<lang|tag>.)
+        rx.Expression := '[._\-\s](' + ltags.DelimitedText + '|' + ttags.DelimitedText + ')[._\-\s].*$';
+        showName := rx.Replace(showName, '', False);
+        // scene specific tags for <showname>.REAL.<scenetags>
+        rx.Expression := '[._\-\s]REAL[._\-\s]((480|720|1080|1440|2160)(p|i)|REPACK|PROPER).*$';
+        showName := rx.Replace(showName, '', False);
+        // scene specific tags
+        rx.Expression := '[._\-\s]((19|20)\d{2}|(480|720|1080|1440|2160)(p|i)|REPACK|PROPER).*$';
+        showName := rx.Replace(showName, '', False);
+
         season := 0;
         episode := 0;
 
@@ -1193,7 +1201,7 @@ end;
 
 procedure dbTVInfoStart;
 const
-  CurrentDbVersion: integer = 3;
+  CurrentDbVersion: integer = 4;
 var
   fDBName: String;
   fUserVersion: integer;
@@ -1228,7 +1236,7 @@ begin
           end;
         0:
           begin
-            fQuery.SQL.Text := 'PRAGMA user_version = ' + IntToStr(CurrentDbVersion);
+            fQuery.SQL.Text := Format('PRAGMA user_version = %d', [CurrentDbVersion]);
             fQuery.ExecSQL;
           end;
         2:

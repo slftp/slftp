@@ -154,12 +154,15 @@
     {^} Allow handling of multiple PRE sections through !setpredir (#182)
     {^} !batch output is less verbose by default (#217)
     {^} Reduce amount of MP3 language mismatches by case-sensitive checks (#245)
+    {^} !findsection ignores permdown sites in output (#253)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
     {-} Support for older FPC compilers (at least version 3.2.0 needed!)
     {-} !setoffset no longer required or supported
     {-} Remove !lame and associated classes
+    {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
+    {-} Remove !nologinmsg, breaks many cmds due to missing responses
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
