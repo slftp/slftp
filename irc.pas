@@ -740,7 +740,7 @@ begin
   else
   begin
     // any channel, here we only accept the special channel
-    if (fChanSettings.HasThisChanRole('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news') or (cmd = 'spread') or (cmd = 'stop') or (cmd = 'pre') or (cmd = 'prelist') or (cmd = 'help'))) then
+    if (fChanSettings.HasThisChanRole('GROUP') and ((cmd = 'sites') or (cmd = 'bnc') or (cmd = 'news') or (cmd = 'spread') or (cmd = 'check') or (cmd = 'batch') or (cmd = 'stop') or (cmd = 'pre') or (cmd = 'prelist') or (cmd = 'help'))) then
     begin
       Result := True;
       exit;
