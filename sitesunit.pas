@@ -847,15 +847,10 @@ end;
 
 constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
-  {$IFDEF DEBUG}
-    inherited Create(Format('%s/%d', [aSite.Name, aSlotNumber]), False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
-
   self.site := aSite;
   self.FSlotNumber := aSlotNumber;
+
   todotask := nil;
   event := TEvent.Create(nil, False, False, Name);
   kilepve := False;
@@ -883,6 +878,17 @@ begin
     else
       status := ssMarkedDown;
   end;
+
+  // TODO: fix the design flaw of calling .Execute immediately in ancestor after the Create(False)
+  // is called which leads to execution of TSiteSlot.Execute which then could end in
+  // segfault because values aren't initialized yet
+  // * the calls below should normally be at top of this function to avoid overwriting/resetting
+  // * of class values by its ancestor
+  {$IFDEF DEBUG}
+    inherited Create(Name, False);
+  {$ELSE}
+    inherited Create(False);
+  {$ENDIF}
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
