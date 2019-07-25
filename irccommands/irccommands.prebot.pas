@@ -358,17 +358,17 @@ begin
           if ((perfect > 0) and (failed > 0)) then
           begin
             irc_addtext(netname, channel,
-              'Perfect on <c3><b>%d</c></b> sites and failed on <c4><b>%d</c></b> sites compared to <b>%s</b>.',
-              [perfect, failed, sitename]);
+              '%s perfect on <c3><b>%d</c></b> sites and failed on <c4><b>%d</c></b> sites compared to <b>%s</b>.',
+              [dir, perfect, failed, sitename]);
             irc_addtext(netname, channel, 'failed on: ' + checkedlist.Values['FAILED']);
           end
           else
           if (failed > 0) then
             irc_addtext(netname, channel,
-              '<c4>Failed on %d sites compared to</c> <b>%s</b>.', [failed, sitename])
+              '<c4>%s failed on %d sites compared to</c> <b>%s</b>.', [dir, failed, sitename])
           else
           if (perfect > 0) then
-            irc_addtext(netname, channel, '<c3>Perfect on %d sites compared to</c> <b>%s</b>.', [perfect, sitename]);
+            irc_addtext(netname, channel, '<c3>%s perfect on %d sites compared to</c> <b>%s</b>.', [dir, perfect, sitename]);
 
         finally
           checkedlist.Free;
