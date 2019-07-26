@@ -213,7 +213,7 @@ const
     (cmd: 'ircchandel'; hnd: IrcDelchan; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     (cmd: 'ircchanblow'; hnd: IrcSetBlowkey; minparams: 2; maxparams: 3; hlpgrp: 'irc'),
     (cmd: 'ircchankey'; hnd: IrcSetChankey; minparams: 2; maxparams: 3; hlpgrp: 'irc'),
-    (cmd: 'ircchanrole'; hnd: IrcSetChanName; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
+    (cmd: 'ircchanrole'; hnd: IrcSetChanRole; minparams: 2; maxparams: - 1; hlpgrp: 'irc'),
     (cmd: 'ircchanpart'; hnd: IrcDelPart; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     (cmd: 'ircnick'; hnd: IrcSetMYIrcNick; minparams: 2; maxparams: 2; hlpgrp: 'irc'),
     (cmd: 'inviteme'; hnd: IrcInviteMyIRCNICK; minparams: 1; maxparams: - 1; hlpgrp: 'irc'),

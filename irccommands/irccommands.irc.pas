@@ -24,7 +24,7 @@ function IrcChanAdd(const netname, channel, params: String): boolean;
 function IrcDelchan(const netname, channel, params: String): boolean;
 function IrcSetBlowkey(const netname, channel, params: String): boolean;
 function IrcSetChankey(const netname, channel, params: String): boolean;
-function IrcSetChanName(const netname, channel, params: String): boolean;
+function IrcSetChanRole(const netname, channel, params: String): boolean;
 function IrcDelPart(const netname, channel, params: String): boolean;
 function IrcSetMYIrcNick(const netname, channel, params: String): boolean;
 function IrcInviteMyIRCNICK(const netname, channel, params: String): boolean;
@@ -864,7 +864,7 @@ begin
   Result := True;
 end;
 
-function IrcSetChanName(const netname, channel, params: String): boolean;
+function IrcSetChanRole(const netname, channel, params: String): boolean;
 var
   nn, blowchannel, Names: String;
   fChanSettings: TIrcChannelSettings;
