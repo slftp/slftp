@@ -893,10 +893,6 @@ begin
           lastannounceconsole := s;
         end;
 
-        // we don't want to display this section race stats on irc
-        if noannouncesections.IndexOf(rls.section) <> -1 then
-          exit;
-
         // display race stats on irc
         s := Stats(False, False);
         if ((lastannounceirc <> s) and (s <> '')) then

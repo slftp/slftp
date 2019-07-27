@@ -316,7 +316,6 @@ var
   kb_last_saved: TDateTime;
   kb_sectionhandlers: TStringList;
   kb_lock: TCriticalSection;
-  noannouncesections: TStringList;
   imdbcountries: TIniFile;
   kbevent: TEvent;
 
@@ -2617,8 +2616,6 @@ var
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
-  noannouncesections := TStringList.Create;
-  noannouncesections.DelimitedText := config.ReadString(rsections, 'noannouncesection', '');
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -2798,7 +2795,6 @@ begin
   end;
   kb_sectionhandlers.Free;
 
-  noannouncesections.Free;
   imdbcountries.Free;
 
   kb_lock.Free;
