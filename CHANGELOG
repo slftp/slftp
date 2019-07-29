@@ -64,10 +64,12 @@
     8. create a folder 'databases' in slftp dir and move your databases into it
     9. if you have problems with reusing existing databases, delete all .db files
 
---===========================( KNOWN BUG in v1.5.* )================================-
+--==============================( KNOWN BUGS )====================================-
 
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
+    Statsoutput sometimes screwed -> NEGATIVE BYTES
+    Dirlist confusion causing wrong skip files output but it does not race them
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
