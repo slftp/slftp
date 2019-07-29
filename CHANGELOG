@@ -158,6 +158,8 @@
     {^} !findsection ignores permdown sites in output (#253)
     {^} language detection for releases highly improved
     {^} improved stripping of scene tags before tv lookup
+    {^} Allow !check and !batch for GROUP chans
+    {^} Remove old !help, rename !nhelp to !help
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
