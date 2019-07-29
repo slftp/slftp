@@ -572,7 +572,7 @@ begin
 
       if (rls = '') then
       begin
-        Debug(dpSpam, rsections, Format('PrecatcherProcessB: Relasename is empty! (%s)', [ts_data.DelimitedText]));
+        Debug(dpSpam, rsections, Format('PrecatcherProcessB: Releasename is empty! (%s)', [ts_data.DelimitedText]));
         exit;
       end;
 

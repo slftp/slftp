@@ -7,7 +7,6 @@ function IrcHelp(const netname, channel, params: String): boolean;
 function IrcDie(const netname, channel, params: String): boolean;
 function IrcUptime(const netname, channel, params: String): boolean;
 function IrcShowAppStatus(const netname, channel, params: String): boolean;
-function IrcHelpV2(const netname, channel, params: String): boolean;
 function IrcQueue(const netname, channel, params: String): boolean;
 function IrcLastLog(const netname, channel, params: String): boolean;
 function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
@@ -57,54 +56,107 @@ end;
 function IrcHelp(const netname, channel, params: String): boolean;
 var
   i: integer;
-  s: String;
+  fParams, ss, s: String;
 begin
-  if params <> '' then
+  result := False;
+  s := '';
+  fParams := params;
+
+  if (fParams = '') then
   begin
-    i := FindIrcCommand(params);
-    if i <> 0 then
-    begin
-      if FileExists('help' + PathDelim + params + '.txt') then
-      begin
-        _readHelpTXTFile(Netname, Channel, params);
-      end
-      else
-        irc_addtext(Netname, Channel, Format('<c4>No help available on</c> %s', [params]));
-    end
-    else
-      irc_addtext(Netname, Channel, Format('<b>Command %s not found.</b>', [params]));
-  end
-  else
+    _readHelpTXTFile(Netname, Channel, 'help');
+    result := True;
+    Exit;
+  end;
+
+  // Show all commands
+  if ((fParams = '--all') or (fParams = '-all') or (fParams = '--a') or (fParams = '-a')) then
   begin
-    irc_addtext(Netname, Channel, '<b><u>Available commands are:</u></b>');
-    s := '';
+    irc_addtext(Netname, Channel, '<b><u>Available commands are</b>:</u>');
     for i := Low(ircCommandsArray) to High(ircCommandsArray) do
     begin
-      if AnsiContainsText(ircCommandsArray[i].hlpgrp, '$') then
+      if (AnsiStartsText('$',ircCommandsArray[i].hlpgrp)) then
       begin
         if s <> '' then
-          irc_addtext(Netname, Channel, s);
-
-        irc_addtext(Netname, Channel, '.:: <u><c7><b>%s</b></c></u> ::.', [ircCommandsArray[i].cmd]);
+          IrcLineBreak(Netname, Channel, s, AnsiChar('"'), '', 9);
+        if (AnsiStartsText('$',ircCommandsArray[i].hlpgrp)) then
+          irc_addtext(Netname, Channel, '.:: <u><c7><b>%s</b></c></u> ::.', [ircCommandsArray[i].cmd]);
         s := '';
       end
       else
       begin
         if s <> '' then
           s := s + ', ';
-
-        if (ircCommandsArray[i].cmd <> '-') then
-          s := s + irccmdprefix + ircCommandsArray[i].cmd;
+        s := s + irccmdprefix + ircCommandsArray[i].cmd;
       end;
     end;
 
     if s <> '' then
-      irc_addtext(Netname, Channel, s);
+      IrcLineBreak(Netname, Channel, s, AnsiChar('"'), '', 9);
 
     irc_addtext(Netname, Channel, 'Type <b>%shelp</b> command to get detailed info.', [irccmdprefix]);
+
+    result := True;
+    Exit;
   end;
 
-  Result := True;
+  // Find commands by hlpgrp
+  if AnsiStartsText('-', fParams) then
+  begin
+    ss := fParams;
+    Delete(ss, 1, 1);
+    if AnsiIndexText(ss, helpCommands) > -1 then
+    begin
+      for i := Low(ircCommandsArray) to High(ircCommandsArray) do
+      begin
+        if ((ircCommandsArray[i].hlpgrp = ss) or (ircCommandsArray[i].hlpgrp = '$' + ss)) then
+        begin
+          if AnsiContainsText(ircCommandsArray[i].hlpgrp, '$') then
+            irc_addtext(Netname, Channel, '.:: <u><c7><b>%s</b></c></u> ::.', [ircCommandsArray[i].cmd])
+          else
+          begin
+            if (ircCommandsArray[i].cmd <> '-') then
+            begin
+              if s <> '' then
+                s := s + ', ';
+              s := s + irccmdprefix + ircCommandsArray[i].cmd;
+            end;
+          end;
+        end;
+      end;
+      if s <> '' then
+        IrcLineBreak(Netname, Channel, s, AnsiChar('"'), '', 9);
+      result := True;
+      Exit;
+    end;
+
+    irc_addtext(Netname, Channel, 'Help group <b>%s</b> not found.', [fParams]);
+    result := True;
+    Exit;
+  end;
+
+  // Display Textfile
+  if fParams <> '' then
+  begin
+    if (1 = Pos(irccmdprefix, fParams)) then
+      Delete(fParams, 1, 1);
+
+    i := FindIrcCommand(fParams);
+    if i <> 0 then
+    begin
+      if FileExists('help' + PathDelim + fParams + '.txt') then
+      begin
+        _readHelpTXTFile(Netname, Channel, fParams);
+      end
+      else
+        irc_addtext(Netname, Channel, '<c4>No help available on</c> ' + fParams);
+    end
+    else
+      irc_addtext(Netname, Channel, 'Command <b>%s</b> not found.', [fParams]);
+
+    result := True;
+    Exit;
+  end;
 end;
 
 function IrcDie(const netname, channel, params: String): boolean;
@@ -212,110 +264,6 @@ begin
   end;
 
   Result := True;
-end;
-
-function IrcHelpV2(const netname, channel, params: String): boolean;
-var
-  i: integer;
-  fParams, ss, s: String;
-begin
-  result := False;
-  s := '';
-  fParams := params;
-
-  if (fParams = '') then
-  begin
-    _readHelpTXTFile(Netname, Channel, 'nhelp');
-  end;
-
-  // Show all commands
-  if ((fParams = '--all') or (fParams = '-all') or (fParams = '--a') or (fParams = '-a')) then
-  begin
-    irc_addtext(Netname, Channel, '<b><u>Available commands are</b>:</u>');
-    for i := Low(ircCommandsArray) to High(ircCommandsArray) do
-    begin
-      if ((ircCommandsArray[i].cmd[1] = '-') or (AnsiStartsText('$',ircCommandsArray[i].hlpgrp))) then
-      begin
-        if s <> '' then
-          irc_addtext(Netname, Channel, s);
-        if (AnsiStartsText('$',ircCommandsArray[i].hlpgrp)) then
-          irc_addtext(Netname, Channel, '.:: <u><c7><b>%s</b></c></u> ::.', [ircCommandsArray[i].cmd]);
-        s := '';
-      end
-      else
-      begin
-        if s <> '' then
-          s := s + ', ';
-        s := s + irccmdprefix + ircCommandsArray[i].cmd;
-      end;
-    end;
-
-    if s <> '' then
-      IrcLineBreak(Netname, Channel, s, ',', '', 9);
-
-    irc_addtext(Netname, Channel, 'Type <b>%shelp</b> command to get detailed info.', [irccmdprefix]);
-
-    result := True;
-    Exit;
-  end;
-
-  // Find commands by hlpgrp
-  if AnsiStartsText('-', fParams) then
-  begin
-    ss := fParams;
-    Delete(ss, 1, 1);
-    if AnsiIndexText(ss, helpCommands) > -1 then
-    begin
-      for i := Low(ircCommandsArray) to High(ircCommandsArray) do
-      begin
-        if ((ircCommandsArray[i].hlpgrp = ss) or (ircCommandsArray[i].hlpgrp = '$' + ss)) then
-        begin
-          if AnsiContainsText(ircCommandsArray[i].hlpgrp, '$') then
-            irc_addtext(Netname, Channel, '.:: <u><c7><b>%s</b></c></u> ::.', [ircCommandsArray[i].cmd])
-          else
-          begin
-            if (ircCommandsArray[i].cmd <> '-') then
-            begin
-              if s <> '' then
-                s := s + ', ';
-              s := s + irccmdprefix + ircCommandsArray[i].cmd;
-            end;
-          end;
-        end;
-      end;
-      if s <> '' then
-        IrcLineBreak(Netname, Channel, s, ',', '', 12);
-      result := True;
-      Exit;
-    end;
-
-    irc_addtext(Netname, Channel, 'Help group <b>%s</b> not found.', [fParams]);
-    result := True;
-    Exit;
-  end;
-
-  // Display Textfile
-  if fParams <> '' then
-  begin
-    if (1 = Pos(irccmdprefix, fParams)) then
-      Delete(fParams, 1, 1);
-
-    i := FindIrcCommand(fParams);
-    if i <> 0 then
-    begin
-      if FileExists('help' + PathDelim + fParams + '.txt') then
-      begin
-        _readHelpTXTFile(Netname, Channel, fParams);
-      end
-      else
-        irc_addtext(Netname, Channel, '<c4>No help available on</c> ' + fParams);
-    end
-    else
-      irc_addtext(Netname, Channel, 'Command <b>%s</b> not found.', [fParams]);
-
-    result := True;
-    Exit;
-  end;
 end;
 
 function IrcQueue(const netname, channel, params: String): boolean;
