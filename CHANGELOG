@@ -70,6 +70,7 @@
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES
     Dirlist confusion causing wrong skip files output but it does not race them
+    !addtvmaze might start looping if at least two users have a different ID for a show
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
