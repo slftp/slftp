@@ -1,13 +1,17 @@
-{ *************************************************************************** }
-{                                                                             }
-{ Kylix and Delphi Cross-Platform Visual Component Library                    }
-{                                                                             }
-{ Copyright (c) 1995, 2001 Borland Software Corporation                       }
-{                                                                             }
-{ *************************************************************************** }
+{*******************************************************}
+{                                                       }
+{           CodeGear Delphi Runtime Library             }
+{                                                       }
+{ Copyright(c) 1995-2018 Embarcadero Technologies, Inc. }
+{              All rights reserved                      }
+{                                                       }
+{*******************************************************}
 
+unit DelphiMasks;
 
-unit delphimasks;
+{$IFNDEF FPC}
+  {$WARN WIDECHAR_REDUCED OFF}
+{$ENDIF}
 
 interface
 
@@ -17,17 +21,38 @@ type
   EMaskException = class(Exception);
 
   TMask = class
+  private type
+    // WideChar Reduced to ByteChar in set expressions.
+    TMaskSet = set of Char;
+    PMaskSet = ^TMaskSet;
+    TMaskStates = (msLiteral, msAny, msSet, msMBCSLiteral);
+    TMaskState = record
+      SkipTo: Boolean;
+      case State: TMaskStates of
+        msLiteral: (Literal: Char);
+        msAny: ();
+        msSet: (
+          Negate: Boolean;
+          CharSet: PMaskSet);
+        msMBCSLiteral: (LeadByte, TrailByte: Char);
+    end;
+
   private
-    FMask: Pointer;
-    FSize: Integer;
+    FMaskStates: array of TMaskState;
+
+  protected
+    function InitMaskStates(const Mask: string): Integer;
+    procedure DoneMaskStates;
+    function MatchesMaskStates(const Filename: string): Boolean;
+
   public
-    constructor Create(const MaskValue: String);
+    constructor Create(const MaskValue: string);
     destructor Destroy; override;
-    function Matches(const Filename: String): Boolean;
+    function Matches(const Filename: string): Boolean;
   end;
 
 
-function MatchesMask(const Filename, Mask: String): Boolean;
+function MatchesMask(const Filename, Mask: string): Boolean;
 
 implementation
 
@@ -36,31 +61,13 @@ uses RTLConsts;
 const
   MaxCards = 30;
 
-type
-  PMaskSet = ^TMaskSet;
-  TMaskSet = set of AnsiChar;
-  TMaskStates = (msLiteral, msAny, msSet, msMBCSLiteral);
-  TMaskState = record
-    SkipTo: Boolean;
-    case State: TMaskStates of
-      msLiteral: (Literal: AnsiChar);
-      msAny: ();
-      msSet: (
-        Negate: Boolean;
-        CharSet: PMaskSet);
-      msMBCSLiteral: (LeadByte, TrailByte: AnsiChar);
-  end;
-  PMaskStateArray = ^TMaskStateArray;
-  TMaskStateArray = array[0..128] of TMaskState;
-
-function InitMaskStates(const Mask: String;
-  var MaskStates: array of TMaskState): Integer;
+function TMask.InitMaskStates(const Mask: string): Integer;
 var
   I: Integer;
   SkipTo: Boolean;
-  Literal: AnsiChar;
-  LeadByte, TrailByte: AnsiChar;
-  P: PAnsiChar;
+  Literal: Char;
+  LeadByte, TrailByte: Char;
+  P: PChar;
   Negate: Boolean;
   CharSet: TMaskSet;
   Cards: Integer;
@@ -68,7 +75,7 @@ var
   procedure InvalidMask;
   begin
     raise EMaskException.CreateResFmt(@SInvalidMask, [Mask,
-      P - PAnsiChar(Mask) + 1]);
+      P - PChar(Mask) + 1]);
   end;
 
   procedure Reset;
@@ -80,27 +87,27 @@ var
 
   procedure WriteScan(MaskState: TMaskStates);
   begin
-    if I <= High(MaskStates) then
+    if I <= High(FMaskStates) then
     begin
       if SkipTo then
       begin
         Inc(Cards);
         if Cards > MaxCards then InvalidMask;
       end;
-      MaskStates[I].SkipTo := SkipTo;
-      MaskStates[I].State := MaskState;
+      FMaskStates[I].SkipTo := SkipTo;
+      FMaskStates[I].State := MaskState;
       case MaskState of
-        msLiteral: MaskStates[I].Literal := UpCase(Literal);
+        msLiteral: FMaskStates[I].Literal := UpCase(Literal);
         msSet:
           begin
-            MaskStates[I].Negate := Negate;
-            New(MaskStates[I].CharSet);
-            MaskStates[I].CharSet^ := CharSet;
+            FMaskStates[I].Negate := Negate;
+            New(FMaskStates[I].CharSet);
+            FMaskStates[I].CharSet^ := CharSet;
           end;
         msMBCSLiteral:
           begin
-            MaskStates[I].LeadByte := LeadByte;
-            MaskStates[I].TrailByte := TrailByte;
+            FMaskStates[I].LeadByte := LeadByte;
+            FMaskStates[I].TrailByte := TrailByte;
           end;
       end;
     end;
@@ -110,8 +117,8 @@ var
 
   procedure ScanSet;
   var
-    LastChar: AnsiChar;
-    C: AnsiChar;
+    LastChar: Char;
+    C: Char;
   begin
     Inc(P);
     if P^ = '!' then
@@ -123,7 +130,7 @@ var
     while not (P^ in [#0, ']']) do
     begin
       // MBCS characters not supported in msSet!
-      if P^ in LeadBytes then
+      if IsLeadChar(P^) then
          Inc(P)
       else
       case P^ of
@@ -132,11 +139,12 @@ var
           else
           begin
             Inc(P);
-            for C := LastChar to UpCase(P^) do Include(CharSet, C);
+            for C := LastChar to UpCase(P^) do
+              CharSet := CharSet + [C];
           end;
       else
         LastChar := UpCase(P^);
-        Include(CharSet, LastChar);
+        CharSet := CharSet + [LastChar];
       end;
       Inc(P);
     end;
@@ -145,7 +153,7 @@ var
   end;
 
 begin
-  P := PAnsiChar(Mask);
+  P := PChar(Mask);
   I := 0;
   Cards := 0;
   Reset;
@@ -156,7 +164,7 @@ begin
       '?': if not SkipTo then WriteScan(msAny);
       '[':  ScanSet;
     else
-      if P^ in LeadBytes then
+      if IsLeadChar(P^) then
       begin
         LeadByte := P^;
         Inc(P);
@@ -176,142 +184,136 @@ begin
   Result := I;
 end;
 
-function MatchesMaskStates(const Filename: String;
-  const MaskStates: array of TMaskState): Boolean;
+function TMask.MatchesMaskStates(const Filename: string): Boolean;
 type
   TStackRec = record
-    sP: PAnsiChar;
+    sP: PChar;
     sI: Integer;
   end;
 var
   T: Integer;
-  S: array[0..MaxCards - 1] of TStackRec;
+  S: array of TStackRec;
   I: Integer;
-  P: PAnsiChar;
-  loop_count: Integer;
+  P: PChar;
 
-  procedure Push(P: PAnsiChar; I: Integer);
+  procedure Push(P: PChar; I: Integer);
   begin
-    with S[T] do
-    begin
-      sP := P;
-      sI := I;
-    end;
+    S[T].sP := P;
+    S[T].sI := I;
     Inc(T);
   end;
 
-  function Pop(var P: PAnsiChar; var I: Integer): Boolean;
+  function Pop(var P: PChar; var I: Integer): Boolean;
   begin
     if T = 0 then
       Result := False
     else
     begin
       Dec(T);
-      with S[T] do
-      begin
-        P := sP;
-        I := sI;
-      end;
+      P := S[T].sP;
+      I := S[T].sI;
       Result := True;
     end;
   end;
 
-  function Matches(P: PAnsiChar; Start: Integer): Boolean;
+  function Matches(P: PChar; Start: Integer): Boolean;
   var
     I: Integer;
   begin
     Result := False;
-    for I := Start to High(MaskStates) do
-      with MaskStates[I] do
+    for I := Start to High(FMaskStates) do
+    begin
+      if FMaskStates[I].SkipTo then
       begin
-        if SkipTo then
-        begin
-          case State of
-            msLiteral:
-              while (P^ <> #0) and (UpperCase(P^) <> Literal) do Inc(P);
-            msSet:
-              while (P^ <> #0) and not (Negate xor (UpCase(P^) in CharSet^)) do Inc(P);
-            msMBCSLiteral:
-              while (P^ <> #0) do
-              begin
-                if (P^ <> LeadByte) then Inc(P, 2)
-                else
-                begin
-                  Inc(P);
-                  if (P^ = TrailByte) then Break;
-                  Inc(P);
-                end;
-              end;
-          end;
-          if P^ <> #0 then Push(@P[1], I);
-        end;
-        case State of
-          msLiteral: if UpperCase(P^) <> Literal then Exit;
-          msSet: if not (Negate xor (UpCase(P^) in CharSet^)) then Exit;
+        case FMaskStates[I].State of
+          msLiteral:
+            while (P^ <> #0) and (UpCase(P^) <> FMaskStates[I].Literal) do Inc(P);
+          msSet:
+            while (P^ <> #0) and not (FMaskStates[I].Negate xor (UpCase(P^) in FMaskStates[I].CharSet^)) do Inc(P);
           msMBCSLiteral:
+            while (P^ <> #0) do
             begin
-              if P^ <> LeadByte then Exit;
-              Inc(P);
-              if P^ <> TrailByte then Exit;
+              if (P^ <> FMaskStates[I].LeadByte) then Inc(P, 2)
+              else
+              begin
+                Inc(P);
+                if (P^ = FMaskStates[I].TrailByte) then Break;
+                Inc(P);
+              end;
             end;
         end;
-        Inc(P);
+        if P^ <> #0 then
+          Push(@P[1], I);
       end;
+      case FMaskStates[I].State of
+        msLiteral: if UpCase(P^) <> FMaskStates[I].Literal then Exit;
+        msSet: if not (FMaskStates[I].Negate xor (UpCase(P^) in FMaskStates[I].CharSet^)) then Exit;
+        msMBCSLiteral:
+          begin
+            if P^ <> FMaskStates[I].LeadByte then Exit;
+            Inc(P);
+            if P^ <> FMaskStates[I].TrailByte then Exit;
+          end;
+        msAny:
+          if P^ = #0 then
+          begin
+            Result := False;
+            Exit;
+          end;
+      end;
+      Inc(P);
+    end;
     Result := True;
   end;
 
 begin
+  SetLength(S, MaxCards);
   Result := True;
   T := 0;
-  P := PAnsiChar(Filename);
-  I := Low(MaskStates);
-  loop_count:= 0;
+  P := PChar(Filename);
+  I := Low(FMaskStates);
   repeat
-    inc(loop_count);
-    if (loop_count > 5000) then Break;
     if Matches(P, I) then Exit;
   until not Pop(P, I);
   Result := False;
 end;
 
-procedure DoneMaskStates(var MaskStates: array of TMaskState);
+procedure TMask.DoneMaskStates;
 var
   I: Integer;
 begin
-  for I := Low(MaskStates) to High(MaskStates) do
-    if MaskStates[I].State = msSet then Dispose(MaskStates[I].CharSet);
+  for I := Low(FMaskStates) to High(FMaskStates) do
+    if FMaskStates[I].State = msSet then Dispose(FMaskStates[I].CharSet);
 end;
 
 { TMask }
 
-constructor TMask.Create(const MaskValue: String);
+constructor TMask.Create(const MaskValue: string);
 var
-  A: array[0..0] of TMaskState;
+  Size: Integer;
 begin
-  FSize := InitMaskStates(MaskValue, A);
-  FMask := AllocMem(FSize * SizeOf(TMaskState));
-  InitMaskStates(MaskValue, Slice(PMaskStateArray(FMask)^, FSize));
+  inherited Create;
+  SetLength(FMaskStates, 1);
+  Size := InitMaskStates(MaskValue);
+  DoneMaskStates;
+
+  SetLength(FMaskStates, Size);
+  InitMaskStates(MaskValue);
 end;
 
 destructor TMask.Destroy;
 begin
-  if FMask <> nil then
-  begin
-    DoneMaskStates(Slice(PMaskStateArray(FMask)^, FSize));
-    FreeMem(FMask, FSize * SizeOf(TMaskState));
-  end;
+  DoneMaskStates;
+  SetLength(FMaskStates, 0);
+  inherited;
 end;
 
-function TMask.Matches(const Filename: String): Boolean;
+function TMask.Matches(const Filename: string): Boolean;
 begin
-  try
-    Result := MatchesMaskStates(Filename, Slice(PMaskStateArray(FMask)^, FSize));
-  except
-    Result := false;
-  end;
+  Result := MatchesMaskStates(Filename);
 end;
 
-function MatchesMask(const Filename, Mask: String): Boolean;
+function MatchesMask(const Filename, Mask: string): Boolean;
 var
   CMask: TMask;
 begin

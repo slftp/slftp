@@ -3,8 +3,7 @@ unit slmasks;
 interface
 
 uses
-  // TODO: Replace delphimasks file with Masks file from Delphi Rio when FPC has fixed the issues with it...
-  {$IFDEF FPC}delphimasks{$ELSE}Masks{$ENDIF}, SyncObjs, RegExpr;
+  SyncObjs, DelphiMasks, RegExpr;
 
 type
   {
