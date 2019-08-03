@@ -54,8 +54,8 @@ type
     class function Description: String; override;
   end;
 
-  TConditionMVIDLanguage = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
+  TConditionMVIDLanguage = class(TStringCondition)
+    function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
   end;
@@ -234,19 +234,14 @@ begin
 end;
 
 { TConditionMVIDLanguage }
-
-procedure TConditionMVIDLanguage.SupplyValues(r: TPazo; re: TStringList);
+// TODO: use verify stuff as we do for TConditionMP3Language.Verify
+function TConditionMVIDLanguage.SupplyValue(r: TPazo): String;
 begin
   try
     if r.rls is TMVIDRelease then
-      re.Assign(TMvidRelease(r.rls).Languages);
+      Result := TMVIDRelease(r.rls).language;
   except
-    on E: Exception do
-    begin
-      Debug(dpError, dsection, Format('[EXCEPTION] TConditionMVIDLanguage.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
+    Result := '';
   end;
 end;
 

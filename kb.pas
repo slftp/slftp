@@ -67,7 +67,7 @@ type
     internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
     kb_event: TKBEventType;
-    languages: TStringList; //< contains the language string which is detected from @link(rlsname)
+    language: String; //< contains the language string which is detected from @link(rlsname)
 
     legnagyobbcd: integer;
     sample: boolean;
@@ -240,7 +240,7 @@ type
   TMVIDRelease = class(TRelease)
     FileCount: integer;
     mvid_Genre: TStringList;
-    // TRelease.languages are mapped for mvidlanguage rule
+    // TRelease.language is mapped for mvidlanguage rule
     mvid_source: String;
     mvid_pal: boolean;
     mvid_ntsc: boolean;
@@ -1270,8 +1270,8 @@ begin
     if fake then
       Result := Result + Format('Fake: %s', [fakereason]) + #13#10;
 
-    if languages.Count <> 0 then
-      Result := Result + Format('Language: %s', [languages.DelimitedText]) + #13#10;
+    if language <> '' then
+      Result := Result + Format('Language: %s', [language]) + #13#10;
 
     Result := Result + Format('Internal: %s', [BoolToStr(internal, True)]) + #13#10;
   except
@@ -1284,7 +1284,7 @@ end;
 
 constructor TRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
-  fLanguage, s: String;
+  s: String;
   i, j: integer;
   rrgx: TRegExpr;
 begin
@@ -1313,9 +1313,6 @@ begin
           irc_Adderror(Format('TRelease.Create: Exception SetPretime %s (%s)', [rlsname, e.Message]));
       end;
     end;
-
-    languages := TStringList.Create;
-    languages.CaseSensitive := False;
 
     words := TStringList.Create;
     words.Delimiter := ' ';
@@ -1379,16 +1376,14 @@ begin
     rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     // language detection
-    fLanguage := '';
     if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
     begin
-      fLanguage := FindMusicLanguageOnDirectory(rlsname);
+      language := FindMusicLanguageOnDirectory(rlsname);
     end
     else
     begin
-      fLanguage := FindLanguageOnDirectory(rlsname);
+      language := FindLanguageOnDirectory(rlsname);
     end;
-    languages.Add(fLanguage);
 
     knowngroup := IsKnownGroup(section, groupname);
 
@@ -1436,7 +1431,6 @@ end;
 destructor TRelease.Destroy;
 begin
   words.Free;
-  languages.Free;
   inherited;
 end;
 
@@ -1622,7 +1616,7 @@ begin
       groupname := words[evszamindex + 1] + '_' + words[evszamindex + 2]; //tweak
 
     // use language from TRelease ancestor
-    mp3lng := Trim(languages.Text);
+    mp3lng := language;
 
     fNumberOfDashes := 0;
     for i := 1 to length(rlsname) do

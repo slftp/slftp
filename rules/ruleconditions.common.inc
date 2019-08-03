@@ -36,10 +36,10 @@ const
 
   FakeDescription: string = 'Returns true, if the release was recognized as fake by the fakechecker.' + #13#10;
 
-  ForeignDescription: string = 'Returns true, if the releasename has a language tag (other than english).' + #13#10
+  ForeignDescription: string = 'Returns true, if the releasename has a language tag other than English.' + #13#10
     + 'Note: as mp3 rips have 2 letter codes, use mp3foreign and mp3language conditions.' + #13#10;
 
-  LanguageDescription: string = 'Returns with the recognized language tags of the release.' + #13#10
+  LanguageDescription: string = 'Returns with the recognized language tag of the release.' + #13#10
     + 'Note: as mp3 rips have 2 letter codes, use mp3foreign and mp3language conditions.' + #13#10
     + 'Example: ifnot language in English, Slowenian, Chinese then DROP' + #13#10;
 
