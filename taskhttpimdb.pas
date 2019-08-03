@@ -388,8 +388,8 @@ begin
       imdb_counline := '';
       imdb_region := '';
 
-      if (UpperCase(Trim(ir.languages.Text)) <> 'ENGLISH') then
-        rlang := ir.languages.Strings[0]
+      if (ir.language <> 'English') then
+        rlang := ir.language
       else
         rlang := 'USA';
 

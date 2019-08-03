@@ -78,8 +78,8 @@ type
     class function Description: String; override;
   end;
 
-  TConditionLanguage = class(TMultiStringCondition)
-    procedure SupplyValues(r: TPazo; re: TStringList); override;
+  TConditionLanguage = class(TStringCondition)
+    function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
   end;
@@ -509,13 +509,10 @@ end;
 function TConditionForeign.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-
   try
     if r.rls is TMP3Release then
       exit;
-    if r.rls.languages.Count = 0 then
-      exit;
-    if (r.rls.languages[0] = 'English') then
+    if (r.rls.language = 'English') then
       exit;
 
     Result := True;
@@ -534,19 +531,14 @@ begin
   Result := ForeignDescription;
 end;
 
-{ TConditionLanguageA }
+{ TConditionLanguage }
 
-procedure TConditionLanguage.SupplyValues(r: TPazo; re: TStringList);
+function TConditionLanguage.SupplyValue(r: TPazo): String;
 begin
   try
-    re.Assign(r.rls.languages);
+    Result := r.rls.language;
   except
-    on E: Exception do
-    begin
-      Debug(dpError, dsection, Format('[EXCEPTION] TConditionLanguage.GetSupplyValues: %s', [e.Message]));
-      re.Clear;
-      exit;
-    end;
+    Result := '';
   end;
 end;
 
