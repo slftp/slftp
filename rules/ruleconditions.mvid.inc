@@ -16,4 +16,4 @@ const
 
   MVIDLIVEDescription: string = 'Returns with the a boolean for LIVE type. Returns false if NFO lookup is not yet ready.';
 
-  MVIDLanguageDescription: string = 'Returns the Language parsed from nfo.';
+  MVIDLanguageDescription: string = 'Returns with MVID language tag. Language is EN by default.';
