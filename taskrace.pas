@@ -1931,6 +1931,16 @@ begin
         end;
 
 
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't open data connection.
+          if (0 <> Pos('t open data connection', lastResponse)) then
+          begin
+            goto TryAgain;
+          end;
+        end;
+
+
       500:
         begin
           //COMPLETE MSG: 500 No text
