@@ -1310,6 +1310,15 @@ begin
           end;
         end;
 
+      553:
+        begin
+          //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
+          if (0 < Pos('X-DUPE', lastResponse)) then
+          begin
+            goto TryAgain;
+          end
+        end;
+
       else
         begin
           Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
