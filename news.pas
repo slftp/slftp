@@ -347,7 +347,7 @@ begin
       else
       begin
         // only delete given entry by number
-        if x.Count >= DeleteNumber then
+        if ( (x.Count >= DeleteNumber) and (DeleteNumber <> 0) ) then
         begin
           msgtext := TStringList.Create;
           try
