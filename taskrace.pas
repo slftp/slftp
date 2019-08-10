@@ -1794,7 +1794,7 @@ begin
         (0 < Pos('Slave is offline', lastResponse)) ) )
     ) then
     begin
-      if spamcfg.readbool(c_section, 'No_such_file_or_directory', True) then
+      if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
         irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
     end
     else
