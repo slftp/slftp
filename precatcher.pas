@@ -1065,7 +1065,7 @@ begin
   end;
 
   precatcher_spamevents := TStringList.Create;
-  precatcher_spamevents.CommaText := spamcfg.ReadString('precatcher', 'anounce_event', '');
+  precatcher_spamevents.CommaText := spamcfg.ReadString('precatcher', 'announce_event', '');
 end;
 
 procedure Precatcher_UnInit;
