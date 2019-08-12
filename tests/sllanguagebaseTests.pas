@@ -65,6 +65,7 @@ type
     procedure TestFindMusicLanguageOnDirectory16;
     procedure TestFindMusicLanguageOnDirectory17;
     procedure TestFindMusicLanguageOnDirectory18;
+    procedure TestFindMusicLanguageOnDirectory19;
   end;
 
 implementation
@@ -652,6 +653,17 @@ var
 begin
   fInputStr := 'Dej_Loaf-No_Fear-DVDRip-x264-2017-SRPx';
   fExpectedResultStr := 'EN';
+
+  fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+end;
+
+procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory19;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Ringnes-Ronny_-_Nato_2020-(RU203452)-SINGLE-WEB-SI-2019-ZzZz';
+  fExpectedResultStr := 'SI';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
