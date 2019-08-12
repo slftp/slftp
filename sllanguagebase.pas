@@ -283,7 +283,7 @@ begin
 
   for fMusicLanguage in slmusiclanguages do
   begin
-    if (fMusicLanguage.LanguageCode = aLanguage) then
+    if SameText(fMusicLanguage.LanguageCode, aLanguage) then
     begin
       Result := True;
       break;
