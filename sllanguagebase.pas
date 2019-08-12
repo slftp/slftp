@@ -21,6 +21,7 @@ type
       @param(aFileIndex row number in file)
       @param(aIsRegexExpression set to @true if Language should be found via regex matching (indicated by | in expression), otherwise set it to @false ) }
     constructor Create(const aLanguage, aExpression: String; const aFileIndex: integer; const aIsRegexExpression: Boolean);
+
     property Language: String read FLanguage; //< language
     property Expression: String read FExpression; //< expression(s) which are used in tagging for these language
     property ExpressionLength: Integer read FExpressionLength; //< String length of @link(Expression)
@@ -31,13 +32,12 @@ type
   TMusicLanguage = class
   private
     FLanguageCode: String; //< uppercased music language code
-    FLanguageCodeLength: Integer; //< String length of @link(FLanguageCode)
   public
     { Just a helper function to create a new @link(TMusicLanguage) class
       @param(aLanguageCode Language code) }
     constructor Create(const aLanguageCode: String);
+
     property LanguageCode: String read FLanguageCode; //< music language code
-    property Length: Integer read FLanguageCodeLength; //< length of @link(LanguageCode)
   end;
 
 { Just a helper function to initialize @link(sllanguages) with languages from slftp.languagebase and @link(slmusiclanguages) with infos from [kb] section }
@@ -54,7 +54,7 @@ procedure SLGetLanguagesExpression(var aStringList: TStringList);
   @param(aRlsname string in which it searches for the language)
   @returns(@link(TSLLanguages.Language) string if found, otherwise default 'English') }
 function FindLanguageOnDirectory(const aRlsname: String): String;
-{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname)
+{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname) with respect to the specific tagging convention
   @param(aRlsname string in which it searches for the language)
   @returns(Language string of matched @link(slmusiclanguages) if found, otherwise default 'EN') }
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
@@ -147,7 +147,6 @@ end;
 constructor TMusicLanguage.Create(const aLanguageCode: String);
 begin
   FLanguageCode := aLanguageCode;
-  FLanguageCodeLength := aLanguageCode.Length;
 end;
 
 procedure SLLanguagesInit;
@@ -250,27 +249,22 @@ end;
 
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
 var
-  j, fRlsLen: integer;
+  j: integer;
   fRlsnameStripped: String;
   fMusicLanguage: TMusicLanguage;
 begin
   Result := 'EN';
   fRlsnameStripped := ReplaceText(aRlsname, '(', '');
   fRlsnameStripped := ReplaceText(fRlsnameStripped, ')', '');
-  fRlsLen := Length(fRlsnameStripped);
 
   for fMusicLanguage in slmusiclanguages do
   begin
-    j := Pos(fMusicLanguage.LanguageCode, fRlsnameStripped);
+    // language is always -LANGUAGE-
+    j := Pos('-' + fMusicLanguage.LanguageCode + '-', fRlsnameStripped);
     if (j > 1) then
     begin
-      if ((j + fMusicLanguage.Length) >= fRlsLen) then
-        Continue;
-      if (fRlsnameStripped[j - 1] = '-') and (fRlsnameStripped[j + fMusicLanguage.Length] = '-') then
-      begin
-        Result := fMusicLanguage.LanguageCode;
-        break;
-      end;
+      Result := fMusicLanguage.LanguageCode;
+      break;
     end;
   end;
 end;
