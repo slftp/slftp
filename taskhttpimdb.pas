@@ -81,28 +81,23 @@ function CleanMovienameForBOM(const aMoviename: String): String;
 begin
   Result := aMoviename;
 
-  // BOM search does not allow ' at the beginning or at the end
-  {$IFDEF UNICODE}
-    if StartsText('''', Result) then
-      Result := Copy(Result, 1, 1);
+  // BOM search does not allow : in search
+  {
+    Example:
+    https://www.boxofficemojo.com/search/?q=One%20Piece%20%273D2Y%27:%20%C3%82su%20no%20shi%20o%20koete!%20Rufi%20nakamatachi%20no%20chikai
+  }
+  Result := ReplaceText(Result, ':', '');
 
-    if EndsText('''', Result) then
-      SetLength(Result, Length(Result) - 1);
-  {$ELSE}
-    if AnsiStartsText('''', Result) then
-      Result := Copy(Result, 1, 1);
+  // BOM search does not allow ' in search
+  Result := ReplaceText(Result, '''', '');
 
-    if AnsiEndsText('''', Result) then
-      SetLength(Result, Length(Result) - 1);
-  {$ENDIF}
-
-    // BOM search does not allow '...' in search
-    {
-      Examples:
-        http://www.boxofficemojo.com/search/?q=Stinsen%20brinner...%20filmen%20allts?
-        http://www.boxofficemojo.com/search/?q=Il%20?tait%20une%20fois...%20la%20vie
-    }
-    Result := ReplaceText(Result, '...', '');
+  // BOM search does not allow ... in search
+  {
+    Examples:
+    http://www.boxofficemojo.com/search/?q=Stinsen%20brinner...%20filmen%20allts?
+    http://www.boxofficemojo.com/search/?q=Il%20?tait%20une%20fois...%20la%20vie
+  }
+  Result := ReplaceText(Result, '...', '');
 end;
 
 { TPazoHTTPImdbTask }
