@@ -1327,8 +1327,6 @@ begin
       chan := SubString(s, ' ', 3);
       s1 := Copy(s1, Pos(' ', s1), MaxInt);
       msg := Copy(s1, Pos(':', s1) + 1, MaxInt);
-      //irc_addinfo(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s',[netname, chan, Copy(s1, Pos(':', s1)+1, MaxInt)]));
-
 
       for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
       begin
@@ -1340,6 +1338,10 @@ begin
       end;
 
       fChanSettings := FindIrcChannelSettings(netname, chan);
+      if not Assigned(fChanSettings) then
+      begin
+        exit;
+      end;
 
       // handle decryption of IRC Topics if encrypted
       case FishModeArrayIndex of
