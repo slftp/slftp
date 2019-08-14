@@ -97,7 +97,8 @@ implementation
 
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, regexpr,
-  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, SynDBSQLite3, SynDB;
+  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, SynDBSQLite3, SynDB,
+  Generics.Collections, news;
 
 const
   section = 'tasktvinfo';
@@ -106,6 +107,7 @@ var
   tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
   SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
+  LastAddtvmazeIDs: TList<String>; // ugly way to prevent looping of !addtvmaze announces when info is already stored with different ID
 
 function replaceTVShowChars(const aName: String; forWebFetch: boolean = false): String;
 var
@@ -1115,15 +1117,29 @@ begin
     try
       if (dbtvinfo = nil) then
       begin
-        // create an INSERT task for non existing show
-        try
-          AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
-        except
-          on e: Exception do
+        if not LastAddtvmazeIDs.Contains(tv_showid) then
+        begin
+          // if the list grow to more than 50 items, delete the first 25
+          if LastAddtvmazeIDs.Count > 50 then
           begin
-            Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
-            exit;
+            LastAddtvmazeIDs.DeleteRange(0, 25);
           end;
+          LastAddtvmazeIDs.Add(tv_showid);
+
+          // create an INSERT task for non existing show
+          try
+            AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] addTVInfos: %s', [e.Message]));
+              exit;
+            end;
+          end;
+        end
+        else
+        begin
+          SlftpNewsAdd('TVMAZE', Format('Possible mismatch for <b>%s</b> with TVMaze ID <b>%s</b>', [rls, tv_showid]), True);
         end;
       end
       else if (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) then
@@ -1314,6 +1330,7 @@ begin
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.tvinfo ON infos (tvmaze_id ASC);');
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.Rips ON series (rip ASC);');
 
+  LastAddtvmazeIDs := TList<String>.Create;
 
   Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
 end;
@@ -1333,6 +1350,11 @@ begin
   if Assigned(tvinfoSQLite3DBCon) then
   begin
     FreeAndNil(tvinfoSQLite3DBCon);
+  end;
+
+  if Assigned(LastAddtvmazeIDs) then
+  begin
+    FreeAndNil(LastAddtvmazeIDs);
   end;
 end;
 
