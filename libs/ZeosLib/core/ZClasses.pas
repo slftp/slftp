@@ -68,11 +68,6 @@ const
   ZEOS_VERSION = Char(48+ZEOS_MAJOR_VERSION)+'.'+
                  Char(48+ZEOS_MINOR_VERSION)+'.'+
                  Char(48+ZEOS_SUB_VERSION)+'-'+ZEOS_STATUS;
-{$IFDEF ENABLE_POOLED}
-  {Pooled Protocol Prefix, including final dot}
-  PooledPrefix = 'pooled.'+ZEOS_VERSION;
-{$ENDIF}
-
 
 type
   {$IFDEF OLDFPC}
@@ -275,6 +270,25 @@ type
     property OnTimer: TThreadMethod read FOnTimer write SetOnTimer;
   end;
 
+  TCallbackPatch = packed record
+    popEax          : byte;     //$58 pop EAX
+    pushSelf_opcode : byte;     //$B8
+    pushSelf_self   : Pointer;  //self
+    pushEax         : byte;     //$50 push EAX
+    jump_opcode     : byte;     //$E9
+    jump_target     : Pointer;  //@TObject.DummyCallback
+  end;
+
+  {** implements a dispatcher to map C-DLL callbacks
+      to pascal a TMethod of Object}
+  TZMethodToDllCallbackDispatcher = class(TInterfacedObject)
+  private
+    FProcedure: TCallbackPatch;
+  protected
+    function GetProcedureAddress: Pointer;
+  public
+    constructor Create(const Instance: TObject; methodAddr: pointer);
+  end;
 
 implementation
 
@@ -556,6 +570,26 @@ begin
                   end;
       else        Break;
     end;
+end;
+
+constructor TZMethodToDllCallbackDispatcher.Create(const Instance: TObject;
+  methodAddr: Pointer);
+begin
+  inherited Create;
+  with FProcedure do begin
+    popEax          := $58;
+    pushSelf_opcode := $68;
+    pushSelf_self   := Instance;
+    pushEax         := $50;
+    jump_opcode     := $E9;
+    jump_target     := PAnsiChar(PAnsiChar(methodAddr)-PAnsiChar(@FProcedure))-SizeOf(TCallbackPatch);
+  end;
+end;
+
+{** Returns an address which should be registered to the DLL interface }
+function TZMethodToDllCallbackDispatcher.GetProcedureAddress: Pointer;
+begin
+  Result := @FProcedure;
 end;
 
 end.
