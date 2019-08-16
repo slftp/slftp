@@ -278,7 +278,7 @@ begin
                 except
                   on e: Exception do
                   begin
-                    Debug(dpError, section, Format('Exception in TPazoImdbTask kb_add: %s', [e.Message]));
+                    Debug(dpError, section, Format('Exception in TAutoDirlistTask kb_add: %s', [e.Message]));
                   end;
                 end;
               end;
