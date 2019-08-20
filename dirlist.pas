@@ -22,15 +22,16 @@ type
 
   TDirlist = class;
 
+  { @abstract(Information for a specific file (also dir?) from a TDirlist) }
   TDirListEntry = class
     dirlist: TDirList;
 
     megvanmeg: Boolean;
     justadded: Boolean;
-    error: Boolean; //< { @true if file cannot be send, will be skipped then, @false otherwise. }
+    error: Boolean; //< @true if file cannot be send, will be skipped then, @false otherwise.
 
-    username: String;
-    groupname: String;
+    username: String; //< name of user who sent this file
+    groupname: String; //< name of group the @link(username) is associated with
 
     fDirectory: Boolean; //< current dir is a directory
     fDirType: TDirType; //< Indicates what kind of Directory the current dir is
@@ -44,17 +45,13 @@ type
 
     skiplisted: Boolean;
     racedbyme: Boolean; //< @true if we send this file to the site
-    done: Boolean;
-
-    tradeCount: Integer;
+    // TODO: done does not do a real filesize check nor is it reset to false at any time if the file disappears e.g.
+    // which might produce incomplete releases - so it seems not to be a trusty value
+    done: Boolean; //< @true when @link(TDirlist.ParseDirlist) adding of file was successful, @false otherwise.
 
     cdno: Integer;
 
-    timestamp: TDateTime;
-
-    sfvfirsteventvoltmar: Boolean;
-
-    addedfrom: TStringList;
+    timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
 
     procedure CalcCDNumber;
     property Extension: String read fExtension;
@@ -72,31 +69,31 @@ type
 
     function RegenerateSkiplist: Boolean;
 
+    // TODO: could be calculated once when creating the item and then re-se the (cached) result
     function Useful: Boolean;
-
-
   end;
 
+  { @abstract(Information for a single release dirlist) }
   TDirList = class
   private
-    fLastChanged: TDateTime;
+    FLastChanged: TDateTime;
     allcdshere: Boolean;
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
-    _completeInfo: TCompleteInfo;
+    FCompleteInfo: TCompleteInfo;
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
     class function Timestamp(ts: String): TDateTime;
 
     procedure SetCompleteInfo(info : TCompleteInfo);
+    { Sets @link(FCompleteInfo) value to @link(TCompleteInfo.FromFtpd) }
     procedure SetCompleteInfoFromFtpd;
   public
     dirlist_lock: TCriticalSection;
 
     dirlistadded: Boolean;
-    mindenmehetujra: Boolean;
 
     site_name: String; //< sitename
     // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
@@ -104,38 +101,32 @@ type
 
     error: Boolean;
 
-    need_mkdir: Boolean;
+    need_mkdir: Boolean; //< @true if MKDIR'ing is still needed (default), @false otherwise.
     sfv_status: TdlSFV;
 
     biggestcd: Integer;
 
     parent: TDirListEntry;
-    entries: TObjectList;
+    entries: TObjectList; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
 
-    complete_tag: String;
+    complete_tag: String; //< complete dir found on ftpd while dirlisting
 
     cache_completed: Boolean;
-    cache_hasnfo: Boolean;
-    cache_hassfv: Boolean;
-    cache_multicd: Boolean;
+    cache_hasnfo: Boolean; //< @true if @link(hasnfo) has been called and already found a NFO file, @false otherwise.
+    cache_hassfv: Boolean; //< @true if @link(hassfv) has been called and already found a SFV file, @false otherwise.
 
-    date_started: TDateTime;
-    date_completed: TDateTime;
+    date_started: TDateTime; //< time when the first @link(TDirlistEntry) was created
+    date_completed: TDateTime; //< time when the TDirlit was recognized as complete
 
     dependency_mkdir: String;
 
-    isSpeedTest: Boolean;
-    isFromIrc: Boolean;
+    isSpeedTest: Boolean; //< Value of SpeedTest from @link(TDirList.Create)
+    isFromIrc: Boolean; //< Value of FromIrc from @link(TDirList.Create)
 
     procedure Clear;
     function hasnfo: Boolean;
     function hassfv: Boolean;
-    function No_Raceable: Integer;
-    function No_Skiplisted: Integer;
-    function No_NotSkiplisted: Integer;
-    function firstfile: TDateTime;
-    function lastfile: TDateTime;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     destructor Destroy; override;
@@ -150,8 +141,6 @@ type
 
     function RegenerateSkiplist: Boolean;
 
-    function Directories: Integer;
-
     procedure ParseDirlist(s: String);
     function Complete: Boolean;
     function CompleteByTag: Boolean;
@@ -162,22 +151,28 @@ type
     function Find(const filename: String): TDirListEntry;
 
     function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
+    { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.done).
+      Files from subdirs are included in this final count. Directories themselves are not counted.
+      This function is mainly used for race stats, to determine how many files there
+      were in total and for reqfilling to check that source and target site contain
+      an equal amount of files. }
     function Done: Integer;
     function RacedByMe(only_useful: boolean = False): Integer;
     function SizeRacedByMe(only_useful: boolean = False): Int64;
 
-    procedure SetCompleteInfoFromIrc();
+    { Sets @link(FCompleteInfo) value to @link(TCompleteInfo.FromIrc) }
+    procedure SetCompleteInfoFromIrc;
     function GetCompleteInfo: String;
   published
-    property LastChanged: TDateTime read fLastChanged write SetLastChanged;
+    property LastChanged: TDateTime read FLastChanged write SetLastChanged;
   end;
 
+{ Just a helper function to initialize @link(global_skip), @link(useful_skip), image_files_priority and video_files_priority }
 procedure DirlistInit;
 
-// make it global to use it in other units with those variables
 var
-  global_skip: String;
-  useful_skip: String;
+  global_skip: String; //< global_skip value from slftp.ini
+  useful_skip: String; //< useful_skip value from slftp.ini (ASCII files which need special handling because they might differ in size due to lineendings etc)
 
 implementation
 
@@ -374,9 +369,9 @@ begin
 
   self.site_name := site_name;
   self.full_path := 'Not set';
-  _completeInfo := NotComplete;
+  FCompleteInfo := NotComplete;
 
-  fLastChanged := Now();
+  FLastChanged := Now();
   allcdshere := False;
   entries := TObjectList.Create;
   skipped := TStringList.Create;
@@ -508,69 +503,6 @@ begin
   end;
 end;
 
-function TDirList.No_NotSkiplisted: Integer;
-begin
-  Result := entries.Count - No_Skiplisted;
-end;
-
-function TDirList.No_Raceable: Integer;
-var
-  i: Integer;
-begin
-  Result := 0;
-
-  dirlist_lock.Enter;
-  try
-    for i := entries.Count - 1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        if ((not TDirListEntry(entries[i]).skiplisted) and (not TDirListEntry(entries[i]).done)) then
-        begin
-          inc(Result);
-        end;
-      except
-        on e: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.No_Raceable: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
-function TDirList.No_Skiplisted: Integer;
-var
-  i: Integer;
-begin
-  Result := 0;
-
-  dirlist_lock.Enter;
-  try
-    for i := entries.Count - 1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        if TDirListEntry(entries[i]).skiplisted then
-        begin
-          inc(Result);
-        end;
-      except
-        on e: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.No_Skiplisted: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
 class function TDirlist.Timestamp(ts: String): TDateTime;
 const
   Months: array[1..12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
@@ -658,7 +590,7 @@ begin
   if site = nil then
   begin
     // should never happen
-    Debug(dpError, section, 'ERROR: Can''t lookup site  %s. Using defaults.', [site_name]);
+    Debug(dpError, section, 'ERROR: Can''t lookup site %s. Using defaults.', [site_name]);
     skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
   end
   else
@@ -943,7 +875,6 @@ begin
   if added then
   begin
     cache_completed := False;
-    cache_multicd := False;
     allcdshere := False;
 
     if skiplist <> nil then
@@ -1001,7 +932,7 @@ begin
 
 end;
 
-function DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
+function _DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
 var
   i1, i2: TDirlistEntry;
   c1, c2: Integer;
@@ -1065,7 +996,7 @@ begin
             2 : Result := -1;
           end;
 
-        //Debug(dpSpam, section, 'DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        //Debug(dpSpam, section, '_DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
         exit;
       end;
 
@@ -1085,7 +1016,7 @@ begin
             2 : Result := -1;
           end;
 
-        //Debug(dpSpam, section, 'DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
+        //Debug(dpSpam, section, '_DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
         exit;
       end;
     end;
@@ -1143,38 +1074,20 @@ begin
     end;
   except
     on e: Exception do
-      debugunit.Debug(dpError, section, '[EXCEPTION] DirListSorter: %s', [e.Message]);
+      debugunit.Debug(dpError, section, '[EXCEPTION] _DirListSorter: %s', [e.Message]);
   end;
 end;
 
-function DirListModSorter(Item1, Item2: Pointer): Integer;
-var i1, i2: TDirlistEntry;
-begin
-  // compare: -1 bekenhagyas, jo a sorrend     ~ good order
-  // compare:  1 exchange
-  i1 := TDirlistEntry(Item1);
-  i2 := TDirlistEntry(Item2);
-
-  Result:= CompareValue(i2.timestamp, i1.timestamp);
-  (*
-    if i1.timestamp > i2.timestamp then
-      Result:= -1
-    else
-    if i1.timestamp < i2.timestamp then
-      Result:= 1;
-  *)
-end;
-
-procedure TDirList.Sort();
+procedure TDirList.Sort;
 begin
   dirlist_lock.Enter;
   try
     try
-      entries.Sort(@DirListSorter);
+      entries.Sort(@_DirListSorter);
     except
       on E: Exception do
       begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort (DirListSorter): %s', [e.Message]);
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort (_DirListSorter): %s', [e.Message]);
       end;
     end;
   finally
@@ -1278,9 +1191,9 @@ end;
 
 procedure TDirList.SetLastChanged(const value: TDateTime);
 begin
-  fLastChanged := Max(value, fLastChanged);
+  FLastChanged := Max(value, FLastChanged);
   if parent <> nil then
-    parent.dirlist.LastChanged := fLastChanged;
+    parent.dirlist.LastChanged := FLastChanged;
 end;
 
 function TDirList.FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
@@ -1343,15 +1256,6 @@ begin
   Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
-(*
-  The Done function counts all files inside a Dirlist that are considered done
-  Files from subdirs are included in this final count.
-  Directories themselves are not counted.
-
-  This function is mainly used for race stats, to determine how many files there
-  were in total and for reqfilling to check that source and target site contain
-  an equal amount of tiles.
-*)
 function TDirList.Done: Integer;
 var
   de: TDirlistEntry;
@@ -1540,7 +1444,7 @@ var
   i: Integer;
 begin
   allcdshere := False;
-  fLastChanged := 0;
+  FLastChanged := 0;
   biggestcd := 0;
 
   dirlist_lock.Enter;
@@ -1566,16 +1470,28 @@ begin
 
 end;
 
+function _DirListModSorter(Item1, Item2: Pointer): Integer;
+var
+  i1, i2: TDirlistEntry;
+begin
+  // compare: -1 -> good order
+  // compare:  1 -> exchange
+  i1 := TDirlistEntry(Item1);
+  i2 := TDirlistEntry(Item2);
+
+  Result := CompareValue(i2.timestamp, i1.timestamp);
+end;
+
 procedure TDirList.SortByModify;
 begin
   dirlist_lock.Enter;
   try
     try
-      entries.Sort(@DirListModSorter);
+      entries.Sort(@_DirListModSorter);
     except
       on E: Exception do
       begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.SortByModify (DirListModSorter): %s', [e.Message]);
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.SortByModify (_DirListModSorter): %s', [e.Message]);
       end;
     end;
   finally
@@ -1614,112 +1530,6 @@ begin
   end;
 end;
 
-function TDirList.Directories: Integer;
-var i: Integer;
-    de: TDirlistEntry;
-begin
-  Result := 0;
-
-  dirlist_lock.Enter;
-  try
-    for i := entries.Count -1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        de := TDirlistEntry(entries[i]);
-        if ((de.directory) and (not de.skiplisted) and (de.timestamp <> 0)) then
-          inc(result);
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Directories: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
-function TDirList.firstfile: TDateTime;
-var i: Integer;
-    de: TDirlistEntry;
-    t: TDateTime;
-begin
-  Result := 0;
-
-  dirlist_lock.Enter;
-  try
-    for i:= entries.Count -1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        de := TDirlistEntry(entries[i]);
-        if (de.timestamp <> 0) and (not de.skiplisted) then
-        begin
-          if ((Result = 0) or (Result > de.timestamp)) then
-            Result := de.timestamp;
-
-          if ((de.Directory) and (de.subdirlist <> nil)) then
-          begin
-            t := de.subdirlist.firstfile;
-            if ((t <> 0) and (Result > t)) then
-              Result := t;
-          end;
-        end;
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.firstfile: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
-function TDirList.lastfile: TDateTime;
-var i: Integer;
-    de: TDirlistEntry;
-    t: TDateTime;
-begin
-  Result := 0;
-
-  dirlist_lock.Enter;
-  try
-    for i := entries.Count -1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        de := TDirlistEntry(entries[i]);
-        if (de.timestamp <> 0) and (not de.skiplisted) then
-        begin
-          if ((Result = 0) or (Result < de.timestamp)) then
-            Result := de.timestamp;
-
-          if ((de.Directory) and (de.subdirlist <> nil)) then
-          begin
-            t := de.subdirlist.lastfile;
-            if ((t <> 0) and (Result < t)) then
-              Result := t;
-          end;
-        end;
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.firstfile: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
 procedure TDirList.SetFullPath(const value: String);
 begin
   self.full_path := value;
@@ -1737,11 +1547,11 @@ end;
 
 procedure TDirList.SetCompleteInfo(info : TCompleteInfo);
 begin
-  if (_completeInfo <> FromFtpdAndIrc) then
+  if (FCompleteInfo <> FromFtpdAndIrc) then
   begin
-    if ((_completeInfo = NotComplete) or ((_completeInfo <> FromFtpdAndIrc) and (info <> _completeInfo))) then
-      _completeInfo := TCompleteInfo(ord(_completeInfo) + ord(info));
-    if (date_completed = 0) and (_completeInfo in [FromIrc, FromFtpdAndIrc]) then
+    if ((FCompleteInfo = NotComplete) or ((FCompleteInfo <> FromFtpdAndIrc) and (info <> FCompleteInfo))) then
+      FCompleteInfo := TCompleteInfo(ord(FCompleteInfo) + ord(info));
+    if (date_completed = 0) and (FCompleteInfo in [FromIrc, FromFtpdAndIrc]) then
       date_completed := Now();
   end;
 end;
@@ -1750,7 +1560,7 @@ function TDirList.GetCompleteInfo: String;
 begin
   Result := 'UNKNOWN!';
 
-  case TCompleteInfo(_completeInfo) of
+  case FCompleteInfo of
     NotComplete:
       begin
         Result := 'Not Complete';
@@ -1774,12 +1584,8 @@ end;
 
 constructor TDirListEntry.Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
-  addedfrom := TStringList.Create;
-
-  self.tradeCount := 0;
   self.DirType := IsMain;
 
-  self.sfvfirsteventvoltmar := False;
   self.dirlist := dirlist;
   self.filename := filename;
   self.done := False;
@@ -1795,12 +1601,8 @@ end;
 
 constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False);
 begin
-  addedfrom := TStringList.Create;
-
-  self.tradeCount := 0;
   self.DirType := de.DirType;
 
-  self.sfvfirsteventvoltmar := False;
   self.filename := de.filename;
   self.filesize := de.filesize;
 
@@ -1824,7 +1626,6 @@ end;
 destructor TDirListEntry.Destroy;
 begin
   FreeAndNil(subdirlist);
-  addedFrom.Free;
   inherited;
 end;
 

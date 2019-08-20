@@ -307,8 +307,6 @@ begin
   end
   else
   begin
-    ps1.last_dirlist := Now();
-
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
