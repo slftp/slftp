@@ -769,12 +769,8 @@ begin
 
       p := PazoAdd(r);
 
-      // meg kell keresni az osszes siteot ahol van ilyen section... //must search for all sites where there is such a section ...
+      // need to search all sites where there is such a section ...
       added := p.AddSites;
-
-      if (ts <> 0) then
-        p.autodirlist := True;
-      // kulso threadnek kell dirlistelnie vagy hasonlo //dirlistelnie be threaded or similar exterior
 
       kb_list.BeginUpdate;
       try
@@ -785,7 +781,7 @@ begin
 
       if added then
       begin
-        // sorrendezes
+        // sorting
         RulesOrder(p);
       end;
 
