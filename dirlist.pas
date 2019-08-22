@@ -44,7 +44,7 @@ type
     fExtension: String; //< file extension, includes the '.' prefix - such as '.nfo'
 
     skiplisted: Boolean;
-    racedbyme: Boolean; //< @true if we send this file to the site
+    racedbyme: Boolean; //< @true if we send this file to the site, @false otherwise.
     // TODO: done does not do a real filesize check nor is it reset to false at any time if the file disappears e.g.
     // which might produce incomplete releases - so it seems not to be a trusty value
     done: Boolean; //< @true when @link(TDirlist.ParseDirlist) adding of file was successful, @false otherwise.
@@ -69,8 +69,10 @@ type
 
     function RegenerateSkiplist: Boolean;
 
-    // TODO: could be calculated once when creating the item and then re-se the (cached) result
-    function Useful: Boolean;
+    { Checks if the @link(Extension) matches any of the @link(AsciiFiletypes) values
+      as their filesize could differ e.g. due to different line endings.
+      @returns(@true if file is an ASCII type, @false otherwise.) }
+    function IsAsciiFiletype: Boolean;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -151,14 +153,20 @@ type
     function Find(const filename: String): TDirListEntry;
 
     function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
-    { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.done).
+    { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.done) and are not @link(TDirListEntry.skiplisted).
       Files from subdirs are included in this final count. Directories themselves are not counted.
       This function is mainly used for race stats, to determine how many files there
       were in total and for reqfilling to check that source and target site contain
       an equal amount of files. }
     function Done: Integer;
-    function RacedByMe(only_useful: boolean = False): Integer;
-    function SizeRacedByMe(only_useful: boolean = False): Int64;
+    { Counts the files raced by me for all @link(entries) including subdir files.
+      @param(aExcludeAsciiFiletypes if @true, it ignores Ascii files)
+      @returns(Amount of files raced by me) }
+    function FilesRacedByMe(aExcludeAsciiFiletypes: boolean = False): Integer;
+    { Summates the size of files raced by me for all @link(entries) including subdir files.
+      @param(aExcludeAsciiFiletypes if @true, it ignores Ascii files)
+      @returns(Amount of bytes raced by me) }
+    function SizeRacedByMe(aExcludeAsciiFiletypes: boolean = False): Int64;
 
     { Sets @link(FCompleteInfo) value to @link(TCompleteInfo.FromIrc) }
     procedure SetCompleteInfoFromIrc;
@@ -167,12 +175,12 @@ type
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
   end;
 
-{ Just a helper function to initialize @link(global_skip), @link(useful_skip), image_files_priority and video_files_priority }
+{ Just a helper function to initialize @link(global_skip), image_files_priority and video_files_priority }
 procedure DirlistInit;
 
 var
   global_skip: String; //< global_skip value from slftp.ini
-  useful_skip: String; //< useful_skip value from slftp.ini (ASCII files which need special handling because they might differ in size due to lineendings etc)
+  AsciiFiletypes: array [1..5] of String = ('.nfo', '.sfv', '.m3u', '.cue', '.diz'); //< ASCII files which may need special handling because they might differ in size due to different line endings etc
 
 implementation
 
@@ -1112,10 +1120,11 @@ begin
 end;
 
 procedure TDirList.Usefulfiles(out files: Integer; out size: Int64);
-var i: Integer;
-    de: TDirlistEntry;
-    afiles: Integer;
-    asize: Int64;
+var
+  i: Integer;
+  de: TDirlistEntry;
+  afiles: Integer;
+  asize: Int64;
 begin
   asize := 0;
   afiles := 0;
@@ -1124,14 +1133,14 @@ begin
 
   dirlist_lock.Enter;
   try
-    for i := entries.Count -1 downto 0 do
+    for i := entries.Count - 1 downto 0 do
     begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
         if de.skiplisted then Continue;
 
-        if de.Useful then
+        if not de.IsAsciiFiletype then
         begin
           inc(files);
           inc(size, de.filesize);
@@ -1269,11 +1278,16 @@ begin
     begin
       if i < 0 then Break;
       try
-       de := TDirlistEntry(entries[i]);
-        if de.skiplisted then Continue;
-        if ((de.done) and (not de.directory)) then inc(Result);
+        de := TDirlistEntry(entries[i]);
+
+        if de.skiplisted then
+          Continue;
+
+        if ((de.done) and (not de.directory)) then
+          Inc(Result);
+
         if ((de.directory) and (de.subdirlist <> nil)) then
-          inc(Result, de.subdirlist.Done);
+          Inc(Result, de.subdirlist.Done);
       except
         on E: Exception do
         begin
@@ -1287,7 +1301,7 @@ begin
   end;
 end;
 
-function TDirList.RacedByMe(only_useful: boolean = False): Integer;
+function TDirList.FilesRacedByMe(aExcludeAsciiFiletypes: boolean = False): Integer;
 var
   de: TDirlistEntry;
   i: Integer;
@@ -1301,22 +1315,26 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if only_useful then
+
+        if aExcludeAsciiFiletypes then
         begin
-          if (de.racedbyme and de.Useful) then inc(Result);
+          if (de.racedbyme and not de.IsAsciiFiletype) then
+            Inc(Result);
         end
         else
         begin
-          if de.racedbyme then inc(Result);
+          if de.racedbyme then
+            Inc(Result);
         end;
+
         if ((de.directory) and (de.subdirlist <> nil)) then
         begin
-          inc(Result, de.subdirlist.RacedbyMe(only_useful));
+          Inc(Result, de.subdirlist.FilesRacedByMe(aExcludeAsciiFiletypes));
         end;
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, 'TDirList.RacedByMe: %s', [e.Message]);
+          debugunit.Debug(dpError, section, 'TDirList.FilesRacedByMe: %s', [e.Message]);
           Continue;
         end;
       end;
@@ -1326,12 +1344,12 @@ begin
   end;
 end;
 
-function TDirList.SizeRacedByMe(only_useful: boolean = False): Int64;
+function TDirList.SizeRacedByMe(aExcludeAsciiFiletypes: boolean = False): Int64;
 var
   de: TDirlistEntry;
   i: Integer;
 begin
-  Result:= 0;
+  Result := 0;
 
   dirlist_lock.Enter;
   try
@@ -1340,15 +1358,22 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if only_useful then
+
+        if aExcludeAsciiFiletypes then
         begin
-          if (de.racedbyme and de.Useful) then inc(result,de.filesize);
+          if (de.racedbyme and not de.IsAsciiFiletype) then
+            Inc(result, de.filesize);
         end
         else
         begin
-          if de.racedbyme then inc(result,de.filesize);
+          if de.racedbyme then
+            Inc(result, de.filesize);
         end;
-        if ((de.directory) and (de.subdirlist <> nil)) then inc(result,de.subdirlist.SizeRacedByMe(only_useful));
+
+        if ((de.directory) and (de.subdirlist <> nil)) then
+        begin
+          Inc(result, de.subdirlist.SizeRacedByMe(aExcludeAsciiFiletypes));
+        end;
       except
         on E: Exception do
         begin
@@ -1588,6 +1613,7 @@ begin
 
   self.dirlist := dirlist;
   self.filename := filename;
+  self.racedbyme := False;
   self.done := False;
   self.skiplisted := False;
   self.megvanmeg := False;
@@ -1650,36 +1676,19 @@ begin
   end;
 end;
 
-function TDirListEntry.Useful: Boolean;
-var
-  rrgx: TRegExpr;
+function TDirListEntry.IsAsciiFiletype: Boolean;
 begin
   Result := False;
 
   if filesize = 0 then exit;
   if directory then exit;
 
-  rrgx := TRegExpr.Create;
-  rrgx.ModifierI := True;
-  rrgx.Expression := useful_skip;
-  try
-    try
-      if not rrgx.Exec(filename) then
-      begin
-        Result := True;
-        exit;
-      end;
-    except
-      on E: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirListEntry.Useful: %s', [e.Message]);
-      end;
-    end;
-  finally
-    rrgx.Free;
+  if MatchText(Extension, AsciiFiletypes) then
+  begin
+    Result := True;
+    exit;
   end;
 end;
-
 
 procedure TDirListEntry.SetDirectory(const value: Boolean);
 begin
@@ -1789,7 +1798,6 @@ end;
 procedure DirlistInit;
 begin
   global_skip := config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)');
-  useful_skip := config.ReadString(section, 'useful_skip', '\.nfo$|\.sfv$|\.m3u$|\.cue$');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then

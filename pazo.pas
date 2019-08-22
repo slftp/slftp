@@ -1636,7 +1636,7 @@ begin
 
   if ( (not (status in [rssRealPre, rssShouldPre, rssNotAllowed])) and (dirlist <> nil) ) then
   begin
-    if dirlist.RacedByMe(True) >= 1 then
+    if dirlist.FilesRacedByMe(True) >= 1 then
     begin
       // we send some files
       fsize := dirlist.SizeRacedByMe(True) / 1024;
@@ -1645,7 +1645,7 @@ begin
       if not dirlist.Complete then
         fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
 
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
 
       // TODO: Find out why it is negative sometimes + try to fix
       // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
@@ -1663,12 +1663,12 @@ begin
             if i < 0 then Break;
             try
               de := TDirlistEntry(dirlist.entries[i]);
-              if (de.racedbyme and de.Useful) then
+              if (de.racedbyme and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s useful %s (sum: %d)',
-                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.Useful, True), sum]));
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
             except
               on E: Exception do
               begin
@@ -1896,7 +1896,7 @@ end;
 
 function TPazoSite.DirlistGaveUpAndSentNoFiles: Boolean;
 begin
-  Result := dirlistgaveup and (dirlist.RacedByMe(False) = 0);
+  Result := dirlistgaveup and (dirlist.FilesRacedByMe(False) = 0);
 end;
 
 procedure TPazoSite.DelaySetup;
