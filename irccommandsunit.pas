@@ -272,7 +272,7 @@ const
     (cmd: 'socks5reload'; hnd: IrcRehashSocks5; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'fakereload'; hnd: IrcFakeReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'rulesreload'; hnd: IrcRulesReload; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
-    (cmd: 'reloadglobalskip'; hnd: IrcReloadGlobalSkipGrouplist; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
+    (cmd: 'globalskipreload'; hnd: IrcReloadGlobalSkipGrouplist; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
     (cmd: 'knowngroupreload'; hnd: IrcKnowngroups; minparams: 0; maxparams: 0; hlpgrp: 'reload'),
 
     (cmd: 'SOCKS5'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$socks5'),
