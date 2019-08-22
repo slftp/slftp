@@ -557,7 +557,7 @@ begin
 
           if ((ps <> nil) and (ps.dirlist <> nil)) then
           begin
-            sj := IntToStr(ps.dirlist.RacedByMe);
+            sj := IntToStr(ps.dirlist.FilesRacedByMe);
             sdone := IntToStr(ps.dirlist.Done);
 
             dd := ps.dirlist.SizeRacedByMe;
@@ -757,7 +757,7 @@ begin
     if p.ready then
     begin
 
-      if ps_dst.dirlist.RacedByMe <> 0 then
+      if ps_dst.dirlist.FilesRacedByMe <> 0 then
       begin
         // do nothing
       end
@@ -802,7 +802,7 @@ begin
       k := '?';
       if ((ps_dst <> nil) and (ps_dst.dirlist <> nil)) then
       begin
-        j := IntToStr(ps_dst.dirlist.RacedByMe);
+        j := IntToStr(ps_dst.dirlist.FilesRacedByMe);
 
         k := IntToStr(ps_dst.dirlist.Done);
       end;
