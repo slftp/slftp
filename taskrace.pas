@@ -331,7 +331,7 @@ begin
 
     // set the dirlist full path. Used mainly for debug outputing.
     if d <> nil then
-      d.SetFullPath(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir);
+      d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
 
     // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
@@ -430,11 +430,11 @@ begin
         Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
       end;
 
-      secondsSinceCompleted := SecondsBetween(Now, d.date_completed);
+      secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
 
       if (is_pre) then
       begin
-        if ( (d.date_completed <> 0) and (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
@@ -446,9 +446,9 @@ begin
       end
       else
       begin
-        secondsSinceStart := SecondsBetween(Now, d.date_started);
+        secondsSinceStart := SecondsBetween(Now, d.StartedTime);
 
-        if ( (d.date_started <> 0) AND (secondsSinceStart > config.ReadInteger(c_section, 'newdir_max_created', 600)) ) then
+        if ( (d.StartedTime <> 0) AND (secondsSinceStart > config.ReadInteger(c_section, 'newdir_max_created', 600)) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
@@ -458,7 +458,7 @@ begin
           Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
         end;
 
-        if ( (d.date_completed <> 0) AND (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin

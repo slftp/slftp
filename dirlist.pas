@@ -24,55 +24,47 @@ type
 
   { @abstract(Information for a specific file (also dir?) from a TDirlist) }
   TDirListEntry = class
+  private
+    FExtension: String; //< file extension, includes the '.' prefix - such as '.nfo'
+    FUsername: String; //< name of user who sent this file
+    FGroupname: String; //< name of group the @link(FUsername) is associated with
+    FDirectory: Boolean; //< @true if current dir is a directory
+    FDirType: TDirType; //< Indicates what kind of Directory the current dir is
+  public
     dirlist: TDirList;
-
     megvanmeg: Boolean;
     justadded: Boolean;
     error: Boolean; //< @true if file cannot be send, will be skipped then, @false otherwise.
-
-    username: String; //< name of user who sent this file
-    groupname: String; //< name of group the @link(username) is associated with
-
-    fDirectory: Boolean; //< current dir is a directory
-    fDirType: TDirType; //< Indicates what kind of Directory the current dir is
-
     subdirlist: TDirList;
-
     filename: String; //< filename
     filenamelc: String; //< lowercase filename
     filesize: Int64; //< filesize
-    fExtension: String; //< file extension, includes the '.' prefix - such as '.nfo'
-
     skiplisted: Boolean;
     racedbyme: Boolean; //< @true if we send this file to the site, @false otherwise.
     // TODO: done does not do a real filesize check nor is it reset to false at any time if the file disappears e.g.
     // which might produce incomplete releases - so it seems not to be a trusty value
     done: Boolean; //< @true when @link(TDirlist.ParseDirlist) adding of file was successful, @false otherwise.
-
     cdno: Integer;
-
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
 
     procedure CalcCDNumber;
-    property Extension: String read fExtension;
-
     constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
-
     procedure SetDirectory(const value: Boolean);
-    property Directory: Boolean read fDirectory write SetDirectory;
-
-    procedure SetDirType(value: TDirType);
-    property DirType: TDirType read fDirType write SetDirType;
     function DirTypeAsString: String;
-
     function RegenerateSkiplist: Boolean;
+
+
 
     { Checks if the @link(Extension) matches any of the @link(AsciiFiletypes) values
       as their filesize could differ e.g. due to different line endings.
       @returns(@true if file is an ASCII type, @false otherwise.) }
     function IsAsciiFiletype: Boolean;
+
+    property Extension: String read FExtension;
+    property Directory: Boolean read FDirectory write SetDirectory;
+    property DirType: TDirType read FDirType write FDirType;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -83,76 +75,62 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
-    FCompleteInfo: TCompleteInfo;
+
+
+    FCompleteInfo: TCompleteInfo; //< value of @link(TCompleteInfo) status and where we got it
+    FCachedCompleteResult: Boolean; //< @true if @link(Complete) has been called and determined the TDirlist as complete, @false otherwise.
+    FCachedHasNFOResult: Boolean; //< @true if @link(HasNFO) has been called and already found a NFO file, @false otherwise.
+    FCachedHasSFVResult: Boolean; //< @true if @link(HasSFV) has been called and already found a SFV file, @false otherwise.
+
+    // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
+    FCompleteDirTag: String; //< complete dir found on ftpd while dirlisting
+
+    FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
+    FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
+    FFullPath: String; //< path of section and releasename (e.g. /MP3-today/Armin_van_Buuren_-_A_State_of_Trance_921__Incl_Ruben_de_Ronde_Guestmix-SAT-07-04-2019-TALiON/)
+    FIsSpeedTest: Boolean; //< Value of SpeedTest from @link(TDirList.Create)
+    FIsFromIrc: Boolean; //< Value of FromIrc from @link(TDirList.Create)
+
+    { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
+      @returns(@true if determined as COMPLETE, @false otherwise) }
+    function CompleteByTag: Boolean;
+
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
     class function Timestamp(ts: String): TDateTime;
-
-    procedure SetCompleteInfo(info : TCompleteInfo);
-    { Sets @link(FCompleteInfo) value to @link(TCompleteInfo.FromFtpd) }
-    procedure SetCompleteInfoFromFtpd;
   public
     dirlist_lock: TCriticalSection;
-
     dirlistadded: Boolean;
-
     site_name: String; //< sitename
-    // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
-    full_path: String; //< path of section and releasename (e.g. /MP3-today/Armin_van_Buuren_-_A_State_of_Trance_921__Incl_Ruben_de_Ronde_Guestmix-SAT-07-04-2019-TALiON/)
-
     error: Boolean;
-
     need_mkdir: Boolean; //< @true if MKDIR'ing is still needed (default), @false otherwise.
     sfv_status: TdlSFV;
-
     biggestcd: Integer;
-
     parent: TDirListEntry;
     entries: TObjectList; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
-
-    complete_tag: String; //< complete dir found on ftpd while dirlisting
-
-    cache_completed: Boolean;
-    cache_hasnfo: Boolean; //< @true if @link(hasnfo) has been called and already found a NFO file, @false otherwise.
-    cache_hassfv: Boolean; //< @true if @link(hassfv) has been called and already found a SFV file, @false otherwise.
-
-    date_started: TDateTime; //< time when the first @link(TDirlistEntry) was created
-    date_completed: TDateTime; //< time when the TDirlit was recognized as complete
-
     dependency_mkdir: String;
 
-    isSpeedTest: Boolean; //< Value of SpeedTest from @link(TDirList.Create)
-    isFromIrc: Boolean; //< Value of FromIrc from @link(TDirList.Create)
-
     procedure Clear;
-    function hasnfo: Boolean;
-    function hassfv: Boolean;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
     function Dirname: String;
-
     procedure Sort;
-    procedure SortByModify;
-
-    procedure SetFullPath(const value: String);
-
     function RegenerateSkiplist: Boolean;
-
     procedure ParseDirlist(s: String);
+    { Does an investigation to determine if TDirlist is complete }
     function Complete: Boolean;
-    function CompleteByTag: Boolean;
-
     procedure Usefulfiles(out files: Integer; out size: Int64);
-
     function FindNfo: TDirListEntry;
     function Find(const filename: String): TDirListEntry;
-
     function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
+
+
+
     { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.done) and are not @link(TDirListEntry.skiplisted).
       Files from subdirs are included in this final count. Directories themselves are not counted.
       This function is mainly used for race stats, to determine how many files there
@@ -167,12 +145,26 @@ type
       @param(aExcludeAsciiFiletypes if @true, it ignores Ascii files)
       @returns(Amount of bytes raced by me) }
     function SizeRacedByMe(aExcludeAsciiFiletypes: boolean = False): Int64;
-
-    { Sets @link(FCompleteInfo) value to @link(TCompleteInfo.FromIrc) }
-    procedure SetCompleteInfoFromIrc;
+    { Converts the @link(FCompleteInfo) value to a String }
     function GetCompleteInfo: String;
-  published
+    { Sets the @link(FCompleteInfo) value to given @link()
+      @param(aCompleteInfo value from @link(TCompleteInfo) to set the info where we seen it complete) }
+    procedure SetCompleteInfo(const aCompleteInfo: TCompleteInfo);
+    { Checks if this TDirlist already has a NFO file
+      @returns(@true if NFO is there, @false otherwise) }
+    function HasNFO: Boolean;
+    { Checks if this TDirlist already has a SFV file
+      @returns(@true if SFV is there, @false otherwise) }
+    function HasSFV: Boolean;
+    { Sorts the @link(entries) by @link(TDirListEntry.timestamp) }
+    procedure SortByModify;
+
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
+    property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
+    property CompleteDirTag: String read FCompleteDirTag;
+    property StartedTime: TDateTime read FStartedTime;
+    property CompletedTime: TDateTime read FCompletedTime;
+    property FullPath: String read FFullPath write FFullPath;
   end;
 
 { Just a helper function to initialize @link(global_skip), image_files_priority and video_files_priority }
@@ -197,6 +189,7 @@ var
 {$I common.inc}
 
 { TDirList }
+
 function TDirList.Complete: Boolean;
 var
   i: Integer;
@@ -212,29 +205,25 @@ begin
   size := 0;
 
   // dir has already been seen as complete
-  if cache_completed then
+  if FCachedCompleteResult then
   begin
-    SetCompleteInfoFromFtpd;
+    SetCompleteInfo(FromFtpd);
     Result := True;
     exit;
   end;
 
   if error then
   begin
-    // set dir as complete if an error is catched (not sure it's really useful)
-    //Result := True;
-    //cache_completed := Result;
-    //exit;
     if parent <> nil then
-      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString])
+      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, FFullPath, parent.DirTypeAsString])
     else
-      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s', [site_name, full_path]);
+      Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s', [site_name, FFullPath]);
   end;
 
   if parent <> nil then
   begin
     // we are in a subdirectory
-    // Debug(dpSpam, section, 'TDirlist.Complete DEBUG (START): Site: %s - Dir: %s - DirType: %s', [site_name, full_path, parent.DirTypeAsString]);
+    // Debug(dpSpam, section, 'TDirlist.Complete DEBUG (START): Site: %s - Dir: %s - DirType: %s', [site_name, FFullPath, parent.DirTypeAsString]);
 
     // check if subdir has a complete tag
     Result := CompleteByTag;
@@ -273,11 +262,11 @@ begin
     // For debug purposes only
     if (Result) then
     begin
-      Debug(dpSpam, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirtypeAsString, ResultType, files, size]);
+      Debug(dpSpam, section, 'TDirlist.Complete SUBDIR COMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, FFullPath, parent.DirtypeAsString, ResultType, files, size]);
     end
     else
     begin
-      //Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, full_path, parent.DirTypeAsString, ResultType, files, size]);
+      //Debug(dpSpam, section, 'TDirlist.Complete SUBDIR INCOMPLETE: Site: %s - Dir: %s DirType: %s - ResultType: %s - files: %d size: %d', [site_name, FFullPath, parent.DirTypeAsString, ResultType, files, size]);
     end
 
   end
@@ -330,13 +319,13 @@ begin
     // is the release a special kind of release (dirfix, nfofix, etc.)
     if not Result then
     begin
-      //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, full_path]);
+      //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, FFullPath]);
       for tag in SpecialDirsTags do
       begin
-        if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(full_path, tag) then
+        if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(FFullPath, tag) then
         begin
-          debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [full_path, tag]);
-          Result := hasnfo;
+          debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [FFullPath, tag]);
+          Result := HasNFO;
           Break;
         end;
       end;
@@ -345,13 +334,13 @@ begin
   end;
 
   // set complete date if not already set
-  if ((Result) and (self.date_completed = 0)) then
+  if ((Result) and (self.FCompletedTime = 0)) then
   begin
-    self.date_completed := Now();
+    self.FCompletedTime := Now();
   end;
 
   // avoid further execution of TDirlist.Complete if Result is true
-  cache_completed := Result;
+  FCachedCompleteResult := Result;
 end;
 
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
@@ -366,17 +355,18 @@ begin
   dirlist_lock := TCriticalSection.Create;
 
   biggestcd:= 0;
-  self.error := False;
+  error := False;
 
-  self.need_mkdir := True;
+  need_mkdir := True;
+  FCachedCompleteResult := False;
+  FCachedHasNFOResult := False;
+  FCachedHasSFVResult := False;
 
-  self.cache_completed := False;
-
-  self.date_started := 0;
-  self.date_completed := 0;
+  self.FStartedTime := 0;
+  self.FCompletedTime := 0;
 
   self.site_name := site_name;
-  self.full_path := 'Not set';
+  self.FFullPath := 'Not set';
   FCompleteInfo := NotComplete;
 
   FLastChanged := Now();
@@ -390,8 +380,8 @@ begin
   self.skiplist := skiplist;
   SetSkiplists;
 
-  self.isSpeedTest := SpeedTest;
-  self.isFromIrc := FromIrc;
+  self.FIsSpeedTest := SpeedTest;
+  self.FIsFromIrc := FromIrc;
 
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
@@ -590,9 +580,9 @@ begin
   added := False;
 
   // No need to parse the dir again if it's complete
-  if cache_completed then exit;
+  if FCachedCompleteResult then exit;
 
-  debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [full_path, site_name, entries.Count]));
+  debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
   site := FindSiteByName('', site_name);
   if site = nil then
@@ -677,7 +667,7 @@ begin
         end;
 
         // Do not filter if we call the dirlist from irc
-        if not isFromIrc then
+        if not FIsFromIrc then
         begin
           // Dont add complete tags to dirlist entries
           if ((dirmaszk[1] = 'd') or (filesize < 1)) then
@@ -685,7 +675,7 @@ begin
             fTagCompleteType := TagComplete(filename);
             if (fTagCompleteType <> tctUNMATCHED) then
             begin
-              complete_tag := filename;
+              FCompleteDirTag := filename;
               Continue;
             end;
           end;
@@ -731,19 +721,19 @@ begin
         begin
           de := TDirListEntry.Create(filename, self);
 
-          if ((AnsiLowerCase(de.Extension) = '.sfv') and (hassfv)) then
+          if ((AnsiLowerCase(de.Extension) = '.sfv') and (HasSFV)) then
           begin
             de.Free;
             Continue;
           end;
-          if ((AnsiLowerCase(de.Extension) = '.nfo') and (hasnfo)) then
+          if ((AnsiLowerCase(de.Extension) = '.nfo') and (HasNFO)) then
           begin
             de.Free;
             Continue;
           end;
 
-          de.username := username;
-          de.groupname := groupname;
+          de.FUsername := username;
+          de.FGroupname := groupname;
           de.timestamp := akttimestamp;
           de.done := True;
           de.justadded := True;
@@ -753,7 +743,7 @@ begin
             de.filesize := filesize;
 
           // Do not filter if we call the dirlist from irc
-          if not isFromIrc then
+          if not FIsFromIrc then
           begin
             if (de.directory) then
             begin
@@ -784,7 +774,7 @@ begin
               end;
             end;
 
-            if ((not de.Directory) and (de.Extension = '') and (not isSpeedTest)) then
+            if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
             begin
               de.Free;
               Continue;
@@ -815,9 +805,9 @@ begin
 
           if (de.Directory) then
           begin
-            de.subdirlist := TDirlist.Create(site_name, de, skiplist, isSpeedTest, isFromIrc);
+            de.subdirlist := TDirlist.Create(site_name, de, skiplist, FIsSpeedTest, FIsFromIrc);
             if de.subdirlist <> nil then
-              de.subdirlist.SetFullPath(MyIncludeTrailingSlash(full_path) + de.filename);
+              de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
           end
           else
           begin
@@ -832,9 +822,9 @@ begin
             end;
           end;
 
-          if (self.date_started = 0) then
+          if (self.FStartedTime = 0) then
           begin
-            self.date_started := Now();
+            self.FStartedTime := Now();
           end;
 
           entries.Add(de);
@@ -844,15 +834,15 @@ begin
         end
         else if (de.filesize <> filesize) then
         begin
-          if ((de.filesize <> filesize) or (de.username <> username)) then
+          if ((de.filesize <> filesize) or (de.FUsername <> username)) then
           begin
             LastChanged := Now();
           end;
 
           de.filesize := filesize;
           de.timestamp := akttimestamp;
-          de.username := username;
-          de.groupname := groupname;
+          de.FUsername := username;
+          de.FGroupname := groupname;
         end;
         de.megvanmeg := True;
       end;
@@ -882,7 +872,7 @@ begin
   // set defaults values if direcotry was just added
   if added then
   begin
-    cache_completed := False;
+    FCachedCompleteResult := False;
     allcdshere := False;
 
     if skiplist <> nil then
@@ -908,7 +898,7 @@ begin
     end;
   end;
 
-  debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [full_path, site_name, entries.Count]));
+  debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 end;
 
 function TDirList.RegenerateSkiplist: Boolean;
@@ -1108,10 +1098,10 @@ var
   i: TTagCompleteType;
 begin
   Result := False;
-  if (complete_tag = '') then
+  if (FCompleteDirTag = '') then
     exit;
 
-  i := TagComplete(complete_tag);
+  i := TagComplete(FCompleteDirTag);
   if (i = tctCOMPLETE) then
   begin
     Result := True;
@@ -1253,7 +1243,7 @@ begin
     begin
       d.subdirlist := TDirlist.Create(site_name, d, skiplist);
       if d.subdirlist <> nil then
-        d.subdirlist.SetFullPath(MyIncludeTrailingSlash(self.full_path) + d.filename);
+        d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
     end;
   except
     on E: Exception do
@@ -1388,13 +1378,14 @@ begin
 end;
 
 
-function TDirList.hassfv: boolean;
+function TDirList.HasSFV: boolean;
 var
   i: Integer;
   de: TDirlistEntry;
 begin
   Result := False;
-  if (self.cache_hassfv) then
+
+  if (self.FCachedHasSFVResult) then
   begin
     Result := True;
     exit;
@@ -1405,17 +1396,18 @@ begin
     for i := entries.Count - 1 downto 0 do
     begin
       if i < 0 then Break;
-      try de := TDirlistEntry(entries[i]);
+      try
+        de := TDirlistEntry(entries[i]);
         if ((AnsiLowerCase(de.Extension) = '.sfv') and (de.megvanmeg) and (de.filesize > 0)) then
         begin
           Result := True;
-          Self.cache_hassfv := True;
+          Self.FCachedHasSFVResult := True;
           exit;
         end;
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, 'TDirList.hassfv: %s', [e.Message]);
+          debugunit.Debug(dpError, section, 'TDirList.HasSFV: %s', [e.Message]);
           Continue;
         end;
       end;
@@ -1425,13 +1417,14 @@ begin
   end;
 end;
 
-function TDirList.hasnfo: boolean;
+function TDirList.HasNFO: boolean;
 var
   i: Integer;
   de: TDirlistEntry;
 begin
   Result := False;
-  if (self.cache_hasnfo) then
+
+  if (self.FCachedHasNFOResult) then
   begin
     Result := True;
     exit;
@@ -1447,13 +1440,13 @@ begin
         if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.megvanmeg) and (de.filesize > 0)) then
         begin
           Result := True;
-          Self.cache_hasnfo := True;
+          Self.FCachedHasNFOResult := True;
           exit;
         end;
       except
         on E: Exception do
         begin
-          debugunit.Debug(dpError, section, 'TDirList.hasnfo: %s', [e.Message]);
+          debugunit.Debug(dpError, section, 'TDirList.HasNFO: %s', [e.Message]);
           Continue;
         end;
       end;
@@ -1555,29 +1548,14 @@ begin
   end;
 end;
 
-procedure TDirList.SetFullPath(const value: String);
-begin
-  self.full_path := value;
-end;
-
-procedure TDirList.SetCompleteInfoFromIrc;
-begin
-  SetCompleteInfo(FromIrc);
-end;
-
-procedure TDirList.SetCompleteInfoFromFtpd;
-begin
-  SetCompleteInfo(FromFtpd);
-end;
-
-procedure TDirList.SetCompleteInfo(info : TCompleteInfo);
+procedure TDirList.SetCompleteInfo(const aCompleteInfo: TCompleteInfo);
 begin
   if (FCompleteInfo <> FromFtpdAndIrc) then
   begin
-    if ((FCompleteInfo = NotComplete) or ((FCompleteInfo <> FromFtpdAndIrc) and (info <> FCompleteInfo))) then
-      FCompleteInfo := TCompleteInfo(ord(FCompleteInfo) + ord(info));
-    if (date_completed = 0) and (FCompleteInfo in [FromIrc, FromFtpdAndIrc]) then
-      date_completed := Now();
+    if ((FCompleteInfo = NotComplete) or ((FCompleteInfo <> FromFtpdAndIrc) and (aCompleteInfo <> FCompleteInfo))) then
+      FCompleteInfo := TCompleteInfo(Ord(FCompleteInfo) + Ord(aCompleteInfo));
+    if (FCompletedTime = 0) and (FCompleteInfo in [FromIrc, FromFtpdAndIrc]) then
+      FCompletedTime := Now();
   end;
 end;
 
@@ -1621,7 +1599,7 @@ begin
   subdirlist := nil;
 
   filenamelc := LowerCase(filename);
-  fExtension := ExtractFileExt(filenamelc);
+  FExtension := ExtractFileExt(filenamelc);
   cdno := 0;
 end;
 
@@ -1644,7 +1622,7 @@ begin
   self.error := False;
   self.justadded := True;
   filenamelc := LowerCase(filename);
-  fExtension := ExtractFileExt(filenamelc);
+  FExtension := ExtractFileExt(filenamelc);
 
   if self.directory then CalcCDNumber;
 end;
@@ -1692,14 +1670,9 @@ end;
 
 procedure TDirListEntry.SetDirectory(const value: Boolean);
 begin
-  fDirectory := value;
+  FDirectory := value;
   if directory then
     CalcCDNumber;
-end;
-
-procedure TDirListEntry.SetDirType(value: TDirType);
-begin
-  fDirType := value;
 end;
 
 function TDirListEntry.DirTypeAsString: String;
@@ -1730,10 +1703,10 @@ begin
 
   if ( not skiplisted ) then
   begin
-    if dirlist.full_path.EndsWith('/', True) then
-      fDirPathHelper := dirlist.full_path
+    if dirlist.FullPath.EndsWith('/', True) then
+      fDirPathHelper := dirlist.FullPath
     else
-      fDirPathHelper := dirlist.full_path + '/';
+      fDirPathHelper := dirlist.FullPath + '/';
 
     if not directory then
     begin

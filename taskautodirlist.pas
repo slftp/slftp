@@ -343,11 +343,12 @@ begin
       prefer completion folders over filecount comparison as that is more accurate
       if the target site does not have completion folders due to missing dirscript
       in the requests folder we fall back to comparing the filecount of all
-      (sub-)dirs and if those are equal we set cache_completed on the dirlist to
+      (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
       true to indicate the dirlist task can finish because the release is complete
     *)
-    if ((TPazoSite(p.PazoSitesList[0]).dirlist.complete_tag = '') and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0) and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
-      TPazoSite(p.PazoSitesList[0]).dirlist.cache_completed := True;
+    if ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '') and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0) and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
+      TPazoSite(p.PazoSitesList[0]).dirlist.CachedCompleteResult := True;
+
     if ((p.ready) and (TPazoSite(p.PazoSitesList[0]).dirlist.Complete)) then
     begin
       reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);

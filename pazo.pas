@@ -586,9 +586,9 @@ begin
           fExtensionMatchSFV := LowerCase(de.Extension) = '.sfv';
           fExtensionMatchNFO := LowerCase(de.Extension) = '.nfo';
           // skip nfo and sfv if already there
-          if ((dstdl.hassfv) and (fExtensionMatchSFV)) then
+          if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
             Continue;
-          if ((dstdl.hasnfo) and (fExtensionMatchNFO)) then
+          if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
             Continue;
 
           // Create the race task
@@ -942,14 +942,14 @@ begin
         Result := -1
     else if ((pazo1.dirlist <> nil) and (pazo2.dirlist <> nil)) then
       begin
-        if ((pazo1.dirlist.date_completed = 0) and (pazo2.dirlist.date_completed = 0)) then
+        if ((pazo1.dirlist.CompletedTime = 0) and (pazo2.dirlist.CompletedTime = 0)) then
           Result := CompareText(pazo1.Name, pazo2.name)
-        else if (pazo1.dirlist.date_completed = 0) then
+        else if (pazo1.dirlist.CompletedTime = 0) then
           Result := 1
-        else if (pazo2.dirlist.date_completed = 0) then
+        else if (pazo2.dirlist.CompletedTime = 0) then
           Result := -1
         else
-          Result := CompareDateTime(pazo1.dirlist.date_completed, pazo2.dirlist.date_completed);
+          Result := CompareDateTime(pazo1.dirlist.CompletedTime, pazo2.dirlist.CompletedTime);
       end
     else
       Result := 0;
@@ -989,18 +989,18 @@ begin
         if Result <> '' then
           Result := Result + ', ';
 
-        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.date_completed = 0)) then
+        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0)) then
           Result := Result + '"' + ps.Stats + '"'
         else
         begin
           if CompleteTimeReference = 0 then
           begin
             Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
-            completeTimeReference := ps.dirlist.date_completed;
+            completeTimeReference := ps.dirlist.CompletedTime;
           end
           else
           begin
-            secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.date_completed);
+            secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime);
             if secondsAfter <> 0 then
               Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, ' (+', IntToStr(secondsAfter), 's)"')
             else
@@ -1223,9 +1223,9 @@ begin
   if dirlist <> nil then
   begin
     if pazo.rls <> nil then
-      dirlist.SetFullPath(MyIncludeTrailingSlash(maindir) + MyIncludeTrailingSlash(pazo.rls.rlsname))
+      dirlist.FullPath := MyIncludeTrailingSlash(maindir) + MyIncludeTrailingSlash(pazo.rls.rlsname)
     else
-      dirlist.SetFullPath(MyIncludeTrailingSlash(maindir));
+      dirlist.FullPath := MyIncludeTrailingSlash(maindir);
   end;
 
   s_dirlisttasks := TIdThreadSafeInt32.Create;
@@ -1651,8 +1651,8 @@ begin
       // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
       if fsize < 0 then
       begin
-        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, complete_tag : %s',
-          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.full_path, dirlist.complete_tag]));
+        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, CompleteDirTag : %s',
+          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.FullPath, dirlist.CompleteDirTag]));
 
         // get more infos about dirlist entries
         sum := 0;
@@ -1718,7 +1718,7 @@ begin
   begin
     d := dirlist.FindDirlist(cdno);
     if d <> nil then
-      d.cache_completed := True;
+      d.CachedCompleteResult := True;
 
     status := rssComplete;
     exit;
@@ -1776,7 +1776,7 @@ begin
 
   if ((dirlist.GetCompleteInfo <> 'Not Complete') and (not StatusRealPreOrShouldPre)) then
   begin
-    Result := Result + Format('Completion Time: %s via %s', [TimeToStr(dirlist.date_completed), dirlist.GetCompleteInfo]);
+    Result := Result + Format('Completion Time: %s via %s', [TimeToStr(dirlist.CompletedTime), dirlist.GetCompleteInfo]);
     Result := Result + #13#10;
   end;
 

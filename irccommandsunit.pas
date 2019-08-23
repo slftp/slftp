@@ -465,7 +465,7 @@ begin
   begin
     Result := TDirList.Create(sitename, nil, nil, s, SpeedTest, true);
     if Result <> nil then
-      Result.SetFullPath(dir);
+      Result.FullPath := dir;
   end;
 end;
 
