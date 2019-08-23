@@ -407,7 +407,7 @@ begin
       sr := TSiteResponse(tn.responses[i]);
       d := TDirList.Create(sr.sitename, nil, nil, sr.response, True);
       if d <> nil then
-        d.SetFullPath(s.sectiondir['SPEEDTEST']);
+        d.FullPath := s.sectiondir['SPEEDTEST'];
       try
         _PickupSpeedtestFile(d, fsfilename, fsfilesize);
       finally
