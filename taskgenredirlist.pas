@@ -128,11 +128,11 @@ ujra:
 
   tagfile := '';
   try
-      d := TDirlist.Create(s.site.Name, nil, nil, s.lastResponse);
+    d := TDirlist.Create(s.site.Name, nil, nil, s.lastResponse);
     try
-      fTagCompleteType := TagComplete(d.complete_tag);
+      fTagCompleteType := TagComplete(d.CompleteDirTag);
       if fTagCompleteType <> tctUNMATCHED then
-        tagfile := d.complete_tag;
+        tagfile := d.CompleteDirTag;
     finally
       d.Free;
     end;

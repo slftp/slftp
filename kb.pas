@@ -322,7 +322,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist,
   globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
@@ -943,7 +943,7 @@ begin
     end
     else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
-      psource.dirlist.SetCompleteInfoFromIrc;
+      psource.dirlist.SetCompleteInfo(FromIrc);
       psource.SetComplete(cdno);
     end;
 
