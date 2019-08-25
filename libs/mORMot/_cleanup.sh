@@ -31,5 +31,12 @@ find * -iname "*.cfg*" -type f -delete
 find * -iname "*.json*" -type f -delete
 find * -iname "*.lpi*" -type f -delete
 find * -iname "*.dpr*" -type f -delete
-find * -iname "*.png*" -type f -delete
-find * -iname "*.bat*" -type f -delete
+find * -iname "*.png" -type f -delete
+find * -iname "*.bat" -type f -delete
+find * -iname "*.c" -type f -delete
+find * -iname "*.manifest*" -type f -delete
+find * -iname "build-fpc*" -type f -delete
+find * -iname "c-fpc*" -type f -delete
+
+# copy Synopse.inc into SQLite3 dir
+cp Synopse.inc SQLite3/Synopse.inc

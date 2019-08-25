@@ -288,11 +288,6 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
-{ Extracts groupname from release
-  @param(aRlz releasename)
-  @returns(Groupname from input @link(aRlz)) }
-function GetGroupname(const aRlz: String): String;
-
 { Converts a stringified event to a real KB Event
   @param(aEvent event name as a string)
   @returns(TKBEventType from input @link(aEvent), defaulting to @link(kbeUNKNOWN)
@@ -325,7 +320,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
-  slvision, tasksitenfo, RegExpr, taskpretime, taskgame,
+  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks,
   globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
@@ -387,41 +382,6 @@ begin
       Result := sectionhandlers[i];
       exit;
     end;
-  end;
-end;
-
-{ Removes '-groupname' from release
-  @param(aRlz releasename)
-  @returns(Releasename without '-groupname') }
-function RemoveGroupname(const aRlz: String): String;
-var
-  fGroup: String;
-begin
-  fGroup := GetGroupname(aRlz);
-  Result := ReplaceText(aRlz, '-' + fGroup, '');
-end;
-
-function GetGroupname(const aRlz: String): String;
-var
-  x: TStringList;
-  s: String;
-begin
-  s := ReplaceText(aRlz, '(', '');
-  s := ReplaceText(s, ')', '');
-  s := ReplaceText(s, '.', ' ');
-  s := ReplaceText(s, '-', ' ');
-  s := ReplaceText(s, '_', ' ');
-
-  x := TStringList.Create;
-  try
-    x.Delimiter := ' ';
-    x.DelimitedText := s;
-    if UpperCase(x.Strings[x.Count - 1]) = 'INT' then
-      Result := x.Strings[x.Count - 2] + '_' + x.Strings[x.Count - 1]
-    else
-      Result := x.Strings[x.Count - 1];
-  finally
-    x.Free;
   end;
 end;
 
@@ -769,12 +729,8 @@ begin
 
       p := PazoAdd(r);
 
-      // meg kell keresni az osszes siteot ahol van ilyen section... //must search for all sites where there is such a section ...
+      // need to search all sites where there is such a section ...
       added := p.AddSites;
-
-      if (ts <> 0) then
-        p.autodirlist := True;
-      // kulso threadnek kell dirlistelnie vagy hasonlo //dirlistelnie be threaded or similar exterior
 
       kb_list.BeginUpdate;
       try
@@ -785,7 +741,7 @@ begin
 
       if added then
       begin
-        // sorrendezes
+        // sorting
         RulesOrder(p);
       end;
 

@@ -68,9 +68,8 @@
 
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
-    Statsoutput sometimes screwed -> NEGATIVE BYTES
+    Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion causing wrong skip files output but it does not race them
-    !addtvmaze might start looping if at least two users have a different ID for a show
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
@@ -107,7 +106,7 @@
     {+} New rule tvrating analog to imdbrating (#228)
     {+} New rules currentyear, imdbcurrentyear, imdbcurrentcineyear, mp3currentyear and mvidcurrentyear (#29)
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
-    {#} precmd can be removed by omiting precommand via !setprecmd (#178)
+    {#} precmd can be removed by omitting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
     {#} Correct counting and comparing of CRC errors in TPazoRaceTask
     {#} Missing built-in skip features from slftp.skip added (#195)
@@ -162,7 +161,8 @@
     {^} language detection for releases highly improved
     {^} improved stripping of scene tags before tv lookup
     {^} Allow !check and !batch for GROUP chans
-    {^} Remove old !help, rename !nhelp to !help
+    {^} Replaced !help with !nhelp which provides much more functionality
+    {^} Rename !reloadglobalskip to !globalskipreload
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)

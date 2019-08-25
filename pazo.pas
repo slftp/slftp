@@ -13,12 +13,12 @@ type
   { threadsafe integer class with notify event on Increase/Decrease }
   TIdThreadSafeInt32WithEvent = class(TIdThreadSafeInt32)
   private
-    FonChange: TQueueNotifyEvent;
+    FOnChange: TQueueNotifyEvent;
   public
     constructor Create; override;
     procedure Increase;
     procedure Decrease;
-    property OnChange: TQueueNotifyEvent read FonChange write FonChange;
+    property OnChange: TQueueNotifyEvent read FOnChange write FOnChange;
   end;
 
   TCacheFile = class
@@ -46,9 +46,9 @@ type
   TPazoSite = class
   public
     midnightdone: boolean;
-    Name: String;
-    maindir: String;
-    pazo: TPazo;
+    Name: String; //< sitename
+    maindir: String; //< sectiondir? TODO: debug real value
+    pazo: TPazo; //< pazo where this TPazoSite belongs to
     destinations: TObjectDictionary<TPazoSite, integer>; //< key = destination site, value = rank
     dirlist: TDirList;
 
@@ -71,10 +71,8 @@ type
 
     badcrcevents: integer; //< total number of bad crc events
 
+    // will be true when autofollow rule is used, otherwise default false
     firesourcesinstead: boolean;
-
-    last_dirlist: TDateTime;
-    last_race: TDateTime;
 
     speed_from: TStringList;
 
@@ -100,7 +98,11 @@ type
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
-    constructor Create(const pazo: TPazo; const Name, maindir: String);
+    { Add the raced file and appropiate infos into database
+      @param(aParentPazo pazo where this TPazoSite belongs to)
+      @param(aName sitename)
+      @param(aMaindir sectiondir? TODO: debug real value) }
+    constructor Create(const aParentPazo: TPazo; const aName, aMaindir: String);
     destructor Destroy; override;
     procedure ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
     function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
@@ -133,16 +135,17 @@ type
 
     completezve: boolean;
 
-    autodirlist: boolean;
+    // TODO: debug both variables, seems to be empty as it is never initialized?
+    // needed for rules like 'source' or 'completesource'
     srcsite: String;
     dstsite: String;
+
     rls: TRelease; //< holds the information of @link(kb.TRelease) or its descendant
 
     stopped: boolean;
     ready: boolean;
     readyerror: boolean;
     errorreason: String;
-    readyat: TDateTime;
     lastTouch: TDateTime;
 
     PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
@@ -173,7 +176,6 @@ type
     { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
-    function FullStats: String;
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
@@ -589,10 +591,6 @@ begin
           if ((dstdl.hasnfo) and (fExtensionMatchNFO)) then
             Continue;
 
-          // Check if we already have traded this same file more than we want
-          if ((dde <> nil) and (dde.tradeCount > config.ReadInteger('taskrace', 'max_same_trade', 100))) then
-            Continue;
-
           // Create the race task
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
           pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
@@ -800,7 +798,6 @@ begin
 
   added := Now;
   cs := TCriticalSection.Create;
-  autodirlist := False;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
@@ -813,7 +810,6 @@ begin
   self.pazo_id := pazo_id;
   stopped := False;
   ready := False;
-  readyat := 0;
   lastTouch := Now();
   cache_files := TStringList.Create;
   cache_files.CaseSensitive := False;
@@ -876,7 +872,6 @@ begin
   end
   else if Value = 0 then
   begin
-    readyat := Now();
     ready := True;
 
     if ((not slshutdown) and (rls <> nil)) then
@@ -1019,27 +1014,6 @@ begin
     end;
   finally
     sitesSorted.Free;
-  end;
-end;
-
-function TPazo.FullStats: String;
-var
-  ps: TPazoSite;
-begin
-  Result := '';
-
-  for ps in PazoSitesList do
-  begin
-    if ps.status = rssNotAllowed then
-      Continue;
-
-    if Result <> '' then
-      Result := Result + ', ';
-
-    if ((ps.dirlist <> nil) and (ps.dirlist.dirlistadded)) then
-      Result := Result + ps.Allfiles
-    else
-      Result := Result + ps.AllFiles;
   end;
 end;
 
@@ -1230,17 +1204,18 @@ begin
   end;
 end;
 
-constructor TPazoSite.Create(const pazo: TPazo; const Name, maindir: String);
+constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String);
 begin
-  Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
   inherited Create;
 
-  activeTransfers := TStringList.Create;
+  maindir := aMaindir;
+  pazo := aParentPazo;
+  Name := aName;
 
-  self.ts := 0;
-  self.maindir := maindir;
-  self.pazo := pazo;
-  self.Name := Name;
+  activeTransfers := TStringList.Create;
+  ts := 0;
+  firesourcesinstead := False;
+  badcrcevents := 0;
   // just a collection of pointers, no TPazoSite is created -> does not own any object
   destinations := TObjectDictionary<TPazoSite, Integer>.Create([]);
 
@@ -1268,14 +1243,16 @@ begin
       speed_from.Clear;
     end;
   end;
+
+  Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
 end;
 
 destructor TPazoSite.Destroy;
 begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
+  activeTransfers.Free;
   destinations.Free;
   dirlist.Free;
-  activeTransfers.Free;
   s_dirlisttasks.Free;
   s_racetasks.Free;
   s_mkdirtasks.Free;
@@ -1396,7 +1373,6 @@ begin
   end;
 
   // Do some stuff obviously
-  // Do some stuff obviously
   pazo.cs.Enter;
   d.dirlist_lock.Enter;
   try
@@ -1444,7 +1420,6 @@ begin
   // Sort the queue
   if Result then
     QueueSort;
-
 end;
 
 function TPazoSite.SetFileError(const netname, channel, dir, filename: String): boolean;
@@ -1521,7 +1496,7 @@ begin
     de := dl.Find(filename);
     if de = nil then
     begin
-      // ez azt jelenti hogy meg nem tuzeltuk vegig
+      // this means that it has not been fired
       de := TDirListEntry.Create(filename, dl);
       de.directory := False;
       de.done := True;
@@ -1661,7 +1636,7 @@ begin
 
   if ( (not (status in [rssRealPre, rssShouldPre, rssNotAllowed])) and (dirlist <> nil) ) then
   begin
-    if dirlist.RacedByMe(True) >= 1 then
+    if dirlist.FilesRacedByMe(True) >= 1 then
     begin
       // we send some files
       fsize := dirlist.SizeRacedByMe(True) / 1024;
@@ -1670,7 +1645,7 @@ begin
       if not dirlist.Complete then
         fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
 
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.RacedByMe(True), fsize, fsizetrigger]);
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
 
       // TODO: Find out why it is negative sometimes + try to fix
       // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
@@ -1688,12 +1663,12 @@ begin
             if i < 0 then Break;
             try
               de := TDirlistEntry(dirlist.entries[i]);
-              if (de.racedbyme and de.Useful) then
+              if (de.racedbyme and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s useful %s (sum: %d)',
-                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.Useful, True), sum]));
+              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
             except
               on E: Exception do
               begin
@@ -1921,7 +1896,7 @@ end;
 
 function TPazoSite.DirlistGaveUpAndSentNoFiles: Boolean;
 begin
-  Result := dirlistgaveup and (dirlist.RacedByMe(False) = 0);
+  Result := dirlistgaveup and (dirlist.FilesRacedByMe(False) = 0);
 end;
 
 procedure TPazoSite.DelaySetup;
