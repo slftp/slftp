@@ -64,7 +64,7 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
-  midnight, speedstatsunit, rulesunit, mainthread, Regexpr, mrdohutils, news;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news;
 
 const
   c_section = 'taskrace';
@@ -307,8 +307,6 @@ begin
   end
   else
   begin
-    ps1.last_dirlist := Now();
-
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -1016,7 +1014,6 @@ var
   rss, rsd: boolean;
   tname: String;
   speed_stat: String;
-  rrgx: TRegExpr;
   fsize, racebw: double;
   lastResponseCode: integer;
   lastResponse: String;
@@ -2307,46 +2304,36 @@ begin
       end;
     end;
 
-
     // echo race info
     try
-      rrgx := TRegExpr.Create;
-      try
-        rrgx.ModifierI := True;
-        rrgx.Expression := useful_skip;
-
-        if not rrgx.Exec(filename) then
+      if not MatchText(filename, AsciiFiletypes) then
+      begin
+        // to avoid announcing a speed_stat line without info what happend
+        speed_stat := 'ZERO FILESIZE!';
+        if (filesize > 0) and (time_race > 0) then
         begin
-          // to avoid announcing a speed_stat line without info what happend
-          speed_stat := 'ZERO FILESIZE!';
-          if (filesize > 0) and (time_race > 0) then
+          racebw := filesize * 1000 / time_race / 1024;
+          fsize := filesize / 1024;
+
+          if (filesize > 1024) then
           begin
-            racebw := filesize * 1000 / time_race / 1024;
-            fsize := filesize / 1024;
-
-            if (filesize > 1024) then
-            begin
-              if (racebw > 1024) then
-                speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
-              else
-                speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
-            end
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024, racebw / 1024])
             else
-            begin
-              if (racebw > 1024) then
-                speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
-              else
-                speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
-            end;
+              speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024, racebw]);
+          end
+          else
+          begin
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024])
+            else
+              speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
           end;
-          irc_SendRACESTATS(tname + ' ' + speed_stat);
-
-          // add stats to database
-          statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, filesize);
         end;
+        irc_SendRACESTATS(tname + ' ' + speed_stat);
 
-      finally
-        rrgx.Free;
+        // add stats to database
+        statsProcessRace(site1, site2, mainpazo.rls.section, mainpazo.rls.rlsname, filename, filesize);
       end;
     except
       on e: Exception do
@@ -2354,7 +2341,6 @@ begin
         Debug(dpError, c_section, Format('[EXCEPTION] Exception in echo: %s', [e.Message]));
       end;
     end;
-
   end;
 
   Debug(dpMessage, c_section, '<-- ' + tname);
