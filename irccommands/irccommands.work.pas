@@ -9,7 +9,7 @@ function IrcLatest(const netname, channel, params: String): boolean;
 function IrcSpread(const netname, channel, params: String): boolean; overload;
 function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
 function IrcTransfer(const netname, channel, params: String): boolean;
-function IrcCStop(const netname, channel, params: String): boolean;
+function IrcPazoStop(const netname, channel, params: String): boolean;
 function IrcLookup(const netname, channel, params: String): boolean;
 function IrcNuke(const netname, channel, params: String): boolean;
 function IrcUnNuke(const netname, channel, params: String): boolean;
@@ -22,7 +22,7 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, regexpr, taskraw, sltcp;
+  globalskipunit, configunit, mainthread, regexpr, taskraw, sltcp, mygrouphelpers;
 
 const
   section = 'irccommands.work';
@@ -557,7 +557,7 @@ begin
 
           if ((ps <> nil) and (ps.dirlist <> nil)) then
           begin
-            sj := IntToStr(ps.dirlist.RacedByMe);
+            sj := IntToStr(ps.dirlist.FilesRacedByMe);
             sdone := IntToStr(ps.dirlist.Done);
 
             dd := ps.dirlist.SizeRacedByMe;
@@ -757,7 +757,7 @@ begin
     if p.ready then
     begin
 
-      if ps_dst.dirlist.RacedByMe <> 0 then
+      if ps_dst.dirlist.FilesRacedByMe <> 0 then
       begin
         // do nothing
       end
@@ -802,7 +802,7 @@ begin
       k := '?';
       if ((ps_dst <> nil) and (ps_dst.dirlist <> nil)) then
       begin
-        j := IntToStr(ps_dst.dirlist.RacedByMe);
+        j := IntToStr(ps_dst.dirlist.FilesRacedByMe);
 
         k := IntToStr(ps_dst.dirlist.Done);
       end;
@@ -819,29 +819,64 @@ begin
   Result := True;
 end;
 
-function IrcCStop(const netname, channel, params: String): boolean;
+function IrcPazoStop(const netname, channel, params: String): boolean;
 var
   p: TPazo;
-  pazo_id: integer;
+  r: TRegExpr;
+  fIsID: Boolean;
+  fPazoID: integer;
+  fRlsname: String;
 begin
-  Result := True; // ezutan nem akarunk ok-et
-  pazo_id := StrToIntDef(params, -1);
-  if pazo_id = -1 then
-  begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
-    exit;
+  Result := False;
+  fIsID := False;
+
+  r := TRegExpr.Create;
+  try
+    r.Expression := '^\d+$';
+    if r.Exec(params) then
+      fIsID := True;
+  finally
+    r.Free;
   end;
-  p := FindPazoById(pazo_id);
-  if p <> nil then
+
+  if fIsID then
   begin
-    p.stopped := True;
-    Result := RemovePazo(p.pazo_id);
+    fPazoID := StrToIntDef(params, -1);
+    if fPazoID = -1 then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
+      exit;
+    end;
+
+    p := FindPazoById(fPazoID);
+    if p <> nil then
+    begin
+      p.stopped := True;
+      Result := RemovePazo(p.pazo_id);
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'No Pazo found for ID: <b>%d</b>', [fPazoID]);
+      Result := True;
+      exit;
+    end;
   end
   else
   begin
-    irc_addtext(Netname, Channel, 'No Pazo found for id: <b>%d</b>', [pazo_id]);
-    Result := True;
-    exit;
+    fRlsname := params;
+
+    p := FindPazoByRls(fRlsname);
+    if p <> nil then
+    begin
+      p.stopped := True;
+      Result := RemovePazo(p.pazo_id);
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'No Pazo found for Releasename: <b>%d</b>', [fRlsname]);
+      Result := True;
+      exit;
+    end;
   end;
 end;
 

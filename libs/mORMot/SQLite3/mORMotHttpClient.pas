@@ -433,6 +433,7 @@ type
       read fExtendedOptions.Auth.Password write fExtendedOptions.Auth.Password;
   end;
 
+  /// meta-class of TSQLHttpClientRequest types
   TSQLHttpClientRequestClass = class of TSQLHttpClientRequest;
 
   {$ifdef USEWININET}
@@ -511,7 +512,6 @@ var
 
 
 implementation
-
 
 { TSQLHttpClientGeneric }
 
@@ -662,7 +662,7 @@ begin
   URI.URI := aServer;
   if URI.Root<>'' then
     aModel.Root := URI.Root;
-  if URI.Port='' then
+  if (URI.Port='') and (aDefaultPort<>0) then
     URI.Port := Int32ToUtf8(aDefaultPort);
   Create(SockString(URI.Address),SockString(URI.Port),aModel,aHttps);
 end;

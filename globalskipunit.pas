@@ -26,7 +26,7 @@ var
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, debugunit, kb;
+  SysUtils, Classes, StrUtils, debugunit, kb, mygrouphelpers;
 
 const
   section = 'globalskip';
@@ -78,7 +78,8 @@ begin
   Result := False;
 
   fGroupname := GetGroupname(aRls);
-  fGroupname := ReplaceText(fGroupname, '_INT', '');
+  fGroupname := RemoveINT(fGroupname);
+  fGroupname := RemoveWEB(fGroupname);
 
   if globalgroupskip.IndexOf(fGroupname) <> -1 then
     Result := True

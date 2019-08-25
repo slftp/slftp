@@ -49,7 +49,7 @@ uses
   ircblowfish.plaintextTests,
   dbtvinfoTests,
   sllanguagebaseTests,
-  kbTests,
+  mygrouphelpersTests,
   globalskipunitTests,
   irccolorunitTests;
 

@@ -3,19 +3,19 @@ unit knowngroups;
 interface
 
 type
-{ Different types of knowngroup status
-  @definitionList(
-    @itemLabel(grp_known)
-    @item(Means that the group was defined as known group in config file.)
+  { Different types of knowngroup status
+    @definitionList(
+      @itemLabel(grp_known)
+      @item(Means that the group was defined as known group in config file.)
 
-    @itemLabel(grp_unknown)
-    @item(Group was not found in list but a list for the section does exist.)
+      @itemLabel(grp_unknown)
+      @item(Group was not found in list but a list for the section does exist.)
 
-    @itemLabel(grp_notconfigured)
-    @item(Group is not found in known group check, means it wasn't added as known group or
-      list for section is empty)
-  )
-}
+      @itemLabel(grp_notconfigured)
+      @item(Group is not found in known group check, means it wasn't added as known group or
+        list for section is empty)
+    )
+  }
   TKnownGroup = (grp_known, grp_unknown, grp_notconfigured);
 
 { Just a helper function to create @link(kg) on init }
@@ -33,20 +33,10 @@ procedure KnowngroupsStart;
   @returns(@link(TKnownGroup)) }
 function IsKnownGroup(const section: String; groupname: String): TKnownGroup;
 
-{ Removes the internal marker from groupname
-  @param(grp Groupname)
-  @returns(Groupname without internal marker) }
-function RemoveINT(const grp: String): String;
-
-{ Removes the WEB marker from groupname
-  @param(grp Groupname)
-  @returns(Groupname without WEB marker) }
-function RemoveWEB(const grp: String): String;
-
 implementation
 
 uses
-  Classes, SysUtils, StrUtils, configunit, regexpr;
+  Classes, SysUtils, StrUtils, configunit, mygrouphelpers;
 
 var
   kg: TStringList; //< stringlist which stores all knowngroups from config file
@@ -109,45 +99,6 @@ begin
     end;
 
     CloseFile(f);
-  end;
-end;
-
-
-function RemoveINT(const grp: String): String;
-var
-  r: TRegexpr;
-begin
-  Result := grp;
-  try
-    r := TRegexpr.Create;
-    try
-      r.ModifierI := True;
-      r.Expression := '[\-\_]int$';
-      Result := r.Replace(grp, '', False);
-    finally
-      r.free;
-    end;
-  except
-    Result := grp;
-  end;
-end;
-
-function RemoveWEB(const grp: String): String;
-var
-  r: TRegexpr;
-begin
-  Result := grp;
-  try
-    r := TRegexpr.Create;;
-    try
-      r.ModifierI := True;
-      r.Expression := '[\-\_]web$';
-      Result := r.Replace(grp, '', False);
-    finally
-      r.free;
-    end;
-  except
-    Result := grp;
   end;
 end;
 
