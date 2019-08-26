@@ -52,7 +52,7 @@ var
 implementation
 
 uses
-  ident, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, xmlwrapper, sllanguagebase, irc, mycrypto, queueunit,
+  ident, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
@@ -221,8 +221,6 @@ begin
   end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
-
-  InitXMLWeapper;
 
   StatsInit;
   IndexerInit;
@@ -485,7 +483,6 @@ begin
     Debug(dpSpam, section, 'Uninit2');
   *)
   ConsoleUnInit;
-  UninitXMLWeapper;
   RanksUnInit;
   SpeedStatsUnInit;
   NukeUninit;
