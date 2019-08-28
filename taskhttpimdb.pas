@@ -98,6 +98,13 @@ begin
     http://www.boxofficemojo.com/search/?q=Il%20?tait%20une%20fois...%20la%20vie
   }
   Result := ReplaceText(Result, '...', '');
+
+  // BOM search does not allow *** in search
+  {
+    Example:
+    https://www.boxofficemojo.com/search/?q=F%2A%2A%2A%20Your%20Hair
+  }
+  Result := ReplaceText(Result, '***', '');
 end;
 
 { TPazoHTTPImdbTask }
