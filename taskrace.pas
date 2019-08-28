@@ -822,12 +822,15 @@ begin
             failure := True;
           end
 
-
           else if ((0 <> Pos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
           begin
             failure := True;
           end
 
+          else if (0 <> Pos('Dirscript could not be executed', s.lastResponse)) then
+          begin
+            failure := True;
+          end
 
           else if ((0 <> Pos('the parent of that directory does not exist', s.lastResponse)) and (dir = '')) then
           begin
