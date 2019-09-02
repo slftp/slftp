@@ -442,7 +442,6 @@ begin
   FakeStart();
   kb_Start();
   indexerStart;
-  StatsStart;
   SitesStart;
   IrcStart();
   PrecatcherStart();
