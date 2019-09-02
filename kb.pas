@@ -2990,34 +2990,6 @@ begin
               end;
             end;
 
-            for j := 0 to p.PazoSitesList.Count - 1 do
-            begin
-              try
-                if j > p.PazoSitesList.Count then
-                  Break;
-              except
-                Break;
-              end;
-              try
-                ps := TPazoSite(p.PazoSitesList[j]);
-                if (ps.dirlist = nil) then
-                  Continue;
-
-                s := FindSiteByName('', ps.Name);
-                if s = nil then
-                  Continue;
-
-                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section, s.UserName);
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, rsections,
-                    Format('[EXCEPTION] TKBThread.Execute statsProcessDirlist : %s',
-                    [e.Message]));
-                end;
-              end;
-            end;
-
             p.Clear;
             p.stated := True;
           end;

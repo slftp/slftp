@@ -151,6 +151,8 @@ function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0)
   @param(Dest Stringlist with the separated Strings from @link(Source)) }
 procedure SplitString(const Source: String; const Delimiter: String; const Dest: TStringList);
 
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
+
 implementation
 
 uses
@@ -163,7 +165,10 @@ uses
   {$IFDEF MSWINDOWS}
     registry, Windows,
   {$ENDIF}
-  DateUtils, IdGlobal;
+  DateUtils, IdGlobal, debugunit;
+
+const
+  section = 'mystrings';
 
 class function TEnum<T>.ToString(const aEnumValue: T): string;
 begin
@@ -601,6 +606,20 @@ begin
   Result := ReplaceText(Result, '<ww>', ww);
 end;
 
+function onlyEnglishAlpha(const S: String): String;
+var
+  i: integer;
+begin
+  Result := '';
+  for i := 1 to Length(S) do
+  begin
+    if IsALetter(S[i]) then
+    begin
+      Result := Result + S[i];
+    end;
+  end;
+end;
+
 {$WARNINGS OFF}
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 var
@@ -812,18 +831,28 @@ begin
     Dest.Add(Trim(copy(Source, LStartpos + 1, Count - LStartpos - 1)));
 end;
 
-function onlyEnglishAlpha(const S: String): String;
-var
-  i: integer;
+procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
+{$I common.inc}
 begin
-  Result := '';
-  for i := 1 to Length(S) do
+  if ((StartFromSizeUnit > FileSizeUnitCount) or (StartFromSizeUnit < 0)) then
   begin
-    if IsALetter(S[i]) then
-    begin
-      Result := Result + S[i];
-    end;
+    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be smaller or bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
+    exit;
   end;
+
+  while ( (size >= 1024) and (StartFromSizeUnit < FileSizeUnitCount) ) do
+  begin
+    size := size / 1024;
+    Inc(StartFromSizeUnit);
+  end;
+
+  if (StartFromSizeUnit > FileSizeUnitCount) then
+  begin
+    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
+    exit;
+  end;
+
+  sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
 
 end.
