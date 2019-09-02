@@ -3,386 +3,100 @@ unit statsunit;
 interface
 
 uses
-  dirlist;
+  SynCommons, mORMot;
 
-procedure statsStart;
+type
+  TSQLSitesRecord = class(TSQLRecordNoCase)
+  private
+    FName: RawUTF8; //< sitename
+  published
+    property Name: RawUTF8 read FName write FName stored AS_UNIQUE;
+  end;
+
+  TSQLSectionRecord = class(TSQLRecordNoCase)
+  private
+    FSection: RawUTF8; //< sectionname
+  published
+    property Section: RawUTF8 read FSection write FSection stored AS_UNIQUE;
+  end;
+
+  TSQLFileInfoRecord = class(TSQLRecordNoCase)
+  private
+    FReleaseName: RawUTF8; //< releasename
+    FFileName: RawUTF8; //< filename
+    FFileSize: Int64; //< filesize
+    FTimeStamp: TDateTime; //< creation time of the entry
+  published
+    property ReleaseName: RawUTF8 read FReleaseName write FReleaseName;
+    property FileName: RawUTF8 read FFileName write FFileName;
+    property FileSize: Int64 read FFileSize write FFileSize;
+    property TimeStamp: TDateTime read FTimeStamp write FTimeStamp;
+  end;
+
+  TSQLStatsRecord = class(TSQLRecord)
+  private
+    FSrcSite: TSQLSitesRecord; //< reference to source sitename
+    FDstSite: TSQLSitesRecord; //< reference to destination sitename
+    FSection: TSQLSectionRecord; //< reference to sectionname
+    FFileInfo: TSQLFileInfoRecord; //< reference to file infos
+  published
+    property SrcSiteRec: TSQLSitesRecord read FSrcSite write FSrcSite;
+    property DstSiteRec: TSQLSitesRecord read FDstSite write FDstSite;
+    property SectionRec: TSQLSectionRecord read FSection write FSection;
+    property FileInfoRec: TSQLFileInfoRecord read FFileInfo write FFileInfo;
+  end;
+
+{ Just a helper function to initialize @link(ORMStatsDB) }
 procedure statsInit;
-procedure statsUninit;
-function statsQuery(const aQuery: String): String;
 
+{ Just a helper function to free @link(ORMStatsDB) }
+procedure statsUninit;
+
+{ Check if stats database is in use
+  @returns(@true if stats database is used, @false if disabled in slftp.ini) }
 function StatsAlive: boolean;
 
-procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: String; filesize: Int64);
+{ Add the raced file and appropriate infos into database
+  @param(aSrcSite source sitename)
+  @param(aDstSite destination sitename)
+  @param(aSection sectionname)
+  @param(aRls releasename)
+  @param(aFilename name of transfered file)
+  @param(aFilesize filesize of transfered file) }
+procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
 
-procedure statsProcessDirlist(d: TDirlist; const sitename, rls_section, username: String);
+{ Removes site from database, resets all site fields to 0, fileinfo are deleted if src and dst site were removed and
+  if the fileinfo is not used for any other site which is not deleted.
+  @param(aSitename sitename)
+  @returns(@true if deletion was successful, @false if some problem occured) }
+function RemoveStats(const aSitename: String): Boolean; overload;
 
-procedure StatRaces(const netname, channel, sitename, period: String; detailed: Boolean);
-
-procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
-
-procedure RemoveStats(const sitename: String); overload;
-procedure RemoveStats(const sitename, section: String); overload;
-
+{ Shows (detailed) race infos for sites and total race amount of the day, month or year
+  @param(aNetname irc netname)
+  @param(aChannel irc channel)
+  @param(aSitename sitename)
+  @param(aPeriod SQL start of period: YEAR, MONTH, DAY)
+  @param(aDetailed if @true it shows detailed traffic info, if @false it shows only total in/out) }
+procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const aDetailed: Boolean);
 
 implementation
 
 uses
-  Classes, SyncObjs, Contnrs, DateUtils, debugunit, configunit, sitesunit, queueunit,
-  SysUtils, pazo, kb, ranksunit, irc, dbhandler, SynDBSQLite3, SynDB;
+  SysUtils, Classes, Contnrs, Generics.Collections, dbhandler, mORMotSQLite3, debugunit, configunit, sitesunit, irc, mystrings;
 
 const
   section = 'stats';
 
 var
-  statsSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
-  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
+  ORMStatsDB: TSQLRestClientDB; //< Rest Client for all database interactions
+  ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
 
-function StatsAlive: boolean;
+function _GetMinFilesize: Int64; inline;
 begin
-  if statsSQLite3DBCon = nil then
-    Result := False
-  else
-    Result := true;
+  Result := config.ReadInteger(section, 'min_filesize', 100000);
 end;
 
-function statsQuery(const aQuery: String): String;
-var
-  fQuery: TQuery;
-  i: Integer;
-  fSize: Double;
-  fSizeUnit: String;
-begin
-  Result := '';
-  i := 1;
-
-  SQLite3Lock.Enter;
-  try
-    fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-    try
-      // aQuery is already filled with the wanted query text
-      fQuery.SQL.Text := aQuery;
-      try
-        fQuery.Open;
-
-        if not fQuery.IsEmpty then
-        begin
-          fQuery.First;
-
-          while not fQuery.Eof do
-          begin
-            fSize := StrToInt(StringReplace(fQuery.Fields[1].AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]));
-            RecalcSizeValueAndUnit(fSize, fSizeUnit, 2);
-            Result := Result + Format('%d. %s (%.2f %s)', [i, fQuery.Fields[0].AsString, fSize, fSizeUnit]) + #13#10;
-            Inc(i);
-            fQuery.Next;
-          end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] statsQuery: %s with %s', [e.Message, aQuery]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
-end;
-
-procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
-{$I common.inc}
-begin
-  if ((StartFromSizeUnit > FileSizeUnitCount) or (StartFromSizeUnit < 0)) then
-  begin
-    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be smaller or bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
-    exit;
-  end;
-
-  while ( (size >= 1024) and (StartFromSizeUnit < FileSizeUnitCount) ) do
-  begin
-    size := size / 1024;
-    Inc(StartFromSizeUnit);
-  end;
-
-  if (StartFromSizeUnit > FileSizeUnitCount) then
-  begin
-    Debug(dpError, section, Format('[EXCEPTION] RecalcSizeValueAndUnit : %d cannot be bigger than %d', [StartFromSizeUnit, FileSizeUnitCount]));
-    exit;
-  end;
-
-  sizevalue := FileSizeUnits[StartFromSizeUnit];
-end;
-
-procedure RemoveStats(const sitename: String); overload;
-var
-  fQuery: TQuery;
-begin
-  SQLite3Lock.Enter;
-  try
-    fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-    try
-      try
-        fQuery.SQL.Text := 'DELETE FROM hit WHERE sitename = :sitename';
-        fQuery.ParamByName('sitename').AsString := sitename;
-        fQuery.ExecSQL;
-
-        // release the SQL statement, results and bound parameters before reopen
-        fQuery.Close;
-
-        fQuery.SQL.Text := 'DELETE FROM race WHERE ( sitesrc = :sitesrcname OR sitedst = :sitedstname';
-        fQuery.ParamByName('sitesrcname').AsString := sitename;
-        fQuery.ParamByName('sitedstname').AsString := sitename;
-        fQuery.ExecSQL;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveStats: %s', [e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
-end;
-
-procedure RemoveStats(const sitename, section: String); overload;
-var
-  fQuery: TQuery;
-begin
-  SQLite3Lock.Enter;
-  try
-    fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-    try
-      try
-        fQuery.SQL.Text := 'DELETE FROM hit WHERE sitename = :sitename AND section = :section';
-        fQuery.ParamByName('sitename').AsString := sitename;
-        fQuery.ParamByName('section').AsString := section;
-        fQuery.ExecSQL;
-
-        // release the SQL statement, results and bound parameters before reopen
-        fQuery.Close;
-
-        fQuery.SQL.Text := 'DELETE FROM race WHERE ( sitesrc = :sitesrcname OR sitedst = :sitedstname ) AND section = :section';
-        fQuery.ParamByName('sitesrcname').AsString := sitename;
-        fQuery.ParamByName('sitedstname').AsString := sitename;
-        fQuery.ParamByName('section').AsString := section;
-        fQuery.ExecSQL;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveStats with section %s: %s', [section, e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
-end;
-
-
-procedure StatRaces(const netname, channel, sitename, period: String; detailed: Boolean);
-var
-  fQuery: TQuery;
-  sql_period: String;
-  s_size, s_unit: String;
-  size, size_all_out, size_all_in: Double;
-  i, files_per_site_in, files_per_site_out, files_all_in, files_all_out: Integer;
-begin
-  files_per_site_out := 0;
-  files_per_site_in := 0;
-  files_all_in := 0;
-  files_all_out := 0;
-  size_all_out := 0;
-  size_all_in := 0;
-
-  if (period = 'MONTH') then
-  begin
-    sql_period := 'start of month';
-  end
-  else if (period = 'YEAR') then
-  begin
-    sql_period := 'start of year';
-  end
-  else
-  begin
-    sql_period := 'start of day';
-  end;
-
-  SQLite3Lock.Enter;
-  try
-    fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-    try
-      try
-        if sitename = '*' then
-        begin
-          for i := 0 to sites.Count - 1 do
-          begin
-            if (TSite(sites.Items[i]).Name = getAdminSiteName) then
-              Continue;
-
-            irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [period, TSite(sites.Items[i]).Name]));
-
-            // release the SQL statement, results and bound parameters before reopen
-            fQuery.Close;
-
-            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period)';
-            fQuery.ParamByName('timestring').AsString := 'now';
-            fQuery.ParamByName('sitesrc').AsString := TSite(sites.Items[i]).Name;
-            fQuery.ParamByName('period').AsString := sql_period;
-            fQuery.Open;
-
-            while not fQuery.Eof do
-            begin
-              s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-              size := StrToFloatDef(s_size, 0);
-              size_all_out := size + size_all_out;
-              files_per_site_out := StrToInt(fQuery.FieldByName('files').AsString);
-              files_all_out := files_all_out + files_per_site_out;
-
-              RecalcSizeValueAndUnit(size, s_unit, 1);
-              irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, fQuery.FieldByName('files').AsString]));
-
-              fQuery.Next;
-            end;
-
-            // release the SQL statement, results and bound parameters before reopen
-            fQuery.Close;
-
-            fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period)';
-            fQuery.ParamByName('timestring').AsString := 'now';
-            fQuery.ParamByName('sitedst').AsString := TSite(sites.Items[i]).Name;
-            fQuery.ParamByName('period').AsString := sql_period;
-            fQuery.Open;
-
-            while not fQuery.Eof do
-            begin
-              s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-              size := StrToFloatDef(s_size, 0);
-              size_all_in := size + size_all_in;
-              files_per_site_in := StrToInt(fQuery.FieldByName('files').AsString);
-              files_all_in := files_all_in + files_per_site_in;
-
-              RecalcSizeValueAndUnit(size, s_unit, 1);
-              irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, fQuery.FieldByName('files').AsString]));
-
-              fQuery.Next;
-            end;
-          end;
-
-          RecalcSizeValueAndUnit(size_all_out, s_unit, 1);
-          irc_addtext(netname, channel, Format('<b>Total In + Out:</b> <c07>%.2f</c> %s (%d files)', [size_all_out, s_unit, files_all_out]));
-        end
-        else
-        begin
-          irc_addtext(netname, channel, Format('%s race stats of site: <b><c07>%s</c></b>', [period, sitename]));
-
-          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period)';
-          fQuery.ParamByName('timestring').AsString := 'now';
-          fQuery.ParamByName('sitesrc').AsString := sitename;
-          fQuery.ParamByName('period').AsString := sql_period;
-          fQuery.Open;
-
-          while not fQuery.Eof do
-          begin
-            s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-            size := StrToFloatDef(s_size, 0);
-
-            RecalcSizeValueAndUnit(size, s_unit, 1);
-            irc_addtext(netname, channel, Format('TOTAL <b>out</b>: <c04>%.2f</c> %s (%s files)', [size, s_unit, fQuery.FieldByName('files').AsString]));
-
-            fQuery.Next;
-          end;
-
-          // release the SQL statement, results and bound parameters before reopen
-          fQuery.Close;
-
-          fQuery.SQL.Text := 'SELECT count(*) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period)';
-          fQuery.ParamByName('timestring').AsString := 'now';
-          fQuery.ParamByName('sitedst').AsString := sitename;
-          fQuery.ParamByName('period').AsString := sql_period;
-          fQuery.Open;
-
-          while not fQuery.Eof do
-          begin
-            s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-            size := StrToFloatDef(s_size, 0);
-
-            RecalcSizeValueAndUnit(size, s_unit, 1);
-            irc_addtext(netname, channel, Format('TOTAL <b>in</b>:  <c09>%.2f</c> %s (%s files)', [size, s_unit, fQuery.FieldByName('files').AsString]));
-
-            fQuery.Next;
-          end;
-
-
-          if not detailed then
-            exit;
-
-
-          // release the SQL statement, results and bound parameters before reopen
-          fQuery.Close;
-
-          fQuery.SQL.Text := 'SELECT DISTINCT sitedst, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitesrc = :sitesrc AND ts > date(:timestring, :period) GROUP BY sitedst ORDER BY size';
-          fQuery.ParamByName('timestring').AsString := 'now';
-          fQuery.ParamByName('sitesrc').AsString := sitename;
-          fQuery.ParamByName('period').AsString := sql_period;
-          fQuery.Open;
-
-          while not fQuery.Eof do
-          begin
-            s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-            size := StrToFloatDef(s_size, 0);
-
-            RecalcSizeValueAndUnit(size, s_unit, 1);
-            irc_addtext(netname, channel, Format('  <b>to</b> %s: %.2f %s (%s files)', [fQuery.FieldByName('sitedst').AsString, size, s_unit, fQuery.FieldByName('files').AsString]));
-
-            fQuery.Next;
-          end;
-
-          // release the SQL statement, results and bound parameters before reopen
-          fQuery.Close;
-
-          fQuery.SQL.Text := 'SELECT DISTINCT sitesrc, COUNT(filename) AS files, ROUND(CAST(SUM(filesize) AS REAL)/1024,1) AS size FROM race WHERE sitedst = :sitedst AND ts > date(:timestring, :period) GROUP BY sitesrc ORDER BY size';
-          fQuery.ParamByName('timestring').AsString := 'now';
-          fQuery.ParamByName('sitedst').AsString := sitename;
-          fQuery.ParamByName('period').AsString := sql_period;
-          fQuery.Open;
-
-          while not fQuery.Eof do
-          begin
-            s_size := StringReplace(fQuery.FieldByName('size').AsString, '.', {$IFNDEF FPC}FormatSettings.DecimalSeparator{$ELSE}DefaultFormatSettings.DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-            size := StrToFloatDef(s_size, 0);
-
-            RecalcSizeValueAndUnit(size, s_unit, 1);
-            irc_addtext(netname, channel, Format('  <b>from</b> %s: %.2f %s (%s files)', [fQuery.FieldByName('sitesrc').AsString, size, s_unit, fQuery.FieldByName('files').AsString]));
-
-            fQuery.Next;
-          end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] StatRaces: %s', [e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
-end;
-
-procedure statsStart;
+procedure statsInit;
 var
   fDBName: String;
 begin
@@ -390,209 +104,443 @@ begin
   if fDBName = '' then
     exit;
 
-  statsSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
-  SQLite3Lock := TCriticalSection.Create;
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE TABLE IF NOT EXISTS hit ('+
-    ' sitename VARCHAR(50) NOT NULL, '+
-    ' section VARCHAR(50) NOT NULL, '+
-    ' username VARCHAR(55) NOT NULL, '+
-    ' groupname VARCHAR(55) NOT NULL, '+
-    ' filename VARCHAR(255) NOT NULL, '+
-    ' filesize INT UNSIGNED NOT NULL, '+
-    ' ts DATETIME NOT NULL '+
-    ')'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE UNIQUE INDEX IF NOT EXISTS hit_index ON hit (sitename, section, filename)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS sitesection_index ON hit (sitename, section)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS group_index ON hit (groupname, section)'
-  );
-
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE TABLE IF NOT EXISTS race ('+
-    ' sitesrc VARCHAR(50) NOT NULL, '+
-    ' sitedst VARCHAR(50) NOT NULL, '+
-    ' section VARCHAR(50) NOT NULL, '+
-    ' rls VARCHAR(255) NOT NULL, '+
-    ' filename VARCHAR(255) NOT NULL, '+
-    ' filesize INT UNSIGNED NOT NULL, '+
-    ' ts DATETIME NOT NULL '+
-    ')'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE UNIQUE INDEX IF NOT EXISTS race_index ON race (sitesrc, sitedst, section, rls, filename)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS race_sitesrc ON race (sitesrc)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS race_sitedst ON race (sitedst)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS race_section ON race (section)'
-  );
-
-  statsSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE INDEX IF NOT EXISTS race_rls ON race (rls)'
-  );
-end;
-
-procedure statsProcessRace(const sitesrc, sitedst, rls_section, rls, filename: String; filesize: Int64);
-var
-  s_src, s_dst: TSite;
-  fQuery: TQuery;
-begin
-  if (filesize < config.ReadInteger(section, 'min_filesize', 5000000)) then
-  begin
-    Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s too small for adding to stats', [filesize, filename]));
-    exit;
-  end;
-
-  s_src := FindSiteByName('', sitesrc);
-  s_dst := FindSiteByName('', sitedst);
-
-  if ((s_src = nil) or (s_dst = nil)) then
-  begin
-    Debug(dpSpam, section, '[statsProcessRace] SRC or DST site is not found!');
-    exit;
-  end;
-
-  SQLite3Lock.Enter;
+  ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
-    fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-    try
-      fQuery.SQL.Text := 'INSERT OR IGNORE INTO race (sitesrc, sitedst, section, rls, filename, filesize, ts) VALUES (:sitesrc, :sitedst, :section, :rls, :filename, :filesize, :time)';
-      fQuery.ParamByName('sitesrc').AsString := uppercase(s_src.name);
-      fQuery.ParamByName('sitedst').AsString := uppercase(s_dst.name);
-      fQuery.ParamByName('section').AsString := uppercase(rls_section);
-      fQuery.ParamByName('rls').AsString := rls;
-      fQuery.ParamByName('filename').AsString := filename;
-      fQuery.ParamByName('filesize').AsInt64 := filesize;
-      fQuery.ParamByName('time').AsString := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now);
-      try
-        fQuery.ExecSQL;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] statsProcessRace: %s', [e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
+    ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] statsInit: %s', [e.Message]));
+      exit;
     end;
-  finally
-    SQLite3Lock.Leave;
   end;
-end;
-
-procedure statsProcessDirlist(d: TDirlist; const sitename, rls_section, username: String);
-var
-  i: Integer;
-  de: TDirlistEntry;
-  u: String;
-  fQuery: TQuery;
-begin
-  if d = nil then
-    exit;
-  if d.entries = nil then
-    exit;
-
-  fQuery := TQuery.Create(statsSQLite3DBCon.ThreadSafeConnection);
-  try
-    d.dirlist_lock.Enter;
-    try
-      for i := 0 to d.entries.Count - 1 do
-      begin
-        try if i > d.entries.Count then Break; except Break; end;
-        try
-          de:= TDirlistEntry(d.entries[i]);
-          if not de.directory then
-          begin
-            if ((de.megvanmeg) and (not de.skiplisted) and (de.username <> '') and (de.filesize >= config.ReadInteger(section, 'min_filesize', 100000))) then
-            begin
-              if de.username <> username then
-                u := de.username
-              else
-                u := '!me!';
-
-              SQLite3Lock.Enter;
-              try
-                fQuery.SQL.Text := 'INSERT OR IGNORE INTO hit (sitename, section, username, groupname, filename, filesize, ts) VALUES (:sitename, :section, :username, :groupname, :filename, :filesize, :time)';
-                fQuery.ParamByName('sitename').AsString := uppercase(sitename);
-                fQuery.ParamByName('section').AsString := uppercase(rls_section);
-                fQuery.ParamByName('username').AsString := u;
-                fQuery.ParamByName('groupname').AsString := de.groupname;
-                fQuery.ParamByName('filename').AsString := de.filename;
-                fQuery.ParamByName('filesize').AsInt64 := Round(de.filesize / 1024);
-                fQuery.ParamByName('time').AsString := FormatDateTime('yyyy-mm-dd hh:nn:ss', de.timestamp);
-                try
-                  fQuery.ExecSQL;
-
-                  // release the SQL statement, results and bound parameters before reopen
-                  fQuery.Close;
-                except
-                  on e: Exception do
-                  begin
-                    Debug(dpError, section, Format('[EXCEPTION] statsProcessDirlist: %s', [e.Message]));
-                    exit;
-                  end;
-                end;
-              finally
-                SQLite3Lock.Leave;
-              end;
-            end;
-          end
-          else
-            statsProcessDirlist(de.subdirlist, sitename, rls_section, username);
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] statsProcessDirlist : %s', [e.Message]));
-            Break;
-          end;
-        end;
-      end;
-    finally
-      d.dirlist_lock.Leave;
-    end;
-  finally
-    fQuery.free;
-  end;
-end;
-
-procedure statsInit;
-begin
-
 end;
 
 procedure statsUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  if Assigned(SQLite3Lock) then
+  if Assigned(ORMStatsDB) then
   begin
-    FreeAndNil(SQLite3Lock);
+    ORMStatsDB.Free;
   end;
-
-  if Assigned(statsSQLite3DBCon) then
+  if Assigned(ORMStatsModel) then
   begin
-    FreeAndNil(statsSQLite3DBCon);
+    ORMStatsModel.Free;
   end;
   Debug(dpSpam, section, 'Uninit2');
+end;
+
+function StatsAlive: boolean;
+begin
+  if ORMStatsDB = nil then
+    Result := False
+  else
+    Result := True;
+end;
+
+procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
+var
+  fSrcSiteRec, fDstSiteRec: TSQLSitesRecord;
+  fSectionRec: TSQLSectionRecord;
+  fFileInfoRec: TSQLFileInfoRecord;
+  fStatsRec: TSQLStatsRecord;
+begin
+  if (aFilesize < _GetMinFilesize) then
+  begin
+    Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
+    exit;
+  end;
+
+  // we only need the ID
+  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB, 'Name = ?', [aSrcSite], 'ID');
+  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB, 'Name = ?', [aDstSite], 'ID');
+  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB, 'Section = ?', [aSection], 'ID');
+  try
+    if not fSrcSiteRec.FillOne then
+    begin
+      fSrcSiteRec.Name := StringToUTF8(aSrcSite);
+
+      if ORMStatsDB.Add(fSrcSiteRec, True, False) = 0 then
+      begin
+        Debug(dpError, section, '[statsProcessRace] Could not add srcsite %s to database!', [aSrcSite]);
+        exit;
+      end;
+    end;
+
+    if not fDstSiteRec.FillOne then
+    begin
+      fDstSiteRec.Name := StringToUTF8(aDstSite);
+
+      if ORMStatsDB.Add(fDstSiteRec, True, False) = 0 then
+      begin
+        Debug(dpError, section, '[statsProcessRace] Could not add dstsite %s to database!', [aDstSite]);
+        exit;
+      end;
+    end;
+
+    if not fSectionRec.FillOne then
+    begin
+      fSectionRec.Section := StringToUTF8(aSection);
+
+      if ORMStatsDB.Add(fSectionRec, True, False) = 0 then
+      begin
+        Debug(dpError, section, '[statsProcessRace] Could not add section %s to database!', [aSection]);
+        exit;
+      end;
+    end;
+
+    // we only need the ID
+    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB, 'ReleaseName = ? AND FileName = ?', [aRls, aFilename], 'ID');
+    try
+      if not fFileInfoRec.FillOne then
+      begin
+        fFileInfoRec.ReleaseName := StringToUTF8(aRls);
+        fFileInfoRec.FileName := StringToUTF8(aFilename);
+        fFileInfoRec.FileSize := aFilesize;
+        fFileInfoRec.TimeStamp := Now;
+
+        if ORMStatsDB.Add(fFileInfoRec, True, False) = 0 then
+        begin
+          Debug(dpError, section, '[statsProcessRace] Could not add %s file info for %s (%d) to database!', [aRls, aFilename, aFilesize]);
+          exit;
+        end;
+      end;
+
+      // prevent duplicate entries
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.AsTSQLRecord, fDstSiteRec.AsTSQLRecord, fSectionRec.AsTSQLRecord, fFileInfoRec.AsTSQLRecord], 'ID');
+      try
+        if not fStatsRec.FillOne then
+        begin
+          fStatsRec.SrcSiteRec := fSrcSiteRec.AsTSQLRecord;
+          fStatsRec.DstSiteRec := fDstSiteRec.AsTSQLRecord;
+          fStatsRec.SectionRec := fSectionRec.AsTSQLRecord;
+          fStatsRec.FileInfoRec := fFileInfoRec.AsTSQLRecord;
+
+          if ORMStatsDB.Add(fStatsRec, True, False) = 0 then
+          begin
+            Debug(dpError, section, '[statsProcessRace] Could not add stats record for %s %s (%d) to database!', [aRls, aFilename, aFilesize]);
+            exit;
+          end;
+        end;
+      finally
+        fStatsRec.Free;
+      end;
+    finally
+      fFileInfoRec.Free;
+    end;
+  finally
+    fSrcSiteRec.Free;
+    fDstSiteRec.Free;
+    fSectionRec.Free;
+  end;
+end;
+
+function RemoveStats(const aSitename: String): Boolean; overload;
+var
+  fStatsRec: TSQLStatsRecord;
+  fFileInfoIDs: TList<Integer>;
+  fItem, fID: Integer;
+  fOnlyUsedForDeletedSites: Boolean;
+begin
+  Result := False;
+
+  { delete sitename from site table }
+  try
+    if not ORMStatsDB.Delete(TSQLSitesRecord, 'Name = ?', [aSitename]) then
+    begin
+      Debug(dpError, section, '[RemoveStats] Could not remove %s!', [aSitename]);
+      exit;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemoveStats: %s', [e.Message]));
+      exit;
+    end;
+  end;
+
+  { delete fileinfo table entries only if not referenced more than once }
+  fFileInfoIDs := TList<Integer>.Create;
+  try
+    // get all file IDs where src and dst are already deleted
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ?', [], [0, 0]);
+    try
+      while fStatsRec.FillOne do
+      begin
+        fID := TID(fStatsRec.FileInfoRec);
+        if not fFileInfoIDs.Contains(fID) then
+          fFileInfoIDs.Add(fID);
+      end;
+    finally
+      fStatsRec.Free;
+    end;
+
+    for fItem in fFileInfoIDs do
+    begin
+      fOnlyUsedForDeletedSites := True;
+
+      // try to get entry which use the same FileInfo Record but at least one site is still there
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [], [0, 0, fItem]);
+      try
+        if fStatsRec.FillOne then
+        begin
+          fOnlyUsedForDeletedSites := False;
+        end;
+      finally
+        fStatsRec.Free;
+      end;
+
+      // remove items from db which are used only for deleted sites
+      if fOnlyUsedForDeletedSites then
+      begin
+        if not ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fItem]) then
+        begin
+          Debug(dpError, section, '[RemoveStats] Could not delete fileinfo ID %d!', [fItem]);
+          exit;
+        end;
+      end;
+    end;
+  finally
+    fFileInfoIDs.Free;
+  end;
+
+  if not ORMStatsDB.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ? AND FileInfoRec = ?', [0, 0, 0]) then
+  begin
+    Debug(dpError, section, '[RemoveStats] Could not delete stats record!');
+    exit;
+  end;
+
+  Result := True;
+end;
+
+procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const aDetailed: Boolean);
+type
+  TFileSizeStats = record
+    FilesCountIn: Int64;
+    FilesCountOut: Int64;
+    SizeIn: Double;
+    SizeOut: Double;
+  end;
+  TStatsDirection = (stFrom, stTo);
+var
+  s: TSite;
+  i: integer;
+  fSQLPeriod: String;
+  fFileSizeStats: TFileSizeStats;
+  fAllFilesTransfered: Int64;
+  fAllSizeTransfered: Double;
+  fSizeAllUnit: String;
+
+  function GetSQLPeriod(const aPeriod: String): String;
+  begin
+    if (aPeriod = 'MONTH') then
+    begin
+      Result := 'start of month';
+    end
+    else if (aPeriod = 'YEAR') then
+    begin
+      Result := 'start of year';
+    end
+    else
+    begin
+      Result := 'start of day';
+    end;
+  end;
+
+  procedure InitValues(out aFileSizeStats: TFileSizeStats);
+  begin
+    aFileSizeStats.FilesCountIn := 0;
+    aFileSizeStats.FilesCountOut := 0;
+    aFileSizeStats.SizeIn := 0;
+    aFileSizeStats.SizeOut := 0;
+  end;
+
+  procedure GetTransferStats(const aSitename, aSQLPeriod: String; out aFileSizeStats: TFileSizeStats);
+  var
+    fStatsRec: TSQLStatsRecord;
+  begin
+    InitValues(aFileSizeStats);
+
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
+      '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND timestamp > date(?, ?)',
+      [], [aSitename, aSitename, 'now', aSQLPeriod]);
+    try
+      while fStatsRec.FillOne do
+      begin
+        if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
+        begin
+          aFileSizeStats.SizeIn := aFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
+          Inc(aFileSizeStats.FilesCountIn);
+        end
+        else if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
+        begin
+          aFileSizeStats.SizeOut := aFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
+          Inc(aFileSizeStats.FilesCountOut);
+        end;
+      end;
+    finally
+      fStatsRec.Free;
+    end;
+  end;
+
+  procedure GetDetailedTransferStats(const aNetname, aChannel, aSitename, aSQLPeriod: String; const aDirection: TStatsDirection);
+  var
+    fStatsRec: TSQLStatsRecord;
+    fSiteInfosList: TDictionary<String, TFileSizeStats>;
+    fFileSizeStats: TFileSizeStats;
+    fListItem: TPair<String, TFileSizeStats>;
+    fSitename, fSizeUnit: String;
+    fSize: Double;
+  begin
+    fSiteInfosList := TDictionary<String, TFileSizeStats>.Create;
+    try
+      case aDirection of
+        stFrom:
+        begin
+          // input site is source
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
+            'SrcSiteRec.Name = ? AND timestamp > date(?, ?)',
+            [], [aSitename, 'now', aSQLPeriod]);
+          try
+            while fStatsRec.FillOne do
+            begin
+              if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
+              begin
+                fSitename := UTF8ToString(fStatsRec.DstSiteRec.Name);
+                if not fSiteInfosList.ContainsKey(fSitename) then
+                begin
+                  InitValues(fFileSizeStats);
+
+                  fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
+                  Inc(fFileSizeStats.FilesCountOut);
+
+                  fSiteInfosList.Add(fSitename, fFileSizeStats);
+                end
+                else
+                begin
+                  fFileSizeStats := fSiteInfosList.Items[fSitename];
+
+                  fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
+                  Inc(fFileSizeStats.FilesCountOut);
+
+                  fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                end;
+              end;
+            end;
+          finally
+            fStatsRec.Free;
+          end;
+
+          for fListItem in fSiteInfosList do
+          begin
+            fSize := fListItem.Value.SizeOut;
+            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+            irc_addtext(aNetname, aChannel, Format('  <b>to</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountOut]));
+          end;
+        end;
+
+        stTo:
+        begin
+          // input site is destination
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
+            'DstSiteRec.Name = ? AND timestamp > date(?, ?)',
+            [], [aSitename, 'now', aSQLPeriod]);
+          try
+            while fStatsRec.FillOne do
+            begin
+              if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
+              begin
+                fSitename := UTF8ToString(fStatsRec.SrcSiteRec.Name);
+                if not fSiteInfosList.ContainsKey(fSitename) then
+                begin
+                  InitValues(fFileSizeStats);
+
+                  fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
+                  Inc(fFileSizeStats.FilesCountIn);
+
+                  fSiteInfosList.Add(fSitename, fFileSizeStats);
+                end
+                else
+                begin
+                  fFileSizeStats := fSiteInfosList.Items[fSitename];
+
+                  fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
+                  Inc(fFileSizeStats.FilesCountIn);
+
+                  fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                end;
+              end;
+            end;
+          finally
+            fStatsRec.Free;
+          end;
+
+          for fListItem in fSiteInfosList do
+          begin
+            fSize := fListItem.Value.SizeIn;
+            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+            irc_addtext(aNetname, aChannel, Format('  <b>from</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountIn]));
+          end;
+        end;
+      end;
+    finally
+      fSiteInfosList.Free;
+    end;
+  end;
+
+  procedure PrintStatsToIRC(const aSitename, aSQLPeriod: String; var aFileSizeStats: TFileSizeStats);
+  var
+    fSizeInUnit, fSizeOutUnit: String;
+  begin
+    RecalcSizeValueAndUnit(aFileSizeStats.SizeIn, fSizeInUnit, 0);
+    RecalcSizeValueAndUnit(aFileSizeStats.SizeOut, fSizeOutUnit, 0);
+    irc_addtext(aNetname, aChannel, Format('%s race stats of site: <b><c7>%s</c></b>', [aSQLPeriod, aSitename]));
+
+    irc_addtext(aNetname, aChannel, Format('TOTAL <b>in</b>: <c9>%.2f</c> %s (%d files)', [aFileSizeStats.SizeIn, fSizeInUnit, aFileSizeStats.FilesCountIn]));
+    if aDetailed then
+    begin
+      GetDetailedTransferStats(aNetname, aChannel, aSitename, aSQLPeriod, stTo);
+    end;
+
+    irc_addtext(aNetname, aChannel, Format('TOTAL <b>out</b>: <c4>%.2f</c> %s (%d files)', [aFileSizeStats.SizeOut, fSizeOutUnit, aFileSizeStats.FilesCountOut]));
+    if aDetailed then
+    begin
+      GetDetailedTransferStats(aNetname, aChannel, aSitename, aSQLPeriod, stFrom);
+    end;
+  end;
+
+begin
+  fSQLPeriod := GetSQLPeriod(aPeriod);
+
+  if aSitename = '*' then
+  begin
+    fAllFilesTransfered := 0;
+    fAllSizeTransfered := 0;
+
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites.Items[i]);
+      if (s.Name = getAdminSiteName) then
+        Continue;
+
+      GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
+
+      // in and out values will have the same total amount
+      Inc(fAllFilesTransfered, fFileSizeStats.FilesCountIn);
+      fAllSizeTransfered := fAllSizeTransfered + fFileSizeStats.SizeIn;
+
+      PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
+    end;
+
+    RecalcSizeValueAndUnit(fAllSizeTransfered, fSizeAllUnit, 0);
+    irc_addtext(aNetname, aChannel, Format('<b>Total In + Out:</b> <c07>%.2f</c> %s (%d files)', [fAllSizeTransfered, fSizeAllUnit, fAllFilesTransfered]));
+  end
+  else
+  begin
+    s := FindSiteByName('', aSitename);
+    GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
+    PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
+  end;
 end;
 
 end.
