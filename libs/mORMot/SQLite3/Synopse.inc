@@ -79,7 +79,7 @@
 {  Those conditionals below can be enabled in your project Options,
    to tune the compilation depending your setup or your project expectations. }
 
-{$define PUREPASCAL}
+{.$define PUREPASCAL}
 // define this if your compiler doesn't support Delphi's x86 asm
 // - is set automaticaly in case of a 64 bits compiler (only FPC exists now)
 

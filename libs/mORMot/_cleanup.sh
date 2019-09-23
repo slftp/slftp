@@ -38,8 +38,5 @@ find * -iname "*.manifest*" -type f -delete
 find * -iname "build-fpc*" -type f -delete
 find * -iname "c-fpc*" -type f -delete
 
-# disable linking of object files
-sed -i 's/{.$define PUREPASCAL}/{$define PUREPASCAL}/' Synopse.inc
-
 # copy Synopse.inc into SQLite3 dir
 cp Synopse.inc SQLite3/Synopse.inc
