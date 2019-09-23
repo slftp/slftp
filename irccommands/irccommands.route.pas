@@ -240,7 +240,7 @@ begin
             irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext]);
         end;
 
-        // When using wildcards apply changes only if -apply has been specified (to avoid unwanted changes)
+        // When using wildcards apply changes only if --apply has been specified (to avoid unwanted changes)
         if DoIt then
         begin
           if speed > 0 then
@@ -297,7 +297,7 @@ begin
     end;
 
     if not DoIt then
-      irc_addtext(Netname, Channel, 'Route were not really added. Check if you are satisfied and add -apply to the command.');
+      irc_addtext(Netname, Channel, 'Route were not really added. Check if you are satisfied and add --apply to the command.');
 
   finally
     FreeAndNil(source_sites);
