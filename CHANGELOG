@@ -163,6 +163,7 @@
     {^} Allow !check and !batch for GROUP chans
     {^} Replaced !help with !nhelp which provides much more functionality
     {^} Rename !reloadglobalskip to !globalskipreload
+    {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
