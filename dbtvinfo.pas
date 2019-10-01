@@ -1164,7 +1164,7 @@ begin
     save_tvrage := TTVInfoDB(tvrage);
     try
       if (rls <> '') then
-        irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s', [addtinfodbcmd, rls, TVMazeID]));
+        irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [addtinfodbcmd, rls, TVMazeID]));
     except
       on e: Exception do
       begin
