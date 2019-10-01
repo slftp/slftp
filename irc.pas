@@ -171,12 +171,13 @@ var
   irc_queue_nets: TStringList;
 
 const
-  irc_chanroleindex = 21;
+  irc_chanroleindex = 25;
 
   irc_chanroles: array[0..irc_chanroleindex] of String = (
     'ADMIN', 'STATS', 'ERROR', 'INFO', 'INDEXER', 'GROUP', 'NUKE', 'IRCEVENT', 'KB',
     'UPDATE', 'SPEEDSTATS', 'RACESTATS', 'RANKSTATS', 'PRECATCHSTATS', 'SKIPLOG',
-    'ROUTEINFOS', 'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN');
+    'ROUTEINFOS', 'ADDPRE','ADDTVMAZE', 'ADDURL', 'ADDIMDB', 'ADDPREECHO', 'ADDGN',
+    'ADDTVMAZEECHO', 'ADDURLECHO', 'ADDIMDBECHO', 'ADDGNECHO');
 
 implementation
 
