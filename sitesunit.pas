@@ -1586,7 +1586,8 @@ begin
       else
       begin
         DestroySocket(False);
-        irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
+        if spamcfg.readbool(section, 'slot_down', False) then
+          irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
 end;
