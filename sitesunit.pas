@@ -1551,8 +1551,10 @@ begin
         Break;
       end;
 
+      // 530- The site is full, try again later
       if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
         if site.sw = sswGlftpd then
         begin
@@ -1575,11 +1577,13 @@ begin
     end;
   end;
 
+  // 530- The site is full, try again later
   if ((not slshutdown) and (not shouldquit)) then
     if not Result then
     begin
       if (((lastResponseCode = 530) and (0 <> Pos('your account is restricted to', lastResponse))) or
-        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse)))) then
+        ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse))) or
+        ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
         DestroySocket(False);
       end
