@@ -456,7 +456,7 @@ begin
   end;
 
   last_news_announce := Now;
-  Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages.', [UnreadCount, UnreadCount + ReadCount]);
+  Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages. See %snews for further details.', [UnreadCount, UnreadCount + ReadCount, irc.irccmdprefix]);
 end;
 
 end.
