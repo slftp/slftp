@@ -162,9 +162,10 @@
     {^} language detection for releases highly improved
     {^} improved stripping of scene tags before tv lookup
     {^} Allow !check and !batch for GROUP chans
-    {^} Replaced !help code with code from already existing !nhelp cmd which provides much more functionality
+    {^} Replaced old !help code with recently introduced !nhelp code because it provides much more functionality
     {^} Rename !reloadglobalskip to !globalskipreload
     {^} !stop can be used with Pazo ID and Releasename
+    {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
@@ -173,6 +174,7 @@
     {-} Remove !lame and associated classes
     {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
     {-} Remove !nologinmsg, breaks many cmds due to missing responses
+    {-} Remove !nhelp cmd, code moved into !help function
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **

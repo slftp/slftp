@@ -232,7 +232,7 @@ begin
     end;
 
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [rls, imdb_id]));
-    irc_Addtext_by_key('addimdb', '!addimdb '+rls+' '+imdb_id);
+    irc_Addtext_by_key('ADDIMDBECHO', '!addimdb '+rls+' '+imdb_id);
 
     try
       dbaddimdb_ParseImdb(rls, imdb_id);

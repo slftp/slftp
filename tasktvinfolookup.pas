@@ -616,7 +616,7 @@ begin
   end;
 
   try
-    irc_Addtext_by_key('ADDTVMAZE', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
+    irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
     db_tvinfo.Save;
     db_tvinfo.SetTVDbRelease(tr);
   except
