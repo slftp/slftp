@@ -1034,7 +1034,7 @@ begin
     exit;
   end;
 
-  if (ps2.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then
+  if (ps2.badcrcevents >= config.ReadInteger('taskrace', 'badcrcevents', 15)) then
   begin
     mainpazo.errorreason := 'Too many CRC errors!';
     readyerror := True;

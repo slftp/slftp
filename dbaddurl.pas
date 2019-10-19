@@ -109,7 +109,7 @@ begin
     last_addurl.AddObject(rls, db_url);
 
     irc_AddInfo(Format('<c7>[URL]</c> for <b>%s</b> : %s', [rls, url]));
-    irc_Addtext_by_key('ADDURL', '!addurl ' + rls + ' ' + url);
+    irc_Addtext_by_key('ADDURLECHO', '!addurl ' + rls + ' ' + url);
 
     dbaddurl_ParseUrl(rls, url);
 
