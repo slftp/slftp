@@ -252,9 +252,10 @@ begin
     exit;
   end;
 
-  for ps in p.PazoSitesList do
+  for i := 1 to p.PazoSitesList.Count - 1 do
   begin
-    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s  ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
+    ps := TPazoSite(p.PazoSitesList[i]);
+    irc_addtext(Netname, Channel, 'Speedtesting %s -> %s ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
     t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, '', fsfilename, fsfilesize, 1);
     t.FFilenameForSTORCommand := speedtestfilename;
