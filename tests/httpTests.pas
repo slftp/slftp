@@ -76,7 +76,7 @@ begin
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, 'Runtime: <b>3 hrs. 1 min.</b>'), 'HTML content should include Runtime (3hrs 1min)');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
 end;
 
 procedure TTestHTTP.TestBOMHTTPS;
@@ -93,7 +93,7 @@ begin
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, 'Runtime: <b>3 hrs. 1 min.</b>'), 'HTML content should include Runtime (3hrs 1min)');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
 end;
 
 procedure TTestHTTP.TestTVMAZEHTTP;
