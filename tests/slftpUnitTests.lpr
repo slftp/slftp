@@ -51,7 +51,8 @@ uses
   sllanguagebaseTests,
   mygrouphelpersTests,
   globalskipunitTests,
-  irccolorunitTests;
+  irccolorunitTests,
+  ircparsingTests;
 
 var
   filecheck: String;
