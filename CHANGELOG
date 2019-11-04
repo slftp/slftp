@@ -132,6 +132,7 @@
     {#} !addtvinfo showed wrong results for some shows like 'The.New.Frontier' or 'The.Twilight.Zone' (#246)
     {#} Try to complete works again and also supports non-routable sites as sources
     {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
+    {#} IRC channel name missing '#' for some IRCd's or bouncers (#281)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
