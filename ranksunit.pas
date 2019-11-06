@@ -218,12 +218,12 @@ begin
       if (ps.dirlist = nil) then
         Continue;
 
-      if ((ps.dirlist <> nil) and (ps.dirlist.date_completed <> 0)) then
+      if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
       begin
-        if ((fcomplete = 0) or (fcomplete > ps.dirlist.date_completed)) then
-          fcomplete := ps.dirlist.date_completed;
-        if ((lcomplete = 0) or (lcomplete < ps.dirlist.date_completed)) then
-          lcomplete := ps.dirlist.date_completed;
+        if ((fcomplete = 0) or (fcomplete > ps.dirlist.CompletedTime)) then
+          fcomplete := ps.dirlist.CompletedTime;
+        if ((lcomplete = 0) or (lcomplete < ps.dirlist.CompletedTime)) then
+          lcomplete := ps.dirlist.CompletedTime;
 
         inc(db);
       end;
@@ -249,9 +249,9 @@ begin
     try if i > p.PazoSitesList.Count then Break; except Break; end;
     try
       ps := TPazoSite(p.PazoSitesList[i]);
-      if ((ps.dirlist <> nil) and (ps.dirlist.date_completed <> 0)) then
+      if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
       begin
-        d := Millisecondsbetween(ps.dirlist.date_completed, p.added);
+        d := Millisecondsbetween(ps.dirlist.CompletedTime, p.added);
         ranknew := Round((d - minduration) / diff * 8) + 1;
         rankstatAdd(ps.name, p.rls.section, ranknew);
       end;

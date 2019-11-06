@@ -64,10 +64,10 @@ uses
   SynCommons, SynTable,
 {$ENDIF USE_SYNCOMMONS}
   FmtBCD, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, Types,
-  {$IFDEF NO_UNIT_CONTNRS}ZClasses{$ELSE}Contnrs{$ENDIF},
+  {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF} ZClasses,
   ZDbcIntfs, ZDbcResultSet, ZDbcResultSetMetadata, ZCompatibility, ZDbcCache,
   ZDbcCachedResultSet, ZDbcGenericResolver, ZDbcMySqlStatement, ZDbcMySqlUtils,
-  ZPlainMySqlDriver, ZPlainMySqlConstants, ZSelectSchema;
+  ZPlainMySqlDriver, ZPlainMySqlConstants, ZSelectSchema, ZVariant;
 
 type
   {** Implements MySQL ResultSet Metadata. }
@@ -89,6 +89,8 @@ type
     function IsAutoIncrement(ColumnIndex: Integer): Boolean; override;
   end;
 
+  { Interbase Error Class}
+  EZMySQLConvertError = class(EZSQLException);
   {** Implements MySQL ResultSet. }
 
   { TZAbstractMySQLResultSet }
@@ -118,7 +120,7 @@ type
     FTempBlob: IZBlob; //temporary Lob
     FClosing: Boolean;
     FClientCP: Word;
-    procedure RaiseConversionError(Index: Integer);
+    function CreateMySQLConvertError(ColumnIndex: Integer; DataType: TMysqlFieldType): EZMySQLConvertError;
   protected
     procedure Open; override;
   public
@@ -144,10 +146,11 @@ type
     function GetDouble(ColumnIndex: Integer): Double;
     function GetCurrency(ColumnIndex: Integer): Currency;
     procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+    procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
     function GetBytes(ColumnIndex: Integer): TBytes;
-    function GetDate(ColumnIndex: Integer): TDateTime;
-    function GetTime(ColumnIndex: Integer): TDateTime;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime;
+    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); reintroduce; overload;
+    procedure GetTime(ColumnIndex: Integer; var Result: TZTime); reintroduce; overload;
+    procedure GetTimeStamp(ColumnIndex: Integer; var Result: TZTimeStamp); reintroduce; overload;
     function GetBlob(ColumnIndex: Integer): IZBlob;
 
     {$IFDEF USE_SYNCOMMONS}
@@ -186,14 +189,12 @@ type
       MYSQL_STMT: PPMYSQL_STMT; const Statement: IZStatement;
       const Metadata: IZResultSetMetadata);
 
-    function FormWhereClause(Columns: TObjectList;
-      OldRowAccessor: TZRowAccessor): string; override;
+    procedure FormWhereClause({$IFDEF AUTOREFCOUNT}const {$ENDIF}Columns: TObjectList;
+      {$IFDEF AUTOREFCOUNT}const {$ENDIF}SQLWriter: TZSQLStringWriter;
+      {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor: TZRowAccessor; var Result: SQLString); override;
     procedure PostUpdates(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
+      {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
 
-    // --> ms, 31/10/2005
-    function FormCalculateStatement(Columns: TObjectList): string; override;
-    // <-- ms
     {BEGIN of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
     procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet; {%H-}UpdateType: TZRowUpdateType;
       OldRowAccessor, NewRowAccessor: TZRowAccessor; const {%H-}Resolver: IZCachedResolver); override;
@@ -218,7 +219,7 @@ implementation
 
 uses
   Math, {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF}
-  ZFastCode, ZSysUtils, ZMessages, ZEncoding, {$IFNDEF NO_UNIT_CONTNRS}ZClasses,{$ENDIF}
+  ZFastCode, ZSysUtils, ZMessages, ZEncoding,
   ZDbcMySQL, ZDbcUtils, ZDbcMetadata, ZDbcLogging;
 
 { TZMySQLResultSetMetadata }
@@ -648,6 +649,13 @@ begin
     AffectedRows^ := LastRowNo;
 end;
 
+function TZAbstractMySQLResultSet.CreateMySQLConvertError(ColumnIndex: Integer;
+  DataType: TMysqlFieldType): EZMySQLConvertError;
+begin
+  Result := EZMySQLConvertError.Create(Format(SErrorConvertionField,
+        [TZColumnInfo(ColumnsInfo[ColumnIndex]).ColumnLabel, IntToStr(Ord(DataType))]));
+end;
+
 destructor TZAbstractMySQLResultSet.Destroy;
 begin
   //ReallocBindBuffer(FColBuffer, FMYSQL_aligned_BINDs, FBindOffsets, FFieldCount, 0, Ord(fBindBufferAllocated));
@@ -736,13 +744,6 @@ begin
     if (FPlainDriver.mysql_stmt_bind_result(FMYSQL_STMT,FMYSQL_Col_BIND_Address^)<>0) then
       checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_bind_result', Self);
   end;
-end;
-
-procedure TZAbstractMySQLResultSet.RaiseConversionError(Index: Integer);
-begin
-  raise EZSQLException.Create(Format(SErrorConvertionField,
-    ['Field '+ZFastCode.IntToStr(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}),
-      DefineColumnTypeName(GetMetadata.GetColumnType(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}))]));
 end;
 
 procedure TZAbstractMySQLResultSet.ReleaseImmediat(
@@ -967,7 +968,7 @@ begin
             Len := DateTimeToRawSQLTime(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute,
               PMYSQL_TIME(ColBind^.buffer)^.Second, 0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
-              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False);
+              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_YEAR: begin
             IntToRaw(Cardinal(PWord(ColBind^.buffer)^), @FTinyBuffer, @Result);
@@ -1005,7 +1006,7 @@ set_Results:Len := Result - PAnsiChar(@FTinyBuffer);
               Len := FTempBlob.Length;
               Result := FTempBlob.GetBuffer;
             end;
-        else RaiseConversionError(ColumnIndex);
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end;
     end;
   end else begin
@@ -1108,7 +1109,8 @@ begin
             Len := DateTimeToUnicodeSQLTime(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute, PMYSQL_TIME(ColBind^.buffer)^.Second,
               0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
-              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False);
+              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False,
+              PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
             Result := @FTinyBuffer;
           end;
         FIELD_TYPE_YEAR: begin
@@ -1155,7 +1157,7 @@ set_Results:Len := Result - PWideChar(@FTinyBuffer);
                 goto set_from_tmp;
               end;
             end;
-        else RaiseConversionError(ColumnIndex);
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end;
     end;
   end else begin
@@ -1442,6 +1444,7 @@ begin
             ColBind^.buffer_Length_address^ := 0;
             Result := RawToIntDef(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -1529,6 +1532,7 @@ begin
             ColBind^.buffer_Length_address^ := 0;
             Result := RawToInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -1618,6 +1622,7 @@ begin
             ColBind^.buffer_Length_address^ := 0;
             Result := RawToUInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -1699,6 +1704,7 @@ begin
             ColBind^.buffer_Length_address^ := 0;
             Result := RawToUInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -1732,6 +1738,140 @@ end;
 function TZAbstractMySQLResultSet.GetFloat(ColumnIndex: Integer): Single;
 begin
   Result := GetDouble(ColumnIndex);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>UUID</code> in the Java programming language.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>Zero-UUID</code>
+}
+procedure TZAbstractMySQLResultSet.GetGUID(ColumnIndex: Integer;
+  var Result: TGUID);
+var
+  ColBind: PMYSQL_aligned_BIND;
+  Len: ULong;
+  P: PAnsiChar;
+label Fail, Fill, DoMove, FromChar;
+begin
+  {$IFNDEF DISABLE_CHECKING}
+  CheckClosed;
+  if (fBindBufferAllocated and (FMYSQL_STMT = nil)) or
+     (not fBindBufferAllocated and (FRowHandle = nil)) then
+    raise EZSQLException.Create(SRowDataIsNotAvailable);
+  {$ENDIF}
+{$IFNDEF DISABLE_CHECKING}
+  CheckColumnConvertion(ColumnIndex, stGUID);
+{$ENDIF}
+  {$R-}
+  ColBind := @FMYSQL_aligned_BINDs[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}];
+  {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+  if fBindBufferAllocated then begin
+    LastWasNull := ColBind^.is_null =1;
+    if LastWasNull then
+Fill: FillChar(Result, SizeOf(TGUID), #0)
+    else case ColBind^.buffer_type_address^ of
+        FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB,
+        FIELD_TYPE_BLOB, FIELD_TYPE_STRING:
+          begin
+            if ColBind.buffer = nil then
+              goto Fail;
+            P := ColBind^.buffer;
+            if ColBind^.binary and (ColBind^.length[0] = SizeOf(TGUID))
+            then goto DoMove
+            else if not ColBind^.binary and ((ColBind^.length[0] = 36) or (ColBind^.length[0] = 38))
+            then goto FromChar
+            else goto Fail;
+          end;
+        else goto Fail;
+    end;
+  end else begin
+    {$R-}
+    P := PMYSQL_ROW(FRowHandle)[ColumnIndex];
+    LastWasNull := P = nil;
+    if LastWasNull then
+      goto Fill
+    else begin
+      Len := FLengthArray^[ColumnIndex];
+      case TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]).ColumnType of
+        stBytes: if Len = SizeOf(TGUID) then
+DoMove:          Move(P^, Result.D1, SizeOf(TGUID))
+                 else goto Fail;
+        stString, stUnicodeString: if (Len = 36) or (Len = 38) then
+FromChar:        ValidGUIDToBinary(P, @Result.D1)
+                 else goto Fail;
+       else
+Fail:           raise CreateMySQLConvertError(ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}, ColBind^.buffer_type_address^);
+      end;
+
+      end;
+    {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+  end;
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Date</code> object in the Java programming language.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>null</code>
+}
+procedure TZAbstractMySQLResultSet.GetDate(ColumnIndex: Integer;
+  var Result: TZDate);
+var
+  Len: NativeUInt;
+  Buffer: PAnsiChar;
+  ColBind: PMYSQL_aligned_BIND;
+label From_Str, Fill;
+begin
+{$IFNDEF DISABLE_CHECKING}
+  CheckClosed;
+  CheckColumnConvertion(ColumnIndex, stDate);
+{$ENDIF}
+  {$IFNDEF GENERIC_INDEX}
+  ColumnIndex := ColumnIndex-1;
+  {$ENDIF}
+  if fBindBufferAllocated then begin
+    {$R-}
+    ColBind := @FMYSQL_aligned_BINDs[ColumnIndex];
+    {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+    LastWasNull := ColBind^.is_null =1;
+    if not LastWasNull then
+      //http://dev.mysql.com/doc/refman/5.1/de/numeric-types.html
+      Case ColBind^.buffer_type_address^ of
+        FIELD_TYPE_TIME: goto Fill;
+        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATE, FIELD_TYPE_DATETIME,
+        FIELD_TYPE_NEWDATE: begin
+            Result.Year := PMYSQL_TIME(ColBind^.buffer)^.year;
+            Result.Month := PMYSQL_TIME(ColBind^.buffer)^.month;
+            Result.Day := PMYSQL_TIME(ColBind^.buffer)^.day;
+            Result.IsNegative := PMYSQL_TIME(ColBind^.buffer)^.neg <> 0;
+          end;
+        FIELD_TYPE_YEAR: Result.Year := PWord(ColBind^.buffer)^;
+        FIELD_TYPE_STRING: begin
+                              Buffer := PAnsiChar(ColBind^.buffer);
+                              Len := ColBind^.Length[0];
+                              goto From_Str;
+                            end;
+        else DecodeDate(GetDouble(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}), Result.Year, Result.Month, Result.Day);
+      end else goto Fill;
+  end else begin
+    {$R-}
+    Buffer := PMYSQL_ROW(FRowHandle)[ColumnIndex];
+    Len := FLengthArray^[ColumnIndex];
+    {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+    LastWasNull := Buffer = nil;
+    if not LastWasNull then begin
+From_Str: LastWasNull := not TryPCharToDate(Buffer, Len, ConSettings^.ReadFormatSettings, Result);
+      if LastWasNull then
+Fill:  FillChar(Result, SizeOf(TZDate), #0);
+    end;
+  end;
 end;
 
 {**
@@ -1801,6 +1941,7 @@ begin
             FTinyBuffer[ColBind^.Length[0]] := 0;
             RawToFloatDef(PAnsichar(@FTinyBuffer[0]), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -1878,10 +2019,7 @@ begin
             LastWasNull := not TryRawToBCD(@FTinyBuffer[0], ColBind^.Length[0], Result, '.');
           end else
             Result := nullbcd;
-        else begin
-            Result := nullbcd;
-            RaiseConversionError(ColumnIndex);
-          end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
     else Result := nullbcd;
   end else begin
@@ -1939,7 +2077,8 @@ begin
             Result := BufferToBytes(@FTinyBuffer[0], ColBind^.Length[0] );
           end else
             Result := GetBlob(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}).GetBytes;
-      end
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
+      End;
   end else begin
     {$R-}
     Buffer := PMYSQL_ROW(FRowHandle)[ColumnIndex];
@@ -2019,6 +2158,7 @@ begin
             FTinyBuffer[ColBind^.Length[0]] := 0;
             RawToFloatDef(PAnsichar(@FTinyBuffer[0]), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
           end;
+        else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
   end else begin
     {$R-}
@@ -2034,28 +2174,37 @@ end;
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
-  a <code>java.sql.Date</code> object in the Java programming language.
+  a <code>java.sql.Time</code> object in the Java programming language.
 
   @param columnIndex the first column is 1, the second is 2, ...
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAbstractMySQLResultSet.GetDate(ColumnIndex: Integer): TDateTime;
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Timestamp</code> object in the Java programming language.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @return the column value; if the value is SQL <code>NULL</code>, the
+  value returned is <code>null</code>
+  @exception SQLException if a database access error occurs
+}
+procedure TZAbstractMySQLResultSet.GetTimeStamp(ColumnIndex: Integer;
+  var Result: TZTimeStamp);
 var
   Len: NativeUInt;
   Buffer: PAnsiChar;
-  Failed: Boolean;
   ColBind: PMYSQL_aligned_BIND;
+Label from_str, Fill;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckClosed;
-  CheckColumnConvertion(ColumnIndex, stDate);
+  CheckColumnConvertion(ColumnIndex, stTimestamp);
 {$ENDIF}
   {$IFNDEF GENERIC_INDEX}
   ColumnIndex := ColumnIndex-1;
   {$ENDIF}
-  Result := 0;
-  Failed := False;
   if fBindBufferAllocated then begin
     {$R-}
     ColBind := @FMYSQL_aligned_BINDs[ColumnIndex];
@@ -2064,37 +2213,45 @@ begin
     if not LastWasNull then
       //http://dev.mysql.com/doc/refman/5.1/de/numeric-types.html
       Case ColBind^.buffer_type_address^ of
-        FIELD_TYPE_LONG:
-          if ColBind^.is_unsigned_address^ = 0 then
-            Result := PInteger(ColBind^.buffer)^
-          else
-            Result := PCardinal(ColBind^.buffer)^;
-        FIELD_TYPE_FLOAT:     Result := PSingle(ColBind^.buffer)^;
-        FIELD_TYPE_DOUBLE:    Result := PDouble(ColBind^.buffer)^;
-        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATE, FIELD_TYPE_DATETIME,
-        FIELD_TYPE_NEWDATE:
-          if not sysUtils.TryEncodeDate(
-              PMYSQL_TIME(ColBind^.buffer)^.Year,
-              PMYSQL_TIME(ColBind^.buffer)^.Month,
-              PMYSQL_TIME(ColBind^.buffer)^.Day, Result) then
-            Result := encodeDate(1900, 1, 1);
-        FIELD_TYPE_LONGLONG:
-          if ColBind^.is_unsigned_address^ = 0
-          then Result := PInt64(ColBind^.buffer)^
-          else Result := PUInt64(ColBind^.buffer)^;
-        FIELD_TYPE_YEAR: TryEncodeDate(PWord(ColBind^.buffer)^, 1,1, Result);
-        FIELD_TYPE_STRING:
-          begin
-            if ColBind^.Length[0]  = ConSettings^.ReadFormatSettings.DateFormatLen then
-              Result := RawSQLDateToDateTime(PAnsiChar(ColBind^.buffer),
-                ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed)
-            else
-              Result := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(
-                RawSQLTimeStampToDateTime(PAnsiChar(ColBind^.buffer),
-                  ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed));
-            LastWasNull := Failed;
+        FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE: begin
+            PInt64(@Result.Hour)^ := 0;
+            PInt64(@Result.Fractions)^ := 0;
+            Result.Year := PMYSQL_TIME(ColBind^.buffer)^.Year;
+            Result.Month := PMYSQL_TIME(ColBind^.buffer)^.month;
+            Result.Day := PMYSQL_TIME(ColBind^.buffer)^.day;
+            Result.IsNegative := PMYSQL_TIME(ColBind^.buffer)^.neg <> 0;
           end;
-      end
+        FIELD_TYPE_TIME: begin
+            PInt64(@Result.Year)^ := 0;
+            Result.Hour := PMYSQL_TIME(ColBind^.buffer)^.hour;
+            Result.Minute := PMYSQL_TIME(ColBind^.buffer)^.minute;
+            Result.Second := PMYSQL_TIME(ColBind^.buffer)^.second;
+            Result.Fractions := PMYSQL_TIME(ColBind^.buffer)^.second_part * FractionLength2NanoSecondMulTable[TZColumnInfo(ColumnsInfo[ColumnIndex]).Scale];
+            Result.IsNegative := PMYSQL_TIME(ColBind^.buffer)^.neg <> 0;
+            PCardinal(@Result.TimeZoneHour)^ := 0;
+          end;
+        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME: begin
+            Result.Year := PMYSQL_TIME(ColBind^.buffer)^.Year;
+            Result.Month := PMYSQL_TIME(ColBind^.buffer)^.month;
+            Result.Day := PMYSQL_TIME(ColBind^.buffer)^.day;
+            Result.Hour := PMYSQL_TIME(ColBind^.buffer)^.hour;
+            Result.Minute := PMYSQL_TIME(ColBind^.buffer)^.minute;
+            Result.Second := PMYSQL_TIME(ColBind^.buffer)^.second;
+            Result.Fractions := PMYSQL_TIME(ColBind^.buffer)^.second_part * FractionLength2NanoSecondMulTable[TZColumnInfo(ColumnsInfo[ColumnIndex]).Scale];
+            Result.IsNegative := PMYSQL_TIME(ColBind^.buffer)^.neg <> 0;
+            PCardinal(@Result.TimeZoneHour)^ := 0;
+          end;
+        FIELD_TYPE_YEAR: begin
+            FillChar(Result, SizeOf(TZTimeStamp), #0);
+            Result.Year := PWord(ColBind^.buffer)^;
+          end;
+        FIELD_TYPE_STRING: begin
+            Buffer := PAnsiChar(ColBind^.buffer);
+            Len := ColBind^.Length[0];
+            goto from_str;
+        end;
+        else DecodeDateTimeToTimeStamp(GetDouble(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}), Result);
+      end else goto Fill;
   end else begin
     {$R-}
     Buffer := PMYSQL_ROW(FRowHandle)[ColumnIndex];
@@ -2102,11 +2259,10 @@ begin
     {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
     LastWasNull := Buffer = nil;
     if not LastWasNull then begin
-      if Len = ConSettings^.ReadFormatSettings.DateFormatLen then
-        Result := RawSQLDateToDateTime(Buffer,  Len, ConSettings^.ReadFormatSettings, Failed)
-      else
-        Result := Int(RawSQLTimeStampToDateTime(Buffer, Len, ConSettings^.ReadFormatSettings, Failed));
-      LastWasNull := Failed;
+from_str:
+      LastWasNull := not TryPCharToTimeStamp(Buffer, Len, ConSettings^.ReadFormatSettings, Result);
+      if LastWasNull then
+Fill:   FillChar(Result, SizeOf(TZTimeStamp), #0);
     end;
   end;
 end;
@@ -2120,12 +2276,13 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAbstractMySQLResultSet.GetTime(ColumnIndex: Integer): TDateTime;
+procedure TZAbstractMySQLResultSet.GetTime(ColumnIndex: Integer;
+  var Result: TZTime);
 var
   Len: NativeUInt;
   Buffer: PAnsiChar;
-  Failed: Boolean;
   ColBind: PMYSQL_aligned_BIND;
+label From_Str, Fill;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckClosed;
@@ -2134,8 +2291,6 @@ begin
   {$IFNDEF GENERIC_INDEX}
   ColumnIndex := ColumnIndex-1;
   {$ENDIF}
-  Result := 0;
-  Failed := False;
   if fBindBufferAllocated then begin
     {$R-}
     ColBind := @FMYSQL_aligned_BINDs[ColumnIndex];
@@ -2144,34 +2299,24 @@ begin
     if not LastWasNull then
       //http://dev.mysql.com/doc/refman/5.1/de/numeric-types.html
       Case ColBind^.buffer_type_address^ of
-        FIELD_TYPE_LONG:
-          if ColBind^.is_unsigned_address^ = 0
-          then Result := PInteger(ColBind^.buffer)^
-          else Result := PCardinal(ColBind^.buffer)^;
-        FIELD_TYPE_FLOAT:     Result := PSingle(ColBind^.buffer)^;
-        FIELD_TYPE_DOUBLE:    Result := PDouble(ColBind^.buffer)^;
-        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME, FIELD_TYPE_TIME:
-          if not sysUtils.TryEncodeTime(
-              PMYSQL_TIME(ColBind^.buffer)^.Hour,
-              PMYSQL_TIME(ColBind^.buffer)^.Minute,
-              PMYSQL_TIME(ColBind^.buffer)^.Second,
-              0{PMYSQL_TIME(ColBind^.buffer)^.second_part div 1000}, Result) then
-            Result := 0;
-        FIELD_TYPE_LONGLONG:
-          if ColBind^.is_unsigned_address^ = 0
-          then Result := PInt64(ColBind^.buffer)^
-          else Result := PUInt64(ColBind^.buffer)^;
-        FIELD_TYPE_YEAR: TryEncodeDate(PWord(ColBind^.buffer)^, 1,1, Result);
-        FIELD_TYPE_STRING: begin
-            if PByte(PAnsiChar(ColBind^.buffer)+2)^ = Ord(':') then //possible date if Len = 10 then
-              Result := RawSQLTimeToDateTime(PAnsiChar(ColBind^.buffer),
-                ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed)
-            else
-              Result := Frac(RawSQLTimeStampToDateTime(PAnsiChar(ColBind^.buffer),
-                ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed));
-            LastWasNull := Failed;
+        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME, FIELD_TYPE_TIME: begin
+            Result.Hour := PMYSQL_TIME(ColBind^.buffer)^.Hour;
+            Result.Minute := PMYSQL_TIME(ColBind^.buffer)^.Minute;
+            Result.Second := PMYSQL_TIME(ColBind^.buffer)^.second;
+            Result.Fractions := PMYSQL_TIME(ColBind^.buffer)^.second_part*FractionLength2NanoSecondMulTable[TZColumnInfo(ColumnsInfo[ColumnIndex]).Scale];
+            Result.IsNegative := PMYSQL_TIME(ColBind^.buffer)^.neg <> 0;
           end;
-      end
+        FIELD_TYPE_DATE,
+        FIELD_TYPE_NEWDATE,
+        FIELD_TYPE_YEAR: goto Fill;
+        FIELD_TYPE_STRING: begin
+            Buffer := ColBind^.buffer;
+            Len := ColBind^.Length[0];
+            goto From_Str;
+          end;
+        else DecodeDateTimeToTime(GetDouble(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}), Result);
+      end else
+        goto Fill;
   end else begin
     {$R-}
     Buffer := PMYSQL_ROW(FRowHandle)[ColumnIndex];
@@ -2179,109 +2324,12 @@ begin
     {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
     LastWasNull := Buffer = nil;
     if not LastWasNull then begin
-      if PByte(Buffer+2)^ = Ord(':') then //possible date if Len = 10 then
-        Result := RawSQLTimeToDateTime(Buffer,Len, ConSettings^.ReadFormatSettings, Failed)
-      else
-        Result := Frac(RawSQLTimeStampToDateTime(Buffer, Len, ConSettings^.ReadFormatSettings, Failed));
-      LastWasNull := Failed;
+From_Str:
+      LastWasNull := not TryPCharToTime(Buffer, Len, ConSettings^.ReadFormatSettings, Result);
+      if LastWasNull then
+Fill:   FillChar(Result, SizeOf(TZTime), #0);
     end;
   end;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.Timestamp</code> object in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-  value returned is <code>null</code>
-  @exception SQLException if a database access error occurs
-}
-function TZAbstractMySQLResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
-var
-  Len: NativeUInt;
-  Buffer: PAnsiChar;
-  Failed: Boolean;
-  tmp: TDateTime;
-  ColBind: PMYSQL_aligned_BIND;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckClosed;
-  CheckColumnConvertion(ColumnIndex, stTimestamp);
-{$ENDIF}
-  {$IFNDEF GENERIC_INDEX}
-  ColumnIndex := ColumnIndex-1;
-  {$ENDIF}
-  Result := 0;
-  Failed := False;
-  if fBindBufferAllocated then begin
-    {$R-}
-    ColBind := @FMYSQL_aligned_BINDs[ColumnIndex];
-    {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
-    LastWasNull := ColBind^.is_null =1;
-    if not LastWasNull then
-      //http://dev.mysql.com/doc/refman/5.1/de/numeric-types.html
-      Case ColBind^.buffer_type_address^ of
-        FIELD_TYPE_FLOAT:     Result := PSingle(ColBind^.buffer)^;
-        FIELD_TYPE_DOUBLE:    Result := PDouble(ColBind^.buffer)^;
-        FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE:
-          if not sysUtils.TryEncodeDate(
-              PMYSQL_TIME(ColBind^.buffer)^.Year,
-              PMYSQL_TIME(ColBind^.buffer)^.Month,
-              PMYSQL_TIME(ColBind^.buffer)^.Day, Result) then
-            Result := encodeDate(1900, 1, 1);
-        FIELD_TYPE_TIME: sysUtils.TryEncodeTime(
-              PMYSQL_TIME(ColBind^.buffer)^.Hour,
-              PMYSQL_TIME(ColBind^.buffer)^.Minute,
-              PMYSQL_TIME(ColBind^.buffer)^.Second,
-              0{PMYSQL_TIME(ColBind^.buffer)^.second_part div 1000}, Result);
-        FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
-          begin
-            if not sysUtils.TryEncodeDate(
-                PMYSQL_TIME(ColBind^.buffer)^.Year,
-                PMYSQL_TIME(ColBind^.buffer)^.Month,
-                PMYSQL_TIME(ColBind^.buffer)^.Day, tmp) then
-              tmp := encodeDate(1900, 1, 1);
-            if not sysUtils.TryEncodeTime(
-                PMYSQL_TIME(ColBind^.buffer)^.Hour,
-                PMYSQL_TIME(ColBind^.buffer)^.Minute,
-                PMYSQL_TIME(ColBind^.buffer)^.Second,
-                0{PMYSQL_TIME(ColBind^.buffer)^.second_part div 1000}, Result) then
-              Result := 0;
-            Result := Result + tmp;
-          end;
-        FIELD_TYPE_LONGLONG:
-          if ColBind^.is_unsigned_address^ = 0
-          then Result := PInt64(ColBind^.buffer)^
-          else Result := PUInt64(ColBind^.buffer)^;
-        FIELD_TYPE_YEAR: TryEncodeDate(PWord(ColBind^.buffer)^, 1,1, Result);
-        FIELD_TYPE_STRING: begin
-            if PByte(PAnsiChar(ColBind^.buffer)+2)^ = Ord(':') then
-              Result := RawSQLTimeToDateTime(PAnsiChar(ColBind^.buffer),
-                ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed)
-            else if (ConSettings^.ReadFormatSettings.DateTimeFormatLen - ColBind^.Length[0] ) <= 4 then
-              Result := RawSQLTimeStampToDateTime(PAnsiChar(ColBind^.buffer), ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed)
-            else
-              Result := RawSQLDateToDateTime(PAnsiChar(ColBind^.buffer), ColBind^.Length[0] , ConSettings^.ReadFormatSettings, Failed);
-            LastWasNull := Failed;
-          end;
-      end
-  end else begin
-    {$R-}
-    Buffer := PMYSQL_ROW(FRowHandle)[ColumnIndex];
-    Len := FLengthArray^[ColumnIndex];
-    {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
-    LastWasNull := Buffer = nil;
-    if not LastWasNull then
-      if PByte(Buffer+2)^ = Ord(':') then
-        Result := RawSQLTimeToDateTime(Buffer, Len, ConSettings^.ReadFormatSettings, Failed)
-      else if (ConSettings^.ReadFormatSettings.DateTimeFormatLen < Len) or ((ConSettings^.ReadFormatSettings.DateTimeFormatLen - Len) <= 4) then
-        Result := RawSQLTimeStampToDateTime(Buffer, Len, ConSettings^.ReadFormatSettings, Failed)
-      else
-        Result := RawSQLDateToDateTime(Buffer, Len, ConSettings^.ReadFormatSettings, Failed);
-  end;
-  LastWasNull := Result = 0;
 end;
 
 {**
@@ -2486,94 +2534,35 @@ begin
     end;
 end;
 
-function TZMySQLCachedResolver.FormCalculateStatement(
-  Columns: TObjectList): string;
-var
-  I: Integer;
-  Current: TZResolverParameter;
-begin
-  Result := '';
-  if Columns.Count = 0 then
-     Exit;
-
-  for I := 0 to Columns.Count - 1 do
-  begin
-    Current := TZResolverParameter(Columns[I]);
-    if Result <> '' then
-      Result := Result + ',';
-    if Current.DefaultValue <> '' then
-      Result := Result + Current.DefaultValue
-    else
-      Result := Result + 'NULL';
-  end;
-  Result := 'SELECT ' + Result;
-end;
-
 {**
   Forms a where clause for UPDATE or DELETE DML statements.
   @param Columns a collection of key columns.
   @param OldRowAccessor an accessor object to old column values.
 }
-function TZMySQLCachedResolver.FormWhereClause(Columns: TObjectList;
-  OldRowAccessor: TZRowAccessor): string;
+procedure TZMySQLCachedResolver.FormWhereClause({$IFDEF AUTOREFCOUNT}const {$ENDIF}Columns: TObjectList;
+  {$IFDEF AUTOREFCOUNT}const {$ENDIF}SQLWriter: TZSQLStringWriter;
+  {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor: TZRowAccessor; var Result: SQLString);
 var
-  I, N: Integer;
+  I: Integer;
   Current: TZResolverParameter;
+  Tmp: SQLString;
 begin
-  Result := '';
-  N := Columns.Count - WhereColumns.Count;
-
-  for I := 0 to WhereColumns.Count - 1 do
-  begin
+  if WhereColumns.Count > 0 then
+    SQLWriter.AddText(' WHERE ', Result);
+  for I := 0 to WhereColumns.Count - 1 do begin
     Current := TZResolverParameter(WhereColumns[I]);
-    if Result <> '' then
-      Result := Result + ' AND ';
-
-    Result := Result + IdentifierConvertor.Quote(Current.ColumnName);
-    if OldRowAccessor.IsNull(Current.ColumnIndex) then
-    begin
-      if not (Metadata.IsNullable(Current.ColumnIndex) = ntNullable) then
-        case OldRowAccessor.GetColumnType(Current.ColumnIndex) of
-          stDate:
-            if I > 0 then
-            begin
-              Current := TZResolverParameter(WhereColumns[I-1]);
-              Result := Result+ '=''0000-00-00'' OR '+Result + ' IS NULL';
-              Columns.Add(TZResolverParameter.Create(Current.ColumnIndex,
-              Current.ColumnName, Current.ColumnType, Current.NewValue, ''));
-            end;
-          stTime:
-            if I > 0 then
-            begin
-              Current := TZResolverParameter(WhereColumns[I-1]);
-              Result := Result+ '=''00:00:00'' OR '+Result + ' IS NULL';
-              Columns.Add(TZResolverParameter.Create(Current.ColumnIndex,
-              Current.ColumnName, Current.ColumnType, Current.NewValue, ''));
-            end;
-          stTimeStamp:
-            if I > 0 then
-            begin
-              Current := TZResolverParameter(WhereColumns[I-1]);
-              Result := Result+ '=''0000-00-00 00:00:00'' OR '+Result + ' IS NULL';
-              Columns.Add(TZResolverParameter.Create(Current.ColumnIndex,
-              Current.ColumnName, Current.ColumnType, Current.NewValue, ''));
-            end;
-          else
-            Result := Result + ' IS NULL';
-        end
-      else
-        Result := Result + ' IS NULL ';
-      Columns.Delete(N);
-    end
-    else
-    begin
-      Result := Result + '=?';
-      Inc(N);
+    if I > 0 then
+      SQLWriter.AddText(' AND ', Result);
+    if (Metadata.IsNullable(Current.ColumnIndex) = ntNullable) then begin
+      Tmp := IdentifierConvertor.Quote(Current.ColumnName);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddText('<=>?', Result); //"null safe equals" operator
+    end else begin
+      Tmp := IdentifierConvertor.Quote(Current.ColumnName);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddText('=?', Result);
     end;
   end;
-
-  if Result <> '' then
-    Result := ' WHERE ' + Result;
 end;
 {**
   Posts updates to database.

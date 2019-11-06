@@ -30,7 +30,7 @@ unit SynOleDB;
 
   Contributor(s):
   - Esteban Martin (EMartin)
-  - Pavel (mpv)
+  - Pavel Mashlyakovskii (mpv)
 
   Alternatively, the contents of this file may be used under the terms of
   either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -116,7 +116,7 @@ unit SynOleDB;
   - added TOleDBInformixConnectionProperties - by EMartin
 }
 
-{$I Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
+{$I Synopse.inc} // define HASINLINE CPU32 CPU64 OWNNORMTOUPPER
 
 interface
 
@@ -1443,7 +1443,7 @@ begin
   inherited Create(aConnection);
   fOleDBConnection := TOleDBConnection(aConnection);
   fParam.Init(TypeInfo(TOleDBStatementParamDynArray),fParams,@fParamCount);
-  fColumn.Init(TypeInfo(TSQLDBColumnPropertyDynArray),fColumns,nil,nil,nil,@fColumnCount,True);
+  fColumn.InitSpecific(TypeInfo(TSQLDBColumnPropertyDynArray),fColumns,djRawUTF8,@fColumnCount,True);
   fRowBufferSize := 16384;
   fAlignBuffer := true;
 end;
@@ -2596,7 +2596,7 @@ begin
       end;
     SynDBLog.Add.Log(sllDB,'CreateDatabase for "%" returned %',[ConnectionString,ord(result)]);
   finally
-    VarClear(DB);
+    DB := null;
     Catalog := nil;
     CoUninit;
   end;

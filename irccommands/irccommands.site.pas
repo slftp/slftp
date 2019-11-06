@@ -438,6 +438,9 @@ begin
         irc_addtext(Netname, Channel, 'Remove <b>catches</b> failed : %s', [E.Message]);
     end;
 
+    if not RemoveStats(sitename) then
+      irc_addtext(Netname, Channel, '<b>Stats info remove</b> failed');
+
     try
       sitesdat.EraseSection('site-' + sitename);
     except
@@ -893,7 +896,7 @@ begin
     s.SetRankLock(section, 0);
     RulesRemove(sitename, section);
     RemoveRanks(sitename, section);
-    RemoveStats(sitename, section);
+    // stats are not removed by section, only when site is deleted
     RemoveSpeedStats(sitename, section);
     irc_addtext(Netname, Channel, 'Section <b>%s</b> removed from site <b>%s</b>', [section, s.Name]);
   end

@@ -93,6 +93,8 @@ type
     //finally the object types
     stArray, stDataSet);
 
+  TZSQLTypeArray = array of TZSQLType;
+
   /// <summary>
   ///  Defines a transaction isolation level.
   /// </summary>
@@ -203,6 +205,7 @@ type
   IZResultSet = interface;
   IZResultSetMetadata = interface;
   IZBlob = interface;
+  IZClob = interface;
   IZNotification = interface;
   IZSequence = interface;
   IZDataSet = interface;
@@ -1159,8 +1162,6 @@ type
     function ExecuteUpdatePrepared: Integer;
     function ExecutePrepared: Boolean;
 
-    procedure SetDefaultValue(ParameterIndex: Integer; const Value: string);
-
     procedure SetNull(ParameterIndex: Integer; SQLType: TZSQLType);
     procedure SetBoolean(ParameterIndex: Integer; Value: Boolean);
     procedure SetByte(ParameterIndex: Integer; Value: Byte);
@@ -1175,7 +1176,6 @@ type
     procedure SetDouble(ParameterIndex: Integer; const Value: Double);
     procedure SetCurrency(ParameterIndex: Integer; const Value: Currency);
     procedure SetBigDecimal(ParameterIndex: Integer; const Value: TBCD);
-    //procedure SetPChar(ParameterIndex: Integer; Value: PChar);
     procedure SetCharRec(ParameterIndex: Integer; const Value: TZCharRec);
     procedure SetString(ParameterIndex: Integer; const Value: String);
     procedure SetUnicodeString(ParameterIndex: Integer; const Value: ZWideString); //AVZ
@@ -1188,9 +1188,12 @@ type
     procedure SetUTF8String(ParameterIndex: Integer; const Value: UTF8String);
     {$ENDIF}
     procedure SetRawByteString(ParameterIndex: Integer; const Value: RawByteString);
-    procedure SetDate(ParameterIndex: Integer; const Value: TDateTime);
-    procedure SetTime(ParameterIndex: Integer; const Value: TDateTime);
-    procedure SetTimestamp(ParameterIndex: Integer; const Value: TDateTime);
+    procedure SetDate(ParameterIndex: Integer; const Value: TDateTime); overload;
+    procedure SetDate(ParameterIndex: Integer; const Value: TZDate); overload;
+    procedure SetTime(ParameterIndex: Integer; const Value: TDateTime); overload;
+    procedure SetTime(ParameterIndex: Integer; const Value: TZTime); overload;
+    procedure SetTimestamp(ParameterIndex: Integer; const Value: TDateTime); overload;
+    procedure SetTimestamp(ParameterIndex: Integer; const Value: TZTimeStamp); overload;
     procedure SetAsciiStream(ParameterIndex: Integer; const Value: TStream);
     procedure SetUnicodeStream(ParameterIndex: Integer; const Value: TStream);
     procedure SetBinaryStream(ParameterIndex: Integer; const Value: TStream);
@@ -1198,6 +1201,50 @@ type
     procedure SetValue(ParameterIndex: Integer; const Value: TZVariant);
     procedure SetNullArray(ParameterIndex: Integer; const SQLType: TZSQLType; const Value; const VariantType: TZVariantType = vtNull);
     procedure SetDataArray(ParameterIndex: Integer; const Value; const SQLType: TZSQLType; const VariantType: TZVariantType = vtNull);
+
+    procedure RegisterParameter(ParameterIndex: Integer; SQLType: TZSQLType;
+      ParamType: TZProcedureColumnType; const Name: String = ''; PrecisionOrSize: LengthInt = 0;
+      {%H-}Scale: LengthInt = 0);
+
+    //======================================================================
+    // Methods for accessing out parameters by index
+    //======================================================================
+    function IsNull(Index: Integer): Boolean;
+    function GetBoolean(ParameterIndex: Integer): Boolean;
+    function GetByte(ParameterIndex: Integer): Byte;
+    function GetShort(ParameterIndex: Integer): ShortInt;
+    function GetWord(ParameterIndex: Integer): Word;
+    function GetSmall(ParameterIndex: Integer): SmallInt;
+    function GetUInt(ParameterIndex: Integer): Cardinal;
+    function GetInt(ParameterIndex: Integer): Integer;
+    function GetULong(ParameterIndex: Integer): UInt64;
+    function GetLong(ParameterIndex: Integer): Int64;
+    function GetFloat(ParameterIndex: Integer): Single;
+    function GetDouble(ParameterIndex: Integer): Double;
+    function GetCurrency(ParameterIndex: Integer): Currency;
+    procedure GetBigDecimal(ParameterIndex: Integer; var Result: TBCD);
+    procedure GetGUID(Index: Integer; var Result: TGUID);
+    function GetBytes(ParameterIndex: Integer): TBytes; overload;
+    function GetDate(ParameterIndex: Integer): TDateTime; overload;
+    procedure GetDate(ParameterIndex: Integer; Var Result: TZDate); overload;
+    function GetTime(ParameterIndex: Integer): TDateTime; overload;
+    procedure GetTime(ParameterIndex: Integer; Var Result: TZTime); overload;
+    function GetTimestamp(ParameterIndex: Integer): TDateTime; overload;
+    procedure GetTimeStamp(Index: Integer; var Result: TZTimeStamp); overload;
+    function GetValue(ParameterIndex: Integer): TZVariant;
+
+    function GetString(ParameterIndex: Integer): String;
+    {$IFNDEF NO_ANSISTRING}
+    function GetAnsiString(ParameterIndex: Integer): AnsiString;
+    {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}
+    function GetUTF8String(ParameterIndex: Integer): UTF8String;
+    {$ENDIF}
+    function GetRawByteString(ParameterIndex: Integer): RawByteString;
+    function GetUnicodeString(ParameterIndex: Integer): ZWideString;
+
+    function GetBLob(ParameterIndex: Integer): IZBlob;
+    //function GetCLob(ParameterIndex: Integer): IZClob;
 
     procedure ClearParameters;
   end;
@@ -1219,46 +1266,6 @@ type
 
     procedure RegisterOutParameter(ParameterIndex: Integer; SQLType: Integer); //deprecated;
     procedure RegisterParamType(ParameterIndex:integer;ParamType:Integer); //deprecated;
-
-(*    procedure RegisterParameter(ParameterIndex: Integer; SQLType: TZSQLType;
-      ParamType: TZProcedureColumnType; const Name: String = ''; PrecisionOrSize: LengthInt = 0;
-      {%H-}Scale: LengthInt = 0);
-*)
-    function IsNull(ParameterIndex: Integer): Boolean;
-    function GetPChar(ParameterIndex: Integer): PChar;
-    function GetString(ParameterIndex: Integer): String;
-    {$IFNDEF NO_ANSISTRING}
-    function GetAnsiString(ParameterIndex: Integer): AnsiString;
-    {$ENDIF}
-    {$IFNDEF NO_UTF8STRING}
-    function GetUTF8String(ParameterIndex: Integer): UTF8String;
-    {$ENDIF}
-    function GetRawByteString(ParameterIndex: Integer): RawByteString;
-    function GetUnicodeString(ParameterIndex: Integer): ZWideString;
-    function GetBoolean(ParameterIndex: Integer): Boolean;
-    function GetByte(ParameterIndex: Integer): Byte;
-    function GetShort(ParameterIndex: Integer): ShortInt;
-    function GetWord(ParameterIndex: Integer): Word;
-    function GetSmall(ParameterIndex: Integer): SmallInt;
-    function GetUInt(ParameterIndex: Integer): Cardinal;
-    function GetInt(ParameterIndex: Integer): Integer;
-    function GetULong(ParameterIndex: Integer): UInt64;
-    function GetLong(ParameterIndex: Integer): Int64;
-    function GetFloat(ParameterIndex: Integer): Single;
-    function GetDouble(ParameterIndex: Integer): Double;
-    function GetCurrency(ParameterIndex: Integer): Currency;
-    procedure GetBigDecimal(ParameterIndex: Integer; var Result: TBCD);
-    function GetBytes(ParameterIndex: Integer): TBytes;
-    function GetDate(ParameterIndex: Integer): TDateTime;
-    function GetTime(ParameterIndex: Integer): TDateTime;
-    function GetTimeStamp(ParameterIndex: Integer): TDateTime;
-    function GetValue(ParameterIndex: Integer): TZVariant;
-  end;
-
-  IZParamNamedCallableStatement = interface(IZCallableStatement)
-    ['{99882891-81B2-4F3E-A3D7-35B6DCAA7136}']
-    procedure RegisterParamTypeAndName(const ParameterIndex:integer;
-      const ParamTypeName: String; const ParamName: String; Const ColumnSize, Precision: Integer);
   end;
 
   /// <summary>
@@ -1323,10 +1330,14 @@ type
     function GetDouble(ColumnIndex: Integer): Double;
     function GetCurrency(ColumnIndex: Integer): Currency;
     procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+    procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
     function GetBytes(ColumnIndex: Integer): TBytes;
-    function GetDate(ColumnIndex: Integer): TDateTime;
-    function GetTime(ColumnIndex: Integer): TDateTime;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime;
+    function GetDate(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); overload;
+    function GetTime(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetTime(ColumnIndex: Integer; Var Result: TZTime); overload;
+    function GetTimestamp(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp); overload;
     function GetAsciiStream(ColumnIndex: Integer): TStream;
     function GetUnicodeStream(ColumnIndex: Integer): TStream;
     function GetBinaryStream(ColumnIndex: Integer): TStream;
@@ -1367,10 +1378,14 @@ type
     function GetDoubleByName(const ColumnName: string): Double;
     function GetCurrencyByName(const ColumnName: string): Currency;
     procedure GetBigDecimalByName(const ColumnName: string; var Result: TBCD);
+    procedure GetGUIDByName(const ColumnName: string; var Result: TGUID);
     function GetBytesByName(const ColumnName: string): TBytes;
-    function GetDateByName(const ColumnName: string): TDateTime;
-    function GetTimeByName(const ColumnName: string): TDateTime;
-    function GetTimestampByName(const ColumnName: string): TDateTime;
+    function GetDateByName(const ColumnName: string): TDateTime; overload;
+    procedure GetDateByName(const ColumnName: string; var Result: TZDate); overload;
+    function GetTimeByName(const ColumnName: string): TDateTime; overload;
+    procedure GetTimeByName(const ColumnName: string; Var Result: TZTime); overload;
+    function GetTimestampByName(const ColumnName: string): TDateTime; overload;
+    procedure GetTimeStampByName(const ColumnName: string; var Result: TZTimeStamp); overload;
     function GetAsciiStreamByName(const ColumnName: string): TStream;
     function GetUnicodeStreamByName(const ColumnName: string): TStream;
     function GetBinaryStreamByName(const ColumnName: string): TStream;
@@ -1444,6 +1459,7 @@ type
     procedure UpdateDouble(ColumnIndex: Integer; const Value: Double);
     procedure UpdateCurrency(ColumnIndex: Integer; const Value: Currency);
     procedure UpdateBigDecimal(ColumnIndex: Integer; const Value: TBCD);
+    procedure UpdateGUID(ColumnIndex: Integer; const Value: TGUID);
     procedure UpdatePChar(ColumnIndex: Integer; Value: PChar);
     procedure UpdatePAnsiChar(ColumnIndex: Integer; Value: PAnsiChar); overload;
     procedure UpdatePAnsiChar(ColumnIndex: Integer; Value: PAnsiChar; var Len: NativeUInt); overload;
@@ -1459,9 +1475,12 @@ type
     procedure UpdateRawByteString(ColumnIndex: Integer; const Value: RawByteString);
     procedure UpdateUnicodeString(ColumnIndex: Integer; const Value: ZWideString);
     procedure UpdateBytes(ColumnIndex: Integer; const Value: TBytes);
-    procedure UpdateDate(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTime(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TDateTime);
+    procedure UpdateDate(ColumnIndex: Integer; const Value: TDateTime); overload;
+    procedure UpdateDate(ColumnIndex: Integer; const Value: TZDate); overload;
+    procedure UpdateTime(ColumnIndex: Integer; const Value: TDateTime); overload;
+    procedure UpdateTime(ColumnIndex: Integer; const Value: TZTime); overload;
+    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TDateTime); overload;
+    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TZTimeStamp); overload;
     procedure UpdateAsciiStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateUnicodeStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateBinaryStream(ColumnIndex: Integer; const Value: TStream);
@@ -1487,6 +1506,7 @@ type
     procedure UpdateCurrencyByName(const ColumnName: string; const Value: Currency);
     procedure UpdateDoubleByName(const ColumnName: string; const Value: Double);
     procedure UpdateBigDecimalByName(const ColumnName: string; const Value: TBCD);
+    procedure UpdateGUIDByName(const ColumnName: string; const Value: TGUID);
     procedure UpdatePAnsiCharByName(const ColumnName: string; Value: PAnsiChar); overload; deprecated;
     procedure UpdatePAnsiCharByName(const ColumnName: string; Value: PAnsiChar; var Len: NativeUInt); overload;
     procedure UpdatePCharByName(const ColumnName: string; const Value: PChar); deprecated;
@@ -1502,9 +1522,12 @@ type
     procedure UpdateRawByteStringByName(const ColumnName: string; const Value: RawByteString);
     procedure UpdateUnicodeStringByName(const ColumnName: string; const Value: ZWideString);
     procedure UpdateBytesByName(const ColumnName: string; const Value: TBytes);
-    procedure UpdateDateByName(const ColumnName: string; const Value: TDateTime);
-    procedure UpdateTimeByName(const ColumnName: string; const Value: TDateTime);
-    procedure UpdateTimestampByName(const ColumnName: string; const Value: TDateTime);
+    procedure UpdateDateByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateDateByName(const ColumnName: string; const Value: TZDate); overload;
+    procedure UpdateTimeByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateTimeByName(const ColumnName: string; const Value: TZTime); overload;
+    procedure UpdateTimestampByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateTimestampByName(const ColumnName: string; const Value: TZTimeStamp); overload;
     procedure UpdateAsciiStreamByName(const ColumnName: string; const Value: TStream);
     procedure UpdateUnicodeStreamByName(const ColumnName: string; const Value: TStream);
     procedure UpdateBinaryStreamByName(const ColumnName: string; const Value: TStream);
@@ -1564,6 +1587,7 @@ type
 
     function IsSigned(ColumnIndex: Integer): Boolean;
     function GetColumnLabel(ColumnIndex: Integer): string;
+    function GetOrgColumnLabel(ColumnIndex: Integer): string;
     function GetColumnName(ColumnIndex: Integer): string;
     function GetColumnCodePage(ColumnIndex: Integer): Word;
     function GetSchemaName(ColumnIndex: Integer): string;
@@ -1580,16 +1604,25 @@ type
     function HasDefaultValue(ColumnIndex: Integer): Boolean;
   end;
 
-  /// <summary>
-  ///   External or internal blob wrapper object.
-  /// </summary>
-  IZBlob = interface(IZInterface)
-    ['{47D209F1-D065-49DD-A156-EFD1E523F6BF}']
-
+  IZLob = interface(IZInterface)
+    ['{DCF816A4-F21C-4FBB-837B-A12DCF886A6F}']
     function IsEmpty: Boolean;
     function IsUpdated: Boolean;
     function IsClob: Boolean;
     function Length: Integer;
+    procedure Clear;
+    function GetBufferAddress: PPointer;
+    function GetLengthAddress: PInteger;
+    {$IFDEF WITH_MM_CAN_REALLOC_EXTERNAL_MEM}
+    procedure SetBlobData(const Buffer: Pointer; const Len: Cardinal; const CodePage: Word); overload;
+    {$ENDIF}
+  end;
+  /// <summary>
+  ///   External or internal blob wrapper object.
+  /// </summary>
+  IZBlob = interface(IZLob)
+    ['{47D209F1-D065-49DD-A156-EFD1E523F6BF}']
+
 
     function GetString: RawByteString;
     procedure SetString(const Value: RawByteString);
@@ -1603,7 +1636,6 @@ type
     procedure SetBlobData(const Buffer: Pointer; const Len: Cardinal); overload;
     {$ENDIF}
 
-    procedure Clear;
     function Clone(Empty: Boolean = False): IZBlob;
 
     {Clob operations}
@@ -1628,12 +1660,12 @@ type
     procedure SetPAnsiChar(const Buffer: PAnsiChar; const CodePage: Word; const Len: Cardinal);
     function GetPWideChar: PWideChar;
     procedure SetPWideChar(const Buffer: PWideChar; const Len: Cardinal);
-    function GetBufferAddress: PPointer;
-    function GetLengthAddress: PInteger;
-    {$IFDEF WITH_MM_CAN_REALLOC_EXTERNAL_MEM}
-    procedure SetBlobData(const Buffer: Pointer; const Len: Cardinal; const CodePage: Word); overload;
-    {$ENDIF}
   end;
+
+  IZClob = interface(IZBlob)
+    ['{2E0ED2FE-5F9F-4752-ADCB-EFE92E39FF94}']
+  end;
+
   PIZLob = ^IZBlob;
   IZLobDynArray = array of IZBLob;
 
@@ -1699,7 +1731,8 @@ type
     FLoggingListeners: IZCollection;
     FGarbageCollector: IZCollection;
     FHasLoggingListener: Boolean;
-    procedure LogEvent(const Event: TZLoggingEvent);
+    procedure InternalLogEvent(const Event: TZLoggingEvent);
+    function InternalGetDriver(const Url: string): IZDriver;
   public
     constructor Create;
     destructor Destroy; override;
@@ -1793,22 +1826,11 @@ begin
 end;
 
 function TZDriverManager.GetDriver(const Url: string): IZDriver;
-var
-  I: Integer;
-  Current: IZDriver;
 begin
   FDriversCS.Enter;
   Result := nil;
   try
-    for I := 0 to FDrivers.Count - 1 do
-    begin
-      Current := FDrivers[I] as IZDriver;
-      if Current.AcceptsURL(Url) then
-      begin
-        Result := Current;
-        Exit;
-      end;
-    end;
+    Result := InternalGetDriver(URL);
   finally
     FDriversCS.Leave;
   end;
@@ -1819,34 +1841,53 @@ function TZDriverManager.GetConnectionWithParams(const Url: string; Info: TStrin
 var
   Driver: IZDriver;
 begin
-  Driver := GetDriver(Url);
-  if Driver = nil then
-    raise EZSQLException.Create(SDriverWasNotFound);
-  Result := Driver.Connect(Url, Info);
+  FDriversCS.Enter;
+  Driver := nil;
+  try
+    Driver := InternalGetDriver(URL);
+    if Driver = nil then
+      raise EZSQLException.Create(SDriverWasNotFound);
+    Result := Driver.Connect(Url, Info);
+  finally
+    FDriversCS.Leave;
+  end;
 end;
 
 function TZDriverManager.GetClientVersion(const Url: string): Integer;
 var
   Driver: IZDriver;
 begin
-  Driver := GetDriver(Url);
-  if Driver = nil then
-    raise EZSQLException.Create(SDriverWasNotFound);
-  Result := Driver.GetClientVersion(Url);
+  FDriversCS.Enter;
+  Result := 0;
+  try
+    Driver := InternalGetDriver(URL);
+    if Driver = nil then
+      raise EZSQLException.Create(SDriverWasNotFound);
+    Result := GetClientVersion(Url);
+  finally
+    FDriversCS.Leave;
+  end;
 end;
 
 function TZDriverManager.GetConnectionWithLogin(const Url: string; const User: string;
   const Password: string): IZConnection;
 var
   Info: TStrings;
+  Driver: IZDriver;
 begin
+  FDriversCS.Enter;
   Info := TStringList.Create;
+  Result := nil;
   try
     Info.Values[ConnProps_Username] := User;
     Info.Values[ConnProps_Password] := Password;
-    Result := GetConnectionWithParams(Url, Info);
+    Driver := InternalGetDriver(URL);
+    if Driver = nil then
+      raise EZSQLException.Create(SDriverWasNotFound);
+    Result := Driver.Connect(Url, Info);
   finally
-    Info.Free;
+    FreeAndNil(Info);
+    FDriversCS.Leave;
   end;
 end;
 
@@ -1892,24 +1933,51 @@ begin
   Result := FHasLoggingListener;
 end;
 
+function TZDriverManager.InternalGetDriver(const Url: string): IZDriver;
+var I: Integer;
+begin
+  Result := nil;
+  for I := 0 to FDrivers.Count - 1 do
+    if (FDrivers[I].QueryInterface(IZDriver, Result) = S_OK) and Result.AcceptsURL(Url) then
+      Exit;
+  Result := nil;
+end;
+
+{**
+  Logs an error message about event with error result code.
+  @param Category a category of the message.
+  @param Protocol a name of the protocol.
+  @param Msg a description message.
+  @param ErrorCode an error code.
+  @param Error an error message.
+}
 procedure TZDriverManager.LogError(Category: TZLoggingCategory;
   const Protocol: RawByteString; const Msg: RawByteString; ErrorCode: Integer;
   const Error: RawByteString);
 var
   Event: TZLoggingEvent;
 begin
-  if not FHasLoggingListener then
-    Exit;
-  Event := TZLoggingEvent.Create(Category, Protocol, Msg, ErrorCode, Error);
+  Event := nil;
+  FLogCS.Enter;
   try
-    LogEvent(Event);
+    if not FHasLoggingListener then
+      Exit;
+    Event := TZLoggingEvent.Create(Category, Protocol, Msg, ErrorCode, Error);
+    InternalLogEvent(Event);
   finally
-    {$IFDEF AUTOREFCOUNT}
-    Event := nil;
-    {$ELSE}
-    Event.Free;
-    {$ENDIF}
+    FreeAndNil(Event);
+    FLogCS.Leave;
   end;
+end;
+
+procedure TZDriverManager.InternalLogEvent(const Event: TZLoggingEvent);
+var
+  I: Integer;
+  Listener: IZLoggingListener;
+begin
+  for I := 0 to FLoggingListeners.Count - 1 do
+    if FLoggingListeners[I].QueryInterface(IZLoggingListener, Listener) = S_OK then
+      Listener.LogEvent(Event);
 end;
 
 {**
@@ -1917,37 +1985,23 @@ end;
   @param Category a category of the message.
   @param Protocol a name of the protocol.
   @param Msg a description message.
-  @param ErrorCode an error code.
-  @param Error an error message.
 }
-procedure TZDriverManager.LogEvent(const Event: TZLoggingEvent);
-var
-  I: Integer;
-  Listener: IZLoggingListener;
-begin
-  if not FHasLoggingListener then
-    Exit;
-  FLogCS.Enter;
-  try
-    for I := 0 to FLoggingListeners.Count - 1 do
-    begin
-      Listener := FLoggingListeners[I] as IZLoggingListener;
-      try
-        Listener.LogEvent(Event);
-      except
-      end;
-    end;
-  finally
-    FLogCS.Leave;
-  end;
-end;
-
 procedure TZDriverManager.LogMessage(Category: TZLoggingCategory;
   const Protocol: RawByteString; const Msg: RawByteString);
+var
+  Event: TZLoggingEvent;
 begin
-  if not FHasLoggingListener then
-    Exit;
-  LogError(Category, Protocol, Msg, 0, EmptyRaw);
+  Event := nil;
+  FLogCS.Enter;
+  try
+    if not FHasLoggingListener then
+      Exit;
+    Event := TZLoggingEvent.Create(Category, Protocol, Msg, 0, EmptyRaw);
+    InternalLogEvent(Event);
+  finally
+    FreeAndNil(Event);
+    FLogCS.Leave;
+  end;
 end;
 
 procedure TZDriverManager.LogMessage(const Category: TZLoggingCategory;
@@ -1955,13 +2009,17 @@ procedure TZDriverManager.LogMessage(const Category: TZLoggingCategory;
 var
   Event: TZLoggingEvent;
 begin
-  if not FHasLoggingListener then
-    Exit;
-  Event := Sender.CreateLogEvent(Category);
-  If Assigned(Event) then
-  begin
-    LogEvent(Event);
-    Event.Free;
+  Event := nil;
+  FLogCS.Enter;
+  try
+    if not FHasLoggingListener then
+      Exit;
+    Event := Sender.CreateLogEvent(Category);
+    if Event <> nil then
+      InternalLogEvent(Event);
+  finally
+    FreeAndNil(Event);
+    FLogCS.Leave;
   end;
 end;
 
@@ -1984,18 +2042,23 @@ function TZDriverManager.ConstructURL(const Protocol, HostName, Database,
   const Properties: TStrings = nil; const LibLocation: String = ''): String;
 var ZURL: TZURL;
 begin
+  FDriversCS.Enter;
   ZURL := TZURL.Create;
-  ZURL.Protocol := Protocol;
-  ZURL.HostName := HostName;
-  ZURL.Database := DataBase;
-  ZURL.UserName := UserName;
-  ZURL.Password := Password;
-  ZURL.Port := Port;
-  if Assigned(Properties) then
-    ZURL.Properties.AddStrings(Properties);
-  ZURL.LibLocation := LibLocation;
-  Result := ZURL.URL;
-  ZURL.Free;
+  try
+    ZURL.Protocol := Protocol;
+    ZURL.HostName := HostName;
+    ZURL.Database := DataBase;
+    ZURL.UserName := UserName;
+    ZURL.Password := Password;
+    ZURL.Port := Port;
+    if Assigned(Properties) then
+      ZURL.Properties.AddStrings(Properties);
+    ZURL.LibLocation := LibLocation;
+    Result := ZURL.URL;
+  finally
+    FDriversCS.Leave;
+    FreeAndNil(ZURL);
+  end;
 end;
 
 initialization
