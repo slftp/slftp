@@ -59,7 +59,7 @@
     4. delete slftp.pem, not needed!
     5. delete slftp.languages, not needed!
     6. delete your old slftp.news file (if existing)
-    7. delete your old stats.db file due to a wrong UNIQUE INDEX setting (if existing)
+    7. delete your old stats.db file (different table scheme)
     8. create a folder 'databases' in slftp dir and move your databases into it
     9. if you have problems with reusing existing databases, delete all .db files
 
@@ -78,6 +78,7 @@
     {+} Box Office Mojo support
     {+} New HTTP Library (up to 50% faster) with Socks5 support and SSL version negotiation
     {+} News System to store important messages to encrypted file. (#173, #164, #198)
+    {+} New race stats database based on mORMot object-relational mapping
     {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
     {+} Wildcard/Regex (Masks) support for midnight sections
     {+} New !affils command.
@@ -161,8 +162,9 @@
     {^} language detection for releases highly improved
     {^} improved stripping of scene tags before tv lookup
     {^} Allow !check and !batch for GROUP chans
-    {^} Replaced !help with !nhelp which provides much more functionality
+    {^} Replaced old !help code with recently introduced !nhelp code because it provides much more functionality
     {^} Rename !reloadglobalskip to !globalskipreload
+    {^} !stop can be used with Pazo ID and Releasename
     {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
@@ -172,6 +174,7 @@
     {-} Remove !lame and associated classes
     {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
     {-} Remove !nologinmsg, breaks many cmds due to missing responses
+    {-} Remove !nhelp cmd, code moved into !help function
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **

@@ -322,7 +322,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, statsunit, tasklogin, dbaddnfo, contnrs, slmasks,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist,
   globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
@@ -943,7 +943,7 @@ begin
     end
     else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
-      psource.dirlist.SetCompleteInfoFromIrc;
+      psource.dirlist.SetCompleteInfo(FromIrc);
       psource.SetComplete(cdno);
     end;
 
@@ -2987,34 +2987,6 @@ begin
               on E: Exception do
               begin
                 Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
-              end;
-            end;
-
-            for j := 0 to p.PazoSitesList.Count - 1 do
-            begin
-              try
-                if j > p.PazoSitesList.Count then
-                  Break;
-              except
-                Break;
-              end;
-              try
-                ps := TPazoSite(p.PazoSitesList[j]);
-                if (ps.dirlist = nil) then
-                  Continue;
-
-                s := FindSiteByName('', ps.Name);
-                if s = nil then
-                  Continue;
-
-                statsProcessDirlist(ps.dirlist, ps.Name, p.rls.section, s.UserName);
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, rsections,
-                    Format('[EXCEPTION] TKBThread.Execute statsProcessDirlist : %s',
-                    [e.Message]));
-                end;
               end;
             end;
 

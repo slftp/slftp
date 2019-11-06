@@ -55,7 +55,7 @@ unit mORMotWrappers;
 
 }
 
-{$I Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
+{$I Synopse.inc} // define HASINLINE CPU32 CPU64 OWNNORMTOUPPER
 
 interface
 
@@ -246,9 +246,14 @@ function GenerateAsynchServices(const services: array of TGUID;
 
 
 type
+  /// the options retrieved during a ExecuteFromCommandLine() call
+  TServiceClientCommandLineOptions = set of (cloPrompt,
+    cloNoColor, cloPipe, cloHeaders, cloVerbose, cloNoExpand, cloNoBody);
+
   /// event handler to let ExecuteFromCommandLine call a remote server
   // - before call, aParams.InBody will be set with the expected JSON content
-  TOnCommandLineCall = procedure(const aService: TInterfaceFactory; aMethod: PServiceMethod;
+  TOnCommandLineCall = procedure(aOptions: TServiceClientCommandLineOptions;
+    const aService: TInterfaceFactory; aMethod: PServiceMethod;
     var aParams: TSQLRestURIParams) of object;
 
 const
@@ -607,6 +612,7 @@ begin
     with meth.Args[a] do begin
       arg := ContextFromInfo(TYPES_SOA[ValueType],'',ArgTypeInfo);
       arg.argName := ParamName^;
+      arg.argType := ArgTypeName^;							  
       arg.dir := ord(ValueDirection);
       arg.dirName := DIRTODELPHI[ValueDirection];
       arg.dirNoOut := DIRTOSMS[ValueDirection]; // no OUT in DWS/SMS -> VAR instead
@@ -903,7 +909,7 @@ begin
   if not VarIsEmptyOrNull(info) then // null e.g. for a record without custom text definition
     list.AddItem(info);
 end;
-var siz: integer;
+var siz, i: integer;
     enum: PEnumType;
 begin
   if typ=wUnknown then begin
@@ -924,8 +930,12 @@ begin
     end;
   end;
   if typName='' then begin
-    if typInfo<>nil then
-      TypeInfoToQualifiedName(typInfo,typName) else
+    if typInfo<>nil then begin
+      TypeInfoToQualifiedName(typInfo,typName);
+      i := PosExChar('.',typName);
+      if i>0 then
+        typName := trim(copy(typName,i+1,maxInt)); // trim unit name
+    end else
       typName := TYPES_LANG[lngDelphi,typ];
   end;
   if (typ=wRecord) and IdemPropNameU(typName,'TGUID') then
@@ -1427,9 +1437,6 @@ end;
 { TServiceClientCommandLine }
 
 type
-  TServiceClientCommandLineOptions = set of (
-    cloNoColor, cloPipe, cloHeaders, cloVerbose, cloNoExpand, cloNoBody);
-
   /// a class implementing ExecuteFromCommandLine()
   TServiceClientCommandLine = class(TSynPersistent)
   protected
@@ -1525,6 +1532,7 @@ end;
 
 procedure TServiceClientCommandLine.ShowHelp;
 begin
+  ToConsole('% %'#13#10, [fExe, ExeVersion.Version.DetailedOrVoid], ccLightGreen);
   ToConsole(EXECUTEFROMCOMMANDLINEHELP, [fExe, fExe, fExe, fExe]);
 end;
 
@@ -1614,7 +1622,7 @@ begin
   if not Assigned(fOnCall) then
     raise EServiceException.CreateUTF8('No Client available to call %',
       [method.InterfaceDotMethodName]);
-  fOnCall(service, method, call); // will set URI + Bearer
+  fOnCall(fOptions, service, method, call); // will set URI + Bearer
   if [cloVerbose, cloHeaders] * fOptions <> [] then
     ToConsole('HTTP %'#13#10'%', [call.OutStatus, call.OutHead], ccLightGray);
   if (call.OutBody <> '') and (call.OutBody[1] = '[') then

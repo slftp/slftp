@@ -3,7 +3,7 @@ unit tasktvinfolookup;
 interface
 
 uses
-  Classes, pazo, tasksunit, taskrace, xmlwrapper, dbtvinfo, StrUtils;
+  Classes, pazo, tasksunit, taskrace, dbtvinfo, StrUtils;
 
 type
   TPazoTVInfoLookupTask = class(TPazoPlainTask)

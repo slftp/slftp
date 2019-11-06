@@ -39,7 +39,7 @@ unit SynCrtSock;
   - Maciej Izak (hnb)
   - Marius Maximus
   - Mr Yang (ysair)
-  - Pavel (mpv)
+  - Pavel Mashlyakovskii (mpv)
   - Willo vd Merwe
 
   Alternatively, the contents of this file may be used under the terms of
@@ -223,7 +223,7 @@ unit SynCrtSock;
 
 }
 
-{$I Synopse.inc} // define HASINLINE CPU32 CPU64 ONLYUSEHTTPSOCKET
+{$I Synopse.inc} // define HASINLINE ONLYUSEHTTPSOCKET USELIBCURL SYNCRTDEBUGLOW
 
 {.$define SYNCRTDEBUGLOW}
 // internal use: enable some low-level log messages for HTTP socket debugging
@@ -240,6 +240,12 @@ uses
   SynCommons,
   SynLog,
 {$endif SYNCRTDEBUGLOW}
+{$ifdef USELIBCURL}
+  SynCurl,
+{$endif USELIBCURL}
+{$ifdef FPC}
+  dynlibs,
+{$endif FPC}
 {$ifdef MSWINDOWS}
   Windows,
   SynWinSock,
@@ -1151,6 +1157,12 @@ type
   // contain the proper 'Content-type: ....'
   TOnHttpServerRequest = function(Ctxt: THttpServerRequest): cardinal of object;
 
+  /// event handler used by THttpServerGeneric.OnAfterResponse property
+  // - Ctxt defines both input and output parameters
+  // - Code defines the HTTP response code the (200 if OK, e.g.)
+  TOnHttpServerAfterResponse = procedure(Ctxt: THttpServerRequest;
+    const Code: cardinal) of object;
+
   /// event handler used by THttpServerGeneric.OnBeforeBody property
   // - if defined, is called just before the body is retrieved from the client
   // - supplied parameters reflect the current input state
@@ -1187,7 +1199,7 @@ type
     fOnBeforeBody: TOnHttpServerBeforeBody;
     fOnBeforeRequest: TOnHttpServerRequest;
     fOnAfterRequest: TOnHttpServerRequest;
-    fOnAfterResponse: TOnHttpServerRequest;
+    fOnAfterResponse: TOnHttpServerAfterResponse;
     fMaximumAllowedContentLength: cardinal;
     /// list of all registered compression algorithms
     fCompress: THttpSocketCompressRecDynArray;
@@ -1204,7 +1216,7 @@ type
     procedure SetOnBeforeBody(const aEvent: TOnHttpServerBeforeBody); virtual;
     procedure SetOnBeforeRequest(const aEvent: TOnHttpServerRequest); virtual;
     procedure SetOnAfterRequest(const aEvent: TOnHttpServerRequest); virtual;
-    procedure SetOnAfterResponse(const aEvent: TOnHttpServerRequest); virtual;
+    procedure SetOnAfterResponse(const aEvent: TOnHttpServerAfterResponse); virtual;
     procedure SetMaximumAllowedContentLength(aMax: cardinal); virtual;
     procedure SetRemoteIPHeader(const aHeader: SockString); virtual;
     procedure SetRemoteConnIDHeader(const aHeader: SockString); virtual;
@@ -1212,7 +1224,8 @@ type
     procedure SetHTTPQueueLength(aValue: Cardinal); virtual; abstract;
     function DoBeforeRequest(Ctxt: THttpServerRequest): cardinal;
     function DoAfterRequest(Ctxt: THttpServerRequest): cardinal;
-    procedure DoAfterResponse(Ctxt: THttpServerRequest); virtual;
+    procedure DoAfterResponse(Ctxt: THttpServerRequest;
+      const Code: cardinal); virtual;
     function NextConnectionID: integer;
   public
     /// initialize the server instance, in non suspended state
@@ -1281,6 +1294,11 @@ type
     // - warning: this handler must be thread-safe (can be called by several
     // threads simultaneously)
     property OnAfterRequest: TOnHttpServerRequest  read fOnAfterRequest write SetOnAfterRequest;
+    /// event handler called after response is sent back to client
+    // - main purpose is to apply post-response analysis, logging, etc.
+    // - warning: this handler must be thread-safe (can be called by several
+    // threads simultaneously)
+    property OnAfterResponse: TOnHttpServerAfterResponse read fOnAfterResponse write SetOnAfterResponse;
     /// event handler called after each working Thread is just initiated
     // - called in the thread context at first place in THttpServerGeneric.Execute
     property OnHttpThreadStart: TNotifyThreadEvent
@@ -1451,7 +1469,7 @@ type
     procedure SetOnBeforeBody(const aEvent: TOnHttpServerBeforeBody); override;
     procedure SetOnBeforeRequest(const aEvent: TOnHttpServerRequest); override;
     procedure SetOnAfterRequest(const aEvent: TOnHttpServerRequest); override;
-    procedure SetOnAfterResponse(const aEvent: TOnHttpServerRequest); override;
+    procedure SetOnAfterResponse(const aEvent: TOnHttpServerAfterResponse); override;
     procedure SetMaximumAllowedContentLength(aMax: cardinal); override;
     procedure SetRemoteIPHeader(const aHeader: SockString); override;
     procedure SetRemoteConnIDHeader(const aHeader: SockString); override;
@@ -1806,7 +1824,8 @@ type
     procedure SetOnWSThreadStart(const Value: TNotifyThreadEvent);
   protected
     function UpgradeToWebSocket(Ctxt: THttpServerRequest): cardinal;
-    procedure DoAfterResponse(Ctxt: THttpServerRequest); override;
+    procedure DoAfterResponse(Ctxt: THttpServerRequest;
+      const Code: cardinal); override;
     function GetSendResponseFlags(Ctxt: THttpServerRequest): Integer; override;
     constructor CreateClone(From: THttpApiServer); override;
     procedure DestroyMainThread; override;
@@ -3208,12 +3227,8 @@ type
 function WinHTTP_WebSocketEnabled: boolean;
 {$endif}
 
-implementation
 
-{$ifdef FPC}
-uses
-  dynlibs;
-{$endif}
+implementation
 
 { ************ some shared helper functions and classes }
 
@@ -5708,7 +5723,7 @@ begin
       GetNextItem(P,',',rec);
       rec := Trim(rec);
       if rec='' then continue;
-      if pos({$ifdef HASCODEPAGE}SockString{$endif}('<'),rec)=0 then
+      if Pos({$ifdef HASCODEPAGE}SockString{$endif}('<'),rec)=0 then
         rec := '<'+rec+'>';
       Exec('RCPT TO:'+rec,'25');
       if ToList='' then
@@ -5880,7 +5895,8 @@ begin
   fOnAfterRequest := aEvent;
 end;
 
-procedure THttpServerGeneric.SetOnAfterResponse(const aEvent: TOnHttpServerRequest);
+procedure THttpServerGeneric.SetOnAfterResponse(
+  const aEvent: TOnHttpServerAfterResponse);
 begin
   fOnAfterResponse := aEvent;
 end;
@@ -5899,10 +5915,11 @@ begin
     result := 0;
 end;
 
-procedure THttpServerGeneric.DoAfterResponse(Ctxt: THttpServerRequest);
+procedure THttpServerGeneric.DoAfterResponse(Ctxt: THttpServerRequest;
+  const Code: cardinal);
 begin
   if Assigned(fOnAfterResponse) then
-    fOnAfterResponse(Ctxt);
+    fOnAfterResponse(Ctxt, Code);
 end;
 
 procedure THttpServerGeneric.SetMaximumAllowedContentLength(aMax: cardinal);
@@ -6254,7 +6271,7 @@ begin
       if afterCode>0 then
         Code := afterCode;
       if respsent or SendResponse then
-        DoAfterResponse(ctxt);
+        DoAfterResponse(ctxt, Code);
       {$ifdef SYNCRTDEBUGLOW}
       TSynLog.Add.Log(sllCustom1, 'DoAfterResponse respsent=% ErrorMsg=%', [respsent,ErrorMsg], self);
       {$endif}
@@ -8936,7 +8953,7 @@ begin
           if not RespSent then
             if not SendResponse then
               continue;
-          DoAfterResponse(Context);
+          DoAfterResponse(Context, OutStatusCode);
         except
           on E: Exception do
             // handle any exception raised during process: show must go on!
@@ -9230,10 +9247,10 @@ begin
       THttpApiServer(fClones.List{$ifdef FPC}^{$endif}[i]).SetOnAfterRequest(aEvent);
 end;
 
-procedure THttpApiServer.SetOnAfterResponse(const aEvent: TOnHttpServerRequest);
+procedure THttpApiServer.SetOnAfterResponse(const aEvent: TOnHttpServerAfterResponse);
 var i: integer;
 begin
-  inherited SetOnAfterRequest(aEvent);
+  inherited SetOnAfterResponse(aEvent);
   if fClones<>nil then // event is shared by all clones
     for i := 0 to fClones.Count-1 do
       THttpApiServer(fClones.List{$ifdef FPC}^{$endif}[i]).SetOnAfterResponse(aEvent);
@@ -10108,12 +10125,13 @@ begin
   inherited;
 end;
 
-procedure THttpApiWebSocketServer.DoAfterResponse(Ctxt: THttpServerRequest);
+procedure THttpApiWebSocketServer.DoAfterResponse(Ctxt: THttpServerRequest;
+  const Code: cardinal);
 begin
   if Assigned(fLastConnection) then
     PostQueuedCompletionStatus(fThreadPoolServer.FRequestQueue, 0, 0,
       @fLastConnection.fOverlapped);
-  inherited DoAfterResponse(Ctxt);
+  inherited DoAfterResponse(Ctxt, Code);
 end;
 
 function THttpApiWebSocketServer.GetProtocol(index: integer): THttpApiWebSocketServerProtocol;
@@ -11398,423 +11416,6 @@ end;
 
 { ************ libcurl implementation }
 
-const
-  LIBCURL_DLL = {$IFDEF Darwin} 'libcurl.dylib' {$ELSE}
-    {$IFDEF LINUX} 'libcurl.so' {$ELSE} 'libcurl.dll' {$ENDIF}{$ENDIF};
-
-{$Z4}
-type
-  TCurlOption = (
-    coPort                 = 3,
-    coTimeout              = 13,
-    coInFileSize           = 14,
-    coLowSpeedLimit        = 19,
-    coLowSpeedTime         = 20,
-    coResumeFrom           = 21,
-    coCRLF                 = 27,
-    coSSLVersion           = 32,
-    coTimeCondition        = 33,
-    coTimeValue            = 34,
-    coVerbose              = 41,
-    coHeader               = 42,
-    coNoProgress           = 43,
-    coNoBody               = 44,
-    coFailOnError          = 45,
-    coUpload               = 46,
-    coPost                 = 47,
-    coFTPListOnly          = 48,
-    coFTPAppend            = 50,
-    coNetRC                = 51,
-    coFollowLocation       = 52,
-    coTransferText         = 53,
-    coPut                  = 54,
-    coAutoReferer          = 58,
-    coProxyPort            = 59,
-    coPostFieldSize        = 60,
-    coHTTPProxyTunnel      = 61,
-    coSSLVerifyPeer        = 64,
-    coMaxRedirs            = 68,
-    coFileTime             = 69,
-    coMaxConnects          = 71,
-    coClosePolicy          = 72,
-    coFreshConnect         = 74,
-    coForbidResue          = 75,
-    coConnectTimeout       = 78,
-    coHTTPGet              = 80,
-    coSSLVerifyHost        = 81,
-    coHTTPVersion          = 84,
-    coFTPUseEPSV           = 85,
-    coSSLEngineDefault     = 90,
-    coDNSUseGlobalCache    = 91,
-    coDNSCacheTimeout      = 92,
-    coCookieSession        = 96,
-    coBufferSize           = 98,
-    coNoSignal             = 99,
-    coProxyType            = 101,
-    coUnrestrictedAuth     = 105,
-    coFTPUseEPRT           = 106,
-    coHTTPAuth             = 107,
-    coFTPCreateMissingDirs = 110,
-    coProxyAuth            = 111,
-    coFTPResponseTimeout   = 112,
-    coIPResolve            = 113,
-    coMaxFileSize          = 114,
-    coFTPSSL               = 119,
-    coTCPNoDelay           = 121,
-    coFTPSSLAuth           = 129,
-    coIgnoreContentLength  = 136,
-    coFTPSkipPasvIp        = 137,
-    coFile                 = 10001,
-    coURL                  = 10002,
-    coProxy                = 10004,
-    coUserPwd              = 10005,
-    coProxyUserPwd         = 10006,
-    coRange                = 10007,
-    coInFile               = 10009,
-    coErrorBuffer          = 10010,
-    coPostFields           = 10015,
-    coReferer              = 10016,
-    coFTPPort              = 10017,
-    coUserAgent            = 10018,
-    coCookie               = 10022,
-    coHTTPHeader           = 10023,
-    coHTTPPost             = 10024,
-    coSSLCert              = 10025,
-    coSSLCertPasswd        = 10026,
-    coQuote                = 10028,
-    coWriteHeader          = 10029,
-    coCookieFile           = 10031,
-    coCustomRequest        = 10036,
-    coStdErr               = 10037,
-    coPostQuote            = 10039,
-    coWriteInfo            = 10040,
-    coProgressData         = 10057,
-    coInterface            = 10062,
-    coKRB4Level            = 10063,
-    coCAInfo               = 10065,
-    coTelnetOptions        = 10070,
-    coRandomFile           = 10076,
-    coEGDSocket            = 10077,
-    coCookieJar            = 10082,
-    coSSLCipherList        = 10083,
-    coSSLCertType          = 10086,
-    coSSLKey               = 10087,
-    coSSLKeyType           = 10088,
-    coSSLEngine            = 10089,
-    coPreQuote             = 10093,
-    coDebugData            = 10095,
-    coCAPath               = 10097,
-    coShare                = 10100,
-    coEncoding             = 10102,
-    coPrivate              = 10103,
-    coHTTP200Aliases       = 10104,
-    coSSLCtxData           = 10109,
-    coNetRCFile            = 10118,
-    coSourceUserPwd        = 10123,
-    coSourcePreQuote       = 10127,
-    coSourcePostQuote      = 10128,
-    coIOCTLData            = 10131,
-    coSourceURL            = 10132,
-    coSourceQuote          = 10133,
-    coFTPAccount           = 10134,
-    coCookieList           = 10135,
-    coUnixSocketPath       = 10231,
-    coWriteFunction        = 20011,
-    coReadFunction         = 20012,
-    coProgressFunction     = 20056,
-    coHeaderFunction       = 20079,
-    coDebugFunction        = 20094,
-    coSSLCtxtFunction      = 20108,
-    coIOCTLFunction        = 20130,
-    coInFileSizeLarge      = 30115,
-    coResumeFromLarge      = 30116,
-    coMaxFileSizeLarge     = 30117,
-    coPostFieldSizeLarge   = 30120
-  );
-  TCurlResult = (
-    crOK, crUnsupportedProtocol, crFailedInit, crURLMalformat, crURLMalformatUser,
-    crCouldNotResolveProxy, crCouldNotResolveHost, crCouldNotConnect,
-    crFTPWeirdServerReply, crFTPAccessDenied, crFTPUserPasswordIncorrect,
-    crFTPWeirdPassReply, crFTPWeirdUserReply, crFTPWeirdPASVReply,
-    crFTPWeird227Format, crFTPCantGetHost, crFTPCantReconnect, crFTPCouldNotSetBINARY,
-    crPartialFile, crFTPCouldNotRetrFile, crFTPWriteError, crFTPQuoteError,
-    crHTTPReturnedError, crWriteError, crMalFormatUser, crFTPCouldNotStorFile,
-    crReadError, crOutOfMemory, crOperationTimeouted,
-    crFTPCouldNotSetASCII, crFTPPortFailed, crFTPCouldNotUseREST, crFTPCouldNotGetSize,
-    crHTTPRangeError, crHTTPPostError, crSSLConnectError, crBadDownloadResume,
-    crFileCouldNotReadFile, crLDAPCannotBind, crLDAPSearchFailed,
-    crLibraryNotFound, crFunctionNotFound, crAbortedByCallback,
-    crBadFunctionArgument, crBadCallingOrder, crInterfaceFailed,
-    crBadPasswordEntered, crTooManyRedirects, crUnknownTelnetOption,
-    crTelnetOptionSyntax, crObsolete, crSSLPeerCertificate, crGotNothing,
-    crSSLEngineNotFound, crSSLEngineSetFailed, crSendError, crRecvError,
-    crShareInUse, crSSLCertProblem, crSSLCipher, crSSLCACert, crBadContentEncoding,
-    crLDAPInvalidURL, crFileSizeExceeded, crFTPSSLFailed, crSendFailRewind,
-    crSSLEngineInitFailed, crLoginDenied, crTFTPNotFound, crTFTPPerm,
-    crTFTPDiskFull, crTFTPIllegal, crTFTPUnknownID, crTFTPExists, crTFTPNoSuchUser
-  );
-  TCurlInfo = (
-    ciNone,
-    ciLastOne               = 28,
-    ciEffectiveURL          = 1048577,
-    ciContentType           = 1048594,
-    ciPrivate               = 1048597,
-    ciRedirectURL           = 1048607,
-    ciPrimaryIP             = 1048608,
-    ciLocalIP               = 1048617,
-    ciResponseCode          = 2097154,
-    ciHeaderSize            = 2097163,
-    ciRequestSize           = 2097164,
-    ciSSLVerifyResult       = 2097165,
-    ciFileTime              = 2097166,
-    ciRedirectCount         = 2097172,
-    ciHTTPConnectCode       = 2097174,
-    ciHTTPAuthAvail         = 2097175,
-    ciProxyAuthAvail        = 2097176,
-    ciOS_Errno              = 2097177,
-    ciNumConnects           = 2097178,
-    ciPrimaryPort           = 2097192,
-    ciLocalPort             = 2097194,
-    ciTotalTime             = 3145731,
-    ciNameLookupTime        = 3145732,
-    ciConnectTime           = 3145733,
-    ciPreTRansferTime       = 3145734,
-    ciSizeUpload            = 3145735,
-    ciSizeDownload          = 3145736,
-    ciSpeedDownload         = 3145737,
-    ciSpeedUpload           = 3145738,
-    ciContentLengthDownload = 3145743,
-    ciContentLengthUpload   = 3145744,
-    ciStartTransferTime     = 3145745,
-    ciRedirectTime          = 3145747,
-    ciAppConnectTime        = 3145761,
-    ciSSLEngines            = 4194331,
-    ciCookieList            = 4194332,
-    ciCertInfo              = 4194338,
-    ciSizeDownloadT         = 6291464,
-    ciTotalTimeT            = 6291506, // (6) can be used for calculation "Content download time"
-    ciNameLookupTimeT       = 6291507, // (1) DNS lookup
-    ciConnectTimeT          = 6291508, // (2) connect time
-    ciPreTransferTimeT      = 6291509, // (4)
-    ciStartTransferTimeT    = 6291510, // (5) Time to first byte
-    ciAppConnectTimeT       = 6291512  // (3) SSL handshake
-  );
-  {$ifdef LIBCURLMULTI}
-  TCurlMultiCode = (
-    cmcCallMultiPerform = -1,
-    cmcOK = 0,
-    cmcBadHandle,
-    cmcBadEasyHandle,
-    cmcOutOfMemory,
-    cmcInternalError,
-    cmcBadSocket,
-    cmcUnknownOption,
-    cmcAddedAlready,
-    cmcRecursiveApiCall
-  );
-  TCurlMultiOption = (
-    cmoPipeLining               = 3,
-    cmoMaxConnects              = 6,
-    cmoMaxHostConnections       = 7,
-    cmoMaxPipelineLength        = 8,
-    cmoMaxTotalConnections      = 13,
-    cmoSocketData               = 10002,
-    cmoTimerData                = 10005,
-    cmoPipeliningSiteBL         = 10011,
-    cmoPipeliningServerBL       = 10012,
-    cmoPushData                 = 10015,
-    cmoSocketFunction           = 20001,
-    cmoTimerFunction            = 20004,
-    cmoPushFunction             = 20014,
-    cmoContentLengthPenaltySize = 30009,
-    cmoChunkLengthPenaltySize   = 30010
-  );
-  {$endif LIBCURLMULTI}
-
-  TCurlVersion = (cvFirst,cvSecond,cvThird,cvFour);
-  TCurlGlobalInit = set of (giSSL,giWin32);
-  TCurlMsg = (cmNone, cmDone);
-  PAnsiCharArray = array[0..1023] of PAnsiChar;
-
-  TCurlVersionInfo = record
-    age: TCurlVersion;
-    version: PAnsiChar;
-    version_num: cardinal;
-    host: PAnsiChar;
-    features: longint;
-    ssl_version: PAnsiChar;
-    ssl_version_num: PAnsiChar;
-    libz_version: PAnsiChar;
-    protocols: ^PAnsiCharArray;
-    ares: PAnsiChar;
-    ares_num: longint;
-    libidn: PAnsiChar;
-  end;
-  PCurlVersionInfo = ^TCurlVersionInfo;
-
-  TCurl = type pointer;
-  TCurlSList = type pointer;
-  PCurlSList = ^TCurlSList;
-  PPCurlSListArray = ^PCurlSListArray;
-  PCurlSListArray = array[0..(MaxInt div SizeOf(PCurlSList))-1] of PCurlSList;
-  TCurlMulti = type pointer;
-  TCurlSocket = type TSocket;
-
-  PCurlCertInfo = ^TCurlCertInfo;
-  TCurlCertInfo = packed record
-    num_of_certs: integer;
-    {$ifdef CPUX64}_align: array[0..3] of byte;{$endif}
-    certinfo: PPCurlSListArray;
-  end;
-
-  PCurlMsgRec = ^TCurlMsgRec;
-  TCurlMsgRec = packed record
-    msg: TCurlMsg;
-    {$ifdef CPUX64}_align: array[0..3] of byte;{$endif}
-    easy_handle: TCurl;
-    data: packed record case byte of
-      0: (whatever: Pointer);
-      1: (result: TCurlResult);
-    end;
-  end;
-
-  PCurlWaitFD = ^TCurlWaitFD;
-  TCurlWaitFD = packed record
-    fd: TCurlSocket;
-    events: SmallInt;
-    revents: SmallInt;
-    {$ifdef CPUX64}_align: array[0..3] of byte;{$endif}
-  end;
-
-  curl_write_callback = function (buffer: PAnsiChar; size,nitems: integer;
-    outstream: pointer): integer; cdecl;
-  curl_read_callback = function (buffer: PAnsiChar; size,nitems: integer;
-    instream: pointer): integer; cdecl;
-
-{$Z1}
-
-var
-  curl: packed record
-    {$ifdef FPC}
-    Module: TLibHandle;
-    {$else}
-    Module: THandle;
-    {$endif}
-    global_init: function(flags: TCurlGlobalInit): TCurlResult; cdecl;
-    global_cleanup: procedure; cdecl;
-    version_info: function(age: TCurlVersion): PCurlVersionInfo; cdecl;
-    easy_init: function: pointer; cdecl;
-    easy_setopt: function(curl: TCurl; option: TCurlOption): TCurlResult; cdecl varargs;
-    easy_perform: function(curl: TCurl): TCurlResult; cdecl;
-    easy_cleanup: procedure(curl: TCurl); cdecl;
-    easy_getinfo: function(curl: TCurl; info: TCurlInfo; out value): TCurlResult; cdecl;
-    easy_duphandle: function(curl: TCurl): pointer; cdecl;
-    easy_reset: procedure(curl: TCurl); cdecl;
-    easy_strerror: function(code: TCurlResult): PAnsiChar; cdecl;
-    slist_append: function(list: TCurlSList; s: PAnsiChar): TCurlSList; cdecl;
-    slist_free_all: procedure(list: TCurlSList); cdecl;
-    {$ifdef LIBCURLMULTI} // https://curl.haxx.se/libcurl/c/libcurl-multi.html interface
-    multi_add_handle: function(mcurl: TCurlMulti; curl: TCurl): TCurlMultiCode; cdecl;
-    multi_assign: function(mcurl: TCurlMulti; socket: TCurlSocket; data: pointer): TCurlMultiCode; cdecl;
-    multi_cleanup: function(mcurl: TCurlMulti): TCurlMultiCode; cdecl;
-    multi_fdset: function(mcurl: TCurlMulti; read, write, exec: PFDSet; out max: integer): TCurlMultiCode; cdecl;
-    multi_info_read: function(mcurl: TCurlMulti; out msgsqueue: integer): PCurlMsgRec; cdecl;
-    multi_init: function: TCurlMulti; cdecl;
-    multi_perform: function(mcurl: TCurlMulti; out runningh: integer): TCurlMultiCode; cdecl;
-    multi_remove_handle: function(mcurl: TCurlMulti; curl: TCurl): TCurlMultiCode; cdecl;
-    multi_setopt: function(mcurl: TCurlMulti; option: TCurlMultiOption): TCurlMultiCode; cdecl varargs;
-    multi_socket_action: function(mcurl: TCurlMulti; socket: TCurlSocket; mask: Integer; out runningh: integer): TCurlMultiCode; cdecl;
-    multi_socket_all: function(mcurl: TCurlMulti; out runningh: integer): TCurlMultiCode; cdecl;
-    multi_strerror: function(code: TCurlMultiCode): PAnsiChar; cdecl;
-    multi_timeout: function(mcurl: TCurlMulti; out ms: integer): TCurlMultiCode; cdecl;
-    multi_wait: function(mcurl: TCurlMulti; fds: PCurlWaitFD; fdscount: cardinal; ms: integer; out ret: integer): TCurlMultiCode; cdecl;
-    {$endif LIBCURLMULTI}
-    info: TCurlVersionInfo;
-    infoText: string;
-  end;
-
-procedure LibCurlInitialize;
-var P: PPointer;
-    api: integer;
-const NAMES: array[0..{$ifdef LIBCURLMULTI}26{$else}12{$endif}] of string = (
-  'global_init','global_cleanup','version_info',
-  'easy_init','easy_setopt','easy_perform','easy_cleanup','easy_getinfo',
-  'easy_duphandle','easy_reset','easy_strerror','slist_append','slist_free_all'
-  {$ifdef LIBCURLMULTI},
-  'multi_add_handle','multi_assign','multi_cleanup','multi_fdset',
-  'multi_info_read','multi_init','multi_perform','multi_remove_handle',
-  'multi_setopt','multi_socket_action','multi_socket_all','multi_strerror',
-  'multi_timeout','multi_wait'
-  {$endif LIBCURLMULTI} );
-begin
-  EnterCriticalSection(SynSockCS);
-  try
-    if curl.Module=0 then // try to load libcurl once
-    try
-      curl.Module := LoadLibrary(LIBCURL_DLL);
-      {$ifdef Darwin}
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl.4.dylib');
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl.3.dylib');
-      {$else}
-      {$ifdef LINUX}
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl.so.4');
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl.so.3');
-      // for latest Linux Mint and other similar distros
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl-gnutls.so.4');
-      if curl.Module=0 then
-        curl.Module := LoadLibrary('libcurl-gnutls.so.3');
-      {$endif}
-      {$endif}
-      if curl.Module=0 then
-        raise ECrtSocket.CreateFmt('Unable to find %s'{$ifdef LINUX}+
-          ': try e.g. sudo apt-get install libcurl3'{$ifdef CPUX86}+':i386'{$endif}
-          {$endif LINUX},[LIBCURL_DLL]);
-      P := @@curl.global_init;
-      for api := low(NAMES) to high(NAMES) do begin
-        P^ := GetProcAddress(curl.Module,{$ifndef FPC}PChar{$endif}('curl_'+NAMES[api]));
-        if P^=nil then
-          raise ECrtSocket.CreateFmt('Unable to find %s() in %s',[NAMES[api],LIBCURL_DLL]);
-        inc(P);
-      end;
-      curl.global_init([giSSL]);
-      curl.info := curl.version_info(cvFour)^;
-      curl.infoText := format('%s version %s',[LIBCURL_DLL,curl.info.version]);
-      if curl.info.ssl_version<>nil then
-        curl.infoText := format('%s using %s',[curl.infoText,curl.info.ssl_version]);
-  //   api := 0; with curl.info do while protocols[api]<>nil do begin
-  //     write(protocols[api], ' '); inc(api); end; writeln(#13#10,curl.infoText);
-    except
-      on E: Exception do begin
-        if curl.Module<>0 then
-          FreeLibrary(curl.Module);
-        PtrInt(curl.Module) := -1; // <>0 so that won't try to load any more
-        raise;
-      end;
-    end;
-  finally
-    LeaveCriticalSection(SynSockCS);
-  end;
-end;
-
-function CurlWriteRawByteString(buffer: PAnsiChar; size,nitems: integer;
-  opaque: pointer): integer; cdecl;
-var storage: ^SockString absolute opaque;
-    n: integer;
-begin
-  if storage=nil then
-    result := 0 else begin
-    n := length(storage^);
-    result := size*nitems;
-    SetLength(storage^,n+result);
-    Move(buffer^,PPAnsiChar(opaque)^[n],result);
-  end;
-end;
-
 { TCurlHTTP }
 
 procedure TCurlHTTP.InternalConnect(ConnectionTimeOut,SendTimeout,ReceiveTimeout: DWORD);
@@ -11904,13 +11505,7 @@ end;
 
 class function TCurlHTTP.IsAvailable: boolean;
 begin
-  try
-    if curl.Module=0 then
-      LibCurlInitialize;
-    result := PtrInt(curl.Module)>0;
-  except
-    result := false;
-  end;
+  Result := CurlIsAvailable;
 end;
 
 procedure TCurlHTTP.InternalSendRequest(const aMethod,aData: SockString);

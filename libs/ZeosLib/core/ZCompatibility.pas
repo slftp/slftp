@@ -169,6 +169,41 @@ type
     CP: Word;      //CodePage of the String
   end;
 
+  { TZSQLTimeStamp }
+  PZTimeStamp = ^TZTimeStamp;
+  TZTimeStamp = packed record //keep it packet !!
+    Year: Word;
+    Month: Word;
+    Day: Word;
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Fractions: Cardinal; //NanoSeconds
+    TimeZoneHour: SmallInt;
+    TimeZoneMinute:Word;
+    IsNegative: WordBool; //MySQL allows negative timestamp values
+  end;
+  TZTimeStampDynArray = array of TZTimeStamp;
+
+  PZDate = ^TZDate;
+  TZDate = packed record //keep it packet !!
+    Year: Word;
+    Month: Word;
+    Day: Word;
+    IsNegative: WordBool; //MySQL allows negative date values
+  end;
+  TZDateDynArray = array of TZDate;
+
+  PZTime = ^TZTime;
+  TZTime = packed Record //keep it packet !!
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Fractions: Cardinal; //NanoSeconds
+    IsNegative: WordBool; //MySQL allows negative time values
+  end;
+  TZTimeDynArray = array of TZTime;
+
   {$IF NOT DECLARED(TBytes)}
   TBytes = TByteDynArray;
   {$IFEND}
@@ -198,8 +233,10 @@ const
   DefDateFormatYMD = 'YYYY-MM-DD';
   DefTimeFormat = 'HH:NN:SS';
   DefTimeFormatMsecs = 'HH:NN:SS.ZZZ';
-  DefDateTimeFormat = DefDateFormatDMY + ' ' + DefTimeFormat;
-  DefDateTimeFormatMsecs = DefDateFormatDMY + ' ' + DefTimeFormatMsecs;
+  DefDateTimeFormatDMY = DefDateFormatDMY + ' ' + DefTimeFormat;
+  DefDateTimeFormatYMD = DefDateFormatYMD + ' ' + DefTimeFormat;
+  DefDateTimeFormatMsecsDMY = DefDateFormatDMY + ' ' + DefTimeFormatMsecs;
+  DefDateTimeFormatMsecsYMD = DefDateFormatYMD + ' ' + DefTimeFormatMsecs;
 
 {$IF NOT DECLARED(LineEnding)} // FPC-style constant, declare for Delphi
 const
@@ -253,6 +290,9 @@ type
     {$ENDIF}
   {$ENDIF}
 
+  {$If not declared(UnicodeString)}
+  UnicodeString = WideString;
+  {$IFEND}
   ZWideString = {$IFDEF PWIDECHAR_IS_PUNICODECHAR}UnicodeString{$ELSE}WideString{$ENDIF};
 
   {$IF not declared(TBooleanDynArray)}
@@ -313,7 +353,7 @@ type
   TRawByteStringDynArray  = array of RawByteString;
   {$IFEND}
   {$IF not declared(TUnicodeStringDynArray)}
-  TUnicodeStringDynArray  = array of ZWideString;
+  TUnicodeStringDynArray  = array of UnicodeString;
   {$IFEND}
   {$IF not declared(TStringDynArray)}
   TStringDynArray  = array of String;
@@ -334,25 +374,8 @@ type
 
 type
   {declare move or converter functions for the String Types}
-  {$IFNDEF NO_ANSISTRING}
-  TZAnsiToRaw = function (const Src: AnsiString; const RawCP: Word): RawByteString;
-  TZRawToAnsi = function (const Src: RawByteString; const RawCP: Word): AnsiString;
-  TZAnsiToUTF8 = function (const Src: AnsiString): UTF8String;
-  TZUTF8ToAnsi = function (const Src: UTF8String): AnsiString;
-  TZAnsiToString = function (const Src: AnsiString; const StringCP: Word): String;
-  TZStringToAnsi = function (const Src: String; const StringCP: Word): AnsiString;
-  {$ENDIF}
-  {$IFNDEF NO_UTF8STRING}
-  TPRawToUTF8 = function(const Src: PAnsiChar; Len: NativeUInt; const RawCP: Word): UTF8String;
-  TZRawToUTF8 = function (const Src: RawByteString; const CP: Word): UTF8String;
-  TZUTF8ToRaw = function (const Src: UTF8String; const CP: Word): RawByteString;
-  TZUTF8ToString = function (const Src: UTF8String; const StringCP: Word): String;
-  TZStringToUTF8 = function (const Src: String; const StringCP: Word): UTF8String;
-  {$ENDIF}
   TZRawToString = function (const Src: RawByteString; const RawCP, StringCP: Word): String;
   TZStringToRaw = function (const Src: String; const StringCP, RawCP: Word): RawByteString;
-  TZRawToUnicode = function (const S: RawByteString; const CP: Word): ZWideString;
-  TZUnicodeToRaw = function (const US: ZWideString; CP: Word): RawByteString;
   TZUnicodeToString = function (const Src: ZWideString; const StringCP: Word): String;
   TZStringToUnicode = function (const Src: String; const StringCP: Word): ZWideString;
   TPRawToString = function (Src: PAnsiChar; Len: LengthInt; const RawCP, StringCP: Word): String;
@@ -382,25 +405,8 @@ type
   end;
 
   TConvertEncodingFunctions = record
-    {$IFNDEF NO_ANSISTRING}
-    ZAnsiToUTF8: TZAnsiToUTF8;
-    ZUTF8ToAnsi: TZUTF8ToAnsi;
-    ZRawToAnsi: TZRawToAnsi;
-    ZAnsiToString: TZAnsiToString;
-    ZStringToAnsi: TZStringToAnsi;
-    ZAnsiToRaw: TZAnsiToRaw;
-    {$ENDIF}
-    {$IFNDEF NO_UTF8STRING}
-    ZUTF8ToString: TZUTF8ToString;
-    ZStringToUTF8: TZStringToUTF8;
-    ZRawToUTF8: TZRawToUTF8;
-    ZUTF8ToRaw: TZUTF8ToRaw;
-    ZPRawToUTF8: TPRawToUTF8;
-    {$ENDIF}
     ZStringToRaw: TZStringToRaw;
     ZRawToString: TZRawToString;
-    ZUnicodeToRaw: TZUnicodeToRaw;
-    ZRawToUnicode: TZRawToUnicode;
     ZUnicodeToString: TZUnicodeToString;
     ZStringToUnicode: TZStringToUnicode;
     ZPRawToString: TPRawToString;
@@ -426,10 +432,6 @@ type
     DisplayFormatSettings: TZFormatSettings;
     ReadFormatSettings: TZFormatSettings;
     WriteFormatSettings: TZFormatSettings;
-    {$IFDEF WITH_LCONVENCODING}
-    PlainConvertFunc: TConvertEncodingFunction;
-    DbcConvertFunc: TConvertEncodingFunction;
-    {$ENDIF}
     DataBaseSettings: Pointer;
     Protocol, Database, User: RawByteString;
   end;
@@ -443,11 +445,6 @@ type
   public
     function GetConSettings: PZConSettings;
   end;
-
-  {$IFDEF WITH_LCONVENCODING}
-  function NoConvert(const s: string): string;
-  {$ENDIF}
-
 
 {$IFNDEF WITH_CHARINSET}
 function CharInSet(const C: AnsiChar; const CharSet: TSysCharSet): Boolean; overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
@@ -507,30 +504,26 @@ var
       CPType: {$IFDEF DELPHI}{$IFDEF UNICODE}cCP_UTF16{$ELSE}cGET_ACP{$ENDIF}{$ELSE}cCP_UTF8{$ENDIF};
       ClientCodePage: @ClientCodePageDummy;
       DisplayFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
+          (DateFormat: DefDateFormatYMD;
+          DateFormatLen: Length(DefDateFormatYMD);
           TimeFormat: DefTimeFormatMsecs;
           TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormat;
-          DateTimeFormatLen: Length(DefDateTimeFormat));
+          DateTimeFormat: DefDateTimeFormatMsecsDMY;
+          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
       ReadFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
+          (DateFormat: DefDateFormatYMD;
+          DateFormatLen: Length(DefDateFormatYMD);
           TimeFormat: DefTimeFormatMsecs;
           TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecs;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecs));
+          DateTimeFormat: DefDateTimeFormatMsecsDMY;
+          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
       WriteFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
+          (DateFormat: DefDateFormatYMD;
+          DateFormatLen: Length(DefDateFormatYMD);
           TimeFormat: DefTimeFormatMsecs;
           TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecs;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecs));
-      {$IFDEF WITH_LCONVENCODING}
-      PlainConvertFunc: @NoConvert;
-      DbcConvertFunc: @NoConvert;
-      {$ENDIF}
+          DateTimeFormat: DefDateTimeFormatMsecsDMY;
+          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
     );
   {$IFDEF FPC} {$POP} {$ENDIF}
 
@@ -612,14 +605,6 @@ begin
     {$ENDIF}
   end;
 end;
-
-{$IFDEF WITH_LCONVENCODING}
-function NoConvert(const s: string): string;
-begin
-  Result := S;
-end;
-{$ENDIF}
-
 
 {$IFDEF UNIX}
   {$IFDEF FPC}
