@@ -148,6 +148,12 @@ type
     function GetDataSet(ColumnIndex: Integer): IZDataSet; virtual;
     function GetValue(ColumnIndex: Integer): TZVariant;
     function GetDefaultExpression(ColumnIndex: Integer): String; virtual;
+    function GetTime(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetTime(ColumnIndex: Integer; Var Result: TZTime); overload;
+    function GetDate(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); overload;
+    function GetTimestamp(ColumnIndex: Integer): TDateTime; overload;
+    procedure GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp); overload;
 
     //======================================================================
     // Methods for accessing results by column name
@@ -181,10 +187,14 @@ type
     function GetDoubleByName(const ColumnName: string): Double;
     function GetCurrencyByName(const ColumnName: string): Currency;
     procedure GetBigDecimalByName(const ColumnName: string; var Result: TBCD);
+    procedure GetGUIDByName(const ColumnName: string; var Result: TGUID);
     function GetBytesByName(const ColumnName: string): TBytes;
-    function GetDateByName(const ColumnName: string): TDateTime;
-    function GetTimeByName(const ColumnName: string): TDateTime;
-    function GetTimestampByName(const ColumnName: string): TDateTime;
+    function GetDateByName(const ColumnName: string): TDateTime; overload;
+    procedure GetDateByName(const ColumnName: string; var Result: TZDate); overload;
+    function GetTimeByName(const ColumnName: string): TDateTime; overload;
+    procedure GetTimeByName(const ColumnName: string; Var Result: TZTime); overload;
+    function GetTimestampByName(const ColumnName: string): TDateTime; overload;
+    procedure GetTimeStampByName(const ColumnName: string; var Result: TZTimeStamp); overload;
     function GetAsciiStreamByName(const ColumnName: string): TStream;
     function GetUnicodeStreamByName(const ColumnName: string): TStream;
     function GetBinaryStreamByName(const ColumnName: string): TStream;
@@ -247,6 +257,9 @@ type
     procedure UpdatePChar(ColumnIndex: Integer; Value: PChar);
     procedure UpdatePAnsiChar(ColumnIndex: Integer; Value: PAnsiChar); overload;
     procedure UpdatePWideChar(ColumnIndex: Integer; Value: PWideChar); overload;
+    procedure UpdateDate(ColumnIndex: Integer; const Value: TDateTime); overload;
+    procedure UpdateTime(ColumnIndex: Integer; const Value: TDateTime); overload;
+    procedure UpdateTimeStamp(ColumnIndex: Integer; const Value: TDateTime); overload;
     procedure UpdateValue(ColumnIndex: Integer; const Value: TZVariant);
 
     //======================================================================
@@ -267,6 +280,7 @@ type
     procedure UpdateDoubleByName(const ColumnName: string; const Value: Double);
     procedure UpdateCurrencyByName(const ColumnName: string; const Value: Currency);
     procedure UpdateBigDecimalByName(const ColumnName: string; const Value: TBCD);
+    procedure UpdateGUIDByName(const ColumnName: string; const Value: TGUID);
     procedure UpdatePAnsiCharByName(const ColumnName: string; Value: PAnsiChar); overload;
     procedure UpdatePAnsiCharByName(const ColumnName: string; Value: PAnsiChar; var Len: NativeUInt); overload;
     procedure UpdatePCharByName(const ColumnName: string; const Value: PChar);
@@ -282,9 +296,12 @@ type
     procedure UpdateRawByteStringByName(const ColumnName: string; const Value: RawByteString);
     procedure UpdateUnicodeStringByName(const ColumnName: string; const Value: ZWideString);
     procedure UpdateBytesByName(const ColumnName: string; const Value: TBytes);
-    procedure UpdateDateByName(const ColumnName: string; const Value: TDateTime);
-    procedure UpdateTimeByName(const ColumnName: string; const Value: TDateTime);
-    procedure UpdateTimestampByName(const ColumnName: string; const Value: TDateTime);
+    procedure UpdateDateByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateDateByName(const ColumnName: string; const Value: TZDate); overload;
+    procedure UpdateTimeByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateTimeByName(const ColumnName: string; const Value: TZTime); overload;
+    procedure UpdateTimestampByName(const ColumnName: string; const Value: TDateTime); overload;
+    procedure UpdateTimestampByName(const ColumnName: string; const Value: TZTimeStamp); overload;
     procedure UpdateAsciiStreamByName(const ColumnName: string; const Value: TStream);
     procedure UpdateUnicodeStreamByName(const ColumnName: string; const Value: TStream);
     procedure UpdateBinaryStreamByName(const ColumnName: string; const Value: TStream);
@@ -335,6 +352,7 @@ type
     procedure UpdateDouble(ColumnIndex: Integer; const Value: Double);
     procedure UpdateCurrency(ColumnIndex: Integer; const Value: Currency);
     procedure UpdateBigDecimal(ColumnIndex: Integer; const Value: TBCD);
+    procedure UpdateGUID(ColumnIndex: Integer; const Value: TGUID);
     procedure UpdatePAnsiChar(ColumnIndex: Integer; Value: PAnsiChar; var Len: NativeUInt); overload;
     procedure UpdatePWideChar(ColumnIndex: Integer; Value: PWideChar; var Len: NativeUInt); overload;
     procedure UpdateString(ColumnIndex: Integer; const Value: String);
@@ -347,9 +365,9 @@ type
     procedure UpdateRawByteString(ColumnIndex: Integer; const Value: RawByteString);
     procedure UpdateUnicodeString(ColumnIndex: Integer; const Value: ZWideString);
     procedure UpdateBytes(ColumnIndex: Integer; const Value: TBytes);
-    procedure UpdateDate(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTime(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TDateTime);
+    procedure UpdateDate(ColumnIndex: Integer; const Value: TZDate); overload;
+    procedure UpdateTime(ColumnIndex: Integer; const Value: TZTime); overload;
+    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TZTimeStamp); overload;
     procedure UpdateAsciiStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateUnicodeStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateBinaryStream(ColumnIndex: Integer; const Value: TStream);
@@ -365,41 +383,6 @@ type
     {$ENDIF}
     {$IFNDEF NO_UTF8STRING}
     function GetUTF8String(ColumnIndex: Integer): UTF8String;
-    {$ENDIF}
-  end;
-
-  TZSimpleResultSet = class(TZAbstractReadOnlyResultSet, IZResultSet)
-  protected
-    function InternalGetString(ColumnIndex: Integer): RawByteString; virtual;
-  public
-    function IsNull(ColumnIndex: Integer): Boolean; virtual;
-    function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar; overload; virtual;
-    function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar; overload; virtual;
-    function GetString(ColumnIndex: Integer): String; virtual;
-    {$IFNDEF NO_ANSISTRING}
-    function GetAnsiString(ColumnIndex: Integer): AnsiString; virtual;
-    {$ENDIF}
-    {$IFNDEF NO_UTF8STRING}
-    function GetUTF8String(ColumnIndex: Integer): UTF8String; virtual;
-    {$ENDIF}
-    function GetRawByteString(ColumnIndex: Integer): RawByteString; virtual;
-    function GetUnicodeString(ColumnIndex: Integer): ZWideString; virtual;
-    function GetBoolean(ColumnIndex: Integer): Boolean; virtual;
-    function GetUInt(ColumnIndex: Integer): Cardinal; virtual;
-    function GetInt(ColumnIndex: Integer): Integer; virtual;
-    function GetULong(ColumnIndex: Integer): UInt64; virtual;
-    function GetLong(ColumnIndex: Integer): Int64; virtual;
-    function GetFloat(ColumnIndex: Integer): Single; virtual;
-    function GetDouble(ColumnIndex: Integer): Double; virtual;
-    function GetCurrency(ColumnIndex: Integer): Currency; virtual;
-    procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD); virtual;
-    function GetBytes(ColumnIndex: Integer): TBytes; virtual;
-    function GetDate(ColumnIndex: Integer): TDateTime; virtual;
-    function GetTime(ColumnIndex: Integer): TDateTime; virtual;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime; virtual;
-    function GetBlob(ColumnIndex: Integer): IZBlob; virtual;
-    {$IFDEF USE_SYNCOMMONS}
-    procedure ColumnsToJSON(JSONWriter: TJSONWriter; JSONComposeOptions: TZJSONComposeOptions); overload; virtual;
     {$ENDIF}
   end;
 
@@ -686,7 +669,7 @@ begin
   if Null1 and Null2 then Result := 0
   else if Null1 then Result := -1
   else if Null2 then Result := 1
-  else Result := Ord(TZVariant(V1).VDateTime > TZVariant(V2).VDateTime)-Ord(TZVariant(V1).VDateTime < TZVariant(V2).VDateTime);
+  else Result := ZCompareDateTime(TZVariant(V1).VDateTime, TZVariant(V2).VDateTime);
 end;
 
 function CompareDateTime_Desc(const Null1, Null2: Boolean; const V1, V2): Integer;
@@ -700,10 +683,10 @@ begin
   else if Null1 then Result := -1
   else if Null2 then Result := 1 else
   begin
-    Result := Length(TZVariant(V1).VBytes) - Length(TZVariant(V2).VBytes); //overflow save!
+    Result := Length(TZVariant(V1).VRawByteString) - Length(TZVariant(V2).VRawByteString); //overflow save!
     if Result = 0 then
-      Result := ZMemLComp(Pointer(TZVariant(V1).VBytes), Pointer(TZVariant(V2).VBytes),
-        Length(TZVariant(V1).VBytes));
+      Result := ZMemLComp(Pointer(TZVariant(V1).VRawByteString), Pointer(TZVariant(V2).VRawByteString),
+        Length(TZVariant(V1).VRawByteString));
   end;
 end;
 
@@ -1150,7 +1133,7 @@ begin
     if not LastWasNull and (Blob <> nil) then
       if Blob.IsClob then
         Result := Blob.GetStream
-      else if Self.GetMetaData.GetColumnType(ColumnIndex) = stUnicodeStream then begin
+      else if GetMetaData.GetColumnType(ColumnIndex) = stUnicodeStream then begin
         FRawTemp := GetValidatedAnsiStringFromBuffer(Blob.GetBuffer,
             Blob.Length, ConSettings, ConSettings.CTRL_CP);
         Result := StreamFromData(Pointer(FRawTemp), Length(FRawTemp){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF});
@@ -1299,7 +1282,11 @@ begin
                   end;
     stDate, stTime, stTimestamp:
       Result := EncodeDateTime(IZResultSet(FWeakIntfPtrOfSelf).GetTimestamp(ColumnIndex));
-    stBytes, stBinaryStream, stGUID:
+    stGUID: begin
+              InitializeVariant(Result, vtGUID);
+              IZResultSet(FWeakIntfPtrOfSelf).GetGUID(ColumnIndex, Result.VGUID);
+            end;
+    stBytes, stBinaryStream:
       Result := EncodeBytes(IZResultSet(FWeakIntfPtrOfSelf).GetBytes(ColumnIndex));
     stString, stAsciiStream, stUnicodeString, stUnicodeStream:
       {$IFDEF WITH_USC2_ANSICOMPARESTR_ONLY}
@@ -1646,6 +1633,12 @@ begin
   Result := IZResultSet(FWeakIntfPtrOfSelf).GetFloat(GetColumnIndex(ColumnName));
 end;
 
+procedure TZAbstractResultSet.GetGUIDByName(const ColumnName: string;
+  var Result: TGUID);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetGUID(GetColumnIndex(ColumnName), Result);
+end;
+
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
@@ -1703,6 +1696,42 @@ begin
   Result := IZResultSet(FWeakIntfPtrOfSelf).GetBytes(GetColumnIndex(ColumnName));
 end;
 
+function TZAbstractResultSet.GetDate(ColumnIndex: Integer): TDateTime;
+var D: TZDate;
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex, D);
+  if not LastWasNull then
+    LastWasNull := not TryDateToDateTime(D, Result);
+  if LastWasNull then
+    Result := 0;
+end;
+
+procedure TZAbstractResultSet.GetDate(ColumnIndex: Integer; var Result: TZDate);
+var DT: TDateTime;
+begin
+  DT := IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex);
+  if not LastWasNull
+  then  DecodeDateTimeToDate(DT, Result)
+  else if SizeOf(TZDate) = SizeOf(Int64)
+    then PInt64(@Result.Year)^ := 0
+    else FillChar(Result, SizeOf(TZDate), #0);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Date</code> object in the Java programming language.
+
+  @param columnName the SQL name of the column
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>null</code>
+}
+procedure TZAbstractResultSet.GetDateByName(const ColumnName: string;
+  var Result: TZDate);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetDate(GetColumnIndex(ColumnName), Result);
+end;
+
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
@@ -1726,9 +1755,96 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>,
     the value returned is <code>null</code>
 }
+function TZAbstractResultSet.GetTime(ColumnIndex: Integer): TDateTime;
+var T: TZTime;
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetTime(columnIndex, T);
+  if not LastWasNull then
+    LastWasNull := not TryTimeToDateTime(T, Result);
+  if LastWasNull then
+    Result := 0;
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Time</code> object in the Java programming language.
+
+  @param columnName the SQL name of the column
+  @return the column value; if the value is SQL <code>NULL</code>,
+    the value returned is <code>null</code>
+}
+procedure TZAbstractResultSet.GetTime(ColumnIndex: Integer; var Result: TZTime);
+var T: TDateTime;
+begin
+  T := IZResultSet(FWeakIntfPtrOfSelf).GetTime(columnIndex);
+  if not LastWasNull
+  then DecodeDateTimeToTime(T, Result)
+  else FillChar(Result, SizeOf(TZTime), #0);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Time</code> object in the Java programming language.
+
+  @param columnName the SQL name of the column
+  @return the column value; if the value is SQL <code>NULL</code>,
+    the value returned is <code>null</code>
+}
+procedure TZAbstractResultSet.GetTimeByName(const ColumnName: string;
+  var Result: TZTime);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetTime(GetColumnIndex(ColumnName), Result);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Time</code> object in the Java programming language.
+
+  @param columnName the SQL name of the column
+  @return the column value; if the value is SQL <code>NULL</code>,
+    the value returned is <code>null</code>
+}
 function TZAbstractResultSet.GetTimeByName(const ColumnName: string): TDateTime;
 begin
   Result := IZResultSet(FWeakIntfPtrOfSelf).GetTime(GetColumnIndex(ColumnName));
+end;
+
+function TZAbstractResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
+var TS: TZTimeStamp;
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetTimeStamp(ColumnIndex, TS);
+  if not LastWasNull then
+    LastWasNull := not TryTimeStampToDateTime(TS, Result);
+  if LastWasNull then
+    Result := 0;
+end;
+
+procedure TZAbstractResultSet.GetTimestamp(ColumnIndex: Integer;
+  var Result: TZTimeStamp);
+var Dt: TDateTime;
+begin
+  DT := IZResultSet(FWeakIntfPtrOfSelf).GetTimeStamp(ColumnIndex);
+  if not LastWasNull
+  then DecodeDateTimeToTimeStamp(DT, Result)
+  else FillChar(Result, SizeOf(TZTimeStamp), #0);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>java.sql.Timestamp</code> object.
+
+  @param columnName the SQL name of the column
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>null</code>
+}
+procedure TZAbstractResultSet.GetTimestampByName(const ColumnName: string;
+  var Result: TZTimeStamp);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).GetTimestamp(GetColumnIndex(ColumnName), Result);
 end;
 
 {**
@@ -2388,6 +2504,7 @@ end;
 procedure TZAbstractResultSet.UpdateValue(ColumnIndex: Integer;
   const Value: TZVariant);
 var Lob: IZBLob;
+  Len: NativeUInt;
 begin
   case Value.VType of
     vtBoolean: IZResultSet(FWeakIntfPtrOfSelf).UpdateBoolean(ColumnIndex, Value.VBoolean);
@@ -2396,15 +2513,19 @@ begin
     vtDouble: IZResultSet(FWeakIntfPtrOfSelf).UpdateDouble(ColumnIndex, Value.VDouble);
     vtCurrency: IZResultSet(FWeakIntfPtrOfSelf).UpdateCurrency(ColumnIndex, Value.VCurrency);
     vtBigDecimal: IZResultSet(FWeakIntfPtrOfSelf).UpdateBigDecimal(ColumnIndex, Value.VBigDecimal);
-    vtString: IZResultSet(FWeakIntfPtrOfSelf).UpdateString(ColumnIndex, Value.VString);
+    vtGUID:    IZResultSet(FWeakIntfPtrOfSelf).UpdateGUID(ColumnIndex, Value.VGUID);
+    vtString: IZResultSet(FWeakIntfPtrOfSelf).UpdateString(ColumnIndex, Value.{$IFDEF UNICODE}VUnicodeString{$ELSE}VRawByteString{$ENDIF});
 {$IFNDEF NO_ANSISTRING}
-    vtAnsiString: IZResultSet(FWeakIntfPtrOfSelf).UpdateAnsiString(ColumnIndex, Value.VAnsiString);
+    vtAnsiString: IZResultSet(FWeakIntfPtrOfSelf).UpdateAnsiString(ColumnIndex, Value.VRawByteString);
 {$ENDIF}
 {$IFNDEF NO_UTF8STRING}
-    vtUTF8String: IZResultSet(FWeakIntfPtrOfSelf).UpdateUTF8String(ColumnIndex, Value.VUTF8String);
+    vtUTF8String: IZResultSet(FWeakIntfPtrOfSelf).UpdateUTF8String(ColumnIndex, Value.VRawByteString);
 {$ENDIF}
     vtRawByteString: IZResultSet(FWeakIntfPtrOfSelf).UpdateRawByteString(ColumnIndex, Value.VRawByteString);
-    vtBytes: IZResultSet(FWeakIntfPtrOfSelf).UpdateBytes(ColumnIndex, Value.VBytes);
+    vtBytes: begin
+              Len := Length(Value.VRawByteString);
+              IZResultSet(FWeakIntfPtrOfSelf).UpdatePAnsiChar(ColumnIndex, Pointer(Value.VRawByteString), Len);
+            end;
     vtDateTime: IZResultSet(FWeakIntfPtrOfSelf).UpdateTimestamp(ColumnIndex, Value.VDateTime);
     vtUnicodeString: IZResultSet(FWeakIntfPtrOfSelf).UpdateUnicodeString(ColumnIndex, Value.VUnicodeString);
     vtInterface: begin
@@ -2591,6 +2712,12 @@ procedure TZAbstractResultSet.UpdateFloatByName(const ColumnName: string;
   Value: Single);
 begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateFloat(GetColumnIndex(ColumnName), Value);
+end;
+
+procedure TZAbstractResultSet.UpdateGUIDByName(const ColumnName: string;
+  const Value: TGUID);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateGUID(GetColumnIndex(ColumnName), Value);
 end;
 
 {**
@@ -2849,6 +2976,30 @@ begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(GetColumnIndex(ColumnName), Value);
 end;
 
+procedure TZAbstractResultSet.UpdateDate(ColumnIndex: Integer;
+  const Value: TDateTime);
+var D: TZDate;
+begin
+  DecodeDateTimeToDate(Value, D);
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(ColumnIndex, D);
+end;
+
+{**
+  Updates the designated column with a <code>java.sql.Date</code> value.
+  The <code>updateXXX</code> methods are used to update column values in the
+  current row or the insert row.  The <code>updateXXX</code> methods do not
+  update the underlying database; instead the <code>updateRow</code> or
+  <code>insertRow</code> methods are called to update the database.
+
+  @param columnName the name of the column
+  @param x the new column value
+}
+procedure TZAbstractResultSet.UpdateDateByName(const ColumnName: string;
+  const Value: TZDate);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(GetColumnIndex(ColumnName), Value);
+end;
+
 {**
   Updates the designated column with a <code>java.sql.Time</code> value.
   The <code>updateXXX</code> methods are used to update column values in the
@@ -2865,6 +3016,38 @@ begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(GetColumnIndex(ColumnName), Value);
 end;
 
+procedure TZAbstractResultSet.UpdateTime(ColumnIndex: Integer;
+  const Value: TDateTime);
+var T: TZTime;
+begin
+  DecodeDateTimeToTime(Value, T);
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(ColumnIndex, T);
+end;
+
+{**
+  Updates the designated column with a <code>java.sql.Time</code> value.
+  The <code>updateXXX</code> methods are used to update column values in the
+  current row or the insert row.  The <code>updateXXX</code> methods do not
+  update the underlying database; instead the <code>updateRow</code> or
+  <code>insertRow</code> methods are called to update the database.
+
+  @param columnName the name of the column
+  @param x the new column value
+}
+procedure TZAbstractResultSet.UpdateTimeByName(const ColumnName: string;
+  const Value: TZTime);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(GetColumnIndex(ColumnName), Value);
+end;
+
+procedure TZAbstractResultSet.UpdateTimeStamp(ColumnIndex: Integer;
+  const Value: TDateTime);
+var TS: TZTimeStamp;
+begin
+  DecodeDateTimeToTimeStamp(Value, TS);
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateTimeStamp(ColumnIndex, TS);
+end;
+
 {**
   Updates the designated column with a <code>java.sql.Timestamp</code>
   value.
@@ -2878,6 +3061,23 @@ end;
 }
 procedure TZAbstractResultSet.UpdateTimestampByName(const ColumnName: string;
   const Value: TDateTime);
+begin
+  IZResultSet(FWeakIntfPtrOfSelf).UpdateTimestamp(GetColumnIndex(ColumnName), Value);
+end;
+
+{**
+  Updates the designated column with a <code>java.sql.Timestamp</code>
+  value.
+  The <code>updateXXX</code> methods are used to update column values in the
+  current row or the insert row.  The <code>updateXXX</code> methods do not
+  update the underlying database; instead the <code>updateRow</code> or
+  <code>insertRow</code> methods are called to update the database.
+
+  @param columnName the name of the column
+  @param x the new column value
+}
+procedure TZAbstractResultSet.UpdateTimestampByName(const ColumnName: string;
+  const Value: TZTimeStamp);
 begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTimestamp(GetColumnIndex(ColumnName), Value);
 end;
@@ -4516,7 +4716,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractReadOnlyResultSet.UpdateDate(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZDate);
 begin
   RaiseReadOnlyException;
 end;
@@ -4561,6 +4761,12 @@ end;
 }
 procedure TZAbstractReadOnlyResultSet.UpdateFloat(ColumnIndex: Integer;
   Value: Single);
+begin
+  RaiseReadOnlyException;
+end;
+
+procedure TZAbstractReadOnlyResultSet.UpdateGUID(ColumnIndex: Integer;
+  const Value: TGUID);
 begin
   RaiseReadOnlyException;
 end;
@@ -4728,7 +4934,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractReadOnlyResultSet.UpdateTime(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZTime);
 begin
   RaiseReadOnlyException;
 end;
@@ -4745,7 +4951,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractReadOnlyResultSet.UpdateTimestamp(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZTimeStamp);
 begin
   RaiseReadOnlyException;
 end;
@@ -4856,427 +5062,6 @@ begin
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-{ TZSimpleResultSet }
-
-{$IFDEF USE_SYNCOMMONS}
-procedure TZSimpleResultSet.ColumnsToJSON(JSONWriter: TJSONWriter;
-  JSONComposeOptions: TZJSONComposeOptions);
-begin
-  raise Exception.Create(SUnsupportedOperation);
-end;
-{$ENDIF}
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>PAnsiChar</code> in the Delphi programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @param Len the Length of the PAnsiChar String
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar;
-begin
-  FRawTemp := GetRawByteString(ColumnIndex);
-  if Pointer(FRawTemp) = nil then begin
-    Len := 0;
-    Result := PEmptyAnsiString;
-  end else begin
-    {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
-    Len := NativeUInt({%H-}PLengthInt(NativeUInt(FRawTemp) - StringLenOffSet)^);
-    {$ELSE}
-    Len := Length(FRawTemp)-1;
-    {$ENDIF}
-    Result := Pointer(FRawTemp);
-  end;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>PWideChar</code> in the Delphi programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @param Len the length of UCS2 string in codepoints
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetPWideChar(ColumnIndex: Integer;
-  out Len: NativeUInt): PWideChar;
-begin
-  FUniTemp := GetUnicodeString(ColumnIndex);
-  Len := Length(FUniTemp);
-  {no RTL conversion to PWideChar}
-  if Len = 0 then
-    Result := PEmptyUnicodeString
-  else
-    Result := Pointer(FUniTemp);
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>String</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetString(ColumnIndex: Integer): String;
-{$IFDEF UNICODE}
-var
-  Len: NativeUInt;
-  P: PAnsiChar;
-{$ENDIF}
-begin
-  {$IFDEF UNICODE}
-  P := GetPAnsiChar(ColumnIndex, Len);
-  Result := PRawToUnicode(P, Len, ConSettings^.ClientCodePage^.CP);
-  {$ELSE}
-  Result := ConSettings^.ConvFuncs.ZRawToString(InternalGetString(ColumnIndex),
-    ConSettings^.ClientCodePage^.CP, ConSettings^.CTRL_CP);
-  {$ENDIF}
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>AnsiString</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-{$IFNDEF NO_ANSISTRING}
-function TZSimpleResultSet.GetAnsiString(ColumnIndex: Integer): AnsiString;
-begin
-  Result := ConSettings^.ConvFuncs.ZRawToAnsi(InternalGetString(ColumnIndex),
-    ConSettings^.ClientCodePage^.CP);
-end;
-{$ENDIF}
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>UTF8String</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-{$IFNDEF NO_UTF8STRING}
-function TZSimpleResultSet.GetUTF8String(ColumnIndex: Integer): UTF8String;
-var
-  P: PAnsiChar;
-  Len: NativeUInt;
-begin
-  P := GetPAnsiChar(ColumnIndex, Len);
-  Result := ConSettings^.ConvFuncs.ZPRawToUTF8(P, Len, ConSettings^.ClientCodePage^.CP);
-end;
-{$ENDIF}
-
-{**
-  Indicates if the value of the designated column in the current row
-  of this <code>ResultSet</code> object is Null.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return if the value is SQL <code>NULL</code>, the
-    value returned is <code>true</code>. <code>false</code> otherwise.
-}
-{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // base class - parameter not used intentionally
-function TZSimpleResultSet.InternalGetString(
-  ColumnIndex: Integer): RawByteString;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stString);
-{$ENDIF}
-  Result := EmptyRaw;
-end;
-
-function TZSimpleResultSet.IsNull(ColumnIndex: Integer): Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>UTF8String</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetRawByteString(ColumnIndex: Integer): RawByteString;
-begin
-  Result := InternalGetString(ColumnIndex);
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>WideString</code> in the Delphi programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetUnicodeString(ColumnIndex: Integer): ZWideString;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stUnicodeString);
-{$ENDIF}
-  Result := ConSettings^.ConvFuncs.ZRawToUnicode(InternalGetString(ColumnIndex),
-    ConSettings^.ClientCodePage^.CP);
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>boolean</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>false</code>
-}
-function TZSimpleResultSet.GetBoolean(ColumnIndex: Integer): Boolean;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stBoolean);
-{$ENDIF}
-  Result := False;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  an <code>uint</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetUInt(ColumnIndex: Integer): Cardinal;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stLongWord);
-{$ENDIF}
-  Result := Cardinal(GetLong(ColumnIndex));
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  an <code>int</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetInt(ColumnIndex: Integer): Integer;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stInteger);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>ulong</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R-}{$IFEND}
-function TZSimpleResultSet.GetULong(ColumnIndex: Integer): UInt64;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stULong);
-{$ENDIF}
-  if TZColumnInfo(FColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]).ColumnType in [stString, stUnicodeString,stAsciiStream,stUnicodeStream] then
-    if ConSettings^.ClientCodePage.Encoding = ceUTF16
-    then Result := UnicodeToUInt64Def(GetPWideChar(ColumnIndex), 0)
-    else Result := RawToUInt64Def(GetPAnsiChar(ColumnIndex), 0)
-  else Result := GetLong(ColumnIndex);
-end;
-{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R+}{$IFEND}
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>long</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetLong(ColumnIndex: Integer): Int64;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stLong);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>float</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetFloat(ColumnIndex: Integer): Single;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stFloat);
-{$ENDIF}
-  Result := IZResultSet(FWeakIntfPtrOfSelf).GetDouble(ColumnIndex);
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>double</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetDouble(ColumnIndex: Integer): Double;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stDouble);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>currency</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>0</code>
-}
-function TZSimpleResultSet.GetCurrency(ColumnIndex: Integer): Currency;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stCurrency);
-{$ENDIF}
-  Result := GetDouble(ColumnIndex);
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.BigDecimal</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @param scale the number of digits to the right of the decimal point
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-procedure TZSimpleResultSet.GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stBigDecimal);
-{$ENDIF}
-  Result := NullBCD;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>byte</code> array in the Java programming language.
-  The bytes represent the raw values returned by the driver.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetBytes(ColumnIndex: Integer): TBytes;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stBytes);
-{$ENDIF}
-  Result := nil;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.Date</code> object in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetDate(ColumnIndex: Integer): TDateTime;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stDate);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.Time</code> object in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZSimpleResultSet.GetTime(ColumnIndex: Integer): TDateTime;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stTime);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.Timestamp</code> object in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-  value returned is <code>null</code>
-  @exception SQLException if a database access error occurs
-}
-function TZSimpleResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckColumnConvertion(ColumnIndex, stTimestamp);
-{$ENDIF}
-  Result := 0;
-end;
-
-{**
-  Returns the value of the designated column in the current row
-  of this <code>ResultSet</code> object as a <code>Blob</code> object
-  in the Java programming language.
-
-  @param ColumnIndex the first column is 1, the second is 2, ...
-  @return a <code>Blob</code> object representing the SQL <code>BLOB</code> value in
-    the specified column
-}
-function TZSimpleResultSet.GetBlob(ColumnIndex: Integer): IZBlob;
-begin
-{$IFNDEF DISABLE_CHECKING}
-  CheckBlobColumn(ColumnIndex);
-{$ENDIF}
-  Result := TZAbstractBlob.CreateWithStream(nil);
-end;
-
 { TZAbstractReadOnlyResultSet_A }
 
 {**
@@ -5295,18 +5080,17 @@ function TZAbstractReadOnlyResultSet_A.GetAnsiString(
 var
   P: PAnsichar;
   L: NativeUInt;
-  CI: PZColumnInfo;
 begin
   P := IZResultSet(FWeakIntfPtrOfSelf).GetPAnsiChar(ColumnIndex, L);
-  if P <> nil then begin
-    CI := @ColumnsInfo.List{$IFNDEF TLIST_ISNOT_PPOINTERLIST}^{$ENDIF}[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}];
-    if (CI.ColumnType in [stString,stUnicodeString,stAsciiStream,stUnicodeStream]) and
-       (CI.ColumnCodePage <> zOSCodePage) then begin
-      FUniTemp := PRawToUnicode(P, L, CI.ColumnCodePage);
+  if P <> nil then
+    With TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]) do
+    if (ColumnType in [stString,stUnicodeString,stAsciiStream,stUnicodeStream]) and
+       (ColumnCodePage <> zOSCodePage) then begin
+      FUniTemp := PRawToUnicode(P, L, ColumnCodePage);
       Result := ZUnicodeToRaw(FUniTemp, zOSCodePage);
     end else
       System.SetString(Result, P, L)
-  end else Result := '';
+  else Result := '';
 end;
 {$ENDIF}
 
@@ -5325,14 +5109,13 @@ function TZAbstractReadOnlyResultSet_A.GetUTF8String(
 var
   P: PAnsichar;
   L: NativeUInt;
-  CI: PZColumnInfo;
 begin
   P := IZResultSet(FWeakIntfPtrOfSelf).GetPAnsiChar(ColumnIndex, L);
   if P <> nil then begin
-    CI := @ColumnsInfo.List{$IFNDEF TLIST_ISNOT_PPOINTERLIST}^{$ENDIF}[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}];
-    if (CI.ColumnType in [stString,stUnicodeString,stAsciiStream,stUnicodeStream]) and
-       (CI.ColumnCodePage <> zCP_UTF8) then begin
-      FUniTemp := PRawToUnicode(P, L, CI.ColumnCodePage);
+    with TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]) do
+    if (ColumnType in [stString,stUnicodeString,stAsciiStream,stUnicodeStream]) and
+       (ColumnCodePage <> zCP_UTF8) then begin
+      FUniTemp := PRawToUnicode(P, L, ColumnCodePage);
       Result := ZUnicodeToRaw(FUniTemp, zCP_UTF8);
     end else
       {$IFDEF MISS_RBS_SETSTRING_OVERLOAD}
@@ -5342,7 +5125,6 @@ begin
       {$ENDIF}
   end else Result := '';
 end;
-
 {$ENDIF}
 
 end.

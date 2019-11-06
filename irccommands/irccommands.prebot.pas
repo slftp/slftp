@@ -272,7 +272,7 @@ begin
           added := True;
           d := TDirList.Create(sr.sitename, nil, csl, sr.response);
           try
-            nfofound := d.hasnfo;
+            nfofound := d.HasNFO;
             d.UsefulFiles(files, size);
             sized := size;
             RecalcSizeValueAndUnit(sized, sizestring, 0);

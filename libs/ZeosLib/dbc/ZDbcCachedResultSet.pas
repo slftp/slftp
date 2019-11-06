@@ -197,10 +197,11 @@ type
     function GetDouble(ColumnIndex: Integer): Double;
     function GetCurrency(ColumnIndex: Integer): Currency;
     procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+    procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
     function GetBytes(ColumnIndex: Integer): TBytes;
-    function GetDate(ColumnIndex: Integer): TDateTime;
-    function GetTime(ColumnIndex: Integer): TDateTime;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime;
+    procedure GetDate(ColumnIndex: Integer; Var Result: TZDate); overload;
+    procedure GetTime(ColumnIndex: Integer; var Result: TZTime); overload;
+    procedure GetTimestamp(ColumnIndex: Integer; var Result: TZTimeStamp); overload;
     function GetBlob(ColumnIndex: Integer): IZBlob;
     function GetDefaultExpression(ColumnIndex: Integer): string; override;
 
@@ -232,6 +233,7 @@ type
     procedure UpdateDouble(ColumnIndex: Integer; const Value: Double);
     procedure UpdateCurrency(ColumnIndex: Integer; const Value: Currency);
     procedure UpdateBigDecimal(ColumnIndex: Integer; const Value: TBCD);
+    procedure UpdateGUID(ColumnIndex: Integer; const Value: TGUID);
     procedure UpdatePAnsiChar(ColumnIndex: Integer; Value: PAnsiChar; var Len: NativeUint); overload;
     procedure UpdatePWideChar(ColumnIndex: Integer; Value: PWideChar; var Len: NativeUint); overload;
     procedure UpdateString(ColumnIndex: Integer; const Value: String);
@@ -244,9 +246,9 @@ type
     procedure UpdateRawByteString(ColumnIndex: Integer; const Value: RawByteString);
     procedure UpdateUnicodeString(ColumnIndex: Integer; const Value: ZWideString);
     procedure UpdateBytes(ColumnIndex: Integer; const Value: TBytes);
-    procedure UpdateDate(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTime(ColumnIndex: Integer; const Value: TDateTime);
-    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TDateTime);
+    procedure UpdateDate(ColumnIndex: Integer; const Value: TZDate); overload;
+    procedure UpdateTime(ColumnIndex: Integer; const Value: TZTime); overload;
+    procedure UpdateTimestamp(ColumnIndex: Integer; const Value: TZTimeStamp); overload;
     procedure UpdateAsciiStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateUnicodeStream(ColumnIndex: Integer; const Value: TStream);
     procedure UpdateBinaryStream(ColumnIndex: Integer; const Value: TStream);
@@ -1057,6 +1059,24 @@ end;
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
+  a <code>UUID</code> in the Java programming language.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>Zero-UUID</code>
+}
+procedure TZAbstractCachedResultSet.GetGUID(ColumnIndex: Integer;
+  var Result: TGUID);
+begin
+{$IFNDEF DISABLE_CHECKING}
+  CheckAvailable;
+{$ENDIF}
+  FRowAccessor.GetGUID(ColumnIndex, Result, LastWasNull);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
   a <code>double</code> in the Java programming language.
 
   @param columnIndex the first column is 1, the second is 2, ...
@@ -1133,12 +1153,12 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAbstractCachedResultSet.GetDate(ColumnIndex: Integer): TDateTime;
+procedure TZAbstractCachedResultSet.GetDate(ColumnIndex: Integer; Var Result: TZDate);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckAvailable;
 {$ENDIF}
-  Result := FRowAccessor.GetDate(ColumnIndex, LastWasNull);
+  FRowAccessor.GetDate(ColumnIndex, LastWasNull, Result);
 end;
 
 {**
@@ -1150,12 +1170,12 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAbstractCachedResultSet.GetTime(ColumnIndex: Integer): TDateTime;
+procedure TZAbstractCachedResultSet.GetTime(ColumnIndex: Integer; var Result: TZTime);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckAvailable;
 {$ENDIF}
-  Result := FRowAccessor.GetTime(ColumnIndex, LastWasNull);
+  FRowAccessor.GetTime(ColumnIndex, LastWasNull, Result);
 end;
 
 {**
@@ -1168,12 +1188,12 @@ end;
   value returned is <code>null</code>
   @exception SQLException if a database access error occurs
 }
-function TZAbstractCachedResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
+procedure TZAbstractCachedResultSet.GetTimestamp(ColumnIndex: Integer; var Result: TZTimeStamp);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckAvailable;
 {$ENDIF}
-  Result := FRowAccessor.GetTimestamp(ColumnIndex, LastWasNull);
+  FRowAccessor.GetTimestamp(ColumnIndex, LastWasNull, Result);
 end;
 
 {**
@@ -1432,6 +1452,16 @@ begin
   FRowAccessor.SetFloat(ColumnIndex, Value);
 end;
 
+procedure TZAbstractCachedResultSet.UpdateGUID(ColumnIndex: Integer;
+  const Value: TGUID);
+begin
+{$IFNDEF DISABLE_CHECKING}
+  CheckUpdatable;
+{$ENDIF}
+  PrepareRowForUpdates;
+  FRowAccessor.SetGUID(ColumnIndex, Value);
+end;
+
 {**
   Updates the designated column with a <code>double</code> value.
   The <code>updateXXX</code> methods are used to update column values in the
@@ -1670,7 +1700,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractCachedResultSet.UpdateDate(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZDate);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckUpdatable;
@@ -1690,7 +1720,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractCachedResultSet.UpdateTime(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZTime);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckUpdatable;
@@ -1711,7 +1741,7 @@ end;
   @param x the new column value
 }
 procedure TZAbstractCachedResultSet.UpdateTimestamp(ColumnIndex: Integer;
-  const Value: TDateTime);
+  const Value: TZTimeStamp);
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckUpdatable;
@@ -2200,6 +2230,20 @@ function TZCachedResultSet.Fetch: Boolean;
 var
   I: Integer;
   TempRow: PZRowBuffer;
+  BCD: TBCD; //one val on stack 4 all
+  TS: TZTimeStamp absolute BCD;
+  D: TZDate absolute BCD;
+  T: TZTime absolute BCD;
+  G: TGUID absolute BCD;
+  P: Pointer absolute BCD;
+  Lob: IZBlob absolute BCD;
+  i32: Integer absolute BCD;
+  c32: Cardinal absolute BCD;
+  i64: Int64 absolute BCD;
+  U64: UInt64 absolute BCD;
+  Dbl: Double absolute BCD;
+  C: Currency absolute BCD;
+  S: Single absolute BCD;
 begin
   if Assigned(FResultSet) then
     Result := FResultSet.Next
@@ -2219,25 +2263,63 @@ begin
         continue
       else case TZColumnInfo(ColumnsInfo[I{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]).ColumnType of
         stBoolean: RowAccessor.SetBoolean(I, ResultSet.GetBoolean(I));
-        stByte, stWord, stLongWord: RowAccessor.SetUInt(I, ResultSet.GetUInt(I));
-        stShort, stSmall, stInteger: RowAccessor.SetInt(I, ResultSet.GetInt(I));
-        stULong: RowAccessor.SetULong(I, ResultSet.GetULong(I));
-        stLong: RowAccessor.SetLong(I, ResultSet.GetLong(I));
-        stFloat: RowAccessor.SetFloat(I, ResultSet.GetFloat(I));
-        stDouble: RowAccessor.SetDouble(I, ResultSet.GetDouble(I));
-        stCurrency: RowAccessor.SetCurrency(I, ResultSet.GetCurrency(I));
-        stBigDecimal: begin
-                          ResultSet.GetBigDecimal(I, PBCD(@RowAccessor.TinyBuffer[0])^);
-                          RowAccessor.SetBigDecimal(I, PBCD(@RowAccessor.TinyBuffer[0])^);
+        stByte, stWord, stLongWord: begin
+                          C32 := ResultSet.GetUInt(I);
+                          RowAccessor.SetUInt(I, C32);
+                        end;
+        stShort, stSmall, stInteger: begin
+                          I32 := ResultSet.GetInt(I);
+                          RowAccessor.SetInt(I, i32);
+                        end;
+        stULong:        begin
+                          u64 := ResultSet.GetULong(I);
+                          RowAccessor.SetULong(I, U64);
+                        end;
+        stLong:         begin
+                          i64 := ResultSet.GetLong(I);
+                          RowAccessor.SetLong(I, i64);
+                        end;
+        stFloat:        begin
+                          S := ResultSet.GetFloat(I);
+                          RowAccessor.SetFloat(I, S);
+                        end;
+        stDouble:       begin
+                          Dbl := ResultSet.GetDouble(I);
+                          RowAccessor.SetDouble(I, Dbl);
+                        end;
+        stCurrency:     begin
+                          C := ResultSet.GetCurrency(I);
+                          RowAccessor.SetCurrency(I, C);
+                        end;
+        stGUID:         begin
+                          ResultSet.GetGUID(I, G);
+                          RowAccessor.SetGUID(I, G);
+                        end;
+        stBigDecimal:   begin
+                          ResultSet.GetBigDecimal(I, BCD);
+                          RowAccessor.SetBigDecimal(I, BCD);
                         end;
         stString, stUnicodeString: FStringFieldAssignFromResultSet(i);
-        stBytes,stGUID: RowAccessor.SetBytes(I, ResultSet.GetBytes(I));
-        stDate: RowAccessor.SetDate(I, ResultSet.GetDate(I));
-        stTime: RowAccessor.SetTime(I, ResultSet.GetTime(I));
-        stTimestamp: RowAccessor.SetTimestamp(I, ResultSet.GetTimestamp(I));
-        stAsciiStream, stBinaryStream, stUnicodeStream:
-          RowAccessor.SetBlob(I, ResultSet.GetBlob(I));
-        stDataSet: RowAccessor.SetDataSet(i, ResultSet.GetDataSet(I));
+        stBytes: RowAccessor.SetBytes(I, ResultSet.GetBytes(I));
+        stDate:         begin
+                          ResultSet.GetDate(I, D);
+                          RowAccessor.SetDate(I, D);
+                        end;
+        stTime:         begin
+                          ResultSet.GetTime(I, T);
+                          RowAccessor.SetTime(I, T);
+                        end;
+        stTimestamp:    begin
+                          ResultSet.GetTimestamp(I, TS);
+                          RowAccessor.SetTimestamp(I, TS);
+                        end;
+        stAsciiStream, stBinaryStream, stUnicodeStream: begin
+            P := nil; //avoid gpf
+            Lob := ResultSet.GetBlob(I);
+            RowAccessor.SetBlob(I, Lob);
+            Lob := nil;
+          end;
+        //stDataSet: RowAccessor.SetDataSet(i, ResultSet.GetDataSet(I));
       end;
       if ResultSet.WasNull then
         RowAccessor.SetNull(I);

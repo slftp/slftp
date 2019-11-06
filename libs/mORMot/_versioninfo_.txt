@@ -1,3 +1,3 @@
-36666fc9ff1e7a8261ce7b6de7f2a403e97d1f26
+724913801e92da4982e2ff595ab156ad9b0a33e5
 
-fixed some unexpected hint at Delphi compilation
+new TSynDate.FromDate/ComputeDayOfWeek and TSynSystemTime.ToSynDate methods
