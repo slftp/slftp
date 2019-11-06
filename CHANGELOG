@@ -68,7 +68,7 @@
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
-    Dirlist confusion causing wrong skip files output but it does not race them
+    Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
