@@ -184,7 +184,7 @@ implementation
 uses
   StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
-  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news;
+  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse;
 
 const
   section = 'irc';
@@ -502,7 +502,6 @@ begin
     exit;
   irc_Addtext_by_key('UPDATE', msgirc)
 end;
-
 
 procedure IrcStart;
 var
@@ -1260,9 +1259,8 @@ begin
       end
       else if (s2 = 'INVITE') then
       begin
-        chan := Copy(SubString(s, ' ', 4), 2, 1000);
-        irc_Addadmin('INVITE on ' + netname + ' to ' + chan + ' by ' + Copy(SubString(SubString(s, ' ', 1), '!', 1), 2, 100));
-
+        parseIrcINVITE(s, chan, nick);
+        irc_Addadmin(Format('INVITE on %s to %s by %s', [netname, chan, nick]));
         fChanSettings := FindIrcChannelSettings(netname, chan);
         // sitebot could invite you to a chan you don't want to join
         if (fChanSettings <> nil) then
@@ -1278,12 +1276,9 @@ begin
     end;
 
     snick := Copy(s, 2, Pos('!', s) - 2);
-    //:rsc!rsctm@coctail.sda.bme.hu KICK #femforgacs rsctm :no reason
     if (s2 = 'KICK') then
     begin
-      chan := SubString(s, ' ', 3);
-      nick := SubString(s, ' ', 4);
-
+      parseIrcKICK(s, chan, nick);
       if (nick <> irc_nick) then
       begin
         if config.ReadBool(section, 'echo_kick_events', False) then
@@ -1296,8 +1291,7 @@ begin
     end
     else if (s2 = 'JOIN') then
     begin
-      chan := Copy(SubString(s, ' ', 3), 2, 1000);
-      snick := Copy(s, 2, Pos('!', s) - 2);
+      parseIrcJOIN(s, chan, snick);
       console_add_ircwindow(netname + ' ' + chan);
       if (snick <> irc_nick) then
       begin
@@ -1307,13 +1301,11 @@ begin
           console_addline(netname + ' ' + chan, Format('--> JOIN %s <--', [snick]));
         end;
       end;
-
       chanjoin(chan, snick);
     end
     else if (s2 = 'PART') then
     begin
-      chan := SubString(s, ' ', 3);
-      snick := Copy(s, 2, Pos('!', s) - 2);
+      parseIrcPART(s, chan, snick);
       if (snick <> irc_nick) then
       begin
         console_addline(netname + ' ' + chan, Format('--> PART %s <--', [snick]));
@@ -1324,10 +1316,7 @@ begin
     end
     else if (s2 = 'TOPIC') then
     begin
-      s1 := Copy(s, Pos(':', s) + 1, MaxInt);
-      chan := SubString(s, ' ', 3);
-      s1 := Copy(s1, Pos(' ', s1), MaxInt);
-      msg := Copy(s1, Pos(':', s1) + 1, MaxInt);
+      parseIrcTOPIC(s, chan, msg);
 
       for i := Low(BlowfishIdentificationWords) to High(BlowfishIdentificationWords) do
       begin
@@ -1395,7 +1384,7 @@ begin
     end
     else if (s2 = 'NICK') then
     begin
-      snick := Copy(s, 2, Pos('!', s) - 2);
+      parseIrcNICK(s, snick);
       if (snick <> irc_nick) then
       begin
         if config.ReadBool(section, 'echo_nick_change_events', False) then
@@ -1404,7 +1393,7 @@ begin
     end
     else if ((s2 = 'QUIT') and (snick <> irc_nick)) then
     begin
-      s1 := Copy(s, RPos(':', s) + 1, 1000);
+      parseIrcQUIT(s, s1);
       for i := 0 to channels.Count - 1 do
       begin
         chan := channels.Names[i];
@@ -1988,4 +1977,3 @@ end;
 *)
 
 end.
-

@@ -38,7 +38,6 @@
 
     NEW slftp.ini parameter(s):
       only_use_routable_sites_on_reqfill=0
-      parse_boxofficemojo_exact=0
       parse_boxofficemojo_always=0
       new_news_announce_interval=3
       dbms=
@@ -69,7 +68,7 @@
     OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
-    Dirlist confusion causing wrong skip files output but it does not race them
+    Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
@@ -134,6 +133,7 @@
     {#} !addtvinfo showed wrong results for some shows like 'The.New.Frontier' or 'The.Twilight.Zone' (#246)
     {#} Try to complete works again and also supports non-routable sites as sources
     {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
+    {#} IRC channel name missing '#' for some IRCd's or bouncers (#281)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.

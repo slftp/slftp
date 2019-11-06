@@ -69,7 +69,8 @@ uses
   sllanguagebaseTests,
   mygrouphelpersTests,
   globalskipunitTests,
-  irccolorunitTests;
+  irccolorunitTests,
+  ircparsingTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
