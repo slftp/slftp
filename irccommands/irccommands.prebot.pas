@@ -62,7 +62,7 @@ begin
     exit;
   end;
 
-  if (0 = Pos('<rlsname>', precmd)) then
+  if (precmd <> '') and (0 = Pos('<rlsname>', precmd)) then
   begin
     irc_addtext(netname, channel, 'Syntax error. <rlsname> not found in precmd!');
     exit;
