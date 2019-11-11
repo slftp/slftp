@@ -175,6 +175,7 @@
     {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
     {-} Remove !nologinmsg, breaks many cmds due to missing responses
     {-} Remove !nhelp cmd, code moved into !help function
+    {-} Remove commands which were related to old stats.db and not available anymore
 
 --=============================( SLFTP v1.5.5 )===================================-
   ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
