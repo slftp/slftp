@@ -16,10 +16,17 @@ type
     dm: TMask; //< simple mask
     rm: TRegExpr; //< regex mask
   public
-    function Matches(const s: String): Boolean;
-    constructor Create(const mask: String);
-    property mask: String read FMask;
+    { Create an object which uses TMask or TRegExpr internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
+      @param(aMask String which is used to create the appropriate mask/regex) }
+    constructor Create(const aMask: String);
+    { Free the object and all it's internal data }
     destructor Destroy; override;
+    { Tests if the Input matches the actual used mask
+      @param(aInput String which should be tested against the used mask)
+      @returns(@true if maask matches input, @false otherwise) }
+    function Matches(const aInput: String): Boolean;
+
+    property mask: String read FMask;
   end;
 
 implementation
@@ -32,30 +39,31 @@ const
 
 { TslMask }
 
-constructor TslMask.Create(const mask: String);
+constructor TslMask.Create(const aMask: String);
 var
-  l: Integer;
+  fLen: Integer;
 begin
-  FMask := mask;
-  l := Length(mask);
+  FMask := aMask;
+  fLen := Length(aMask);
 
-  if l = 0 then
+  if fLen = 0 then
     exit;
 
-  if ((mask[1] = '/') and (mask[l] = '/')) then
+  if ((aMask[1] = '/') and (aMask[fLen] = '/')) then
   begin
     rm := TRegExpr.Create;
-    rm.Expression := Copy(mask, 2, l-2);
+    rm.ModifierI := False;
+    rm.Expression := Copy(aMask, 2, fLen-2);
   end
   else
-  if ((mask[1] = '/') and (mask[l-1] = '/') and (mask[l] = 'i')) then
+  if ((aMask[1] = '/') and (aMask[fLen-1] = '/') and (aMask[fLen] = 'i')) then
   begin
     rm := TRegExpr.Create;
     rm.ModifierI := True;
-    rm.Expression := Copy(mask, 2, l-3);
+    rm.Expression := Copy(aMask, 2, fLen-3);
   end
   else
-    dm := TMask.Create(mask);
+    dm := TMask.Create(aMask);
 
   FLock := TCriticalSection.Create;
 end;
@@ -77,20 +85,21 @@ begin
   inherited;
 end;
 
-function TslMask.Matches(const s: String): Boolean;
+function TslMask.Matches(const aInput: String): Boolean;
 begin
   Result := False;
 
   FLock.Enter;
   try
     if Assigned(dm) then
-      Result := dm.Matches(s)
+      Result := dm.Matches(aInput)
     else if Assigned(rm) then
     begin
       try
-        Result := rm.Exec(s)
-      except on e: Exception do
-        debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
+        Result := rm.Exec(aInput)
+      except
+        on e: Exception do
+          Debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
       end;
     end;
   finally
