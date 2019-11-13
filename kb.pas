@@ -323,7 +323,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist,
-  globalskipunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
   TSectionHandlers = array[0..6] of TCRelease;
@@ -2785,6 +2785,7 @@ var
   sources, destinations: TList<TPazoSite>;
   site_allocation: TObjectDictionary<String, TStringList>;
   ssites_info, dsites_info: TStringList;
+  d: TDirlist;
 begin
   Result := False;
   p := TPazo(pazo);
@@ -2803,6 +2804,7 @@ begin
 
       if ps.Name = getAdminSiteName then
         Continue;
+
       if ps.error then
       begin
         Debug(dpMessage, rsections, Format('Error AddCompleteTransfers for %s: %s', [ps.Name, ps.reason]));
@@ -2812,15 +2814,29 @@ begin
       ss := FindSiteByName('', ps.Name);
       if ss = nil then
         Continue;
+
       if ss.PermDown then
       begin
         Debug(dpSpam, rsections, 'AddCompleteTransfers %s ss is permdown', [ps.Name]);
         Continue;
       end;
+
       if (ss.WorkingStatus in [sstMarkedAsDownByUser]) then
       begin
         Debug(dpSpam, rsections, 'AddCompleteTransfers %s ss is marked down by user', [ps.Name]);
         Continue;
+      end;
+
+      // make sure the directory is still there e.g. to avoid backfill if dest site
+      d := DirlistB('', '', ss.Name, MyIncludeTrailingSlash(ps.maindir) + MyIncludeTrailingSlash(ps.pazo.rls.rlsname));
+      try
+        if (d = nil) then
+        begin
+          Debug(dpSpam, rsections, 'AddCompleteTransfers %s unable to do dirlist or directory is no longer there', [ps.Name]);
+          Continue;
+        end;
+      finally
+        d.Free;
       end;
 
       if ps.Complete then
@@ -2835,6 +2851,7 @@ begin
           Debug(dpSpam, rsections, 'AddCompleteTransfers %s not rssAllowed', [ps.Name]);
           Continue;
         end;
+
         destinations.Add(ps);
         Debug(dpSpam, rsections, 'AddCompleteTransfers taking %s as destination', [ps.Name]);
       end;
