@@ -1,5 +1,5 @@
 const
-  SL_VERSION: string = '1.5.6b6';
+  SL_VERSION: string = '1.5.6b7';
   {SL_RC:string='Release Candidate 1';}
   SL_REV: string = '';
   HELP_VERSION: string = '0.5.6';
@@ -7,7 +7,7 @@ const
   CC_VERSION: string = '3.2.1';
   CC_MasterK: string = 'masterpass.txt';
 
-  (* libaries *)
+  (* libraries *)
   lib_OpenSSL: string = '1.0.2';
   lib_Ncurses: string = 'ncurses 5.5.';
   lib_SQLite3: string = '3.28';
