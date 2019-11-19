@@ -380,14 +380,13 @@ end;
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
 var
   s1, s2: TSite;
-  i:      integer;
+  i: integer;
   ss1, ss2: TSiteSlot;
-   sst2: TSiteSlot;
-  sso:    boolean;
-  tt:     TTask;
-  tpr:    TPazoRaceTask;
+  tt: TTask;
+  tpr: TPazoRaceTask;
+  fSlotOnline: Boolean;
 begin
-
+  fSlotOnline := False;
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
@@ -401,7 +400,6 @@ begin
       exit; // we are already sending this file to the same destination site
 
     ss1 := nil;
-    sso := False;
     for i := 0 to s1.slots.Count - 1 do
     begin
       try
@@ -413,14 +411,25 @@ begin
       except
         Break;
       end;
-      if TSiteSlot(s1.slots[i]).todotask = nil then
+
+      ss1 := TSiteSlot(s1.slots[i]);
+      if ss1.todotask = nil then
       begin
-        if not sso then
+        if ss1.status = ssOnline then
         begin
-          ss1 := TSiteSlot(s1.slots[i]);
-          if ss1.status = ssOnline then
-            sso := True;
+          // siteslot is online and available for a new task
+          break;
+        end
+        else
+        begin
+          // siteslot is not online
+          ss1 := nil;
         end;
+      end
+      else
+      begin
+        // siteslot is already busy
+        ss1 := nil;
       end;
     end;
     if ss1 = nil then
@@ -439,9 +448,7 @@ begin
         exit;
     end;
 
-
     ss2 := nil;
-    sso := False;
     for i := 0 to s2.slots.Count - 1 do
     begin
       try
@@ -453,21 +460,26 @@ begin
       except
         Break;
       end;
+
       if TSiteSlot(s2.slots[i]).todotask = nil then
       begin
-        if not sso then
+        // available slot we might use
+        if not fSlotOnline then
         begin
           ss2 := TSiteSlot(s2.slots[i]);
           if ss2.status = ssOnline then
-            sso := True;
+          begin
+            // slot online and available for a new task
+            fSlotOnline := True;
+          end;
         end;
       end
       else
       begin
-        sst2 := TSiteSlot(s2.slots[i]);
-        tt := sst2.todotask;
+        tt := TSiteSlot(s2.slots[i]).todotask;
         if tt <> nil then
         begin
+          // check for already existing tasks to avoid duping ourself
           if tt.ClassType = TPazoRaceTask then
           begin
             tpr := TPazoRaceTask(tt);
