@@ -439,7 +439,7 @@ begin
   last_addimdb.CaseSensitive:= False;
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
-  rx_imdbid := TFLRE.Create('tt(\d{6,7})', [rfIGNORECASE]);
+  rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
 end;
 
 procedure dbaddimdbStart;
