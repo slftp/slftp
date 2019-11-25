@@ -2864,10 +2864,15 @@ begin
     end;
 
     // Found at least one site that has the release, issue dirlists for each one and create pazo to send it to destinations
-    rc := FindSectionHandler(p.rls.section);
-    rls := rc.Create(p.rls.rlsname, p.rls.section);
-    p := PazoAdd(rls);
-    kb_list.AddObject('INC-' + p.rls.rlsname, p);
+    kb_lock.Enter;
+    try
+      rc := FindSectionHandler(p.rls.section);
+      rls := rc.Create(p.rls.rlsname, p.rls.section);
+      p := PazoAdd(rls);
+      kb_list.AddObject('INC-' + p.rls.rlsname, p);
+    finally
+      kb_lock.Leave;
+    end;
 
     for ps in destinations do
     begin
@@ -2948,98 +2953,108 @@ end;
 
 procedure TKBThread.Execute;
 var
-  i, j: integer;
-  s: TSite;
+  i: integer;
   p: TPazo;
-  ps: TPazoSite;
+  fIncFillPazos: TList<TPazo>;
 begin
-  while (not slshutdown) do
-  begin
-    try
-      kb_lock.Enter;
-      p := nil;
-      try
-        for i := 0 to kb_list.Count - 1 do
-        begin
-          if kb_list[i].StartsWith('TRANSFER-') then
-            Continue;
-          if kb_list[i].StartsWith('REQUEST-') then
-            Continue;
-          if kb_list[i].StartsWith('INC-') then
-            Continue;
-
-          try
-            p := TPazo(kb_list.Objects[i]);
-          except
-            Continue;
-          end;
-          if p = nil then
-            Continue;
-          if p.rls = nil then
-            Continue;
-
-          if enable_try_to_complete then
-          begin
-            if ((not p.completezve) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
-            begin
-              RemovePazo(p.pazo_id);
-              while (not (p.queuenumber.Value <= 0)) do
-              begin
-                p.queuenumber.Decrease;
-              end;
-              Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
-              AddCompleteTransfers(p);
-            end;
-          end;
-
-          if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and
-            (not p.stated) and (not p.cleared)) then
-          begin
-            RemovePazo(p.pazo_id);
-
-            try
-              RanksProcess(p);
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
-                p.ExcludeFromIncfiller := True;
-              end;
-            end;
-
-            p.Clear;
-            p.stated := True;
-          end;
-        end;
-      finally
-        kb_lock.Leave;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s', [e.Message]);
-      end;
-    end;
-
-    if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
+  fIncFillPazos := TList<TPazo>.Create;
+  try
+    while (not slshutdown) do
     begin
       try
         kb_lock.Enter;
+        p := nil;
         try
-          kb_Save;
+          for i := 0 to kb_list.Count - 1 do
+          begin
+            if kb_list[i].StartsWith('TRANSFER-') then
+              Continue;
+            if kb_list[i].StartsWith('REQUEST-') then
+              Continue;
+            if kb_list[i].StartsWith('INC-') then
+              Continue;
+
+            try
+              p := TPazo(kb_list.Objects[i]);
+            except
+              Continue;
+            end;
+            if p = nil then
+              Continue;
+            if p.rls = nil then
+              Continue;
+
+            if enable_try_to_complete then
+            begin
+              if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+              begin
+                RemovePazo(p.pazo_id);
+                while (not (p.queuenumber.Value <= 0)) do
+                begin
+                  p.queuenumber.Decrease;
+                end;
+                p.ExcludeFromIncfiller := True;
+                fIncFillPazos.Add(p);
+              end;
+            end;
+
+            if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
+            begin
+              RemovePazo(p.pazo_id);
+
+              try
+                RanksProcess(p);
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+                end;
+              end;
+
+              p.Clear;
+              p.stated := True;
+            end;
+          end;
         finally
           kb_lock.Leave;
         end;
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, '[EXCEPTION] kb_Save : %s', [e.Message]);
+          Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s', [e.Message]);
         end;
       end;
-    end;
 
-    //sleep(900);
-    kbevent.WaitFor(5000);
+      // do this outside of kb_lock because of possible long running operations (dirlist)
+      for p in fIncFillPazos do
+      begin
+        Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
+        AddCompleteTransfers(p);
+      end;
+      fIncFillPazos.Clear;
+
+      if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
+      begin
+        try
+          kb_lock.Enter;
+          try
+            kb_Save;
+          finally
+            kb_lock.Leave;
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, '[EXCEPTION] kb_Save : %s', [e.Message]);
+          end;
+        end;
+      end;
+
+      //sleep(900);
+      kbevent.WaitFor(5000);
+    end;
+  finally
+    fIncFillPazos.Free;
   end;
 end;
 
