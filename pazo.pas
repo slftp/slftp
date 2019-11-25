@@ -123,6 +123,8 @@ type
     lastannounceconsole: String;
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
+    FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
+
     procedure QueueEvent(Sender: TObject; Value: integer);
     function StatsAllFiles: integer;
   public
@@ -132,8 +134,6 @@ type
     cleared: boolean;
 
     cs: TCriticalSection;
-
-    completezve: boolean;
 
     // TODO: debug both variables, seems to be empty as it is never initialized?
     // needed for rules like 'source' or 'completesource'
@@ -189,6 +189,8 @@ type
     function AddSites(const aIsSpreadJob: boolean): boolean; overload;
     function PFileSize(const dir, filename: String): Int64;
     function PRegisterFile(const dir, filename: String; const filesize: Int64): integer;
+
+    property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
   end;
 
 function FindPazoById(const id: integer): TPazo;
@@ -818,6 +820,8 @@ begin
   self.stated := False;
   self.cleared := False;
 
+  FExcludeFromIncfiller := False;
+
   inherited Create;
 end;
 
@@ -1036,7 +1040,7 @@ begin
   try
     RemovePazo(pazo_id);
 
-    completezve := False;
+    FExcludeFromIncfiller := False;
     stopped := False; // ha stoppoltak korabban akkor ez most szivas
     ready := False;
     readyerror := False;

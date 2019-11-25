@@ -2392,7 +2392,7 @@ begin
   p.added := added;
   p.stated := True;
   p.cleared := True;
-  p.completezve := True;
+  p.ExcludeFromIncfiller := True;
   kb_list.AddObject(section + '-' + rlsname, p);
 end;
 
@@ -2987,7 +2987,6 @@ begin
               begin
                 p.queuenumber.Decrease;
               end;
-              p.completezve := True;
               Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
               AddCompleteTransfers(p);
             end;
@@ -3004,6 +3003,7 @@ begin
               on E: Exception do
               begin
                 Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+                p.ExcludeFromIncfiller := True;
               end;
             end;
 
