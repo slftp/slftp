@@ -52,6 +52,15 @@ type
     procedure GetShowValues31;
     procedure GetShowValues32;
     procedure GetShowValues33;
+    procedure GetShowValues34;
+    procedure GetShowValues35;
+    procedure GetShowValues36;
+    procedure GetShowValues37;
+    procedure GetShowValues38;
+    procedure GetShowValues39;
+    procedure GetShowValues40;
+    procedure GetShowValues41;
+    procedure GetShowValues42;
   end;
 
 implementation
@@ -787,6 +796,187 @@ var
 begin
   fInputStr := 'The.Final.Quarter.2019.720p.HDTV.x264-CBFM';
   fExpectedResultStr := 'The.Final.Quarter';
+  fSeason := 0;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+
+procedure TTestShowFunctions.GetShowValues34;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Marvels.Jessica.Jones.S03E07.DIRFIX.PROPER.1080p.WEB.X264-METCON';
+  fExpectedResultStr := 'Marvels.Jessica.Jones';
+  fSeason := 3;
+  fEpisode := 7;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues35;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'The.Man.Who.Saw.Too.Much.2009.NFOFIX.720p.HDTV.x264-PVR';
+  fExpectedResultStr := 'The.Man.Who.Saw.Too.Much';
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues36;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Dersu.Uzala.1975.SUBBED.DiRFiX.NFOFiX.1080p.HDTV.x264-REGRET';
+  fExpectedResultStr := 'Dersu.Uzala';
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues37;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'UFC.222.iNTERNAL.NFOFIX.720p.HDTV.x264-KOENiG';
+  fExpectedResultStr := 'UFC.222';
+  fSeason := 0;
+  fEpisode := 0;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues38;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Brynhildr.In.The.Darkness.E02.SFVFIX.SUBFRENCH.720p.WEBRip.X264-SLEEPINGFOREST';
+  fExpectedResultStr := 'Brynhildr.In.The.Darkness';
+  fSeason := Ord(tvRegularSerieWithoutSeason);
+  fEpisode := 2;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues39;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Planet.HD.unsere.Erde.in.High.Definition.S02E04.Vietnam.GERMAN.DL.DOKU.2160p.UHD.BluRay.x265.SAMPLEFiX.PROOFFiX-DOKUUHD';
+  fExpectedResultStr := 'Planet.HD.unsere.Erde.in.High.Definition';
+  fSeason := 2;
+  fEpisode := 4;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues40;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Ascendance.Of.A.Bookworm.E01.SAMPLEFiX.WEB.x264-URANiME';
+  fExpectedResultStr := 'Ascendance.Of.A.Bookworm';
+  fSeason := Ord(tvRegularSerieWithoutSeason);
+  fEpisode := 1;
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues41;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Min.Far.Er.Rocker.Thorhjoern.2019.SAMPLEFIX.DANISH.720p.WEB.h264-FFD';
+  fExpectedResultStr := 'Min.Far.Er.Rocker.Thorhjoern';
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
+
+  getShowValues(fInputStr, fOutputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+
+  getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
+  CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
+end;
+
+procedure TTestShowFunctions.GetShowValues42;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+  fSeason, fOutSeason: integer;
+  fEpisode, fOutEpisode: int64;
+begin
+  fInputStr := 'Cage.Fury.FC.77.DIRFIX.WEB.H264-LEViTATE';
+  fExpectedResultStr := 'Cage.Fury.FC.77';
   fSeason := 0;
   fEpisode := 0;
 
