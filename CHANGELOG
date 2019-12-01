@@ -62,6 +62,7 @@
     7. delete your old stats.db file (different table scheme)
     8. create a folder 'databases' in slftp dir and move your databases into it
     9. if you have problems with reusing existing databases, delete all .db files
+   10. check your ircchanroles if you want to announce infos: ADDURL -> ADDURLECHO (see docfile)
 
 --==============================( KNOWN BUGS )====================================-
 
@@ -134,6 +135,7 @@
     {#} Try to complete works again and also supports non-routable sites as sources
     {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
     {#} IRC channel name missing '#' for some IRCd's or bouncers (#281)
+    {#} TMyIrcThread.IrcProcess: List index (1) out of bounds avoided by use of locked list (#89)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -166,6 +168,7 @@
     {^} Rename !reloadglobalskip to !globalskipreload
     {^} !stop can be used with Pazo ID and Releasename
     {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
+    {^} Strip more scene tags from releasename before doing a TVMaze lookup (#280)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
