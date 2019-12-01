@@ -837,8 +837,8 @@ var
 begin
   fInputStr := 'The.Man.Who.Saw.Too.Much.2009.NFOFIX.720p.HDTV.x264-PVR';
   fExpectedResultStr := 'The.Man.Who.Saw.Too.Much';
-  fSeason := Ord(tvNoExplicitShowTag);
-  fEpisode := Ord(tvNoExplicitShowTag);
+  fSeason := 0;
+  fEpisode := 0;
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -857,8 +857,8 @@ var
 begin
   fInputStr := 'Dersu.Uzala.1975.SUBBED.DiRFiX.NFOFiX.1080p.HDTV.x264-REGRET';
   fExpectedResultStr := 'Dersu.Uzala';
-  fSeason := Ord(tvNoExplicitShowTag);
-  fEpisode := Ord(tvNoExplicitShowTag);
+  fSeason := 0;
+  fEpisode := 0;
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -897,7 +897,7 @@ var
 begin
   fInputStr := 'Brynhildr.In.The.Darkness.E02.SFVFIX.SUBFRENCH.720p.WEBRip.X264-SLEEPINGFOREST';
   fExpectedResultStr := 'Brynhildr.In.The.Darkness';
-  fSeason := Ord(tvRegularSerieWithoutSeason);
+  fSeason := -10;
   fEpisode := 2;
 
   getShowValues(fInputStr, fOutputStr);
@@ -937,7 +937,7 @@ var
 begin
   fInputStr := 'Ascendance.Of.A.Bookworm.E01.SAMPLEFiX.WEB.x264-URANiME';
   fExpectedResultStr := 'Ascendance.Of.A.Bookworm';
-  fSeason := Ord(tvRegularSerieWithoutSeason);
+  fSeason := -10;
   fEpisode := 1;
 
   getShowValues(fInputStr, fOutputStr);
@@ -957,8 +957,8 @@ var
 begin
   fInputStr := 'Min.Far.Er.Rocker.Thorhjoern.2019.SAMPLEFIX.DANISH.720p.WEB.h264-FFD';
   fExpectedResultStr := 'Min.Far.Er.Rocker.Thorhjoern';
-  fSeason := Ord(tvNoExplicitShowTag);
-  fEpisode := Ord(tvNoExplicitShowTag);
+  fSeason := 0;
+  fEpisode := 0;
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
