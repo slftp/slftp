@@ -102,13 +102,7 @@ begin
   section  := UpperCase(SubString(params, ' ', 2));
   predir := SubString(params, ' ', 3);
 
-  if (predir = '') then
-  begin
-    section := 'PRE';
-    predir := SubString(params, ' ', 2);
-  end;
-
-  if not section.StartsWith('PRE') then
+  if ((predir <> '') and not section.StartsWith('PRE')) then
   begin
     irc_addtext(Netname, Channel, '<b><c4>Error</c></b>: Pre section <b>%s</b> is invalid. All pre sections must start with PRE.', [section]);
     exit;
