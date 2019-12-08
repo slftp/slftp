@@ -73,7 +73,7 @@
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
-  ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
+ ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
   
     {+} Blowfish CBC support (#124)
     {+} Box Office Mojo support
@@ -169,6 +169,8 @@
     {^} !stop can be used with Pazo ID and Releasename
     {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
     {^} Strip more scene tags from releasename before doing a TVMaze lookup (#280)
+    {^} IMDB ID's can now be 8 digits
+    {^} Kill slot if stuck trying to CWD from a path that does not exist anymore (#267)
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
