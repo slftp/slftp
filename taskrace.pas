@@ -295,7 +295,9 @@ begin
         begin
           if ( (0 <> Pos('FileNotFound', s.lastResponse)) OR (0 <> Pos('File not found', s.lastResponse)) OR (0 <> Pos('No such file or directory', s.lastResponse)) ) then
           begin
-            // do nothing, file/dir not found
+            // INFO: This might have to be improved in the future. Right now it's used to avoid getting stuck slots on drftpd
+            s.DestroySocket(False);
+            goto TryAgain;
           end;
         end;
 
