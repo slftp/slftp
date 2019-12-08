@@ -1,3 +1,3 @@
-724913801e92da4982e2ff595ab156ad9b0a33e5
+6e64796c4dfb442fbb8d1de1a5bb5f66c819d324
 
-new TSynDate.FromDate/ComputeDayOfWeek and TSynSystemTime.ToSynDate methods
+fixed PosExString() on Unicode Delphi - thanks Amir for the report!

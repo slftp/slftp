@@ -54,7 +54,6 @@ unit ZVariant;
 interface
 
 {$I ZCore.inc}
-
 uses
   {$IF not defined(FPC) and defined(MSWINDOWS)}Windows,{$IFEND}  //need for inline
   Classes, SysUtils, ZCompatibility, ZClasses, FmtBCD;
@@ -86,7 +85,7 @@ type
   TZVariantType = (vtNull, vtBoolean, vtInteger, vtUInteger,
     vtDouble, vtCurrency, vtBigDecimal, vtGUID, vtBytes,
     vtString, {$IFNDEF NO_ANSISTRING}vtAnsiString, {$ENDIF}{$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF} vtRawByteString, vtUnicodeString, //String Types
-    {$IFDEF TEST_RECORD_REFACTORING}vtDate, vtTime, vtTimeStamp{$ELSE}vtDateTime{$ENDIF}, vtPointer, vtInterface, vtCharRec,
+    vtDate, vtTime, vtTimeStamp, vtDateTime, vtPointer, vtInterface, vtCharRec,
     vtArray{a dynamic array of [vtNull ... vtCharRec]} );
 
   PZArray =^TZArray;
@@ -113,16 +112,13 @@ type
       vtCurrency: (VCurrency: Currency);
       vtBigDecimal: (VBigDecimal: TBCD);
       vtGUID: (VGUID: TGUID);
-      {$IFDEF TEST_RECORD_REFACTORING}
       vtDate: (VDate: TZDate);
       vtTime: (VTime: TZTime);
       vtTimeStamp: (VTimeStamp: TZTimeStamp);
+      {$IFDEF BCC32_vtDateTime_ERROR}
+      vtDateTime: (VDateTime: Double);
       {$ELSE}
-        {$IFDEF BCC32_vtDateTime_ERROR}
-        vtDateTime: (VDateTime: Double);
-        {$ELSE}
-        vtDateTime: (VDateTime: TDateTime);
-        {$ENDIF}
+      vtDateTime: (VDateTime: TDateTime);
       {$ENDIF}
       vtPointer: (VPointer: Pointer);
       vtCharRec: (VCharRec: TZCharRec);
@@ -160,15 +156,11 @@ type
     function GetAsUInteger(const Value: TZVariant): UInt64;
     function GetAsDouble(const Value: TZVariant): Double;
     function GetAsCurrency(const Value: TZVariant): Currency;
-    {$IFDEF TEST_RECORD_REFACTORING}
     procedure GetAsBigDecimal(const Value: TZVariant; Var Result: TBCD);
     procedure GetAsDate(const Value: TZVariant; Var Result: TZDate);
     procedure GetAsTime(const Value: TZVariant; Var Result: TZTime);
     procedure GetAsTimeStamp(const Value: TZVariant; Var Result: TZTimeStamp);
     procedure GetAsGUID(const Value: TZVariant; Var Result: TGUID);
-    {$ELSE}
-    function GetAsBigDecimal(const Value: TZVariant): TBCD;
-    {$ENDIF}
     function GetAsString(const Value: TZVariant): String;
     {$IFNDEF NO_ANSISTRING}
     function GetAsAnsiString(const Value: TZVariant): AnsiString;
@@ -201,7 +193,10 @@ type
     procedure SetAsRawByteString(out Value: TZVariant; const Data: RawByteString);
     procedure SetAsCharRec(out Value: TZVariant; const Data: TZCharRec);
     procedure SetAsUnicodeString(out Value: TZVariant; const Data: ZWideString);
+    procedure SetAsDate(out Value: TZVariant; const Data: TZDate);
     procedure SetAsDateTime(out Value: TZVariant; const Data: TDateTime);
+    procedure SetAsTime(out Value: TZVariant; const Data: TZTime);
+    procedure SetAsTimeStamp(out Value: TZVariant; const Data: TZTimeStamp);
     procedure SetAsPointer(out Value: TZVariant; const Data: Pointer);
     procedure SetAsInterface(out Value: TZVariant; const Data: IZInterface);
     procedure SetAsArray(out Value: TZVariant; const Data: TZArray);
@@ -258,7 +253,6 @@ type
     {$IFNDEF NO_ANSISTRING}procedure ProcessAnsiString(const Value: TZVariant; out Result: TZVariant); virtual; {$ENDIF NO_ANSISTRING}
     {$IFNDEF NO_UTF8STRING}procedure ProcessUTF8String(const Value: TZVariant; out Result: TZVariant); virtual; {$ENDIF NO_UTF8STRING}
     procedure ProcessCharRec(const Value: TZVariant; out Result: TZVariant); virtual;
-    procedure ProcessDateTime(const Value: TZVariant; {$IFDEF TEST_RECORD_REFACTORING}ResultType: TZVariantType;{$ENDIF} out Result: TZVariant); virtual;
   protected
     procedure RaiseTypeMismatchError;
     procedure RaiseUnsupportedOperation;
@@ -278,16 +272,11 @@ type
     function GetAsUInteger(const Value: TZVariant): UInt64;
     function GetAsDouble(const Value: TZVariant): Double;
     function GetAsCurrency(const Value: TZVariant): Currency;
-    {$IFDEF TEST_RECORD_REFACTORING}
     procedure GetAsBigDecimal(const Value: TZVariant; Var Result: TBCD);
     procedure GetAsDate(const Value: TZVariant; Var Result: TZDate);
     procedure GetAsTime(const Value: TZVariant; Var Result: TZTime);
     procedure GetAsTimeStamp(const Value: TZVariant; Var Result: TZTimeStamp);
     procedure GetAsGUID(const Value: TZVariant; Var Result: TGUID);
-    {$ELSE}
-    function GetAsBigDecimal(const Value: TZVariant): TBCD;
-    function GetAsGUID(const Value: TZVariant): TGUID;
-    {$ENDIF}
     function GetAsString(const Value: TZVariant): String;
     {$IFNDEF NO_ANSISTRING}
     function GetAsAnsiString(const Value: TZVariant): AnsiString;
@@ -322,7 +311,10 @@ type
     procedure SetAsRawByteString(out Value: TZVariant; const Data: RawByteString);
     procedure SetAsCharRec(out Value: TZVariant; const Data: TZCharRec);
     procedure SetAsUnicodeString(out Value: TZVariant; const Data: ZWideString);
+    procedure SetAsDate(out Value: TZVariant; const Data: TZDate);
     procedure SetAsDateTime(out Value: TZVariant; const Data: TDateTime);
+    procedure SetAsTime(out Value: TZVariant; const Data: TZTime);
+    procedure SetAsTimeStamp(out Value: TZVariant; const Data: TZTimeStamp);
     procedure SetAsPointer(out Value: TZVariant; const Data: Pointer);
     procedure SetAsInterface(out Value: TZVariant; const Data: IZInterface);
     procedure SetAsArray(out Value: TZVariant; const Data: TZArray);
@@ -353,7 +345,7 @@ type
   End;
 
   {** Implements a variant manager with connection related convertion rules. }
-  TZClientVariantManager = class (TZSoftVariantManager, IZClientVariantManager)
+  TZClientVariantManager = class (TZSoftVariantManager, IZVariantManager, IZClientVariantManager)
   private
     FConSettings: PZConSettings;
     FClientCP, FCtrlsCP: Word;
@@ -364,10 +356,10 @@ type
     {$IFNDEF NO_ANSISTRING}procedure ProcessAnsiString(const Value: TZVariant; out Result: TZVariant); override; {$ENDIF NO_ANSISTRING}
     {$IFNDEF NO_UTF8STRING}procedure ProcessUTF8String(const Value: TZVariant; out Result: TZVariant); override; {$ENDIF NO_UTF8STRING}
     procedure ProcessCharRec(const Value: TZVariant; out Result: TZVariant); override;
-    procedure ProcessDateTime(const Value: TZVariant; out Result: TZVariant); override;
   public
     constructor Create(const ConSettings: PZConSettings{; FormatSettings: TZFormatSettings});
     function UseWComparsions: Boolean;
+    function GetAsDateTime(const Value: TZVariant): TDateTime; reintroduce;
   end;
 
 type
@@ -386,6 +378,9 @@ type
     function GetDouble: Double;
     function GetCurrency: Currency;
     function GetBigDecimal: TBCD;
+    function GetDate: TZDate;
+    function GetTime: TZTime;
+    function GetTimeStamp: TZTimeStamp;
     function GetString: String;
     {$IFNDEF NO_ANSISTRING}
     function GetAnsiString: AnsiString;
@@ -422,6 +417,9 @@ type
     constructor CreateWithUnicodeString(const Value: WideString);
     {$ENDIF}
     constructor CreateWithDateTime(const Value: TDateTime);
+    constructor CreateWithDate(const Value: TZDate);
+    constructor CreateWithTime(const Value: TZTime);
+    constructor CreateWithTimeStamp(const Value: TZTimeStamp);
 
     function IsNull: Boolean;
     function GetValue: TZVariant;
@@ -441,6 +439,9 @@ type
     function GetUTF8String: UTF8String;
     {$ENDIF}
     function GetUnicodeString: ZWideString;
+    function GetDate: TZDate;
+    function GetTime: TZTime;
+    function GetTimeStamp: TZTimeStamp;
     function GetDateTime: TDateTime;
 
     function Equals(const Value: IZInterface): Boolean; override;
@@ -453,7 +454,7 @@ type
   @param Value a custom variant value to be initialized.
   @param vType new variant type to be initialized.
 }
-procedure InitializeVariant(var Value: TZVariant; vType: TZVariantType);
+procedure InitializeVariant({$IFDEF FPC}Out{$ELSE}var{$ENDIF} Value: TZVariant; vType: TZVariantType);
 {**
   Encodes a custom variant value into standard variant.
   @param Value a custom variant value to be encoded.
@@ -584,6 +585,25 @@ function EncodeUnicodeString(const Value: ZWideString): TZVariant; {$IFDEF WITH_
   @returns an encoded custom variant.
 }
 function EncodeDateTime(const Value: TDateTime): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+
+{**
+  Encodes a Time value into a custom variant.
+  @param Value a TZTime value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZTime(const Value: TZTime): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+{**
+  Encodes a Date value into a custom variant.
+  @param Value a TZDate value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZDate(const Value: TZDate): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+{**
+  Encodes a TimeStamp value into a custom variant.
+  @param Value a TZTimeStamp value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZTimeStamp(const Value: TZTimeStamp): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
 {**
   Encodes a pointer into a custom variant.
   @param Value a pointer value to be encoded.
@@ -657,13 +677,10 @@ begin
     {$IFDEF UNICODE}vtString,{$ENDIF}
     vtUnicodeString: DstValue.VUnicodeString := SrcValue.VUnicodeString;
     vtGUID: DstValue.VGUID := SrcValue.VGUID;
-    {$IFDEF TEST_RECORD_REFACTORING}
     vtDate: DstValue.VDate := SrcValue.VDate;
     vtTime: DstValue.VTime := SrcValue.VTime;
     vtTimeStamp: DstValue.VTimeStamp := SrcValue.VTimeStamp;
-    {$ELSE}
     vtDateTime: DstValue.VDateTime := SrcValue.VDateTime;
-    {$ENDIF}
     vtPointer: DstValue.VPointer := SrcValue.VPointer;
     vtInterface: DstValue.VInterface := SrcValue.VInterface;
   end;
@@ -712,15 +729,14 @@ end;
 function TZSoftVariantManager.Compare(const Value1,
   Value2: TZVariant): Integer;
 var
-  i: Int64;
-  {$IFDEF TEST_RECORD_REFACTORING}
   ABCD: TBCD;
   AGUID: TGUID absolute ABCD;
   ATimeStamp: TZTimeStamp absolute ABCD;
   ADate: TZDate absolute ABCD;
   ATime: TZTime absolute ABCD;
-  {$ENDIF}
-  TempDateTime: TDateTime;
+  i: Int64 absolute ABCD;
+  U: Int64 absolute ABCD;
+  TempDateTime: TDateTime absolute ABCD;
   function CompareDiff(const Diff: Double): Integer;
   begin
     Result :=  Ord(Diff > FLOAT_COMPARE_PRECISION)-Ord(Diff < -FLOAT_COMPARE_PRECISION)
@@ -742,16 +758,21 @@ begin
         i := GetAsInteger(Value2);
         Result := Ord(Value1.VInteger > I)-Ord(Value1.VInteger < I);
       end;
+    vtUInteger: begin
+      //EH: aware of range overflow(result is an integer not a Int64) comparing hashes leads to pain:
+        U := GetAsInteger(Value2);
+        Result := Ord(Value1.VUInteger > U)-Ord(Value1.VUInteger < U);
+      end;
     vtDouble: Result := CompareDiff(Value1.VDouble-GetAsDouble(Value2));
     vtCurrency: Result := CompareCurr(Value1.VCurrency, GetAsCurrency(Value2));
-    {$IFDEF TEST_RECORD_REFACTORING}
     vtBigDecimal: begin
                     GetAsBigDecimal(Value2, ABCD);
                     Result := BCDCompare(Value1.VBigDecimal, ABCD);
                   end;
-    {$ELSE}
-    vtBigDecimal: Result := BCDCompare(Value1.VBigDecimal, GetAsBigDecimal(Value2));
-    {$ENDIF}
+    vtGUID:      begin
+                   GetAsGUID(Value2, AGUID);
+                   Result := ZSysUtils.ZMemLComp(@Value1.VGUID.D1, @AGUID.D1, SizeOf(TGUID));
+                 end;
     {$IFNDEF UNICODE}
     vtString:
       Result := AnsiCompareStr(Value1.VRawByteString, GetAsString(Value2));
@@ -791,17 +812,23 @@ DoWideCompare:
     {$ELSE}
       Result := WideCompareStr(Value1.VUnicodeString, GetAsUnicodeString(Value2));
     {$ENDIF}
-    {$IFDEF TEST_RECORD_REFACTORING}
-    vtDate: Result := ZCompareDate(Value1.VDate, Value2.VDate);
-    vtTime: Result := ZCompareTime(Value1.VTime, Value2.VTime);
-    vtTimeStamp: Result := ZCompareTimeStamp(Value1.VTimeStamp, Value2.VTimeStamp);
-    {$ELSE}
+    vtDate: begin
+              GetAsDate(Value2, ADate);
+              Result := ZCompareDate(Value1.VDate, ADate);
+            end;
+    vtTime: begin
+              GetAsTime(Value2, ATime);
+              Result := ZCompareTime(Value1.VTime, ATime);
+            end;
+    vtTimeStamp: begin
+              GetAsTimeStamp(Value2, ATimeStamp);
+              Result := ZCompareTimeStamp(Value1.VTimeStamp, ATimeStamp);
+            end;
     vtDateTime:
       begin
         TempDateTime := GetAsDateTime(Value2);
         Result := ZCompareDateTime(Value1.VDateTime, TempDateTime);
       end;
-    {$ENDIF}
     vtPointer:
       Result := sign(Int64({%H-}NativeUInt(Value1.VPointer) - GetAsUInteger(Value2)));
     else
@@ -836,7 +863,30 @@ end;
 function TZSoftVariantManager.GetAsBoolean(
   const Value: TZVariant): Boolean;
 begin
-  Result := Convert(Value, vtBoolean).VBoolean;
+  case Value.VType of
+    vtNull:     Result := False;
+    vtBoolean:  Result := Value.VBoolean;
+    vtInteger:  Result := Value.VInteger <> 0;
+    vtUInteger: Result := Value.VUInteger <> 0;
+    vtDouble:   Result := Value.VDouble <> 0;
+    vtCurrency: Result := Value.VCurrency <> 0;
+    vtBigDecimal: Result := not (Value.VBigDecimal.Precision = 10) and (Value.VBigDecimal.SignSpecialPlaces = 2);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: Result := StrToBoolEx(Value.VRawByteString);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: Result := StrToBoolEx(Value.VUnicodeString);
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then Result := StrToBoolEx(PWideChar(Value.VCharRec.P))
+      else Result := StrToBoolEx(PAnsiChar(Value.VCharRec.P));
+    vtDateTime: Result := Value.VDateTime <> 0;
+    vtDate: Result := PInt64(@Value.VDate.Year)^ <> 0;
+    vtTime: Result := (PCardinal(@Value.VTime.Hour)^ <> 0) or (PInt64(@Value.VTime.Second)^ <> 0);
+    vtTimeStamp: Result := (PInt64(@Value.VTimeStamp.Year)^ <> 0) or (PInt64(@Value.VTimeStamp.Minute)^ <> 0)
+      or (PInt64(PAnsichar(@Value.VTimeStamp.TimeZoneHour)-2)^ <> 0);
+    else raise EZVariantException.Create(SErrorConvertion);
+  end;
 end;
 
 {**
@@ -847,7 +897,33 @@ end;
 function TZSoftVariantManager.GetAsBytes(
   const Value: TZVariant): TBytes;
 begin
-  Result := {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}StrToBytes{$ENDIF}(Convert(Value, vtBytes).VRawByteString);
+  Result := nil;
+  case Value.VType of
+    vtNull: Exit;
+    vtBoolean: Result := BufferToBytes(PAnsiChar(@Value.VBoolean), SizeOf(Boolean));
+    vtDate,vtInteger, vtUInteger, vtDouble, vtCurrency: Result := BufferToBytes(@Value.VInteger, 8);
+    vtBigDecimal: Result := BufferToBytes(@Value.VBigDecimal.Precision, SizeOf(TBCD));
+    vtTime: Result := BufferToBytes(@Value.VTime.Hour, SizeOf(TZTime));
+    vtTimeStamp: Result := BufferToBytes(@Value.VTimeStamp.Year, SizeOf(TZTimeStamp));
+    vtBytes{$IFNDEF UNICODE}, vtString{$ENDIF},
+    {$IFNDEF NO_ANSISTRING}vtAnsiString, {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String, {$ENDIF}
+    vtRawByteString: Result := {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}StrToBytes{$ENDIF}(Value.VRawByteString);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+                      SetLength(Result, Length(Value.VUnicodeString) shl 1);
+                      if Pointer(Result) = nil then Exit;
+                      Move(Pointer(Value.VUnicodeString)^, Pointer(Result)^, Length(Result));
+                    end;
+    vtCharRec:  begin
+                  if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+                  then SetLength(Result, Value.VCharRec.Len shl 1)
+                  else SetLength(Result, Value.VCharRec.Len);
+                  if Pointer(Result) = nil then Exit;
+                  Move(Value.VCharRec.P^, Pointer(Result)^, Length(Result));
+                end;
+    else raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -858,7 +934,25 @@ end;
 function TZSoftVariantManager.GetAsInteger(
   const Value: TZVariant): Int64;
 begin
-  Result := Convert(Value, vtInteger).VInteger;
+  case Value.VType of
+    vtNull:       Result := 0;
+    vtBoolean:    Result := Ord(Value.VBoolean);
+    vtInteger:    Result := Value.VInteger;
+    vtUInteger:   Result := Value.VUInteger;
+    vtCurrency:   Result := PInt64(@Value.VCurrency)^ div 10000;
+    vtBigDecimal: BCD2Int64(Value.VBigDecimal, Result);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: Result := RawToInt64Def(Pointer(Value.VRawByteString), 0);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: Result := UnicodeToInt64Def(Value.VUnicodeString, 0);
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then Result := UnicodeToInt64Def(PWideChar(Value.VCharRec.P), PWideChar(Value.VCharRec.P)+Value.VCharRec.Len, 0)
+      else Result := RawToInt64Def(PAnsiChar(Value.VCharRec.P), PAnsiChar(Value.VCharRec.P)+Value.VCharRec.Len, 0);
+    vtPointer:    Result := Int64({%H-}NativeUInt(Value.VPointer));
+    else Result := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(GetAsDouble(Value));
+  end;
 end;
 
 {**
@@ -866,10 +960,67 @@ end;
   @param Value a variant to be converted.
   @param a result value.
 }
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R-}{$IFEND}
 function TZSoftVariantManager.GetAsUInteger(
   const Value: TZVariant): UInt64;
 begin
-  Result := Convert(Value, vtUInteger).VUInteger;
+  case Value.VType of
+    vtNull:     Result := 0;
+    vtBoolean:  Result := Ord(Value.VBoolean);
+    vtInteger:  Result := Value.VInteger;
+    vtUInteger: Result := Value.VUInteger;
+    vtCurrency: Result := PInt64(@Value.VCurrency)^ div 10000;
+    vtBigDecimal:BCD2UInt64(Value.VBigDecimal, Result);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: Result := RawToUInt64Def(Pointer(Value.VRawByteString), 0);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: Result := UnicodeToUInt64Def(Value.VUnicodeString, 0);
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then Result := UnicodeToUInt64Def(PWideChar(Value.VCharRec.P), PWideChar(Value.VCharRec.P)+Value.VCharRec.Len, 0)
+      else Result := RawToUInt64Def(PAnsiChar(Value.VCharRec.P), PAnsiChar(Value.VCharRec.P)+Value.VCharRec.Len, 0);
+    vtPointer:  Result := {%H-}NativeUInt(Value.VPointer);
+    else Result := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(GetAsDouble(Value));
+  end;
+end;
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R+}{$IFEND}
+
+{**
+  Gets a variant to date value.
+  @param Value a variant to be converted.
+  @param a result value.
+}
+procedure TZSoftVariantManager.GetAsDate(const Value: TZVariant;
+  var Result: TZDate);
+var P: Pointer;
+Label Fail;
+begin
+  case Value.VType of
+    vtNull, vtTime: PInt64(@Result.Year)^ := 0;
+    vtDate: Result := Value.VDate;
+    vtTimeStamp: DateFromTimeStamp(Value.VTimeStamp, Result);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToDate(PAnsiChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+Fail:                   raise EZVariantException.Create(SErrorConvertion);
+                      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToDate(PWideChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+                        goto Fail;
+                      end;
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16) then begin
+          if not TryPCharToDate(PWideChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+            goto Fail;
+        end else if not TryPCharToDate(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+          goto Fail;
+    else ZSysUtils.DecodeDateTimeToDate(GetAsDouble(Value), Result);
+  end;
 end;
 
 {**
@@ -879,8 +1030,34 @@ end;
 }
 function TZSoftVariantManager.GetAsDouble(
   const Value: TZVariant): Double;
+  label Fail;
 begin
-  Result := Convert(Value, vtDouble).VDouble;
+  case Value.VType of
+    vtNull:     Result := 0;
+    vtBoolean:  Result := Ord(Value.VBoolean);
+    vtInteger:  Result := Value.VInteger;
+    vtUInteger: Result := Value.VUInteger;
+    vtDouble:   Result := Value.VDouble;
+    vtCurrency: Result := Value.VCurrency;
+    vtBigDecimal:Result := BCDToDouble(Value.VBigDecimal);
+    vtDate:     if not TryDateToDateTime(Value.VDate, PDatetime(@Result)^) then
+                  Goto Fail;
+    vtTime:     if not TryTimeToDateTime(Value.VTime, PDatetime(@Result)^) then
+                  Goto Fail;
+    vtTimeStamp:if not TryTimeStampToDateTime(Value.VTimeStamp, PDatetime(@Result)^) then
+Fail:             raise EZVariantException.Create(SErrorConvertion);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString:  SqlStrToFloatDef(PAnsiChar(Pointer(Value.VRawByteString)), 0, Result, Length(Value.VRawByteString));
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:  SqlStrToFloatDef(PWideChar(Pointer(Value.VUnicodeString)), 0, Result, Length(Value.VUnicodeString));
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then SqlStrToFloatDef(PWideChar(Value.VCharRec.P), 0, Result, Value.VCharRec.Len)
+      else SqlStrToFloatDef(PAnsiChar(Value.VCharRec.P), 0, Result, Value.VCharRec.Len);
+    vtDateTime: Result := Value.VDateTime;
+    else raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -888,13 +1065,36 @@ end;
   @param Value a variant to be converted.
   @param a result value.
 }
-{$IFDEF TEST_RECORD_REFACTORING}
 procedure TZSoftVariantManager.GetAsGUID(const Value: TZVariant; Var Result: TGUID);
-{$ELSE}
-function TZSoftVariantManager.GetAsGUID(const Value: TZVariant): TGUID;
-{$ENDIF}
+var P: Pointer;
+Label Fail;
 begin
-  Result := Convert(Value, vtGUID).VGUID;
+  case Value.VType of
+    vtNull:     FillChar(Result, SizeOf(TGUID), #0);
+    vtGUID:     Result := Value.VGUID;
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString:  if Length(Value.VRawByteString) in [36,38] then begin
+                        P := Pointer(Value.VRawByteString);
+                        ZSysUtils.ValidGUIDToBinary(PAnsiChar(P), @Result.D1);
+                      end else Goto Fail;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:  if Length(Value.VUnicodeString) in [36,38] then begin
+                        P := Pointer(Value.VUnicodeString);
+                        ZSysUtils.ValidGUIDToBinary(PWideChar(P), @Result.D1);
+                      end else Goto Fail;
+    vtCharRec:        if Value.VCharRec.Len in [36,38] then
+                        if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+                        then ZSysUtils.ValidGUIDToBinary(PWideChar(Value.VCharRec.P), @Result.D1)
+                        else ZSysUtils.ValidGUIDToBinary(PWideChar(Value.VCharRec.P), @Result.D1)
+                      else Goto Fail;
+    vtBytes:  if Length(Value.VRawByteString) = SizeOf(TGUID)
+              then Result := PGUID(Value.VRawByteString)^
+              else Goto Fail;
+    else
+Fail: raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -905,7 +1105,24 @@ end;
 function TZSoftVariantManager.GetAsCurrency(
   const Value: TZVariant): Currency;
 begin
-  Result := Convert(Value, vtCurrency).VCurrency;
+  case Value.VType of
+    vtNull:     Result := 0;
+    vtBoolean:  Result := Ord(Value.VBoolean);
+    vtInteger:  Result := Value.VInteger;
+    vtUInteger: Result := Value.VUInteger;
+    vtCurrency: Result := Value.VCurrency;
+    vtBigDecimal: BCDToCurr(Value.VBigDecimal, Result);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString:  SqlStrToFloatDef(PAnsiChar(Pointer(Value.VRawByteString)), 0, Result, Length(Value.VRawByteString));
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:  SqlStrToFloatDef(PWideChar(Pointer(Value.VUnicodeString)), 0, Result, Length(Value.VUnicodeString));
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then SqlStrToFloatDef(PWideChar(Value.VCharRec.P), 0, Result, Value.VCharRec.Len)
+      else SqlStrToFloatDef(PAnsiChar(Value.VCharRec.P), 0, Result, Value.VCharRec.Len);
+    else Result := GetAsDouble(Value);
+  end;
 end;
 
 {**
@@ -913,14 +1130,29 @@ end;
   @param Value a variant to be converted.
   @param a result value.
 }
-{$IFDEF TEST_RECORD_REFACTORING}
 procedure TZSoftVariantManager.GetAsBigDecimal(const Value: TZVariant;
   Var Result: TBCD);
-{$ELSE}
-function TZSoftVariantManager.GetAsBigDecimal(const Value: TZVariant): TBCD;
-{$ENDIF}
 begin
-  Result := Convert(Value, vtBigDecimal).VBigDecimal;
+  case Value.VType of
+    vtNull: Result := NullBCD;
+    vtBoolean:  ScaledOrdinal2BCD(Word(Ord(Value.VBoolean)), 0, Result, False);
+    vtInteger:  ScaledOrdinal2BCD(Value.VInteger, 0, Result);
+    vtUInteger: ScaledOrdinal2BCD(Value.VUInteger, 0, Result, False);
+    vtDouble:   Double2BCD(Value.VDouble, Result);
+    vtCurrency: CurrToBCD(Value.VCurrency, Result);
+    vtBigDecimal: Result := Value.VBigDecimal;
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: Result := RawToBCD(Value.VRawByteString);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: Result := UniToBCD(Value.VUnicodeString);
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then Result := UniToBCD(PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
+      else Result := RawToBCD(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len);
+    vtDateTime: Double2BCD(Value.VDateTime, Result);
+    else raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -932,6 +1164,79 @@ function TZSoftVariantManager.GetAsString(
   const Value: TZVariant): String;
 begin
   Result := Convert(Value, vtString).{$IFDEF UNICODE}VUnicodeString{$ELSE}VRawByteString{$ENDIF};
+end;
+
+{**
+  Gets a variant to time value.
+  @param Value a variant to be converted.
+  @param a result value.
+}
+procedure TZSoftVariantManager.GetAsTime(const Value: TZVariant;
+  var Result: TZTime);
+var P: Pointer;
+Label Fail;
+begin
+  case Value.VType of
+    vtNull, vtDate: begin
+              PCardinal(@Result.Hour)^ := 0;
+              PInt64(@Result.Second)^ := 0;
+            end;
+    vtTime: Result := Value.VTime;
+    vtTimeStamp: ZSysUtils.TimeFromTimeStamp(Value.VTimeStamp, Result);
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToTime(PAnsiChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+Fail:                   raise EZVariantException.Create(SErrorConvertion);
+                      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToTime(PWideChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+                        goto Fail;
+                      end;
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16) then begin
+          if not TryPCharToTime(PWideChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+            goto Fail;
+        end else if not TryPCharToTime(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+          goto Fail;
+    else ZSysUtils.DecodeDateTimeToTime(GetAsDouble(Value), Result);
+  end;
+end;
+
+procedure TZSoftVariantManager.GetAsTimeStamp(const Value: TZVariant;
+  var Result: TZTimeStamp);
+var P: Pointer;
+Label Fail;
+begin
+  case Value.VType of
+    vtNull: FillChar(Result, SizeOf(TZTimeStamp), #0);
+    vtDate: TimeStampFromDate(Value.VDate, Result);
+    vtTime: TimeStampFromTime(Value.VTime, Result);
+    vtTimeStamp: Result := Value.VTimeStamp;
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToTimeStamp(PAnsiChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+Fail:                   raise EZVariantException.Create(SErrorConvertion);
+                      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+                      P := Pointer(Value.VRawByteString);
+                      if not TryPCharToTimeStamp(PWideChar(P), Length(Value.VRawByteString), FFormatSettings, Result) then
+                        goto Fail;
+                      end;
+    vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16) then begin
+          if not TryPCharToTimeStamp(PWideChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+            goto Fail;
+        end else if not TryPCharToTimeStamp(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, FFormatSettings, Result) then
+          goto Fail;
+    else ZSysUtils.DecodeDateTimeToTimeStamp(GetAsDouble(Value), Result);
+  end;
 end;
 
 {**
@@ -992,13 +1297,26 @@ end;
   @param Value a variant to be converted.
   @param a result value.
 }
-{$IFNDEF TEST_RECORD_REFACTORING}
 function TZSoftVariantManager.GetAsDateTime(
   const Value: TZVariant): TDateTime;
 begin
-  Result := Convert(Value, vtDateTime).VDateTime;
+  case Value.VType of
+    vtNull: Result := 0;
+    {$IFNDEF UNICODE}vtString, {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString:
+      Result := AnsiSQLDateToDateTime(Value.VRawByteString);
+    {$IFDEF UNICODE}vtString, {$ENDIF}
+    vtUnicodeString:
+      Result := AnsiSQLDateToDateTime(Value.VUnicodeString);
+    vtCharRec:
+      if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+      then Result := AnsiSQLDateToDateTime(PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
+      else Result := AnsiSQLDateToDateTime(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len);
+    else Result := GetAsDouble(Value);
+  end;
 end;
-{$ENDIF}
 
 {**
   Gets a variant to pointer value.
@@ -1008,7 +1326,19 @@ end;
 function TZSoftVariantManager.GetAsPointer(
   const Value: TZVariant): Pointer;
 begin
-  Result := Convert(Value, vtPointer).VPointer;
+  case Value.VType of
+    vtNull: Result := nil;
+    vtInteger: Result := {%H-}Pointer(Value.VInteger);
+    vtUInteger: Result := {%H-}Pointer(Value.VUInteger);
+    {$IFNDEF UNICODE}vtString, {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtBytes, vtRawByteString: Result := Pointer(Value.VRawByteString);
+    vtCharRec: Result := Value.VCharRec.P;
+    vtUnicodeString: Result := Pointer(Value.VUnicodeString);
+    vtinterface: Result := Pointer(Value.VInterface);
+    else raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -1019,7 +1349,13 @@ end;
 function TZSoftVariantManager.GetAsInterface(
   const Value: TZVariant): IZInterface;
 begin
-  Result := Convert(Value, vtInterface).VInterface;
+  case Value.VType of
+    vtNull:
+      Result := nil;
+    vtInterface:
+      Result := Value.VInterface;
+    else raise EZVariantException.Create(STypesMismatch);
+  end;
 end;
 
 {**
@@ -1133,6 +1469,30 @@ begin
 end;
 
 {**
+  Assigns a time value to variant.
+  @param Value a variant to store the value.
+  @param Data a value to be assigned.
+}
+procedure TZSoftVariantManager.SetAsTime(out Value: TZVariant;
+  const Data: TZTime);
+begin
+  Value.VType := vtTime;
+  Value.VTime := Data;
+end;
+
+{**
+  Assigns a timestamp value to variant.
+  @param Value a variant to store the value.
+  @param Data a value to be assigned.
+}
+procedure TZSoftVariantManager.SetAsTimeStamp(out Value: TZVariant;
+  const Data: TZTimeStamp);
+begin
+  Value.VType := vtTimeStamp;
+  Value.VTimeStamp := Data;
+end;
+
+{**
   Assigns a AnsiString value to variant.
   @param Value a variant to store the value.
   @param Data a value to be assigned.
@@ -1189,6 +1549,18 @@ procedure TZSoftVariantManager.SetAsUnicodeString(out Value: TZVariant;
   const Data: ZWideString);
 begin
   Value := EncodeUnicodeString(Data);
+end;
+
+{**
+  Assigns a date value to variant.
+  @param Value a variant to store the value.
+  @param Data a value to be assigned.
+}
+procedure TZSoftVariantManager.SetAsDate(out Value: TZVariant;
+  const Data: TZDate);
+begin
+  Value.VType := vtDate;
+  Value.VDate := Data;
 end;
 
 {**
@@ -1271,11 +1643,7 @@ begin
                   Result.VCurrency := Value1.VCurrency + C;
                 end;
     vtBigDecimal: begin
-                    {$IFDEF TEST_RECORD_REFACTORING}
                     GetAsBigDecimal(Value2, BCD);
-                    {$ELSE}
-                    BCD := GetAsBigDecimal(Value2);
-                    {$ENDIF}
                     BCDAdd(Value1.VBigDecimal, BCD, Result.VBigDecimal);
                   end;
     {$IFNDEF UNICODE}
@@ -1294,9 +1662,7 @@ begin
     {$ENDIF}
     {$IFDEF UNICODE}vtString,{$ENDIF}
     vtUnicodeString: Result.VUnicodeString := Value1.VUnicodeString + GetAsUnicodeString(Value2);
-    {$IFNDEF TEST_RECORD_REFACTORING}
     vtDateTime: Result := EncodeDateTime(Value1.VDateTime + GetAsDateTime(Value2));
-    {$ENDIF TEST_RECORD_REFACTORING}
     else RaiseUnsupportedOperation;
   end;
 end;
@@ -1329,12 +1695,9 @@ end;
 }
 function TZSoftVariantManager.OpDiv(const Value1,
   Value2: TZVariant): TZVariant;
-var {$IFDEF TEST_RECORD_REFACTORING}
+var
   BCD: TBCD;
   i64: Int64 absolute BCD;
-  {$ELSE}
-  i64: Int64;
-  {$ENDIF}
   u: UInt64 absolute I64;
   D: Double absolute I64;
   C: Currency absolute i64;
@@ -1362,12 +1725,8 @@ begin
                 end;
     vtBigDecimal: begin
                     InitializeVariant(Result, vtBigDecimal);
-                    {$IFDEF TEST_RECORD_REFACTORING}
                     GetAsBigDecimal(Value2, BCD);
                     BcdDivide(Value1.vBigDecimal, BCD, Result.VBigDecimal);
-                    {$ELSE}
-                    BcdDivide(Value1.vBigDecimal, GetAsBigDecimal(Value2), Result.VBigDecimal);
-                    {$ENDIF}
                   end;
     else RaiseUnsupportedOperation;
   end;
@@ -1488,11 +1847,7 @@ begin
                   Result.VCurrency := Value1.VCurrency * C;
                 end;
     vtBigDecimal: begin
-                    {$IFDEF TEST_RECORD_REFACTORING}
                     GetAsBigDecimal(Value2, BCD);
-                    {$ELSE}
-                    BCD := GetAsBigDecimal(Value2);
-                    {$ENDIF}
                     BcdMultiply(Value1.vBigDecimal, BCD, Result.VBigDecimal);
                   end;
     else RaiseUnsupportedOperation;
@@ -1515,6 +1870,21 @@ begin
                     InitializeVariant(Result, vtBigDecimal);
                     BcdMultiply(Value.VBigDecimal, StrToBCD('-1'), Result.VBigDecimal);
                   end;
+    vtTime: begin
+              InitializeVariant(Result, VTTime);
+              Result.VTime := Value.VTime;
+              Result.VTime.IsNegative := not Result.VTime.IsNegative;
+            end;
+    vtDate: begin
+              InitializeVariant(Result, vtDate);
+              Result.VDate := Value.VDate;
+              Result.VDate.IsNegative := not Result.VDate.IsNegative;
+            end;
+    vtTimeStamp: begin
+              InitializeVariant(Result, vtTimeStamp);
+              Result.VTimeStamp := Value.VTimeStamp;
+              Result.VTimeStamp.IsNegative := not Result.VTimeStamp.IsNegative;
+            end;
     else RaiseUnsupportedOperation;
   end;
 end;
@@ -1582,6 +1952,7 @@ begin
     vtUInteger: Result := EncodeDouble(Power(Value1.VUInteger, GetAsUInteger(Value2)));
     vtDouble: Result := EncodeDouble(Power(Value1.VDouble, GetAsDouble(Value2)));
     vtCurrency: Result := EncodeDouble(Power(Value1.VCurrency, GetAsCurrency(Value2)));
+    vtBigDecimal: Result := EncodeDouble(Power(BcdToDouble(Value1.VBigDecimal), GetAsDouble(Value2)));
     else RaiseUnsupportedOperation;
   end;
 end;
@@ -1622,11 +1993,7 @@ begin
                   Result.VCurrency := Value1.VCurrency - C;
                 end;
     vtBigDecimal: begin
-                    {$IFDEF TEST_RECORD_REFACTORING}
                     GetAsBigDecimal(Value2, BCD);
-                    {$ELSE}
-                    BCD := GetAsBigDecimal(Value2);
-                    {$ENDIF}
                     BcdSubtract(Value1.VBigDecimal, BCD, Result.VBigDecimal);
                   end;
     else RaiseUnsupportedOperation;
@@ -1733,7 +2100,7 @@ begin
         Result.VCharRec.P := nil;
       end;
     vtBoolean, vtInteger, vtUInteger, vtDouble, vtCurrency, vtBigDecimal,
-    vtBytes, {$IFDEF TEST_RECORD_REFACTORING}vtDate, vtTime, vtTimeStamp{$ELSE}vtDateTime{$ENDIF}: begin
+    vtBytes, vtDate, vtTime, vtTimeStamp, vtDateTime: begin
         {$IFDEF UNICODE}
         ConvertFixedTypesToUnicode(Value, Result.VUnicodeString);
         Goto AsVCharRecFromVString;
@@ -1787,33 +2154,6 @@ AsVCharRecFromRaw:
       end;
     vtCharRec:
       Result.VCharRec := Value.VCharRec;
-    else
-      RaiseTypeMismatchError;
-  end;
-end;
-
-procedure TZSoftVariantManager.ProcessDateTime(const Value: TZVariant;
-  {$IFDEF TEST_RECORD_REFACTORING}ResultType: TZVariantType;{$ENDIF} out Result: TZVariant);
-begin
-  {$IF defined(TEST_RECORD_REFACTORING) and defined(DEBUG)}
-  Assert(ResultType in [vtDate, vtTime, vtTimeStamp], 'Invalid VariantType');
-  {$IFEND}
-  Result.VType := vtDateTime;
-  case Value.VType of
-    vtNull, vtBoolean, vtInteger, vtUInteger, vtDouble, vtCurrency,
-    vtBigDecimal, vtDateTime: Result.VDateTime := GetAsDouble(Value);
-    {$IFNDEF UNICODE}vtString, {$ENDIF}
-    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-    vtBytes, vtRawByteString:
-      Result.VDateTime := AnsiSQLDateToDateTime(Value.VRawByteString);
-    {$IFDEF UNICODE}vtString, {$ENDIF}
-    vtUnicodeString:
-      Result.VDateTime := AnsiSQLDateToDateTime(Value.VUnicodeString);
-    vtCharRec:
-      if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-      then Result.VDateTime := AnsiSQLDateToDateTime(PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
-      else Result.VDateTime := AnsiSQLDateToDateTime(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len);
     else
       RaiseTypeMismatchError;
   end;
@@ -1994,31 +2334,28 @@ begin
                   GUIDToBuffer(@Value.VGUID.D1, P, [guidWithBrackets]);
                   L := 38;
                 end;
-    {$IFDEF TEST_RECORD_REFACTORING}
     vtTime:     begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToRawSQLTime(Value.VTime.Hour,
-                    Value.VTime.Minute, Value.VTime.Second,
-                    Value.VTime.Fractions div 1000000, P, FFormatSettings, False)
+                  L := TimeToRaw(Value.VTime.Hour, Value.VTime.Minute,
+                    Value.VTime.Second, Value.VTime.Fractions, P,
+                    FFormatSettings.TimeFormat, False, Value.VDate.IsNegative)
                 end;
     vtDate:     begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToRawSQLDate(Value.VDate.Year,
-                    Value.VDate.Month, Value.VDate.Day, P, FFormatSettings, False, Value.VDate.IsNegative);
+                  L := DateToRaw(Value.VDate.Year, Value.VDate.Month, Value.VDate.Day,
+                    P, FFormatSettings.DateFormat, False, Value.VDate.IsNegative);
                 end;
     vtTimeStamp:begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToRawSQLTimeStamp(Value.VTimeStamp.Year,
-                    Value.VTimeStamp.Month, Value.VTimeStamp.Day,
-                    Value.VTimeStamp.Hour, Value.VTimeStamp.Minute, Value.VTimeStamp.Second,
-                    Value.VTimeStamp.Fractions div 1000000, P, FFormatSettings, False, Value.VTimeStamp.IsNegative);
+                  L := DateTimeToRaw(Value.VTimeStamp.Year, Value.VTimeStamp.Month,
+                    Value.VTimeStamp.Day, Value.VTimeStamp.Hour, Value.VTimeStamp.Minute,
+                    Value.VTimeStamp.Second, Value.VTimeStamp.Fractions, P,
+                    FFormatSettings.DateTimeFormat, False, Value.VTimeStamp.IsNegative);
                 end;
-    {$ELSE}
     vtDateTime: begin
                   P := @Buff[0];
                   L := ZSysUtils.DateTimeToRawSQLTimeStamp(Value.VDateTime, P, FFormatSettings, False);
                 end;
-    {$ENDIF}
     else        begin
                   P := nil;
                   L := 0;
@@ -2071,31 +2408,27 @@ begin
                   GUIDToBuffer(@Value.VGUID.D1, P, [guidWithBrackets]);
                   L := 38;
                 end;
-    {$IFDEF TEST_RECORD_REFACTORING}
     vtTime:     begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToUnicodeSQLTime(Value.VTime.Hour,
-                    Value.VTime.Minute, Value.VTime.Second,
-                    Value.VTime.Fractions div 1000000, P, FFormatSettings, False)
+                  L := TimeToUni(Value.VTime.Hour, Value.VTime.Minute, Value.VTime.Second,
+                    Value.VTime.Fractions, P, FFormatSettings.TimeFormat, False, Value.VTime.IsNegative)
                 end;
     vtDate:     begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToUnicodeSQLDate(Value.VDate.Year,
-                    Value.VDate.Month, Value.VDate.Day, P, FFormatSettings, False, Value.VDate.IsNegative);
+                  L := DateToUni(Value.VDate.Year, Value.VDate.Month, Value.VDate.Day,
+                    P, FFormatSettings.DateFormat, False, Value.VDate.IsNegative);
                 end;
     vtTimeStamp:begin
                   P := @Buff[0];
-                  L := ZSysUtils.DateTimeToUnicodeSQLTimeStamp(Value.VTimeStamp.Year,
-                    Value.VTimeStamp.Month, Value.VTimeStamp.Day,
-                    Value.VTimeStamp.Hour, Value.VTimeStamp.Minute, Value.VTimeStamp.Second,
-                    Value.VTimeStamp.Fractions div 1000000, P, FFormatSettings, False, Value.VTimeStamp.IsNegative);
+                  L := ZSysUtils.DateTimeToUni(Value.VTimeStamp.Year, Value.VTimeStamp.Month,
+                    Value.VTimeStamp.Day, Value.VTimeStamp.Hour, Value.VTimeStamp.Minute,
+                    Value.VTimeStamp.Second, Value.VTimeStamp.Fractions, P,
+                    FFormatSettings.DateTimeFormat, False, Value.VTimeStamp.IsNegative);
                 end;
-    {$ELSE}
     vtDateTime: begin
                   P := @Buff[0];
                   L := ZSysUtils.DateTimeToUnicodeSQLTimeStamp(Value.VDateTime, P, FFormatSettings, False);
                 end;
-    {$ENDIF}
     else        begin
                   P := nil;
                   L := 0;
@@ -2128,10 +2461,9 @@ function TZSoftVariantManager.Convert(const Value: TZVariant;
       vtRawByteString:
         Result.VRawByteString := Value.VRawByteString;
       {$IFDEF UNICODE}vtString,{$ENDIF}
-      vtUnicodeString:
-        Result.VRawByteString := UnicodeStringToASCII7(Value.VUnicodeString);
+      vtUnicodeString: ZSetString(PAnsiChar(Pointer(Value.VUnicodeString)), Length(Value.VUnicodeString) shl 1, Result.VRawByteString);
       vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then Result.VRawByteString := UnicodeStringToASCII7(PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
+          then ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len shl 1, Result.VRawByteString)
           else ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, Result.VRawByteString);
       else
         RaiseTypeMismatchError;
@@ -2139,162 +2471,24 @@ function TZSoftVariantManager.Convert(const Value: TZVariant;
   end;
 
 begin
-  Result.VType := NewType;
+  InitializeVariant(Result, NewType);
   case NewType of
-    vtBoolean:
-      case Value.VType of
-        vtNull:     Result.VBoolean := False;
-        vtBoolean:  Result.VBoolean := Value.VBoolean;
-        vtInteger:  Result.VBoolean := Value.VInteger <> 0;
-        vtUInteger: Result.VBoolean := Value.VUInteger <> 0;
-        vtDouble:   Result.VBoolean := Value.VDouble <> 0;
-        vtCurrency: Result.VBoolean := Value.VCurrency <> 0;
-        vtBigDecimal: Result.VBoolean := not (Value.VBigDecimal.Precision = 10) and (Value.VBigDecimal.SignSpecialPlaces = 2);
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString: Result.VBoolean := StrToBoolEx(Value.VRawByteString);
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString: Result.VBoolean := StrToBoolEx(Value.VUnicodeString);
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then Result.VBoolean := StrToBoolEx(PWideChar(Value.VCharRec.P))
-          else Result.VBoolean := StrToBoolEx(PAnsiChar(Value.VCharRec.P));
-        vtDateTime: Result.VBoolean := Value.VDateTime <> 0;
-        else RaiseTypeMismatchError;
-      end;
-    vtBytes:
-      ProcessBytes(Value, Result);
-    vtInteger:
-      case Value.VType of
-        vtNull:       Result.VInteger := 0;
-        vtBoolean:    Result.VInteger := Ord(Value.VBoolean);
-        vtInteger:    Result.VInteger := Value.VInteger;
-        vtUInteger:   Result.VInteger := Value.VUInteger;
-        vtDouble:     Result.VInteger := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(Value.VDouble);
-        vtCurrency:   Result.VInteger := PInt64(@Value.VCurrency)^ div 10000;
-        vtBigDecimal: BCD2Int64(Value.VBigDecimal, Result.VInteger);
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString: Result.VInteger := RawToInt64Def(Pointer(Value.VRawByteString), 0);
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString: Result.VInteger := UnicodeToInt64Def(Value.VUnicodeString, 0);
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then Result.VInteger := UnicodeToInt64Def(PWideChar(Value.VCharRec.P), PWideChar(Value.VCharRec.P)+Value.VCharRec.Len, 0)
-          else Result.VInteger := RawToInt64Def(PAnsiChar(Value.VCharRec.P), PAnsiChar(Value.VCharRec.P)+Value.VCharRec.Len, 0);
-        vtDateTime:   Result.VInteger := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(Value.VDateTime);
-        vtPointer:    Result.VInteger := Int64({%H-}NativeUInt(Value.VPointer));
-        else          RaiseTypeMismatchError;
-      end;
+    vtBoolean:    Result.VBoolean := GetAsBoolean(Value);
+    vtInteger:    Result.VInteger := GetAsInteger(Value);
     {$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R-}{$IFEND}
-    vtUInteger:
-      case Value.VType of
-        vtNull:     Result.VUInteger := 0;
-        vtBoolean:  Result.VUInteger := Ord(Value.VBoolean);
-        vtInteger:  Result.VUInteger := Value.VInteger;
-        vtUInteger: Result.VUInteger := Value.VUInteger;
-        vtDouble:   Result.VUInteger := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(Value.VDouble);
-        vtCurrency: Result.VUInteger := PInt64(@Value.VCurrency)^ div 10000;
-        vtBigDecimal:BCD2UInt64(Value.VBigDecimal, Result.VUInteger);
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString: Result.VInteger := RawToUInt64Def(Pointer(Value.VRawByteString), 0);
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString: Result.VUInteger := UnicodeToUInt64Def(Value.VUnicodeString, 0);
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then Result.VInteger := UnicodeToUInt64Def(PWideChar(Value.VCharRec.P), PWideChar(Value.VCharRec.P)+Value.VCharRec.Len, 0)
-          else Result.VInteger := RawToUInt64Def(PAnsiChar(Value.VCharRec.P), PAnsiChar(Value.VCharRec.P)+Value.VCharRec.Len, 0);
-        vtDateTime: Result.VUInteger := {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(Value.VDateTime);
-        vtPointer:  Result.VUInteger := {%H-}NativeUInt(Value.VPointer);
-        else        RaiseTypeMismatchError;
-      end;
-    vtDouble:
-      case Value.VType of
-        vtNull:     Result.VDouble := 0;
-        vtBoolean:  Result.VDouble := Ord(Value.VBoolean);
-        vtInteger:  Result.VDouble := Value.VInteger;
-        vtUInteger: Result.VDouble := Value.VUInteger;
-        vtDouble:   Result.VDouble := Value.VDouble;
-        vtCurrency: Result.VDouble := Value.VCurrency;
-        vtBigDecimal:Result.VDouble := BCDToDouble(Value.VBigDecimal);
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString:  SqlStrToFloatDef(PAnsiChar(Pointer(Value.VRawByteString)), 0, Result.VDouble, Length(Value.VRawByteString));
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString:  SqlStrToFloatDef(PWideChar(Pointer(Value.VUnicodeString)), 0, Result.VDouble, Length(Value.VUnicodeString));
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then SqlStrToFloatDef(PWideChar(Value.VCharRec.P), 0, Result.VDouble, Value.VCharRec.Len)
-          else SqlStrToFloatDef(PAnsiChar(Value.VCharRec.P), 0, Result.VDouble, Value.VCharRec.Len);
-        vtDateTime: Result.VDouble := Value.VDateTime;
-        else RaiseTypeMismatchError;
-      end;
-    vtCurrency:
-      case Value.VType of
-        vtNull:     Result.VCurrency := 0;
-        vtBoolean:  Result.VCurrency := Ord(Value.VBoolean);
-        vtInteger:  Result.VCurrency := Value.VInteger;
-        vtUInteger: Result.VCurrency := Value.VUInteger;
-        vtDouble:   Result.VCurrency := Value.VDouble;
-        vtCurrency: Result.VCurrency := Value.VCurrency;
-        vtBigDecimal: BCDToCurr(Value.VBigDecimal, Result.VCurrency);
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString:  SqlStrToFloatDef(PAnsiChar(Pointer(Value.VRawByteString)), 0, Result.VCurrency, Length(Value.VRawByteString));
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString:  SqlStrToFloatDef(PWideChar(Pointer(Value.VUnicodeString)), 0, Result.VCurrency, Length(Value.VUnicodeString));
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then SqlStrToFloatDef(PWideChar(Value.VCharRec.P), 0, Result.VCurrency, Value.VCharRec.Len)
-          else SqlStrToFloatDef(PAnsiChar(Value.VCharRec.P), 0, Result.VCurrency, Value.VCharRec.Len);
-        vtDateTime: Result.VCurrency := Value.VDateTime;
-        else RaiseTypeMismatchError;
-      end;
-    vtBigDecimal:
-      case Value.VType of
-        vtNull: Result.VBigDecimal := NullBCD;
-        vtBoolean:  ScaledOrdinal2BCD(Word(Ord(Value.VBoolean)), 0, Result.VBigDecimal, False);
-        vtInteger:  ScaledOrdinal2BCD(Value.VInteger, 0, Result.VBigDecimal);
-        vtUInteger: ScaledOrdinal2BCD(Value.VUInteger, 0, Result.VBigDecimal, False);
-        vtDouble:   Double2BCD(Value.VDouble, Result.VBigDecimal);
-        vtCurrency: CurrToBCD(Value.VCurrency, Result.VBigDecimal);
-        vtBigDecimal: Result.VBigDecimal := Value.VBigDecimal;
-        {$IFNDEF UNICODE}vtString,{$ENDIF}
-        {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-        {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-        vtRawByteString: Result.VBigDecimal := RawToBCD(Value.VRawByteString);
-        {$IFDEF UNICODE}vtString,{$ENDIF}
-        vtUnicodeString: Result.VBigDecimal := UniToBCD(Value.VUnicodeString);
-        vtCharRec: if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-          then Result.VBigDecimal := UniToBCD(PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
-          else Result.VBigDecimal := RawToBCD(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len);
-        vtDateTime: Double2BCD(Value.VDateTime, Result.VBigDecimal);
-        else RaiseTypeMismatchError;
-      end;
-    vtDateTime: ProcessDateTime(Value, Result);
-    vtPointer:
-      case Value.VType of
-        vtNull:
-          Result.VPointer := nil;
-        vtBoolean:
-          RaiseTypeMismatchError;
-        vtInteger:
-          Result.VPointer := {%H-}Pointer(Value.VInteger);
-        vtUInteger:
-          Result.VPointer := {%H-}Pointer(Value.VUInteger);
-        else
-          RaiseTypeMismatchError;
-      end;
-    vtInterface:
-      case Value.VType of
-        vtNull:
-          Result.VInterface := nil;
-        vtInterface:
-          Result.VInterface := Value.VInterface;
-        else RaiseTypeMismatchError;
-      end;
-
+    vtUInteger:   Result.VUInteger := GetAsUInteger(Value);
+    {$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R+}{$IFEND}
+    vtDouble:     Result.VDouble := GetAsDouble(Value);
+    vtCurrency:   Result.VCurrency := GetAsCurrency(Value);
+    vtBigDecimal: GetAsBigDecimal(Value, Result.VBigDecimal);
+    vtGUID:       GetAsGUID(Value, Result.VGUID);
+    vtDate:       GetAsDate(Value, Result.VDate);
+    vtTime:       GetAsTime(Value, Result.VTime);
+    vtTimeStamp:  GetAsTimeStamp(Value, Result.VTimeStamp);
+    vtBytes:      ProcessBytes(Value, Result);
+    vtDateTime:   Result.VDateTime := GetAsDateTime(Value);
+    vtPointer:    Result.VPointer := GetAsPointer(Value);
+    vtInterface:  Result.VInterface := GetAsInterface(Value);
     vtString:     ProcessString(Value, Result);
     {$IFNDEF NO_ANSISTRING}
     vtAnsiString: ProcessAnsiString(Value, Result);
@@ -2326,6 +2520,44 @@ begin
     (FClientCP = zCP_UTF8) or
     Consettings.ClientCodePage.IsStringFieldCPConsistent or
     (Consettings.ClientCodePage.Encoding = ceUTF16);
+end;
+
+function TZClientVariantManager.GetAsDateTime(
+  const Value: TZVariant): TDateTime;
+var P: Pointer;
+  L: LengthInt;
+label DateTimeFromRaw, DateTimeFromUnicode, Fail;
+begin
+  case Value.VType of
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+        P := Pointer(Value.VRawByteString);
+        L := Length(Value.VRawByteString);
+DateTimeFromRaw:
+        if not ZSysUtils.TryPCharToDateTime(PAnsiChar(P), L, FConSettings^.ReadFormatSettings, Result{%H-}) then
+          goto Fail;
+      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      begin
+        P := Pointer(Value.VUnicodeString);
+        L := Length(Value.VUnicodeString);
+DateTimeFromUnicode:
+        if not ZSysUtils.TryPCharToDateTime(PWideChar(P), L, FConSettings^.ReadFormatSettings, Result) then
+          goto Fail;
+      end;
+    vtCharRec: begin
+        P := Value.VCharRec.P;
+        L := Value.VCharRec.Len;
+        if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
+        then goto DateTimeFromUnicode
+        else goto DateTimeFromRaw;
+      end;
+    else
+Fail: Result := inherited GetAsDateTime(Value);
+  end;
 end;
 
 {$IFNDEF NO_ANSISTRING}
@@ -2435,51 +2667,6 @@ SetRaw: if Pointer(Result.VRawByteString) = nil then begin
           else Result.VCharRec.P := Pointer(Result.VUnicodeString); //avoid RTL conversion to PAnsiChar
         end;
 
-  end;
-end;
-
-procedure TZClientVariantManager.ProcessDateTime(const Value: TZVariant;
-  out Result: TZVariant);
-var P: Pointer;
-  L: LengthInt;
-  Failed: Boolean;
-label DateTimeFromRaw, DateTimeFromUnicode;
-begin
-  Result.VType := vtDateTime;
-  case Value.VType of
-    {$IFNDEF UNICODE}vtString,{$ENDIF}
-    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-    vtRawByteString: begin
-        P := Pointer(Value.VRawByteString);
-        L := Length(Value.VRawByteString);
-DateTimeFromRaw:
-        if Ord((PAnsiChar(P)+2)^) = Ord(':') then
-          Result.VDateTime := RawSQLTimeToDateTime(P, L, FConSettings^.ReadFormatSettings, Failed)
-        else if (FConSettings^.ReadFormatSettings.DateTimeFormatLen - L) <= 4 then
-          Result.VDateTime := RawSQLTimeStampToDateTime(P, L, FConSettings^.ReadFormatSettings, Failed)
-        else Result.VDateTime := RawSQLTimeToDateTime(P, L, FConSettings^.ReadFormatSettings, Failed);
-      end;
-    {$IFDEF UNICODE}vtString,{$ENDIF}
-    vtUnicodeString:
-      begin
-        P := Pointer(Value.VUnicodeString);
-        L := Length(Value.VUnicodeString);
-DateTimeFromUnicode:
-        if (PWideChar(P)+2)^ = ':' then
-          Result.VDateTime := UnicodeSQLTimeToDateTime(P, L, FConSettings^.ReadFormatSettings, Failed)
-        else if (FConSettings^.ReadFormatSettings.DateTimeFormatLen - L) <= 4 then
-          Result.VDateTime := UnicodeSQLTimeStampToDateTime(P, L, FConSettings^.ReadFormatSettings, Failed)
-        else Result.VDateTime := UnicodeSQLTimeToDateTime(P, L,FConSettings^.ReadFormatSettings, Failed);
-      end;
-    vtCharRec: begin
-        P := Value.VCharRec.P;
-        L := Value.VCharRec.Len;
-        if ZCompatibleCodePages(Value.VCharRec.CP, zCP_UTF16)
-        then goto DateTimeFromUnicode
-        else goto DateTimeFromRaw;
-      end;
-    else inherited ProcessDateTime(Value, Result);
   end;
 end;
 
@@ -2677,6 +2864,15 @@ end;
 
 {**
   Constructs this object and assigns the main properties.
+  @param Value a date value.
+}
+constructor TZAnyValue.CreateWithDate(const Value: TZDate);
+begin
+  FValue := EncodeZDate(Value);
+end;
+
+{**
+  Constructs this object and assigns the main properties.
   @param Value a datetime value.
 }
 constructor TZAnyValue.CreateWithDateTime(const Value: TDateTime);
@@ -2740,6 +2936,24 @@ end;
 
 {**
   Constructs this object and assigns the main properties.
+  @param Value a time value.
+}
+constructor TZAnyValue.CreateWithTime(const Value: TZTime);
+begin
+  FValue := EncodeZTime(Value);
+end;
+
+{**
+  Constructs this object and assigns the main properties.
+  @param Value a timestamp value.
+}
+constructor TZAnyValue.CreateWithTimeStamp(const Value: TZTimeStamp);
+begin
+  FValue := EncodeZTimeStamp(Value);
+end;
+
+{**
+  Constructs this object and assigns the main properties.
   @param Value a unicode string value.
 }
 {$IFDEF UNICODE}
@@ -2769,7 +2983,7 @@ var
   Temp: IZAnyValue;
 begin
   if Value <> nil then begin
-    if Value.QueryInterface(IZAnyValue, Temp) = 0 then begin
+    if Value.QueryInterface(IZAnyValue, Temp) = S_OK then begin
       Result := SoftVarManager.Compare(FValue, Temp.GetValue) = 0;
       Temp := nil;
     end else
@@ -2829,7 +3043,7 @@ end;
 }
 function TZAnyValue.GetBigDecimal: TBCD;
 begin
-  Result := SoftVarManager.GetAsBigDecimal(FValue);
+  SoftVarManager.GetAsBigDecimal(FValue, Result{%H-});
 end;
 
 {**
@@ -2858,6 +3072,29 @@ function TZAnyValue.GetString: String;
 begin
   Result := SoftVarManager.GetAsString(FValue);
 end;
+
+{**
+  Gets a stored value converted to time.
+  @return a stored value converted to time.
+}
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
+function TZAnyValue.GetTime: TZTime;
+begin
+  SoftVarManager.GetAsTime(FValue, Result);
+end;
+
+{**
+  Gets a stored value converted to timestamp.
+  @return a stored value converted to timestamp.
+}
+function TZAnyValue.GetTimeStamp: TZTimeStamp;
+begin
+  SoftVarManager.GetAsTimeStamp(FValue, Result);
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a stored value converted to AnsiString.
@@ -2909,6 +3146,20 @@ begin
 end;
 
 {**
+  Gets a stored value converted to date.
+  @return a stored value converted to date.
+}
+{$IFDEF FPC} // parameters not used intentionally
+  {$PUSH}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
+function TZAnyValue.GetDate: TZDate;
+begin
+  SoftVarManager.GetAsDate(FValue, Result);
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+{**
   Gets a stored value converted to datetime.
   @return a stored value converted to datetime.
 }
@@ -2918,7 +3169,7 @@ begin
 end;
 
 
-procedure InitializeVariant(var Value: TZVariant; vType: TZVariantType);
+procedure InitializeVariant({$IFDEF FPC}Out{$ELSE}var{$ENDIF} Value: TZVariant; vType: TZVariantType);
 begin
   //clear me late on !!
   Value.VType := vType;
@@ -3200,6 +3451,39 @@ function EncodeDateTime(const Value: TDateTime): TZVariant;
 begin
   Result.VType := vtDateTime;
   Result.VDateTime := Value;
+end;
+
+{**
+  Encodes a Time value into a custom variant.
+  @param Value a TZTime value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZTime(const Value: TZTime): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+begin
+  Result.VType := vtTime;
+  Result.VTime := Value;
+end;
+
+{**
+  Encodes a Date value into a custom variant.
+  @param Value a TZDate value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZDate(const Value: TZDate): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+begin
+  Result.VType := vtDate;
+  Result.VDate := Value;
+end;
+
+{**
+  Encodes a TimeStamp value into a custom variant.
+  @param Value a TZTimeStamp value to be encoded.
+  @returns an encoded custom variant.
+}
+function EncodeZTimeStamp(const Value: TZTimeStamp): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+begin
+  Result.VType := vtTimeStamp;
+  Result.VTimeStamp := Value;
 end;
 
 {**

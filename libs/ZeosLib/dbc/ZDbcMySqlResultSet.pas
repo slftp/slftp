@@ -193,7 +193,7 @@ type
       {$IFDEF AUTOREFCOUNT}const {$ENDIF}SQLWriter: TZSQLStringWriter;
       {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor: TZRowAccessor; var Result: SQLString); override;
     procedure PostUpdates(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
-      {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
+      OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
 
     {BEGIN of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
     procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet; {%H-}UpdateType: TZRowUpdateType;
@@ -944,7 +944,7 @@ begin
         FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
           begin
             Result := @FTinyBuffer[0];
-            Len := DateTimeToRawSQLTimeStamp(PMYSQL_TIME(ColBind^.buffer)^.Year,
+            Len := DateTimeToRaw(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               PMYSQL_TIME(ColBind^.buffer)^.Hour, PMYSQL_TIME(ColBind^.buffer)^.Minute,
               PMYSQL_TIME(ColBind^.buffer)^.Second, 0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
@@ -959,13 +959,13 @@ begin
           end;
         FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE: begin
             Result := @FTinyBuffer;
-            Len := DateTimeToRawSQLDate(PMYSQL_TIME(ColBind^.buffer)^.Year,
+            Len := DateToRaw(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               Result, ConSettings^.ReadFormatSettings.DateFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_TIME: begin
             Result := @FTinyBuffer;
-            Len := DateTimeToRawSQLTime(PMYSQL_TIME(ColBind^.buffer)^.Hour,
+            Len := TimeToRaw(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute,
               PMYSQL_TIME(ColBind^.buffer)^.Second, 0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
               @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
@@ -1085,7 +1085,7 @@ begin
           end;
         FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME: begin
             Result := @FTinyBuffer[0];
-            Len := DateTimeToUnicodeSQLTimeStamp(PMYSQL_TIME(ColBind^.buffer)^.Year,
+            Len := DateTimeToUni(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               PMYSQL_TIME(ColBind^.buffer)^.Hour, PMYSQL_TIME(ColBind^.buffer)^.Minute,
               PMYSQL_TIME(ColBind^.buffer)^.Second, 0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
@@ -1100,13 +1100,13 @@ begin
           end;
         FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE: begin
             Result := @FTinyBuffer;
-            Len := DateTimeToUnicodeSQLDate(PMYSQL_TIME(ColBind^.buffer)^.Year,
+            Len := DateToUni(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               Result, ConSettings^.ReadFormatSettings.DateFormat, False,
               PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_TIME: begin
-            Len := DateTimeToUnicodeSQLTime(PMYSQL_TIME(ColBind^.buffer)^.Hour,
+            Len := TimeToUni(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute, PMYSQL_TIME(ColBind^.buffer)^.Second,
               0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
               @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False,
@@ -1191,6 +1191,8 @@ begin
   if FieldOffsets.charsetnr > 0
   then bind^.binary := (PUInt(NativeUInt(MYSQL_FIELD)+NativeUInt(FieldOffsets.charsetnr))^ = 63) and (PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.flags)^ and BINARY_FLAG <> 0)
   else bind^.binary := (PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.flags)^ and BINARY_FLAG <> 0);
+  if bind^.buffer_type_address^ = FIELD_TYPE_GEOMETRY then //MySQL does not accept Type 255 as binding type
+    bind^.buffer_type_address^ := FIELD_TYPE_BLOB;
 
   case bind^.buffer_type_address^ of
     FIELD_TYPE_BIT: case PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.length)^ of
@@ -1869,7 +1871,7 @@ begin
     if not LastWasNull then begin
 From_Str: LastWasNull := not TryPCharToDate(Buffer, Len, ConSettings^.ReadFormatSettings, Result);
       if LastWasNull then
-Fill:  FillChar(Result, SizeOf(TZDate), #0);
+Fill:   Pint64(@Result.Year)^ := 0;
     end;
   end;
 end;
@@ -2326,8 +2328,10 @@ begin
     if not LastWasNull then begin
 From_Str:
       LastWasNull := not TryPCharToTime(Buffer, Len, ConSettings^.ReadFormatSettings, Result);
-      if LastWasNull then
-Fill:   FillChar(Result, SizeOf(TZTime), #0);
+      if LastWasNull then begin
+Fill:   PCardinal(@Result.Hour)^ := 0;
+        PInt64(@Result.Second)^ := 0;
+      end;
     end;
   end;
 end;

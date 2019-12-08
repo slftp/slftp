@@ -104,7 +104,6 @@ type
     procedure SetASQL(const Value: RawByteString); virtual;
     procedure SetWSQL(const Value: ZWideString); virtual;
     class function GetNextStatementId : integer;
-    procedure RaiseUnsupportedException;
     procedure ReleaseConnection; virtual;
     property MaxFieldSize: Integer read FMaxFieldSize write FMaxFieldSize;
     property MaxRows: Integer read FMaxRows write FMaxRows;
@@ -435,9 +434,7 @@ type
     procedure SetBytes(ParameterIndex: Integer; const Value: TBytes); virtual;
     procedure SetGUID(ParameterIndex: Integer; const Value: TGUID); virtual;
     procedure SetDate(ParameterIndex: Integer; const Value: TDateTime); overload; virtual;
-    procedure SetDate(ParameterIndex: Integer; const Value: TZDate); overload; virtual;
     procedure SetTime(ParameterIndex: Integer; const Value: TDateTime); overload; virtual;
-    procedure SetTime(ParameterIndex: Integer; const Value: TZTime); overload; virtual;
     procedure SetTimestamp(ParameterIndex: Integer; const Value: TDateTime); overload;
     procedure SetTimestamp(ParameterIndex: Integer; const Value: TZTimeStamp); overload;
     procedure SetAsciiStream(ParameterIndex: Integer; const Value: TStream);
@@ -769,14 +766,6 @@ begin
   end;
 end;
 
-{**
-  Raises unsupported operation exception.
-}
-procedure TZAbstractStatement.RaiseUnsupportedException;
-begin
-  raise EZSQLException.Create(SUnsupportedOperation);
-end;
-
 procedure TZAbstractStatement.ReleaseConnection;
 begin
   FConnection := nil;
@@ -1036,7 +1025,7 @@ end;
 }
 procedure TZAbstractStatement.Cancel;
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -2227,9 +2216,17 @@ var BindValue: PZBindValue;
             Dest := VariantManager.Convert(Src, vtBigDecimal);
             Put(Index, Dest.VBigDecimal);
           end;
-        stDate, stTime, stTimeStamp: begin
-            Dest := VariantManager.Convert(Src, vtDateTime);
-            Put(Index, NewSQLType, P8Bytes(@Dest.VDateTime));
+        stDate: begin
+            Dest := VariantManager.Convert(Src, vtDate);
+            Put(Index, Dest.VDate);
+          end;
+        stTime: begin
+            Dest := VariantManager.Convert(Src, vtTime);
+            Put(Index, Dest.VTime);
+          end;
+        stTimeStamp: begin
+            Dest := VariantManager.Convert(Src, vtTimeStamp);
+            Put(Index, NewSQLType, P8Bytes(@Dest.VTimeStamp));
           end;
         stGUID: begin
             Dest := VariantManager.Convert(Src, vtGUID);
@@ -2264,7 +2261,7 @@ end;
 }
 procedure TZAbstractPreparedStatement.SetBindCapacity(Capacity: Integer);
 begin
-  if (Capacity = 0) or (FBindList.Capacity < Capacity) then
+  if (FBindList <> nil) and ((Capacity = 0) or (FBindList.Capacity < Capacity)) then
     FBindList.Capacity := Capacity;
 end;
 
@@ -2390,6 +2387,7 @@ begin
   end;
   FBindList := TZBindList.Create(ConSettings);
   FClientCP := ConSettings.ClientCodePage.CP;
+  FTokenMatchIndex := -1;
   {$IFDEF UNICODE}WSQL{$ELSE}ASQL{$ENDIF} := SQL;
 end;
 
@@ -2657,6 +2655,11 @@ begin
     IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetCurrency(ParameterIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, Result);
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5033 off : Function result does not seem to be set}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+{$ENDIF}
 function TZAbstractPreparedStatement.GetDate(
   ParameterIndex: Integer): TDateTime;
 var D: TZDate;
@@ -2664,6 +2667,7 @@ begin
   IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).GetDate(ParameterIndex, D);
   TryDateToDateTime(D, Result);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 procedure TZAbstractPreparedStatement.GetDate(ParameterIndex: Integer;
   var Result: TZDate);
@@ -2850,8 +2854,8 @@ function TZAbstractPreparedStatement.GetTime(
   ParameterIndex: Integer): TDateTime;
 var T: TZTime;
 begin
-  IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).GetTime(ParameterIndex, T);
-  TryTimeToDateTime(T, Result);
+  IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).GetTime(ParameterIndex, T{%H-});
+  TryTimeToDateTime(T, Result{%H-});
 end;
 
 function TZAbstractPreparedStatement.GetUInt(ParameterIndex: Integer): Cardinal;
@@ -2957,8 +2961,8 @@ function TZAbstractPreparedStatement.GetTimeStamp(
   ParameterIndex: Integer): TDateTime;
 var TS: TZTimeStamp;
 begin
-  IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).GetTimeStamp(ParameterIndex, TS);
-  TryTimeStampToDateTime(TS, Result);
+  IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).GetTimeStamp(ParameterIndex, TS{%H-});
+  TryTimeStampToDateTime(TS, Result{%H-});
 end;
 
 procedure TZAbstractPreparedStatement.GetTimeStamp(ParameterIndex: Integer;
@@ -3136,12 +3140,14 @@ end;
 }
 procedure TZAbstractPreparedStatement.SetAsciiStream(ParameterIndex: Integer;
   const Value: TStream);
+var CLob: IZBlob; //use a local variable for the FPC
 begin
   if TMemoryStream(Value).Memory = nil
-  then SetBlob(ParameterIndex, stAsciiStream, TZAbstractClob.CreateWithData(PEmptyAnsiString, Value.Size, ConSettings^.ClientCodePage^.CP, ConSettings))
+  then CLob := TZAbstractClob.CreateWithData(PEmptyAnsiString, Value.Size, ConSettings^.ClientCodePage^.CP, ConSettings)
   else if ConSettings^.AutoEncode
-    then SetBlob(ParameterIndex, stAsciiStream, TZAbstractClob.CreateWithData(TMemoryStream(Value).Memory, Value.Size, zCP_NONE, ConSettings))
-    else SetBlob(ParameterIndex, stAsciiStream, TZAbstractClob.CreateWithData(TMemoryStream(Value).Memory, Value.Size, ConSettings^.ClientCodePage^.CP, ConSettings));
+    then CLob := TZAbstractClob.CreateWithData(TMemoryStream(Value).Memory, Value.Size, zCP_NONE, ConSettings)
+    else CLob := TZAbstractClob.CreateWithData(TMemoryStream(Value).Memory, Value.Size, ConSettings^.ClientCodePage^.CP, ConSettings);
+  SetBlob(ParameterIndex, stAsciiStream, Clob)
 end;
 
 procedure TZAbstractPreparedStatement.SetASQL(const Value: RawByteString);
@@ -3211,16 +3217,7 @@ begin
     aArray.VIsNullArrayVariantType := vtNull;
     BindArray(Index, aArray);
   end else
-    raise EZSQLException.Create(SUnsupportedOperation);
-end;
-
-procedure TZAbstractPreparedStatement.SetDate(ParameterIndex: Integer;
-  const Value: TZDate);
-var DT: TDateTime;
-begin
-  if TryDateToDateTime(Value, DT)
-  then IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetDate(ParameterIndex, DT)
-  else IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetNull(ParameterIndex, stDate)
+    raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -3235,7 +3232,7 @@ procedure TZAbstractPreparedStatement.SetDate(ParameterIndex: Integer;
   const Value: TDateTime);
 var D: TZDate;
 begin
-  ZSysUtils.DecodeDateTimeToDate(Value, D);
+  ZSysUtils.DecodeDateTimeToDate(Value, D{%H-});
   IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetDate(ParameterIndex, D);
 end;
 
@@ -3305,6 +3302,9 @@ begin
                   else SQLWriter.AddText('(CLOB)', Result);
     zbtPointer:   SQLWriter.AddText('(POINTER)', Result);
     zbtNull:      SQLWriter.AddText('(NULL)', Result);
+    zbtDate:      SQLWriter.AddDate(PZDate(BindValue.Value)^, ConSettings.WriteFormatSettings.DateFormat, Result);
+    zbtTime:      SQLWriter.AddTime(PZTime(BindValue.Value)^, ConSettings.WriteFormatSettings.TimeFormat, Result);
+    zbtTimeStamp: SQLWriter.AddTimeStamp(PZTimeStamp(BindValue.Value)^, ConSettings.WriteFormatSettings.DateTimeFormat, Result);
     else          SQLWriter.AddText('(CUSTOM)', Result);
   end;
 end;
@@ -3344,7 +3344,7 @@ begin
     PZArray(BindValue.Value).VIsNullArrayType := Ord(SQLType);
     PZArray(BindValue.Value).VIsNullArrayVariantType := VariantType;
   end else
-    raise EZSQLException.Create(SUnsupportedOperation);
+    raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -3418,7 +3418,7 @@ procedure TZAbstractPreparedStatement.SetTime(ParameterIndex: Integer;
   const Value: TDateTime);
 var T: TZTime;
 begin
-  ZSysUtils.DecodeDateTimeToTime(Value, T);
+  ZSysUtils.DecodeDateTimeToTime(Value, T{%H-});
   IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTime(ParameterIndex, T)
 end;
 
@@ -3430,20 +3430,11 @@ end;
   @param parameterIndex the first parameter is 1, the second is 2, ...
   @param x the parameter value
 }
-procedure TZAbstractPreparedStatement.SetTime(ParameterIndex: Integer;
-  const Value: TZTime);
-var DT: TDateTime;
-begin
-  if TryTimeToDateTime(Value, DT)
-  then IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTime(ParameterIndex, DT)
-  else IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetNull(ParameterIndex, stTime);
-end;
-
 procedure TZAbstractPreparedStatement.SetTimestamp(ParameterIndex: Integer;
   const Value: TZTimeStamp);
 var DT: TDateTime;
 begin
-  if TryTimeStampToDateTime(Value, DT)
+  if TryTimeStampToDateTime(Value, DT{%H-})
   then IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTimeStamp(ParameterIndex, DT)
   else IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetNull(ParameterIndex, stTimeStamp);
 end;
@@ -3452,7 +3443,7 @@ procedure TZAbstractPreparedStatement.SetTimestamp(ParameterIndex: Integer;
   const Value: TDateTime);
 var TS: TZTimeStamp;
 begin
-  ZSysUtils.DecodeDateTimeToTimeStamp(Value, TS);
+  ZSysUtils.DecodeDateTimeToTimeStamp(Value, TS{%H-});
   IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTimeStamp(ParameterIndex, TS)
 end;
 
@@ -3502,7 +3493,10 @@ begin
     vtUTF8String:    IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetUTF8String(ParameterIndex, Value.VRawByteString);
     {$ENDIF}
     vtCharRec:       IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetCharRec(ParameterIndex, Value.VCharRec);
+    vtDate:          IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetDate(ParameterIndex, Value.VDate);
     vtDateTime:      IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTimestamp(ParameterIndex, Value.VDateTime);
+    vtTime:          IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTime(ParameterIndex, Value.VTime);
+    vtTimeStamp:     IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetTimeStamp(ParameterIndex, Value.VTimeStamp);
     vtBytes:         IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetBytes(ParameterIndex, {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}StrToBytes{$ENDIF}(Value.VRawByteString));
     vtArray:  begin
                 IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetDataArray(ParameterIndex, Value.VArray.VArray, TZSQLType(Value.VArray.VArrayType), Value.VArray.VArrayVariantType);
@@ -3516,7 +3510,7 @@ begin
         else IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetBlob(ParameterIndex, stBinaryStream, TempBlob);
         TempBlob := nil;
       end else
-        raise EZSQLException.Create(sUnsupportedOperation);
+        raise EZUnsupportedException.Create(sUnsupportedOperation);
     else IZPreparedStatement(FWeakIntfPtrOfIPrepStmt).SetNull(ParameterIndex, stUnknown);
   end;
 end;
@@ -3582,7 +3576,7 @@ begin
     stUnicodeString: if not (VariantType in [vtUnicodeString, vtCharRec]) then
           raise Exception.Create('Invalid Variant-Type for String-Array binding!');
     stArray, stDataSet:
-          raise Exception.Create(sUnsupportedOperation);
+          raise EZUnsupportedException.Create(sUnsupportedOperation);
   end;
   Len := {%H-}PArrayLenInt({%H-}NativeUInt(Value) - ArrayLenOffSet)^{$IFDEF FPC}+1{$ENDIF}; //FPC returns High() for this pointer location
   if (BindList.ParamTypes[ParamIndex] <> pctResultSet) then
@@ -4141,15 +4135,13 @@ end;
 
 function TZAbstractCallableStatement.Execute(const SQL: ZWideString): Boolean;
 begin
-  Result := False;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.Execute(
   const SQL: RawByteString): Boolean;
 begin
-  Result := False;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.ExecutePrepared: Boolean;
@@ -4171,15 +4163,13 @@ end;
 function TZAbstractCallableStatement.ExecuteQuery(
   const SQL: RawByteString): IZResultSet;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.ExecuteQuery(
   const SQL: ZWideString): IZResultSet;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.ExecuteQueryPrepared: IZResultSet;
@@ -4209,15 +4199,13 @@ end;
 function TZAbstractCallableStatement.ExecuteUpdate(
   const SQL: RawByteString): Integer;
 begin
-  Result := -1;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.ExecuteUpdate(
   const SQL: ZWideString): Integer;
 begin
-  Result := -1;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractCallableStatement.ExecuteUpdatePrepared: Integer;
@@ -4676,25 +4664,27 @@ var I: Integer;
       '', StoredProcName, '');
     RS.Last;
     I := RS.GetRow;
-    if FExecStatement = nil
-    then SetParamCount(I)
-    else FExecStatement.SetParamCount(I);
-    I := 0;
-    RS.BeforeFirst;
-    while RS.Next do begin
-      SQLType := TZSQLType(RS.GetInt(ProcColDataTypeIndex));
-      ParamIO := TZProcedureColumnType(RS.GetInt(ProcColColumnTypeIndex));
-      S := RS.GetString(ProcColColumnNameIndex);
-      Prec := RS.GetInt(ProcColPrecisionIndex);
-      Scale := RS.GetInt(ProcColScaleIndex);
-      if FExecStatement = nil then
-        RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale)
-      else begin
-        FExecStatement.RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale);
-        if BindList.Count < I+1 then
-          RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale);
+    if I > 0 then begin
+      if FExecStatement = nil
+      then SetParamCount(I)
+      else FExecStatement.SetParamCount(I);
+      I := 0;
+      RS.BeforeFirst;
+      while RS.Next do begin
+        SQLType := TZSQLType(RS.GetInt(ProcColDataTypeIndex));
+        ParamIO := TZProcedureColumnType(RS.GetInt(ProcColColumnTypeIndex));
+        S := RS.GetString(ProcColColumnNameIndex);
+        Prec := RS.GetInt(ProcColPrecisionIndex);
+        Scale := RS.GetInt(ProcColScaleIndex);
+        if FExecStatement = nil then
+          RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale)
+        else begin
+          FExecStatement.RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale);
+          if BindList.Count < I+1 then
+            RegisterParameter(I, SQLType, ParamIO, S, Prec, Scale);
+        end;
+        Inc(I);
       end;
-      Inc(I);
     end;
     FRegisteringParamFromMetadata := False;
 //      Assert(I = BindList.Count);
