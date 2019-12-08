@@ -1510,7 +1510,7 @@ type
   // in monetary calculations which may occur with sftFloat type
   // - sftObject is a TEXT containing an ObjectToJSON serialization, able to
   // handle published properties of any not TPersistent as JSON object,
-  // TStrings or TRawUTF8List  as JSON arrays of strings, TCollection or
+  // TStrings or TRawUTF8List as JSON arrays of strings, TCollection or
   // TObjectList as JSON arrays of JSON objects
   // - sftVariant is a TEXT containing a variant value encoded as JSON:
   // string values are stored between quotes, numerical values directly stored,
@@ -2600,7 +2600,7 @@ type
     // - is prefered to MaxValue to identify the number of stored bytes
     OrdType: TOrdType;
     {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-    Dummy: DWORD; // needed on ARM for correct alignment !!??
+    EnumDummy: DWORD; // needed on ARM for correct alignment !!??
     {$endif}
     { this seemingly extraneous inner record is here for alignment purposes, so
     that its data gets aligned properly (if FPC_REQUIRES_PROPER_ALIGNMENT is set) }
@@ -2764,6 +2764,10 @@ type
   // & type NewType = OldType;
   // - user types defined as new types have this type information:
   // & type NewType = type OldType;
+  {$ifdef FPC}
+    {$push}
+    {$PACKRECORDS 1}
+  {$endif}
   {$ifdef UNICODE}TTypeInfo = record{$else}TTypeInfo = object{$endif}
   public
     /// the value type family
@@ -3142,6 +3146,10 @@ type
     function ClassFromJSON(Instance: TObject; From: PUTF8Char; var Valid: boolean;
       Options: TJSONToObjectOptions=[]): PUTF8Char;
   end;
+
+  {$ifdef FPC}
+    {$pop}
+  {$endif}
 
   /// the available methods calling conventions
   // - this is by design only relevant to the x86 model
@@ -8890,7 +8898,7 @@ type
     // - use the specified TSQLRecord class or create instances
     // of the first associated record class (from internal QueryTables[])
     procedure ToObjectList(DestList: TObjectList; RecordType: TSQLRecordClass=nil); overload;
-    {$ifdef ISDELPHI2010} // Delphi 2009 generics are buggy
+    {$ifdef ISDELPHI2010} // Delphi 2009/2010 generics are buggy
     /// create a TObjectList<TSQLRecord> with TSQLRecord instances corresponding
     // to this TSQLTable result set
     // - use the specified TSQLRecord class or create instances
@@ -15115,7 +15123,7 @@ type
     // Results: TIDDynArray parameter
     function BatchSend(Batch: TSQLRestBatch): integer; overload;
 
-    {$ifdef ISDELPHI2010} // Delphi 2009 generics support is buggy :(
+    {$ifdef ISDELPHI2010} // Delphi 2009/2010 generics support is buggy :(
     /// get an instance of one interface-based service
     // - may return nil if this service interface is not available
     function Service<T: IInterface>: T;
@@ -15157,7 +15165,7 @@ type
     function RetrieveList<T: TSQLRecord>(const FormatSQLWhere: RawUTF8;
       const BoundsSQLWhere: array of const;
       const aCustomFieldsCSV: RawUTF8=''): TObjectList<T>; overload;
-    {$endif ISDELPHI2010}
+    {$endif ISDELPHIXE}
 
     /// you can call this method in TThread.Execute to ensure that
     // the thread will be taken into account during process
@@ -18188,6 +18196,7 @@ type
     fStoredClass: TSQLRecordClass;
     fStoredClassProps: TSQLModelRecordProperties;
     fStoredClassRecordProps: TSQLRecordProperties;
+    fStoredClassMapping: PSQLRecordPropertiesMapping;
     fStorageLockShouldIncreaseOwnerInternalState: boolean;
     fStorageLockLogTrace: boolean;
     fModified: boolean;
@@ -20905,7 +20914,7 @@ function CurrentServiceContextServer: TSQLRestServer;
 
 /// returns a safe 256-bit hexadecimal nonce, changing every 5 minutes
 // - as used e.g. by TSQLRestServerAuthenticationDefault.Auth
-// - this function is very fast, even if cryptographically-level secure
+// - this function is very fast, even if cryptographically-level SHA-3 secure
 function CurrentServerNonce(Previous: boolean=false): RawUTF8;
 
 function ToText(ft: TSQLFieldType): PShortString; overload;
@@ -21028,14 +21037,22 @@ end;
 type
   AlignToPtr = pointer;
   AlignTypeData = pointer;
+  AlignTypeDataClean = pointer;
   UnalignToDouble = Double;
 {$endif FPC}
 
 { some inlined methods }
 
-function GetTypeData(const info: TTypeInfo): pointer; {$ifdef HASINLINE}inline;{$endif}
+function GetTypeData(const info: TTypeInfo): pointer;
+{$ifdef HASINLINE}inline;{$endif}
 begin
-  result := AlignTypeData(PAnsiChar(@info.Name[1])+ord(info.Name[0]));
+  result := AlignTypeData(PAnsiChar(@info)+2+PByte(PAnsiChar(@info)+1)^);
+end;
+
+function GetTypeDataClean(const info: TTypeInfo): pointer;
+{$ifdef HASINLINE}inline;{$endif}
+begin
+  result := AlignTypeDataClean(PAnsiChar(@info)+2+PByte(PAnsiChar(@info)+1)^);
 end;
 
 function TTypeInfo.ClassType: PClassType;
@@ -21159,7 +21176,7 @@ end;
 function TPropInfo.GetterAddr(Instance: pointer): pointer;
 {$ifdef HASINLINENOTX86}
 begin
-  result := Pointer(PtrUInt(Instance)+GetProc{$ifndef FPC} and $00FFFFFF{$endif});
+  result := Pointer(PtrUInt(Instance)+GetProc{$ifndef FPC} and $00ffffff{$endif});
 end;
 {$else}
 asm
@@ -21171,7 +21188,7 @@ end;
 
 function TPropInfo.SetterAddr(Instance: pointer): pointer;
 begin
-  result := Pointer(PtrUInt(Instance)+SetProc{$ifndef FPC} and $00FFFFFF{$endif});
+  result := Pointer(PtrUInt(Instance)+SetProc{$ifndef FPC} and $00ffffff{$endif});
 end;
 
 function TPropInfo.TypeInfo: PTypeInfo;
@@ -21219,7 +21236,7 @@ end;
 {$ifdef HASINLINENOTX86}
 function TPropInfo.Next: PPropInfo;
 begin
-  result := AlignToPtr(PAnsiChar(@Name[1])+ord(Name[0]));
+  result := AlignToPtr(PAnsiChar(@Name[0]) + SizeOf(Name[0]) + Length(Name));
 end;
 {$else}
 function TPropInfo.Next: PPropInfo;
@@ -21262,7 +21279,7 @@ begin
     end
   {$ifndef FPC} else
     if PropWrap(Entry^.ImplGetter).Kind=ptField then
-      IInterface(Obj) := IInterface(PPointer(PtrUInt(Instance)+PtrUInt(Entry^.ImplGetter and $00FFFFFF))^) else
+      IInterface(Obj) := IInterface(PPointer(PtrUInt(Instance)+PtrUInt(Entry^.ImplGetter and $00ffffff))^) else
       UseImplGetter(Instance,Entry^.ImplGetter,IInterface(Obj)){$endif};
   Result := Pointer(Obj)<>nil;
 end;
@@ -21475,6 +21492,7 @@ function ClassFieldNamesAllProps(ClassType: TClass; IncludePropType: boolean;
 var props: PPropInfoDynArray;
     n,i: integer;
 begin
+  result := nil;
   props := ClassFieldAllProps(ClassType,Types);
   n := length(props);
   SetLength(result,n);
@@ -21531,7 +21549,7 @@ begin
         if aCaseSensitive then
           for i := 1 to n do
             if (result^.Name[0]=AnsiChar(PropNameLen)) and
-               CompareMemSmall(@result^.Name[1],PropName,PropNameLen) then
+               CompareMemFixed(@result^.Name[1],PropName,PropNameLen) then
               exit else
               result := result^.Next else
         for i := 1 to n do
@@ -22336,7 +22354,7 @@ begin
   fPropInfo := aPropInfo;
   fPropType := aPropInfo^.TypeInfo;
   if aPropInfo.GetterIsField then begin
-    fGetterIsFieldPropOffset := aPropInfo.GetProc{$ifndef FPC} and $00FFFFFF{$endif};
+    fGetterIsFieldPropOffset := aPropInfo.GetProc{$ifndef FPC} and $00ffffff{$endif};
     if (aPropInfo.SetProc=0) or (aPropInfo.SetProc=fPropInfo.GetProc) then
       fInPlaceCopySameClassPropOffset := fGetterIsFieldPropOffset;
   end;
@@ -26544,8 +26562,10 @@ begin
   for i := 2 to fRowCount do begin
     {$ifdef FPC}Move{$else}MoveFast{$endif}(U^^,P^,len^);
     inc(P,len^);
-    {$ifdef FPC}Move{$else}MoveFast{$endif}(pointer(Sep)^,P^,SepLen);
-    inc(P,SepLen);
+    if SepLen>0 then begin
+      MoveSmall(pointer(Sep),P,SepLen);
+      inc(P,SepLen);
+    end;
     inc(len);
     inc(U,FieldCount); // go to next row
   end;
@@ -27584,7 +27604,7 @@ begin
   fOwnedRecords.Add(result);
 end;
 
-{$ifdef ISDELPHI2010} // Delphi 2009 generics are buggy
+{$ifdef ISDELPHI2010} // Delphi 2009/2010 generics are buggy
 function TSQLTable.ToObjectList<T>: TObjectList<T>;
 var R,Item: TSQLRecord;
     row: PPUtf8Char;
@@ -28330,7 +28350,7 @@ function TSQLTable.ExpandAsSynUnicode(Row,Field: integer; Client: TObject; out T
 var s: string;
 begin
   result := ExpandAsString(Row,Field,Client,s);
-  Text := StringToSynUnicode(s);
+  StringToSynUnicode(s,Text);
 end;
 
 function TSQLTable.GetTimeLog(Row, Field: integer; Expanded: boolean;
@@ -28756,7 +28776,7 @@ begin
       end;
     end;
     else
-      raise EORMException.Create('Invalid EncodeAsSQLPrepared() call');
+      raise EORMException.CreateUTF8('Unexpected EncodeAsSQLPrepared(%)',[ord(Occasion)]);
     end;
     W.SetText(result);
   finally
@@ -30583,7 +30603,7 @@ type
 var call: TMethod;
 begin
   case Getter(Instance,@call) of
-    picField:   result := PDouble(call.Data)^;
+    picField:   result := unaligned(PDouble(call.Data)^);
     picMethod:  result := TGetProc(call);
     picIndexed: result := TGetIndexed(call)(Index);
     else result := 0;
@@ -30597,7 +30617,7 @@ type
 var call: TMethod;
 begin
   case Setter(Instance,@call) of
-    picField:   PDouble(call.Data)^ := Value;
+    picField:   unaligned(PDouble(call.Data)^) := Value;
     picMethod:  TSetProc(call)(Value);
     picIndexed: TSetIndexed(call)(Index,Value);
   end;
@@ -30623,7 +30643,7 @@ begin
     picField:
       case ft of
         ftSingle:    result := PSingle(call.Data)^;
-        ftDoub:      result := PDouble(call.Data)^;
+        ftDoub:      result := unaligned(PDouble(call.Data)^);
         ftExtended:  result := PExtended(call.Data)^;
         ftCurr:      result := PCurrency(call.Data)^;
       end;
@@ -30663,7 +30683,7 @@ begin
     picField:
       case ft of
         ftSingle:    PSingle(call.Data)^ := Value;
-        ftDoub:      PDouble(call.Data)^ := Value;
+        ftDoub:      unaligned(PDouble(call.Data)^) := Value;
         ftExtended:  PExtended(call.Data)^ := Value;
         ftCurr:      PCurrency(call.Data)^ := Value;
       end;
@@ -30953,6 +30973,7 @@ procedure TEnumType.GetEnumNameAll(var result: TRawUTF8DynArray;
 var max,i: integer;
     V: PShortString;
 begin
+  Finalize(result);
   max := MaxValue-MinValue;
   SetLength(result,max+1);
   V := @NameList;
@@ -31380,21 +31401,21 @@ function TTypeInfo.InterfaceGUID: PGUID;
 begin
   if (@self=nil) or (Kind<>tkInterface) then
     result := nil else
-    result := @InterfaceType.IntfGuid;
+    result := @InterfaceType^.IntfGuid;
 end;
 
 function TTypeInfo.InterfaceUnitName: PShortString;
 begin
   if (@self=nil) or (Kind<>tkInterface) then
     result := @NULL_SHORTSTRING else
-    result := @InterfaceType.IntfUnit;
+    result := @InterfaceType^.IntfUnit;
 end;
 
 function TTypeInfo.InterfaceAncestor: PTypeInfo;
 begin
   if (@self=nil) or (Kind<>tkInterface) then
     result := nil else
-    result := Deref(InterfaceType.IntfParent);
+    result := Deref(InterfaceType^.IntfParent);
 end;
 
 procedure TTypeInfo.InterfaceAncestors(out Ancestors: PTypeInfoDynArray;
@@ -31434,8 +31455,7 @@ end;
 {$ifdef FPC_PROVIDE_ATTR_TABLE}
 function TTypeInfo.AttributeTable: PFPCAttributeTable;
 begin
-  result := GetTypeData(self);
-  dec(result); // re-adjust after SynFPCTypInfo.AlignTypeData() in GetTypeData()
+  result := GetTypeDataClean(self);
 end;
 {$endif FPC_PROVIDE_ATTR_TABLE}
 
@@ -31978,11 +31998,14 @@ var Table: TSQLTableJSON;
     tmp: TSynTempBuffer; // work on a private copy
 begin
   tmp.Init(JSONTable);
-  Table := TSQLTableJSON.Create('',tmp.buf,tmp.len);
   try
-    FillFrom(Table,Row);
+    Table := TSQLTableJSON.Create('',tmp.buf,tmp.len);
+    try
+      FillFrom(Table,Row);
+    finally
+      Table.Free;
+    end;
   finally
-    Table.Free;
     tmp.Done;
   end;
 end;
@@ -34388,6 +34411,7 @@ function TSQLModel.GetTablesFromSQLSelect(const SQL: RawUTF8): TSQLRecordClassDy
 var t: TIntegerDynArray;
     n,i: integer;
 begin
+  result := nil;
   t := GetTableIndexesFromSQLSelect(SQL);
   n := length(t);
   if n=0 then
@@ -37153,7 +37177,7 @@ begin
   raise EORMException.CreateUTF8('BATCH not supported by %',[self]);
 end;
 
-{$ifdef ISDELPHI2010} // Delphi 2009 generics support is buggy :(
+{$ifdef ISDELPHI2010} // Delphi 2009/2010 generics support is buggy :(
 
 function TSQLRest.Service<T>: T;
 var service: TServiceFactory;
@@ -42231,8 +42255,11 @@ begin
   VariantSaveJSON(Value,Escape,json);
   if MakeHumanReadable and (json<>'') and (json[1] in ['{','[']) then begin
     tmp.Init(json);
-    JSONBufferReformat(tmp.buf,json);
-    tmp.Done;
+    try
+      JSONBufferReformat(tmp.buf,json);
+    finally
+      tmp.Done;
+    end;
   end;
   Returns(json,Status,CustomHeader,Handle304NotModified);
 end;
@@ -46372,7 +46399,7 @@ begin
 end;
 
 function TSQLRestStorageInMemory.EngineList(const SQL: RawUTF8;
-  ForceAJAX: Boolean=false; ReturnedRowCount: PPtrInt=nil): RawUTF8;
+  ForceAJAX: Boolean; ReturnedRowCount: PPtrInt): RawUTF8;
 // - GetJSONValues/FindWhereEqual will handle basic REST commands (not all SQL)
 // only valid SQL command is "SELECT Field1,Field2 FROM Table WHERE ID=120;",
 // i.e one Table SELECT with one optional "WHERE fieldname = value" statement
@@ -47836,6 +47863,7 @@ begin
      fModel.Owner := self;
    end;
   fStoredClassProps := fModel.Props[aClass];
+  fStoredClassMapping := @fStoredClassProps.ExternalDB;
   fIsUnique := fStoredClassRecordProps.IsUniqueFieldsBits;
   fBasicSQLCount := 'SELECT COUNT(*) FROM '+fStoredClassRecordProps.SQLTableName;
   fBasicSQLHasRows[false] := 'SELECT RowID FROM '+fStoredClassRecordProps.SQLTableName+' LIMIT 1';
@@ -49445,15 +49473,17 @@ end;
 function PropIsIDTypeCastedField(Prop: PPropInfo; IsObj: TJSONObject;
   Value: TObject): boolean;
 begin // see [22ce911c715]
-  case IsObj of
-  oSQLMany:
-    if IdemPropName(Prop^.Name,'source') or IdemPropName(Prop^.Name,'dest') then
-      result := true else
+  if (Value<>nil) and (Prop^.PropType^.ClassSQLFieldType=sftID) then
+    case IsObj of
+    oSQLMany:
+      if IdemPropName(Prop^.Name,'source') or IdemPropName(Prop^.Name,'dest') then
+        result := true else
+        result := not TSQLRecord(Value).fFill.JoinedFields;
+    oSQLRecord:
       result := not TSQLRecord(Value).fFill.JoinedFields;
-  oSQLRecord:
-    result := not TSQLRecord(Value).fFill.JoinedFields;
-  else result := false; // real instance for regular classes
-  end;
+    else result := false; // real instance for regular classes
+    end else
+    result := false; // assume real instance by default
 end;
 
 type
@@ -50843,7 +50873,7 @@ begin
 end;
 
 function TSQLRecordMany.IDWhereSQL(aClient: TSQLRest; aID: TID; isDest: boolean;
-  const aAndWhereSQL: RawUTF8=''): RawUTF8;
+  const aAndWhereSQL: RawUTF8): RawUTF8;
 const FieldName: array[boolean] of RawUTF8 = ('Source=','Dest=');
 begin
   if (self=nil) or (aID=0) or (fSourceID=nil) or (fDestID=nil) or
@@ -51453,10 +51483,6 @@ end;
 
 function TSQLRecordProperties.SQLAddField(FieldIndex: integer): RawUTF8;
 begin
-  if (self=nil) or (cardinal(FieldIndex)>=cardinal(Fields.Count)) then begin
-    result := '';
-    exit;
-  end;
   result := SQLFieldTypeToSQL(FieldIndex);
   if result='' then
     exit; // some fields won't have any column created in the database
@@ -54891,7 +54917,7 @@ begin
   InternalProcess; // use an inner proc to ensure direct fld/fild FPU ops
   case resultType of // al/ax/eax/eax:edx/rax already in result
   {$ifdef HAS_FPREG}
-  smvDouble,smvDateTime: aCall.FPRegs[FPREG_FIRST] := PDouble(@result)^;
+  smvDouble,smvDateTime: aCall.FPRegs[FPREG_FIRST] := unaligned(PDouble(@result)^);
   {$else}
   smvDouble,smvDateTime: asm fld  qword ptr [result] end;  // in st(0)
   smvCurrency:           asm fild qword ptr [result] end;  // in st(0)
@@ -55231,6 +55257,7 @@ class function TInterfaceFactory.GUID2TypeInfo(
   const aGUIDs: array of TGUID): PTypeInfoDynArray;
 var i: integer;
 begin
+  result := nil;
   SetLength(result,length(aGUIDs));
   for i := 0 to high(aGUIDs) do
     result[i] := GUID2TypeInfo(aGUIDs[i]);
@@ -55902,7 +55929,7 @@ const
   STUB_RELJMP = {$ifdef CPUARM}$7fffff{$else}$7fffffff{$endif}; // relative jmp
   STUB_INTERV = STUB_RELJMP+1; // try to reserve in closed stub interval
   STUB_ALIGN = QWord($ffffffffffff0000); // align to STUB_SIZE
-var start,stop,stub: PtrUInt;
+var start,stop,stub,dist: PtrUInt;
 begin
   stub := PtrUInt(@TInterfacedObjectFake.ArmFakeStub);
   if StubCallAllocMemLastStart<>0 then
@@ -55919,12 +55946,14 @@ begin
   while start<stop do begin // try whole -STUB_INTERV..+STUB_INTERV range
     inc(start,STUB_SIZE);
     result := fpmmap(pointer(start),STUB_SIZE,flProtect,MAP_PRIVATE or MAP_ANONYMOUS,-1,0);
-    if result<>MAP_FAILED then // close enough for a 24/32-bit relative jump?
-      if (PtrUInt(result)-stub<STUB_RELJMP) or (stub-PtrUInt(result)<STUB_RELJMP) then begin
+    if result<>MAP_FAILED then begin // close enough for a 24/32-bit relative jump?
+      dist := abs(stub-PtrUInt(result));
+      if dist<STUB_RELJMP then begin
         StubCallAllocMemLastStart := start;
         exit;
       end else
         fpmunmap(result,STUB_SIZE);
+    end;
   end;
   result := nil; // error
 end;
@@ -56033,7 +56062,7 @@ begin
           {$ifdef CPUARM}
           P^ := ($e3a040 shl 8)+i;  inc(P); // mov r4 (v1),{MethodIndex} : store method index in register
           tmp := ((PtrUInt(@TInterfacedObjectFake.ArmFakeStub)-PtrUInt(P)) shr 2)-2;
-          P^ := ($ea shl 24) + (tmp and $00FFFFFF); // branch ArmFakeStub (24bit relative, word aligned)
+          P^ := ($ea shl 24) + (tmp and $00ffffff); // branch ArmFakeStub (24bit relative, word aligned)
           inc(P);
           P^ := $e320f000; inc(P);
           {$endif CPUARM}
@@ -56153,11 +56182,8 @@ var P: Pointer;
 
 begin
   // handle interface inheritance via recursive calls
-  P := GetTypeData(aInterface^);
+  P := GetTypeDataClean(aInterface^);
   {$ifdef FPC}
-  {$ifdef FPC_PROVIDE_ATTR_TABLE}
-  dec(PFPCAttributeTable(P)); // re-adjust our GetTypeData() to match TypInfo.pp
-  {$endif FPC_PROVIDE_ATTR_TABLE}
   PI := P;
   if PI^.Parent<>nil then
     Ancestor := Deref(pointer(PI^.Parent)) else
@@ -58872,6 +58898,7 @@ end;
 type
   PCallMethodArgs = ^TCallMethodArgs;
   {$ifdef FPC}
+  {$push}
   {$PACKRECORDS 16}
   {$endif}
   TCallMethodArgs = record
@@ -58885,7 +58912,7 @@ type
     resKind: TServiceMethodValueType;
   end;
   {$ifdef FPC}
-  {$PACKRECORDS DEFAULT}
+  {$pop}
   {$endif}
 
 // ARM/AARCH64 code below provided by ALF, greatly inspired by pascalscript
@@ -59126,7 +59153,8 @@ asm
 end;
 {$endif CPUX64}
 
-{$ifdef ISDELPHI7ANDUP}{$WARN COMPARING_SIGNED_UNSIGNED OFF}{$endif} // W1023 FPC_STACKALIGNMENT
+{$ifdef ISDELPHI7ANDUP}{$WARN COMPARING_SIGNED_UNSIGNED OFF}{$endif}
+// disable W1023 FPC_STACKALIGNMENT (not possible on Delphi 6)
 
 {$ifdef CPUX86}
 
@@ -60228,7 +60256,7 @@ begin
       PInt64(V)^ := 0 else
       if wasString then
         Iso8601ToDateTimePUTF8CharVar(Val,ValLen,PDateTime(V)^) else
-        PDouble(V)^ := GetExtended(Val); // allow JSON number decoding
+        unaligned(PDouble(V)^) := GetExtended(Val); // allow JSON number decoding
   end;
   smvBoolean..smvDouble, smvCurrency..smvWideString: begin
     Val := GetJSONField(R,R,@wasString,nil,@ValLen);
@@ -60253,7 +60281,7 @@ doint:case SizeInStorage of
         SetQWord(Val,PQWord(V)^) else
         SetInt64(Val,PInt64(V)^);
     smvDouble:
-      PDouble(V)^ := GetExtended(Val);
+      unaligned(PDouble(V)^) := GetExtended(Val);
     smvCurrency:
       PInt64(V)^ := StrToCurr64(Val);
     smvRawUTF8:
@@ -60322,7 +60350,7 @@ begin
          WR.Add(PInt64(V)^);
   end;
   smvBoolean:    WR.Add(PBoolean(V)^);
-  smvDouble:     WR.AddDouble(PDouble(V)^);
+  smvDouble:     WR.AddDouble(unaligned(PDouble(V)^));
   smvDateTime:   WR.AddDateTime(PDateTime(V)^,vIsDateTimeMS in ValueKindAsm);
   smvCurrency:   WR.AddCurr64(PInt64(V)^);
   smvRawUTF8:    WR.AddJSONEscape(PPointer(V)^);
@@ -60372,7 +60400,7 @@ begin
          Int64ToUtf8(PInt64(V)^,DestValue);
   end;
   smvDouble:
-    ExtendedToStr(PDouble(V)^,DOUBLE_PRECISION,DestValue);
+    ExtendedToStr(unaligned(PDouble(V)^),DOUBLE_PRECISION,DestValue);
   smvCurrency:
     Curr64ToStr(PInt64(V)^,DestValue);
   smvRawJSON:
@@ -60454,7 +60482,7 @@ begin
          DestValue := PInt64(V)^;
   end;
   smvDouble, smvDateTime:
-    DestValue := PDouble(V)^;
+    DestValue := unaligned(PDouble(V)^);
   smvCurrency:
     DestValue := PCurrency(V)^;
   smvRawUTF8:
@@ -61112,12 +61140,6 @@ end;
 
 { TServiceMethod }
 
-type
-  TDynArrayFake = record
-    Value: Pointer;
-    Wrapper: TDynArray;
-  end;
-
 function TServiceMethod.ArgIndex(ArgName: PUTF8Char; ArgNameLen: integer;
   Input: boolean): integer;
 begin
@@ -61255,6 +61277,7 @@ end;
 function TServiceMethod.ArgsNames(Input: Boolean): TRawUTF8DynArray;
 var a,n: integer;
 begin
+  result := nil;
   if Input then begin
     SetLength(result,ArgsInputValuesCount);
     n := 0;
@@ -61281,10 +61304,12 @@ procedure TServiceMethod.ArgsStackAsDocVariant(const Values: TPPointerDynArray;
 var a: integer;
 begin
   if Input then begin
+    Dest.InitFast(ArgsInputValuesCount,dvObject);
     for a := ArgsInFirst to ArgsInLast do
       if Args[a].ValueDirection in [smdConst,smdVar] then
         Args[a].AddAsVariant(Dest,Values[a]);
   end else begin
+    Dest.InitFast(ArgsOutputValuesCount,dvObject);
     for a := ArgsOutFirst to ArgsOutLast do
       if Args[a].ValueDirection in [smdVar,smdOut,smdResult] then
         Args[a].AddAsVariant(Dest,Values[a]);
@@ -61548,7 +61573,7 @@ begin
             end;
             {$ifndef CPUX86}
             if FPRegisterIdent>0 then
-              call.FPRegs[FPRegisterIdent] := PDouble(Value)^;
+              call.FPRegs[FPRegisterIdent] := unaligned(PDouble(Value)^);
             {$endif}
             if (RegisterIdent>0) and (FPRegisterIdent>0) then
               raise EInterfaceFactoryException.CreateUTF8('Unexpected % reg=% FP=%',
@@ -62343,6 +62368,7 @@ var baseuri,uri,sent,resp,clientDrivenID,head,error,ct: RawUTF8;
     status,m: integer;
     service: PServiceMethod;
     ctxt: TSQLRestServerURIContextClientInvoke;
+    withinput: boolean;
     {$ifdef WITHLOG}
     log: ISynLog; // for Enter auto-leave to work with FPC
     p: RawUTF8;
@@ -62373,10 +62399,11 @@ begin
   if m<0 then
     service := nil else
     service := @fInterface.Methods[m];
+  withinput := ((service=nil) or ([smdConst,smdVar]*service^.HasSPIParams=[])) and
+    not(optNoLogInput in fExecution[m].Options);
   {$ifdef WITHLOG}
-  if (service=nil) or not((optNoLogInput in fExecution[m].Options) or
-     ([smdConst,smdVar]*service^.HasSPIParams<>[])) then
-    p := aParams;
+  if withinput then
+    p := aParams; // include non-sensitive input in log
   log := fRest.LogClass.Enter('InternalInvoke I%.%(%) %',
     [fInterfaceURI,aMethod,p,clientDrivenID],self);
   {$endif}
@@ -62409,6 +62436,8 @@ begin
           error := GetErrorMessage(status);
           if error<>'' then
             error := ' - '+error;
+          if not withinput then
+            sent := ''; // exclude sensitive input in error text
           aErrorMsg^ := FormatUTF8('URI % % returned status ''%'' (%%)',
             [uri,sent,resp,status,error]);
         end else
@@ -62418,8 +62447,8 @@ begin
     end;
     // decode JSON object
     {$ifdef WITHLOG}
-    if (service=nil) or not((optNoLogOutput in fExecution[m].Options) or
-       ([smdVar,smdOut,smdResult]*service^.HasSPIParams<>[])) then
+    if ((service=nil) or ([smdConst,smdVar]*service^.HasSPIParams=[])) and
+       not(optNoLogOutput in fExecution[m].Options) then
       with fRest.fLogFamily do
         if (sllServiceReturn in Level) and (resp<>'') then
           SynLog.Log(sllServiceReturn,resp,self,MAX_SIZE_RESPONSE_LOG);

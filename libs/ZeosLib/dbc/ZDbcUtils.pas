@@ -144,6 +144,14 @@ function DefineStatementParameter(const Connection: IZConnection;
   const Default: string): string; overload;
 
 {**
+  Splits up a qualified object name into pieces. Catalog, schema
+  and objectname.
+}
+procedure SplitQualifiedObjectName(const QualifiedName: string;
+  const SupportsCatalogs, SupportsSchemas: Boolean;
+  out Catalog, Schema, ObjectName: string);
+
+{**
   ToLikeString returns the given string or if the string is empty it returns '%'
   @param Value the string
   @return given Value or '%'
@@ -296,11 +304,7 @@ const
     SizeOf(WordBool),
     SizeOf(Byte), SizeOf(ShortInt), SizeOf(Word), SizeOf(SmallInt), SizeOf(Cardinal), SizeOf(Integer), SizeOf(UInt64), SizeOf(Int64),  //ordinals
     SizeOf(Single), SizeOf(Double), SizeOf(Currency), SizeOf(TBcd),
-    {$IFDEF TEST_RECORD_REFACTORING}
     SizeOf(TZDate), SizeOf(TZTime), SizeOf(TZTimeStamp),
-    {$ELSE}
-    SizeOf(TDateTime), SizeOf(TDateTime), SizeOf(TDateTime),
-    {$ENDIF}
     SizeOf(TGUID),
     //now varying size types in equal order
     0,0,0,//stString, stUnicodeString, stBytes,
@@ -530,6 +534,78 @@ begin
 end;
 
 {**
+  Splits up a qualified object name into pieces. Catalog, schema
+  and objectname.
+}
+procedure SplitQualifiedObjectName(const QualifiedName: string;
+  const SupportsCatalogs, SupportsSchemas: Boolean;
+  out Catalog, Schema, ObjectName: string);
+var
+  SL: TStrings;
+  I: Integer;
+begin
+  SL := ZSysUtils.SplitString(QualifiedName, '.');
+  try
+    Catalog := '';
+    Schema := '';
+    case SL.Count of
+      0, 1: ObjectName := QualifiedName;
+      2: begin
+          if SupportsCatalogs then begin
+            Catalog := SL.Strings[0];
+            if SupportsSchemas
+            then Schema := SL.Strings[1]
+            else ObjectName := SL.Strings[1];
+          end else if SupportsSchemas then begin
+            Schema := SL.Strings[0];
+            ObjectName := SL.Strings[1];
+          end else
+            ObjectName := SL.Strings[0]+'.'+SL.Strings[1];
+        end;
+      3: if SupportsCatalogs then begin
+          Catalog := SL.Strings[0];
+          if SupportsSchemas then begin
+            Schema := SL.Strings[1];
+            ObjectName := SL.Strings[2]
+          end else
+            ObjectName := SL.Strings[1]+'.'+SL.Strings[2];
+        end else if SupportsSchemas then begin
+          Schema := SL.Strings[0];
+          ObjectName := SL.Strings[1]+'.'+SL.Strings[2];
+        end else
+          ObjectName := SL.Strings[0]+'.'+SL.Strings[1]+'.'+SL.Strings[2];
+      else if SupportsCatalogs then begin
+        Catalog := SL.Strings[0];
+        if SupportsSchemas then begin
+          Schema := SL.Strings[1];
+          for i := 2 to SL.Count-1 do
+            if i = 2
+            then ObjectName := SL.Strings[i]
+            else ObjectName := ObjectName+'.'+SL.Strings[i];
+        end else begin
+          ObjectName := '';
+          for i := 2 to SL.Count-1 do
+            if I = 2
+            then ObjectName := SL.Strings[i]
+            else ObjectName := ObjectName+'.'+SL.Strings[i];
+        end;
+      end else if SupportsSchemas then begin
+        Schema := SL.Strings[0];
+        for i := 1 to SL.Count-1 do
+          if i = 1
+          then ObjectName := SL.Strings[i]
+          else ObjectName := ObjectName+'.'+SL.Strings[i];
+      end else
+        for i := 0 to SL.Count-1 do
+          if I = 0
+          then ObjectName := SL.Strings[i]
+          else ObjectName := ObjectName+'.'+SL.Strings[i];
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+{**
   ToLikeString returns the given string or if the string is empty it returns '%'
   @param Value the string
   @return given Value or '%'
@@ -628,48 +704,44 @@ end;
 *)
 procedure SQLNumeric2BCD(Src: PDB_NUMERIC; var Dest: TBCD; NumericLen: Integer);
 var
-  Remainder, NextDigit: Word;
+  Remainder, NextDigit, Precision, Scale: Word;
   NumericVal: array [0..SQL_MAX_NUMERIC_LEN - 1] of Byte;
-  pDigitCopy, pNumDigit, pNibble, pFirstNibble: PAnsiChar;
-  OddPrecision: Boolean;
-label Done, Fill;
+  pDigitCopy, pNumDigit, pNibble, pFirstNibble, pLastNibble: PAnsiChar;
+  ValueIsOdd: Boolean;
 begin
   // check for zero value and padd trailing zeroes away to reduce the main loop
   pNumDigit := @Src.val[0];
-  pNibble := pNumDigit + (NumericLen -1);
+  pNibble := pNumDigit + NumericLen-1;
   pFirstNibble := @Dest.Fraction[0];
-  Remainder := 0;
-
   while (pNibble >= pNumDigit) and (PByte(pNibble)^ = 0) do
     Dec(pNibble);
-  if pNibble < pNumDigit then begin
-    Dest.Precision := 10;
-    Dest.SignSpecialPlaces := 2;
-    OddPrecision := False;
-    goto Fill;
+  if pNibble < pNumDigit then begin //zero value
+    PCardinal(@Dest.Precision)^ := ZInitZeroBCD; //not the delphi default but the fastest bcd-rec to represent a zero value
+    Exit;
   end;
-  if Src.sign <> 0 //positive ?
-  then Dest.SignSpecialPlaces := Src.scale
-  else Dest.SignSpecialPlaces := (1 shl 7) + Src.scale;
   { prepare local buffer }
   NumericLen := (pNibble - pNumDigit);
   if NumericLen >= SQL_MAX_NUMERIC_LEN
   then GetMem(pDigitCopy, NumericLen+1)
   else pDigitCopy := @NumericVal[0];
   Move(pNumDigit^, pDigitCopy^, NumericLen+1); //localize all bytes for next calculation loop.
+  Precision := Src.precision;
+  Scale := Src.scale;
   { calcutate precision }
-  if Src.scale > Src.precision //normalize precision
-  then Dest.Precision := Src.precision + (Src.scale - Src.precision)
-  else Dest.Precision := Src.precision;
-  OddPrecision := Dest.Precision and 1 = 1;
-  { address last bcd nibble }
-  pNibble := pFirstNibble + (MaxFMTBcdDigits-1);
-  if OddPrecision then begin
+  if Src.scale > Precision then begin
+    NextDigit := Src.scale - Src.precision;
+    Precision := Precision + NextDigit;
+    FillChar(Dest.Fraction, MaxFMTBcdDigits, #0);
+  end;
+  ValueIsOdd := Precision and 1 = 1; //indicate how we write into the buffer
+  pLastNibble := pFirstNibble + MaxFMTBcdDigits -1;
+  pNibble := pFirstNibble + ((Precision-1) shr 1); { address last bcd nibble we write in}
+  if ValueIsOdd then begin
     PByte(pNibble)^ := 0; //clear last nibble
     Dec(pNibble);
   end;
-
   while NumericLen >= 0 do begin //outer bcd filler loop
+    Remainder := 0;
     pNumDigit := pDigitCopy+Cardinal(NumericLen);
     while pNumDigit > pDigitCopy do begin //inner digit calc loop
       NextDigit := PByte(pNumDigit)^ + Remainder;
@@ -680,26 +752,69 @@ begin
     NextDigit := PByte(pNumDigit)^ + Remainder;
     PByte(pNumDigit)^ := NextDigit div 100;
     Remainder := ZBase100Byte2BcdNibbleLookup[NextDigit - (PByte(pNumDigit)^ * 100){mod 100}];
-    if OddPrecision then begin //my new lookup version with bool algebra only
-      PByte(pNibble+1)^ := PByte(pNibble+1)^ or ((Byte(Remainder) and $0F) shl 4);
-      PByte(pNibble)^   := (Byte(Remainder) shr 4);
-    end else
-      PByte(pNibble)^   := Byte(Remainder); //*)
-    if pNibble > pFirstNibble //overflow save
-    then Dec(pNibble)
-    else goto Done; //ready....? Should not happen
-    Dec(NumericLen, Ord(PByte(pDigitCopy+NumericLen)^ = 0)); //as long we've no zero we've to loop again
-    Remainder := 0;
+    if PNibble <= PLastNibble then //overflow save
+      if ValueIsOdd then begin //my new lookup version with bool algebra only
+        PByte(pNibble+1)^ := PByte(pNibble+1)^ or ((Byte(Remainder) and $0F) shl 4);
+        PByte(pNibble)^   := (Byte(Remainder) shr 4);
+      end else
+        PByte(pNibble)^   := Byte(Remainder)
+    else begin
+      Dec(Precision, 2);
+      if Scale > 1 then
+        Dec(Scale, 2)
+      else if Scale > 0 then
+        Dec(Scale);
+    end;
+    Dec(pNibble);
+    if PByte(pDigitCopy+NumericLen)^ = 0 then
+      Dec(NumericLen); //as long we've no zero we've to loop again
   end;
-  if OddPrecision and (PByte(PNibble+1)^ = 0) then
-    Inc(PNibble);
-  Remainder := PAnsiChar(@Dest.Fraction[MaxFMTBcdDigits-1])-PNibble;
-  Move((PNibble+1)^, pFirstNibble^, Remainder);
-Done: //free possibly allocated mem
+  Inc(pNibble, 1+Ord(ValueIsOdd));
+  pLastNibble := pFirstNibble + ((Precision+1) shr 1)-1; { address last bcd nibble }
+  Precision := (PLastNibble +1 - PNibble) shl 1 - Ord(ValueIsOdd);
+  {left pack the Bcd fraction }
+  NextDigit := Precision - Src.Scale;
+  while (Precision >= NextDigit) do begin
+    if ValueIsOdd and (PByte(pNibble)^ and $0F = 0) then
+      Inc(pNibble)
+    else if not (not ValueIsOdd and (PByte(pNibble)^ shr 4 = 0)) then
+      Break;
+    Dec(Precision);
+    ValueIsOdd := not ValueIsOdd;
+  end;
+  {move or left pact the fraction}
+  ValueIsOdd := (PByte(pNibble)^ shr 4 = 0);
+  if (PNibble > PNumDigit) or ValueIsOdd then begin {move nibbles foreward}
+    PNumDigit := PFirstNibble;
+    while (pNibble <= pLastNibble) do begin
+      if (PNibble > PNumDigit) then
+        PByte(PNumDigit)^ := PByte(pNibble)^;
+      if ValueIsOdd then begin
+        if PNumDigit < pLastNibble then
+          PByte(PNumDigit)^ := ((PByte(PNumDigit)^ and $0f) shl 4) or (PByte(pNibble+1)^ shr 4);
+      end;
+      Inc(PNumDigit);
+      Inc(pNibble);
+    end;
+  end;
+  {right pack the Bcd scale fraction }
+  pLastNibble := pFirstNibble + ((Precision+1) shr 1)-1; { address last bcd nibble }
+  ValueIsOdd := Precision and 1 = 1;
+  while Scale > 0 do begin
+    if ValueIsOdd and (PByte(PLastNibble)^ shr 4 = 0) then
+      Dec(pLastNibble)
+    else if not (not ValueIsOdd and ((PByte(PLastNibble)^ and $0F) = 0)) then
+      Break;
+    Dec(Precision);
+    Dec(Scale);
+    ValueIsOdd := not ValueIsOdd;
+  end;
+  Dest.Precision := Precision;
+  if Src.sign = 0 then //negative ?
+    Scale := Scale + (1 shl 7);
+  Dest.SignSpecialPlaces := Scale;
   if Pointer(pDigitCopy) <> Pointer(@NumericVal[0]) then
     FreeMem(pDigitCopy);
-Fill: //clear all nibbles after new offset
-  FillChar((pFirstNibble+Remainder)^, MaxFMTBcdDigits-Remainder-Ord(OddPrecision), #0);
 end;
 
 Type
@@ -1240,7 +1355,7 @@ var
   end;
 begin
   ParamFound := (ZFastCode.{$IFDEF USE_FAST_CHARPOS}CharPos{$ELSe}Pos{$ENDIF}('?', SQL) > 0);
-  if ParamFound or ConSettings^.AutoEncode or Assigned(ComparePrefixTokens) then
+  if ParamFound {$IFNDEF UNICODE}or ConSettings^.AutoEncode{$ENDIF} or Assigned(ComparePrefixTokens) then
   begin
     Tokens := Tokenizer.TokenizeBufferToList(SQL, [toSkipEOF]);
     try
@@ -2011,7 +2126,7 @@ begin
         stAsciiStream,
         stUnicodeStream,
         stBinaryStream: TInterfaceDynArray(Dest):= TInterfaceDynArray(aArray);
-        else raise EZSQLException.Create(sUnsupportedOperation);
+        else Raise EZUnsupportedException.Create(SUnsupportedOperation);
       end;
     end;
 end;
@@ -2027,6 +2142,9 @@ begin
       {$IFDEF UNICODE}vtString,{$Endif}
       vtUnicodeString:  TUnicodeStringDynArray(Dest) := nil;
       vtCharRec:        TZCharRecDynArray(Dest) := nil;
+      vtDate:           TZDateDynArray(Dest) := nil;
+      vtTime:           TZTimeDynArray(Dest) := nil;
+      vtTimeStamp:      TZTimeStampDynArray(Dest) := nil;
       else case SQLType of
         stBoolean:      TBooleanDynArray(Dest)  := nil;
         stByte:         TByteDynArray(Dest)     := nil;
@@ -2049,7 +2167,7 @@ begin
         stAsciiStream,
         stUnicodeStream,
         stBinaryStream: TInterfaceDynArray(Dest):= nil;
-        else raise EZSQLException.Create(sUnsupportedOperation);
+        else raise EZUnsupportedException.Create(sUnsupportedOperation);
       end;
     end;
 end;
@@ -2354,105 +2472,7 @@ function ArrayValueToDate(ZArray: PZArray; Index: Integer; const FormatSettings:
 var P: Pointer;
   L: LengthInt;
   B: Boolean;
-label Str_Conv;
-begin
-  {$R-}
-  case ZArray.VArrayVariantType of
-    {$IFNDEF UNICODE}vtString,{$ENDIF}
-    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-    vtRawByteString: begin
-        B := False;
-        P := Pointer(TRawByteStringDynArray(ZArray.VArray)[Index]);
-        L := Length(TRawByteStringDynArray(ZArray.VArray)[Index]);
-        goto Str_Conv;
-      end;
-    {$IFDEF UNICODE}vtString,{$ENDIF}
-    vtUnicodeString: begin
-        B := True;
-        P := Pointer(TUnicodeStringDynArray(ZArray.VArray)[Index]);
-        L := Length(TUnicodeStringDynArray(ZArray.VArray)[Index]);
-        goto Str_Conv;
-      end;
-    vtCharRec: begin
-        P := TZCharRecDynArray(ZArray.VArray)[Index].P;
-        L := TZCharRecDynArray(ZArray.VArray)[Index].Len;
-        B := ZCompatibleCodePages(TZCharRecDynArray(ZArray.VArray)[Index].CP, zCP_UTF16);
-Str_Conv:
-        if B then begin
-          Result := ZSysUtils.UnicodeSQLDateToDateTime(P, L, FormatSettings, B);
-          if B then Result := ZSysUtils.UnicodeSQLTimeStampToDateTime(P, L, FormatSettings, B);
-        end else begin
-          Result := ZSysUtils.RawSQLDateToDateTime(P, L, FormatSettings, B);
-          if B then Result := ZSysUtils.RawSQLTimeStampToDateTime(P, L, FormatSettings, B);
-        end;
-      end;
-    vtNull, vtDateTime:  case TZSQLType(ZArray.VArrayType) of
-        stFloat:      Result := TSingleDynArray(ZArray.VArray)[Index];
-        stDouble:     Result := TDoubleDynArray(ZArray.VArray)[Index];
-        stBigDecimal: Result := TExtendedDynArray(ZArray.VArray)[Index];
-        stTime, stDate, stTimeStamp: Result := Int(TDateTimeDynArray(ZArray.VArray)[Index]);
-        else raise EZSQLException.Create(IntToStr(ZArray.VArrayType)+' '+SUnsupportedParameterType);
-      end;
-    else raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
-  end;
-  {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
-end;
-
-function ArrayValueToTime(ZArray: PZArray; Index: Integer; const FormatSettings: TZFormatSettings): TDateTime;
-var P: Pointer;
-  L: LengthInt;
-  B: Boolean;
-label Str_Conv;
-begin
-  {$R-}
-  case ZArray.VArrayVariantType of
-    {$IFNDEF UNICODE}vtString,{$ENDIF}
-    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
-    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
-    vtRawByteString: begin
-        B := False;
-        P := Pointer(TRawByteStringDynArray(ZArray.VArray)[Index]);
-        L := Length(TRawByteStringDynArray(ZArray.VArray)[Index]);
-        goto Str_Conv;
-      end;
-    {$IFDEF UNICODE}vtString,{$ENDIF}
-    vtUnicodeString: begin
-        B := True;
-        P := Pointer(TUnicodeStringDynArray(ZArray.VArray)[Index]);
-        L := Length(TUnicodeStringDynArray(ZArray.VArray)[Index]);
-        goto Str_Conv;
-      end;
-    vtCharRec: begin
-        P := TZCharRecDynArray(ZArray.VArray)[Index].P;
-        L := TZCharRecDynArray(ZArray.VArray)[Index].Len;
-        B := ZCompatibleCodePages(TZCharRecDynArray(ZArray.VArray)[Index].CP, zCP_UTF16);
-Str_Conv:
-        if B then begin
-          Result := ZSysUtils.UnicodeSQLTimeToDateTime(P, L, FormatSettings, B);
-          if B then Result := ZSysUtils.UnicodeSQLTimeStampToDateTime(P, L, FormatSettings, B);
-        end else begin
-          Result := ZSysUtils.RawSQLTimeToDateTime(P, L, FormatSettings, B);
-          if B then Result := ZSysUtils.RawSQLTimeStampToDateTime(P, L, FormatSettings, B);
-        end;
-      end;
-    vtNull:  case TZSQLType(ZArray.VArrayType) of
-        stFloat:      Result := TSingleDynArray(ZArray.VArray)[Index];
-        stDouble:     Result := TDoubleDynArray(ZArray.VArray)[Index];
-        stBigDecimal: Result := TExtendedDynArray(ZArray.VArray)[Index];
-        stTime, stDate, stTimeStamp: Result := Int(TDateTimeDynArray(ZArray.VArray)[Index]);
-        else raise EZSQLException.Create(IntToStr(ZArray.VArrayType)+' '+SUnsupportedParameterType);
-      end;
-    else raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
-  end;
-  {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
-end;
-
-function ArrayValueToDateTime(ZArray: PZArray; Index: Integer; const FormatSettings: TZFormatSettings): TDateTime;
-var P: Pointer;
-  L: LengthInt;
-  B: Boolean;
-label Str_Conv;
+label Str_Conv, Fail;
 begin
   {$R-}
   case ZArray.VArrayVariantType of
@@ -2478,8 +2498,56 @@ begin
         B := ZCompatibleCodePages(TZCharRecDynArray(ZArray.VArray)[Index].CP, zCP_UTF16);
 Str_Conv:
         if B
-        then Result := ZSysUtils.UnicodeSQLTimeStampToDateTime(P, L, FormatSettings, B)
-        else Result := ZSysUtils.RawSQLTimeStampToDateTime(P, L, FormatSettings, B);
+        then B := TryPCharToDateTime(PWideChar(P), L, formatSettings, Result{%H-})
+        else B := TryPCharToDateTime(PAnsiChar(P), L, formatSettings, Result);
+        if B then goto Fail;
+      end;
+    vtNull, vtDateTime:  case TZSQLType(ZArray.VArrayType) of
+        stFloat:      Result := TSingleDynArray(ZArray.VArray)[Index];
+        stDouble:     Result := TDoubleDynArray(ZArray.VArray)[Index];
+        stBigDecimal: Result := TExtendedDynArray(ZArray.VArray)[Index];
+        stTime, stDate, stTimeStamp: Result := Int(TDateTimeDynArray(ZArray.VArray)[Index]);
+        else raise EZSQLException.Create(IntToStr(ZArray.VArrayType)+' '+SUnsupportedParameterType);
+      end;
+    else
+Fail: raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
+  end;
+  {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+end;
+
+function ArrayValueToTime(ZArray: PZArray; Index: Integer; const FormatSettings: TZFormatSettings): TDateTime;
+var P: Pointer;
+  L: LengthInt;
+  B: Boolean;
+label Str_Conv, Fail;
+begin
+  {$R-}
+  case ZArray.VArrayVariantType of
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+        B := False;
+        P := Pointer(TRawByteStringDynArray(ZArray.VArray)[Index]);
+        L := Length(TRawByteStringDynArray(ZArray.VArray)[Index]);
+        goto Str_Conv;
+      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+        B := True;
+        P := Pointer(TUnicodeStringDynArray(ZArray.VArray)[Index]);
+        L := Length(TUnicodeStringDynArray(ZArray.VArray)[Index]);
+        goto Str_Conv;
+      end;
+    vtCharRec: begin
+        P := TZCharRecDynArray(ZArray.VArray)[Index].P;
+        L := TZCharRecDynArray(ZArray.VArray)[Index].Len;
+        B := ZCompatibleCodePages(TZCharRecDynArray(ZArray.VArray)[Index].CP, zCP_UTF16);
+Str_Conv:
+        if B
+        then B := TryPCharToDateTime(PWideChar(P), L, FormatSettings, Result{%H-})
+        else B := TryPCharToDateTime(PAnsiChar(P), L, FormatSettings, Result);
+        if not B then goto Fail;
       end;
     vtNull:  case TZSQLType(ZArray.VArrayType) of
         stFloat:      Result := TSingleDynArray(ZArray.VArray)[Index];
@@ -2488,7 +2556,55 @@ Str_Conv:
         stTime, stDate, stTimeStamp: Result := Int(TDateTimeDynArray(ZArray.VArray)[Index]);
         else raise EZSQLException.Create(IntToStr(ZArray.VArrayType)+' '+SUnsupportedParameterType);
       end;
-    else raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
+    else
+Fail:  raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
+  end;
+  {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
+end;
+
+function ArrayValueToDateTime(ZArray: PZArray; Index: Integer; const FormatSettings: TZFormatSettings): TDateTime;
+var P: Pointer;
+  L: LengthInt;
+  B: Boolean;
+label Str_Conv, Fail;
+begin
+  {$R-}
+  case ZArray.VArrayVariantType of
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+        B := False;
+        P := Pointer(TRawByteStringDynArray(ZArray.VArray)[Index]);
+        L := Length(TRawByteStringDynArray(ZArray.VArray)[Index]);
+        goto Str_Conv;
+      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: begin
+        B := True;
+        P := Pointer(TUnicodeStringDynArray(ZArray.VArray)[Index]);
+        L := Length(TUnicodeStringDynArray(ZArray.VArray)[Index]);
+        goto Str_Conv;
+      end;
+    vtCharRec: begin
+        P := TZCharRecDynArray(ZArray.VArray)[Index].P;
+        L := TZCharRecDynArray(ZArray.VArray)[Index].Len;
+        B := ZCompatibleCodePages(TZCharRecDynArray(ZArray.VArray)[Index].CP, zCP_UTF16);
+Str_Conv:
+        if B
+        then B := TryPCharToDateTime(PWideChar(P), L, FormatSettings, Result{%H-})
+        else B := TryPCharToDateTime(PAnsiChar(P), L, FormatSettings, Result);
+        if not B then goto Fail;
+      end;
+    vtNull:  case TZSQLType(ZArray.VArrayType) of
+        stFloat:      Result := TSingleDynArray(ZArray.VArray)[Index];
+        stDouble:     Result := TDoubleDynArray(ZArray.VArray)[Index];
+        stBigDecimal: Result := TExtendedDynArray(ZArray.VArray)[Index];
+        stTime, stDate, stTimeStamp: Result := Int(TDateTimeDynArray(ZArray.VArray)[Index]);
+        else raise EZSQLException.Create(IntToStr(ZArray.VArrayType)+' '+SUnsupportedParameterType);
+      end;
+    else
+Fail:  raise EZSQLException.Create(IntToStr(Ord(ZArray.VArrayVariantType))+' '+SUnsupportedParameterType);
   end;
   {$IFDEF RangeCheckEnabled}{$R+}{$ENDIF}
 end;

@@ -231,12 +231,15 @@ var
 const
   DefDateFormatDMY = 'DD-MM-YYYY';
   DefDateFormatYMD = 'YYYY-MM-DD';
+  DefDateFormatMDY = 'MM/DD/YYYY';
   DefTimeFormat = 'HH:NN:SS';
   DefTimeFormatMsecs = 'HH:NN:SS.ZZZ';
   DefDateTimeFormatDMY = DefDateFormatDMY + ' ' + DefTimeFormat;
   DefDateTimeFormatYMD = DefDateFormatYMD + ' ' + DefTimeFormat;
+  DefDateTimeFormatMDY = DefDateFormatMDY + ' ' + DefTimeFormat;
   DefDateTimeFormatMsecsDMY = DefDateFormatDMY + ' ' + DefTimeFormatMsecs;
   DefDateTimeFormatMsecsYMD = DefDateFormatYMD + ' ' + DefTimeFormatMsecs;
+  DefDateTimeFormatMsecsMDY = DefDateFormatYMD + ' ' + DefTimeFormatMsecs;
 
 {$IF NOT DECLARED(LineEnding)} // FPC-style constant, declare for Delphi
 const
@@ -531,6 +534,7 @@ const
   PEmptyUnicodeString: PWideChar = '';
   PEmptyAnsiString: PAnsiChar = '';
   EmptyRaw = {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}nil{$ELSE}RawByteString(''){$ENDIF};
+  ZInitZeroBCD: Cardinal = {$IFNDEF ENDIAN_BIG}$0000001{$ELSE}$1000000{$ENDIF};
 var
   ZOSCodePage: Word;
   ZOSCodePageMaxCharSize: Word;

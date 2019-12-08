@@ -3227,6 +3227,15 @@ type
 function WinHTTP_WebSocketEnabled: boolean;
 {$endif}
 
+var
+  /// Queue length for completely established sockets waiting to be accepted,
+  // a backlog parameter for listen() function. If queue overflows client
+  // got ECONNREFUSED error for connect() call
+  // - for windows default is taken from SynWinSock ($7fffffff) and should
+  // not be modified. Actual limit is 200;
+  // - for Unix default is taken from SynFPCSock (128 as in linux cernel >2.2),
+  // but actual value is min(DefaultListenBacklog, /proc/sys/net/core/somaxconn)
+  DefaultListenBacklog: integer = SOMAXCONN;
 
 implementation
 
@@ -3293,7 +3302,7 @@ begin
   end else begin
     Hi := Code div 100;
     Lo := Code-Hi*100;
-    if not ((Hi in [1..5]) and (Lo in [0..8])) then begin
+    if not ((Hi in [1..5]) and (Lo in [0..13])) then begin
       result := StatusCodeToReasonInternal(Code);
       exit;
     end;
@@ -3366,7 +3375,7 @@ var i, j, len: integer;
 begin
   result:= '';
   len := length(s);
-  if (len = 0) or (len mod 4 <> 0) then
+  if (len <= 0) or (len and 3 <> 0) then
     exit;
   len := len shr 2;
   SetLength(result, len * 3);
@@ -3848,13 +3857,13 @@ end;
 function Ansi7ToUnicode(const Ansi: SockString): SockString;
 var n, i: integer;
 begin  // fast ANSI 7 bit conversion
+  result := '';
   if Ansi='' then
-    result := '' else begin
-    n := length(Ansi);
-    SetLength(result,n*2+1);
-    for i := 0 to n do // to n = including last #0
-      PWordArray(pointer(result))^[i] := PByteArray(pointer(Ansi))^[i];
-  end;
+    exit;
+  n := length(Ansi);
+  SetLength(result,n*2+1);
+  for i := 0 to n do // to n = including last #0
+    PWordArray(pointer(result))^[i] := PByteArray(pointer(Ansi))^[i];
 end;
 
 function DefaultUserAgent(Instance: TObject): SockString;
@@ -4268,19 +4277,47 @@ end;
 
 {$endif MSWINDOWS}
 
-var
-  // should not change during process livetime
+{$ifdef MSWINDOWS}
+var // not available before Vista -> Lazy loading
+  GetTick64: function: Int64; stdcall;
+  GetTickXP: Int64Rec;
+
+function GetTick64ForXP: Int64; stdcall;
+var t32: cardinal;
+    t64: Int64Rec absolute result;
+begin // warning: GetSystemTimeAsFileTime() is fast, but not monotonic!
+  t32 := Windows.GetTickCount;
+  t64 := GetTickXP; // (almost) atomic read
+  if t32<t64.Lo then
+    inc(t64.Hi); // wrap-up overflow after 49 days
+  t64.Lo := t32;
+  GetTickXP := t64; // (almost) atomic write
+end; // warning: FPC's GetTickCount64 doesn't handle 49 days wrap :(
+{$else}
+function GetTick64: Int64;
+begin
+  result := {$ifdef FPC}SynFPCLinux.{$endif}GetTickCount64;
+end;
+{$endif MSWINDOWS}
+
+var // GetIPAddressesText(Sep=' ') cache
   IPAddressesText: array[boolean] of SockString;
+  IPAddressesTix: array[boolean] of integer;
 
 function GetIPAddressesText(const Sep: SockString; PublicOnly: boolean): SockString;
 var ip: TSockStringDynArray;
-    i: integer;
+    tix, i: integer;
 begin
-  if Sep=' ' then
-    result := IPAddressesText[PublicOnly] else
-    result := '';
-  if result<>'' then
-    exit;
+  result := '';
+  if Sep=' ' then begin
+    tix := GetTick64 shr 16; // refresh every minute
+    if tix<>IPAddressesTix[PublicOnly] then
+      IPAddressesTix[PublicOnly] := tix else begin
+      result := IPAddressesText[PublicOnly];
+      if result<>'' then
+        exit;
+    end;
+  end;
   if PublicOnly then
     ip := GetIPAddresses(tiaPublic) else
     ip := GetIPAddresses(tiaAny);
@@ -4294,10 +4331,11 @@ begin
 end;
 
 var
-  MacAddressesSearched: boolean;
+  MacAddressesSearched: boolean; // will not change during process lifetime
   MacAddresses: TMacAddressDynArray;
   MacAddressesText: SockString;
 
+{$ifdef LINUX}
 procedure GetSmallFile(const fn: TFileName; out result: SockString);
 var tmp: array[byte] of AnsiChar;
     F: THandle;
@@ -4312,6 +4350,7 @@ begin
   if t > 0 then
     SetString(result, PAnsiChar(@tmp), t);
 end;
+{$endif LINUX}
 
 procedure RetrieveMacAddresses;
 var n: integer;
@@ -4326,44 +4365,51 @@ var n: integer;
    p: PIP_ADAPTER_ADDRESSES;
 {$endif MSWINDOWS}
 begin
-  n := 0;
-  {$ifdef LINUX}
-  if FindFirst('/sys/class/net/*', faDirectory, SR) = 0 then begin
-    repeat
-      if (SR.Name <> 'lo') and (SR.Name[1] <> '.') then begin
-        fn := '/sys/class/net/' + SR.Name;
-        GetSmallFile(fn + '/flags', f);
-        if (length(f) > 2) and // e.g. '0x40' or '0x1043'
-           (HttpChunkToHex32(@f[3]) and (IFF_UP or IFF_LOOPBACK) = IFF_UP) then begin
-          GetSmallFile(fn + '/address', f);
-          if f <> '' then begin
-            SetLength(MacAddresses, n + 1);
-            MacAddresses[n].name := SR.Name;
-            MacAddresses[n].address := f;
-            inc(n);
+  EnterCriticalSection(SynSockCS);
+  try
+    if MacAddressesSearched then
+      exit;
+    n := 0;
+    {$ifdef LINUX}
+    if FindFirst('/sys/class/net/*', faDirectory, SR) = 0 then begin
+      repeat
+        if (SR.Name <> 'lo') and (SR.Name[1] <> '.') then begin
+          fn := '/sys/class/net/' + SR.Name;
+          GetSmallFile(fn + '/flags', f);
+          if (length(f) > 2) and // e.g. '0x40' or '0x1043'
+             (HttpChunkToHex32(@f[3]) and (IFF_UP or IFF_LOOPBACK) = IFF_UP) then begin
+            GetSmallFile(fn + '/address', f);
+            if f <> '' then begin
+              SetLength(MacAddresses, n + 1);
+              MacAddresses[n].name := SR.Name;
+              MacAddresses[n].address := f;
+              inc(n);
+            end;
           end;
         end;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+    {$endif LINUX}
+    {$ifdef MSWINDOWS}
+    siz := SizeOf(tmp);
+    p := @tmp;
+    if GetAdaptersAddresses(AF_UNSPEC, GAA_FLAGS, nil, p, @siz) = ERROR_SUCCESS then begin
+      repeat
+        if (p^.Flags <> 0) and (p^.OperStatus = IfOperStatusUp) and
+           (p^.PhysicalAddressLength = 6) then begin
+          SetLength(MacAddresses, n + 1);
+          MacAddresses[n].name := {$ifdef UNICODE}UTF8String{$else}UTF8Encode{$endif}(WideString(p^.Description));
+          MacAddresses[n].address := MacToText(@p^.PhysicalAddress);
+          inc(n);
+        end;
+        p := p^.Next;
+      until p = nil;
+    end;
+    {$endif MSWINDOWS}
+  finally
+    LeaveCriticalSection(SynSockCS);
   end;
-  {$endif LINUX}
-  {$ifdef MSWINDOWS}
-  siz := SizeOf(tmp);
-  p := @tmp;
-  if GetAdaptersAddresses(AF_UNSPEC, GAA_FLAGS, nil, p, @siz) = ERROR_SUCCESS then begin
-    repeat
-      if (p^.Flags <> 0) and (p^.OperStatus = IfOperStatusUp) and
-         (p^.PhysicalAddressLength = 6) then begin
-        SetLength(MacAddresses, n + 1);
-        MacAddresses[n].name := {$ifdef UNICODE}UTF8String{$else}UTF8Encode{$endif}(WideString(p^.Description));
-        MacAddresses[n].address := MacToText(@p^.PhysicalAddress);
-        inc(n);
-      end;
-      p := p^.Next;
-    until p = nil;
-  end;
-  {$endif MSWINDOWS}
   MacAddressesSearched := true;
 end;
 
@@ -4596,7 +4642,7 @@ begin
     SetInt32Option(result,SO_LINGER,5);
     // bind and listen to this port
     if (Bind(result,sin)<>0) or
-       ((aLayer<>cslUDP) and (Listen(result,SOMAXCONN)<>0)) then begin
+       ((aLayer<>cslUDP) and (Listen(result,DefaultListenBacklog)<>0)) then begin
       CloseSocket(result);
       result := -1;
     end;
@@ -4916,29 +4962,6 @@ begin
   if not TrySndLow(P,Len) then
     raise ECrtSocket.CreateFmt('SndLow(%s) len=%d',[fServer,Len],-1);
 end;
-
-{$ifdef MSWINDOWS}
-var // not available before Vista -> Lazy loading
-  GetTick64: function: Int64; stdcall;
-  GetTickXP: Int64Rec;
-
-function GetTick64ForXP: Int64; stdcall;
-var t32: cardinal;
-    t64: Int64Rec absolute result;
-begin // warning: GetSystemTimeAsFileTime() is fast, but not monotonic!
-  t32 := Windows.GetTickCount;
-  t64 := GetTickXP; // (almost) atomic read
-  if t32<t64.Lo then
-    inc(t64.Hi); // wrap-up overflow after 49 days
-  t64.Lo := t32;
-  GetTickXP := t64; // (almost) atomic write
-end; // warning: FPC's GetTickCount64 doesn't handle 49 days wrap :(
-{$else}
-function GetTick64: Int64;
-begin
-  result := {$ifdef FPC}SynFPCLinux.{$endif}GetTickCount64;
-end;
-{$endif MSWINDOWS}
 
 function TCrtSocket.TrySndLow(P: pointer; Len: integer): boolean;
 var sent, err: integer;
@@ -12540,12 +12563,6 @@ initialization
   Initialize;
 
 finalization
-  {$ifdef USELIBCURL}
-  if PtrInt(curl.Module)>0 then begin
-    curl.global_cleanup;
-    FreeLibrary(curl.Module);
-  end;
-  {$endif USELIBCURL}
   if WsaDataOnce.wVersion<>0 then
   try
     {$ifdef MSWINDOWS}
