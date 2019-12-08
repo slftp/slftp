@@ -61,9 +61,10 @@ uses
 {$ENDIF}
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   {$IFDEF TLIST_IS_DEPRECATED}ZSysUtils,{$ENDIF}
+  {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
-  ZClasses, ZDbcIntfs, ZTokenizer, ZCompatibility, ZGenericSqlToken,
-  ZGenericSqlAnalyser, ZPlainDriver, ZURL, ZCollections, ZVariant;
+  ZClasses, ZDbcIntfs, ZTokenizer, ZCompatibility, ZGenericSqlToken, ZVariant,
+  ZGenericSqlAnalyser, ZPlainDriver, ZURL, ZCollections, ZDbcLogging;
 
 type
 
@@ -128,6 +129,7 @@ type
     procedure SetPassword(const Value: String);
     function GetInfo: TStrings;
   protected
+    FRestartTransaction: Boolean;
     FDisposeCodePage: Boolean;
     FChunkSize: Integer; //indicates reading / writing lobs in Chunks of x Byte
     FClientCodePage: String;
@@ -136,6 +138,9 @@ type
     FTestMode: Byte;
     {$ENDIF}
     procedure InternalCreate; virtual; abstract;
+    procedure InternalClose; virtual; abstract;
+    procedure ExecuteImmediat(const SQL: RawByteString; LoggingCategory: TZLoggingCategory); overload; virtual;
+    procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); overload; virtual;
     procedure SetDateTimeFormatProperties(DetermineFromInfo: Boolean = True);
     procedure ResetCurrentClientCodePage(const Name: String;
       IsStringFieldCPConsistent: Boolean);
@@ -146,7 +151,6 @@ type
     function GetAutoEncodeStrings: Boolean; //EgonHugeist
     procedure SetAutoEncodeStrings(const Value: Boolean);
     procedure OnPropertiesChange({%H-}Sender: TObject); virtual;
-    procedure RaiseUnsupportedException;
 
     procedure RegisterOnConnectionLostErrorHandler(Handler: TOnConnectionLostError);
     procedure RegisterStatement(const Value: IZStatement);
@@ -201,6 +205,7 @@ type
 
     procedure Commit; virtual;
     procedure Rollback; virtual;
+    function StartTransaction: Integer; virtual; abstract;
 
     //2Phase Commit Support initially for PostgresSQL (firmos) 21022006
     procedure PrepareTransaction(const {%H-}transactionid: string);virtual;
@@ -209,11 +214,12 @@ type
 
     //Ping Support initially for MySQL 27032006 (firmos)
     function PingServer: Integer; virtual;
+    function AbortOperation: Integer; virtual;
     function EscapeString(const Value: RawByteString): RawByteString; overload; virtual;
 
     procedure Open; virtual;
     procedure Close;
-    procedure InternalClose; virtual; abstract;
+
     procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); virtual;
     function IsClosed: Boolean; virtual;
 
@@ -255,7 +261,7 @@ type
     procedure GetEscapeString(Buf: PWideChar; Len: LengthInt; out Result: ZWideString); overload; virtual;
 
     function UseMetadata: boolean;
-    procedure SetUseMetadata(Value: Boolean);
+    procedure SetUseMetadata(Value: Boolean); virtual;
     function GetServerProvider: TZServerProvider; virtual;
   protected
     property Closed: Boolean read IsClosed write FClosed;
@@ -283,31 +289,133 @@ type
   {** Implements Abstract Sequence generator. }
   TZAbstractSequence = class(TInterfacedObject, IZSequence)
   private
+    FConnection: IZConnection;
+    FNextValRS, FCurrValRS: IZResultSet;
+    FNextValStmt, FCurrValStmt: IZPreparedStatement;
+  protected
     FName: string;
     FBlockSize: Integer;
-    FConnection: IZConnection;
-  protected
-    function GetName: string; virtual;
-    function GetBlockSize: Integer; virtual;
     procedure SetName(const Value: string); virtual;
     procedure SetBlockSize(const Value: Integer); virtual;
     property Connection: IZConnection read FConnection write FConnection;
+    procedure FlushResults;
   public
     constructor Create(const Connection: IZConnection; const Name: string;
       BlockSize: Integer);
 
-    function GetCurrentValue: Int64; virtual;
-    function GetNextValue: Int64; virtual;
+    function GetCurrentValue: Int64;
+    function GetNextValue: Int64;
 
+    function GetName: string;
+    function GetBlockSize: Integer;
     function GetCurrentValueSQL: string; virtual; abstract;
     function GetNextValueSQL: string; virtual; abstract;
 
-    function GetConnection: IZConnection; virtual;
-
-    property Name: string read GetName write SetName;
-    property BlockSize: Integer read GetBlockSize write SetBlockSize;
+    function GetConnection: IZConnection;
   end;
 
+  TZIdentifierSequence = Class(TZAbstractSequence)
+  protected
+    procedure SetName(const Value: string); override;
+  End;
+
+  {** Implements a MSSQL sequence. }
+  TZMSSQLSequence = class(TZAbstractSequence)
+  public
+    function GetCurrentValueSQL: string; override;
+    function GetNextValueSQL: string; override;
+  end;
+
+  {** Implements an abstract sequence using the <Name>.CURRVAL/NEXTVAL Syntax}
+  TZDotCurrvalNextvalSequence = class(TZIdentifierSequence)
+  public
+    function GetCurrentValueSQL: string; override;
+    function GetNextValueSQL: string; override;
+  end;
+
+  {** Implements a Sybase SQL Anywhere sequence. }
+  TZSybaseASASquence = class(TZDotCurrvalNextvalSequence);
+
+  {** Implements an Informix sequence. }
+  TZInformixSquence = class(TZDotCurrvalNextvalSequence);
+
+  {** Implements an DB2 sequence. }
+  TZDB2Squence = class(TZDotCurrvalNextvalSequence);
+
+  {** Implements an CUBRID sequence. }
+  TZCubridSquence = class(TZDotCurrvalNextvalSequence);
+
+  {** Implements an Oracle sequence. }
+  TZOracleSequence = class(TZDotCurrvalNextvalSequence)
+  public
+    function GetCurrentValueSQL: string; override;
+    function GetNextValueSQL: string; override;
+  end;
+
+  {** Implements a FireBird2+ sequence. }
+  TZFirebird2UpSequence = class(TZIdentifierSequence)
+  public
+    function GetCurrentValueSQL: string; override;
+    function GetNextValueSQL: string; override;
+  end;
+
+  {** Implements a postresql sequence. }
+  TZPostgreSQLSequence = class(TZAbstractSequence)
+  public
+    function GetCurrentValueSQL: string; override;
+    function GetNextValueSQL: string; override;
+  end;
+
+  TZAbstractSequenceClass = class of TZAbstractSequence;
+
+type
+  TZSavePointQueryType = (spqtSavePoint, spqtCommit, spqtRollback);
+
+const
+  cSavePoint = 'SAVEPOINT ';
+  cSaveTrans = 'SAVE TRANSACTION ';
+  cReleaseSP = 'RELEASE SAVEPOINT ';
+  cEmpty = '';
+  cRollbackTran = 'ROLLBACK TRANSACTION ';
+  cRollbackTo = 'ROLLBACK TO ';
+  cUnknown = '';
+  //(*
+  cSavePointSyntaxW: array[TZServerProvider, TZSavePointQueryType] of UnicodeString =
+    ( ({spUnknown}    cUnknown,   cUnknown,   cUnknown),
+      ({spMSSQL}      cSaveTrans, cEmpty,     cRollbackTran),
+      ({spMSJet}      cUnknown,   cUnknown,   cUnknown),
+      ({spOracle}     cSavePoint, cEmpty,     cRollbackTo),
+      ({spASE}        cSaveTrans, cEmpty,     cRollbackTran),
+      ({spASA}        cSavePoint, cReleaseSP, cRollbackTo),
+      ({spPostgreSQL} cSavePoint, cReleaseSP, cRollbackTo),
+      ({spIB_FB}      cSavePoint, cReleaseSP, cRollbackTo),
+      ({spMySQL}      cSavePoint, cReleaseSP, cRollbackTo),
+      ({spNexusDB}    cUnknown,   cUnknown,   cUnknown),
+      ({spSQLite}     cSavePoint, cReleaseSP, cRollbackTo),
+      ({spDB2}        cUnknown,   cUnknown,   cUnknown),
+      ({spAS400}      cUnknown,   cUnknown,   cUnknown),
+      ({spInformix}   cUnknown,   cUnknown,   cUnknown),
+      ({spCUBRID}     cUnknown,   cUnknown,   cUnknown),
+      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown)
+    );
+  cSavePointSyntaxA: array[TZServerProvider, TZSavePointQueryType] of RawByteString =
+    ( ({spUnknown}    cUnknown,   cUnknown,   cUnknown),
+      ({spMSSQL}      cSaveTrans, cEmpty,     cRollbackTran),
+      ({spMSJet}      cUnknown,   cUnknown,   cUnknown),
+      ({spOracle}     cSavePoint, cEmpty,     cRollbackTo),
+      ({spASE}        cSaveTrans, cEmpty,     cRollbackTran),
+      ({spASA}        cSavePoint, cReleaseSP, cRollbackTo),
+      ({spPostgreSQL} cSavePoint, cReleaseSP, cRollbackTo),
+      ({spIB_FB}      cSavePoint, cReleaseSP, cRollbackTo),
+      ({spMySQL}      cSavePoint, cReleaseSP, cRollbackTo),
+      ({spNexusDB}    cUnknown,   cUnknown,   cUnknown),
+      ({spSQLite}     cSavePoint, cReleaseSP, cRollbackTo),
+      ({spDB2}        cUnknown,   cUnknown,   cUnknown),
+      ({spAS400}      cUnknown,   cUnknown,   cUnknown),
+      ({spInformix}   cUnknown,   cUnknown,   cUnknown),
+      ({spCUBRID}     cUnknown,   cUnknown,   cUnknown),
+      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown)
+    );
 implementation
 
 uses ZMessages,{$IFNDEF TLIST_IS_DEPRECATED}ZSysUtils, {$ENDIF}
@@ -318,6 +426,27 @@ uses ZMessages,{$IFNDEF TLIST_IS_DEPRECATED}ZSysUtils, {$ENDIF}
   {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
   {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
 
+const
+  TZDefaultProviderSequenceClasses: array[TZServerProvider] of TZAbstractSequenceClass = (
+    {spUnknown}   nil,
+    {spMSSQL}     TZMSSQLSequence,
+    {spMSJet}     nil,
+    {spOracle}    TZOracleSequence,
+    {spASE}       nil,
+    {spASA}       TZDotCurrvalNextvalSequence,
+    {spPostgreSQL}TZPostgreSQLSequence,
+    {spIB_FB}     TZFirebird2UpSequence,
+    {spMySQL}     nil,
+    {spNexusDB}   nil,
+    {spSQLite}    nil,
+    {spDB2}       TZDB2Squence,
+    {spAS400}     nil,
+    {spInformix}  TZInformixSquence,
+    {spCUBRID}    TZCubridSquence,
+    {spFoxPro}    nil
+    );
+
+  //*)
 { TZAbstractDriver }
 
 {**
@@ -383,6 +512,7 @@ end;
   @return a <code>Connection</code> object that represents a
     connection to the URL
 }
+{$WARN SYMBOL_DEPRECATED OFF}
 function TZAbstractDriver.Connect(const Url: string; Info: TStrings): IZConnection;
 var
   TempURL:  TZURL;
@@ -394,6 +524,7 @@ begin
     TempUrl.Free;
   end;
 end;
+{$WARN SYMBOL_DEPRECATED ON}
 
 {**
   Attempts to make a database connection to the given URL.
@@ -801,6 +932,14 @@ begin
   Result := TZClientVariantManager.Create(ConSettings);
 end;
 
+function TZAbstractDbcConnection.AbortOperation: Integer;
+begin
+//  Would this work...?
+//  for i := fRegisteredStatements.Count-1 downto 0 do
+//   IZStatement(fRegisteredStatements[i]).Cancel;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
+end;
+
 {**
   EgonHugeist: Check if the given Charset for Compiler/Database-Support!!
     Not supported means if there is a possible String-DataLoss.
@@ -877,6 +1016,7 @@ end;
   @param Password a user password.
   @param Info a string list with extra connection parameters.
 }
+{$WARN SYMBOL_DEPRECATED OFF}
 constructor TZAbstractDbcConnection.Create(const Driver: IZDriver; const Url: string;
   const PlainDriver: IZPlainDriver;
   const HostName: string; Port: Integer; const Database: string;
@@ -888,6 +1028,7 @@ begin
   Create(TempURL);
   TempURL.Free;
 end;
+{$WARN SYMBOL_DEPRECATED ON}
 
 {**
   Constructs this object and assignes the main properties.
@@ -961,14 +1102,6 @@ begin
 end;
 
 {**
-  Raises unsupported operation exception.
-}
-procedure TZAbstractDbcConnection.RaiseUnsupportedException;
-begin
-  raise EZSQLException.Create(SUnsupportedOperation);
-end;
-
-{**
   Creates a <code>Statement</code> object for sending
   SQL statements to the database.
   SQL statements without parameters are normally
@@ -1023,8 +1156,7 @@ end;
 function TZAbstractDbcConnection.CreateRegularStatement(
   Info: TStrings): IZStatement;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1086,7 +1218,7 @@ end;
 
 procedure TZAbstractDbcConnection.PrepareTransaction(const transactionid: string);
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1098,8 +1230,7 @@ end;
 function TZAbstractDbcConnection.CreatePreparedStatement(const SQL: string;
   Info: TStrings): IZPreparedStatement;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1172,8 +1303,7 @@ end;
 function TZAbstractDbcConnection.CreateCallableStatement(const SQL: string;
   Info: TStrings): IZCallableStatement;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1183,8 +1313,7 @@ end;
 }
 function TZAbstractDbcConnection.CreateNotification(const Event: string): IZNotification;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1196,8 +1325,10 @@ end;
 function TZAbstractDbcConnection.CreateSequence(const Sequence: string;
   BlockSize: Integer): IZSequence;
 begin
-  Result := nil;
-  RaiseUnsupportedException;
+  if TZDefaultProviderSequenceClasses[GetServerProvider] <> nil then
+    Result := TZDefaultProviderSequenceClasses[GetServerProvider].Create(Self, Sequence, BlockSize)
+  else
+    Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1259,12 +1390,12 @@ end;
 }
 procedure TZAbstractDbcConnection.Commit;
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 procedure TZAbstractDbcConnection.CommitPrepared(const transactionid: string);
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1276,12 +1407,12 @@ end;
 }
 procedure TZAbstractDbcConnection.Rollback;
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 procedure TZAbstractDbcConnection.RollbackPrepared(const transactionid: string);
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1291,8 +1422,7 @@ end;
 }
 function TZAbstractDbcConnection.PingServer: Integer;
 begin
-  Result := 1;
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1303,6 +1433,18 @@ end;
 function TZAbstractDbcConnection.EscapeString(const Value : RawByteString) : RawByteString;
 begin
   Result := EncodeCString(Value);
+end;
+
+procedure TZAbstractDbcConnection.ExecuteImmediat(const SQL: RawByteString;
+  LoggingCategory: TZLoggingCategory);
+begin
+  ExecuteImmediat(ZRawToUnicode(SQL, ConSettings.CTRL_CP), LoggingCategory);
+end;
+
+procedure TZAbstractDbcConnection.ExecuteImmediat(const SQL: UnicodeString;
+  LoggingCategory: TZLoggingCategory);
+begin
+  ExecuteImmediat(ZUnicodeToRaw(SQL, ConSettings.ClientCodePage.CP), LoggingCategory);
 end;
 
 {**
@@ -1605,6 +1747,26 @@ begin
   // do nothing in base class
 end;
 
+procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
+  RawCP: Word; out Result: RawByteString);
+var RawTemp: RawByteString;
+begin
+  RawTemp := PUnicodeToRaw(Buf, Len, RawCP);
+  GetEscapeString(Pointer(RawTemp), Length(RawTemp), Result);
+end;
+
+procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
+  out Result: ZWideString);
+var RawTemp: RawByteString;
+begin
+  if ConSettings^.ClientCodePage^.Encoding = ceUTF16 then
+    Result := SQLQuotedStr(Buf, Len, WideChar(#39))
+  else begin
+    RawTemp := PUnicodeToRaw(Buf, Len, ConSettings^.ClientCodePage^.CP);
+    GetEscapeString(Pointer(RawTemp), Length(RawTemp), ConSettings^.ClientCodePage^.CP, Result);
+  end;
+end;
+
 { TZAbstractNotification }
 
 {**
@@ -1707,6 +1869,26 @@ end;
   Returns the assigned block size for this sequence.
   @return the assigned block size.
 }
+procedure TZAbstractSequence.FlushResults;
+begin
+  if FNextValRS <> nil then begin
+    FNextValRS.Close;
+    FNextValRS := nil;
+  end;
+  if FNextValStmt <> nil then begin
+    FNextValStmt.Close;
+    FNextValStmt := nil;
+  end;
+  if FCurrValRS <> nil then begin
+    FCurrValRS.Close;
+    FCurrValRS := nil;
+  end;
+  if FCurrValStmt <> nil then begin
+    FCurrValStmt.Close;
+    FCurrValStmt := nil;
+  end;
+end;
+
 function TZAbstractSequence.GetBlockSize: Integer;
 begin
   Result := FBlockSize;
@@ -1718,7 +1900,13 @@ end;
 }
 function TZAbstractSequence.GetCurrentValue: Int64;
 begin
-  Result := 0;
+  if (FCurrValStmt = nil) or FCurrValStmt.IsClosed then
+    FCurrValStmt := FConnection.PrepareStatement(GetCurrentValueSQL);
+  FCurrValRS := FCurrValStmt.ExecuteQueryPrepared;
+  if (FCurrValRS = nil) or (not FCurrValRS.Next) then
+    raise EZSQLException.Create(SCanNotRetrieveResultSetData);
+  Result := FCurrValRS.GetLong(FirstDbcIndex);
+  FCurrValRS.ResetCursor;
 end;
 
 {**
@@ -1727,7 +1915,13 @@ end;
 }
 function TZAbstractSequence.GetNextValue: Int64;
 begin
-  Result := 0;
+  if (FNextValStmt = nil) or FNextValStmt.IsClosed then
+    FNextValStmt := FConnection.PrepareStatement(GetNextValueSQL);
+  FNextValRS := FNextValStmt.ExecuteQueryPrepared;
+  if (FNextValRS = nil) or (not FNextValRS.Next) then
+    raise EZSQLException.Create(SCanNotRetrieveResultSetData);
+  Result := FNextValRS.GetLong(FirstDbcIndex);
+  FNextValRS.ResetCursor;
 end;
 
 {**
@@ -1745,27 +1939,79 @@ end;
 }
 procedure TZAbstractSequence.SetName(const Value: string);
 begin
-  FName := Value;
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
-  RawCP: Word; out Result: RawByteString);
-var RawTemp: RawByteString;
-begin
-  RawTemp := PUnicodeToRaw(Buf, Len, RawCP);
-  GetEscapeString(Pointer(RawTemp), Length(RawTemp), Result);
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
-  out Result: ZWideString);
-var RawTemp: RawByteString;
-begin
-  if ConSettings^.ClientCodePage^.Encoding = ceUTF16 then
-    Result := SQLQuotedStr(Buf, Len, WideChar(#39))
-  else begin
-    RawTemp := PUnicodeToRaw(Buf, Len, ConSettings^.ClientCodePage^.CP);
-    GetEscapeString(Pointer(RawTemp), Length(RawTemp), ConSettings^.ClientCodePage^.CP, Result);
+  if FName <> Value then begin
+    FlushResults;
+    FName := FName;
   end;
+end;
+
+{ TZIdentifierSequence }
+
+procedure TZIdentifierSequence.SetName(const Value: string);
+var QuotedName: String;
+begin
+  QuotedName := FConnection.GetMetadata.GetIdentifierConvertor.Quote(Value);
+  inherited SetName(QuotedName);
+end;
+
+{ TZMSSQLSequence }
+
+function TZMSSQLSequence.GetCurrentValueSQL: string;
+begin
+  Result := 'select next value for '+FConnection.GetMetadata.GetIdentifierConvertor.Quote(FName);
+end;
+
+function TZMSSQLSequence.GetNextValueSQL: string;
+begin
+  Result := 'SELECT current_value FROM sys.sequences WHERE name = '+FName;
+end;
+
+{ TZDotCurrvalNextvalSequence }
+
+function TZDotCurrvalNextvalSequence.GetCurrentValueSQL: string;
+begin
+  Result := 'SELECT '+FName+'.CURRVAL';
+end;
+
+function TZDotCurrvalNextvalSequence.GetNextValueSQL: string;
+begin
+  Result := 'SELECT '+FName+'.NEXTVAL'
+end;
+
+{ TZOracleSequence }
+
+function TZOracleSequence.GetCurrentValueSQL: string;
+begin
+  Result := inherited GetCurrentValueSQL+' FROM DUAL';
+end;
+
+function TZOracleSequence.GetNextValueSQL: string;
+begin
+  Result := inherited GetNextValueSQL+' FROM DUAL';
+end;
+
+{ TZFirebird2UpSequence }
+
+function TZFirebird2UpSequence.GetCurrentValueSQL: string;
+begin
+  Result := 'SELECT GEN_ID('+FName+', 0) FROM RDB$DATABASE';
+end;
+
+function TZFirebird2UpSequence.GetNextValueSQL: string;
+begin
+  Result := 'SELECT NEXT VALUE FOR '+FName+' FROM RDB$DATABASE';
+end;
+
+{ TZPostgreSQLSequence }
+
+function TZPostgreSQLSequence.GetCurrentValueSQL: string;
+begin
+  Result := 'SELECT CURRVAL('''+FName+''')';
+end;
+
+function TZPostgreSQLSequence.GetNextValueSQL: string;
+begin
+  Result := 'SELECT NEXTVAL('''+FName+''')';
 end;
 
 end.
