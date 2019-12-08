@@ -247,7 +247,9 @@ end;
 function TZAbstractMySQLPreparedStatement.CheckPrepareSwitchMode: Boolean;
 begin
   Result := ((not FInitial_emulate_prepare) or (BatchDMLArrayCount > 0 )) and (FMYSQL_STMT = nil) and (TokenMatchIndex <> -1) and
-     ((BatchDMLArrayCount > 0 ) or (FExecCount = FMinExecCount2Prepare));
+     ((BatchDMLArrayCount > 0 ) or (FExecCount = FMinExecCount2Prepare) or
+     ((TokenMatchIndex = Ord(myCall)) and ((FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 100000)) or
+     (not FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 50608)))));
   if Result then begin
     FEmulatedParams := False;
     if (BindList.Count > 0) then
@@ -307,7 +309,9 @@ var
   ParamIndex: Integer;
   SQLWriter: TZRawSQLStringWriter;
 begin
-  ParamIndex := 0;
+  if (BindList.Count > 0) and (BindList[0].ParamType = pctReturn)
+  then ParamIndex := 1
+  else ParamIndex := 0;
   Result := '';
   SQLWriter := TZRawSQLStringWriter.Create(Length(FASQL)+(BindList.Count shl 5));
   try
@@ -788,9 +792,11 @@ begin
       if FieldCount = 0
       then Result := FPlainDriver.mysql_stmt_affected_rows(FMYSQL_STMT)
       else Result := -1;
-      if (TokenMatchIndex = Ord(myCall)) or BindList.HasOutParam or BindList.HasInOutParam then
-        FetchCallResults(FieldCount,Result)
-      else if FieldCount > 0 then
+      if (TokenMatchIndex = Ord(myCall)) or BindList.HasOutParam or BindList.HasInOutParam then begin
+        FetchCallResults(FieldCount,Result);
+        if BindList.HasOutParam or BindList.HasInOutParam then
+          FOutParamResultSet := GetLastResultSet;
+      end else if FieldCount > 0 then
         if BindList.HasReturnParam //retrieve outparam
         then FOutParamResultSet := CreateResultSet(SQL, 0, FieldCount)
         else LastResultSet := CreateResultSet(SQL, 0, FieldCount);
@@ -809,7 +815,7 @@ begin
   CallResultCache := TZCollection.Create;
   if FieldCount > 0 then begin
     CallResultCache.Add(CreateResultSet(SQL, 0, FieldCount));
-    FOpenResultSet := nil; //invoke closing the resu
+    FOpenResultSet := nil; //invoke closing the result
   end else CallResultCache.Add(TZAnyValue.CreateWithInteger(UpdateCount));
   while GetMoreresults do
     if LastResultSet <> nil then begin
@@ -1061,7 +1067,7 @@ begin
                       BuffSize := 0; //chunked
                       Bind^.buffer_type_address^ := FIELD_TYPE_BLOB;
                     end;
-    else raise EZSQLException.Create(sUnsupportedOperation);
+    else raise EZUnsupportedException.Create(sUnsupportedOperation);
   end;
   if BuffSize > 0 then
     ReAllocMem(Bind.buffer, BuffSize+Ord(Bind^.buffer_type_address^ in [FIELD_TYPE_STRING, FIELD_TYPE_NEWDECIMAL, FIELD_TYPE_BLOB,FIELD_TYPE_TINY_BLOB] ))
@@ -1453,19 +1459,15 @@ var
   P: PMYSQL_TIME;
   { move the string conversions into a own proc -> no (U/L)StrClear}
   procedure BindEmulated;
+  var Len: LengthInt;
   begin
     case SQLType of
-      stDate: if Length(FEmulatedValues[Index])-2 < ConSettings^.WriteFormatSettings.DateFormatLen
-              then FEmulatedValues[Index] := DateTimeToRawSQLDate(Value, ConSettings^.WriteFormatSettings, True)
-              else DateTimeToRawSQLDate(Value, Pointer(FEmulatedValues[Index]), ConSettings^.WriteFormatSettings, True);
-      stTime: if Length(FEmulatedValues[Index])-2 < ConSettings^.WriteFormatSettings.TimeFormatLen
-              then FEmulatedValues[Index] := DateTimeToRawSQLTime(Value, ConSettings^.WriteFormatSettings, True)
-              else DateTimeToRawSQLTime(Value, Pointer(FEmulatedValues[Index]), ConSettings^.WriteFormatSettings, True);
-      stTimestamp: if Length(FEmulatedValues[Index])-2 < ConSettings^.WriteFormatSettings.DateTimeFormatLen
-              then FEmulatedValues[Index] := DateTimeToRawSQLTimeStamp(Value, ConSettings^.WriteFormatSettings, True)
-              else DateTimeToRawSQLTimeStamp(Value, Pointer(FEmulatedValues[Index]), ConSettings^.WriteFormatSettings, True);
-      else FEmulatedValues[Index] := FloatToSQLRaw(Value);
+      stDate: Len := DateTimeToRawSQLDate(Value, @fABuffer, ConSettings^.WriteFormatSettings, True);
+      stTime: Len := DateTimeToRawSQLTime(Value, @fABuffer, ConSettings^.WriteFormatSettings, True);
+      stTimestamp: Len := DateTimeToRawSQLTimeStamp(Value, @fABuffer, ConSettings^.WriteFormatSettings, True)
+      else Len := FloatToSQLRaw(Value, @fABuffer);
     end;
+    ZSetString(PAnsiChar(@fABuffer), Len, FEmulatedValues[Index]);
   end;
 begin
   CheckParameterIndex(Index);
@@ -1504,7 +1506,9 @@ var
   Bind: PMYSQL_aligned_BIND;
   BindValue: PZBindValue;
   SQLType: TZSQLType;
-  Failed: Boolean;
+  TS: TZTimeStamp;
+  T: TZTime absolute TS;
+  D: TZDate absolute TS;
   procedure BindAsLob;
   var Lob: IZBlob;
     P: PAnsiChar;
@@ -1562,10 +1566,14 @@ begin
           else RawToFloat(Buf, AnsiChar('.'), PSingle(bind^.buffer)^);
           Bind^.is_null_address^ := 0;
         end;
-      stTime: InternalBindDouble(Index, stTime, ZSysUtils.RawSQLTimeToDateTime(Buf, Len, ConSettings.WriteFormatSettings, Failed));
-      stDate: InternalBindDouble(Index, stDate, ZSysUtils.RawSQLDateToDateTime(Buf, Len, ConSettings.WriteFormatSettings, Failed));
-      stTimeStamp: InternalBindDouble(Index, stTimeStamp, ZSysUtils.RawSQLTimeStampToDateTime(Buf, Len, ConSettings.WriteFormatSettings, Failed));
+      stTime:     if TryPCharToTime(Buf, Len, ConSettings.WriteFormatSettings, T)
+                  then SetTime(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, T);
+      stDate:     if TryPCharToDate(Buf, Len, ConSettings.WriteFormatSettings, D)
+                  then SetDate(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, D);
+      stTimeStamp: if TryPCharToTimeStamp(Buf, Len, ConSettings.WriteFormatSettings, TS)
+                  then SetTimeStamp(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, TS);
       stAsciiStream..stBinaryStream: BindAsLob;
+
     end;
   end;
 end;
@@ -1700,6 +1708,12 @@ var
   ClientCP: Word;
   MySQLTime: PMYSQL_TIME;
   P, PEnd: PAnsiChar;
+  PD: PZDate absolute PEnd;
+  PT: PZTime absolute PEnd;
+  PTS: PZTimeStamp absolute PEnd;
+  TS: TZtimeStamp;
+  D: TZDate absolute TS;
+  T: TZTime absolute TS;
   procedure BindLobs;
   var Lob: IZBLob;
     RawTemp: RawByteString;
@@ -1935,48 +1949,65 @@ begin
             Inc(P, Bind^.length[i]+1);
           end;
       end;
-    stDate, stTime, stTimeStamp: begin
+     stDate, stTime, stTimeStamp: begin
         ReAllocMem(Bind^.buffer, (SizeOf(TMYSQL_TIME)+SizeOf(Pointer))*BatchDMLArrayCount);
         Bind^.buffer_address^ := Pointer(Bind^.buffer);
         P := PAnsiChar(Bind^.buffer)+(BatchDMLArrayCount*SizeOf(Pointer));
         FillChar(P^, BatchDMLArrayCount*SizeOf(TMYSQL_TIME), {$IFDEF Use_FastCodeFillChar}#0{$ELSE}0{$ENDIF});
         if SQLType = stDate then begin
           Bind^.buffer_type_address^ := FIELD_TYPE_DATE;
-          if VariantType in [vtNull, vtDateTime] then begin
-            for i := 0 to BatchDMLArrayCount -1 do begin
-              MySQLTime := PMYSQL_TIME(P+(I*SizeOf(TMYSQL_TIME)));
-              DecodeDate(TDateTimeDynArray(Value)[i], PWord(@MySQLTime^.year)^, PWord(@MySQLTime^.month)^, PWord(@MySQLTime^.day)^);
-              PPointer(PAnsiChar(Bind^.buffer)+(I*SizeOf(Pointer)))^ := MySQLTime; //write address
-              //MySQLTime.time_type := MYSQL_TIMESTAMP_DATE; //done by fillchar
-            end
-          end else begin
-            for i := 0 to BatchDMLArrayCount -1 do begin
-              with TZDateDynArray(Value)[i] do begin
-                MySQLTime := PMYSQL_TIME(P+(I*SizeOf(TMYSQL_TIME)));
-                MySQLTime^.year := Year;
-                MySQLTime^.month := Month;
-                MySQLTime^.day := Day;
-                MySQLTime^.neg := Ord(IsNegative);
-              end;
-              PPointer(PAnsiChar(Bind^.buffer)+(I*SizeOf(Pointer)))^ := MySQLTime; //write address
-              //MySQLTime.time_type := MYSQL_TIMESTAMP_DATE; //done by fillchar
-            end
+          for i := 0 to BatchDMLArrayCount -1 do begin
+            MySQLTime := PMYSQL_TIME(P+(I*SizeOf(TMYSQL_TIME)));
+            if VariantType in [vtNull, vtDateTime] then begin
+              DecodeDateTimeToDate(TDateTimeDynArray(Value)[i], D);
+              PD :=  @D;
+            end else if VariantType = vtDate
+              then PD :=  @TZDateDynArray(Value)[i]
+              else PTS := nil; //raise TypeMismatch
+            MySQLTime^.year := PD^.Year;
+            MySQLTime^.month := PD^.Month;
+            MySQLTime^.day := PD^.Day;
+            MySQLTime^.neg := Byte(Ord(PD^.IsNegative));
+            PPointer(PAnsiChar(Bind^.buffer)+(I*SizeOf(Pointer)))^ := MySQLTime; //write address
+            //MySQLTime.time_type := MYSQL_TIMESTAMP_DATE; //done by fillchar
           end;
         end else if SQLType = stTime then begin
           Bind^.buffer_type_address^ := FIELD_TYPE_TIME;
           for i := 0 to BatchDMLArrayCount -1 do begin
             MySQLTime := PMYSQL_TIME(P+(I*SizeOf(TMYSQL_TIME)));
-            DecodeTime(TDateTimeDynArray(Value)[i], PWord(@MySQLTime^.hour)^, PWord(@MySQLTime^.minute)^, PWord(@MySQLTime^.second)^, PWord(@MySQLTime^.second_part)^);
-            MySQLTime.time_type := MYSQL_TIMESTAMP_TIME;
+            if VariantType in [vtNull, vtDateTime] then begin
+              ZSysUtils.DecodeDateTimeToTime(TDateTimeDynArray(Value)[i], T);
+              PT :=  @T;
+            end else if VariantType = vtTime
+              then PT :=  @TZTimeDynArray(Value)[i]
+              else PT := nil; //raise TypeMismatch
+            MySQLTime^.hour := PT.Hour;
+            MySQLTime^.minute := PT.Minute;
+            MySQLTime^.second := PT.Second;
+            MySQLTime^.second_part := PT.Fractions div 1000;
+            MySQLTime^.neg := Byte(Ord(PT^.IsNegative));
+            MySQLTime^.time_type := MYSQL_TIMESTAMP_TIME;
             PPointer(PAnsiChar(Bind^.buffer)+(I*SizeOf(Pointer)))^ := MySQLTime; //write address
           end
         end else begin
           Bind^.buffer_type_address^ := FIELD_TYPE_DATETIME;
           for i := 0 to BatchDMLArrayCount -1 do begin
             MySQLTime := PMYSQL_TIME(P+(I*SizeOf(TMYSQL_TIME)));
-            DecodeDateTime(TDateTimeDynArray(Value)[i], PWord(@MySQLTime^.year)^, PWord(@MySQLTime^.month)^, PWord(@MySQLTime^.day)^,
-              PWord(@MySQLTime^.hour)^, PWord(@MySQLTime^.minute)^, PWord(@MySQLTime^.second)^, PWord(@MySQLTime^.second_part)^);
-            MySQLTime.time_type := MYSQL_TIMESTAMP_DATETIME;
+            if VariantType in [vtNull, vtDateTime] then begin
+              ZSysUtils.DecodeDateTimeToTimeStamp(TDateTimeDynArray(Value)[i], TS);
+              PTS :=  @TS;
+            end else if VariantType = vtTime
+              then PTS :=  @TZTimeStampDynArray(Value)[i]
+              else PTS := nil; //raise TypeMismatch
+            MySQLTime^.year := PTS^.Year;
+            MySQLTime^.month := PTS^.Month;
+            MySQLTime^.day := PTS^.Day;
+            MySQLTime^.hour := PTS^.Hour;
+            MySQLTime^.minute := PTS^.Minute;
+            MySQLTime^.second := PTS^.Second;
+            MySQLTime^.second_part := PTS^.Fractions div 1000;
+            MySQLTime^.neg := Ord(PTS^.IsNegative);
+            MySQLTime^.time_type := MYSQL_TIMESTAMP_DATETIME;
             PPointer(PAnsiChar(Bind^.buffer)+(I*SizeOf(Pointer)))^ := MySQLTime; //write address
           end;
         end;
@@ -2070,7 +2101,7 @@ var
   procedure BindEmulated;
   var L: LengthInt;
   begin
-    L := DateTimeToRawSQLDate(Value.Year, Value.Month, Value.Day,
+    L := DateToRaw(Value.Year, Value.Month, Value.Day,
       @fABuffer[0], ConSettings^.WriteFormatSettings.DateFormat, True, Value.IsNegative);
     ZSetString(PAnsiChar(@fABuffer[0]), L, FEmulatedValues[Index]);
   end;
@@ -2392,7 +2423,7 @@ begin
   CheckParameterIndex(Index);
   if FEmulatedParams then begin
     BindList.Put(Index, Value);
-    L := DateTimeToRawSQLTime(Value.Hour, Value.Minute, Value.Second, Value.Fractions div NanoSecsPerMSec,
+    L := TimeToRaw(Value.Hour, Value.Minute, Value.Second, Value.Fractions,
       @fABuffer[0], ConSettings^.WriteFormatSettings.TimeFormat, True, Value.IsNegative);
     ZSetString(PAnsiChar(@fABuffer[0]), L, FEmulatedValues[Index]);
   end else begin
@@ -2430,8 +2461,8 @@ begin
   CheckParameterIndex(Index);
   if FEmulatedParams then begin
     BindList.Put(Index, Value);
-    L := DateTimeToRawSQLTimeStamp(Value.Year, Value.Month, Value.Day,
-      Value.Hour, Value.Minute, Value.Second, Value.Fractions div NanoSecsPerMSec,
+    L := DateTimeToRaw(Value.Year, Value.Month, Value.Day,
+      Value.Hour, Value.Minute, Value.Second, Value.Fractions,
       @fABuffer[0], ConSettings^.WriteFormatSettings.DateTimeFormat, True, Value.IsNegative);
     ZSetString(PAnsiChar(@fABuffer[0]), L, FEmulatedValues[Index]);
   end else begin
@@ -2567,8 +2598,8 @@ begin
   SQLWriter.Finalize(SQL);
   FreeAndNil(SQLWriter);
   Result := TZMySQLPreparedStatement.Create(Connection as IZMySQLConnection, SQL, Info);
-  TZMySQLPreparedStatement(Result).FMinExecCount2Prepare := 0; //prepare immediately
-  TZMySQLPreparedStatement(Result).InternalRealPrepare;
+  {TZMySQLPreparedStatement(Result).FMinExecCount2Prepare := 0; //prepare immediately
+  TZMySQLPreparedStatement(Result).InternalRealPrepare;}
   TZMySQLPreparedStatement(Result).Prepare;
 end;
 

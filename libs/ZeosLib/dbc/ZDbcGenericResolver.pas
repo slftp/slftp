@@ -165,13 +165,11 @@ type
       {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor, NewRowAccessor: TZRowAccessor): SQLString; virtual;
     function FormDeleteStatement(Columns: TObjectList;
       OldRowAccessor: TZRowAccessor): SQLString;
-    function FormCalculateStatement({$IFDEF AUTOREFCOUNT}const {$ENDIF}Columns: TObjectList): SQLString; virtual;
+    function FormCalculateStatement(Columns: TObjectList): SQLString; virtual;
 
-    procedure CalculateDefaults(const Sender: IZCachedResultSet;
-      {$IFDEF AUTOREFCOUNT}const {$ENDIF}RowAccessor: TZRowAccessor);
+    procedure CalculateDefaults(const Sender: IZCachedResultSet; RowAccessor: TZRowAccessor);
     procedure PostUpdates(const Sender: IZCachedResultSet;
-      UpdateType: TZRowUpdateType;
-      {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor, NewRowAccessor: TZRowAccessor); virtual;
+      UpdateType: TZRowUpdateType; OldRowAccessor, NewRowAccessor: TZRowAccessor); virtual;
     {BEGIN of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
     procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet;
       UpdateType: TZRowUpdateType;
@@ -618,8 +616,8 @@ begin
       stDouble:
         Statement.SetDouble(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetDouble(ColumnIndex, WasNull));
       stBigDecimal: begin
-                      RowAccessor.GetBigDecimal(ColumnIndex, PBCD(@RowAccessor.TinyBuffer[0])^, WasNull);
-                      Statement.SetBigDecimal(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, PBCD(@RowAccessor.TinyBuffer[0])^);
+                      RowAccessor.GetBigDecimal(ColumnIndex, BCD{%H-}, WasNull);
+                      Statement.SetBigDecimal(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, BCD);
                     end;
       stString, stUnicodeString:
         Statement.SetCharRec(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF},
@@ -691,11 +689,12 @@ begin
 end;
 
 {**
-  Forms a where clause for INSERT statements.
+  Forms a INSERT statements.
   @param Columns a collection of key columns.
   @param NewRowAccessor an accessor object to new column values.
 }
-function TZGenericCachedResolver.FormInsertStatement(Columns: TObjectList;
+function TZGenericCachedResolver.FormInsertStatement(
+  {$IFDEF AUTOREFCOUNT}const {$ENDIF}Columns: TObjectList;
   {$IFDEF AUTOREFCOUNT}const {$ENDIF}NewRowAccessor: TZRowAccessor): SQLString;
 var
   I: Integer;
@@ -755,7 +754,7 @@ begin
 end;
 
 {**
-  Forms a where clause for UPDATE statements.
+  Forms an UPDATE statements.
   @param Columns a collection of key columns.
   @param OldRowAccessor an accessor object to old column values.
   @param NewRowAccessor an accessor object to new column values.
@@ -828,7 +827,7 @@ end;
   @param OldRowAccessor an accessor object to old column values.
 }
 function TZGenericCachedResolver.FormCalculateStatement(
-  {$IFDEF AUTOREFCOUNT}const {$ENDIF}Columns: TObjectList): SQLString;
+  Columns: TObjectList): SQLString;
 var
   I: Integer;
   Current: TZResolverParameter;
@@ -860,8 +859,7 @@ end;
   @param NewRowAccessor an accessor object to new column values.
 }
 procedure TZGenericCachedResolver.PostUpdates(const Sender: IZCachedResultSet;
-  UpdateType: TZRowUpdateType;
-  {$IFDEF AUTOREFCOUNT}const {$ENDIF}OldRowAccessor, NewRowAccessor: TZRowAccessor);
+  UpdateType: TZRowUpdateType; OldRowAccessor, NewRowAccessor: TZRowAccessor);
 var
   Statement            : IZPreparedStatement;
   S                    : string;
@@ -870,6 +868,7 @@ var
   lUpdateCount         : Integer;
   lValidateUpdateCount : Boolean;
   TempKey              : IZAnyValue;
+  SenderStatement      : IZStatement;
 begin
   if (UpdateType = utDeleted) and (OldRowAccessor.RowBuffer.UpdateType = utInserted) then
     Exit;
@@ -929,8 +928,13 @@ begin
 
   FillStatement(Statement, SQLParams, OldRowAccessor, NewRowAccessor);
   // if Property ValidateUpdateCount isn't set : assume it's true
-  S := Sender.GetStatement.GetParameters.Values[DSProps_ValidateUpdateCount];
-  lValidateUpdateCount := (S = '') or StrToBoolEx(S);
+  SenderStatement := Sender.GetStatement;
+  if Assigned(SenderStatement) then begin
+    S := SenderStatement.GetParameters.Values[DSProps_ValidateUpdateCount];
+    lValidateUpdateCount := (S = '') or StrToBoolEx(S);
+  end else begin
+    lValidateUpdateCount := true;
+  end;
 
   lUpdateCount := Statement.ExecuteUpdatePrepared;
   {$IFDEF WITH_VALIDATE_UPDATE_COUNT}
@@ -948,8 +952,7 @@ end;
 procedure TZGenericCachedResolver.SetResolverStatementParamters(
   const Statement: IZStatement; {$IFDEF AUTOREFCOUNT}const {$ENDIF} Params: TStrings);
 begin
-  Params.Values[DSProps_PreferPrepared] := 'true';
-  Params.Values[DSProps_ChunkSize] := ZDbcUtils.DefineStatementParameter(Statement, DSProps_ChunkSize, '4096');
+  Params.Assign(Statement.GetParameters);
 end;
 
 {**
@@ -958,7 +961,7 @@ end;
   @param RowAccessor an accessor object to column values.
 }
 procedure TZGenericCachedResolver.CalculateDefaults(
-  const Sender: IZCachedResultSet; {$IFDEF AUTOREFCOUNT}const {$ENDIF}RowAccessor: TZRowAccessor);
+  const Sender: IZCachedResultSet; RowAccessor: TZRowAccessor);
 var
   I: Integer;
   SQL: string;
