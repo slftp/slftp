@@ -59,7 +59,8 @@ interface
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZCompatibility, ZDbcIntfs, ZDbcConnection, ZPlainMySqlDriver, ZPlainDriver,
-  ZURL, ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser, ZPlainMySqlConstants;
+  ZURL, ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser, ZPlainMySqlConstants,
+  ZClasses;
 type
 
   {** Implements MySQL Database Driver. }
@@ -89,17 +90,20 @@ type
   end;
 
   {** Implements MySQL Database Connection. }
-  TZMySQLConnection = class(TZAbstractDbcConnection, IZMySQLConnection)
+  TZMySQLConnection = class(TZAbstractDbcConnection, IZMySQLConnection,
+    IZTransaction)
   private
     FCatalog: string;
     FHandle: PMySQL;
     FDatabaseName: String;
     FIKnowMyDatabaseName, FMySQL_FieldType_Bit_1_IsBoolean,
-    FSupportsBitType: Boolean;
+    FSupportsBitType, FSupportsReadOnly: Boolean;
     FPlainDriver: TZMySQLPlainDriver;
-    procedure InternalSetIsolationLevel(Level: TZTransactIsolationLevel);
+    FSavePoints: TStrings;
   protected
     procedure InternalCreate; override;
+    procedure InternalClose; override;
+    procedure ExecuteImmediat(const SQL: RawByteString; LoggingCategory: TZLoggingCategory); override;
   public
     function CreateRegularStatement(Info: TStrings): IZStatement; override;
     function CreatePreparedStatement(const SQL: string; Info: TStrings):
@@ -109,17 +113,21 @@ type
 
     procedure Commit; override;
     procedure Rollback; override;
+    procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); override;
+    procedure SetAutoCommit(Value: Boolean); override;
+    function StartTransaction: Integer; override;
+
+    destructor Destroy; override;
+    procedure SetReadOnly(Value: Boolean); override;
 
     function PingServer: Integer; override;
+    function AbortOperation: Integer; override;
 
     procedure Open; override;
-    procedure InternalClose; override;
 
     procedure SetCatalog(const Catalog: string); override;
     function GetCatalog: string; override;
 
-    procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); override;
-    procedure SetAutoCommit(Value: Boolean); override;
     {ADDED by fduenas 15-06-2006}
     function GetClientVersion: Integer; override;
     function GetHostVersion: Integer; override;
@@ -146,7 +154,7 @@ implementation
 uses
   ZMessages, ZSysUtils, ZDbcMySqlStatement, ZMySqlToken, ZFastCode,
   ZDbcMySqlUtils, ZDbcMySqlMetadata, ZMySqlAnalyser, TypInfo,
-  ZEncoding, ZConnProperties, ZDbcProperties, ZClasses,
+  ZEncoding, ZConnProperties, ZDbcProperties, ZCollections,
   {$IFDEF FPC}syncobjs{$ELSE}SyncObjs{$ENDIF};
 
 { TZMySQLDriver }
@@ -275,6 +283,7 @@ begin
      Self.Port := MYSQL_PORT;
   inherited SetTransactionIsolation(tiRepeatableRead);
   FMetaData := TZMySQLDatabaseMetadata.Create(Self, Url);
+  FSavePoints := TStringList.Create;
 end;
 
 const
@@ -285,15 +294,14 @@ const
     'SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED',
     'SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ',
     'SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-procedure TZMySQLConnection.InternalSetIsolationLevel(
-  Level: TZTransactIsolationLevel);
-begin
-  if FPlainDriver.mysql_real_query(FHandle,
-    Pointer(MySQLSessionTransactionIsolation[Level]), Length(MySQLSessionTransactionIsolation[Level])) <> 0 then
-      CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, MySQLSessionTransactionIsolation[Level], Self);
-  if DriverManager.HasLoggingListener then
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, MySQLSessionTransactionIsolation[Level]);
-end;
+
+  MySQLSessionTransactionReadOnly: array[Boolean] of
+    {$IFNDEF NO_ANSISTRING}AnsiString{$ELSE}RawByteString{$ENDIF} = (
+    'SET SESSION TRANSACTION READ ONLY',
+    'SET SESSION TRANSACTION READ WRITE');
+
+  MySQLCommitMsg: array[Boolean] of RawByteString = (
+    'Native SetAutoCommit False call', 'Native SetAutoCommit True call');
 
 function TZMySQLConnection.MySQL_FieldType_Bit_1_IsBoolean: Boolean;
 begin
@@ -368,18 +376,22 @@ begin
           MYSQL_OPT_CONNECT_TIMEOUT,
           MYSQL_OPT_PROTOCOL,
           MYSQL_OPT_READ_TIMEOUT,
-          MYSQL_OPT_WRITE_TIMEOUT:
-            if Info.Values[sMyOpt] <> '' then
-            begin
+          MYSQL_OPT_WRITE_TIMEOUT,
+          MYSQL_OPT_MAX_ALLOWED_PACKET,
+          MYSQL_OPT_NET_BUFFER_LENGTH,
+          MYSQL_OPT_SSL_MODE,
+          MYSQL_OPT_RETRY_COUNT,
+          MYSQL_OPT_SSL_FIPS_MODE,
+          MYSQL_OPT_ZSTD_COMPRESSION_LEVEL:
+            if Info.Values[sMyOpt] <> '' then begin
 setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
               FPlainDriver.mysql_options(FHandle, myopt, @UIntOpt);
             end;
           MYSQL_OPT_LOCAL_INFILE: {optional empty or unsigned int}
-            if Info.Values[sMyOpt] <> '' then
-              goto setuint
-            else
-              if Info.IndexOf(sMyOpt) > -1 then
-                FPlainDriver.mysql_options(FHandle, myopt, nil);
+            if Info.Values[sMyOpt] <> ''
+            then goto setuint
+            else if Info.IndexOf(sMyOpt) > -1 then
+              FPlainDriver.mysql_options(FHandle, myopt, nil);
           { no value options }
           MYSQL_OPT_COMPRESS,
           MYSQL_OPT_GUESS_CONNECTION,
@@ -397,15 +409,18 @@ setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
           MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
           MYSQL_ENABLE_CLEARTEXT_PLUGIN,
           MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS,
-          MYSQL_OPT_SSL_ENFORCE:
-            if Info.Values[sMyOpt] <> '' then
-            begin
+          MYSQL_OPT_SSL_ENFORCE,
+          MYSQL_OPT_GET_SERVER_PUBLIC_KEY,
+          MYSQL_OPT_OPTIONAL_RESULTSET_METADATA:
+            if Info.Values[sMyOpt] <> '' then begin
               MyBoolOpt := Ord(StrToBoolEx(Info.Values[sMyOpt]));
               FPlainDriver.mysql_options(FHandle, myopt, @MyBoolOpt);
             end;
           { unsigned char * options }
           MYSQL_OPT_SSL_KEY, MYSQL_OPT_SSL_CERT,
-          MYSQL_OPT_SSL_CA, MYSQL_OPT_SSL_CAPATH, MYSQL_OPT_SSL_CIPHER: ;//skip, processed down below
+          MYSQL_OPT_SSL_CA, MYSQL_OPT_SSL_CAPATH, MYSQL_OPT_SSL_CIPHER,
+          MYSQL_OPT_TLS_CIPHERSUITES,
+          MYSQL_OPT_COMPRESSION_ALGORITHMS: ;//skip, processed down below
           else
             if Info.Values[sMyOpt] <> '' then
               FPlainDriver.mysql_options(FHandle, myopt, PAnsiChar(
@@ -487,10 +502,7 @@ setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
       if not Assigned(FPlainDriver.mysql_set_character_set) or
             (FPlainDriver.mysql_set_character_set(FHandle, Pointer(SQL)) <> 0) then begin //failed? might be possible the function does not exists
         SQL := 'SET NAMES '+SQL;
-        if FPlainDriver.mysql_real_query(FHandle, Pointer(SQL), Length(SQL)) <> 0 then
-          CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, SQL, Self);
-        if DriverManager.HasLoggingListener then
-          DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, SQL);
+        ExecuteImmediat(SQL, lcOther);
       end;
       CheckCharEncoding(FClientCodePage);
     end;
@@ -498,22 +510,8 @@ setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
     MaxLobSize := {$IFDEF UNICODE}UnicodeToIntDef{$ELSE}RawToIntDef{$ENDIF}(Info.Values[ConnProps_MaxLobSize], 0);
     if MaxLobSize <> 0 then begin
       SQL := 'SET GLOBAL max_allowed_packet='+IntToRaw(MaxLobSize);
-      if FPlainDriver.mysql_real_query(FHandle, Pointer(SQL), Length(SQL)) <> 0 then
-        CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, SQL, Self);
-      if DriverManager.HasLoggingListener then
-        DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, SQL);
+      ExecuteImmediat(SQL, lcOther);
     end;
-
-
-    { Sets transaction isolation level. }
-    if not (TransactIsolationLevel in [tiNone,tiRepeatableRead]) then
-      InternalSetIsolationLevel(TransactIsolationLevel);
-
-    { Sets an auto commit mode. }
-    if not GetAutoCommit then
-      if FPlainDriver.mysql_autocommit(FHandle, Ord(False)) <> 0 then
-        CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, 'Native SetAutoCommit '+BoolToRawEx(AutoCommit)+'call', Self);
-
     inherited Open;
     //no real version check required -> the user can simply switch off treading
     //enum('Y','N')
@@ -524,8 +522,21 @@ setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
     //if not explizit !un!set -> assume as default since Zeos 7.3
     FMySQL_FieldType_Bit_1_IsBoolean := FMySQL_FieldType_Bit_1_IsBoolean or (FSupportsBitType and (Info.Values[ConnProps_MySQL_FieldType_Bit_1_IsBoolean] = ''));
     (GetMetadata as IZMySQLDatabaseMetadata).SetMySQL_FieldType_Bit_1_IsBoolean(FMySQL_FieldType_Bit_1_IsBoolean);
-
+    FSupportsReadOnly := (    FPlainDriver.IsMariaDBDriver and (GetHostVersion >= EncodeSQLVersioning(10,0,0))) or
+                         (not FPlainDriver.IsMariaDBDriver and (GetHostVersion >= EncodeSQLVersioning( 5,6,0)));
     (GetMetadata as IZMySQLDatabaseMetadata).SetDataBaseName(GetDatabaseName);
+
+    { Sets transaction isolation level. }
+    if not (TransactIsolationLevel in [tiNone,tiRepeatableRead]) then
+      ExecuteImmediat(MySQLSessionTransactionIsolation[TransactIsolationLevel], lcTransaction);
+    if (FSupportsReadOnly and ReadOnly) then
+      ExecuteImmediat(MySQLSessionTransactionReadOnly[ReadOnly], lcTransaction);
+
+    { Sets an auto commit mode. }
+    if not AutoCommit then begin
+      AutoCommit := True;
+      SetAutoCommit(False);
+    end;
   except
     FPlainDriver.mysql_close(FHandle);
     FHandle := nil;
@@ -577,6 +588,22 @@ begin
   if IsClosed then
      Open;
   Result := TZMySQLStatement.Create(Self, Info);
+end;
+
+destructor TZMySQLConnection.Destroy;
+begin
+  inherited Destroy;
+  FSavePoints.Free;
+end;
+
+procedure TZMySQLConnection.ExecuteImmediat(const SQL: RawByteString;
+  LoggingCategory: TZLoggingCategory);
+begin
+  if FPlainDriver.mysql_real_query(FHandle,
+    Pointer(SQL), Length(SQL){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF}) <> 0 then
+      CheckMySQLError(FPlainDriver, FHandle, nil, LoggingCategory, SQL, Self);
+  if DriverManager.HasLoggingListener then
+    DriverManager.LogMessage(LoggingCategory, ConSettings^.Protocol, SQL);
 end;
 
 {**
@@ -651,6 +678,21 @@ begin
 end;
 
 {**
+  Attempts to kill a long-running operation on the database server
+  side
+}
+Function TZMySQLConnection.AbortOperation: Integer;
+Var
+ killquery: SQLString;
+ izc: IZConnection;
+Begin
+  // https://dev.mysql.com/doc/refman/5.7/en/mysql-kill.html
+  killquery := 'KILL QUERY ' + IntToStr(FPlainDriver.mysql_thread_id(FHandle));
+  izc := DriverManager.GetConnection(GetURL);
+  Result := izc.CreateStatement.ExecuteUpdate(killquery);
+End;
+
+{**
   Makes all changes made since the previous
   commit/rollback permanent and releases any database locks
   currently held by the Connection. This method should be
@@ -658,16 +700,25 @@ end;
   @see #setAutoCommit
 }
 procedure TZMySQLConnection.Commit;
+var S: RawByteString;
 begin
-  if GetAutoCommit then
-    raise Exception.Create(SInvalidOpInAutoCommit);
-
-  if not Closed then begin
+  if Closed then
+    raise EZSQLException.Create(SConnectionIsNotOpened);
+  if AutoCommit then
+    raise EZSQLException.Create(SCannotUseCommit);
+  if FSavePoints.Count > 0 then begin
+    S := 'RELEASE SAVEPOINT '+{$IFDEF UNICODE}UnicodeStringToAscii7{$ENDIF}(FSavePoints[FSavePoints.Count-1]);
+    ExecuteImmediat(S, lcTransaction);
+    FSavePoints.Delete(FSavePoints.Count-1);
+  end else begin
     If FPlainDriver.mysql_commit(FHandle) <> 0 then
       CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, 'Native Commit call', Self);
     if DriverManager.HasLoggingListener then
       DriverManager.LogMessage(lcExecute, ConSettings.Protocol, 'Native Commit call');
-  end;
+    AutoCommit := True;
+    if FRestartTransaction then
+      StartTransaction;
+  end
 end;
 
 {**
@@ -685,15 +736,24 @@ begin
 end;
 
 procedure TZMySQLConnection.Rollback;
+var S: RawByteString;
 begin
-  if GetAutoCommit then
-    raise Exception.Create(SInvalidOpInAutoCommit);
-
-  if not Closed then begin
+  if Closed then
+    raise EZSQLException.Create(SConnectionIsNotOpened);
+  if AutoCommit then
+    raise EZSQLException.Create(SCannotUseRollback);
+  if FSavePoints.Count > 0 then begin
+    S := 'ROLLBACK TO SAVEPOINT '+{$IFDEF UNICODE}UnicodeStringToAscii7{$ENDIF}(FSavePoints[FSavePoints.Count-1]);
+    ExecuteImmediat(S, lcTransaction);
+    FSavePoints.Delete(FSavePoints.Count-1);
+  end else begin
     If FPlainDriver.mysql_rollback(FHandle) <> 0 then
       CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, 'Native Rollback call', Self);
     if DriverManager.HasLoggingListener then
       DriverManager.LogMessage(lcExecute, ConSettings.Protocol, 'Native Rollback call');
+    AutoCommit := True;
+    if FRestartTransaction then
+      StartTransaction;
   end;
 end;
 
@@ -710,11 +770,18 @@ procedure TZMySQLConnection.InternalClose;
 begin
   if ( Closed ) or (not Assigned(PlainDriver)) then
     Exit;
-  FPlainDriver.mysql_close(FHandle);
-  FHandle := nil;
-  if DriverManager.HasLoggingListener then
-    DriverManager.LogMessage(lcDisconnect, ConSettings^.Protocol,
-      'DISCONNECT FROM "'+ConSettings^.Database+'"');
+  try
+    if not AutoCommit then begin
+      SetAutoCommit(True);
+      AutoCommit := False;
+    end;
+  finally
+    FPlainDriver.mysql_close(FHandle);
+    FHandle := nil;
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcDisconnect, ConSettings^.Protocol,
+        'DISCONNECT FROM "'+ConSettings^.Database+'"');
+  end;
 end;
 
 {**
@@ -736,16 +803,58 @@ begin
 end;
 
 {**
+  Puts this connection in read-only mode as a hint to enable
+  database optimizations.
+
+  <P><B>Note:</B> This method cannot be called while in the
+  middle of a transaction.
+
+  @param readOnly true enables read-only mode; false disables
+    read-only mode.
+}
+procedure TZMySQLConnection.SetReadOnly(Value: Boolean);
+begin
+  if not FSupportsReadOnly then
+    Value := False;
+  if Value <> ReadOnly then begin
+    if not Closed then
+      ExecuteImmediat(MySQLSessionTransactionReadOnly[ReadOnly], lcTransaction);
+    ReadOnly := Value;
+  end;
+end;
+
+{**
   Sets a new transact isolation level.
   @param Level a new transact isolation level.
 }
 procedure TZMySQLConnection.SetTransactionIsolation(
   Level: TZTransactIsolationLevel);
 begin
+  if Level = tiNone then
+    Level := tiRepeatableRead;
   if TransactIsolationLevel <> Level then begin
-    inherited SetTransactionIsolation(Level);
     if not Closed then
-      InternalSetIsolationLevel(Level);
+      ExecuteImmediat(MySQLSessionTransactionIsolation[Level], lcTransaction);
+    TransactIsolationLevel := Level;
+  end;
+end;
+
+function TZMySQLConnection.StartTransaction: Integer;
+var S: String;
+begin
+  if Closed then
+    Open;
+  if AutoCommit then begin
+    if FPlainDriver.mysql_autocommit(FHandle, 0) <> 0 then
+      CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, MySQLCommitMsg[False], Self);
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, MySQLCommitMsg[False]);
+    AutoCommit := False;
+    Result := 1;
+  end else begin
+    S := 'SP'+ZFastCode.IntToStr(NativeUint(Self))+'_'+ZFastCode.IntToStr(FSavePoints.Count);
+    ExecuteImmediat('SAVEPOINT '+{$IFDEF UNICODE}UnicodeStringToAscii7{$ENDIF}(S), lcTransaction);
+    Result := FSavePoints.Add(S) +2;
   end;
 end;
 
@@ -778,14 +887,19 @@ end;
 }
 procedure TZMySQLConnection.SetAutoCommit(Value: Boolean);
 begin
-  if GetAutoCommit <> Value then begin
-    inherited SetAutoCommit(Value);
-    if not Closed then begin
-      if FPlainDriver.mysql_autocommit(FHandle, Ord(Value)) <> 0 then
-        CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, 'Native SetAutoCommit '+BoolToRawEx(AutoCommit)+'call', Self);
+  if Value <> AutoCommit then begin
+    FRestartTransaction := AutoCommit;
+    if Closed
+    then AutoCommit := Value
+    else if Value then begin
+      FSavePoints.Clear;
+      if FPlainDriver.mysql_autocommit(FHandle, 1) <> 0 then
+        CheckMySQLError(FPlainDriver, FHandle, nil, lcExecute, MySQLCommitMsg[True], Self);
       if DriverManager.HasLoggingListener then
-        DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, 'Native SetAutoCommit '+BoolToRawEx(AutoCommit)+'call');
-    end;
+        DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, MySQLCommitMsg[True]);
+      AutoCommit := True;
+    end else
+      StartTransaction;
   end;
 end;
 

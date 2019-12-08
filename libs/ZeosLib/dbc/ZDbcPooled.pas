@@ -146,10 +146,12 @@ type
     function GetAutoCommit: Boolean;
     procedure Commit;
     procedure Rollback;
+    function StartTransaction: Integer;
     procedure PrepareTransaction(const transactionid: string);
     procedure CommitPrepared(const transactionid: string);
     procedure RollbackPrepared(const transactionid: string);
     function PingServer: Integer;
+    function AbortOperation: Integer;
     function EscapeString(const Value : RawByteString) : RawByteString;
     procedure Open;
     procedure Close;
@@ -480,6 +482,11 @@ begin
   FUseMetadata := Value;
 end;
 
+function TZDbcPooledConnection.StartTransaction: Integer;
+begin
+  Result := GetConnection.StartTransaction;
+end;
+
 {**
   get current connection URL from TZURL. Nice to clone the connection by using
   the IZDriverManager
@@ -679,6 +686,14 @@ end;
 procedure TZDbcPooledConnection.SetTransactionIsolation(Value: TZTransactIsolationLevel);
 begin
   GetConnection.SetTransactionIsolation(Value);
+end;
+
+{**
+  Attempts to kill a long-running operation on the database server
+  side
+}function TZDbcPooledConnection.AbortOperation: Integer;
+begin
+  Result := GetConnection.AbortOperation;
 end;
 
 {**

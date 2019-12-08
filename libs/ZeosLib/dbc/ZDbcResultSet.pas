@@ -92,7 +92,6 @@ type
     FUniTemp: ZWideString;
     LastWasNull: Boolean;
 
-    procedure RaiseUnsupportedException;
     procedure RaiseForwardOnlyException;
     procedure RaiseReadOnlyException;
     procedure CheckClosed;
@@ -149,11 +148,8 @@ type
     function GetValue(ColumnIndex: Integer): TZVariant;
     function GetDefaultExpression(ColumnIndex: Integer): String; virtual;
     function GetTime(ColumnIndex: Integer): TDateTime; overload;
-    procedure GetTime(ColumnIndex: Integer; Var Result: TZTime); overload;
     function GetDate(ColumnIndex: Integer): TDateTime; overload;
-    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); overload;
     function GetTimestamp(ColumnIndex: Integer): TDateTime; overload;
-    procedure GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp); overload;
 
     //======================================================================
     // Methods for accessing results by column name
@@ -794,14 +790,6 @@ begin
 end;
 
 {**
-  Raises unsupported operation exception.
-}
-procedure TZAbstractResultSet.RaiseUnsupportedException;
-begin
-  raise EZSQLException.Create(SUnsupportedOperation);
-end;
-
-{**
   Raises operation is not allowed in FORWARD ONLY mode exception.
 }
 procedure TZAbstractResultSet.RaiseForwardOnlyException;
@@ -1280,8 +1268,18 @@ begin
                     InitializeVariant(Result, vtBigDecimal);
                     IZResultSet(FWeakIntfPtrOfSelf).GetBigDecimal(ColumnIndex, Result.VBigDecimal);
                   end;
-    stDate, stTime, stTimestamp:
-      Result := EncodeDateTime(IZResultSet(FWeakIntfPtrOfSelf).GetTimestamp(ColumnIndex));
+    stDate:   begin
+                InitializeVariant(Result, vtDate);
+                IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex, Result.VDate);
+              end;
+    stTime:   begin
+                InitializeVariant(Result, vtTime);
+                IZResultSet(FWeakIntfPtrOfSelf).GetTime(ColumnIndex, Result.VTime);
+              end;
+    stTimestamp:begin
+                InitializeVariant(Result, vtTimeStamp);
+                IZResultSet(FWeakIntfPtrOfSelf).GetTimeStamp(ColumnIndex, Result.VTimeStamp);
+              end;
     stGUID: begin
               InitializeVariant(Result, vtGUID);
               IZResultSet(FWeakIntfPtrOfSelf).GetGUID(ColumnIndex, Result.VGUID);
@@ -1699,22 +1697,11 @@ end;
 function TZAbstractResultSet.GetDate(ColumnIndex: Integer): TDateTime;
 var D: TZDate;
 begin
-  IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex, D);
+  IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex, D{%H-});
   if not LastWasNull then
-    LastWasNull := not TryDateToDateTime(D, Result);
+    LastWasNull := not TryDateToDateTime(D, Result{%H-});
   if LastWasNull then
     Result := 0;
-end;
-
-procedure TZAbstractResultSet.GetDate(ColumnIndex: Integer; var Result: TZDate);
-var DT: TDateTime;
-begin
-  DT := IZResultSet(FWeakIntfPtrOfSelf).GetDate(ColumnIndex);
-  if not LastWasNull
-  then  DecodeDateTimeToDate(DT, Result)
-  else if SizeOf(TZDate) = SizeOf(Int64)
-    then PInt64(@Result.Year)^ := 0
-    else FillChar(Result, SizeOf(TZDate), #0);
 end;
 
 {**
@@ -1755,6 +1742,11 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>,
     the value returned is <code>null</code>
 }
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
 function TZAbstractResultSet.GetTime(ColumnIndex: Integer): TDateTime;
 var T: TZTime;
 begin
@@ -1764,24 +1756,7 @@ begin
   if LastWasNull then
     Result := 0;
 end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>java.sql.Time</code> object in the Java programming language.
-
-  @param columnName the SQL name of the column
-  @return the column value; if the value is SQL <code>NULL</code>,
-    the value returned is <code>null</code>
-}
-procedure TZAbstractResultSet.GetTime(ColumnIndex: Integer; var Result: TZTime);
-var T: TDateTime;
-begin
-  T := IZResultSet(FWeakIntfPtrOfSelf).GetTime(columnIndex);
-  if not LastWasNull
-  then DecodeDateTimeToTime(T, Result)
-  else FillChar(Result, SizeOf(TZTime), #0);
-end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets the value of the designated column in the current row
@@ -1812,6 +1787,11 @@ begin
   Result := IZResultSet(FWeakIntfPtrOfSelf).GetTime(GetColumnIndex(ColumnName));
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
 function TZAbstractResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
 var TS: TZTimeStamp;
 begin
@@ -1821,16 +1801,7 @@ begin
   if LastWasNull then
     Result := 0;
 end;
-
-procedure TZAbstractResultSet.GetTimestamp(ColumnIndex: Integer;
-  var Result: TZTimeStamp);
-var Dt: TDateTime;
-begin
-  DT := IZResultSet(FWeakIntfPtrOfSelf).GetTimeStamp(ColumnIndex);
-  if not LastWasNull
-  then DecodeDateTimeToTimeStamp(DT, Result)
-  else FillChar(Result, SizeOf(TZTimeStamp), #0);
-end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets the value of the designated column in the current row
@@ -2319,7 +2290,7 @@ end;
 procedure TZAbstractResultSet.SetFetchDirection(Direction: TZFetchDirection);
 begin
   if Direction <> fdForward then
-    RaiseUnsupportedException;
+    Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -2527,6 +2498,9 @@ begin
               IZResultSet(FWeakIntfPtrOfSelf).UpdatePAnsiChar(ColumnIndex, Pointer(Value.VRawByteString), Len);
             end;
     vtDateTime: IZResultSet(FWeakIntfPtrOfSelf).UpdateTimestamp(ColumnIndex, Value.VDateTime);
+    vtDate: IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(ColumnIndex, Value.VDate);
+    vtTime: IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(ColumnIndex, Value.VTime);
+    vtTimeStamp: IZResultSet(FWeakIntfPtrOfSelf).UpdateTimeStamp(ColumnIndex, Value.VTimeStamp);
     vtUnicodeString: IZResultSet(FWeakIntfPtrOfSelf).UpdateUnicodeString(ColumnIndex, Value.VUnicodeString);
     vtInterface: begin
       if (Value.vInterface <> nil) and Supports(Value.vInterface, IZBLob, Lob)
@@ -2976,6 +2950,10 @@ begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(GetColumnIndex(ColumnName), Value);
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+{$ENDIF}
 procedure TZAbstractResultSet.UpdateDate(ColumnIndex: Integer;
   const Value: TDateTime);
 var D: TZDate;
@@ -2983,6 +2961,7 @@ begin
   DecodeDateTimeToDate(Value, D);
   IZResultSet(FWeakIntfPtrOfSelf).UpdateDate(ColumnIndex, D);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Updates the designated column with a <code>java.sql.Date</code> value.
@@ -3016,6 +2995,11 @@ begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(GetColumnIndex(ColumnName), Value);
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
 procedure TZAbstractResultSet.UpdateTime(ColumnIndex: Integer;
   const Value: TDateTime);
 var T: TZTime;
@@ -3023,6 +3007,7 @@ begin
   DecodeDateTimeToTime(Value, T);
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(ColumnIndex, T);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Updates the designated column with a <code>java.sql.Time</code> value.
@@ -3040,6 +3025,11 @@ begin
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTime(GetColumnIndex(ColumnName), Value);
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5057 off : Local variable "$1" does not seem to be initialized}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+{$ENDIF}
 procedure TZAbstractResultSet.UpdateTimeStamp(ColumnIndex: Integer;
   const Value: TDateTime);
 var TS: TZTimeStamp;
@@ -3047,6 +3037,7 @@ begin
   DecodeDateTimeToTimeStamp(Value, TS);
   IZResultSet(FWeakIntfPtrOfSelf).UpdateTimeStamp(ColumnIndex, TS);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Updates the designated column with a <code>java.sql.Timestamp</code>
@@ -3199,7 +3190,7 @@ end;
 }
 procedure TZAbstractResultSet.RefreshRow;
 begin
-  RaiseUnsupportedException;
+  Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 procedure TZAbstractResultSet.ReleaseImmediat(const Sender: IImmediatelyReleasable;

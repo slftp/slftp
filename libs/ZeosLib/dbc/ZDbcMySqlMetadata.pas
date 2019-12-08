@@ -60,7 +60,7 @@ interface
 uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZClasses, ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZCompatibility,
-  ZURL, ZDbcConnection;
+  ZURL, ZDbcConnection, ZPlainMySqlConstants;
 
 type
 
@@ -70,6 +70,8 @@ type
   private
     fClientVersion: Integer;
     fIsMariaDB: Boolean;
+    fMySQLFork: TMySQLFork;
+    FServerVersion: String;
   protected
     procedure GetVersion(out MajorVersion, MinorVersion: integer);
   public
@@ -318,8 +320,24 @@ end;
   @return database product name
 }
 function TZMySQLDatabaseInfo.GetDatabaseProductName: string;
+  procedure GetFork;
+  var S, F: String;
+    Fork: TMySQLFork;
+  begin
+    S := GetDatabaseProductVersion;
+    S := LowerCase(S);
+    for Fork := fMySQL to high(TMySQLFork) do begin
+      F := LowerCase(MySQLForkName[Fork]);
+      if ZFastCode.Pos(F, S) > 0 then begin
+        fMySQLFork := Fork;
+        Break;
+      end;
+    end;
+  end;
 begin
-  Result := 'MySQL';
+  if fMySQLFork = fUnknown then
+    GetFork;
+  Result := MySQLForkName[fMySQLFork];
 end;
 
 {**
@@ -328,7 +346,23 @@ end;
 }
 function TZMySQLDatabaseInfo.GetDatabaseProductVersion: string;
 begin
-  Result := '3+';
+  if FServerVersion = '' then begin
+    with Metadata.GetConnection.CreateStatement.ExecuteQuery('show variables like ''version''') do try
+      if Next
+      then FServerVersion := GetString(FirstDBCIndex + 1)
+      else FServerVersion := 'unknown';
+    finally
+      Close;
+    end;
+    FServerVersion := FServerVersion+' ';
+    with Metadata.GetConnection.CreateStatement.ExecuteQuery('show variables like ''version_comment''') do try
+      if Next
+      then FServerVersion := FServerVersion+GetString(FirstDBCIndex + 1);
+    finally
+      Close;
+    end;
+  end;
+  Result := FServerVersion;
 end;
 
 {**
@@ -1253,7 +1287,7 @@ var
 
   TableNameList: TStrings;
   TableNameLength: Integer;
-  ColumnIndexes : Array[1..6] of integer;
+  ColumnIndexes : Array[1..7] of integer;
 begin
   Result := inherited UncachedGetColumns(Catalog, SchemaPattern,
     TableNamePattern, ColumnNamePattern);
@@ -1290,6 +1324,7 @@ begin
         ColumnIndexes[4] := FindColumn('Extra');
         ColumnIndexes[5] := FindColumn('Default');
         ColumnIndexes[6] := FindColumn('Collation');
+        ColumnIndexes[7] := FindColumn('Comment');
         while Next do
         begin
           {initialise some variables}
@@ -1328,7 +1363,7 @@ begin
             Result.UpdateInt(TableColColumnNullableIndex, 0);
             Result.UpdateRawByteString(TableColColumnIsNullableIndex, 'NO');
           end;
-          Result.UpdatePAnsiChar(TableColColumnRemarksIndex, GetPAnsiChar(ColumnIndexes[4], Len), Len);
+          Result.UpdatePAnsiChar(TableColColumnRemarksIndex, GetPAnsiChar(ColumnIndexes[7], Len), Len);
           // MySQL is a bit bizarre.
           if IsNull(ColumnIndexes[5]) then
           begin
@@ -3139,37 +3174,14 @@ end;
   queried with the methods isMariaDB and isMySQL.
 }
 procedure TZMySQLDatabaseMetadata.detectServerType;
-var
-  VersionString: String;
+var VersionString: String;
 begin
   if not FKnowServerType then begin
-    VersionString := '';
     FKnowServerType := true;
-    with GetConnection.CreateStatement.ExecuteQuery('show variables like ''version''') do begin
-      try
-        if Next
-        then VersionString := GetString(FirstDBCIndex + 1);
-      finally
-        Close;
-      end;
-    end;
+    VersionString := GetDatabaseInfo.GetDatabaseProductName;
     VersionString := LowerCase(VersionString);
     FIsMariaDB := ZFastCode.Pos('mariadb', VersionString) > 0;
     FIsMySQL := ZFastCode.Pos('mysql', VersionString) > 0;
-
-    if not FIsMariaDB and not FIsMySQL then begin
-      with GetConnection.CreateStatement.ExecuteQuery('show variables like ''version_comment''') do begin
-        try
-          if Next
-          then VersionString := GetString(FirstDBCIndex + 1);
-        finally
-          Close;
-        end;
-      end;
-      VersionString := LowerCase(VersionString);
-      FIsMariaDB := ZFastCode.Pos('mariadb', VersionString) > 0;
-      FIsMySQL := ZFastCode.Pos('mysql', VersionString) > 0;
-    end;
   end;
 end;
 
