@@ -28,3 +28,5 @@ find * -iname "*.psd*" -type f -delete
 find * -iname "*.dcr*" -type f -delete
 find * -iname "*.xpm*" -type f -delete
 find * -iname "*.lpk*" -type f -delete
+find * -iname "*.fpc" -type f -delete
+find * -iname "*.resx" -type f -delete

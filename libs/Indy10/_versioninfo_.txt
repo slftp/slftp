@@ -1,1 +1,2 @@
-r5499 | Indy-RemyLebeau | 2019-05-08 20:57:34 +0200 (Wed, 08 May 2019) | 1 line
+39b514b661494cfdfbfc264ba6f719f05fce1698
+Fix for THANDLE_32 define on OSX for FreePascal.

@@ -809,6 +809,8 @@ my $default_depflags = " -DOPENSSL_NO_CAMELLIA -DOPENSSL_NO_CAPIENG -DOPENSSL_NO
 (*$HPPEMIT '	struct X509_NAME;'*)
 (*$HPPEMIT '	typedef X509_NAME* PX509_NAME;'*)
 (*$HPPEMIT '}'*)
+// RLebeau: why are the following types not being placed in
+// the Idsslopensslheaders namespace with the types above?
 (*$HPPEMIT 'struct RSA;'*)
 (*$HPPEMIT 'typedef RSA* PRSA;'*)
 (*$HPPEMIT 'struct DSA;'*)
@@ -18210,9 +18212,11 @@ function Load: Boolean;
 procedure Unload;
 {$IFNDEF STATICLOAD_OPENSSL}
 function WhichFailedToLoad: String;
+function GetSSLLibHandle : TIdLibHandle;
 function GetCryptLibHandle : TIdLibHandle;
 procedure IdOpenSSLSetLibPath(const APath: String);
   {$IFDEF UNIX}
+procedure IdOpenSSLSetCanLoadSymLinks(ACanLoad: Boolean);
 procedure IdOpenSSLSetLoadSymLinksFirst(ALoadFirst: Boolean);
   {$ENDIF}
 {$ENDIF}
@@ -18907,6 +18911,7 @@ function IsOpenSSL_TLSv1_1_Available : Boolean;
 function IsOpenSSL_TLSv1_2_Available : Boolean;
 function IsOpenSSL_DTLSv1_Available : Boolean;
 
+// RLebeau: should these be declared as EXTERNALSYM?
 procedure RAND_cleanup;
 function RAND_bytes(buf : PIdAnsiChar; num : integer) : integer;
 function RAND_pseudo_bytes(buf : PIdAnsiChar; num : integer) : integer;
@@ -19518,6 +19523,8 @@ begin
       {Note that if LErrQueue returns 0 and ARetCode = -1, there probably
       is an error in the underlying socket so you should raise a socket error}
       if ARetCode = -1 then begin
+        // TODO: catch the socket exception and re-raise it as the InnerException
+        // for an EIdOpenSSLAPISSLError exception...
         GStack.RaiseLastSocketError;
       end;
     end;
@@ -19593,6 +19600,11 @@ var
   {$ENDIF}
 
 {$IFNDEF STATICLOAD_OPENSSL}
+function GetSSLLibHandle : TIdLibHandle;
+begin
+  Result := hIdSSL;
+end;
+
 function GetCryptLibHandle : TIdLibHandle;
 begin
   Result := hIdCrypto;
@@ -22633,7 +22645,13 @@ end;
 
   {$IFDEF UNIX}
 var
+  GIdCanLoadSymLinks: Boolean = True;
   GIdLoadSymLinksFirst: Boolean = True;
+
+procedure IdOpenSSLSetCanLoadSymLinks(ACanLoad: Boolean);
+begin
+  GIdCanLoadSymLinks := ACanLoad;
+end;
 
 procedure IdOpenSSLSetLoadSymLinksFirst(ALoadFirst: Boolean);
 begin
@@ -22647,6 +22665,7 @@ function LoadSSLCryptoLibrary: TIdLibHandle;
 var
   i, j: Integer;
   LLibVersions: array [0..26] of string;
+  LCanLoadSymLinks, LLoadSymLinksFirst: Boolean;
   {$ENDIF}
 {$ENDIF}
 begin
@@ -22658,21 +22677,24 @@ begin
     {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
   // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
   Result := IdNilHandle;
-  if GIdLoadSymLinksFirst then begin
+  LCanLoadSymLinks := GIdCanLoadSymLinks;
+  LLoadSymLinksFirst := GIdLoadSymLinksFirst;
+  if LCanLoadSymLinks and LLoadSymLinksFirst then begin
     Result := HackLoad(GIdOpenSSLPath + SSLCLIB_DLL_name, []);
-  end;
-  if Result = IdNilHandle then begin
-    for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
-      for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
-        LLibVersions[j] := SSLDLLVers[i] + SSLDLLVersChar[j];
-      end;
-      Result := HackLoad(GIdOpenSSLPath + SSLCLIB_DLL_name, LLibVersions);
-      if Result <> IdNilHandle then begin
-        Break;
-      end;
+    if Result <> IdNilHandle then begin
+      Exit;
     end;
   end;
-  if (Result = IdNilHandle) and (not GIdLoadSymLinksFirst) then begin
+  for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
+    for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
+      LLibVersions[j] := SSLDLLVers[i] + SSLDLLVersChar[j];
+    end;
+    Result := HackLoad(GIdOpenSSLPath + SSLCLIB_DLL_name, LLibVersions);
+    if Result <> IdNilHandle then begin
+      Exit;
+    end;
+  end;
+  if LCanLoadSymLinks and (not LLoadSymLinksFirst) then begin
     Result := HackLoad(GIdOpenSSLPath + SSLCLIB_DLL_name, []);
   end;
     {$ELSE}
@@ -22687,6 +22709,7 @@ function LoadSSLLibrary: TIdLibHandle;
 var
   i, j: Integer;
   LLibVersions: array [0..26] of string;
+  LCanLoadSymLinks, LLoadSymLinksFirst: Boolean;
   {$ENDIF}
 {$ENDIF}
 begin
@@ -22703,21 +22726,24 @@ begin
     {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
   // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
   Result := IdNilHandle;
-  if GIdLoadSymLinksFirst then begin
+  LCanLoadSymLinks := GIdCanLoadSymLinks;
+  LLoadSymLinksFirst := GIdLoadSymLinksFirst;
+  if LCanLoadSymLinks and LLoadSymLinksFirst then begin
     Result := HackLoad(GIdOpenSSLPath + SSL_DLL_name, []);
-  end;
-  if Result = IdNilHandle then begin
-    for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
-      for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
-        LLibVersions[j] := SSLDLLVers[i] + SSLDLLVersChar[j];
-      end;
-      Result := HackLoad(GIdOpenSSLPath + SSL_DLL_name, LLibVersions);
-      if Result <> IdNilHandle then begin
-        Break;
-      end;
+    if Result <> IdNilHandle then begin
+      Exit;
     end;
   end;
-  if (Result = IdNilHandle) and (not GIdLoadSymLinksFirst) then begin
+  for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
+    for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
+      LLibVersions[j] := SSLDLLVers[i] + SSLDLLVersChar[j];
+    end;
+    Result := HackLoad(GIdOpenSSLPath + SSL_DLL_name, LLibVersions);
+    if Result <> IdNilHandle then begin
+      Exit;
+    end;
+  end;
+  if LCanLoadSymLinks and (not LLoadSymLinksFirst) then begin
     Result := HackLoad(GIdOpenSSLPath + SSL_DLL_name, []);
   end;
     {$ELSE}
@@ -24568,6 +24594,7 @@ end;
 function X509_STORE_CTX_get_app_data(ctx: PX509_STORE_CTX):Pointer;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
 begin
+  // TODO: use SSL_get_ex_data_X509_STORE_CTX_idx() instead of 0 to get the true index of the SSL pointer
   Result := X509_STORE_CTX_get_ex_data(ctx, 0);
 end;
 
