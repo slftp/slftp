@@ -487,10 +487,15 @@ begin
     begin
       fStrHelper := String(js.Field['rating'].Field['average'].Value);
       fStrHelper := fStrHelper.Replace('.', '').Replace(',', '');
-      tvr.tv_rating := StrToIntDef(fStrHelper, -1);
+      tvr.tv_rating := StrToIntDef(fStrHelper, 0);
+      if (tvr.tv_rating <= 10) then
+      begin
+        // a rating of 6.0 is shown as 6
+        tvr.tv_rating := tvr.tv_rating * 10;
+      end;
     end
     else
-      tvr.tv_rating := -1;
+      tvr.tv_rating := 0;
 
     tvr.last_updated := DateTimeToUnix(now());
     Result := tvr;

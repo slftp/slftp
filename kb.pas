@@ -221,7 +221,7 @@ type
     tvrageid: String;
     tvtag: String;
     tvlanguage: String;
-    tvrating: integer;
+    tvrating: integer; //< tv rating value (max score is 100, min score is 0)
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
@@ -1947,8 +1947,7 @@ begin
     Result := Result + Format('Running: %s', [BoolToStr(running, True)]) + #13#10;
     if status <> '' then
       Result := Result + Format('Status: %s', [status]) + #13#10;
-    if tvrating > -1 then
-      Result := Result + Format('Rating: %d', [tvrating]) + #13#10;
+    Result := Result + Format('Rating: %d', [tvrating]) + #13#10;
     Result := Result + Format('Current Season: %s', [BoolToStr(currentseason, True)]) + #13#10;
     Result := Result + Format('Current Episode: %s', [BoolToStr(currentepisode, True)]) + #13#10;
     Result := Result + Format('Current on Air: %s', [BoolToStr(currentair, True)]) + #13#10;
