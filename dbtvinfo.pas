@@ -30,7 +30,7 @@ type
     tv_next_season: integer;
     tv_next_ep: integer;
     tv_next_date: integer;
-    tv_rating: integer;
+    tv_rating: integer; //< tv rating value (max score is 100, min score is 0)
     last_updated: integer;
     tv_daily: boolean;
     constructor Create(const rls_showname: String); //overload;
@@ -551,7 +551,7 @@ begin
   self.tv_days := TStringList.Create;
   self.tv_days.QuoteChar := '"';
   self.tv_endedyear := -1;
-  self.tv_rating := -1;
+  self.tv_rating := 0;
   self.last_updated:= 3817;
 end;
 
@@ -594,11 +594,7 @@ begin
         toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
 
       toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
-      if (tv_rating > 0) then
-        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s - <b>Rating</b> %d/100', [tv_country, tv_network, tv_language, tv_rating]))
-      else
-        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s', [tv_country, tv_network, tv_language]));
-
+      toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s - <b>Rating</b> %d/100', [tv_country, tv_network, tv_language, tv_rating]));
       toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Last update</b> %s', [DateTimeToStr(UnixToDateTime(last_updated))]));
     end
     else
@@ -995,7 +991,7 @@ begin
           tvi.tv_next_season := StrToIntDef(fQuery.FieldByName('next_season').AsString, -1);
           tvi.tv_next_ep := StrToIntDef(fQuery.FieldByName('next_episode').AsString, -1);
           tvi.tv_days.CommaText := fQuery.FieldByName('airdays').AsString;
-          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, -1);
+          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, 0);
           tvi.tv_language:= fQuery.FieldByName('tv_language').AsString;
 
           tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
@@ -1077,7 +1073,7 @@ begin
           tvi.tv_next_season := StrToIntDef(fQuery.FieldByName('next_season').AsString, 0); // why 0, -1 in getTVInfoByShowName?
           tvi.tv_next_ep := StrToIntDef(fQuery.FieldByName('next_episode').AsString, 0); // why 0, -1 in getTVInfoByShowName?
           tvi.tv_days.CommaText := fQuery.FieldByName('airdays').AsString;
-          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, 0); // why 0, -1 in getTVInfoByShowName?
+          tvi.tv_rating := StrToIntDef(fQuery.FieldByName('rating').AsString, 0);
           tvi.tv_language:= fQuery.FieldByName('tv_language').AsString;
 
           tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
