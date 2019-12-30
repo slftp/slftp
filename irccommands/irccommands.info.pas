@@ -191,13 +191,15 @@ begin
     exit;
   end;
 
-  if affils <> '' then
+  if Pos(',', affils) <> 0 then
   begin
-    s.siteAffils := affils;
+    irc_addtext(Netname, Channel, '<b><c4>ERROR</c></b>: Only whitespace allowed as delimiter.');
+    exit;
   end;
 
-  ss := s.SiteAffils;
+  s.siteAffils := affils;
 
+  ss := s.SiteAffils;
   if ss <> '' then
     IrcLineBreak(Netname, Channel, ss, ' ', Format('<b>%s</b>@%s : ', ['', sitename]), 12)
   else
