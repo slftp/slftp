@@ -3,23 +3,20 @@ unit irc;
 interface
 
 uses
-  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp;
+  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp, Generics.Collections;
 
 type
   { @abstract(IRC message which still need to be send to an IRC network-channel) }
   TIrcEchoItem = class
   private
-    FNetname: String; //< netname of IRC network
     FChannel: String; //< IRC channelname
     FMessage: String; //< message to output
   public
     { Creates a new TIrcEchoItem object
-      @param(aNetname irc network name)
       @param(aChannel Channelname)
       @param(aMessage message text) }
-    constructor Create(const aNetname, aChannel, aMessage: String);
+    constructor Create(const aChannel, aMessage: String);
 
-    property Netname: String read FNetname;
     property Channel: String read FChannel;
     property Message: String read FMessage;
   end;
@@ -33,6 +30,7 @@ type
   private
 
     irc_lock: TCriticalSection;
+    pending_messages_queue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
 
     irc_last_read: TDateTime;
     registered: Boolean;
@@ -199,13 +197,10 @@ implementation
 uses
   StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
-  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse, Generics.Collections;
+  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse;
 
 const
   section = 'irc';
-
-var
-  irc_echo_queue: TThreadList<TIrcEchoItem>; //< Queue of items which still need to be send to IRC
 
 function mynickname: String;
 begin
@@ -240,7 +235,7 @@ end;
 
 procedure irc_Addtext_b(const netname, channel, msg: String); overload;
 var
-  direct_echo: TMyIrcThread;
+  fIrcNetThread: TMyIrcThread;
   msgs: TStringList;
   i: Integer;
 begin
@@ -267,21 +262,16 @@ begin
   try
     msgs.Text := WrapText(msg, 250);
     try
+      fIrcNetThread := FindIrcnetwork(netname);
       if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        direct_echo := FindIrcnetwork(netname);
-        if (direct_echo <> nil) then
-        begin
-          for i := 0 to msgs.Count - 1 do
-            direct_echo.IrcSendPrivMessage(channel, msgs.Strings[i]);
-        end;
+        for i := 0 to msgs.Count - 1 do
+          fIrcNetThread.IrcSendPrivMessage(channel, msgs.Strings[i]);
       end
       else
       begin
-          for i := 0 to msgs.Count - 1 do
-          begin
-            irc_echo_queue.Add(TIrcEchoItem.Create(netname, channel, msgs.Strings[i]));
-          end;
+        for i := 0 to msgs.Count - 1 do
+          fIrcNetThread.pending_messages_queue.Add(TIrcEchoItem.Create(channel, msgs.Strings[i]));
       end;
     except
       on e: Exception do
@@ -565,11 +555,10 @@ end;
 
 { TIrcEchoItem }
 
-constructor TIrcEchoItem.Create(const aNetname, aChannel, aMessage: String);
+constructor TIrcEchoItem.Create(const aChannel, aMessage: String);
 begin
   inherited Create;
 
-  FNetname := aNetname;
   FChannel := aChannel;
   FMessage := aMessage;
 end;
@@ -591,6 +580,10 @@ begin
   irc_lock := TCriticalSection.Create;
   channels := TStringList.Create;
 
+  pending_messages_queue := TThreadList<TIrcEchoItem>.Create;
+  // a message might be repeated several times so accept dupes to always write everything
+  pending_messages_queue.Duplicates := dupAccept;
+
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
@@ -611,6 +604,8 @@ end;
 destructor TMyIrcThread.Destroy;
 begin
   irc_lock.Free;
+
+  pending_messages_queue.Free;
 
   status := 'destroying...';
   console_delwindow(netname);
@@ -1517,7 +1512,7 @@ end;
 function TMyIrcThread.IrcProcess: Boolean;
 var
   s, osszes: String;
-  fEchoQueue: TList<TIrcEchoItem>;
+  fEchoQueueList: TList<TIrcEchoItem>;
   fEchoItem: TIrcEchoItem;
 begin
   Result := False;
@@ -1547,20 +1542,16 @@ begin
 
     if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
-      fEchoQueue := irc_echo_queue.LockList;
+      fEchoQueueList := pending_messages_queue.LockList;
       try
-        for fEchoItem in fEchoQueue do
+        fEchoItem := fEchoQueueList.Extract(fEchoQueueList.First);
+        if (fEchoItem <> nil) then
         begin
-          if (fEchoItem.Netname = netname) then
-          begin
-            IrcSendPrivMessage(fEchoItem.Channel, fEchoItem.Message);
-            fEchoQueue.Remove(fEchoItem);
-            fEchoItem.Free;
-            Break;
-          end;
+          IrcSendPrivMessage(fEchoItem.Channel, fEchoItem.Message);
+          fEchoItem.Free;
         end;
       finally
-        irc_echo_queue.UnlockList;
+        pending_messages_queue.UnlockList;
       end;
     end;
 
@@ -1790,9 +1781,6 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
-  irc_echo_queue := TThreadList<TIrcEchoItem>.Create;
-  // a message might be repeated several times so accept dupes to always write everything
-  irc_echo_queue.Duplicates := dupAccept;
   irc_message_lock:= TCriticalSection.Create;
 end;
 
@@ -1804,7 +1792,6 @@ begin
     myIrcThreads.Free;
     myIrcThreads := nil;
   end;
-  irc_echo_queue.Free;
   irc_message_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
