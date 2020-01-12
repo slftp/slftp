@@ -1544,9 +1544,9 @@ begin
     begin
       fEchoQueueList := pending_messages_queue.LockList;
       try
-        fEchoItem := fEchoQueueList.Extract(fEchoQueueList.First);
-        if (fEchoItem <> nil) then
+        if fEchoQueueList.Count > 0 then
         begin
+          fEchoItem := fEchoQueueList.Extract(fEchoQueueList.First);
           IrcSendPrivMessage(fEchoItem.Channel, fEchoItem.Message);
           fEchoItem.Free;
         end;
