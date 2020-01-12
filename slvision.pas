@@ -2972,6 +2972,10 @@ begin
     begin
       if v_queue[i].ClassName = ClassName then
       begin
+        // TODO: check which call is better
+        // might depend what self.ClassName contains, assume it is TslRemoveEarlierTask
+        //TslRemoveEarlierTask(v_queue[i]).Free;
+        v_queue[i].Free;
         v_queue.Delete(i);
         exit;
       end;
