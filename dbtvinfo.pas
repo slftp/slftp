@@ -115,9 +115,9 @@ var
 begin
   // this is a protection!!!! Dispatches will not end up in Disp@ches
   fHelper := ReplaceText(aName, ' ', '.');
-  fHelper := ReplaceText(fHelper, '.and.', '.&.');
+  fHelper := ReplaceText(fHelper, '.and.', '.%26.');
   fHelper := ReplaceText(fHelper, '.at.', '.@.');
-  fHelper := ReplaceText(fHelper, '_and_', '_&_');
+  fHelper := ReplaceText(fHelper, '_and_', '_%26_');
   fHelper := ReplaceText(fHelper, '_at_', '_@_');
   fHelper := ReplaceText(fHelper, '', Chr(39));
 
