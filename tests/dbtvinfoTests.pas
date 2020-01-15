@@ -121,12 +121,12 @@ var
 begin
   fInputStr := 'Alvin and the Chipmunks';
   
-  fExpectedResultStr := 'Alvin.&.the.Chipmunks';
+  fExpectedResultStr := 'Alvin.%26.the.Chipmunks';
   fOutputStr := replaceTVShowChars(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
   fOutputStr := replaceTVShowChars(fInputStr, True);
-  fExpectedResultStr := 'Alvin+&+the+Chipmunks';
+  fExpectedResultStr := 'Alvin+%26+the+Chipmunks';
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
