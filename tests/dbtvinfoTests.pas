@@ -91,11 +91,11 @@ var
 begin
   fInputStr := 'Double Shot at Love';
   
-  fExpectedResultStr := 'Double.Shot.@.Love';
+  fExpectedResultStr := 'Double.Shot.at.Love';
   fOutputStr := replaceTVShowChars(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
-  fExpectedResultStr := 'Double+Shot+@+Love';
+  fExpectedResultStr := 'Double+Shot+at+Love';
   fOutputStr := replaceTVShowChars(fInputStr, True);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
@@ -121,12 +121,12 @@ var
 begin
   fInputStr := 'Alvin and the Chipmunks';
   
-  fExpectedResultStr := 'Alvin.&.the.Chipmunks';
+  fExpectedResultStr := 'Alvin.%26.the.Chipmunks';
   fOutputStr := replaceTVShowChars(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
   fOutputStr := replaceTVShowChars(fInputStr, True);
-  fExpectedResultStr := 'Alvin+&+the+Chipmunks';
+  fExpectedResultStr := 'Alvin+%26+the+Chipmunks';
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
