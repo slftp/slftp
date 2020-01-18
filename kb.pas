@@ -2785,6 +2785,24 @@ var
   site_allocation: TObjectDictionary<String, TStringList>;
   ssites_info, dsites_info: TStringList;
   d: TDirlist;
+
+  { Verify that the directory is still there
+    @returns(@true if directory is still there, @false otherwise) }
+  function IsDirStillAccessible: boolean;
+  begin
+    Result := True;
+    d := DirlistB('', '', ss.Name, MyIncludeTrailingSlash(ps.maindir) + MyIncludeTrailingSlash(ps.pazo.rls.rlsname));
+    try
+      if (d = nil) then
+      begin
+        Debug(dpSpam, rsections, 'AddCompleteTransfers %s unable to do dirlist or directory is no longer there', [ps.Name]);
+        Result := False;
+      end;
+    finally
+      d.Free;
+    end;
+  end;
+
 begin
   Result := False;
   p := TPazo(pazo);
@@ -2826,20 +2844,11 @@ begin
         Continue;
       end;
 
-      // make sure the directory is still there e.g. to avoid backfill if dest site
-      d := DirlistB('', '', ss.Name, MyIncludeTrailingSlash(ps.maindir) + MyIncludeTrailingSlash(ps.pazo.rls.rlsname));
-      try
-        if (d = nil) then
-        begin
-          Debug(dpSpam, rsections, 'AddCompleteTransfers %s unable to do dirlist or directory is no longer there', [ps.Name]);
-          Continue;
-        end;
-      finally
-        d.Free;
-      end;
-
       if ps.Complete then
       begin
+        if not IsDirStillAccessible then
+          Continue;
+
         sources.Add(ps);
         Debug(dpSpam, rsections, 'AddCompleteTransfers taking %s as source', [ps.Name]);
       end
@@ -2850,6 +2859,9 @@ begin
           Debug(dpSpam, rsections, 'AddCompleteTransfers %s not rssAllowed', [ps.Name]);
           Continue;
         end;
+
+        if not IsDirStillAccessible then
+          Continue;
 
         destinations.Add(ps);
         Debug(dpSpam, rsections, 'AddCompleteTransfers taking %s as destination', [ps.Name]);
