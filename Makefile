@@ -74,20 +74,9 @@ test:
 	@make cleanuptestdir
 
 clean:
-	@rm -f irccommands/*.ppu irccommands/*.o
-	@rm -f rules/*.ppu rules/*.o
-	@rm -f libs/FastMM4/*.ppu libs/FastMM4/*.o
-	@rm -f libs/BeRoHighResolutionTimer/*.ppu libs/BeRoHighResolutionTimer/*.o
-	@rm -f libs/FLRE/*.ppu libs/FLRE/*.o
-	@rm -f libs/rcmdline/*.ppu libs/rcmdline/*.o
-	@rm -f libs/lkJSON/*.ppu libs/lkJSON/*.o
-	@rm -f libs/TRegExpr/*.ppu libs/TRegExpr/*.o
-	@rm -f libs/pasmp/*.ppu libs/pasmp/*.o
-	@rm -f libs/Indy10/Core/*.ppu libs/Indy10/Core/*.o libs/Indy10/Protocols/*.ppu libs/Indy10/Protocols/*.o libs/Indy10/System/*.ppu libs/Indy10/System/*.o
-	@rm -f libs/LibTar/*.ppu libs/LibTar/*.o
-	@rm -f libs/mORMot/*.ppu libs/mORMot/*.o libs/mORMot/CrossPlatform/*.ppu libs/mORMot/CrossPlatform/*.o libs/mORMot/SQLite3/*.ppu libs/mORMot/SQLite3/*.o
-	@rm -f libs/ZeosLib/core/*.ppu libs/ZeosLib/core/*.o libs/ZeosLib/dbc/*.ppu libs/ZeosLib/dbc/*.o libs/ZeosLib/plain/*.ppu libs/ZeosLib/plain/*.o
-	@rm -f *.ppu *.o slftp *.exe
+	@find . -name "*.ppu" -type f -delete
+	@find . -path "./libs/mORMot/static" -prune -o -name "*.o" -type f -exec rm {} +
+	@rm -f slftp *.exe
 	@make cleanuptestdir
 
 cleanuptestdir:
