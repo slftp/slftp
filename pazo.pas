@@ -40,6 +40,7 @@ type
     Name: String; //< sitename
     maindir: String; //< sectiondir? TODO: debug real value
     pazo: TPazo; //< pazo where this TPazoSite belongs to
+    destinations_cs: TCriticalSection; //< Critical section to protect adding of values to @link(destinations)
     destinations: TObjectDictionary<TPazoSite, integer>; //< key = destination site, value = rank
     dirlist: TDirList;
 
@@ -114,6 +115,7 @@ type
     lastannounceconsole: String;
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
+    FParseDupe_cs: TCriticalSection; //< Critical section for function @link(TPazoSite.ParseDupe) // TODO: might be replaced with a lock for each TPazoSite
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
     FUniqueFileListOfRelease_cs: TCriticalSection; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
@@ -134,8 +136,6 @@ type
 
     stated: boolean;
     cleared: boolean;
-
-    cs: TCriticalSection;
 
     // TODO: debug both variables, seems to be empty as it is never initialized?
     // needed for rules like 'source' or 'completesource'
@@ -774,7 +774,7 @@ begin
   end;
 
   added := Now;
-  cs := TCriticalSection.Create;
+  FParseDupe_cs := TCriticalSection.Create;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
@@ -808,9 +808,9 @@ begin
   racetasks.Free;
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
-  cs.Free;
   FUniqueFileListOfRelease_cs.Free;
   FreeAndNil(rls);
+  FParseDupe_cs.Free;
   inherited;
 end;
 
@@ -1134,21 +1134,21 @@ begin
     exit;
 
   try
-    pazo.cs.Enter;
-    try
-      if ps <> nil then
-      begin
-        if ps.error then
-          exit;
+    if ps <> nil then
+    begin
+      if ps.error then
+        exit;
 
+      destinations_cs.Enter;
+      try
         destinations.AddOrSetValue(ps, rank);
-        Result := True;
-      end
-      else
-        pazo.errorreason := 'AddDest - PazoSite is NIL';
-    finally
-      pazo.cs.Leave;
-    end;
+      finally
+        destinations_cs.Leave;
+      end;
+      Result := True;
+    end
+    else
+      pazo.errorreason := 'AddDest - PazoSite is NIL';
   except
     on e: Exception do
     begin
@@ -1183,6 +1183,7 @@ begin
   badcrcevents := 0;
   // just a collection of pointers, no TPazoSite is created -> does not own any object
   destinations := TObjectDictionary<TPazoSite, Integer>.Create([]);
+  destinations_cs := TCriticalSection.Create;
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
   if dirlist <> nil then
@@ -1217,6 +1218,7 @@ begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
   activeTransfers.Free;
   destinations.Free;
+  destinations_cs.Free;
   dirlist.Free;
   s_dirlisttasks.Free;
   s_racetasks.Free;
@@ -1301,12 +1303,7 @@ begin
 
   // parse the dirlist
   try
-    pazo.cs.Enter;
-    try
-      d.ParseDirlist(liststring);
-    finally
-      pazo.cs.Leave;
-    end;
+    d.ParseDirlist(liststring);
   except
     on e: Exception do
     begin
@@ -1323,12 +1320,7 @@ begin
 
   // sort the dirlist
   try
-    pazo.cs.Enter;
-    try
-      d.Sort;
-    finally
-      pazo.cs.Leave;
-    end;
+    d.Sort;
   except
     on e: Exception do
     begin
@@ -1338,7 +1330,6 @@ begin
   end;
 
   // Do some stuff obviously
-  pazo.cs.Enter;
   d.dirlist_lock.Enter;
   try
     for i := 0 to d.entries.Count - 1 do
@@ -1376,7 +1367,6 @@ begin
     end;
   finally
     d.dirlist_lock.Leave;
-    pazo.cs.Leave;
   end;
 
   // Everything went fine
@@ -1515,11 +1505,11 @@ begin
       exit;
     end;
 
-    pazo.cs.Enter;
+    pazo.FParseDupe_cs.Enter;
     try
       Result := ParseDupe(netname, channel, dl, dir, filename, byme);
     finally
-      pazo.cs.Leave;
+      pazo.FParseDupe_cs.Leave;
     end;
 
     RemovePazoRace(pazo.pazo_id, Name, dir, filename);
@@ -1562,11 +1552,11 @@ begin
       //553- X-DUPE: 09-soulless-deadly_sins.mp3
       if (Pos('553- X-DUPE: ', s) = 1) then
       begin
-        pazo.cs.Enter;
+        pazo.FParseDupe_cs.Enter;
         try
           ParseDupe(netname, channel, dl, dir, Copy(s, 14, 1000), False);
         finally
-          pazo.cs.Leave;
+          pazo.FParseDupe_cs.Leave;
         end;
 
         RemovePazoRace(pazo.pazo_id, Name, dir, Copy(s, 14, 1000));
