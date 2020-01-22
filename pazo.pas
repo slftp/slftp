@@ -21,15 +21,6 @@ type
     property OnChange: TQueueNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TCacheFile = class
-  private
-    dir: String;
-    filename: String;
-    filesize: Int64;
-  public
-    constructor Create(const dir, filename: String; const filesize: Int64);
-  end;
-
   TPazo = class;
 
   {
@@ -124,9 +115,20 @@ type
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
+    FUniqueFileListOfRelease_cs: TCriticalSection; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
+    FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
+
+    { Creates/Updates the filesize for given subdir and filename combination
+      @param(aDir Location of the file inside releasedir)
+      @param(aFilename Name of the file)
+      @param(aFilesize Size of the file)
+      @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
+    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64): Int64;
+    { Returns the amount of files for the release, includes files in subdirs
+      @returns(Total file count of @link(rls)) }
+    function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
-    function StatsAllFiles: integer;
   public
     pazo_id: integer;
 
@@ -162,9 +164,6 @@ type
     racetasks: TIdThreadSafeInt32;
     mkdirtasks: TIdThreadSafeInt32;
 
-    cache_files: TStringList;
-
-    function allfiles: integer;
     { Searches for @link(sitename) via @link(TPazo.FindSite) and calls TPazoSite.MarkSiteAsFailed if site was found
       @param(sitename Sitename which sould be set down) }
     procedure SiteDown(const sitename: String);
@@ -187,8 +186,11 @@ type
       @param(aIsSpreadJob Set it to @true if its a spread job for purpose of preeing (skips some checks), @false otherwise)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites(const aIsSpreadJob: boolean): boolean; overload;
-    function PFileSize(const dir, filename: String): Int64;
-    function PRegisterFile(const dir, filename: String; const filesize: Int64): integer;
+    { Returns the filesize for given filname of the release
+      @param(aDir Location of the file inside releasedir)
+      @param(aFilename Name of the file)
+      @returns(filesize in bytes, -1 if not found or unknown file) }
+    function PFileSize(const aDir, aFilename: String): Int64;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
   end;
@@ -235,15 +237,6 @@ begin
   Decrement;
   if (Assigned(OnChange)) then
     OnChange(self, Value);
-end;
-
-{ TCacheFile }
-
-constructor TCacheFile.Create(const dir, filename: String; const filesize: Int64);
-begin
-  self.dir := dir;
-  self.filename := filename;
-  self.filesize := filesize;
 end;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
@@ -728,60 +721,42 @@ begin
   end;
 end;
 
-function TPazo.PRegisterFile(const dir, filename: String; const filesize: Int64): integer;
+function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64): Int64;
 var
-  i: integer;
-  cache_file: TCacheFile;
+  fKey: String;
+  fFilesize: Int64;
 begin
-  try
-    cs.Enter;
-    try
-      i := cache_files.IndexOf(dir + '/' + filename);
-      if i = -1 then
-      begin
-        cache_file := TCacheFile.Create(dir, filename, filesize);
-        cache_files.AddObject(dir + '/' + filename, cache_file);
+  fKey := aDir + '/' + aFilename;
 
-        Result := filesize;
+  FUniqueFileListOfRelease_cs.Enter;
+  try
+    if not FUniqueFileListOfRelease.ContainsKey(fKey) then
+    begin
+      FUniqueFileListOfRelease.Add(fKey, aFilesize);
+
+      Result := aFilesize;
+    end
+    else
+    begin
+      fFilesize := FUniqueFileListOfRelease[fKey];
+      if fFilesize < aFilesize then
+      begin
+        FUniqueFileListOfRelease[fKey] := aFilesize;
+        Result := aFilesize;
       end
       else
       begin
-        cache_file := TCacheFile(cache_files.Objects[i]);
-        if cache_file.filesize < filesize then
-        begin
-          cache_file.filesize := filesize;
-        end;
-
-        Result := cache_file.filesize;
+        Result := fFilesize;
       end;
-    finally
-      cs.Leave;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.PRegisterFile: %s', [e.Message]));
-      Result := filesize;
-    end;
+  finally
+    FUniqueFileListOfRelease_cs.Leave;
   end;
 end;
 
-function TPazo.PFileSize(const dir, filename: String): Int64;
-var
-  i: integer;
+function TPazo.GetCountOfCachedFiles: integer;
 begin
-  Result := -1;
-  try
-    i := cache_files.IndexOf(dir + '/' + filename);
-    if i <> -1 then
-      Result := TCacheFile(cache_files.Objects[i]).filesize;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.PFileSize: %s', [e.Message]));
-      Result := -1;
-    end;
-  end;
+  Result := FUniqueFileListOfRelease.Count;
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
@@ -813,9 +788,8 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  cache_files := TStringList.Create;
-  cache_files.CaseSensitive := False;
-  cache_files.Duplicates := dupIgnore;
+  FUniqueFileListOfRelease_cs := TCriticalSection.Create;
+  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create(GetCaseInsensitveStringComparer);
 
   self.stated := False;
   self.cleared := False;
@@ -833,9 +807,10 @@ begin
   dirlisttasks.Free;
   racetasks.Free;
   mkdirtasks.Free;
-  cache_files.Free;
-  FreeAndNil(rls);
+  FUniqueFileListOfRelease.Free;
   cs.Free;
+  FUniqueFileListOfRelease_cs.Free;
+  FreeAndNil(rls);
   inherited;
 end;
 
@@ -888,7 +863,7 @@ begin
         s := Stats(True, False);
         if ((lastannounceconsole <> s) and (s <> '')) then
         begin
-          irc_addtext('CONSOLE', 'Stats', rls.section + ' ' + rls.rlsname + ' (' + IntToStr(StatsAllFiles) + '): ' + s);
+          irc_addtext('CONSOLE', 'Stats', Format('%s %s (%d):%s', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
           lastannounceconsole := s;
         end;
 
@@ -896,7 +871,7 @@ begin
         s := Stats(False, False);
         if ((lastannounceirc <> s) and (s <> '')) then
         begin
-          irc_addstats('<c10>[<b>STATS</b>]</c> ' + rls.section + ' ' + rls.rlsname + ' (' + IntToStr(StatsAllFiles) + '):');
+          irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
           irc_AddstatsB(Stats(False, True));
           lastannounceirc := s;
         end;
@@ -907,25 +882,6 @@ begin
       end;
     end;
   end;
-end;
-
-function TPazo.StatsAllFiles: integer;
-var
-  j: integer;
-  ps: TPazoSite;
-begin
-  Result := 0;
-  if main_dirlist = nil then
-  begin
-    for ps in PazoSitesList do
-    begin
-      j := ps.dirlist.Done;
-      if Result < j then
-        Result := j;
-    end;
-  end
-  else
-    Result := main_dirlist.Done;
 end;
 
 function _CompareCompleteTimes({$IFDEF FPC}constref{$ELSE}const{$ENDIF} pazo1, pazo2: TPazoSite): Integer;
@@ -1045,7 +1001,7 @@ begin
     ready := False;
     readyerror := False;
     errorreason := '';
-    cache_files.Clear;
+    FUniqueFileListOfRelease.Clear;
     PazoSitesList.Clear;
     main_dirlist := nil;
 
@@ -1128,6 +1084,16 @@ begin
   end;
 end;
 
+function TPazo.PFileSize(const aDir, aFilename: String): Int64;
+var
+  fKey: String;
+begin
+  fKey := aDir + '/' + aFilename;
+
+  if not FUniqueFileListOfRelease.TryGetValue(fKey, Result) then
+    Result := -1;
+end;
+
 procedure TPazo.SiteDown(const sitename: String);
 var
   ps: TPazoSite;
@@ -1135,11 +1101,6 @@ begin
   ps := FindSite(sitename);
   if ps <> nil then
     ps.MarkSiteAsFailed;
-end;
-
-function TPazo.allfiles: integer;
-begin
-  Result := cache_files.Count;
 end;
 
 { TPazoSite }

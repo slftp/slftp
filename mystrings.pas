@@ -38,7 +38,7 @@ unit mystrings;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, Generics.Defaults;
 
 type
   {
@@ -57,6 +57,11 @@ type
     @returns(enumeration element from the enumerated type) }
     class function FromString(const aEnumString: string; const aDefault: T): T; inline; static;
   end;
+
+{ Helper function to create a case-insensitive string comparer for classes like TDictionary
+  NOTE: needed because current implementation on FPC causes access violation
+  @returns(case-insensitive string comparer class) }
+function GetCaseInsensitveStringComparer: IEqualityComparer<String>;
 
 { Creates a base64 encoded string from @link(aInput)
   @param(aInput String which should be encoded)
@@ -192,6 +197,32 @@ begin
   {$ENDIF}
   else
     Result := aDefault;
+end;
+
+{* Only needed because TIStringComparer.Ordinal causes access violation in FPC
+   https://lists.freepascal.org/fpc-pascal/2016-August/048648.html *}
+{$IFDEF FPC}
+  function EqualityComparisonCaseInsensitive(constref ALeft, ARight: String): Boolean;
+  begin
+    Result := LowerCase(ALeft) = LowerCase(ARight);
+  end;
+
+  function ExtendedHasher(constref AValue: String): UInt32;
+  var
+    temp: String;
+  begin
+    temp := LowerCase(AValue);
+    Result := TDefaultHashFactory.GetHashCode(Pointer(temp), Length(temp) * SizeOf(Char), 0);
+  end;
+{$ENDIF}
+
+function GetCaseInsensitveStringComparer: IEqualityComparer<String>;
+begin
+  {$IFDEF FPC}
+    Result := TEqualityComparer<String>.Construct(EqualityComparisonCaseInsensitive, ExtendedHasher);
+  {$ELSE}
+    Result := TIStringComparer.Ordinal;
+  {$ENDIF}
 end;
 
 {$IFDEF UNICODE}
