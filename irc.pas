@@ -1441,8 +1441,17 @@ begin
   irc_message_lock.Enter;
   try
     irc_last_read := Now();
-    fChanSettingsObj := FindIrcChannelSettings(netname, channel);
-    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
+
+    if channel <> '' then
+    begin
+      fChanSettingsObj := FindIrcChannelSettings(netname, channel);
+      IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
+    end
+    else
+    begin
+      // Allow sending raw commands from sl console to the IRC server like MODE #chan +o mynick
+      IrcWrite(plainmsg);
+    end;
     console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
     irc_last_written := Now;
   finally
