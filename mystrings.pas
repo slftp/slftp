@@ -38,7 +38,7 @@ unit mystrings;
 interface
 
 uses
-  SysUtils, Classes, Generics.Defaults;
+  SysUtils, Classes, Generics.Defaults, Generics.Collections;
 
 type
   {
@@ -125,6 +125,12 @@ function ParsePASVString(s: String; out host: String; out port: integer): boolea
   @param(IPv4Transfermode @true if IP adress is IPv4, @false if IPv6)
   @returns(@true if host, port and transfermode successful extracted, @false otherwise) }
 function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
+
+{ Parses the X-DUPE response and writes the extracted filenames to a list
+  @param(aResponseText X-DUPE response text from ftpd)
+  @param(aFileList initialised list of strings where the filenames will be added to)
+  @returns(@true if at least one filename was extracted, @false otherwise) }
+function ParseXDupeResponseToFilenameList(const aResponseText: String; const aFileList: TList<String>): Boolean;
 
 { checks if c is a letter (case-insensitive)
   @param(c Character which should be checked)
@@ -534,6 +540,31 @@ begin
     exit;
 
   Result := True;
+end;
+
+function ParseXDupeResponseToFilenameList(const aResponseText: String; const aFileList: TList<String>): Boolean;
+const
+  XDUPE_RESPONSE_START = '553- X-DUPE: ';
+var
+  fHelpArray: TArray<String>;
+  fSingleLine: String;
+begin
+  fHelpArray := aResponseText.Split([#13, #10]);
+
+  for fSingleLine in fHelpArray do
+  begin
+    // example lines:
+    // 553- X-DUPE: gimini-1080p-20190816124132.r14
+    // 553- X-DUPE: 01_dynatec_-_get_up_(keep_the_fire_burning)_(factory_team_remix)-idc.mp3
+
+    if fSingleLine.StartsWith(XDUPE_RESPONSE_START) then
+      aFileList.Add(fSingleLine.Replace(XDUPE_RESPONSE_START, '').Trim);
+  end;
+
+  if aFileList.Count > 0 then
+    Result := True
+  else
+    Result := False;
 end;
 
 function IsALetter(const c: Char): boolean;

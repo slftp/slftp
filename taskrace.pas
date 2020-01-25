@@ -1503,7 +1503,7 @@ begin
           // we still have an error with sdst.lastResponseCode = 553
           if (lastResponseCode = 553) then
           begin
-            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
@@ -2187,7 +2187,7 @@ begin
           //COMPLETE MSG: 550 Requested action not taken. File exists.
           if (0 < Pos('File exists', lastResponse)) then
           begin
-            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
@@ -2200,7 +2200,7 @@ begin
           //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
           if (0 < Pos('X-DUPE', lastResponse)) then
           begin
-            ps2.ParseXdupe(netname, channel, dir, lastResponse, ps2.ParseDupe(netname, channel, dir, filename, False));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);

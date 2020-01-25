@@ -21,12 +21,15 @@ type
     procedure TestDatumIdentifierReplace;
     procedure TestSplitString;
     procedure TestMyDateToStr;
+    procedure TestParseXDupeResponseToFilenameListGlftpd;
+    procedure TestParseXDupeResponseToFilenameListDrftpd;
+    procedure TestParseXDupeResponseToFilenameListMultislaveftpd;
   end;
 
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, mystrings;
+  SysUtils, Classes, DateUtils, Generics.Collections, mystrings;
 
 { TTestMyStrings }
 
@@ -162,6 +165,117 @@ begin
 
   fDateTime := EncodeDateTime(2019, 6, 2, 3, 56, 8, 13); // 2/6/2019 3:56:8:31
   CheckEquals('2019-06-02 03:56:08', MyDateToStr(fDateTime));
+end;
+
+procedure TTestMyStrings.TestParseXDupeResponseToFilenameListGlftpd;
+var
+  fResp: TArray<String>;
+  fFileList: TList<String>;
+  fExpectedFileList: TArray<String>;
+  i: Integer;
+begin
+  // glftpd x-dupe
+  fResp := TArray<String>.Create('stor 01-absolution-resurrection-8ab20e53.mp3',
+    '553- X-DUPE: 01-absolution-resurrection-8ab20e53.mp3',
+    '553- X-DUPE: 02-absolution-resurrection_(audioappear_and_fuli_remix)-7e2f98a1.mp3',
+    '553- X-DUPE: 03-absolution-resurrection_(fortytwo_remix)-fde9ba66.mp3',
+    '553- 01-absolution-resurrection-8ab20e53.mp3: This file looks like a dupe!',
+    '553 It was uploaded by <user> ( 3h 21m ago).');
+
+  fExpectedFileList := TArray<String>.Create('01-absolution-resurrection-8ab20e53.mp3',
+    '02-absolution-resurrection_(audioappear_and_fuli_remix)-7e2f98a1.mp3',
+    '03-absolution-resurrection_(fortytwo_remix)-fde9ba66.mp3');
+
+  fFileList := TList<String>.Create;
+  try
+    CheckTrue(ParseXDupeResponseToFilenameList(String.Join(#10, fResp), fFileList), 'No files parsed'); // different join parameter is intended
+
+    CheckEquals(High(fExpectedFileList) + 1, fFileList.Count, 'Wrong amount of parsed X-DUPE files');
+
+    for i := 0 to fFileList.Count - 1 do
+    begin
+      CheckEquals(fExpectedFileList[i], fFileList[i], 'Filenames not matching');
+    end;
+  finally
+    fFileList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseXDupeResponseToFilenameListDrftpd;
+var
+  fResp: TArray<String>;
+  fFileList: TList<String>;
+  fExpectedFileList: TArray<String>;
+  i: Integer;
+begin
+  // drftpd x-dupe
+  fResp := TArray<String>.Create('stor 01-absolution-resurrection-8ab20e53.mp3',
+    '553- X-DUPE: 00-absolution-resurrection-(hwr189)-ep-web-2019.jpg',
+    '553- X-DUPE: 00-absolution-resurrection-(hwr189)-ep-web-2019.m3u',
+    '553- X-DUPE: 00-absolution-resurrection-(hwr189)-ep-web-2019.nfo',
+    '553- X-DUPE: 00-absolution-resurrection-(hwr189)-ep-web-2019.sfv',
+    '553- X-DUPE: 01-absolution-resurrection-8ab20e53.mp3',
+    '553- X-DUPE: 02-absolution-resurrection_(audioappear_and_fuli_remix)-7e2f98a1.mp3',
+    '553- X-DUPE: 03-absolution-resurrection_(fortytwo_remix)-fde9ba66.mp3',
+    '553 Requested action not taken. File exists.');
+
+  fExpectedFileList := TArray<String>.Create('00-absolution-resurrection-(hwr189)-ep-web-2019.jpg',
+    '00-absolution-resurrection-(hwr189)-ep-web-2019.m3u',
+    '00-absolution-resurrection-(hwr189)-ep-web-2019.nfo',
+    '00-absolution-resurrection-(hwr189)-ep-web-2019.sfv',
+    '01-absolution-resurrection-8ab20e53.mp3',
+    '02-absolution-resurrection_(audioappear_and_fuli_remix)-7e2f98a1.mp3',
+    '03-absolution-resurrection_(fortytwo_remix)-fde9ba66.mp3');
+
+  fFileList := TList<String>.Create;
+  try
+    CheckTrue(ParseXDupeResponseToFilenameList(String.Join(#13, fResp), fFileList), 'No files parsed'); // different join parameter is intended
+
+    CheckEquals(High(fExpectedFileList) + 1, fFileList.Count, 'Wrong amount of parsed X-DUPE files');
+
+    for i := 0 to fFileList.Count - 1 do
+    begin
+      CheckEquals(fExpectedFileList[i], fFileList[i], 'Filenames not matching');
+    end;
+  finally
+    fFileList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseXDupeResponseToFilenameListMultislaveftpd;
+var
+  fResp: TArray<String>;
+  fFileList: TList<String>;
+  fExpectedFileList: TArray<String>;
+  i: Integer;
+begin
+  // multislave FTP x-dupe
+  fResp := TArray<String>.Create('PRET STOR godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r92',
+    '553- X-DUPE: godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.sfv',
+    '553- X-DUPE: godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.nfo',
+    '553- X-DUPE: godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r92',
+    '553- X-DUPE: godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r03',
+    '553 Requested action not taken. File exists.',
+    'Skip godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r92');
+
+  fExpectedFileList := TArray<String>.Create('godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.sfv',
+    'godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.nfo',
+    'godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r92',
+    'godzilla.king.of.the.monsters.2019.1080p.bluray.x264-sparks.r03');
+
+  fFileList := TList<String>.Create;
+  try
+    CheckTrue(ParseXDupeResponseToFilenameList(String.Join(#13#10, fResp), fFileList), 'No files parsed'); // different join parameter is intended
+
+    CheckEquals(High(fExpectedFileList) + 1, fFileList.Count, 'Wrong amount of parsed X-DUPE files');
+
+    for i := 0 to fFileList.Count - 1 do
+    begin
+      CheckEquals(fExpectedFileList[i], fFileList[i], 'Filenames not matching');
+    end;
+  finally
+    fFileList.Free;
+  end;
 end;
 
 initialization
