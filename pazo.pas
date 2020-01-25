@@ -96,7 +96,12 @@ type
       @param(aMaindir sectiondir? TODO: debug real value) }
     constructor Create(const aParentPazo: TPazo; const aName, aMaindir: String);
     destructor Destroy; override;
-    procedure ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
+    { Processes the X-DUPE response from FTPd which is send if file already exists when trying to transfer it.
+      @param(aNetname netname)
+      @param(aChannel channelname)
+      @param(aDir releasename? TODO: debug real value)
+      @param(aFullResponse complete X-DUPE response from FTPd) }
+    procedure ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullResponse: String);
     function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
     function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean; overload;
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
@@ -1522,50 +1527,44 @@ begin
   end;
 end;
 
-procedure TPazoSite.ParseXdupe(const netname, channel, dir, resp: String; added: boolean = False);
+procedure TPazoSite.ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullResponse: String);
 var
-  s: String;
   dl: TDirList;
-  lines_read: integer;
-  fHelper: String;
+  fFileList: TList<String>;
+  fFilename: String;
 begin
-  fHelper := resp;
   try
-    dl := dirlist.FindDirlist(dir);
+    dl := dirlist.FindDirlist(aDir);
     if dl = nil then
-      pazo.errorreason := 'Dirlist is NIL';
-    if dl = nil then
-      exit;
-
-    lines_read := 0;
-    // crashes
-    while (True) do
     begin
-      s := GetFirstLineFromTextViaNewlineIndicators(fHelper);
-      if s = '' then
-        Break;
+      pazo.errorreason := 'Dirlist is NIL';
+      exit;
+    end;
 
-      Inc(lines_read);
-      if (lines_read > 500) then
-        break;
+    fFileList := TList<String>.Create;
+    try
+      if not ParseXDupeResponseToFilenameList(aFullResponse, fFileList) then
+        exit;
 
-      //553- X-DUPE: 09-soulless-deadly_sins.mp3
-      if (Pos('553- X-DUPE: ', s) = 1) then
+      for fFilename in fFileList do
       begin
         pazo.FParseDupe_cs.Enter;
         try
-          ParseDupe(netname, channel, dl, dir, Copy(s, 14, 1000), False);
+          ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False);
         finally
           pazo.FParseDupe_cs.Leave;
         end;
 
-        RemovePazoRace(pazo.pazo_id, Name, dir, Copy(s, 14, 1000));
+        // TODO: not sure if it makes sense to call this everytime again and again because it's called inside ParseDupe as well
+        RemovePazoRace(pazo.pazo_id, Name, aDir, fFilename);
       end;
+    finally
+      fFileList.Free;
     end;
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseXdupe: %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ProcessXDupeResponse: %s', [e.Message]));
     end;
   end;
 end;
