@@ -94,7 +94,9 @@ type
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
     function CompleteByTag: Boolean;
-
+    { Tries to identify the dirtype from subdirectory name by different regexes
+      @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
+    function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
@@ -575,7 +577,7 @@ var
   filesize: Int64;
   i: Integer;
   fTagCompleteType: TTagCompleteType;
-  rrgx, splx: TRegExpr;
+  rrgx: TRegExpr;
 begin
   added := False;
 
@@ -747,30 +749,12 @@ begin
           begin
             if (de.directory) then
             begin
-              // check if we have a special kind of subdirectory
-              de.DirType := IsUnknown;
-              splx := TRegExpr.Create;
-              splx.ModifierI := True;
               try
-                try
-                  splx.Expression := '^sample$';
-                  if (splx.Exec(filename)) then
-                    de.DirType := IsSample;
-                  splx.Expression := '^proof$';
-                  if (splx.Exec(filename)) then
-                    de.DirType := IsProof;
-                  splx.Expression := '^(sub|subs)$';
-                  if(splx.Exec(filename)) then
-                    de.DirType := IsSubs;
-                  splx.Expression := '^(cover|covers)$';
-                  if (splx.Exec(filename)) then
-                    de.DirType := IsCovers;
-                except
-                  on e: Exception do
-                    debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
-                end;
-              finally
-                splx.Free;
+                // check if we have a special kind of subdirectory
+                de.DirType := RecognizeDirTypeFromDirname(filename);
+              except
+                on e: Exception do
+                  debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
               end;
             end;
 
@@ -1106,6 +1090,47 @@ begin
   begin
     Result := True;
     exit;
+  end;
+end;
+
+function TDirList.RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
+var
+  r: TRegExpr;
+begin
+  Result := IsUnknown;
+
+  r := TRegExpr.Create;
+  r.ModifierI := True;
+  try
+    r.Expression := '^sample$';
+    if r.Exec(aDirname) then
+    begin
+      Result := IsSample;
+      exit;
+    end;
+
+    r.Expression := '^proof$';
+    if r.Exec(aDirname) then
+    begin
+      Result := IsProof;
+      exit;
+    end;
+
+    r.Expression := '^(sub|subs)$';
+    if r.Exec(aDirname) then
+    begin
+      Result := IsSubs;
+      exit;
+    end;
+
+    r.Expression := '^(cover|covers)$';
+    if r.Exec(aDirname) then
+    begin
+      Result := IsCovers;
+      exit;
+    end;
+  finally
+    r.Free;
   end;
 end;
 
