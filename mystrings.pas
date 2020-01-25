@@ -38,7 +38,7 @@ unit mystrings;
 interface
 
 uses
-  SysUtils, Classes, Generics.Defaults;
+  SysUtils, Classes, Generics.Defaults, Generics.Collections;
 
 type
   {
@@ -126,6 +126,12 @@ function ParsePASVString(s: String; out host: String; out port: integer): boolea
   @returns(@true if host, port and transfermode successful extracted, @false otherwise) }
 function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
 
+{ Parses the X-DUPE response and writes the extracted filenames to a list
+  @param(aResponseText X-DUPE response text from ftpd)
+  @param(aFileList initialised list of strings where the filenames will be added to)
+  @returns(@true if at least one filename was extracted, @false otherwise) }
+function ParseXDupeResponseToFilenameList(const aResponseText: String; const aFileList: TList<String>): Boolean;
+
 { checks if c is a letter (case-insensitive)
   @param(c Character which should be checked)
   @returns(@true if it's a letter: [a-z] or [A-Z], @false otherwise) }
@@ -141,8 +147,12 @@ function IsANumber(const c: Char): boolean;
 function OccurrencesOfNumbers(const S: string): Integer;
 
 function GetFileContents(const fn: String): String;
-function FetchSL(var osszes: String; const Args: array of Char): String;
-function Elsosor(var osszes: String): String;
+function FetchSL(var aInputText: String; const Args: array of Char): String;
+
+{ Gets the first line from input by searching for \r and/or \n (newline indicators)
+  @param(aInputText Input text where first line will be picked from and also removed)
+  @returns(first line before \r and/or \n) }
+function GetFirstLineFromTextViaNewlineIndicators(var aInputText: String): String;
 
 { Replaces datum identifiers like <yyyy>, <mm> or <dd> with the given value for aDatum (if zero, uses current time)
   @param(aSrcString source string with <yyyy>, <yy>, <mm>, <dd> or <ww>)
@@ -532,6 +542,31 @@ begin
   Result := True;
 end;
 
+function ParseXDupeResponseToFilenameList(const aResponseText: String; const aFileList: TList<String>): Boolean;
+const
+  XDUPE_RESPONSE_START = '553- X-DUPE: ';
+var
+  fHelpArray: TArray<String>;
+  fSingleLine: String;
+begin
+  fHelpArray := aResponseText.Split([#13, #10]);
+
+  for fSingleLine in fHelpArray do
+  begin
+    // example lines:
+    // 553- X-DUPE: gimini-1080p-20190816124132.r14
+    // 553- X-DUPE: 01_dynatec_-_get_up_(keep_the_fire_burning)_(factory_team_remix)-idc.mp3
+
+    if fSingleLine.StartsWith(XDUPE_RESPONSE_START) then
+      aFileList.Add(fSingleLine.Replace(XDUPE_RESPONSE_START, '').Trim);
+  end;
+
+  if aFileList.Count > 0 then
+    Result := True
+  else
+    Result := False;
+end;
+
 function IsALetter(const c: Char): boolean;
 begin
   Result := (((c >= 'a') and (c <= 'z')) or ((c >= 'A') and (c <= 'Z')));
@@ -574,7 +609,7 @@ begin
     Result := '';
 end;
 
-function FetchSL(var osszes: String; const Args: array of Char): String;
+function FetchSL(var aInputText: String; const Args: array of Char): String;
 var
   elso, utolso: integer;
   i, j:    integer;
@@ -582,11 +617,11 @@ var
 begin
   elso   := 0;
   utolso := 0;
-  for i := 1 to length(osszes) do
+  for i := 1 to length(aInputText) do
   begin
     megvolt := False;
     for j := Low(Args) to High(Args) do
-      if osszes[i] = Args[j] then
+      if aInputText[i] = Args[j] then
       begin
         if elso = 0 then
           elso := i;
@@ -602,18 +637,18 @@ begin
 
   if (elso = 0) or (utolso = 0) then
   begin
-    Result := osszes;
-    osszes := '';
+    Result := aInputText;
+    aInputText := '';
     exit;
   end;
 
-  Result := Copy(osszes, 1, elso - 1);
-  Delete(osszes, 1, utolso);
+  Result := Copy(aInputText, 1, elso - 1);
+  Delete(aInputText, 1, utolso);
 end;
 
-function Elsosor(var osszes: String): String;
+function GetFirstLineFromTextViaNewlineIndicators(var aInputText: String): String;
 begin
-  Result := FetchSL(osszes, [#13, #10]);
+  Result := FetchSL(aInputText, [#13, #10]);
 end;
 
 function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0): String;
