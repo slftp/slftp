@@ -626,7 +626,7 @@ begin
   try
     while(true) do
     begin
-      tmp := trim(Elsosor(s));
+      tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
 
       if tmp = '' then break;
 

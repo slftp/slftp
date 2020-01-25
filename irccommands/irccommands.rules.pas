@@ -509,7 +509,7 @@ begin
       s := TConditionClass(conditions[i]).Description;
       while (True) do
       begin
-        ss := elsosor(s);
+        ss := GetFirstLineFromTextViaNewlineIndicators(s);
         if ss = '' then
           break;
         irc_addtext(Netname, Channel, ss);

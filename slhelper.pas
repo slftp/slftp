@@ -3,7 +3,7 @@ unit slhelper;
 interface
 
 
-function Elsosor(var osszes: String): String;
+function Elsosor(var osszes: String): String; // for proper description see mystrings.pas
 function IsIP(AIP: String): boolean;
 function TInAddrToString(var AInAddr): String;
 procedure TranslateStringToTInAddr(AIP: String; var AInAddr);

@@ -24,7 +24,7 @@ begin
 
   while (True) do
   begin
-    ss := elsosor(s);
+    ss := GetFirstLineFromTextViaNewlineIndicators(s);
     if ss = '' then
       break;
     irc_addtext(Netname, Channel, ss);
@@ -76,7 +76,7 @@ begin
   begin
     while (True) do
     begin
-      ss := elsosor(s);
+      ss := GetFirstLineFromTextViaNewlineIndicators(s);
       if ss = '' then
         break;
 
