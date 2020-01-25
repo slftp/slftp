@@ -141,8 +141,12 @@ function IsANumber(const c: Char): boolean;
 function OccurrencesOfNumbers(const S: string): Integer;
 
 function GetFileContents(const fn: String): String;
-function FetchSL(var osszes: String; const Args: array of Char): String;
-function Elsosor(var osszes: String): String;
+function FetchSL(var aInputText: String; const Args: array of Char): String;
+
+{ Gets the first line from input by searching for \r and/or \n (newline indicators)
+  @param(aInputText Input text where first line will be picked from and also removed)
+  @returns(first line before \r and/or \n) }
+function GetFirstLineFromTextViaNewlineIndicators(var aInputText: String): String;
 
 { Replaces datum identifiers like <yyyy>, <mm> or <dd> with the given value for aDatum (if zero, uses current time)
   @param(aSrcString source string with <yyyy>, <yy>, <mm>, <dd> or <ww>)
@@ -574,7 +578,7 @@ begin
     Result := '';
 end;
 
-function FetchSL(var osszes: String; const Args: array of Char): String;
+function FetchSL(var aInputText: String; const Args: array of Char): String;
 var
   elso, utolso: integer;
   i, j:    integer;
@@ -582,11 +586,11 @@ var
 begin
   elso   := 0;
   utolso := 0;
-  for i := 1 to length(osszes) do
+  for i := 1 to length(aInputText) do
   begin
     megvolt := False;
     for j := Low(Args) to High(Args) do
-      if osszes[i] = Args[j] then
+      if aInputText[i] = Args[j] then
       begin
         if elso = 0 then
           elso := i;
@@ -602,18 +606,18 @@ begin
 
   if (elso = 0) or (utolso = 0) then
   begin
-    Result := osszes;
-    osszes := '';
+    Result := aInputText;
+    aInputText := '';
     exit;
   end;
 
-  Result := Copy(osszes, 1, elso - 1);
-  Delete(osszes, 1, utolso);
+  Result := Copy(aInputText, 1, elso - 1);
+  Delete(aInputText, 1, utolso);
 end;
 
-function Elsosor(var osszes: String): String;
+function GetFirstLineFromTextViaNewlineIndicators(var aInputText: String): String;
 begin
-  Result := FetchSL(osszes, [#13, #10]);
+  Result := FetchSL(aInputText, [#13, #10]);
 end;
 
 function DatumIdentifierReplace(const aSrcString: String; aDatum: TDateTime = 0): String;

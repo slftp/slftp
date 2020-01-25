@@ -983,7 +983,7 @@ begin
       begin
         if (i>200) then Break;
         inc(i);
-        ss:= elsosor(s);
+        ss:= GetFirstLineFromTextViaNewlineIndicators(s);
         if ss = '' then Break;
 
         w.textbox.AddLine(consolestrip(ss));
