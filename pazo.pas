@@ -1541,7 +1541,7 @@ begin
     // crashes
     while (True) do
     begin
-      s := Elsosor(fHelper);
+      s := GetFirstLineFromTextViaNewlineIndicators(fHelper);
       if s = '' then
         Break;
 

@@ -29,7 +29,7 @@ begin
   Windows := console_windows;
   while (True) do
   begin
-    s := elsosor(Windows);
+    s := GetFirstLineFromTextViaNewlineIndicators(Windows);
     if s = '' then
       break;
 
