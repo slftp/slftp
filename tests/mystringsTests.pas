@@ -24,6 +24,9 @@ type
     procedure TestParseXDupeResponseToFilenameListGlftpd;
     procedure TestParseXDupeResponseToFilenameListDrftpd;
     procedure TestParseXDupeResponseToFilenameListMultislaveftpd;
+    procedure TestParseEPSVStringIPv41;
+    procedure TestParseEPSVStringIPv42;
+    procedure TestParseEPSVStringIPv43;
   end;
 
 implementation
@@ -276,6 +279,60 @@ begin
   finally
     fFileList.Free;
   end;
+end;
+
+procedure TTestMyStrings.TestParseEPSVStringIPv41;
+var
+  fLine: String;
+  fHost, fExpecHost: String;
+  fPort, fExpecPort: Integer;
+  fIPv4Mode, fExpecIPv4: Boolean;
+begin
+  fLine := '229 Entering Extended Passive Mode (|1|106.208.152.89|21073|)';
+  fExpecHost := '106.208.152.89';
+  fExpecPort := 21073;
+  fExpecIPv4 := True;
+
+  CheckTrue(ParseEPSVString(fLine, fHost, fPort, fIPv4Mode), 'Parsing should be successful');
+  CheckEquals(fExpecHost, fHost);
+  CheckEquals(fExpecPort, fPort);
+  CheckEquals(fExpecIPv4, fIPv4Mode);
+end;
+
+procedure TTestMyStrings.TestParseEPSVStringIPv42;
+var
+  fLine: String;
+  fHost, fExpecHost: String;
+  fPort, fExpecPort: Integer;
+  fIPv4Mode, fExpecIPv4: Boolean;
+begin
+  fLine := '229 Entering Extended Passive Mode (|1|214.102.219.112|60629|)';
+  fExpecHost := '214.102.219.112';
+  fExpecPort := 60629;
+  fExpecIPv4 := True;
+
+  CheckTrue(ParseEPSVString(fLine, fHost, fPort, fIPv4Mode), 'Parsing should be successful');
+  CheckEquals(fExpecHost, fHost);
+  CheckEquals(fExpecPort, fPort);
+  CheckEquals(fExpecIPv4, fIPv4Mode);
+end;
+
+procedure TTestMyStrings.TestParseEPSVStringIPv43;
+var
+  fLine: String;
+  fHost, fExpecHost: String;
+  fPort, fExpecPort: Integer;
+  fIPv4Mode, fExpecIPv4: Boolean;
+begin
+  fLine := '229 Entering Extended Passive Mode (|1|111.205.176.99|46938|)';
+  fExpecHost := '111.205.176.99';
+  fExpecPort := 46938;
+  fExpecIPv4 := True;
+
+  CheckTrue(ParseEPSVString(fLine, fHost, fPort, fIPv4Mode), 'Parsing should be successful');
+  CheckEquals(fExpecHost, fHost);
+  CheckEquals(fExpecPort, fPort);
+  CheckEquals(fExpecIPv4, fIPv4Mode);
 end;
 
 initialization
