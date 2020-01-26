@@ -118,13 +118,13 @@ function MyIncludeTrailingSlash(const s: String): String;
   @returns(@true if host and port successful extracted, @false otherwise) }
 function ParsePASVString(s: String; out host: String; out port: integer): boolean;
 
-{ extracts data from ftpd EPSV reply
-  @param(s (|mode|ip.ip.ip.ip|port|) reply (| is a variable delimiter))
-  @param(host extracted host IP)
-  @param(port extracted port)
-  @param(IPv4Transfermode @true if IP adress is IPv4, @false if IPv6)
-  @returns(@true if host, port and transfermode successful extracted, @false otherwise) }
-function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
+{ Extracts needed information from FTPd EPSV response to start a transfer
+  @param(aFTPdResponse complete 229 EPSV response)
+  @param(aHost extracted host address)
+  @param(aPort extracted port)
+  @param(aIPv4Transfermode @true if IP address is IPv4, @false if IPv6)
+  @returns(@true if host, port and transfermode are successful extracted, @false otherwise) }
+function ParseEPSVString(const aFTPdResponse: String; out aHost: String; out aPort: Integer; out aIPv4Transfermode: Boolean): Boolean;
 
 { Parses the X-DUPE response and writes the extracted filenames to a list
   @param(aResponseText X-DUPE response text from ftpd)
@@ -501,43 +501,42 @@ begin
   Result := True;
 end;
 
-// TODO: Implement based on FEAT response, as we need to know if it's supported by site before using it
-// for more infos see: https://glftpd.eu/beta/docs/README.IPv6
-function ParseEPSVString(s: String; out host: String; out port: integer; out IPv4Transfermode: boolean): boolean;
+function ParseEPSVString(const aFTPdResponse: String; out aHost: String; out aPort: Integer; out aIPv4Transfermode: Boolean): Boolean;
 var
-  helper, delimiter: String;
-  ipdots: Char;
+  fBracketsContent: String;
+  fDelimiter: Char;
+  fHelper: TArray<String>;
 begin
   Result := False;
-  ipdots := '.';
 
   {
+    -> Needed command sequence <-
   * CEPR on
   * 200 Custom Extended Passive Reply enabled
   * EPSV
   * 229 Entering Extended Passive Mode (|mode|ip.ip.ip.ip|port|)
   }
-  s := Copy(s, Pos('(', s) + 2, 100000);
-  s := Copy(s, 1, Pos(')', s) - 2);
-  if s = '' then
-    exit;
+  fBracketsContent := aFTPdResponse.Split(['(', ')'])[1];
+  if fBracketsContent.IsEmpty then
+  begin
+    Exit;
+  end;
+  // value of fBracketsContent is |<mode>|<ip>|<port>| now
 
-  // s is now: mode|ip.ip.ip.ip|port
-  delimiter := s[2]; // delimiter in the range of ASCII 33-126
+  // delimiter in the range of ASCII 33-126
+  fDelimiter := fBracketsContent[1];
+
+  fHelper := aFTPdResponse.Split([fDelimiter]);
 
   // protocol family as defined by IANA (1 for IPv4, 2 for IPv6)
-  IPv4Transfermode := Boolean(StrToInt(s[1]) = 1);
-  if not IPv4Transfermode then
+  aIPv4Transfermode := Boolean(fHelper[1].ToInteger = 1);
+
+  aHost := fHelper[2];
+  aPort := StrToInt(fHelper[3]);
+  if aPort = 0 then
   begin
-    ipdots := ':';
-  end;
-
-  helper := Copy(s, Pos(delimiter, s) + 1, Pos(delimiter, s) - 1);
-  host := Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False) + ipdots + Fetch(helper, ipdots, True, False);
-
-  port := StrToIntDef(Copy(s, LastDelimiter(delimiter, s) + 1, 100000), 0);
-  if port = 0 then
     exit;
+  end;
 
   Result := True;
 end;
