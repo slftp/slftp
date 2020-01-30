@@ -60,7 +60,7 @@ function FindIrcChannelSettings(const aNetname, aChannel: String): TIrcChannelSe
   @param(aNetname irc network name)
   @param(aChannel irc channel name)
   @param(aSuppressDebugEntry Set it to @true if you want to suppress 'No IrcChannelInfos found' logging, otherwise use @false)
-  @returns(Corresponding object for Channel@Netname if existing, else @nil) }
+  @returns(Corresponding object for Channel@Netname if existing (for usage only, don't free it!), else @nil) }
 function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebugEntry: Boolean): TIrcChannelSettings; overload;
 { Creates a new object for IRC Channel Stuff for Netname-Channel combination if not existing
   @param(aNetname irc network name)
@@ -73,13 +73,13 @@ function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebug
 procedure RegisterChannelSettings(const aNetname, aChannel, aChanRoles, aBlowkey: String; aChankey: String = ''; aInviteOnly: Boolean = False; aIsCBCEncrypted: Boolean = False);
 
 var
-  { Case sensitive hashed objectlist with 'netnamechannel' as key and corresponding object }
-  IrcChanSettingsList: TObjectDictionary<string, TIrcChannelSettings>;
+  { Case insensitive hashed objectlist with 'netnamechannel' as key and corresponding object }
+  IrcChanSettingsList: TObjectDictionary<String, TIrcChannelSettings>;
 
 implementation
 
 uses
-  SysUtils, StrUtils, console, debugunit, ircblowfish.ECB, ircblowfish.CBC, ircblowfish.plaintext;
+  SysUtils, StrUtils, console, debugunit, mystrings, ircblowfish.ECB, ircblowfish.CBC, ircblowfish.plaintext;
 
 const
   section = 'ircchansettings';
@@ -131,7 +131,7 @@ end;
 
 procedure IrcChannelSettingsInit;
 begin
-  IrcChanSettingsList := TObjectDictionary<string, TIrcChannelSettings>.Create([doOwnsValues]);
+  IrcChanSettingsList := TObjectDictionary<String, TIrcChannelSettings>.Create([doOwnsValues], GetCaseInsensitveStringComparer);
 end;
 
 procedure IrcChannelSettingsUninit;
@@ -149,29 +149,13 @@ end;
 function FindIrcChannelSettings(const aNetname, aChannel: String; aSuppressDebugEntry: Boolean): TIrcChannelSettings;
 var
   fChanSettingsObj: TIrcChannelSettings;
-  fItem: TPair<string, TIrcChannelSettings>;
-  fNetChanHelper: String;
 begin
   Result := nil;
 
   if IrcChanSettingsList.TryGetValue(aNetname + aChannel, fChanSettingsObj) then
   begin
-    // fast case sensitive approach via hash code
     Result := fChanSettingsObj;
     exit;
-  end
-  else
-  begin
-    // slower fallback case insensitive approach
-    fNetChanHelper := LowerCase(aNetname + aChannel);
-    for fItem in IrcChanSettingsList do
-    begin
-      if (fNetChanHelper = LowerCase(fItem.Key)) then
-      begin
-        Result := fItem.Value;
-        exit;
-      end;
-    end;
   end;
 
   if not aSuppressDebugEntry then
