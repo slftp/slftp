@@ -70,7 +70,8 @@ uses
   mygrouphelpersTests,
   globalskipunitTests,
   irccolorunitTests,
-  ircparsingTests;
+  ircparsingTests,
+  slmasksTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
