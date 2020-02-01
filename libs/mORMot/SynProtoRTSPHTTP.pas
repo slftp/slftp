@@ -6,7 +6,7 @@ unit SynProtoRTSPHTTP;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynProtoRTSPHTTP;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -117,7 +117,8 @@ type
     fPendingGet: TRawUTF8ListLocked;
     function GetHttpPort: SockString;
     // creates TPostConnection and TRtspConnection instances for a given stream
-    function ConnectionCreate(aSocket: TSocket; out aConnection: TAsynchConnection): boolean; override;
+    function ConnectionCreate(aSocket: TSocket; const aRemoteIp: RawUTF8;
+      out aConnection: TAsynchConnection): boolean; override;
   public
     /// initialize the proxy HTTP server forwarding specified RTSP server:port
     constructor Create(const aRtspServer, aRtspPort, aHttpPort: SockString;
@@ -157,8 +158,8 @@ begin
     result := sorContinue;
   end
   else begin
-    Sender.Log.Add.Log(sllDebug, 'OnRead % RTSP failed send to GET -> close connection',
-      [Handle], self);
+    Sender.Log.Add.Log(sllDebug, 'OnRead % RTSP failed send to GET -> close % connection',
+      [Handle, RemoteIP], self);
     result := sorClose;
   end;
   fSlot.readbuf := '';
@@ -185,13 +186,13 @@ begin
   fSlot.readbuf := '';
   rtsp := Sender.ConnectionFindLocked(fRtspTag);
   if rtsp <> nil then
-  try
-    Sender.Write(rtsp, decoded); // asynch sending to RTSP server
-    Sender.Log.Add.Log(sllDebug, 'OnRead % POST forwarded RTSP command [%]',
-      [Handle, decoded], self);
-  finally
-    Sender.Unlock;
-  end
+    try
+      Sender.Write(rtsp, decoded); // asynch sending to RTSP server
+      Sender.Log.Add.Log(sllDebug, 'OnRead % POST forwarded RTSP command [%]',
+        [Handle, decoded], self);
+    finally
+      Sender.Unlock;
+    end
   else begin
     Sender.Log.Add.Log(sllDebug, 'OnRead % POST found no rtsp=%', [Handle, fRtspTag], self);
     result := sorClose;
@@ -239,7 +240,7 @@ type
 const
   RTSP_MIME = 'application/x-rtsp-tunnelled';
 
-function TRTSPOverHTTPServer.ConnectionCreate(aSocket: TSocket;
+function TRTSPOverHTTPServer.ConnectionCreate(aSocket: TSocket; const aRemoteIp: RawUTF8;
   out aConnection: TAsynchConnection): boolean;
 var
   log: ISynLog;
@@ -265,8 +266,9 @@ begin
   try
     sock := TProxySocket.Create(nil);
     try
-      sock.InitRequest(aSocket);
-      if sock.GetRequest({withBody=}false, {headertix=}0) and (sock.URL <> '') then begin
+      sock.InitRequest(aSocket,aRemoteIP);
+      if (sock.GetRequest({withBody=}false, {headertix=}0)=grHeaderReceived) and
+         (sock.URL <> '') then begin
         if log<>nil then
           log.Log(sllTrace, 'ConnectionCreate received % % %', [sock.Method, sock.URL,
             sock.HeaderGetText], self);
@@ -334,10 +336,10 @@ begin
       exit;
     end;
     rtsp := CallServer(fRtspServer, fRtspPort, false, cslTCP, 1000);
-    if rtsp <= 0 then
+    if rtsp <= 0 then // ECrtSocket to include WSAGetLastError
       raise ECrtSocket.CreateFmt('No RTSP server on %s:%s', [fRtspServer, fRtspPort], -1);
-    postconn := TPostConnection.Create;
-    rtspconn := TRtspConnection.Create;
+    postconn := TPostConnection.Create(aRemoteIP);
+    rtspconn := TRtspConnection.Create(aRemoteIP);
     if not inherited ConnectionAdd(aSocket, postconn) or
        not inherited ConnectionAdd(rtsp, rtspconn) then
       raise EAsynchConnections.CreateUTF8('inherited %.ConnectionAdd(%) % failed',

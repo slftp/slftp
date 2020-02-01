@@ -6,7 +6,7 @@ unit SynSQLite3;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynSQLite3;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -48,7 +48,7 @@ unit SynSQLite3;
   ***** END LICENSE BLOCK *****
 
 
-       SQLite3 3.30.1 database engine
+       SQLite3 3.31.0 database engine
       ********************************
 
      Brand new SQLite3 library to be used with Delphi
@@ -135,7 +135,7 @@ unit SynSQLite3;
   - moved all static .obj code into new SynSQLite3Static unit
   - allow either static .obj use via SynSQLite3Static or external .dll linking
     using TSQLite3LibraryDynamic to bind all APIs to the global sqlite3 variable
-  - updated SQLite3 engine to latest version 3.30.1
+  - updated SQLite3 engine to latest version 3.31.0
   - fixed: internal result cache is now case-sensitive for its SQL key values
   - raise an ESQLite3Exception if DBOpen method is called twice
   - added TSQLite3ErrorCode enumeration and sqlite3_resultToErrorCode()
@@ -1289,7 +1289,7 @@ type
     close: function(DB: TSQLite3DB): integer; cdecl;
 
     /// Return the version of the SQLite database engine, in ascii format
-    // - currently returns '3.30.1', when used with our SynSQLite3Static unit
+    // - currently returns '3.31.0', when used with our SynSQLite3Static unit
     // - if an external SQLite3 library is used, version may vary
     // - you may use the VersionText property (or Version for full details) instead
     libversion: function: PUTF8Char; cdecl;
@@ -3456,7 +3456,7 @@ begin
   end;
 end;
 
-{ from WladiD about all collation functions:
+{ from WladiD about all SQLite3 collation functions:
   If a field with your custom collate ISO8601 is empty '' (not NULL),
   then SQLite calls the registered collate function with s1len=0 or s2len=0,
   but the pointers s1 or s2 map to the string of the previous call }
@@ -4157,7 +4157,7 @@ begin
     UnLock;
     {$ifdef WITHLOG}
     if not NoLog then
-      fLog.Add.Log(sllSQL,'% % returned "%" for %',
+      fLog.Add.Log(sllSQL,'% % returned [%] for %',
         [Timer.Stop,FileNameWithoutPath,ID,aSQL],self);
     {$endif}
   end;
@@ -4528,7 +4528,8 @@ var i: integer;
 begin
   if fBackupBackgroundInProcess<>nil then
     if TimeOutSeconds<0 then // TimeOutSeconds=-1 for infinite wait
-      while fBackupBackgroundInProcess<>nil do Sleep(10) else begin
+      while fBackupBackgroundInProcess<>nil do
+        SleepHiRes(10) else begin
       for i := 1 to TimeOutSeconds*100 do begin // wait for process end
         SleepHiRes(10);
         if fBackupBackgroundInProcess=nil then
@@ -4574,7 +4575,7 @@ begin
     exit;
   {$ifdef WITHLOG}
   FPCLog := fLog.Enter(self{$ifndef DELPHI5OROLDER},'DBClose'{$endif});
-  FPCLog.Log(sllDB,'closing "%" %',[FileName, KB(GetFileSize)],self);
+  FPCLog.Log(sllDB,'closing [%] %',[FileName, KB(GetFileSize)],self);
   {$endif}
   if (sqlite3=nil) or not Assigned(sqlite3.close) then
     raise ESQLite3Exception.CreateUTF8('%.DBClose called with no sqlite3 global',[self]);
@@ -4596,7 +4597,7 @@ begin
     exit;
   {$ifdef WITHLOG}
   FPCLog := fLog.Enter;
-  FPCLog.Log(sllDB,'Enable custom tokenizer for "%"',[FileName],self);
+  FPCLog.Log(sllDB,'Enable custom tokenizer for [%]',[FileName],self);
   {$endif}
   if (sqlite3=nil) or not Assigned(sqlite3.db_config) then
     raise ESQLite3Exception.CreateUTF8('%.EnableCustomTokenizer called with no sqlite3 engine',[self]);
@@ -5603,25 +5604,28 @@ end;
 
 procedure InternalSQLFunctionDynArrayBlob(Context: TSQLite3FunctionContext;
   argc: integer; var argv: TSQLite3ValueArray); cdecl;
-var DynArray, Elem: pointer;
-    Func: TSQLDataBaseSQLFunctionDynArray;
+var P, item: PAnsiChar;
+    PLen, itemLen: PtrInt;
+    caller: TSQLDataBaseSQLFunctionDynArray;
 begin
   if argc<>2 then begin
     ErrorWrongNumberOfArgs(Context);
     exit; // two parameters expected
   end;
-  DynArray := sqlite3.value_blob(argv[0]);
-  Elem := sqlite3.value_blob(argv[1]);
-  Func := sqlite3.user_data(Context);
-  if (DynArray<>nil) and (Elem<>nil) and (Func<>nil) then
-  with Func.fDummyDynArray do
-  try
-    LoadFrom(DynArray); // temporary allocate all dynamic array content
+  P := sqlite3.value_blob(argv[0]);
+  PLen := sqlite3.value_bytes(argv[0]);
+  item := sqlite3.value_blob(argv[1]);
+  itemLen := sqlite3.value_bytes(argv[1]);
+  caller := sqlite3.user_data(Context);
+  if (P<>nil) and (PLen>0) and (item<>nil) and (itemLen>0) and (caller<>nil) then
+  with caller.fDummyDynArray do
+  try // temporary allocate all dynamic array content
     try
-      if ElemLoadFind(Elem)<0 then
-        DynArray := nil;
+      if (LoadFrom(P,nil,{nohash=}true,P+PLen)=nil) or
+         (ElemLoadFind(item,item+itemLen)<0) then
+        P := nil; // not found
     finally
-      Clear; // release temporary array content in fDummyDynArrayValue
+      Clear; // always release temporary array content
     end;
   except
     on Exception do begin
@@ -5629,8 +5633,8 @@ begin
       exit;
     end;
   end else
-    DynArray := nil;
-  sqlite3.result_int64(Context,Int64(DynArray<>nil));
+    P := nil;
+  sqlite3.result_int64(Context,Int64(P<>nil));
 end;
 
 constructor TSQLDataBaseSQLFunctionDynArray.Create(aTypeInfo: pointer;
@@ -5754,7 +5758,7 @@ var res: integer;
 begin
   fn := fDestDB.FileName;
   {$ifdef WITHLOG}
-  SetCurrentThreadName('% "%" "%"',[self,fSourceDB.FileName,fn]);
+  SetCurrentThreadName('% [%] [%]',[self,fSourceDB.FileName,fn]);
   log := SynSQLite3Log.Enter(self{$ifndef DELPHI5OROLDER},'Execute'{$endif});
   {$endif}
   try

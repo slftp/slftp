@@ -6,7 +6,7 @@ unit mORMotHttpClient;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit mORMotHttpClient;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -151,6 +151,8 @@ uses
   {$ifdef KYLIX3}
   Types,
   LibC,
+  {$else}
+  SynFPCLinux,
   {$endif}
 {$endif}
   SysUtils,
@@ -291,6 +293,7 @@ type
   protected
     /// internal HTTP/1.1 compatible client
     fSocketClass: THttpClientSocketClass;
+    /// either THttpClientSocket or THttpClientWebSockets
     fSocket: THttpClientSocket;
     /// call fSocket.Request()
     function InternalRequest(const url, method: RawUTF8;
@@ -716,7 +719,7 @@ begin
               [E.ClassType,fServer,fPort,MicroSecToString(elapsed*1000),
                MicroSecToString(wait*1000),retry,fConnectRetrySeconds], self);
             {$endif}
-            sleep(wait);
+            SleepHiRes(wait);
           end;
         end;
       until fSocket<>nil;
@@ -751,11 +754,13 @@ end;
 
 procedure TSQLHttpClientWinSock.InternalClose;
 begin
-  try
-    FreeAndNil(fSocket);
-  except
-    ; // ignore any error here
-  end;
+  if fSocket<>nil then
+    try
+      InternalLog('InternalClose: fSocket.Free', sllTrace);
+      FreeAndNil(fSocket);
+    except
+      ; // ignore any error here
+    end;
 end;
 
 function TSQLHttpClientWinSock.InternalRequest(const url, method: RawUTF8;
@@ -767,7 +772,7 @@ begin
   {$endif}
   result.Lo := fSocket.Request(SockString(url),SockString(method),
     KeepAliveMS,SockString(Header),SockString(Data),SockString(DataType),false);
-  result.Hi := GetCardinal(pointer(fSocket.HeaderGetValue('SERVER-INTERNALSTATE')));
+  result.Hi := fSocket.ServerInternalState;
   Header := fSocket.HeaderGetText;
   Data := fSocket.Content;
 end;
@@ -788,6 +793,7 @@ begin
     try
       if fSocketClass=nil then
         fSocketClass := THttpClientWebSockets;
+      InternalLog('InternalCheckOpen: calling %.Open', [fSocketClass]);
       result := inherited InternalCheckOpen;
       if result then begin
         include(fInternalState,isOpened);
@@ -818,9 +824,8 @@ begin
       ParamValue,TInterfaceFactory.Get(ParamInfo.ArgTypeInfo));
 end;
 
-function TSQLHttpClientWebsockets.FakeCallbackUnregister(
-  Factory: TInterfaceFactory; FakeCallbackID: integer;
-  Instance: pointer): boolean;
+function TSQLHttpClientWebsockets.FakeCallbackUnregister(Factory: TInterfaceFactory;
+  FakeCallbackID: integer; Instance: pointer): boolean;
 var body,head,resp: RawUTF8;
 begin
   if (FakeCallbackID=0) or not WebSocketsConnected then begin
@@ -981,7 +986,7 @@ begin
               'InternalCheckOpen: % on %:% -> wait and retry up to % seconds',
               [E.ClassType,fServer,fPort,fConnectRetrySeconds], self);
             {$endif}
-            sleep(250);
+            SleepHiRes(250);
           end;
         end;
       until fRequest<>nil;

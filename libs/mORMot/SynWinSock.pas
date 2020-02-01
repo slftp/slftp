@@ -6,7 +6,7 @@ unit SynWinSock;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -27,7 +27,7 @@ unit SynWinSock;
   Portions created by Lukas Gebauer are Copyright (C) 2003.
   All Rights Reserved.
 
-  Portions created by Arnaud Bouchez are Copyright (C) 2019 Arnaud Bouchez.
+  Portions created by Arnaud Bouchez are Copyright (C) 2020 Arnaud Bouchez.
   All Rights Reserved.
 
   Contributor(s):
@@ -58,6 +58,7 @@ unit SynWinSock;
   Version 1.18
   - fixed ticket [f79ff5714b] about potential finalization issues as .bpl in IDE
   - fixed Win64 compatibility issue
+  - includes SChannel API process for TLS connection
 
 
 }
@@ -75,7 +76,7 @@ is used, when running system allows it. For IPv6 support you must have the new A
 {$I Synopse.inc} // define HASINLINE CPU32 CPU64 OWNNORMTOUPPER
 
 interface
-
+{$ifdef MSWINDOWS}
 uses
   SysUtils,
   Classes,
@@ -845,6 +846,7 @@ type
   PSecPkgContextStreamSizes = ^TSecPkgContextStreamSizes;
 
   ESChannel = class(Exception);
+
   {$ifdef UNICODE}TSChannelClient = record{$else}TSChannelClient = object{$endif}
   private
     Cred: TCredHandle;
@@ -944,9 +946,9 @@ const
   SECPKG_ATTR_STREAM_SIZES = 4;
   SECURITY_NATIVE_DREP = $10;
   SCHANNEL_SHUTDOWN = 1;
-
+{$endif}
 implementation
-
+{$ifdef MSWINDOWS}
 var
   SynSockCount: integer;
   LibHandle: {$ifdef FPC}TLibHandle{$else}HMODULE{$endif};
@@ -1533,7 +1535,7 @@ begin
             SockSChannelApi := Assigned(AcquireCredentialsHandle) and
               Assigned(InitializeSecurityContext) and
               Assigned(QueryContextAttributes) and
-              Assigned(EncryptMessage);
+              Assigned(EncryptMessage) and Assigned(DecryptMessage);
           end;
         end;
         result := True;
@@ -1949,5 +1951,6 @@ finalization
   SynSockCount := -254; // force release library
   DestroySocketInterface;
   DeleteCriticalSection(SynSockCS);
+{$endif}
 end.
 
