@@ -6,7 +6,7 @@ unit mORMotHttpServer;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit mORMotHttpServer;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -310,10 +310,8 @@ type
     function GetDBServerNames: RawUTF8;
     function HttpApiAddUri(const aRoot,aDomainName: RawByteString;
       aSecurity: TSQLHttpServerSecurity; aRegisterURI,aRaiseExceptionOnError: boolean): RawUTF8;
-    function NotifyCallback(aSender: TSQLRestServer;
-      const aInterfaceDotMethodName,aParams: RawUTF8;
-      aConnectionID: Int64; aFakeCallID: integer;
-      aResult, aErrorMsg: PRawUTF8): boolean;
+    function NotifyCallback(aSender: TSQLRestServer; const aInterfaceDotMethodName,aParams: RawUTF8;
+      aConnectionID: THttpServerConnectionID; aFakeCallID: integer; aResult, aErrorMsg: PRawUTF8): boolean;
   public
     /// create a Server instance, binded and listening on a TCP port to HTTP requests
     // - raise a EHttpServer exception if binding failed
@@ -715,6 +713,9 @@ begin
   {$ifndef ONLYUSEHTTPSOCKET}
   if aHttpServerKind in [useHttpApi,useHttpApiRegisteringURI] then
   try
+    if PosEx('Wine',OSVersionInfoEx)>0 then
+      log.Log(sllWarning,'%: httpapi probably not supported on % -> try useHttpSocket',
+        [ToText(aHttpServerKind)^,OSVersionInfoEx]);
     // first try to use fastest http.sys
     fHttpServer := THttpApiServer.Create(false,
       aQueueName,HttpThreadStart,HttpThreadTerminate,GetDBServerNames);
@@ -726,15 +727,15 @@ begin
         fHttpServerKind=useHttpApiRegisteringURI,true);
   except
     on E: Exception do begin
-      log.Log(sllError,'% for % at%  -> fallback to socket-based server',
-        [E,fHttpServer,ServersRoot],self);
+      log.Log(sllError,'% for % % at%  -> fallback to socket-based server',
+        [E,ToText(aHttpServerKind)^,fHttpServer,ServersRoot],self);
       FreeAndNil(fHttpServer); // if http.sys initialization failed
     end;
   end;
   {$endif}
   {$endif}
   if fHttpServer=nil then begin
-    // http.sys failed -> create one instance of our pure Delphi server
+    // http.sys not running -> create one instance of our pure socket server
     if aHttpServerKind=useBidirSocket then
       fHttpServer := TWebSocketServerRest.Create(
         fPort,HttpThreadStart,HttpThreadTerminate,GetDBServerNames) else
@@ -966,7 +967,7 @@ begin
     end;
     if fHosts.Count>0 then begin
       hostroot := FindIniNameValue(pointer(Ctxt.InHeaders),'HOST: ');
-      i := PosEx(':',hostroot);
+      i := PosExChar(':',hostroot);
       if i>0 then
         SetLength(hostroot,i-1); // trim any port
       if hostroot<>'' then // e.g. 'Host: project1.com' -> 'root1'
@@ -978,9 +979,9 @@ begin
         if Ctxt.URL[1]='/' then
           call.Url := hostroot+Ctxt.URL else
           call.Url := hostroot+'/'+Ctxt.URL else
-      if Ctxt.URL[1]='/' then
-        call.Url := copy(Ctxt.URL,2,maxInt) else
-        call.Url := Ctxt.URL;
+      if (Ctxt.URL<>'') and (Ctxt.URL[1]='/') then
+          call.Url := copy(Ctxt.URL,2,maxInt) else
+          call.Url := Ctxt.URL;
     // search and call any matching TSQLRestServer instance
     result := HTTP_NOTFOUND; // page not found by default (in case of wrong URL)
     serv := nil;
@@ -1139,7 +1140,7 @@ begin
 end;
 
 function TSQLHttpServer.NotifyCallback(aSender: TSQLRestServer;
-  const aInterfaceDotMethodName, aParams: RawUTF8; aConnectionID: Int64;
+  const aInterfaceDotMethodName, aParams: RawUTF8; aConnectionID: THttpServerConnectionID;
   aFakeCallID: integer; aResult, aErrorMsg: PRawUTF8): boolean;
 var ctxt: THttpServerRequest;
     status: cardinal;

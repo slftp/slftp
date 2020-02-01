@@ -6,7 +6,7 @@ unit SynPdf;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynPdf;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -9771,7 +9771,6 @@ begin
   else
     R^.iType := R^.iType; // for debug purpose (breakpoint)
   end;
-
   case R^.iType of
     EMR_RESTOREDC,
     EMR_SETWINDOWEXTEX,
@@ -10233,7 +10232,6 @@ begin
     if not DC[nDC].pen.null then
       Canvas.Stroke;
   end;
-
   with DC[nDC], Canvas do begin
     FViewSize := ViewSize;
     FViewOrg := ViewOrg;
@@ -10302,7 +10300,6 @@ begin
       MM_ANISOTROPIC:
         ;  // TBD
     end;
-
     if FWinSize.cx=0 then // avoid EZeroDivide
       FFactorX := 1.0 else
       FFactorX := Abs(FViewSize.cx / FWinSize.cx);
@@ -10322,7 +10319,6 @@ begin
           WorldTransform := Custom^;
       end;
     end;
-
     // use transformation
     ScaleXForm := WorldTransform;
     FWorldFactorX := WorldTransform.eM11;

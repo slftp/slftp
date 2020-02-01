@@ -6,7 +6,7 @@ unit SynTests;
 (*
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynTests;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -245,10 +245,13 @@ type
     // and ExpectedResult=true
     function CheckMatchAny(const Value: RawUTF8; const Values: array of RawUTF8;
       CaseSentitive: Boolean=true; ExpectedResult: Boolean=true; const msg: string = ''): Boolean;
+    /// used by the published methods to run a test assertion, with an UTF-8 error message
+    // - condition must equals TRUE to pass the test
+    procedure CheckUTF8(condition: Boolean; const msg: RawUTF8); overload;
     /// used by the published methods to run a test assertion, with a error
     // message computed via FormatUTF8()
     // - condition must equals TRUE to pass the test
-    procedure CheckUTF8(condition: Boolean; const msg: RawUTF8; const args: array of const);
+    procedure CheckUTF8(condition: Boolean; const msg: RawUTF8; const args: array of const); overload;
     /// used by published methods to start some timing on associated log
     // - call this once, before one or several consecutive CheckLogTime()
     // - warning: this method is not thread-safe
@@ -669,6 +672,13 @@ function TSynTestCase.CheckMatchAny(const Value: RawUTF8;
 begin
   result := (FindRawUTF8(Values,Value,CaseSentitive)>=0)=ExpectedResult;
   Check(result);
+end;
+
+procedure TSynTestCase.CheckUTF8(condition: Boolean; const msg: RawUTF8);
+begin
+  InterlockedIncrement(fAssertions);
+  if not condition or (tcoLogEachCheck in fOptions) then
+    CheckUTF8(condition,'%',[msg]);
 end;
 
 procedure TSynTestCase.CheckUTF8(condition: Boolean; const msg: RawUTF8;
@@ -1291,7 +1301,7 @@ procedure TSynTestsLogged.Failed(const msg: string; aTest: TSynTestCase);
 begin
   inherited;
   with TestCase[fCurrentMethod] do begin
-    fLogFile.Log(sllFail,'%: % "%"',[Ident,TestName[fCurrentMethodIndex],msg],aTest);
+    fLogFile.Log(sllFail,'%: % [%]',[Ident,TestName[fCurrentMethodIndex],msg],aTest);
     {$ifdef KYLIX3}
     fLogFile.Flush(true);
     // we do not have a debugger for CrossKylix -> stop here!

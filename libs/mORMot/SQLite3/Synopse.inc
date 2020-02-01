@@ -1,7 +1,7 @@
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2011 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -20,7 +20,7 @@
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -655,10 +655,12 @@
     {$define NOSQLITE3STATIC}
   {$endif}
 {$else}
-  // only Win32+Win64 are supported yet with Delphi anyway
-  {$ifndef MSWINDOWS}
-    {$define NOSQLITE3STATIC}
-  {$endif}
+  // there is a linking bug with Delphi XE4 on Win64
+  {$ifdef CPUX64}
+    {$if CompilerVersion = 25.0} // exactly XE4
+      {$define NOSQLITE3STATIC}
+    {$ifend}
+  {$endif} // other Win32/Win64 Delphi platforms should work as expected
 {$endif FPC}
 
 {$ifdef NOSQLITE3STATIC}

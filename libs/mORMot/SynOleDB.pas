@@ -6,7 +6,7 @@ unit SynOleDB;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynOleDB;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -119,6 +119,8 @@ unit SynOleDB;
 {$I Synopse.inc} // define HASINLINE CPU32 CPU64 OWNNORMTOUPPER
 
 interface
+
+{$ifdef MSWINDOWS} // compiles as void unit for non-Windows - allow Lazarus package
 
 uses
   Windows,
@@ -1382,7 +1384,7 @@ begin
     for i := 0 to high(Values) do
       if StoreVoidStringAsNull and (Values[i]='') then
         VArray[i] := 'null' else
-        QuotedStr(pointer(Values[i]),'''',VArray[i]);
+        QuotedStr(Values[i],'''',VArray[i]);
 end;
 
 procedure TOleDBStatement.Bind(Param: Integer; Value: Int64;
@@ -1471,7 +1473,7 @@ begin
 {$else}
     Int32ToUtf8(Status,msg);
 {$endif}
-  SynDBLog.Add.Log(sllError,'Invalid "%" status for column "%" at row % for %',
+  SynDBLog.Add.Log(sllError,'Invalid [%] status for column [%] at row % for %',
     [msg,Column^.ColumnName,fCurrentRow,fSQL],self);
 end;
 
@@ -1867,7 +1869,7 @@ begin
         for i := 0 to fParamCount-1 do
           case fParams[i].VType of
             ftUnknown: raise EOleDBException.CreateUTF8(
-              '%.Execute: missing #% bound parameter for "%"',[self,i+1,fSQL]);
+              '%.Execute: missing #% bound parameter for [%]',[self,i+1,fSQL]);
           end;
         P := pointer(fParams);
         SetLength(fParamBindings,fParamCount);
@@ -2272,7 +2274,7 @@ begin
         end;
       end;
       else raise EOleDBException.CreateUTF8(
-        '%.Execute: wrong column "%" (%) for "%"',[self,aName,
+        '%.Execute: wrong column [%] (%) for [%]',[self,aName,
           GetEnumName(TypeInfo(TSQLDBFieldType),ord(Col^.ColumnType))^,fSQL]);
       end;
       inc(nfo);
@@ -2594,7 +2596,7 @@ begin
         result := true;
       except
       end;
-    SynDBLog.Add.Log(sllDB,'CreateDatabase for "%" returned %',[ConnectionString,ord(result)]);
+    SynDBLog.Add.Log(sllDB,'CreateDatabase for [%] returned %',[ConnectionString,ord(result)]);
   finally
     DB := null;
     Catalog := nil;
@@ -3240,4 +3242,11 @@ finalization
   if OleDBCoinitialized<>0 then
     SynDBLog.Add.Log(sllError,'Missing TOleDBConnection.Destroy call = %',
       OleDBCoInitialized);
+
+{$else}
+
+implementation
+
+{$endif MSWINDOWS} // compiles as void unit for non-Windows - allow Lazarus package
+
 end.
