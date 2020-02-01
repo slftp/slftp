@@ -6,7 +6,7 @@ unit SynDB;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynDB;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -1124,20 +1124,18 @@ type
     fBatchSendingAbilities: TSQLDBStatementCRUDs;
     fBatchMaxSentAtOnce: integer;
     fLoggedSQLMaxSize: integer;
-    fLogSQLStatementOnException: boolean;
     fOnBatchInsert: TOnBatchInsert;
+    fDBMS: TSQLDBDefinition;
+    fUseCache, fStoreVoidStringAsNull, fLogSQLStatementOnException,
+    fRollbackOnDisconnect, fReconnectAfterConnectionError: boolean;
     {$ifndef UNICODE}
     fVariantWideString: boolean;
     {$endif}
-    fUseCache: boolean;
-    fRollbackOnDisconnect: boolean;
-    fStoreVoidStringAsNull: boolean;
     fForeignKeys: TSynNameValue;
     fSQLCreateField: TSQLDBFieldTypeDefinition;
     fSQLCreateFieldMax: cardinal;
     fSQLGetServerTimestamp: RawUTF8;
     fEngineName: RawUTF8;
-    fDBMS: TSQLDBDefinition;
     fOnProcess: TOnSQLDBProcess;
     fOnStatementInfo: TOnSQLDBInfo;
     fConnectionTimeOutTicks: Int64;
@@ -1331,6 +1329,14 @@ type
     // amLocked, amBackgroundThread or amMainThread
     property ConnectionTimeOutMinutes: cardinal
       read GetConnectionTimeOutMinutes write SetConnectionTimeOutMinutes;
+    /// intercept connection errors at statement preparation and try to reconnect
+    // - i.e. detect TSQLDBConnection.LastErrorWasAboutConnection in
+    // TSQLDBConnection.NewStatementPrepared
+    // - warning: no connection shall still be used on the background (e.g. in
+    // multi-threaded applications), or some unexpected issues may occur - see
+    // AcquireExecutionMode[] recommendations in ConnectionTimeOutMinutes
+    property ReconnectAfterConnectionError: boolean
+      read fReconnectAfterConnectionError write fReconnectAfterConnectionError;
     /// create a new thread-safe statement
     // - this method will call ThreadSafeConnection.NewStatement
     function NewThreadSafeStatement: TSQLDBStatement;
@@ -1352,8 +1358,11 @@ type
     // - this method should return a prepared statement instance on success
     // - on error, returns nil and you can check Connnection.LastErrorMessage /
     // Connection.LastErrorException to retrieve correspnding error information
+    // (if RaiseExceptionOnError is left to default FALSE value, otherwise, it will
+    // raise an exception)
     function NewThreadSafeStatementPrepared(const SQLFormat: RawUTF8;
-      const Args: array of const; ExpectResults: Boolean): ISQLDBStatement; overload;
+      const Args: array of const; ExpectResults: Boolean;
+      RaiseExceptionOnError: Boolean=false): ISQLDBStatement; overload;
     /// create, prepare and bound inlined parameters to a thread-safe statement
     // - this implementation will call the NewThreadSafeStatement virtual method,
     // then bound inlined parameters as :(1234): and return the resulting statement
@@ -1776,10 +1785,12 @@ type
     // - this method should return a prepared statement instance on success
     // - on error, if RaiseExceptionOnError=false (by default), it returns nil
     // and you can check LastErrorMessage and LastErrorException properties to
-    // retrieve correspnding error information
+    // retrieve corresponding error information
+    // - if TSQLDBConnectionProperties.ReconnectAfterConnectionError is set,
+    // any connection error will be trapped, unless AllowReconnect is false
     // - on error, if RaiseExceptionOnError=true, an exception is raised
-    function NewStatementPrepared(const aSQL: RawUTF8;
-      ExpectResults: Boolean; RaiseExceptionOnError: Boolean=false): ISQLDBStatement; virtual;
+    function NewStatementPrepared(const aSQL: RawUTF8; ExpectResults: Boolean;
+      RaiseExceptionOnError: Boolean=false; AllowReconnect: Boolean=true): ISQLDBStatement; virtual;
     /// begin a Transaction for this connection
     // - this default implementation will check and set TransactionCount
     procedure StartTransaction; virtual;
@@ -3497,8 +3508,8 @@ begin
   if (aConnection=nil) or (aConnection.fErrorMessage='') then
     Create(aMessage) else
   if aConnection.fErrorException=nil then
-    CreateUTF8('% "%"',[aMessage,aConnection.fErrorMessage]) else
-    CreateUTF8('% as % with message "%"',
+    CreateUTF8('% [%]',[aMessage,aConnection.fErrorMessage]) else
+    CreateUTF8('% as % with message [%]',
       [aMessage,aConnection.fErrorException,aConnection.fErrorMessage]);
 end;
 
@@ -3950,7 +3961,7 @@ begin
     ColumnName := UTF8ToString(fPrepared.ColumnName(i));
     h := fResult.FindHashedForAdding(ColumnName,added);
     if not added then
-      raise ESQLQueryException.CreateUTF8('Duplicated column name "%"',[ColumnName]);
+      raise ESQLQueryException.CreateUTF8('Duplicated column name [%]',[ColumnName]);
     with fResults[h] do begin
       fQuery := self;
       fRowIndex := 0;
@@ -4031,7 +4042,7 @@ begin
     paramName := UTF8DecodeToString(B,P-B);
     i := fParam.FindHashed(paramName);
     if i<0 then
-      raise ESQLQueryException.CreateUTF8('Parameter "%" not bound for "%"',[paramName,req]);
+      raise ESQLQueryException.CreateUTF8('Parameter [%] not bound for [%]',[paramName,req]);
     if col=length(cols) then
       SetLength(cols,col+64);
     cols[col] := i;
@@ -4039,14 +4050,15 @@ begin
   until P^=#0;
   Connection.InternalProcess(speActive);
   try
-    fPrepared := Connection.NewStatementPrepared(new,ExpectResults);
+    fPrepared := Connection.NewStatementPrepared(new,ExpectResults,
+      {raiseexc=}false,{allowreconnect=}false);
     if fPrepared=nil then
       try
         if Connection.LastErrorWasAboutConnection then begin
           SynDBLog.Add.Log(sllDB,'TQuery.Execute() now tries to reconnect');
           Connection.Disconnect;
           Connection.Connect;
-          fPrepared := Connection.NewStatementPrepared(new,ExpectResults);
+          fPrepared := Connection.NewStatementPrepared(new,ExpectResults,false,false);
           if fPrepared=nil then
             raise ESQLQueryException.CreateFromError('Unable to reconnect DB',Connection);
         end else
@@ -4062,7 +4074,7 @@ begin
       except
         on E: Exception do
           raise ESQLQueryException.CreateUTF8(
-            '% "%" when binding value for parameter "%" in "%"',
+            '% [%] when binding value for parameter [%] in [%]',
             [E,E.Message,fParams[cols[i]].fName,req]);
       end;
     fPrepared.ExecutePrepared;
@@ -4221,17 +4233,52 @@ begin
 end;
 
 function TSQLDBConnection.NewStatementPrepared(const aSQL: RawUTF8;
-  ExpectResults: Boolean; RaiseExceptionOnError: Boolean=false): ISQLDBStatement;
+  ExpectResults, RaiseExceptionOnError, AllowReconnect: Boolean): ISQLDBStatement;
 var Stmt: TSQLDBStatement;
     ToCache: boolean;
     ndx,altern: integer;
     cachedSQL: RawUTF8;
-begin
-  fErrorMessage := '';
-  if length(aSQL)<5 then begin
-    result := nil;
-    exit;
+
+  procedure TryPrepare(doraise: boolean);
+  var Stmt: TSQLDBStatement;
+  begin
+    Stmt := nil;
+    try
+      InternalProcess(speActive);
+      try
+        Stmt := NewStatement;
+        Stmt.Prepare(aSQL,ExpectResults);
+        if ToCache then begin
+          if fCache=nil then
+            fCache := TRawUTF8ListHashed.Create(true);
+          fCache.AddObject(cachedSQL,Stmt);
+          Stmt._AddRef;
+        end;
+        result := Stmt;
+      finally
+        InternalProcess(speNonActive);
+      end;
+    except
+      on E: Exception do begin
+        with SynDBLog.Add do
+          if [sllSQL,sllDB,sllException,sllError]*Family.Level<>[] then
+            LogLines(sllSQL,pointer(Stmt.SQLWithInlinedParams),self,'--');
+        Stmt.Free;
+        result := nil;
+        StringToUTF8(E.Message,fErrorMessage);
+        fErrorException := PPointer(E)^;
+        if doraise then
+          raise;
+      end;
+    end;
   end;
+begin
+  result := nil;
+  fErrorMessage := '';
+  fErrorException := nil;
+  if length(aSQL)<5 then
+    exit;
+  // first check if could be retrieved from cache
   ToCache := fProperties.IsCachable(Pointer(aSQL));
   if ToCache and (fCache<>nil) then begin
     cachedSQL := aSQL;
@@ -4262,33 +4309,32 @@ begin
       end;
     end;
   end;
-  // default implementation with no cache
-  Stmt := nil;
-  try
-    InternalProcess(speActive);
+  // not in cache (or not cachable) -> prepare now
+  if fProperties.ReconnectAfterConnectionError and AllowReconnect then begin
+    TryPrepare({doraise=}false);
+    if result<>nil then
+      exit; // success
+    if LastErrorWasAboutConnection then
     try
-      Stmt := NewStatement;
-      Stmt.Prepare(aSQL,ExpectResults);
-      if ToCache then begin
-        if fCache=nil then
-          fCache := TRawUTF8ListHashed.Create(true);
-        fCache.AddObject(cachedSQL,Stmt);
-        Stmt._AddRef;
+      SynDBLog.Add.Log(sllDB, 'NewStatementPrepared: reconnect after %',[fErrorException],self);
+      Disconnect;
+      Connect;
+      TryPrepare(RaiseExceptionOnError);
+      if result=nil then begin
+        SynDBLog.Add.Log(sllDB, 'NewStatementPrepared: unable to reconnect',self);
+        InternalProcess(speConnectionLost);
       end;
-      result := Stmt;
-    finally
-      InternalProcess(speNonActive);
-    end;
-  except
-    on E: Exception do begin
-      Stmt.Free;
+    except
       if RaiseExceptionOnError then
-        raise;
-      StringToUTF8(E.Message,fErrorMessage);
-      fErrorException := PPointer(E)^;
-      result := nil;
-    end;
-  end;
+        raise else
+        result := nil;
+    end
+    else if RaiseExceptionOnError and (fErrorException<>nil) then
+      // propagate error not related to connection (e.g. SQL syntax error)
+      raise fErrorException.Create(UTF8ToString(fErrorMessage));
+  end else
+    // regular preparation, with no connection error interception
+    TryPrepare(RaiseExceptionOnError);
 end;
 
 procedure TSQLDBConnection.Rollback;
@@ -4744,7 +4790,7 @@ begin
                      Query.BindBlob(i+1,pointer(Values[i]),length(Values[i]));
       sptDateTime: Query.BindDateTime(i+1,Iso8601ToDateTime(Values[i]));
       else raise ESQLDBException.CreateUTF8(
-        '%.PrepareInlined: Unrecognized parameter Type[%] = % in "%"',
+        '%.PrepareInlined: Unrecognized parameter Type[%] = % in [%]',
         [self,i+1,ord(Types[i]),aSQL]);
     end;
   result := Query;
@@ -4816,15 +4862,18 @@ begin
 end;
 
 function TSQLDBConnectionProperties.NewThreadSafeStatementPrepared(
-  const aSQL: RawUTF8; ExpectResults: Boolean; RaiseExceptionOnError: Boolean=false): ISQLDBStatement;
+  const aSQL: RawUTF8; ExpectResults, RaiseExceptionOnError: Boolean): ISQLDBStatement;
 begin
-  result := ThreadSafeConnection.NewStatementPrepared(aSQL,ExpectResults,RaiseExceptionOnError);
+  result := ThreadSafeConnection.NewStatementPrepared(
+    aSQL,ExpectResults,RaiseExceptionOnError);
 end;
 
 function TSQLDBConnectionProperties.NewThreadSafeStatementPrepared(
-  const SQLFormat: RawUTF8; const Args: array of const; ExpectResults: Boolean): ISQLDBStatement;
+  const SQLFormat: RawUTF8; const Args: array of const;
+  ExpectResults, RaiseExceptionOnError: Boolean): ISQLDBStatement;
 begin
-  result := NewThreadSafeStatementPrepared(FormatUTF8(SQLFormat,Args),ExpectResults);
+  result := NewThreadSafeStatementPrepared(FormatUTF8(SQLFormat,Args),
+    ExpectResults,RaiseExceptionOnError);
 end;
 
 function TSQLDBConnectionProperties.SharedTransaction(SessionID: cardinal;
@@ -5963,8 +6012,8 @@ begin // see more complete list in feature request [f024266c0839]
     result := IdemPCharArray(PosErrorNumber(aMessage,'['),
       ['08001','08S01','08007','28000','42000'])>=0;
   dMySQL:
-    result := (aMessage = 'SQL Error: Lost connection to MySQL server during query') or
-              (aMessage = 'SQL Error: MySQL server has gone away');
+    result := (PosEx('Lost connection to MySQL server',aMessage)>0) or
+              (PosEx('MySQL server has gone away',aMessage)>0);
   else
     result := PosI(' CONNE',aMessage)>0;
   end;
@@ -5980,11 +6029,12 @@ var SQL: RawUTF8;
     maxf: integer;
 procedure ComputeSQL(rowcount,offset: integer);
 var f,r,p,len: integer;
+    tmp: TTextWriterStackBuffer;
 begin
   if (fDBMS<>dFireBird) and (rowcount=prevrowcount) then
     exit;
   prevrowcount := rowcount;
-  with TTextWriter.CreateOwnedStream(8192) do
+  with TTextWriter.CreateOwnedStream(tmp) do
   try
     case Props.fDBMS of
     dFirebird: begin
@@ -6148,8 +6198,7 @@ begin
       end; // exception leaves Query=nil to raise exception
     end;
     if Query=nil then
-      raise ESQLDBException.CreateUTF8('%.MultipleValuesInsert: Query=nil for "%"',
-        [self,SQL]);
+      raise ESQLDBException.CreateUTF8('%.MultipleValuesInsert: Query=nil for [%]',[self,SQL]);
     try
       p := 1;
       for i := 1 to prevrowcount do begin
@@ -6408,7 +6457,7 @@ end;
 { TSQLDBConnectionPropertiesThreadSafe }
 
 procedure TSQLDBConnectionPropertiesThreadSafe.ClearConnectionPool;
-var i: integer;
+var i: PtrInt;
 begin
   EnterCriticalSection(fConnectionCS);
   try
@@ -6974,7 +7023,7 @@ begin
   ftUTF8:     RawUTF8(Dest) := VariantToUTF8(Temp);
   {$endif}
   ftBlob:     VariantToRawByteString(Temp,RawByteString(Dest));
-  else raise ESQLDBException.CreateUTF8('%.ColumnToTypedValue: Invalid Type "%"',
+  else raise ESQLDBException.CreateUTF8('%.ColumnToTypedValue: Invalid Type [%]',
     [self,ToText(result)^]);
   end;
 end;
@@ -7352,6 +7401,7 @@ var P,B: PUTF8Char;
     num: integer;
     maxSize,maxAllowed: cardinal;
     W: TTextWriter;
+    tmp: TTextWriterStackBuffer;
 begin
   try
     P := pointer(fSQL);
@@ -7389,7 +7439,7 @@ begin
             result := fSQL;
             exit;
           end else
-          W := TTextWriter.CreateOwnedStream;
+          W := TTextWriter.CreateOwnedStream(tmp);
         W.AddNoJSONEscape(B,P-B);
         if P^=#0 then
           break;
@@ -7851,7 +7901,7 @@ begin
     for i := 0 to high(Values) do
       if StoreVoidStringAsNull and (Values[i]='') then
         VArray[i] := 'null' else
-        QuotedStr(pointer(Values[i]),'''',VArray[i]);
+        QuotedStr(Values[i],'''',VArray[i]);
 end;
 
 procedure TSQLDBStatementWithParams.BindArrayCurrency(Param: Integer;

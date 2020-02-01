@@ -5,7 +5,7 @@ unit SynTable;
 (*
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -24,7 +24,7 @@ unit SynTable;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -701,8 +701,9 @@ type
   TSQLParamTypeDynArray = array of TSQLParamType;
 
   /// simple writer to a Stream, specialized for the JSON format and SQL export
-  // - use an internal buffer, faster than string+string
-  TJSONWriter = class(TTextWriter)
+  // - i.e. define some property/method helpers to export SQL resultset as JSON
+  // - see mORMot.pas for proper class serialization via TJSONSerializer.WriteObject
+  TJSONWriter = class(TTextWriterWithEcho)
   protected
     /// used to store output format
     fExpand: boolean;
@@ -2204,11 +2205,11 @@ type
     function NextSafe(out Data: Pointer; DataLen: PtrInt): boolean; {$ifdef HASINLINE}inline;{$endif}
     {$ifndef NOVARIANTS}
     /// read the next variant from the buffer
-    // - is a wrapper around VariantLoad(), so may suffer from buffer overflow
-    procedure NextVariant(var Value: variant; CustomVariantOptions: pointer);
+    // - is a wrapper around VariantLoad()
+    procedure NextVariant(var Value: variant; CustomVariantOptions: PDocVariantOptions);
     /// read the JSON-serialized TDocVariant from the buffer
     // - matches TFileBufferWriter.WriteDocVariantData format
-    procedure NextDocVariantData(out Value: variant; CustomVariantOptions: pointer);
+    procedure NextDocVariantData(out Value: variant; CustomVariantOptions: PDocVariantOptions);
     {$endif NOVARIANTS}
     /// copy data from the current position, and move ahead the specified bytes
     procedure Copy(out Dest; DataLen: PtrInt); {$ifdef HASINLINE}inline;{$endif}
@@ -7269,7 +7270,7 @@ var
   c: PCardinal;
 begin
   SetString(result, nil, SizeOf(m^));
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(m^, SizeOf(m^), 0);
+  FillCharFast(m^, SizeOf(m^), 0);
   for i := 0 to length(Pattern) - 1 do begin
     c := @m^[u[p[i]]]; // for FPC code generation
     c^ := c^ or (1 shl i);
@@ -7919,7 +7920,7 @@ begin
     InvalidTextLengthMin(MinLength,ErrorMsg) else
   if L>MaxLength then
     ErrorMsg := Format(sInvalidTextLengthMax,[MaxLength,Character01n(MaxLength)]) else begin
-    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Min,SizeOf(Min),0);
+    FillCharFast(Min,SizeOf(Min),0);
     L := length(value);
     for i := 1 to L do
     case value[i] of
@@ -8567,7 +8568,7 @@ begin
     Len := FromVarUInt32(P)+3;
     if D+Len>DEnd then
       break;
-    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(D^,Len,0);
+    FillCharFast(D^,Len,0);
     crc := crc32c(crc,@Len,SizeOf(Len));
     inc(D,Len);
   end;
@@ -9279,16 +9280,18 @@ begin
 end;
 
 {$ifndef NOVARIANTS}
-procedure TFastReader.NextVariant(var Value: variant; CustomVariantOptions: pointer);
+procedure TFastReader.NextVariant(var Value: variant;
+  CustomVariantOptions: PDocVariantOptions);
 begin
-  P := VariantLoad(Value,P,CustomVariantOptions);
+  P := VariantLoad(Value,P,CustomVariantOptions,Last);
   if P=nil then
     ErrorData('VariantLoad=nil',[]) else
   if P>Last then
     ErrorOverFlow;
 end;
 
-procedure TFastReader.NextDocVariantData(out Value: variant; CustomVariantOptions: pointer);
+procedure TFastReader.NextDocVariantData(out Value: variant;
+  CustomVariantOptions: PDocVariantOptions);
 var json: TValueResult;
     temp: TSynTempBuffer;
 begin
@@ -9299,7 +9302,7 @@ begin
   try
     if CustomVariantOptions=nil then
       CustomVariantOptions := @JSON_OPTIONS[true];
-    TDocVariantData(Value).InitJSONInPlace(temp.buf,PDocVariantOptions(CustomVariantOptions)^);
+    TDocVariantData(Value).InitJSONInPlace(temp.buf,CustomVariantOptions^);
   finally
     temp.Done;
   end;
@@ -9593,7 +9596,7 @@ end;
 
 procedure TFastReader.Read(var DA: TDynArray; NoCheckHash: boolean);
 begin
-  P := DA.LoadFrom(P,nil,NoCheckHash);
+  P := DA.LoadFrom(P,nil,NoCheckHash,Last);
   if P=nil then
     ErrorData('TDynArray.LoadFrom %',[DA.ArrayTypeShort^]);
 end;
@@ -9749,7 +9752,7 @@ function TSynPersistentStoreJson.SaveToJSON(reformat: TTextWriterJSONFormat): Ra
 var
   W: TTextWriter;
 begin
-  W := TTextWriter.CreateOwnedStream(65536);
+  W := DefaultTextWriterSerializer.CreateOwnedStream(65536);
   try
     W.Add('{');
     AddJSON(W);
@@ -10214,7 +10217,7 @@ end;
 destructor TSynUniqueIdentifierGenerator.Destroy;
 begin
   fSafe.Done;
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(fCrypto,SizeOf(fCrypto),0);
+  FillCharFast(fCrypto,SizeOf(fCrypto),0);
   fCryptoCRC := 0;
   inherited Destroy;
 end;
@@ -10355,7 +10358,7 @@ begin
       i := PosExChar(':',fPassword);
       if i>0 then
         raise ESynException.CreateUTF8('%.GetPassWordPlain unable to retrieve the '+
-          'stored value: current user is "%", but password in % was encoded for "%"',
+          'stored value: current user is [%], but password in % was encoded for [%]',
           [self,ExeVersion.User,AppSecret,copy(fPassword,1,i-1)]);
     end;
   end;
@@ -10375,7 +10378,7 @@ begin
     fPassWord := '';
     exit;
   end;
-  SetString(tmp,PAnsiChar(value),Length(value)); // private copy
+  SetString(tmp,PAnsiChar(pointer(value)),Length(value)); // private copy
   SymmetricEncrypt(GetKey,tmp);
   fPassWord := BinToBase64(tmp);
 end;
@@ -10633,7 +10636,7 @@ begin
     PInt64Array(@Fields)^[2] := 0;
     PInt64Array(@Fields)^[3] := 0;
   end else
-    {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Fields,SizeOf(Fields),0);
+    FillCharFast(Fields,SizeOf(Fields),0);
 end;
 
 {$ifdef FPC}{$pop}{$else}{$WARNINGS ON}{$endif}
@@ -10678,7 +10681,7 @@ end;
 procedure FieldIndexToBits(const Index: TSQLFieldIndexDynArray; var Fields: TSQLFieldBits);
 var i: integer;
 begin
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Fields,SizeOf(Fields),0);
+  FillCharFast(Fields,SizeOf(Fields),0);
   for i := 0 to Length(Index)-1 do
     if Index[i]>=0 then
       include(Fields,Index[i]);
@@ -10829,7 +10832,7 @@ var ppBeg: integer;
     wasNull: boolean;
 begin
   maxParam := 0;
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Nulls,SizeOf(Nulls),0);
+  FillCharFast(Nulls,SizeOf(Nulls),0);
   ppBeg := PosEx(RawUTF8(':('),SQL,1);
   if (ppBeg=0) or (PosEx(RawUTF8('):'),SQL,ppBeg+2)=0) then begin
     // SQL code with no valid :(...): internal parameters -> leave maxParam=0
@@ -11608,17 +11611,17 @@ end;
 procedure TSynBackgroundThreadAbstract.WaitForNotExecuting(maxMS: integer);
 var endtix: Int64;
 begin
-  if fExecute = exRun then begin
+  if fExecute=exRun then begin
     endtix := SynCommons.GetTickCount64+maxMS;
     repeat
-      Sleep(1); // wait for Execute to finish
-    until (fExecute <> exRun) or (SynCommons.GetTickCount64>=endtix);
+      SleepHiRes(1); // wait for Execute to finish
+    until (fExecute<>exRun) or (SynCommons.GetTickCount64>=endtix);
   end;
 end;
 
 destructor TSynBackgroundThreadAbstract.Destroy;
 begin
-  if fExecute = exRun then begin
+  if fExecute=exRun then begin
     Terminate;
     WaitForNotExecuting(100);
   end;
@@ -11724,7 +11727,7 @@ begin
                 {$ifdef DELPHI5OROLDER}
                 on E: Exception do
                   fBackgroundException := ESynException.CreateUTF8(
-                    'Redirected %: "%"',[E,E.Message]);
+                    'Redirected % [%]',[E,E.Message]);
                 {$else}
                 E := AcquireExceptionObject;
                 if E.InheritsFrom(Exception) then
@@ -11818,7 +11821,7 @@ begin
       break; // we acquired the background thread
     end;
     case OnIdleProcessNotify(start) of // Windows.GetTickCount64 res is 10-16 ms
-    0..20:    SleepHiRes(0);
+    0..20:    SleepHiRes(0); // 10 microsec delay on POSIX
     21..100:  SleepHiRes(1);
     101..900: SleepHiRes(5);
     else      SleepHiRes(50);
@@ -12240,7 +12243,7 @@ begin
         flagIdle:
           break; // acquired (should always be the case)
         end;
-        Sleep(1);
+        SleepHiRes(1);
         if Assigned(OnMainThreadIdle) then
           OnMainThreadIdle(self);
       until false;
@@ -12408,7 +12411,7 @@ begin
       someWaiting := true;
     end;
   if someWaiting then
-    sleep(10); // propagate the pending evTimeOut to the WaitFor threads
+    SleepHiRes(10); // propagate the pending evTimeOut to the WaitFor threads
   fPool.Free;
   inherited;
 end;
@@ -12524,7 +12527,7 @@ begin
      current := GetTickCount64;
      elapsed := current-start;
      if elapsed=0 then
-       sched_yield else
+       usleep(1) else
      if elapsed>TimeOut then begin
        result := wrTimeOut;
        break;
@@ -12675,7 +12678,7 @@ end;
 
 function TProcessInfo.Init: boolean;
 begin
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(self,SizeOf(self),0);
+  FillCharFast(self,SizeOf(self),0);
   result := Assigned(GetSystemTimes) and Assigned(GetProcessTimes) and
     Assigned(GetProcessMemoryInfo); // no monitoring API under oldest Windows
 end;
@@ -12709,7 +12712,7 @@ var
   mem: TProcessMemoryCounters;
 begin
   result := false;
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(Data,SizeOf(Data),0);
+  FillCharFast(Data,SizeOf(Data),0);
   h := OpenProcess(OpenProcessAccess,false,PID);
   if h<>0 then
     try
@@ -12724,7 +12727,7 @@ begin
         end;
         PrevKernel := pkrn;
         PrevUser := pusr;
-        {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(mem,SizeOf(mem),0);
+        FillCharFast(mem,SizeOf(mem),0);
         mem.cb := SizeOf(mem);
         if GetProcessMemoryInfo(h,mem,SizeOf(mem)) then begin
           Data.WorkKB := mem.WorkingSetSize shr 10;
@@ -12754,7 +12757,7 @@ end;
 {$else} // not implemented yet (use /proc ?)
 function TProcessInfo.Init: boolean;
 begin
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(self,SizeOf(self),0);
+  FillCharFast(self,SizeOf(self),0);
   result := false;
 end;
 
@@ -12929,7 +12932,7 @@ begin
       fSafe.UnLock;
     end;
   end;
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(aData,SizeOf(aData),0);
+  FillCharFast(aData,SizeOf(aData),0);
 end;
 
 function TSystemUse.Data(aProcessID: integer): TSystemUseData;
@@ -13338,7 +13341,7 @@ begin
 {$else}
 {$ifdef BSD}
 begin
-  {$ifdef FPC}FillChar{$else}FillCharFast{$endif}(info,SizeOf(info),0);
+  FillCharFast(info,SizeOf(info),0);
   info.memtotal := fpsysctlhwint({$ifdef DARWIN}HW_MEMSIZE{$else}HW_PHYSMEM{$endif});
   info.memfree := info.memtotal-fpsysctlhwint(HW_USERMEM);
   if info.memtotal<>0 then // avoid div per 0 exception

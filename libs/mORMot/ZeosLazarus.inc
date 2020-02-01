@@ -59,6 +59,7 @@
 {$DEFINE TFIELD_HAS_ASBYTES}          // TField.AsBytes is supported
 {$DEFINE TFIELD_HAS_ASLARGEINT}       // TField-baseclass hase AsLargeIntProperty
 {$DEFINE HAVE_UNKNOWN_CIRCULAR_REFERENCE_ISSUES} //seems FPC behaves different to Delphi. Some weired ref issues arrive if Ancastor units using Descendants in implementation uses section??
+{$DEFINE NO_PUBLISHED_RECORDS_ALLOWED} //the compiler is not able to publish records using RTTI
 {$DEFINE HAVE_BCDTOSTR_FORMATSETTINGS} //(Try)BCDToStr/StrToBCD has parameter FormatSettings
 {$DEFINE NEED_TYPED_UINT64_CONSTANTS}
 {$DEFINE WITH_PUREPASCAL_INTPOWER}
@@ -91,6 +92,7 @@
       {$DEFINE FPC2_5UP} // Used in code
       {$DEFINE WITH_NEWTOBJECT}
       {$DEFINE WITH_IPROVIDER}
+      {$DEFINE HAVE_UNICODESTRING}
     {$IFEND}
     {$IF FPC_FULLVERSION>=20600}  // assumes 2.5.1 pretty close to 2.6.0. Summer 2011 or newer
        {$DEFINE WITH_INC_PBYTE_SUPPORT}  // Compiler supports incrementing PByte-Pointer

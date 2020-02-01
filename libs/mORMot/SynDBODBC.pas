@@ -6,7 +6,7 @@ unit SynDBODBC;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynDBODBC;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -1424,7 +1424,7 @@ var ExpectedDataType: ShortInt;
   end;
   procedure RaiseError;
   begin
-    raise EODBCException.CreateUTF8('%.GetCol: "%" column had Indicator=%',
+    raise EODBCException.CreateUTF8('%.GetCol: [%] column had Indicator=%',
       [self,Col.ColumnName,Indicator]);
   end;
 begin
@@ -1466,7 +1466,7 @@ begin
   SQL_NO_TOTAL:
     if Col.ColumnType in FIXEDLENGTH_SQLDBFIELDTYPE then
       Col.ColumnDataState := colDataFilled else
-      raise EODBCException.CreateUTF8('%.GetCol: "%" column has no size',
+      raise EODBCException.CreateUTF8('%.GetCol: [%] column has no size',
         [self,Col.ColumnName]);
   else RaiseError;
   end;
