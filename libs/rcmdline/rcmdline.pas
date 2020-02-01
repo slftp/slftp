@@ -1,5 +1,4 @@
-{
-Copyright (C) 2006  Benito van der Zander
+{Copyright (C) 2006  Benito van der Zander
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -19,7 +18,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
   Command line reader
 )*)
 unit rcmdline;
-
 
 interface
 {$IFDEF FPC}
@@ -51,6 +49,7 @@ type
   end;
   PProperty=^TProperty;
   TOptionReadEvent = procedure (sender: TObject; const name, value: string) of object;
+  TOptionInterpretationEvent = procedure (sender: TObject; var name, value: string; const args: TStringArray; var argpos: integer) of object;
 
   { TCommandLineReader }
 
@@ -78,6 +77,7 @@ type
     nameless: TStringArray;
     currentDeclarationCategory: String;
     FOnOptionRead: TOptionReadEvent;
+    FOnOptionInterpretation: TOptionInterpretationEvent;
     FAllowOverrides: boolean;
     function findProperty(name:string):PProperty;
     function declareProperty(name,description,default:string;kind: TKindOfProperty):PProperty;
@@ -102,11 +102,11 @@ type
     procedure reset();
 
     //** Reads the standard command line parameters
-    procedure parse();overload;virtual;
+    procedure parse(autoReset: boolean = true);overload;virtual;
     //** Reads the command line parameters from the string s
-    procedure parse(const s:string; skipFirst: boolean = false);overload;virtual;
+    procedure parse(const s:string; skipFirst: boolean = false; autoReset: boolean = true);overload;virtual;
     //** Reads the command line parameters from the array args
-    procedure parse(const args:TStringArray);overload;virtual;
+    procedure parse(const args:TStringArray; autoReset: boolean = true);overload;virtual;
 
     //** Adds a new option category. The category is just printed in the --help output
     procedure beginDeclarationCategory(category: string);
@@ -179,18 +179,29 @@ type
     //** Reads all booleans (true, false) that are given on the command line and do not belong to an declared option
     function readNamelessFlag():TBooleanArray;
 
+    //** Event called when an option has been parsed. (e.g. to read all values if an option is given multiple times)
+    //** @code(name) contains the declared name of the property (not necessarily the same as the name the user used)
+    //** @code(value) the value read
     property onOptionRead: TOptionReadEvent read FOnOptionRead write FOnOptionRead;
+    //** Event  called when an option is being parsed. (e.g. to allow custom abbreviations of names)@br
+    //** @code(name) contains the read name of the property@br
+    //** @code(value) the value read; or the next value for boolean options (which will ignored)@br
+    //** @code(args) all arguments@br
+    //** @code(argpos) the current argument @br
+    property onCustomOptionInterpretation: TOptionInterpretationEvent read FOnOptionInterpretation write FOnOptionInterpretation;
+    //** If the same option may be given multiple times. Only the last value is remained.
     property allowOverrides: boolean read FAllowOverrides write FAllowOverrides;
   end;
 
 implementation
-{$ifdef unitcheck_rcmdline}
-uses classes {$ifdef win32}, windows{$endif};
-{$else}
-{$ifdef win32}
-uses windows;
-{$endif}
-{$endif}
+
+{$ifdef win32}{$define windows}{$endif} //Delphi 4 does not know the windows-define
+{$ifdef MSWINDOWS}{$define windows}{$endif} // for 64-bit compilers
+
+uses {$ifdef unitcheck_rcmdline}classes,{$endif}
+     {$ifdef windows}windows
+     {$else}baseunix,termio {$endif}
+     ;
 
 
 {$ifdef fpc}
@@ -207,10 +218,31 @@ end;
 const LineEnding = #13#10;
 {$endif}
 
+function getTerminalWidth: integer;
+{$ifdef windows}
+var csbi: TCONSOLESCREENBUFFERINFO;
+    handle: THANDLE;
+{$else}
+var winsize: TWinSize;
+{$endif}
+begin
+  result := 80;
+  {$ifdef windows}
+  handle := GetStdHandle(STD_OUTPUT_HANDLE);
+  if handle = INVALID_HANDLE_VALUE then exit;
+  if not GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), csbi) then exit;
+  result := csbi.srWindow.Right - csbi.srWindow.Left + 1;
+  {$else}
+  if FpIOCtl(StdOutputHandle, TIOCGWINSZ, @winsize) = 0 then
+    result := winsize.ws_col;
+  {$endif}
+  if result < 10 then result := 80;
+end;
+
 constructor TCommandLineReader.create;
 begin
   parsed:=false;
-  {$IFDEF Win32}
+  {$IFDEF windows}
     allowDOSStyle:=true;
   {$ELSE}
     allowDOSStyle:=false;
@@ -231,6 +263,51 @@ end;
 
 function TCommandLineReader.availableOptions: string;
 
+  //from bbutils
+  function strWrap(const Line: string; MaxCol: Integer; lineBreak: string): string;
+  var res: string;
+    procedure add(x: string);
+    begin
+      if res = '' then res := x
+      else res := res + lineBreak + x;
+    end;
+
+  const BreakChars = [' ',#9];
+  var i: integer;
+      lastTextStart, lastBreakChance: integer;
+      tempBreak: Integer;
+  begin
+    result := '';
+    lastTextStart:=1;
+    lastBreakChance:=0;
+    result := '';
+    for i := 1 to length(line) do begin
+      if line[i] in [#13,#10] then begin
+        if lastTextStart > i  then continue;
+        add(copy(Line,lastTextStart,i-lastTextStart));
+        lastTextStart:=i+1;
+        if (i < length(line)) and (line[i] <> line[i+1]) and (line[i+1] in [#13, #10]) then inc(lastTextStart);
+      end;
+      if (i < length(line)) and (line[i+1] in BreakChars) then begin
+        lastBreakChance:=i+1;
+        if lastTextStart = lastBreakChance then inc(lastTextStart); //merge seveal break characters into a single new line
+      end;
+      if i - lastTextStart + 1 >= MaxCol then begin
+        if lastBreakChance >= lastTextStart then begin
+          tempBreak := lastBreakChance;
+          while (tempBreak > 1) and  (line[tempBreak-1] in BreakChars) do dec(tempBreak); //remove spaces before line wrap
+          add(copy(Line,lastTextStart,tempBreak-lastTextStart));
+          lastTextStart:=lastBreakChance+1;
+        end else begin
+          add(copy(Line, lastTextStart, MaxCol));
+          lastTextStart:=i+1;
+        end;
+      end;
+    end;
+    if lastTextStart <= length(line) then add(copy(line, lastTextStart, length(line)));
+    result := res;
+  end;
+
   function mydup(count: integer): string;
   var
     i: Integer;
@@ -248,11 +325,15 @@ var i:integer;
   multiline : boolean;
   maxLen: Integer;
   category: String;
+  terminalWidth: Integer;
+  pseudoLineBreak: String;
 begin
+  names := nil;
   setlength(names, length(propertyArray));
   maxLen := 0;
   multiline:=false;
   category := '';
+  terminalWidth := getTerminalWidth;
   for i:=0 to high(propertyArray) do begin
     cur:='--'+propertyArray[i].name;
     case propertyArray[i].kind of
@@ -271,6 +352,7 @@ begin
 
   dupped := '';
   for j:=1 to maxLen do dupped := dupped + ' ';
+             ;
 
   result:='';
   for i:=0 to high(propertyArray) do begin
@@ -280,18 +362,25 @@ begin
     end;
     cur:=names[i];
     if category <> '' then cur := '  ' + cur;
-    if not multiline or ( pos(LineEnding, propertyArray[i].desc) = 0 ) then cur := cur + mydup(maxLen - length(cur)) + #9 + propertyArray[i].desc + LineEnding
+
+
+    pseudoLineBreak := LineEnding+dupped;
+    if category <> '' then pseudoLineBreak := pseudoLineBreak + ' ';
+    pseudoLineBreak := pseudoLineBreak + #9;
+
+    if (not multiline or ( pos(LineEnding, propertyArray[i].desc) = 0 )) and (length(propertyArray[i].desc)+maxLen+10 < terminalWidth)  then
+       cur := cur + mydup(maxLen - length(cur)) + #9 + propertyArray[i].desc + LineEnding
     else begin
       cur := cur + mydup(maxLen - length(cur));
       temp := propertyArray[i].desc;
       p := pos(LineEnding, temp);
       while p > 0 do begin
-        cur := cur + #9 + copy(temp, 1, p - 1) + LineEnding + dupped;
+        cur := cur + #9 + strWrap(copy(temp, 1, p - 1), terminalWidth - 10 - maxLen, pseudoLineBreak) + LineEnding + dupped;
         if category <>' ' then cur := cur + '  ';
         delete(temp, 1, p + length(LineEnding) - 1);
         p := pos(LineEnding, temp);
       end;
-      cur := cur + #9 + temp + LineEnding;
+      cur := cur + #9 + strWrap(temp, terminalWidth - 10 - maxLen, pseudoLineBreak) + LineEnding;
     end;
     result:=result+cur;
   end;
@@ -317,32 +406,34 @@ begin
   end;
 end;
 
-procedure TCommandLineReader.parse();
-{$ifndef win32}
+
+procedure TCommandLineReader.parse(autoReset: boolean = true);
+{$ifndef windows}
 var args: TStringArray;
   i: Integer;
 {$endif}
 begin
   if Paramcount = 0 then exit;
 
-  {$ifdef win32}
-  parse(string(getcommandline), true);
+  {$ifdef windows}
+  parse(string(getcommandline), true, autoReset);
   {$else}
+  args := nil;
   setlength(args, Paramcount);
   for i:=0 to high(args) do args[i] := paramstr(i+1);
-  parse(args);
+  parse(args, autoReset);
   {$endif}
 end;
 
-procedure TCommandLineReader.parse(const s:string; skipFirst: boolean = false);
+procedure TCommandLineReader.parse(const s:string; skipFirst: boolean = false; autoReset: boolean = true);
 var
   args: TStringArray;
 begin
   args := splitCommandLine(s, skipFirst);
-  parse(args);
+  parse(args, autoReset);
 end;
 
-procedure TCommandLineReader.parse(const args: TStringArray);
+procedure TCommandLineReader.parse(const args: TStringArray; autoReset: boolean = true);
 var a: string;
 
   procedure raiseError(message: string);
@@ -350,125 +441,165 @@ var a: string;
     raiseErrorWithHelp('Error '+message+' (when reading argument: '+a+')');
   end;
 
+  procedure raiseNoProperty(name: string);
+  begin
+    if (name = 'help') or (name = '?') then raiseErrorWithHelp('')
+    else raiseError('Unknown option: '+name);
+  end;
+
+
+  function findPropertyIndex(const name: string; allowLong, allowAbbreviation, allowMissing: boolean): integer;
+  var
+    i: Integer;
+  begin
+    if allowLong then
+      for i:=0 to high(propertyArray) do
+        if equalCaseInseq(propertyArray[i].name, name) then begin
+          result:=i;
+          exit;
+        end;
+
+    if allowAbbreviation then
+      for i:=0 to high(propertyArray) do
+        if propertyArray[i].abbreviation = name then begin
+          result:=i;
+          exit;
+        end;
+
+    if allowMissing then result := -1
+    else raiseNoProperty(name)
+  end;
+
+
+var argpos: Integer;
+
+  procedure setPropertyFromStringValue(currentProperty: integer; value: string);
+  var
+    i: Integer;
+  begin
+    propertyArray[currentProperty].strvalue := value;
+    if (propertyArray[currentProperty].kind = kpFile) then begin
+      for i := 0 to length(args) - argpos do begin
+        if FileExists(value) then begin
+          inc(argpos, i);
+          propertyArray[currentProperty].strvalue := value;
+          break;
+        end;
+        if i = length(args) - argpos then break; //not found
+        value := value + ' ' + args[argpos + i];
+      end;
+    end else parseSingleValue(propertyArray[currentProperty]);
+    if not FAllowOverrides and propertyArray[currentProperty].found then raiseError('Duplicated option: '+propertyArray[currentProperty].name);
+    propertyArray[currentProperty].found:=true;
+    if assigned(onOptionRead) then onOptionRead(self,propertyArray[currentProperty].name, propertyArray[currentProperty].strvalue);
+  end;
+
+  function invertedFlag(flagId: integer): string;
+  begin
+    if propertyArray[flagId].flagvalue then result := 'false' else result := 'true';
+  end;
 
 var currentProperty:longint;
-    flagValue: boolean;
     i:integer;
     index: integer;
     name: String;                          
     value: String;
-    argpos: Integer;
     j: Integer;
+    noFlagExpansion: Boolean;
+    allowAbbreviation: Boolean;
+    weAreDoneInterpreting: Boolean;
 begin
-  reset();
+  if autoReset then reset();
 
-  parsed:=true; //mark as parsed, so readXXX can be used within the event called by onVariableRead
+  parsed:=true; //mark as parsed, so readXXX can be used within the event called by onOptionRead
+  weAreDoneInterpreting := false;
 
   argpos := 0;
   while argpos < length(args) do begin
     a := args[argpos];
     inc(argpos);
     if a = '' then continue;
-    if (a <> '-') and (a <> '--') and ((a[1] = '-') or (allowDOSStyle and (a[1]='/'))) then begin
+    if a = '--' then begin
+      if Assigned(FOnOptionInterpretation) then begin
+        value := '';
+        FOnOptionInterpretation(self, a, value, args, argpos);
+        if a <> '--' then continue;
+      end;
+      weAreDoneInterpreting:=true;
+      continue;
+    end;
+    allowAbbreviation := true; //for special handling of DOS style args. /x is prefered to be --x but can fallback to abbreviated -x
+    if not weAreDoneInterpreting and (a <> '-') and (a <> '--')
+       and ((a[1] = '-') or (allowDOSStyle and (a[1]='/'))) then begin
       //Start of property name
-      if (length(a) > 1) and ( (a[1]='/') or (a[2]='-')  //long property
-        or (length(a) = 2) or ((length(a) > 3) and (a[3] = '='))) //or "-a ..."  or "-a=..." abbreviation
-      then begin
-        if a[2]='-' then delete(a, 1, 2) else delete(a, 1, 1);
+      if (length(a) > 1) and ((a[1]='/') or (a[2]='-') ) then begin //long property
+        if (a[2]='-') then begin
+          delete(a, 1, 2);
+          allowAbbreviation := false;
+        end else delete(a, 1, 1);
         if a = '' then continue;
 
-
-
-        currentProperty:=-1;
         if (StrLIComp(@a[1],'enable-',7) = 0)or
            (StrLIComp(@a[1],'disable-',8) = 0)  then begin
           //long flag
-          flagValue:=a[1]='e';
-          if flagValue then delete(a, 1, 7) else delete(a, 1, 8);
-
-          for i:=0 to high(propertyArray) do
-            if (propertyArray[i].kind=kpFlag) and equalCaseInseq(propertyArray[i].name, a) then begin
-              propertyArray[i].flagvalue:=flagValue;
-              if not FAllowOverrides and propertyArray[i].found then raiseError('Duplicated option: '+propertyArray[i].name);
-              propertyArray[i].found:=true;
-              if assigned(onOptionRead) then
-                if propertyArray[i].flagvalue then onOptionRead(self,propertyArray[i].name, 'true')
-                else onOptionRead(self,propertyArray[i].name, 'false');
-              currentProperty:=i;
-              break;
-            end;
-          if currentProperty = -1 then raiseError('Unknown option: '+a);
-        end else begin
-          //flag switch or value setting
-          //i.e --flag or --name=value or --name value
-          name := a;
-          index := pos('=', a);
-          if index > 0 then name := copy(a, 1, index - 1);
-
-          if length(name) = 1 then begin //option like -x [optional]
-            for i:=0 to high(propertyArray) do begin
-              if propertyArray[i].abbreviation = name[1] then begin
-                currentProperty := i;
-                break;
-              end;
-            end;
-          end else
-            for i:=0 to high(propertyArray) do
-              if equalCaseInseq(propertyArray[i].name, name) then begin
-                currentProperty:=i;
-                break;
-              end;
-
-          if currentProperty=-1 then raiseError('Unknown option: '+name);
-
-          if not FAllowOverrides and propertyArray[currentProperty].found then raiseError('Duplicated option: '+name);
-          propertyArray[currentProperty].found:=true;
-          if (propertyArray[currentProperty].kind=kpFlag) and (index = 0) then begin
-            propertyArray[currentProperty].flagvalue:=not propertyArray[currentProperty].flagdefault;
-            if assigned(onOptionRead) then
-              if propertyArray[i].flagvalue then onOptionRead(self,propertyArray[i].name, 'true')
-              else onOptionRead(self,propertyArray[i].name, 'false');
-            continue;
+          if a[1]='e' then begin
+            delete(a, 1, 7);
+            value := 'true';
+          end else begin
+            delete(a, 1, 8);
+            value := 'false';
           end;
-
-
-          if index = 0 then begin
-            if (argpos = length(args)) then raiseError('No value for option '+name+' given');
-            value := args[argpos];
-            inc(argpos);
-          end else value := copy(a, index + 1, length(a) - index);
-
-          propertyArray[currentProperty].strvalue := value;
-          if propertyArray[currentProperty].kind = kpFile then begin
-            for i := 0 to length(args) - argpos do begin
-              if FileExists(value) then begin
-                inc(argpos, i);
-                propertyArray[currentProperty].strvalue := value;
-                break;
-              end;
-              if i = length(args) - argpos then break; //not found
-              value := value + ' ' + args[argpos + i];
-            end;
-          end else parseSingleValue(propertyArray[currentProperty]);
-          if assigned(onOptionRead) then onOptionRead(self,propertyArray[currentProperty].name, propertyArray[currentProperty].strvalue);
+          if (propertyArray[findPropertyIndex(a, true, false, false)].kind <> kpFlag) then raiseError('No flag: '+a);
+          a := a + '=' + value; //this will be split again in the next step, but simplifies the code
         end;
       end else begin
+        noFlagExpansion := false;
         for j:=2 to length(a) do begin //2 to skip leading -
-          currentProperty:=-1;
-          for i:=0 to high(propertyArray) do
-            if (propertyArray[i].kind=kpFlag) and (propertyArray[i].abbreviation=a[j]) then begin
-              propertyArray[i].flagvalue:=not propertyArray[i].flagdefault;
-              if not FAllowOverrides and propertyArray[i].found then raiseError('Duplicated option: '+propertyArray[i].name);
-              propertyArray[i].found:=true;
-              if assigned(onOptionRead) then
-                if propertyArray[i].flagvalue then onOptionRead(self,propertyArray[i].name, 'true')
-                else onOptionRead(self,propertyArray[i].name, 'false');
-              currentProperty:=i;
-            end;
-          if currentProperty = -1 then raiseError('Unknown abbreviation: '+a[j]+ LineEnding +'(use -- or / for arguments)');
+          i:=findPropertyIndex(a[j], false, true, false);
+          if propertyArray[i].kind=kpFlag then begin
+            setPropertyFromStringValue(i, invertedFlag(i));
+          end else if (j = length(a)) or (a[j+1] = '=') then begin
+            noFlagExpansion := true;
+            a := propertyArray[i].name + copy(a, j+1, length(a) - j);
+            break
+          end else raiseError('Invalid abbreviation: '+a[j]+ LineEnding +'(use -- or / for arguments)');
+        end;
+        if not noFlagExpansion then continue;
+      end;
+      //a now contains a long property something or something=value
+      index := pos('=', a);
+      if index > 0 then begin
+        name := copy(a, 1, index - 1);
+        value := copy(a, index + 1, length(a) - index);
+        currentProperty := findPropertyIndex(name, true, allowAbbreviation, true);
+        if currentProperty >= 0 then name := propertyArray[currentProperty].name;
+      end else begin
+        name := a;
+        currentProperty := findPropertyIndex(name, true, allowAbbreviation, true);
+        if currentProperty >= 0 then name := propertyArray[currentProperty].name;
+        if (currentProperty >= 0) and (propertyArray[currentProperty].kind = kpFlag) then value := invertedFlag(currentProperty)
+        else if (argpos < length(args)) then begin
+          value := args[argpos];
+          inc(argpos);
+        end else value := '';
+      end;
+
+      if Assigned(FOnOptionInterpretation) then FOnOptionInterpretation(self, name, value, args, argpos);
+
+      j := findPropertyIndex(name, true, false, false);
+      if (index = 0) and (value = '') and (argpos >= length(args)) then
+        raiseError('No value for option '+name+' given');
+
+      setPropertyFromStringValue(j, value);
+    end else begin
+      if not weAreDoneInterpreting and Assigned(FOnOptionInterpretation) then begin
+        name := '';
+        FOnOptionInterpretation(self, name, a, args, argpos);
+        if name <> '' then begin
+          setPropertyFromStringValue(findPropertyIndex(name, true, false, false), value);
+          continue;
         end;
       end;
-    end else begin
       //value without variable name
       SetLength(nameless,length(nameless)+1);
       nameless[high(nameless)] := a;
@@ -585,11 +716,7 @@ var args: TStringArray;
       exit;
     end;
     setlength(args[high(args)], length(args[high(args)]) + addLen);
-    {$IFDEF UNICODE}
-      move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], 2*addLen);
-    {$ELSE}
-      move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], addLen);
-    {$ENDIF}
+    move(marker^, args[high(args)][ length(args[high(args)]) - addLen + 1 ], SizeOf(Char) * addLen);
     if hasEscapes then begin
       args[high(args)] := StringReplace(StringReplace(args[high(args)], '\'+stringstart, stringstart, [rfReplaceAll]),
                                                                         '\\', '\', [rfReplaceAll]); //todo: are these all cases
@@ -752,6 +879,7 @@ end;
 function TCommandLineReader.readNamelessInt():TLongintArray;
 var i,p:integer;
 begin
+  result := nil;
   SetLength(result,length(nameless));
   p:=0;
   for i:=0 to high(nameless) do
@@ -765,6 +893,7 @@ end;
 function TCommandLineReader.readNamelessFloat():TFloatArray;
 var i,p:integer;
 begin
+  result := nil;
   SetLength(result,length(nameless));
   p:=0;
   for i:=0 to high(nameless) do
@@ -778,6 +907,7 @@ end;
 function TCommandLineReader.readNamelessFlag():TBooleanArray;
 var i,p:integer;
 begin
+  result := nil;
   SetLength(result,length(nameless));
   p:=0;
   for i:=0 to high(nameless) do begin
@@ -836,6 +966,7 @@ var cmdlinetest: integer = 0;
     testSplitCommandLineRaw('  '+line, false, expected);
     testSplitCommandLineRaw('  '#9+line, false, expected); //can't test trailing withspace, since there are unclosed quotes
 
+    temp := nil;
     setlength(temp, length(expected)-1);
     if length(temp) > 0 then begin
       for i:=0 to high(temp) do temp[i] := expected[i+1];
@@ -845,7 +976,7 @@ var cmdlinetest: integer = 0;
   end;
 
 begin
-  DecimalSeparator:='.';
+  Formatsettings.DecimalSeparator:='.';
 
   testSplitCommandLine('abc',            ['abc']);
   testSplitCommandLine('abc def',        ['abc', 'def']);
@@ -1050,7 +1181,7 @@ begin
   cmdLineReader.declareString('s0','','init');
   cmdLineReader.declareString('s1','','init');
   cmdLineReader.declareString('s2','','init');
-  cmdLineReader.parse('--s0"=ab''c" --s"1=def" --s2="foo\"\''bar"');
+  cmdLineReader.parse('--s0"=ab''c" --s"1=def" --s2="foo\"\''bar" ');
   if (cmdLineReader.readString('s0') <> 'ab''c') or
      (cmdLineReader.readString('s1') <> 'def') or
      (cmdLineReader.readString('s2') <> 'foo"\''bar')
@@ -1074,8 +1205,53 @@ begin
   cmdLineReader.Free;
 
 
+  cmdLineReader:=TCommandLineReader.create;
+  cmdLineReader.allowDOSStyle:=true;
+  cmdLineReader.declareString('s','','init');
+  cmdLineReader.declareString('sconfusion', 'x', 'x'); cmdLineReader.addAbbreviation('s');
+  cmdLineReader.declareFlag('flag1', 'f', 'f');
+  cmdLineReader.declareFlag('flag2', 'g', 'g');
+  cmdLineReader.declareFlag('flag3', 'h', 'h');
+  cmdLineReader.declareString('xyztemp','','init'); cmdLineReader.addAbbreviation('a');
+  cmdLineReader.parse('--s "no abbr" -fha arg7 -s "this is abbrv"');
+  if (cmdLineReader.readString('s') <> 'no abbr') or
+     (cmdLineReader.readString('xyztemp') <> 'arg7') or
+     (cmdLineReader.readFlag('flag1') <> true) or
+     (cmdLineReader.readFlag('flag2') <> false) or
+     (cmdLineReader.readFlag('flag3') <> true) or
+     (cmdLineReader.readString('sconfusion') <> 'this is abbrv')
+     then say('test 8 (abbrv) failed')
+     else say('test 8 (abbrv) passed');
+
+  cmdLineReader.parse('/s="no abbr2" -ga=arg7b -s="this is abbrv2" /h');
+  if (cmdLineReader.readString('s') <> 'no abbr2') or
+     (cmdLineReader.readString('xyztemp') <> 'arg7b') or
+     (cmdLineReader.readFlag('flag1') <> false) or
+     (cmdLineReader.readFlag('flag2') <> true) or
+     (cmdLineReader.readFlag('flag3') <> true) or
+     (cmdLineReader.readString('sconfusion') <> 'this is abbrv2')
+     then say('test 8b (abbrv) failed')
+     else say('test 8b (abbrv) passed');
+
+  cmdLineReader.Free;
+
+  cmdLineReader:=TCommandLineReader.create;
+  cmdLineReader.declareString('s','a','init');
+  cmdLineReader.declareString('t', 'b', 'init');
+  cmdLineReader.declareString('u','c','init');
+  cmdLineReader.declareString('v', 'd', 'init');
+  cmdLineReader.parse('--s --t -- --u --v');
+  if (cmdLineReader.readString('s') <> '--t') or
+     (cmdLineReader.readString('t') <> 'init') or
+     (cmdLineReader.readString('u') <> 'init') or
+     (cmdLineReader.readString('v') <> 'init')
+     then say('test 9 (protection) failed')
+     else say('test 9 (protection) passed');
+  cmdLineReader.Free;
+
 
   say('rcmdline unit test completed');
 {$endif}
 end.
+
 
