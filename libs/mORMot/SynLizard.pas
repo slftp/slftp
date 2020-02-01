@@ -5,7 +5,7 @@ unit SynLizard;
 {
     This file is part of Synopse Lizard Compression.
 
-    Synopse Lizard Compression. Copyright (C) 2019 Arnaud Bouchez
+    Synopse Lizard Compression. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -24,7 +24,7 @@ unit SynLizard;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -173,6 +173,13 @@ const
   /// maximum compression level for TSynLizard.compress
   LIZARD_MAX_CLEVEL = 49;
 
+
+{$ifndef LIZARD_EXTERNALONLY}
+  {$ifndef MSWINDOWS}
+    function __printf_chk(Flag:integer; Format: PChar; Arguments: array of TVarRec):longint;
+  {$endif MSWINDOWS}
+{$endif LIZARD_EXTERNALONLY}
+
 {$ifdef LIZARD_STANDALONE}
 
 function Lizard_versionNumber: integer; cdecl;
@@ -317,6 +324,24 @@ implementation
 
 
 {$ifndef LIZARD_EXTERNALONLY}
+  {$ifndef MSWINDOWS}
+    function vprintf_mormot(f,a:pansichar):longint; cdecl; external name 'vprintf';
+    function __printf_chk(Flag:integer; Format: PChar; Arguments: array of TVarRec):longint; alias: '__printf_chk';
+    var
+      arg: PIntegerArray;
+      i: integer;
+    begin
+      GetMem(arg, Length(Arguments) * sizeof(Integer));
+      try
+        Assert(Low(Arguments) = 0);
+        for i := Low(Arguments) to High(Arguments) do
+            arg[i] := Arguments[i].VInteger;
+        result:=vprintf_mormot(Format, PChar(arg));
+      finally
+        FreeMem(arg);
+      end;
+    end;
+    {$endif MSWINDOWS}
 
 function Lizard_versionNumber: integer; cdecl; external;
 function Lizard_compressBound(inputSize: integer): integer; cdecl; external;

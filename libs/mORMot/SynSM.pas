@@ -5,10 +5,10 @@ unit SynSM;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
-    Scripting support for mORMot Copyright (C) 2019 Pavel Mashlyakovsky
+    Scripting support for mORMot Copyright (C) 2020 Pavel Mashlyakovsky
       pavel.mash at gmail.com
 
     Some ideas taken from
@@ -29,7 +29,7 @@ unit SynSM;
 
   The Initial Developer of the Original Code is
   Pavel Mashlyakovsky.
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -1172,7 +1172,7 @@ begin
   end;
   if res=JS_FALSE then begin
     SynSMLog.Add.Log(sllError, 'Error compiling script %', FLastErrorFileName);
-    raise ESMException.CreateUTF8('%: Error compiling script "%". Line %',
+    raise ESMException.CreateUTF8('%: Error compiling script [%]. Line %',
       [self,FLastErrorFileName,FLastErrorLine]);
   end;
 end;

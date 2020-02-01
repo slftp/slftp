@@ -4,7 +4,7 @@ unit SynFPCLinux;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2019 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -23,7 +23,7 @@ unit SynFPCLinux;
 
   The Initial Developer of the Original Code is Alfred Glaenzer.
 
-  Portions created by the Initial Developer are Copyright (C) 2019
+  Portions created by the Initial Developer are Copyright (C) 2020
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -68,7 +68,9 @@ const
   INVALID_HANDLE_VALUE = THandle(-1);
 
   LOCALE_USER_DEFAULT = $400;
-  NORM_IGNORECASE = 1;
+
+  // for CompareStringW()
+  NORM_IGNORECASE = 1 shl ord(coIgnoreCase); // [widestringmanager.coIgnoreCase]
 
 /// compatibility function, wrapping Win32 API mutex initialization
 procedure InitializeCriticalSection(var cs : TRTLCriticalSection); inline;
@@ -113,8 +115,8 @@ function GetLastError: longint; inline;
 procedure SetLastError(error: longint); inline;
 
 /// compatibility function, wrapping Win32 API text comparison
-// - somewhat slow by using two temporary WideString - but seldom called, unless
-// our private WIN32CASE collation is used in SynSQLite3
+// - somewhat slow by using two temporary UnicodeString - but seldom called,
+// unless our proprietary WIN32CASE collation is used in SynSQLite3
 function CompareStringW(GetThreadLocale: DWORD; dwCmpFlags: DWORD; lpString1: Pwidechar;
   cchCount1: longint; lpString2: Pwidechar; cchCount2: longint): longint;
 
@@ -185,13 +187,17 @@ function GetTickCount: cardinal;
 
 var
   /// could be set to TRUE to force SleepHiRes(0) to call the sched_yield API
+  // - in practice, it has been reported as buggy under POSIX systems
+  // - even Linus Torvald himself raged against its usage - see e.g.
+  // https://www.realworldtech.com/forum/?threadid=189711&curpostid=189752
+  // - you may tempt the devil and try it by yourself
   SleepHiRes0Yield: boolean = false;
 
 /// similar to Windows sleep() API call, to be truly cross-platform
-// - it should have a millisecond resolution, and handle ms=0 as a switch to
-// another pending thread, i.e. ThreadSwitch on Windows (sched_yield API is
-// not called on LINUX/POSIX since it was reported to fail on some systems -
-// you can force SleepHiRes0Yield=true to change this behavior)
+// - using millisecond resolution
+// - SleepHiRes(0) calls ThreadSwitch on windows, but this POSIX version will
+// wait 10 microsecond unless SleepHiRes0Yield is forced to true (bad idea)
+// - in respect to RTL's Sleep() function, it will return on ESysEINTR
 procedure SleepHiRes(ms: cardinal);
 
 /// check if any char is pending from StdInputHandle file descriptor
@@ -493,13 +499,15 @@ end;
 
 function CompareStringW(GetThreadLocale: DWORD; dwCmpFlags: DWORD; lpString1: Pwidechar;
   cchCount1: longint; lpString2: Pwidechar; cchCount2: longint): longint;
-var W1,W2: WideString;
-begin // not inlined to avoid try..finally WideString protection
-  W1 := lpString1;
-  W2 := lpString2;
-  if dwCmpFlags and NORM_IGNORECASE<>0 then
-    result := WideCompareText(W1,W2) else
-    result := WideCompareStr(W1,W2);
+var U1,U2: UnicodeString; // (may be?) faster than WideString
+begin // not inlined to avoid try..finally UnicodeString protection
+  if cchCount1<0 then
+    cchCount1 := StrLen(lpString1);
+  SetString(U1,lpString1,cchCount1);
+  if cchCount2<0 then
+    cchCount2 := StrLen(lpString2);
+  SetString(U2,lpString2,cchCount2);
+  result := widestringmanager.CompareUnicodeStringProc(U1,U2,TCompareOptions(dwCmpFlags));
 end;
 
 function GetFileSize(hFile: cInt; lpFileSizeHigh: PDWORD): DWORD;
@@ -513,16 +521,21 @@ begin
 end;
 
 procedure SleepHiRes(ms: cardinal);
+var timeout: TTimespec;
 begin
-  if ms=0 then
-    {$ifdef MSWINDOWS}
-    ThreadSwitch
-    {$else}
-    if SleepHiRes0Yield then // reported as buggy by Alan on non-Windows targets
-      ThreadSwitch else // call e.g. pthread's sched_yield API
-      SysUtils.Sleep(1)
-    {$endif} else
-    SysUtils.Sleep(ms);
+  if ms=0 then // handle SleepHiRes(0) special case
+    if SleepHiRes0Yield then begin // reported as buggy by Alan on POSIX
+      ThreadSwitch; // call e.g. pthread's sched_yield API
+      exit;
+    end else begin
+      timeout.tv_sec := 0;
+      timeout.tv_nsec := 10000; // 10us is around timer resolution on modern HW
+    end else begin
+    timeout.tv_sec := ms div 1000;
+    timeout.tv_nsec := 1000000*(ms mod 1000);
+  end;
+  fpnanosleep(@timeout,nil)
+  // no retry loop on ESysEINTR (as with regular RTL's Sleep)
 end;
 
 procedure GetKernelRevision;
