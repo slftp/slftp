@@ -52,7 +52,8 @@ uses
   mygrouphelpersTests,
   globalskipunitTests,
   irccolorunitTests,
-  ircparsingTests;
+  ircparsingTests,
+  slmasksTests;
 
 var
   filecheck: String;
