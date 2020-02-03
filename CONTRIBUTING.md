@@ -7,7 +7,7 @@ Here are the guidelines we'd like you to follow:
 * [Issues and Bugs](#issuesNbugs)
 * [Commit Message Guidelines](#commitGuidelines)
 
-* [Semantic Versioning] (http://semver.org/spec/v2.0.0.html)
+* [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
 
 <a name="aHelpGit"></a> Git Commands 
 -----
