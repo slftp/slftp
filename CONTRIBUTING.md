@@ -118,9 +118,10 @@ or in case of multiple issues:
 <a name="codingGuidelines"></a> Coding Guidelines
 -----
 - General
+  - the name of the variable should express its meaning/use/function
   - try to avoid code duplications
   - use [generic classes](http://docwiki.embarcadero.com/Libraries/Rio/en/System.Generics.Collections) over old non-generic classes
-  - don't hack something into it -> refactor it and write proper code
+  - <b>don't hack something into it -> refactor it and write proper code</b>
   - tests should be written if a function gets changed to check if it behaves the same after the change
 - Comments
   - comments have to be written in [PasDoc](https://github.com/pasdoc/pasdoc/wiki) style
@@ -144,7 +145,6 @@ or in case of multiple issues:
 ```
 - Variables in functions
   - local variables should start with a lowercase `f` while the next character is uppercased
-  - the name of the variable should express its meaning/use/function
   - index variables can still be called `i`, `j`, etc
 ```
 function TMyIrcThread.ShouldJoinGame: Boolean;
@@ -155,7 +155,6 @@ var
 ```
 - Parameters to functions
   - parameters should start with a lowercase `a` while the next character is uppercased
-  - the name of the variable should express its meaning/use/function
   - `const` should be used whenever useful to help the compiler to generate faster code
 ```
     { Creates a new TIrcChannelSettings entry which holds infos about Chankey, Chanroles and if channel is invite only
