@@ -6,7 +6,7 @@ Here are the guidelines we'd like you to follow:
 * [Git Commands](#aHelpGit)
 * [Issues and Bugs](#issuesNbugs)
 * [Commit Message Guidelines](#commitGuidelines)
-
+* [Coding Guidelines](#codingGuidelines)
 * [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
 
 <a name="aHelpGit"></a> Git Commands 
@@ -26,11 +26,12 @@ Download and Merge a specified branch:
 git checkout branch_name
 ``` 
 
-Add changes and commit:
+Add your (single) changes and commit:
 ```shell
 git diff
 git add <files>
 git commit
+git push origin <feature-branch>
 ``` 
 
 [anyway, here is git for dummies](https://www.mediawiki.org/wiki/Git_for_dummies)
@@ -39,13 +40,13 @@ or
 
 <a name="issuesNbugs"></a> Issues and Bugs
 -----
-If you find a bug in the source code or a mistake in the documentation, help or config files, you can help us by submitting an issue. <br>
+If you find a bug in the source code or a mistake in the documentation, help or config files, you can help us by submitting an issue or creating a merge-request with the proposed changes. <br>
 
 <a name="commitGuidelines"></a> Commit Message Guidelines
 -----
 Each commit message consists of a <b>header</b>, a <b>body</b> and a <b>footer</b>. The header has a special format that includes a <b>type</b>, a <b>scope</b> and a <b>subject</b>:
 ```
-<type>(<scope>): <subject>  <-- header
+<type>(<scope>): <subject>  <-- <header>
 <BLANK LINE>
 <body>
 <BLANK LINE>
@@ -114,3 +115,54 @@ or in case of multiple issues:
 
 ```Closes #123, #245, #992```
 
+<a name="codingGuidelines"></a> Coding Guidelines
+-----
+- General
+  - try to avoid code duplications
+  - use [generic classes](http://docwiki.embarcadero.com/Libraries/Rio/en/System.Generics.Collections) over old non-generic classes
+  - don't hack something into it -> refactor it and write proper code
+  - tests should be written if a function gets changed to check if it behaves the same after the change
+- Comments
+  - comments have to be written in [PasDoc](https://github.com/pasdoc/pasdoc/wiki) style
+  - variables and functions in `interface` section <b>MUST</b> be documented
+  - other comments could be made if useful (could be made in PasDoc style but not enforced)
+- Variables in classes/records/etc
+  - should start with a capital `F` and the following character should also be uppercased
+  - be made `private` if possible
+  - if it needs to be accessible by others do it with a `property`
+```
+  TIrcChannelSettings = class
+  private
+    FNetname: String; //< netname of IRC network
+    FChannel: String; //< IRC channelname
+    FInviteOnly: Boolean; //< @true if channel is invite only (you have to invite yourself first), @false otherwise
+    ...
+    property Netname: String read FNetname;
+    property Channel: String read FChannel;
+    property InviteOnly: Boolean read FInviteOnly;
+    ...
+```
+- Variables in functions
+  - local variables should start with a lowercase `f` while the next character is uppercased
+  - the name of the variable should express its meaning/use/function
+  - index variables can still be called `i`, `j`, etc
+```
+function TMyIrcThread.ShouldJoinGame: Boolean;
+var
+  i: Integer;
+  fChanSettingsObj: TIrcChannelSettings;
+  ...
+```
+- Parameters to functions
+  - parameters should start with a lowercase `a` while the next character is uppercased
+  - the name of the variable should express its meaning/use/function
+  - `const` should be used whenever useful to help the compiler to generate faster code
+```
+    { Creates a new TIrcChannelSettings entry which holds infos about Chankey, Chanroles and if channel is invite only
+      @param(aNetname irc network name)
+      @param(aChannel irc channel name)
+      @param(aChanRoles irc chanroles for this channel)
+      @param(aChankey channel key to join channel)
+      @param(aInviteOnly @true if channel can only joined with previous invite, @false otherwise) }
+    constructor Create(const aNetname, aChannel, aChanRoles: String; aChankey: String = ''; aInviteOnly: Boolean = True);
+```
