@@ -119,6 +119,7 @@ or in case of multiple issues:
 -----
 - General
   - the name of the variable should express its meaning/use/function
+  - better write several small specific functions instead of one big function
   - try to avoid code duplications
   - use [generic classes](http://docwiki.embarcadero.com/Libraries/Rio/en/System.Generics.Collections) over old non-generic classes
   - <b>don't hack something into it -> refactor it and write proper code</b>
