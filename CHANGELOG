@@ -136,6 +136,8 @@
     {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
     {#} IRC channel name missing '#' for some IRCd's or bouncers (#281)
     {#} TMyIrcThread.IrcProcess: List index (1) out of bounds avoided by use of locked list (#89)
+    {#} Allow !setaffils to remove all affils
+    {#} Fully working incomplete filler (#10)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
@@ -171,6 +173,7 @@
     {^} Strip more scene tags from releasename before doing a TVMaze lookup (#280)
     {^} IMDB ID's can now be 8 digits
     {^} Kill slot if stuck trying to CWD from a path that does not exist anymore (#267)
+    {^} Change in replacing of and/at for searching TV show improves returned results
     {-} TheTVDB support as public API goes offline sooner or later (#175)
     {-} !sectionins command -> edit slftp.precatcher manually! (#157)
     {-} old language base (slftp.languages)
