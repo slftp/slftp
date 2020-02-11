@@ -259,13 +259,15 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
+  // Add Params for dynamically used preDB's
+  // so sharing a db with different naming conventions is possible
   fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
   fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
   fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
 
   fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.SQL.Text := 'SELECT ' + fTimeField + ' FROM ' + fTableName + ' WHERE ' + fReleaseField + ' = :release';
+    fQuery.SQL.Text := 'SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = :release';
     fQuery.ParamByName('release').AsString := rls;
     try
       fQuery.Open;
