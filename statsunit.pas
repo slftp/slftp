@@ -207,7 +207,7 @@ begin
       end;
 
       // prevent duplicate entries
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.AsTSQLRecord, fDstSiteRec.AsTSQLRecord, fSectionRec.AsTSQLRecord, fFileInfoRec.AsTSQLRecord], 'ID');
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID], 'ID');
       try
         if not fStatsRec.FillOne then
         begin
