@@ -259,8 +259,6 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  // Add Params for dynamically used preDB's
-  // so sharing a db with different naming conventions is possible
   fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
   fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
   fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
@@ -520,11 +518,11 @@ begin
 
           if fSourceField = '-1' then
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ') VALUES (:release, :section, :timestamp);';
+            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`) VALUES (:release, :section, :timestamp);';
           end
           else
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ', ' + fSourceField + ') VALUES (:release, :section, :timestamp, :source);';
+            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`, `' + fSourceField + '`) VALUES (:release, :section, :timestamp, :source);';
             fQuery.ParamByName('source').AsString := Source;
           end;
 
@@ -587,7 +585,7 @@ begin
           fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
           try
             fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fQuery.SQL.Text := 'SELECT count(*) FROM ' + fTableName;
+            fQuery.SQL.Text := 'SELECT count(*) FROM `' + fTableName + '`';
             fQuery.Open;
 
             if fQuery.IsEmpty then
