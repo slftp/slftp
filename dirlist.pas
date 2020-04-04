@@ -179,7 +179,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, IdGlobal;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers;
 
 const
   section = 'dirlist';
@@ -1738,17 +1738,12 @@ begin
       s := dirlist.Dirname;
 
       // first we look for ftprush screwed up files like (1).nfo
-      l := length(filename);
-      if l > length(Extension) + 6 then
+      if IsFtpRushScrewedUpFile(filename, Extension) then
       begin
-        // first one is for 3 chars in extension like .nfo, .rar, .mp3, .r02 and second one is for 4 chars like .flac
-        if ( (filename[l-6] = '(') and (filename[l-4] = ')') and (filename[l-5] in ['0'..'9']) ) or ( (filename[l-7] = '(') and (filename[l-5] = ')') and (filename[l-6] in ['0'..'9']) ) then
-        begin
-          skiplisted := True;
-          dirlist.skipped.Add(filename);
-          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
-          exit;
-        end;
+        skiplisted := True;
+        dirlist.skipped.Add(filename);
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> FTPRush screwed up file %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
+        exit;
       end;
 
       sf := dirlist.skiplist.AllowedFile(s, filename);
