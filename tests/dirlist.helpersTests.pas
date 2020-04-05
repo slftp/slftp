@@ -16,6 +16,7 @@ type
     procedure TestIsFtpRushScrewedUpFile2;
     procedure TestIsFtpRushScrewedUpFile3;
     procedure TestIsFtpRushScrewedUpFile4;
+    procedure TestIsFtpRushScrewedUpFile5;
   end;
 
 implementation
@@ -62,6 +63,16 @@ var
 begin
   fFilenameStr := 'test(1).nfo';
   fFileExtensionStr := '.nfo';
+
+  CheckTrue(IsFtpRushScrewedUpFile(fFilenameStr, fFileExtensionStr), 'File is fucked up!');
+end;
+
+procedure TTestDirlistHelpers.TestIsFtpRushScrewedUpFile5;
+var
+  fFilenameStr, fFileExtensionStr: String;
+begin
+  fFilenameStr := '00-va-indie_dance_nu_disco_stars_vol_2-(dmrcva009)-web-2020-cover(1).jpg';
+  fFileExtensionStr := '.jpg';
 
   CheckTrue(IsFtpRushScrewedUpFile(fFilenameStr, fFileExtensionStr), 'File is fucked up!');
 end;
