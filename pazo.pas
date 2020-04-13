@@ -120,7 +120,6 @@ type
     lastannounceconsole: String;
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
-    FParseDupe_cs: TCriticalSection; //< Critical section for function @link(TPazoSite.ParseDupe) // TODO: might be replaced with a lock for each TPazoSite
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
     FUniqueFileListOfRelease_cs: TCriticalSection; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
@@ -779,7 +778,6 @@ begin
   end;
 
   added := Now;
-  FParseDupe_cs := TCriticalSection.Create;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
@@ -815,7 +813,6 @@ begin
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
   FreeAndNil(rls);
-  FParseDupe_cs.Free;
   inherited;
 end;
 
@@ -1288,6 +1285,7 @@ var
   d: TDirList;
   i: integer;
   de: TDirListEntry;
+  fFoundDirListEntries: TObjectList<TDirListEntry>;
 begin
   Result := False;
 
@@ -1334,44 +1332,48 @@ begin
     end;
   end;
 
+
   // Do some stuff obviously
-  d.dirlist_lock.Enter;
-  try
-    for i := 0 to d.entries.Count - 1 do
-    begin
+  if d.entries.Count > 0 then
+  begin
+    fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
+    try
+      d.dirlist_lock.Enter;
       try
-        if i > d.entries.Count then
-          Break;
-      except
-        Break;
-      end;
-
-      try
-        de := TDirListEntry(d.entries.items[i]);
-        if ((not de.skiplisted) and (de.megvanmeg)) then
+        for i := 0 to d.entries.Count - 1 do
         begin
-          if not de.Directory then
+          de := TDirListEntry(d.entries.items[i]);
+          if ((not de.skiplisted) and (de.megvanmeg)) then
           begin
-            if (de.justadded) then
+            if not de.Directory then
             begin
-              de.justadded := False;
-              RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+              if (de.justadded) then
+              begin
+                de.justadded := False;
+                RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+              end;
+              de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
-          end;
-          if not de.Directory then
-            de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
 
-          if Tuzelj(netname, channel, dir, de) then
-          begin
-            QueueFire;
+            fFoundDirListEntries.Add(de);
           end;
         end;
-      except
-        Continue;
+      finally
+        d.dirlist_lock.Leave;
       end;
+
+      //do this outside dirlist_lock to avoid deadlocks
+      for de in fFoundDirListEntries do
+      begin
+        if Tuzelj(netname, channel, dir, de) then
+        begin
+          QueueFire;
+        end;
+      end;
+
+    finally
+      fFoundDirListEntries.Free;
     end;
-  finally
-    d.dirlist_lock.Leave;
   end;
 
   // Everything went fine
@@ -1453,38 +1455,43 @@ begin
 
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
   try
-    de := dl.Find(filename);
-    if de = nil then
-    begin
-      // this means that it has not been fired
-      de := TDirListEntry.Create(filename, dl);
-      de.directory := False;
-      de.done := True;
-      de.filesize := -1;
+    dl.dirlist_lock.Enter;
+    try
+      de := dl.Find(filename);
+      if de = nil then
+      begin
+        // this means that it has not been fired
+        de := TDirListEntry.Create(filename, dl);
+        de.directory := False;
+        de.done := True;
+        de.filesize := -1;
+        if byme then
+          de.racedbyme := byme;
+
+        dl.entries.Add(de);
+        dl.LastChanged := Now();
+        Result := True;
+      end;
+
+      if (AnsiLowerCase(de.Extension) = '.sfv') then
+      begin
+        dl.sfv_status := dlSFVFound;
+      end;
+
+      if not de.done then
+        Result := True;
+
       if byme then
         de.racedbyme := byme;
 
-      dl.entries.Add(de);
-      dl.LastChanged := Now();
-      Result := True;
-    end;
-
-    if (AnsiLowerCase(de.Extension) = '.sfv') then
-    begin
-      dl.sfv_status := dlSFVFound;
-    end;
-
-    if not de.done then
-      Result := True;
-
-    if byme then
-      de.racedbyme := byme;
-
-    de.done := True;
-    if (not de.megvanmeg) then
-    begin
-      de.megvanmeg := True;
-      RemovePazoRace(pazo.pazo_id, Name, dir, filename);
+      de.done := True;
+      if (not de.megvanmeg) then
+      begin
+        de.megvanmeg := True;
+        RemovePazoRace(pazo.pazo_id, Name, dir, filename);
+      end;
+    finally
+      dl.dirlist_lock.Leave;
     end;
 
   except
@@ -1510,13 +1517,7 @@ begin
       exit;
     end;
 
-    pazo.FParseDupe_cs.Enter;
-    try
-      Result := ParseDupe(netname, channel, dl, dir, filename, byme);
-    finally
-      pazo.FParseDupe_cs.Leave;
-    end;
-
+    Result := ParseDupe(netname, channel, dl, dir, filename, byme);
     RemovePazoRace(pazo.pazo_id, Name, dir, filename);
   except
     on E: Exception do
@@ -1548,12 +1549,7 @@ begin
 
       for fFilename in fFileList do
       begin
-        pazo.FParseDupe_cs.Enter;
-        try
-          ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False);
-        finally
-          pazo.FParseDupe_cs.Leave;
-        end;
+        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False);
 
         // TODO: not sure if it makes sense to call this everytime again and again because it's called inside ParseDupe as well
         RemovePazoRace(pazo.pazo_id, Name, aDir, fFilename);

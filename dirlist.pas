@@ -598,6 +598,10 @@ begin
     skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
+  rrgx := TRegExpr.Create;
+  rrgx.ModifierI := True;
+  rrgx.Expression := global_skip;
+
   dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
@@ -614,16 +618,7 @@ begin
         end;
       end;
     end;
-  finally
-    dirlist_lock.Leave;
-  end;
-
-  rrgx := TRegExpr.Create;
-  rrgx.ModifierI := True;
-  rrgx.Expression := global_skip;
-
-  dirlist_lock.Enter;
-  try
+	
     while(true) do
     begin
       tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
