@@ -583,8 +583,8 @@ begin
         // destination dir is not complete
         if not dstdl.complete then
         begin
-          fExtensionMatchSFV := LowerCase(de.Extension) = '.sfv';
-          fExtensionMatchNFO := LowerCase(de.Extension) = '.nfo';
+          fExtensionMatchSFV := de.Extension = '.sfv';
+          fExtensionMatchNFO := de.Extension = '.nfo';
           // skip nfo and sfv if already there
           if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
             Continue;
@@ -1469,7 +1469,7 @@ begin
       Result := True;
     end;
 
-    if (AnsiLowerCase(de.Extension) = '.sfv') then
+    if (de.Extension = '.sfv') then
     begin
       dl.sfv_status := dlSFVFound;
     end;
