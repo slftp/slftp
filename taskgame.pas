@@ -159,7 +159,7 @@ ujra:
 
         if ((de.Directory) or (de.filesize = 0)) then
         begin
-          fTagCompleteType := TagComplete(de.filenamelc);
+          fTagCompleteType := TagComplete(de.FilenameLowerCased);
           if j = tctUNMATCHED then j := fTagCompleteType;
           if fTagCompleteType = tctCOMPLETE then j := fTagCompleteType;
         end;
