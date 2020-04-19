@@ -606,17 +606,8 @@ begin
   try
     for i := entries.Count - 1 downto 0 do
     begin
-      if i < 0 then Break;
-      try
-        de := TDirlistEntry(entries[i]);
-        de.megvanmeg := False;
-      except
-        on e: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist: %s', [e.Message]);
-          Continue;
-        end;
-      end;
+      de := TDirlistEntry(entries[i]);
+      de.megvanmeg := False;
     end;
 	
     while(true) do
