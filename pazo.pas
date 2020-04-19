@@ -367,7 +367,11 @@ begin
       end;
     end;
   except
-    Result := nil;
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] FindPazoById: %s', [e.Message]));
+      Result := nil;
+    end;
   end;
 end;
 
@@ -500,7 +504,11 @@ begin
         if (dstdl.parent <> nil) then
           dstdl.parent.DirType := de.DirType;
       except
-        Continue;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj FindDirlist: %s', [e.Message]));
+          Continue;
+        end;
       end;
 
       // Dirlist for destination site not available
@@ -514,7 +522,11 @@ begin
         if (dde <> nil) then
           dde.DirType := de.DirType;
       except
-        Continue;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
+          Continue;
+        end;
       end;
 
       // not really sure
@@ -971,7 +983,11 @@ begin
           inc(numComplete);
         end;
       except
-        Continue;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TPazo.Stats: %s', [e.Message]));
+          Continue;
+        end;
       end;
     end;
   finally
@@ -1079,7 +1095,11 @@ begin
 
       PazoSitesList.Add(ps);
     except
-      Continue;
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+        Continue;
+      end;
     end;
 
     Result := True;
@@ -1297,7 +1317,11 @@ begin
   try
     d := dirlist.FindDirlist(dir, True);
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDirlist (dirlist.FindDirlist): %s', [e.Message]));
+      exit;
+    end;
   end;
 
   // exit if dirlist not found for this dir
@@ -1622,6 +1646,7 @@ begin
             except
               on E: Exception do
               begin
+                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Stats: %s', [e.Message]));
                 Continue;
               end;
             end;
