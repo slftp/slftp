@@ -533,7 +533,7 @@ begin
       (*
         if ((dde <> nil) and (dde.done)) then Continue;
       *)
-      if ((dde <> nil) and (dde.megvanmeg)) then Continue;
+      if ((dde <> nil) and (dde.IsOnSite)) then Continue;
       if ((dde <> nil) and (dde.error)) then Continue;
 
       // Check if mkdir is needed
@@ -1367,7 +1367,7 @@ begin
         for i := 0 to d.entries.Count - 1 do
         begin
           de := TDirListEntry(d.entries.items[i]);
-          if ((not de.skiplisted) and (de.megvanmeg)) then
+          if ((not de.skiplisted) and (de.IsOnSite)) then
           begin
             if not de.Directory then
             begin
@@ -1509,9 +1509,9 @@ begin
         de.racedbyme := byme;
 
       de.done := True;
-      if (not de.megvanmeg) then
+      if (not de.IsOnSite) then
       begin
-        de.megvanmeg := True;
+        de.IsOnSite := True;
         RemovePazoRace(pazo.pazo_id, Name, dir, filename);
       end;
     finally
