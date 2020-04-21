@@ -25,8 +25,10 @@ type
   { @abstract(Information for a specific file (also dir?) from a TDirlist) }
   TDirListEntry = class
   private
-    FExtension: String; //< file extension, includes the '.' prefix - such as '.nfo'
+    FFilenameLowerCase: String; //< lowercased filename
+    FExtension: String; //< lowercased file extension, includes the '.' prefix - such as '.nfo'
     FUsername: String; //< name of user who sent this file
+    FRacedByMe: Boolean; //< @true if we send this file to the site, @false otherwise.
     FGroupname: String; //< name of group the @link(FUsername) is associated with
     FDirectory: Boolean; //< @true if current dir is a directory
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
@@ -37,10 +39,8 @@ type
     error: Boolean; //< @true if file cannot be send, will be skipped then, @false otherwise.
     subdirlist: TDirList;
     filename: String; //< filename
-    filenamelc: String; //< lowercase filename
     filesize: Int64; //< filesize
     skiplisted: Boolean;
-    racedbyme: Boolean; //< @true if we send this file to the site, @false otherwise.
     // TODO: done does not do a real filesize check nor is it reset to false at any time if the file disappears e.g.
     // which might produce incomplete releases - so it seems not to be a trusty value
     done: Boolean; //< @true when @link(TDirlist.ParseDirlist) adding of file was successful, @false otherwise.
@@ -62,7 +62,9 @@ type
       @returns(@true if file is an ASCII type, @false otherwise.) }
     function IsAsciiFiletype: Boolean;
 
+    property FilenameLowerCased: String read FFilenameLowerCase;
     property Extension: String read FExtension;
+    property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
     property Directory: Boolean read FDirectory write SetDirectory;
     property DirType: TDirType read FDirType write FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
@@ -710,12 +712,12 @@ begin
         begin
           de := TDirListEntry.Create(filename, self);
 
-          if ((AnsiLowerCase(de.Extension) = '.sfv') and (HasSFV)) then
+          if ((de.Extension = '.sfv') and (HasSFV)) then
           begin
             de.Free;
             Continue;
           end;
-          if ((AnsiLowerCase(de.Extension) = '.nfo') and (HasNFO)) then
+          if ((de.Extension = '.nfo') and (HasNFO)) then
           begin
             de.Free;
             Continue;
@@ -769,7 +771,7 @@ begin
             end;
           end;
 
-          if ((not de.Directory) and (AnsiLowerCase(de.Extension) = '.sfv') and (de.filesize > 0)) then
+          if ((not de.Directory) and (de.Extension = '.sfv') and (de.filesize > 0)) then
           begin
             sfv_status := dlSFVFound;
           end;
@@ -926,24 +928,24 @@ begin
     if (i1.Extension <> '') or (i2.Extension <> '') then
     begin
       // sfv priority
-      if ((AnsiLowerCase(i1.Extension) = '.sfv') and (AnsiLowerCase(i2.Extension) <> '.sfv')) then
+      if ((i1.Extension = '.sfv') and (i2.Extension <> '.sfv')) then
       begin
         Result := -1;
         exit;
       end;
-      if ((AnsiLowerCase(i1.Extension) <> '.sfv') and (AnsiLowerCase(i2.Extension) = '.sfv')) then
+      if ((i1.Extension <> '.sfv') and (i2.Extension = '.sfv')) then
       begin
         Result := 1;
         exit;
       end;
 
       // nfo priority
-      if ((AnsiLowerCase(i1.Extension) = '.nfo') and (AnsiLowerCase(i2.Extension) <> '.nfo')) then
+      if ((i1.Extension = '.nfo') and (i2.Extension <> '.nfo')) then
       begin
         Result := -1;
         exit;
       end;
-      if ((AnsiLowerCase(i1.Extension) <> '.nfo') and (AnsiLowerCase(i2.Extension) = '.nfo')) then
+      if ((i1.Extension <> '.nfo') and (i2.Extension = '.nfo')) then
       begin
         Result := 1;
         exit;
@@ -1320,12 +1322,12 @@ begin
 
         if aExcludeAsciiFiletypes then
         begin
-          if (de.racedbyme and not de.IsAsciiFiletype) then
+          if (de.FRacedByMe and not de.IsAsciiFiletype) then
             Inc(Result);
         end
         else
         begin
-          if de.racedbyme then
+          if de.FRacedByMe then
             Inc(Result);
         end;
 
@@ -1363,12 +1365,12 @@ begin
 
         if aExcludeAsciiFiletypes then
         begin
-          if (de.racedbyme and not de.IsAsciiFiletype) then
+          if (de.FRacedByMe and not de.IsAsciiFiletype) then
             Inc(result, de.filesize);
         end
         else
         begin
-          if de.racedbyme then
+          if de.FRacedByMe then
             Inc(result, de.filesize);
         end;
 
@@ -1410,7 +1412,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if ((AnsiLowerCase(de.Extension) = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
+        if ((de.Extension = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
           Self.FCachedHasSFVResult := True;
@@ -1449,7 +1451,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if ((AnsiLowerCase(de.Extension) = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
+        if ((de.Extension = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
           Self.FCachedHasNFOResult := True;
@@ -1603,15 +1605,15 @@ begin
 
   self.dirlist := dirlist;
   self.filename := filename;
-  self.racedbyme := False;
+  self.FRacedByMe := False;
   self.done := False;
   self.skiplisted := False;
   self.IsOnSite := False;
   self.error := False;
   subdirlist := nil;
 
-  filenamelc := LowerCase(filename);
-  FExtension := ExtractFileExt(filenamelc);
+  FFilenameLowerCase := LowerCase(filename);
+  FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
 end;
 
@@ -1633,8 +1635,8 @@ begin
   self.IsOnSite := False;
   self.error := False;
   self.justadded := True;
-  filenamelc := LowerCase(filename);
-  FExtension := ExtractFileExt(filenamelc);
+  FFilenameLowerCase := LowerCase(filename);
+  FExtension := ExtractFileExt(FFilenameLowerCase);
 
   if self.directory then CalcCDNumber;
 end;
@@ -1652,7 +1654,7 @@ var
   s: String;
   i: Integer;
 begin
-  s := ReplaceText(filenamelc, ' ', '');
+  s := ReplaceText(FFilenameLowerCase, ' ', '');
   s := ReplaceText(s, '_', '');
   s := ReplaceText(s, '-', '');
 
