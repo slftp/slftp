@@ -594,8 +594,8 @@ begin
         // destination dir is not complete
         if not dstdl.complete then
         begin
-          fExtensionMatchSFV := LowerCase(de.Extension) = '.sfv';
-          fExtensionMatchNFO := LowerCase(de.Extension) = '.nfo';
+          fExtensionMatchSFV := de.Extension = '.sfv';
+          fExtensionMatchNFO := de.Extension = '.nfo';
           // skip nfo and sfv if already there
           if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
             Continue;
@@ -1490,14 +1490,14 @@ begin
         de.done := True;
         de.filesize := -1;
         if byme then
-          de.racedbyme := byme;
+          de.RacedByMe := byme;
 
         dl.entries.Add(de);
         dl.LastChanged := Now();
         Result := True;
       end;
 
-      if (AnsiLowerCase(de.Extension) = '.sfv') then
+      if (de.Extension = '.sfv') then
       begin
         dl.sfv_status := dlSFVFound;
       end;
@@ -1506,7 +1506,7 @@ begin
         Result := True;
 
       if byme then
-        de.racedbyme := byme;
+        de.RacedByMe := byme;
 
       de.done := True;
       if (not de.IsOnSite) then
@@ -1517,7 +1517,6 @@ begin
     finally
       dl.dirlist_lock.Leave;
     end;
-
   except
     on E: Exception do
     begin
@@ -1637,12 +1636,12 @@ begin
             if i < 0 then Break;
             try
               de := TDirlistEntry(dirlist.entries[i]);
-              if (de.racedbyme and not de.IsAsciiFiletype) then
+              if (de.RacedByMe and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
               Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
-                [i, fsname, de.filename, de.filesize, BoolToStr(de.racedbyme, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
+                [i, fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
             except
               on E: Exception do
               begin
