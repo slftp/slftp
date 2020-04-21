@@ -252,7 +252,7 @@ begin
         for j := 0 to dl.entries.Count - 1 do
         begin
           de := TDirlistEntry(dl.entries[j]);
-          if ((de.Directory) and (0 = pos('nuked', de.filenamelc))) then
+          if ((de.Directory) and (0 = pos('nuked', de.FilenameLowerCased))) then
           begin
             if section = 'REQUEST' then
             begin

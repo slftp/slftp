@@ -103,7 +103,6 @@ function MyStrToTime(const x: String): TDateTime;
 function MyDateToStr(const x: TDateTime): String;
 function MyStrToDate(const x: String): TDateTime;
 function myStrToFloat(s: String; const def: double): double;
-function MyCopy(b: array of byte; index, len: integer): String;
 function ParseResponseCode(s: String): integer;
 
 { Adds '/' to end of dir if it's missing or returns '/' if empty string
@@ -146,7 +145,6 @@ function IsANumber(const c: Char): boolean;
   @returns(Count of occurrences of numbers) }
 function OccurrencesOfNumbers(const S: string): Integer;
 
-function GetFileContents(const fn: String): String;
 function FetchSL(var aInputText: String; const Args: array of Char): String;
 
 { Gets the first line from input by searching for \r and/or \n (newline indicators)
@@ -404,15 +402,6 @@ begin
   end;
 end;
 
-function MyCopy(b: array of byte; index, len: integer): String;
-var
-  i: integer;
-begin
-  Result := '';
-  for i := index to index + len - 1 do
-    Result := Result + Chr(b[i]);
-end;
-
 function RPos(const SubStr: Char; const Str: String): integer;
 var
   m, i: integer;
@@ -586,26 +575,6 @@ begin
     if IsANumber(s[i]) then
       Inc(Result);
   end;
-end;
-
-function GetFileContents(const fn: String): String;
-var
-  x: TextFile;
-  s: String;
-begin
-  if FileExists(fn) then
-  begin
-    Result := '';
-    AssignFile(x, fn);
-    Reset(x);
-    while not EOF(x) do
-    begin
-      ReadLn(x, s);
-      Result := Result + s + #13#10;
-    end;
-  end
-  else
-    Result := '';
 end;
 
 function FetchSL(var aInputText: String; const Args: array of Char): String;
