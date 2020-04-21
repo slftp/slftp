@@ -32,9 +32,9 @@ type
     FGroupname: String; //< name of group the @link(FUsername) is associated with
     FDirectory: Boolean; //< @true if current dir is a directory
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
+    FIsOnSite: Boolean; //< @true if this entry is available on the site
   public
     dirlist: TDirList;
-    megvanmeg: Boolean;
     justadded: Boolean;
     error: Boolean; //< @true if file cannot be send, will be skipped then, @false otherwise.
     subdirlist: TDirList;
@@ -67,6 +67,7 @@ type
     property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
     property Directory: Boolean read FDirectory write SetDirectory;
     property DirType: TDirType read FDirType write FDirType;
+    property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -600,32 +601,18 @@ begin
     skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
-  dirlist_lock.Enter;
-  try
-    for i := entries.Count - 1 downto 0 do
-    begin
-      if i < 0 then Break;
-      try
-        de := TDirlistEntry(entries[i]);
-        de.megvanmeg := False;
-      except
-        on e: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-
   rrgx := TRegExpr.Create;
   rrgx.ModifierI := True;
   rrgx.Expression := global_skip;
 
   dirlist_lock.Enter;
   try
+    for i := entries.Count - 1 downto 0 do
+    begin
+      de := TDirlistEntry(entries[i]);
+      de.IsOnSite := False;
+    end;
+	
     while(true) do
     begin
       tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
@@ -830,7 +817,7 @@ begin
           de.FUsername := username;
           de.FGroupname := groupname;
         end;
-        de.megvanmeg := True;
+        de.IsOnSite := True;
       end;
     end;
 
@@ -1425,7 +1412,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if ((de.Extension = '.sfv') and (de.megvanmeg) and (de.filesize > 0)) then
+        if ((de.Extension = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
           Self.FCachedHasSFVResult := True;
@@ -1464,7 +1451,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirlistEntry(entries[i]);
-        if ((de.Extension = '.nfo') and (de.megvanmeg) and (de.filesize > 0)) then
+        if ((de.Extension = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
           Self.FCachedHasNFOResult := True;
@@ -1499,7 +1486,7 @@ begin
     begin
       try if i < 0 then Break; except Break; end;
       try
-        TDirlistEntry(entries[i]).megvanmeg := False;
+        TDirlistEntry(entries[i]).IsOnSite := False;
         TDirlistEntry(entries[i]).error := False;
       except
         on E: Exception do
@@ -1621,7 +1608,7 @@ begin
   self.FRacedByMe := False;
   self.done := False;
   self.skiplisted := False;
-  self.megvanmeg := False;
+  self.IsOnSite := False;
   self.error := False;
   subdirlist := nil;
 
@@ -1645,7 +1632,7 @@ begin
   self.dirlist := dirlist;
   self.subdirlist := nil;
   self.timestamp := de.timestamp;
-  self.megvanmeg := False;
+  self.IsOnSite := False;
   self.error := False;
   self.justadded := True;
   FFilenameLowerCase := LowerCase(filename);
