@@ -265,7 +265,7 @@ begin
 
   fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.SQL.Text := 'SELECT ' + fTimeField + ' FROM ' + fTableName + ' WHERE ' + fReleaseField + ' = :release';
+    fQuery.SQL.Text := 'SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = :release';
     fQuery.ParamByName('release').AsString := rls;
     try
       fQuery.Open;
@@ -518,11 +518,11 @@ begin
 
           if fSourceField = '-1' then
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ') VALUES (:release, :section, :timestamp);';
+            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`) VALUES (:release, :section, :timestamp);';
           end
           else
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO ' + fTableName + ' (' + fReleaseField + ', ' + fSectionField + ', ' + fTimeField + ', ' + fSourceField + ') VALUES (:release, :section, :timestamp, :source);';
+            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`, `' + fSourceField + '`) VALUES (:release, :section, :timestamp, :source);';
             fQuery.ParamByName('source').AsString := Source;
           end;
 
@@ -585,7 +585,7 @@ begin
           fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
           try
             fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fQuery.SQL.Text := 'SELECT count(*) FROM ' + fTableName;
+            fQuery.SQL.Text := 'SELECT count(*) FROM `' + fTableName + '`';
             fQuery.Open;
 
             if fQuery.IsEmpty then
