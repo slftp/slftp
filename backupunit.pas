@@ -28,20 +28,22 @@ var
 
 function createBackup(custom: boolean = False): boolean;
 var
-  s, bName, filename, filepath: string;
+  fRtplPath, fBackupFileName, fFileName, fBackupPath, fDatabasePath: string;
   i: integer;
   sr: TSearchRec;
   skipfiles: TStringList;
 begin
-  _backuperror := '';
-  result := False;
-  bName := config.ReadString(section, 'backup_dir', 'backup');
-  if not DirectoryExists(bName) then
-    Mkdir(bName);
-
   debug(dpMessage, section, 'Backup process started.');
-  bName := MyIncludeTrailingSlash(bName);
-  ForceDirectories(bName);
+  Result := False;
+  _backuperror := '';
+
+  fBackupFileName := config.ReadString(section, 'backup_dir', 'backup');
+  fBackupPath := MyIncludeTrailingSlash(fBackupFileName);
+
+  if not DirectoryExists(fBackupPath) then
+    Mkdir(fBackupPath);
+
+  ForceDirectories(fBackupFileName);
 
   skipfiles := TStringList.Create;
   skipfiles.CaseSensitive := False;
@@ -50,59 +52,60 @@ begin
 
     try
       if custom then
-        bName := bName + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar'
+        fBackupFileName := fBackupPath + 'slftp-custom-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar'
       else
-        bName := bName + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
+        fBackupFileName := fBackupPath + 'slftp-backup-' + FormatDateTime('yyyy-mm-dd-hhnnss', Now) + '.tar';
 
-      with TTarWriter.Create(bName) do
+      with TTarWriter.Create(fBackupFileName) do
       begin
-        //adding common files
+        // adding common files
         for I := 0 to cFilecount do
-          if ( fileexists(commonFiles[i]) and (skipfiles.IndexOf(commonFiles[i]) = -1) ) then
+          if ( FileExists(commonFiles[i]) and (skipfiles.IndexOf(commonFiles[i]) = -1) ) then
             AddFile(commonFiles[i]);
 
-        //adding ini files
+        // adding ini files
         for I := 0 to iFilecount do
-          if ( fileexists(iniFiles[i]) and (skipfiles.IndexOf(iniFiles[i]) = -1) ) then
+          if ( FileExists(iniFiles[i]) and (skipfiles.IndexOf(iniFiles[i]) = -1) ) then
             AddFile(iniFiles[i]);
 
-        //adding generated files
+        // adding generated files
         for I := 0 to gFilecount do
-          if ( fileexists(generatedFiles[i]) and (skipfiles.IndexOf(generatedFiles[i]) = -1) ) then
+          if ( FileExists(generatedFiles[i]) and (skipfiles.IndexOf(generatedFiles[i]) = -1) ) then
             AddFile(generatedFiles[i]);
 
-        filepath := MyIncludeTrailingSlash(DATABASEFOLDERNAME);
+        fDatabasePath := MyIncludeTrailingSlash(DATABASEFOLDERNAME);
 
-        //adding indexer database (only at startup)
-        if not IndexerAlive then
+        // adding stats database
+        fFileName := Trim(config.ReadString('stats', 'database', 'stats.db'));
+        if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
         begin
-          fileName := Trim(config.ReadString('indexer', 'database', 'indexes.db'));
-          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(filepath + fileName);
+          doStatsBackup(fDatabasePath, fFileName + '.bak');
+          AddFile(fDatabasePath + fFileName + '.bak', fDatabasePath + fFileName);
+          DeleteFile({$IFDEF UNICODE}PChar{$ELSE}PAnsiChar{$ENDIF}(fDatabasePath + fFileName + '.bak'));
         end;
 
-        // adding stats database (only at startup)
-        if not StatsAlive then
+        // adding indexer database (only at startup)
+        if not IndexerAlive then
         begin
-          fileName := Trim(config.ReadString('stats', 'database', 'stats.db'));
-          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(filepath + fileName);
+          fFileName := Trim(config.ReadString('indexer', 'database', 'indexes.db'));
+          if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
+            AddFile(fDatabasePath + fFileName);
         end;
 
         // adding pretime database (only at startup)
         if not AddPreDbAlive then
         begin
-          fileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
-          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(filepath + fileName);
+          fFileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
+          if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
+            AddFile(fDatabasePath + fFileName);
         end;
 
         // adding tvinfo database (only at startup)
         if not TVInfoDbAlive then
         begin
-          fileName := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
-          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(filepath + fileName);
+          fFileName := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
+          if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
+            AddFile(fDatabasePath + fFileName);
         end;
 
         (*
@@ -110,21 +113,21 @@ begin
         if not IMDbInfoDbAlive then
         begin
           fileName := Trim(config.ReadString('taskimdb', 'database', 'imdb.db'));
-          if ( fileexists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
+          if ( FileExists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
             AddFile(filepath + fileName);
         end;
         *)
 
         // adding rtpl dir
-        s := MyIncludeTrailingSlash('rtpl');
-        if not DirectoryExists(s) then
-          Mkdir(s);
+        fRtplPath := MyIncludeTrailingSlash('rtpl');
+        if not DirectoryExists(fRtplPath) then
+          Mkdir(fRtplPath);
 
-        ForceDirectories(s);
-        if FindFirst(s + '*.*', faAnyFile - faDirectory, sr) = 0 then
+        ForceDirectories(fRtplPath);
+        if FindFirst(fRtplPath + '*.*', faAnyFile - faDirectory, sr) = 0 then
         begin
           repeat
-            AddFile(s + sr.Name, 'rtpl/' + sr.name);
+            AddFile(fRtplPath + sr.Name, 'rtpl/' + sr.name);
           until FindNext(sr) <> 0;
           {$IFDEF MSWINDOWS}
             SysUtils.FindClose(sr);

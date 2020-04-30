@@ -52,10 +52,6 @@ procedure statsInit;
 { Just a helper function to free @link(ORMStatsDB) }
 procedure statsUninit;
 
-{ Check if stats database is in use
-  @returns(@true if stats database is used, @false if disabled in slftp.ini) }
-function StatsAlive: boolean;
-
 { Add the raced file and appropriate infos into database
   @param(aSrcSite source sitename)
   @param(aDstSite destination sitename)
@@ -78,6 +74,11 @@ function RemoveStats(const aSitename: String): Boolean; overload;
   @param(aPeriod SQL start of period: YEAR, MONTH, DAY)
   @param(aDetailed if @true it shows detailed traffic info, if @false it shows only total in/out) }
 procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const aDetailed: Boolean);
+
+{ Creates a backup of stats-database - this is needed because the file is in use and can't be copied
+  @param(aPath path where the backup should be stored in the filesystem with last slash, e.g. /path/to/file/)
+  @param(aFileName filename including fileextension) }
+procedure doStatsBackup(const aPath, aFileName: String);
 
 implementation
 
@@ -128,14 +129,6 @@ begin
     ORMStatsModel.Free;
   end;
   Debug(dpSpam, section, 'Uninit2');
-end;
-
-function StatsAlive: boolean;
-begin
-  if ORMStatsDB = nil then
-    Result := False
-  else
-    Result := True;
 end;
 
 procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
@@ -541,6 +534,12 @@ begin
     GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
     PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
   end;
+end;
+
+procedure doStatsBackup(const aPath, aFileName: String);
+begin
+  if ORMStatsDB.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
+    ORMStatsDB.DB.BackupBackgroundWaitUntilFinished(5);
 end;
 
 end.
