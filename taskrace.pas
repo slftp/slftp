@@ -45,6 +45,19 @@ type
   end;
 
   TPazoRaceTask = class(TPazoTask)
+  private
+    { Finds out if the given response contains phrases that indicate the file is a dupe.
+       @param(aResponse the response message)
+       @returns(@true if the response means the file is a dupe, @false otherwise.)
+    }
+    function ResponseContainsDupeKeyword(const aResponse: String): boolean;
+
+    { Finds out if the given response contains phrases that indicate the file is a dupe and the file is already complete.
+       @param(aResponse the response message)
+       @returns(@true if the response means the file is a dupe and already complete, @false otherwise.)
+    }
+    function ResponseContainsDupeKeywordComplete(const aResponse: String): boolean;
+  public
     dir: String;
     filename: String;
     FFilenameForSTORCommand: String; //< filename used for transfering in STOR cmd, automatically lowercased if config convert_filenames_to_lowercase value is @true
@@ -1205,6 +1218,63 @@ begin
       goto TryAgain;
     if not ssrc.Read('PRET RETR') then
       goto TryAgain;
+
+
+    lastResponseCode := ssrc.lastResponseCode;
+    lastResponse := ssrc.lastResponse;
+
+    if ( (lastResponseCode <> 200) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
+    begin
+      case lastResponseCode of
+      421:
+        begin
+          //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+          ssrc.Quit;
+          goto TryAgain;
+        end;
+      530:
+      begin
+        //530 - Not logged in.
+
+        //530 No transfer-slave(s) available
+        if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
+          begin
+            ssrc.site.SetOutofSpace;
+            if ssrc.site.SetDownOnOutOfSpace then
+            begin
+              ssrc.DestroySocket(True);
+            end;
+
+            mainpazo.errorreason := 'No transfer-slave(s) available';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+
+        Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+        ssrc.Quit;
+        goto TryAgain;
+      end;
+      550:
+        begin
+          if (0 <> Pos('File unavailable', lastResponse)) then
+          begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            readyerror := True;
+            exit;
+          end;
+        end;
+      end;
+
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled PRET RETR response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled PRET RETR response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
+      readyerror := True;
+      mainpazo.errorreason := 'PRET RETR failed on ' + site1;
+      Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+      exit;
+    end;
   end;
 
   (* we prefer CPSV over SSCN because it takes care of the encrypted connection
@@ -1248,9 +1318,9 @@ begin
           //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
           if (0 < Pos('Timeout', lastResponse)) then
           begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
-
         end;
 
 
@@ -1258,8 +1328,10 @@ begin
         begin
           //COMPLETE MSG: 425 Can't open passive connection!
           //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
-          if (0 <> Pos('t open passive connection', lastResponse)) then
+          //COMPLETE MSG: 425 Can't open data connection.
+          if ((0 <> Pos('t open passive connection', lastResponse)) OR (0 <> Pos('t open data connection', lastResponse))) then
           begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
         end;
@@ -1269,8 +1341,10 @@ begin
         begin
           //COMPLETE MSG: 426 Data connection: Broken pipe
           //COMPLETE MSG: 426 Data connection: Connection reset by peer.
-          if (0 <> Pos('Data connection', lastResponse)) then
+          //COMPLETE MSG: 426 Sendfile error: Broken pipe.
+          if ((0 <> Pos('Data connection', lastResponse)) OR (0 <> Pos('Sendfile error', lastResponse))) then
           begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
         end;
@@ -1286,7 +1360,25 @@ begin
             // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
             ssrc.site.SetOutofSpace;
             if ssrc.site.SetDownOnOutOfSpace then
+            begin
               ssrc.DestroySocket(True);
+            end;
+
+            mainpazo.errorreason := 'No transfer-slave(s) available';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+          //COMPLETE MSG: 450 No data connection available
+          if (0 <> Pos('No data connection available', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            mainpazo.errorreason := 'No data connection available';
+            readyerror := True;
+            ssrc.Quit;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
         end;
 
@@ -1294,12 +1386,23 @@ begin
         begin
           if (0 <> Pos('You need to use a client supporting PRET', lastResponse)) then
           begin
+            irc_AddINFO('[iNFO] PRET needed for: ' + ssrc.Name);
             ssrc.site.sw := sswDrftpd;
             ssrc.site.legacydirlist := True;
+            goto TryAgain;
           end;
           if ((RequireSSL) and (0 < Pos('understood', lastResponse))) then
           begin
+            irc_AddINFO('[iNFO] SSLFXP not supported for: ' + ssrc.Name);
             ssrc.site.sslfxp := srUnsupported;
+            goto TryAgain;
+          end;
+
+          //500 Unsupported command during transfer.
+          if (0 <> Pos('Unsupported command', lastResponse)) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
           end;
         end;
 
@@ -1308,6 +1411,7 @@ begin
           //COMPLETE MSG: 550 Requested action not taken. File unavailable.
           if (0 <> Pos('Requested action not taken', lastResponse)) then
           begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             goto TryAgain;
           end;
         end;
@@ -1317,16 +1421,15 @@ begin
           //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
           if (0 < Pos('X-DUPE', lastResponse)) then
           begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            ps1.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             goto TryAgain;
-          end
-        end;
-
-      else
-        begin
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
+          end;
         end;
     end;
+
+    Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
+    irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
     readyerror := True;
     mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1350,6 +1453,75 @@ begin
       goto TryAgain;
     if not sdst.Read('PRET STOR') then
       goto TryAgain;
+
+
+    lastResponseCode := sdst.lastResponseCode;
+    lastResponse := sdst.lastResponse;
+
+    if ( (lastResponseCode <> 200) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
+    begin
+      case lastResponseCode of
+        553:
+        begin
+          if (ResponseContainsDupeKeyword(lastResponse)) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
+            Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
+            ready := True;
+            Result := True;
+            exit;
+          end;
+
+          //553 means: Requested action not taken. File name not allowed.
+          //therefore don't try to send that file again
+          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          begin
+            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+          end;
+          readyerror := True;
+          ps2.SetFileError(netname, channel, dir, filename);
+          exit;
+        end;
+        550:
+        begin
+          if (ResponseContainsDupeKeyword(lastResponse)) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
+            Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
+            ready := True;
+            Result := True;
+            exit;
+          end;
+        end;
+        421:
+        begin
+          //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+          sdst.Quit;
+          goto TryAgain;
+        end;
+        426:
+        begin
+          //COMPLETE MSG: 426 Connection closed; transfer aborted.
+          if (0 < Pos('transfer aborted', lastResponse)) then
+          begin
+            //try again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+      end;
+
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled PRET STOR response, tell your developer about it! %s: %s', [sdst.site.Name, lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled PRET STOR response, tell your developer about it! %s: %s', [sdst.site.Name, lastResponse]));
+      readyerror := True;
+      mainpazo.errorreason := 'PRET STOR failed on ' + site2;
+      Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+      exit;
+    end;
   end;
 
   if not sdst.Send('PORT %s,%d,%d', [ReplaceText(host, '.', ','), port div 256, port mod 256]) then
@@ -1395,7 +1567,6 @@ begin
         begin
           if (0 < Pos('SFVFile still transferring', lastResponse)) then
           begin
-            ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
@@ -1422,6 +1593,32 @@ begin
             ssrc.Quit;
             sdst.Quit;
             goto TryAgain;
+          end;
+
+          //425 Can't open data connection.
+          if (0 < Pos('Can''t open data connection', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Can''t open data connection';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+          //COMPLETE MSG: 425 Can't build data connection
+          if (0 < Pos('t build data connection', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
+
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Timeout or building data connection problem';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
         end;
 
@@ -1452,6 +1649,17 @@ begin
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
           end;
+
+          //COMPLETE MSG: 530 Access denied
+          if (0 < Pos('Access denied', lastResponse)) then
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR] Access denied</c> %s', [tname]);
+            readyerror := True;
+            //access denied - don't try again
+            ps2.SetFileError(netname, channel, dir, filename);
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            exit;
+          end;
         end;
 
       435:
@@ -1461,7 +1669,7 @@ begin
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
         end;
@@ -1500,25 +1708,68 @@ begin
             exit;
           end;
 
-          // we still have an error with sdst.lastResponseCode = 553
-          if (lastResponseCode = 553) then
+          if ((0 < Pos('does not exist in the sfv', lastResponse)) OR (0 < Pos('File not found in sfv', lastResponse)) OR (0 < Pos('File not found in SFV', lastResponse))) then
           begin
-            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
-            ready := True;
-            Result := True;
-            Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
-            exit;
-          end;
-
-          // sdst.lastResponseCode for all is 533
-          if ( (0 < Pos('You must upload sfv first', lastResponse)) OR (0 < Pos('does not exist in the sfv', lastResponse)) OR (0 < Pos('File not found in sfv', lastResponse)) ) then
-          begin
-            ps2.ParseDupe(netname, channel, dir, filename, False);
             readyerror := True;
+            ps2.SetFileError(netname, channel, dir, filename);
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             exit;
           end;
 
+          if ((0 < Pos('You must upload sfv first', lastResponse)) OR (0 < Pos('You must upload SFV first', lastResponse))) then
+          begin
+            ready := True;
+            Result := True;
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            exit;
+          end;
+
+          if ( (0 < Pos('maximum simultaneous uploads', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
+          begin
+            //TODO add reached_max_sim_up to spamconf
+            if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
+
+            mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+          //COMPLETE MSG: 450 No data connection available
+          if (0 <> Pos('No data connection available', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            mainpazo.errorreason := 'No data connection available';
+            readyerror := True;
+            sdst.Quit;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
+          // we still have an error with sdst.lastResponseCode = 553
+          if (lastResponseCode = 553) then
+          begin
+            if (ResponseContainsDupeKeyword(lastResponse)) then
+            begin
+              ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
+              ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
+              Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
+              ready := True;
+              Result := True;
+              exit;
+            end;
+
+            //553 means: Requested action not taken. File name not allowed.
+            //therefore don't try to send that file again
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            end;
+            readyerror := True;
+            ps2.SetFileError(netname, channel, dir, filename);
+            exit;
+          end;
         end;
 
       500, 550:
@@ -1537,12 +1788,33 @@ begin
             exit;
           end;
 
-          //if above one don't match, we still have an error with sdst.lastResponseCode = 500 or sdst.lastResponseCode = 550
-          ps2.ParseDupe(netname, channel, dir, filename, False);
-          ready := True;
-          Result := True;
-          Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
-          exit;
+          //550 Requested action not taken. File unavailable (e.g., file not found, no access)
+          if (0 < Pos('File unavailable', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            readyerror := True;
+            exit;
+          end;
+
+          //500 Unsupported command during transfer.
+          //500 No text
+          if ((0 < Pos('Unsupported command', lastResponse))
+            OR (0 < Pos('No text', lastResponse))) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            //just retry
+            goto TryAgain;
+          end;
+
+          if (ResponseContainsDupeKeyword(lastResponse)) then
+          begin
+            ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
+            ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
+            Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
+            ready := True;
+            Result := True;
+            exit;
+          end
         end;
 
 
@@ -1558,25 +1830,16 @@ begin
           end;
 
         end;
+      end;
 
+      Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]);
+      irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]));
 
-      else
-        begin
-          //Debug(dpMessage, c_section, '-- ' + tname + Format(' : %d %s', [sdst.lastResponseCode, LeftStr(sdst.lastResponse, 200)]));
-          //irc_Adderror(Format('<c4>[ERROR]</c> unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, sdst.lastResponseCode, LeftStr(sdst.lastResponse, 90)]));
-
-          Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]);
-          irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]));
-
-          mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-          sdst.DestroySocket(False);
-          readyerror := True;
-          Debug(dpMessage, c_section, '<- ' + tname);
-          exit;
-        end;
-
-    end;
-
+      mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      sdst.DestroySocket(False);
+      readyerror := True;
+      Debug(dpMessage, c_section, '<- ' + tname);
+      exit;
   end;
 
   TryAgain_RETR:
@@ -1649,7 +1912,6 @@ begin
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
               exit;
           end;
-
         end;
 
       427, 530:
@@ -1678,7 +1940,6 @@ begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR] Access denied</c> %s', [tname]);
             goto TryAgain;
           end;
-
         end;
 
 
@@ -1692,7 +1953,6 @@ begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR] Bad sequence of commands</c> %s', [tname]);
             goto TryAgain;
           end;
-
         end;
 
 
@@ -1780,7 +2040,6 @@ begin
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
-
         end;
     end;
 
@@ -1797,7 +2056,10 @@ begin
     ) then
     begin
       if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+      begin
         irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+      end;
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
     end
     else
     begin
@@ -1818,6 +2080,11 @@ begin
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
     exit;
   end;
+
+  //add this file as incomplete, transfer is running at this point
+  ps2.ParseDupe(netname, channel, dir, filename, True, False);
+
+  Debug(dpSpam, 'taskrace', '--> WAIT');
 
   rss := False;
   rsd := False;
@@ -1859,7 +2126,7 @@ begin
     end;
   end;
 
-
+  Debug(dpSpam, 'taskrace', '<-- WAIT');
 
   //TODO: [ERROR FXP] TPazoRaceTask DST/0, RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 421 421 Timeout (60 seconds): closing control connection.
   //      RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 238.42mB @ 1.16mB/s <-- shouldn't be there, wasn't transfered because a timeout occur
@@ -1888,7 +2155,19 @@ begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
+        end;
 
+
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't open data connection.
+          if (0 <> Pos('t open data connection', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+
+            goto TryAgain;
+          end;
         end;
 
 
@@ -1896,7 +2175,8 @@ begin
       begin
 
         //COMPLETE MSG: 426 Sendfile error: Broken pipe.
-        if (0 < Pos('Sendfile error', lastResponse)) then
+        //COMPLETE MSG: 426 Data connection: Broken pipe.
+        if ((0 < Pos('Sendfile error', lastResponse)) OR (0 < Pos('Broken pipe', lastResponse))) then
         begin
           //try again
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -1908,8 +2188,34 @@ begin
         if (0 < Pos('File has been deleted on the master', lastResponse)) then
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-          mainpazo.errorreason := 'File has been deletec on the master';
+          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+
+          mainpazo.errorreason := 'File has been deleted on the master';
+          readyerror := True;
+          exit;
+        end;
+
+        //COMPLETE MSG: 426- Transfer was aborted - File filename.rar is being deleted
+        if (0 < Pos('is being deleted', lastResponse)) then
+        begin
+          //exit here, try again won't help if file don't get traded just again after deleting
+          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+
+          mainpazo.errorreason := 'File is being deleted';
+          readyerror := True;
+          exit;
+        end;
+
+        //COMPLETE MSG: 426- filename.rar wasn't found in any root
+        if (0 < Pos('wasn''t found in any root', lastResponse)) then
+        begin
+          //exit here, try again won't help if file don't get traded just again after deleting
+          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+
+          mainpazo.errorreason := 'File wasn''t found in any root';
           readyerror := True;
           exit;
         end;
@@ -1924,6 +2230,22 @@ begin
           goto TryAgain;
         end;
 
+        //COMPLETE MSG: 426- Connection closed by remote host
+        //              426 Transfer failed
+        //COMPLETE MSG: 426 Accept timed out
+        //COMPLETE MSG: 426 Received fatal alert: handshake_failure
+        //COMPLETE MSG: 426 Socket closed
+        //COMPLETE MSG: 426 Connection closed by remote host
+        if ((0 < Pos('Transfer failed', lastResponse)) OR
+          (0 < Pos('Accept timed out', lastResponse)) OR
+          (0 < Pos('fatal alert', lastResponse)) OR
+          (0 < Pos('Socket closed', lastResponse))OR
+          (0 < Pos('Connection closed', lastResponse))) then
+        begin
+          //try again
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
       end;
 
 
@@ -1936,17 +2258,6 @@ begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
             irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-            goto TryAgain;
-          end;
-
-        end;
-
-
-      425:
-        begin
-          //COMPLETE MSG: 425 Can't open data connection.
-          if (0 <> Pos('t open data connection', lastResponse)) then
-          begin
             goto TryAgain;
           end;
         end;
@@ -1998,17 +2309,15 @@ begin
             goto TryAgain;
           end;
         end;
+      end;
 
-      else  //to get other errors to put here
-        begin
-          if (lastResponseCode <> 226) then
-          begin
-            Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]);
-            irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]));
-          end;
-        end;
-    end;
+    Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]);
+    irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]));
 
+    mainpazo.errorreason := 'ssrc WAIT: Unhandled error response';
+    readyerror := True;
+    Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+    exit;
   end;
 
 
@@ -2033,7 +2342,6 @@ begin
           irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
           goto TryAgain;
         end;
-
       end;
 
 
@@ -2043,13 +2351,13 @@ begin
           if (0 < Pos('t build data connection', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
-              irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
+              irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
-              sdst.DestroySocket(False);
-              mainpazo.errorreason := 'Timeout or building data connection problem';
-              readyerror := True;
-              Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
-              exit;
+            sdst.DestroySocket(False);
+            mainpazo.errorreason := 'Timeout or building data connection problem';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
           end;
         end;
 
@@ -2061,16 +2369,14 @@ begin
           if (0 < Pos('Slow transfer', lastResponse)) then
           begin
             //try again, maybe lower routing from srcsite to dstsite
-
-            //added to get cmplete msg
-            Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
+            Debug(dpMessage, c_section, '<- ' + tname);
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
 
           //COMPLETE MSG: 426- Read timed out
           //              426 Transfer failed, deleting file
-          if (0 < Pos('Read timed out', lastResponse)) then
+          if ((0 < Pos('Read timed out', lastResponse)) OR (0 < Pos('Transfer failed', lastResponse))) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2078,15 +2384,22 @@ begin
           end;
 
           //COMPLETE MSG: 426- Socket closed
-          //              426 Transfer failed, deleting file
-          //              421 You Have Got B00ted For A Speed Lower Then 2200kb/s
-          if (0 < Pos('Socket closed', lastResponse)) then
+          //              426- Socket is closed
+          if ((0 < Pos('Socket closed', lastResponse)) OR (0 < Pos('Socket is closed', lastResponse))) then
           begin
             //try again, maybe lower routing if happens again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
 
+          //COMPLETE MSG: 426 Connection closed; transfer aborted.
+          //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
+          if ((0 < Pos('transfer aborted', lastResponse)) OR (0 < Pos('Transfer was aborted', lastResponse))) then
+          begin
+            //try again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
         end;
 
 
@@ -2125,7 +2438,6 @@ begin
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
-
         end;
 
 
@@ -2179,45 +2491,54 @@ begin
               irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             end;
             goto TryAgain;
-          end
+          end;
         end;
 
       550:
         begin
-          //COMPLETE MSG: 550 Requested action not taken. File exists.
-          if (0 < Pos('File exists', lastResponse)) then
+          if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
             exit;
-          end
+          end;
         end;
 
       553:
         begin
-          //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
-          if (0 < Pos('X-DUPE', lastResponse)) then
+          if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
             Result := True;
             Debug(dpMessage, c_section, '<-- DUPE AFTER RETR ' + tname);
             exit;
-          end
-        end;
-
-      else  //to get other errors to put here
-        begin
-          if (lastResponseCode <> 226) then
-          begin
-            Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
-            irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]));
           end;
-        end;
-    end;
 
+          //553 means: Requested action not taken. File name not allowed.
+          //therefore don't try to send that file again
+
+          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          begin
+            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+          end;
+
+          readyerror := True;
+          ps2.SetFileError(netname, channel, dir, filename);
+          exit;
+        end;
+      end;
+
+    Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
+    irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]));
+    mainpazo.errorreason := 'sdst WAIT: Unhandled error response';
+    readyerror := True;
+    Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+    exit;
   end;
 
 
@@ -2256,18 +2577,14 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps2.badcrcevents);
     end;
 
     if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
-      begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
-      end;
-      Inc(ps2.badcrcevents);
+      ps2.SetFileError(netname, channel, dir, filename);
     end;
 
     ready := True;
@@ -2284,14 +2601,12 @@ begin
     exit;
   end;
 
-  // needed to get the correct filesize of transfered file
-  ps2.ParseDirlist(netname, channel, dir, sdst.lastResponse);
-
-  // ezt regen readyracenek hivtuk, de ossze lett vonva parsedupe-pal -- We used to say this as a ready race, but it was coined with parsedupe
-  ps2.ParseDupe(netname, channel, dir, filename, FileSendByMe);
-
   if (fileSendByMe) then
   begin
+
+    //dupe responses are already handeled, so only add the file if we actually sent it (fileSendByMe)
+    ps2.ParseDupe(netname, channel, dir, filename, True, True);
+
     filesize := mainpazo.PFileSize(dir, filename);
 
     if (time_race > 0) then
@@ -2368,6 +2683,30 @@ begin
   end;
 end;
 
+function TPazoRaceTask.ResponseContainsDupeKeyword(const aResponse: String): boolean;
+begin
+  Result := (ResponseContainsDupeKeywordComplete(aResponse) OR
+
+  //553 File is being uploaded by
+  (0 < Pos('File is being uploaded', aResponse)) OR
+
+  //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
+  (0 < Pos('X-DUPE', aResponse)) OR
+
+  //COMPLETE MSG: 500 filename.rar already exists.
+  (0 < Pos('already exists', aResponse)) OR
+
+  //553 Error: You have no rights to overwrite in this directory.
+  (0 < Pos('You have no rights to overwrite', aResponse)));
+end;
+
+function TPazoRaceTask.ResponseContainsDupeKeywordComplete(const aResponse: String): boolean;
+begin
+  Result := (0 < Pos('File exists', aResponse)) OR
+
+  //553- sr-kqtcc.r30: This file looks like a dupe
+  (0 < Pos('This file looks like a dupe', aResponse));
+end;
 
 { TWaitTask }
 constructor TWaitTask.Create(const netname, channel, site1: String);

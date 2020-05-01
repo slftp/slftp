@@ -102,8 +102,8 @@ type
       @param(aDir releasename? TODO: debug real value)
       @param(aFullResponse complete X-DUPE response from FTPd) }
     procedure ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullResponse: String);
-    function ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean; overload;
-    function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean; overload;
+    function ParseDupe(const netname, channel, dir, filename: String; const byme, aIsComplete: boolean): boolean; overload;
+    function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; const byme, aIsComplete: boolean): boolean; overload;
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
     function Allfiles: String;
@@ -1450,12 +1450,15 @@ begin
   end;
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; const byme, aIsComplete: boolean): boolean;
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
+  fSite: TSite;
+  fSkipBeingUploadedFiles, fJustAdded: boolean;
 begin
   Result := False;
+  fJustAdded := False;
 
   // skip filenames dotfiles
   if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
@@ -1483,6 +1486,8 @@ begin
   end;
 
 
+
+
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
   try
     dl.dirlist_lock.Enter;
@@ -1490,6 +1495,31 @@ begin
       de := dl.Find(filename);
       if de = nil then
       begin
+
+        if (not aIsComplete) then
+        begin
+          //TODO: copied from parsedirlist - reuse code.
+          fSite := FindSiteByName('', Name);
+          if fSite = nil then
+          begin
+            // should never happen
+            Debug(dpError, section, 'ERROR: Can''t lookup site %s. Using defaults.', [Name]);
+            fSkipBeingUploadedFiles := config.ReadBool(section, 'skip_being_uploaded_files', False);
+          end
+          else
+          begin
+            fSkipBeingUploadedFiles := fSite.SkipBeingUploadedFiles;
+          end;
+
+          if (fSkipBeingUploadedFiles) then
+          begin
+            exit;
+          end;
+
+        end;
+
+
+
         // this means that it has not been fired
         de := TDirListEntry.Create(filename, dl);
         de.directory := False;
@@ -1498,6 +1528,7 @@ begin
         if byme then
           de.RacedByMe := byme;
 
+        de.RegenerateSkiplist;
         dl.entries.Add(de);
         dl.LastChanged := Now();
         Result := True;
@@ -1518,11 +1549,20 @@ begin
       if (not de.IsOnSite) then
       begin
         de.IsOnSite := True;
+        fJustAdded := True;
         RemovePazoRace(pazo.pazo_id, Name, dir, filename);
       end;
     finally
       dl.dirlist_lock.Leave;
     end;
+
+
+    //do this outside dirlist_lock to avoid deadlocks
+    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(netname, channel, dir, de)) then
+    begin
+      QueueFire;
+    end;
+
   except
     on E: Exception do
     begin
@@ -1533,7 +1573,7 @@ begin
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
 end;
 
-function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; byme: boolean): boolean;
+function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; const byme, aIsComplete: boolean): boolean;
 var
   dl: TDirList;
 begin
@@ -1546,8 +1586,7 @@ begin
       exit;
     end;
 
-    Result := ParseDupe(netname, channel, dl, dir, filename, byme);
-    RemovePazoRace(pazo.pazo_id, Name, dir, filename);
+    Result := ParseDupe(netname, channel, dl, dir, filename, byme, aIsComplete);
   except
     on E: Exception do
     begin
@@ -1578,10 +1617,7 @@ begin
 
       for fFilename in fFileList do
       begin
-        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False);
-
-        // TODO: not sure if it makes sense to call this everytime again and again because it's called inside ParseDupe as well
-        RemovePazoRace(pazo.pazo_id, Name, aDir, fFilename);
+        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False, True);
       end;
     finally
       fFileList.Free;
