@@ -803,8 +803,10 @@ begin
       end;
       tt := TTask(tasks[i]);
       try
-        if ((tt.ClassType = TIdleTask) and (tt.site1 = s.site.Name)) then
+        if ((tt.ClassType = TIdleTask) and (tt.slot1 = s)) then
+        begin
           exit;
+        end;
       except
         Break;
       end;
@@ -834,7 +836,7 @@ begin
 
   for i := tasks.Count - 1 downto 0 do
   begin
-    if i < 0 then 
+    if i < 0 then
       Break;
     try
       t := TTask(tasks[i]);
@@ -1472,7 +1474,7 @@ begin
             Continue;
 
           try
-            if (s.todotask = nil) then
+            if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
               if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0)) and
                 (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000))) then
