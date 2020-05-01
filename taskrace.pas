@@ -1644,6 +1644,10 @@ begin
 
           if (0 < Pos('not allowed in this file name', lastResponse)) then
           begin   //530 .. not allowed in this file name
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            end;
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -2164,7 +2168,9 @@ begin
           if (0 <> Pos('t open data connection', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+            end;
 
             goto TryAgain;
           end;
@@ -2189,8 +2195,11 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
           mainpazo.errorreason := 'File has been deleted on the master';
           readyerror := True;
           exit;
@@ -2201,7 +2210,9 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
           mainpazo.errorreason := 'File is being deleted';
           readyerror := True;
@@ -2213,7 +2224,9 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
           mainpazo.errorreason := 'File wasn''t found in any root';
           readyerror := True;
@@ -2369,7 +2382,7 @@ begin
           if (0 < Pos('Slow transfer', lastResponse)) then
           begin
             //try again, maybe lower routing from srcsite to dstsite
-            Debug(dpMessage, c_section, '<- ' + tname);
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
@@ -2584,6 +2597,10 @@ begin
 
     if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
+      end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
 
