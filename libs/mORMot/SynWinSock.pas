@@ -50,17 +50,6 @@ unit SynWinSock;
 
   ***** END LICENSE BLOCK *****
 
-
-
-     Low level access to network Sockets
-    *************************************
-
-  Version 1.18
-  - fixed ticket [f79ff5714b] about potential finalization issues as .bpl in IDE
-  - fixed Win64 compatibility issue
-  - includes SChannel API process for TLS connection
-
-
 }
 
 {.$DEFINE WINSOCK1}
@@ -847,7 +836,8 @@ type
 
   ESChannel = class(Exception);
 
-  {$ifdef UNICODE}TSChannelClient = record{$else}TSChannelClient = object{$endif}
+  {$ifdef USERECORDWITHMETHODS}TSChannelClient = record
+    {$else}TSChannelClient = object{$endif}
   private
     Cred: TCredHandle;
     Ctxt: TCtxtHandle;
@@ -1660,7 +1650,8 @@ const
   TLSRECMAXSIZE = 19000; // stack buffers for TSChannelClient.Receive/Send
 
 type
-  {$ifdef UNICODE}THandshakeBuf = record{$else}THandshakeBuf = object{$endif}
+  {$ifdef USERECORDWITHMETHODS}THandshakeBuf = record
+    {$else}THandshakeBuf = object{$endif}
   public
     buf: array[0..2] of TSecBuffer;
     input, output: TSecBufferDesc;
