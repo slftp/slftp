@@ -44,17 +44,11 @@ unit mORMotMongoDB;
 
   ***** END LICENSE BLOCK *****
 
-
-  Version 1.18
-  - first public release, corresponding to mORMot Framework 1.18
-    and feature request [0fee1d995c]
-
-
   TODO:
-  - complex WHERE clause with a MongoDB Query object instead of SQL syntax
-    (mitigated by the fact that most SQL queries are translated into BSON
-    Query Object at runtime - need for most complex features like in-object
-    inspection)
+  - complex WHERE clause with a MongoDB Query object instead of SQL syntax;
+    mitigated by the fact that most SQL queries are translated into BSON
+    Query Object at runtime - needed only for most complex features like
+    in-object inspection?
   - handle TSQLRawBlob fields with GridFS (and rely on TByteDynArray to store
     smaller BLOBs - < 16 MB - within the document, or in a separated collection)
   - allow PolyMorphic schemas: the same MongoDB collection may be able to
@@ -317,18 +311,20 @@ begin
   {$ifdef WITHLOG}
   if aMongoDatabase.Client.Log=nil then
     aMongoDatabase.Client.SetLog(aServer.LogClass);
-  aServer.LogClass.Enter;
-  {$endif}
-  Props := aServer.Model.Props[aClass];
-  if Props=nil then
-    exit; // if aClass is not part of the model
-  if aMongoCollectionName='' then
-    aMongoCollectionName := Props.Props.SQLTableName;
-  Props.ExternalDB.Init(aClass,aMongoCollectionName,
-    aMongoDatabase.CollectionOrCreate[aMongoCollectionName],true,[]);
-  Props.ExternalDB.MapField('ID','_id');
-  result := TSQLRestStorageMongoDB.Create(aClass,aServer);
-  aServer.StaticDataAdd(result);
+  with aServer.LogClass.Enter do
+  {$endif WITHLOG}
+  begin
+    Props := aServer.Model.Props[aClass];
+    if Props=nil then
+      exit; // if aClass is not part of the model
+    if aMongoCollectionName='' then
+      aMongoCollectionName := Props.Props.SQLTableName;
+    Props.ExternalDB.Init(aClass,aMongoCollectionName,
+      aMongoDatabase.CollectionOrCreate[aMongoCollectionName],true,[]);
+    Props.ExternalDB.MapField('ID','_id');
+    result := TSQLRestStorageMongoDB.Create(aClass,aServer);
+    aServer.StaticDataAdd(result);
+  end;
 end;
 
 function StaticMongoDBRegisterAll(aServer: TSQLRestServer;
@@ -405,9 +401,7 @@ begin
   inherited Create(aClass,aServer);
   // ConnectionProperties should have been set in StaticMongoDBRegister()
   fCollection := fStoredClassMapping^.ConnectionProperties as TMongoCollection;
-  {$ifdef WITHLOG}
-  fOwner.LogFamily.SynLog.Log(sllInfo,'will store % using %',[aClass,Collection],self);
-  {$endif}
+  InternalLog('will store % using %',[aClass,Collection],sllInfo);
   BSONProjectionSet(fBSONProjectionSimpleFields,true,
     fStoredClassRecordProps.SimpleFieldsBits[soSelect],nil,nil);
   BSONProjectionSet(fBSONProjectionBlobFields,false,
@@ -495,11 +489,7 @@ begin
   inherited;
   FreeAndNil(fBatchWriter);
   fEngineGenerator.Free;
-  {$ifdef WITHLOG}
-  if fOwner<>nil then
-    fOwner.LogFamily.SynLog.Log(sllInfo,
-      'Destroy for % using %',[fStoredClass,Collection],self);
-  {$endif}
+  InternalLog('Destroy for % using %',[fStoredClass,Collection],sllInfo);
 end;
 
 function TSQLRestStorageMongoDB.TableHasRows(
@@ -547,10 +537,8 @@ function TSQLRestStorageMongoDB.EngineNextID: TID;
       raise EORMMongoDBException.CreateUTF8('Unexpected %.EngineNextID with %',
         [self,ToText(fEngineAddCompute)^]);
     end;
-    {$ifdef WITHLOG}
-    fOwner.LogFamily.SynLog.Log(sllInfo,'ComputeMax_ID=% in % using %',
-      [fEngineLastID,timer.Stop,ToText(fEngineAddCompute)^],self);
-    {$endif}
+    InternalLog('ComputeMax_ID=% in % using %',
+      [fEngineLastID,timer.Stop,ToText(fEngineAddCompute)^],sllInfo);
   end;
 
 begin
@@ -918,7 +906,7 @@ begin
       if name='' then
         raise EORMMongoDBException.CreateUTF8(
           '%.JSONFromDoc: Unknown field [%] for %',[self,doc.Names[i],fStoredClass]);
-      W.AddFieldName(pointer(name),Length(name));
+      W.AddProp(pointer(name),Length(name));
       W.AddVariant(doc.Values[i],twJSONEscape);
       W.Add(',');
     end;
