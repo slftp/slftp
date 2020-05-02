@@ -95,6 +95,9 @@ type
   PWord                 = ^Word; // M.A.
   {$ENDIF}
 {$ENDIF}
+  {$IF not declared(PLongBool)}
+  PLongBool = ^LongBool;
+  {$IFEND}
 
   UInt                  = LongWord;
   PUInt                 = ^UInt;
@@ -171,7 +174,7 @@ type
 
   { TZSQLTimeStamp }
   PZTimeStamp = ^TZTimeStamp;
-  TZTimeStamp = packed record //keep it packet !!
+  TZTimeStamp = packed record //keep it packed !! // Why? This makes accessing elements slower.
     Year: Word;
     Month: Word;
     Day: Word;
@@ -186,7 +189,7 @@ type
   TZTimeStampDynArray = array of TZTimeStamp;
 
   PZDate = ^TZDate;
-  TZDate = packed record //keep it packet !!
+  TZDate = packed record //keep it packed !!
     Year: Word;
     Month: Word;
     Day: Word;
@@ -195,7 +198,7 @@ type
   TZDateDynArray = array of TZDate;
 
   PZTime = ^TZTime;
-  TZTime = packed Record //keep it packet !!
+  TZTime = packed Record //keep it packed !!
     Hour: Word;
     Minute: Word;
     Second: Word;
@@ -384,9 +387,6 @@ type
   TPRawToString = function (Src: PAnsiChar; Len: LengthInt; const RawCP, StringCP: Word): String;
   TPUnicodeToString = function (Src: PWideChar; CodePoints: NativeUInt; const StringCP: Word): String;
 
-  {** Defines the Target Ansi codepages for the Controls }
-  TZControlsCodePage = ({$IFDEF UNICODE}cCP_UTF16, cCP_UTF8, cGET_ACP{$ELSE}{$IFDEF FPC}cCP_UTF8, cCP_UTF16, cGET_ACP{$ELSE}cGET_ACP, cCP_UTF8, cCP_UTF16{$ENDIF}{$ENDIF});
-
   TZCharEncoding = (
     ceDefault,  //Internal switch for the two Functions below do not use it as a CodePage-declaration!
     ceAnsi,     //Base Ansi-String: prefered CodePage
@@ -414,39 +414,6 @@ type
     ZStringToUnicode: TZStringToUnicode;
     ZPRawToString: TPRawToString;
     ZPUnicodeToString: TPUnicodeToString;
-  end;
-
-  TZFormatSettings = Record
-    DateFormat: String;
-    DateFormatLen: Byte;
-    TimeFormat: String;
-    TimeFormatLen: Byte;
-    DateTimeFormat: String;
-    DateTimeFormatLen: Byte;
-  End;
-
-  PZConSettings = ^TZConSettings;
-  TZConSettings = record
-    AutoEncode: Boolean;        //Check Encoding and or convert string with FromCP ToCP
-    CPType: TZControlsCodePage; //the CP-Settings type the controls do expect
-    CTRL_CP: Word;              //Target CP of string conversion (CP_ACP/CP_UPF8)
-    ConvFuncs: TConvertEncodingFunctions; //a rec for the Convert functions used by the objects
-    ClientCodePage: PZCodePage; //The codepage informations of the current characterset
-    DisplayFormatSettings: TZFormatSettings;
-    ReadFormatSettings: TZFormatSettings;
-    WriteFormatSettings: TZFormatSettings;
-    DataBaseSettings: Pointer;
-    Protocol, Database, User: RawByteString;
-  end;
-
-  TZCodePagedObject = Class(TInterfacedObject)
-  private
-    FConSettings: PZConSettings;
-  protected
-    procedure SetConSettingsFromInfo(Info: TStrings);
-    property ConSettings: PZConSettings read FConSettings write FConSettings;
-  public
-    function GetConSettings: PZConSettings;
   end;
 
 {$IFNDEF WITH_CHARINSET}
@@ -493,122 +460,24 @@ function ReturnAddress: Pointer;
 function align(addr: NativeUInt; alignment: NativeUInt) : NativeUInt; inline;
 {$IFEND}
 
-var
-  {$IFDEF FPC}
-    {$PUSH}
-    {$WARN 3177 off : Some fields coming after "$1" were not initialized}
-    {$WARN 3175 off : Some fields coming before "$1" were not initialized}
-  {$ENDIF}
-  ClientCodePageDummy: TZCodepage =
-    (CharWidth: 1; Encoding: ceAnsi; CP: $ffff);
-
-  ConSettingsDummy: TZConSettings =
-    (AutoEncode: False;
-      CPType: {$IFDEF DELPHI}{$IFDEF UNICODE}cCP_UTF16{$ELSE}cGET_ACP{$ENDIF}{$ELSE}cCP_UTF8{$ENDIF};
-      ClientCodePage: @ClientCodePageDummy;
-      DisplayFormatSettings:
-          (DateFormat: DefDateFormatYMD;
-          DateFormatLen: Length(DefDateFormatYMD);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecsDMY;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
-      ReadFormatSettings:
-          (DateFormat: DefDateFormatYMD;
-          DateFormatLen: Length(DefDateFormatYMD);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecsDMY;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
-      WriteFormatSettings:
-          (DateFormat: DefDateFormatYMD;
-          DateFormatLen: Length(DefDateFormatYMD);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecsDMY;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecsDMY));
-    );
-  {$IFDEF FPC} {$POP} {$ENDIF}
-
 const
   PEmptyUnicodeString: PWideChar = '';
   PEmptyAnsiString: PAnsiChar = '';
   EmptyRaw = {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}nil{$ELSE}RawByteString(''){$ENDIF};
-  ZInitZeroBCD: Cardinal = {$IFNDEF ENDIAN_BIG}$0000001{$ELSE}$1000000{$ENDIF};
+  bInitZeroBCD: array[0..3] of Byte = ($01,$00,$00,$00); //endian save
+  CodePageDummy: TZCodepage =
+    (Name: ''; ID: 0; CharWidth: 1; Encoding: ceAnsi; CP: $ffff; ZAlias: ''; IsStringFieldCPConsistent: False);
+
 var
   ZOSCodePage: Word;
   ZOSCodePageMaxCharSize: Word;
+  ZInitZeroBCD: Cardinal absolute bInitZeroBCD;
 
 implementation
 
-uses ZConnProperties {$IFDEF FAST_MOVE}, ZFastCode{$ENDIF};
-
-function TZCodePagedObject.GetConSettings: PZConSettings;
-begin
-  Result := FConSettings;
-end;
-
-procedure TZCodePagedObject.SetConSettingsFromInfo(Info: TStrings);
-begin
-  if Assigned(Info) and Assigned(FConSettings) then
-  begin
-    {$IFDEF UNICODE}
-    ConSettings.CTRL_CP := DefaultSystemCodePage;
-    if Info.Values[ConnProps_ControlsCP] = 'GET_ACP' then
-      ConSettings.CPType := cGET_ACP
-    else
-      ConSettings.CPType := cCP_UTF16;
-    ConSettings.AutoEncode := True;
-    {$ELSE}
-      {$IF defined(MSWINDOWS) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER) or defined(WITH_LCONVENCODING)}
-      ConSettings.AutoEncode := Info.Values[ConnProps_AutoEncodeStrings] = 'True'; //compatibitity Option for existing Applications;
-      {$ELSE}
-      ConSettings.AutoEncode := False;
-      {$IFEND}
-    if Info.Values[ConnProps_ControlsCP] = 'GET_ACP' then
-    begin
-      ConSettings.CPType := cGET_ACP;
-      ConSettings.CTRL_CP := ZOSCodePage;
-    end
-    else
-      if Info.Values[ConnProps_ControlsCP] = 'CP_UTF8' then
-      begin
-        ConSettings.CPType := cCP_UTF8;
-        ConSettings.CTRL_CP := 65001;
-      end
-      else
-        if Info.Values[ConnProps_ControlsCP] = 'CP_UTF16' then
-        begin
-          {$IFDEF WITH_WIDEFIELDS}
-          ConSettings.CPType := cCP_UTF16;
-            {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}
-            ConSettings.CTRL_CP := DefaultSystemCodePage;
-            {$ELSE}
-            ConSettings.CTRL_CP := ZOSCodePage;
-            {$ENDIF}
-          {$ELSE}
-          ConSettings.CPType := cCP_UTF8;
-          ConSettings.CTRL_CP := 65001;
-          {$ENDIF}
-          ConSettings.AutoEncode := True;
-        end
-        else // nothing was found set defaults
-        begin
-          {$IFDEF LCL}
-          ConSettings.CPType := cCP_UTF8;
-          ConSettings.CTRL_CP := 65001;
-          {$ELSE}
-          ConSettings.CPType := cGET_ACP;
-            {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}
-            ConSettings.CTRL_CP := DefaultSystemCodePage;
-            {$ELSE}
-            ConSettings.CTRL_CP := ZOSCodePage;
-            {$ENDIF}
-          {$ENDIF}
-        end;
-    {$ENDIF}
-  end;
-end;
+{$IFDEF FAST_MOVE}
+uses ZFastCode;
+{$ENDIF}
 
 {$IFDEF UNIX}
   {$IFDEF FPC}
@@ -643,28 +512,6 @@ begin
     Result := Result xor Cardinal(key[I]);
   end;
 end; { Hash }
-
-(*function Hash(const S: RawByteString): Cardinal; //perform the FPC used ELF Hash algorithm -> pretty slow(byte hashed) but tiny
-Var
-  thehash,g,I : LongWord;
-begin
-  thehash:=0;
-  For I:=1 to Length(S) do { 0 terminated }
-  begin
-    thehash:=thehash shl 4;
-    inc(theHash,Ord(S[i]));
-    g:=thehash and $f0000000;;
-    if g<>0 then
-    begin
-      thehash:=thehash xor (g shr 24);
-      thehash:=thehash xor g;
-    end;
-  end;
-  If theHash=0 then
-     Result := $ffffffff
-   else
-     Result :=TheHash;
-end;*)
 
 { ported from http://stofl.org/questions/3690608/simple-string-hashing-function}
 //perform a MurmurHash2 algorithm by Austin Appleby loads faster (4Byte aligned)
@@ -961,6 +808,7 @@ begin
   for I := Low(Vals) to High(Vals) do
     if Pointer(Vals[i]) <> nil then
       Inc(L, Length(Vals[i]){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF});
+  {$IFDEF FPC}Result := '';{$ENDIF}
   SetLength(Result, L{$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}+1{$ENDIF});
   P := Pointer(Result);
   AnsiChar((P+L)^) := AnsiChar(#0);
@@ -995,9 +843,4 @@ function ReturnAddress: Pointer;
 {$ENDIF}
 {$ENDIF ZReturnAddress}
 
-initialization
-  case ConSettingsDummy.CPType of
-    cCP_UTF16, cGET_ACP: ConSettingsDummy.CTRL_CP := ZOSCodePage;
-    cCP_UTF8: ConSettingsDummy.CTRL_CP := 65001;
-  end;
 end.

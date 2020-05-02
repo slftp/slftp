@@ -75,9 +75,6 @@ unit SynEcc;
   ***** END LICENSE BLOCK *****
 
 
-  Version 1.18
-  - first public release, corresponding to mORMot Framework 1.18
-
   TODO:
   - secure sign-then-crypt by signing the destination name with the plain content
     to avoid "Surreptitious Forwarding" (reuse of the plain content to another
@@ -4197,7 +4194,7 @@ begin
     if efMetaData in features then begin
       if (Decrypted='') or (Decrypted[1]<>'{') then
         exit;
-      metaend := PosEx(#0,Decrypted); // {metadata}+#0+plain
+      metaend := PosExChar(#0,Decrypted); // {metadata}+#0+plain
       if metaend=0 then
         exit;
       if MetaData<>nil then

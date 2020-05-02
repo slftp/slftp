@@ -884,8 +884,10 @@ type
   TSMVariant = class(TSynInvokeableVariantType)
   protected
     /// fast getter/setter implementation of object properties
-    procedure IntGet(var Dest: TVarData; const V: TVarData; Name: PAnsiChar); override;
-    procedure IntSet(const V, Value: TVarData; Name: PAnsiChar); override;
+    function IntGet(var Dest: TVarData; const Instance: TVarData;
+      Name: PAnsiChar; NameLen: PtrInt): boolean; override;
+    function IntSet(const Instance, Value: TVarData;
+      Name: PAnsiChar; NameLen: PtrInt): boolean; override;
   public
     /// initialize a variant instance to store a JavaScript object
     class procedure New(const aObject: TSMObject; out aValue: variant); overload;
@@ -1943,8 +1945,9 @@ end;
 
 function TSMValue.ToJSON(cx: PJSContext): RawUTF8;
 var W: TJSONWriter;
+    tmp: TTextWriterStackBuffer;
 begin
-  W := TJSONWriter.CreateOwnedStream;
+  W := TJSONWriter.CreateOwnedStream(tmp);
   try
     AddJSON(cx,W);
     W.SetText(result);
@@ -2410,15 +2413,16 @@ end;
 
 { TSMVariant }
 
-procedure TSMVariant.IntGet(var Dest: TVarData; const V: TVarData;
-  Name: PAnsiChar);
+function TSMVariant.IntGet(var Dest: TVarData; const Instance: TVarData;
+  Name: PAnsiChar; NameLen: PtrInt): boolean;
 var res: TSMValue;
 begin
-  //Assert(V.VType=SMVariantType.VarType);
-  with TSMVariantData(V) do
+  //Assert(Instance.VType=SMVariantType.VarType);
+  with TSMVariantData(Instance) do
     if JS_GetProperty(cx,obj,Name,res.FValue)=JS_FALSE then
       raise ESMException.CreateUTF8('Unexpected %.%',[self,Name]) else
       res.ToVariant(cx,variant(Dest));
+  result := true;
 end;
 
 function TSMVariant.DoFunction(var Dest: TVarData; const V: TVarData;
@@ -2458,14 +2462,17 @@ begin
   end;
 end;
 
-procedure TSMVariant.IntSet(const V, Value: TVarData; Name: PAnsiChar);
+function TSMVariant.IntSet(const Instance, Value: TVarData;
+  Name: PAnsiChar; NameLen: PtrInt): boolean;
 var smValue: TSMValue;
 begin
-  with TSMVariantData(V) do begin
+  //Assert(Instance.VType=SMVariantType.VarType);
+  with TSMVariantData(Instance) do begin
     smValue.SetVariant(cx,Variant(Value));
-    if JS_SetProperty(cx,obj,Name,smValue.FValue)=JS_FALSE then
-      raise ESMException.CreateUTF8('Error setting %.%',[self,Name]);
+    result := JS_SetProperty(cx,obj,Name,smValue.FValue)<>JS_FALSE;
   end;
+  if not result then
+    raise ESMException.CreateUTF8('Error setting %.%',[self,Name]);
 end;
 
 procedure TSMVariant.ToJSON(W: TTextWriter; const Value: variant;
@@ -2486,23 +2493,20 @@ end;
 class procedure TSMVariant.New(const aObject: TSMObject;
   out aValue: variant);
 begin
-  if TVarData(aValue).VType and VTYPE_STATIC<>0 then
-    VarClear(aValue);
+  VarClear(aValue);
   TSMVariantData(aValue).Init(aObject);
 end;
 
 class procedure TSMVariant.New(cx: PJSContext; obj: PJSObject;
   out aValue: variant);
 begin
-  if TVarData(aValue).VType and VTYPE_STATIC<>0 then
-    VarClear(aValue);
+  VarClear(aValue);
   TSMVariantData(aValue).Init(cx,obj);
 end;
 
 class procedure TSMVariant.New(engine: TSMEngine; out aValue: variant);
 begin
-  if TVarData(aValue).VType and VTYPE_STATIC<>0 then
-    VarClear(aValue);
+  VarClear(aValue);
   TSMVariantData(aValue).InitNew(engine);
 end;
 

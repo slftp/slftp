@@ -45,18 +45,28 @@
 {$DEFINE ZEOS72UP}
 {$DEFINE ZEOS73UP}
 
+{$IF (defined(FPC) and (defined(CPU386) or defined(CPUX86_64))) or defined(MSWINDOWS)}
+  {.$DEFINE INTEL_ASM} //allow intel syntax assembler
+{$IFEND}
+
 // Uncomment these defines to disable some DB drivers (reduce binary size)
 {.$DEFINE ZEOS_DISABLE_MYSQL}
 {$DEFINE ZEOS_DISABLE_POSTGRESQL}
 {$DEFINE ZEOS_DISABLE_DBLIB}
 {$DEFINE ZEOS_DISABLE_ADO}
 {$DEFINE ZEOS_DISABLE_INTERBASE}
+{$DEFINE ZEOS_DISABLE_FIREBIRD}
 {$DEFINE ZEOS_DISABLE_SQLITE}
 {$DEFINE ZEOS_DISABLE_ORACLE}
 {$DEFINE ZEOS_DISABLE_ASA}
 {$DEFINE ZEOS_DISABLE_POOLED}
 {$DEFINE ZEOS_DISABLE_OLEDB}
 {$DEFINE ZEOS_DISABLE_ODBC}
+// Activate this driver only if you know what you are doing.
+// Currently it only was tested with Delphi XE 7 on Windows.
+{$DEFINE ZEOS_DISABLE_PROXY}
+// Use this only if you know what you are doing. The internal proxy doesn't work.
+{.$DEFINE ZEOS_PROXY_USE_INTERNAL_PROXY}
 
 {.$DEFINE USE_SYNCOMMONS} //enable JSON content support by using SynCommons.pas from Synopse project 
 {.$DEFINE WITH_ZSTRINGFIELDS}
@@ -85,7 +95,7 @@
   {$IF not defined(CPU64) and (defined(CPUX64) or defined(CPU64BITS) or defined(CPUARM64) or defined(CPU64BITS))}
     {$DEFINE CPU64}
   {$IFEND}
-  {$IF CompilerVersion >= 27}
+  {$IF CompilerVersion >= 25}
     {$LEGACYIFEND ON}
   {$IFEND}
   {$DEFINE DELPHI}
@@ -169,10 +179,10 @@
           {$DEFINE WITH_WIDEFIELDS}	                  //Wide-fields are supported (common define for ftWideString/ftWideMemo)
           {$DEFINE WITH_CLASS_VARS}                   //Class variables/methods are supported
           {$DEFINE WITH_UNIT_WIDESTRINGS}             //unit WideStrings introduced
+          {$DEFINE WITH_VIRTUAL_TFIELD_ASWIDESTRING}
 
           {$IF CompilerVersion >= 18.5} //Delphi 2007+
             {$UNDEF VER150BELOW}      //found in ZTestBugCompPostgreSql.pas
-
             {$IF CompilerVersion >= 20} //Delphi 2009+
               {$DEFINE FIELD_ASWIDESTRING_IS_UNICODESTRING} //TField.AsWideString is type UnicodeString not WideString
               {$DEFINE WITH_varUString} //Variant now supports refcounted UnicodeStrings
@@ -192,6 +202,7 @@
               {$DEFINE WITH_FTEXTENDED}                 // ftExtended is supported
               {$DEFINE WITH_FTLONGWORD}                 // ftLongWord is supported
               {$DEFINE TPARAM_HAS_ASBYTES}              // TParam.AsBytes is supported
+              {$DEFINE HAS_TPARAM_ASSTREAM}             // TParam.AsStream is supported
               {$DEFINE TFIELD_HAS_ASBYTES}              // TField.AsBytes is supported
               {$DEFINE WITH_RAWBYTESTRING}              // Have RawByteString CP $FFFFF
               {$DEFINE WITH_DEFAULTSYSTEMCODEPAGE}      // determine the AnsiString CP
@@ -280,6 +291,7 @@
                         {$IFEND}
                       {$ENDIF}
                       {$IF CompilerVersion >= 25} //Delphi XE4+
+                        {$DEFINE WITH_LEGACIFEND}               //Compiler supports the LEGACYIFEND directive
                         {$DEFINE WITH_VAR_TVALUEBUFFER}	        //GetFieldata overloads using !var! Buffer: TValueBuffer
                         {$DEFINE WITH_BUFFERS_IS_TRECBUF}       //Buffers[index] is TRecBuf type NativeInt
                         {$DEFINE WITH_GETCALCFIELDS_TRECBUF}    //GetCalcFields expected no TRecordBuffer use TRecBuf type NativeInt instead
@@ -309,18 +321,22 @@
                           {$ENDIF}  
                           {$IF CompilerVersion >= 27} //Delphi XE6+
                             {$IF CompilerVersion >= 28} //Delphi XE7+
+                              {$DEFINE WITH_OMNIXML}
                               {$UNDEF WITH_DBTABLES} //M.A. In Delphi XE7 no BDE
+                              {$DEFINE WITH_LIFECYCLES} //TDataSet.DefaultFields is deprecated use LifeCycles instead							  
                               {$IF CompilerVersion >= 29} //Delphi XE8+
-                                {$IF CompilerVersion >= 30} //Delphi Seattle+
-                                  {$IF CompilerVersion >= 31} //Delphi Berlin+
-                                    {$IF CompilerVersion >= 32} //Delphi Tokyo+
+                                {$IF CompilerVersion >= 30} //Delphi XE10 Seattle+
+                                  {$IF CompilerVersion >= 31} //Delphi XE10.1 Berlin+
+                                    {$IF CompilerVersion >= 32} //Delphi XE10.2 Tokyo+
+                                      {$DEFINE WITH_TRYFINALLY_RESULT_EXCEPTION_CHECK} //the compiler is able to see through try finally block, which have nothing todo initializing the result
                                       {$DEFINE WITH_VIRTUAL_TFIELD_GETASGUID} //TField has now a virtual GetAsGUID function 
                                       {$DEFINE WITH_IProviderSupportNG}   //TDataset now supports IProviderSupportNG
                                       {$DEFINE WITH_InternalGotoBookmark_TBookmark}
-                                      {$DEFINE WITH_LIFECYCLES} //TDataSet.DefaultFields is deprecated use LifeCycles instead
                                       {$DEFINE HAVE_TFIELD_32BIT_ASINTEGER} //TField.AsInteger setter and getter use 32Bit integer
                                       {$DEFINE HAVE_TFIELD_32BIT_ASLONGWORD} //TField.AsLongWord setter and getter use 32Bit unsigned integer
                                       {$DEFINE WITH_VIRTUAL_ASGUID} //TGUIDfield AsGUID has virtual setter and getter
+                                      {$IF CompilerVersion >= 33} //Delphi XE10.3 Rio+
+                                      {$IFEND CompilerVersion >= 333}
                                     {$ELSE !CompilerVersion >= 32} //Delphi Berlin+
                                     {$IFEND CompilerVersion >= 32}
                                   {$ELSE !CompilerVersion >= 31} //Delphi Seattle+
@@ -452,6 +468,16 @@
 {$IFNDEF ZEOS_DISABLE_INTERBASE}
 {$DEFINE ENABLE_INTERBASE}
 {$ENDIF}
+
+// Enables Firebird support in TZConnection/TZDataset
+{$IFNDEF ZEOS_DISABLE_FIREBIRD}
+{$DEFINE ENABLE_FIREBIRD}
+{$ENDIF}
+
+{$IF defined(ZEOS_DISABLE_FIREBIRD) and defined(ZEOS_DISABLE_INTERBASE)}
+{$DEFINE DISABLE_INTERBASE_AND_FIREBIRD}
+{$IFEND}
+
 
 // Enables SQLite support in TZConnection/TZDataset
 {$IFNDEF ZEOS_DISABLE_SQLITE}

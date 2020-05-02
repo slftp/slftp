@@ -46,100 +46,6 @@ unit mORMotDB;
 
   ***** END LICENSE BLOCK *****
 
-  Version 1.15
-  - first public release, corresponding to mORMot Framework 1.15
-
-  Version 1.16
-  - TSQLRestServerStaticExternal.EngineList method now handles an optional
-    integer pointer, to return the count of row data (excluding field names)
-
-  Version 1.17
-  - changed column named 'RowID' into 'ID' since it is reserved e.g. in Oracle
-  - external direct insert, update or delete actions (i.e. when the
-    TSQLRestServerStaticExternal instance is called directly) will now
-    flush the low-level SQLite3 DB cache, as expected by the virtual tables
-  - added TSQLRestServerStaticExternal.AdaptSQLForEngineList overridden method to
-    handle most generic SELECT to by-pass the SQLite3 virtual module for speed
-  - added TSQLRestServerStaticExternal.EndCurrentThread overridden method which
-    will be called e.g. by TSQLite3HttpServer or TSQLRestServerNamedPipeResponse
-    for each terminating threads, to release external connection resource
-    (calling TSQLDBConnectionPropertiesThreadSafe.EndCurrentThread method)
-  - any direct or virtual-table based insertion to the external database will
-    now use a binding matching the exact time of each column: it will e.g. allow
-    to support DBMS which does not accept date/time to be supplied as ISO-8601
-    text, and make more efficient data conversion (like avoid conversion to
-    floating-point from a currency value) - code shared with BATCH mode and newly
-    added TSQLRestServerStaticExternal.ExecuteFromJSON() protected method
-  - inlined parameters in any SQL query will bind explicitely TDateTime values
-    if the parameter is transmitted as DateToSQL() or DateTimeToSQL() TEXT
-  - removed TSQLRecordExternal class type, to allow any TSQLRecord (e.g.
-    TSQLRecordMany) to be used with VirtualTableExternalRegister() - there was
-    indeed no implementation requirement to force a specific class type
-  - now create properly UNIQUE fields (i.e. "stored AS_UNIQUE") in external tables
-  - handle NULL values for BLOBs as expected
-
-  Version 1.18
-  - unit SQLite3DB.pas renamed mORMotDB.pas
-  - TSQLRestServerStaticExternal renamed TSQLRestStorageExternal
-  - huge performance boost when inserting individual data rows, by maintaining
-    the IDs in memory instead of executing "select max(id)" - added new property
-    EngineAddUseSelectMaxID to unset this optimization, and alternate
-    OnEngineAddComputeID and EngineAddForcedID properties for [201348a0af6]
-  - new function VirtualTableExternalRegisterAll(), to register all tables
-    of a mORMot model to be handled via a specified database
-  - TSQLRestStorageExternal.AdaptSQLForEngineList() will now use the generic
-    TSynTableStatement parser - as proposed by [94ff704bb1] - to handle
-    aggregation functions like 'select count(*),max(ID) from ...' statements
-    directly (virtual behavior for count(*) is to loop through all records,
-    which may be slow), 'GROUP BY' clause, and 'IN (...)' or 'IS NULL' / 'IS NOT NULL' where
-    clauses, several fields or ASC/DESC attributes in 'ORDER BY' clause - see
-    also [e48f87b3db]
-  - now TSQLRestStorageExternal will call TSQLRestServer.OnUpdateEvent and
-    OnBlobUpdateEvent callbacks, if defined (even in BATCH mode)
-  - BatchDelete() will now split its batch statement executed following
-    TSQLDBConnectionProperties.BatchMaxSentAtOnce property expectations
-  - now TSQLRestStorageExternal won't create any columns for external
-    tables with unsupported published property types (sftUnknown or sftMany),
-    just like TSQLRecord.GetSQLCreate() method
-  - TSQLRestStorageExternal will create sftID/sftRecord/sftEnumerate/sftBoolean
-    columns as 32 bit integer instead of 64 bit integer
-  - now handles TSQLDBConnectionProperties.ForcedSchemaName as expected
-  - fixed issue in TSQLRestStorageExternal.EngineDeleteWhere() when
-    calling commands like MyDB.Delete(TSQLMyClass, 'PLU < ?', [20000])
-  - TSQLRestStorageExternal.EngineDeleteWhere() will handle more border cases,
-    and will split DELETE FROM table WHERE ID IN (....) in several intervals
-  - fixed errors when executing JOINed queries (e.g. via FillPrepareMany)
-  - fixed ticket [3c41462594] in TSQLRestStorageExternal.ExecuteFromJSON()
-  - fixed ticket [9a821d26ee] in TSQLRestStorageExternal.Create() not
-    creating any missing field
-  - fixed unexpected TSQLRestServer time synchronization to the DB local time in
-    TSQLRestStorageExternal.Create - now the reference clock is the ORM server
-  - fixed ticket [b109c22750] about SQLite3 cache not flushed after CRUD updates
-  - ensure no INDEX is created for SQLite3 which generates an index for ID/RowID
-  - ensure DESC INDEX is created for Firebird ID column, as expected for
-    faster MAX(ID) execution - see http://www.firebirdfaq.org/faq205
-  - fix TSQLRestStorageExternal.CreateSQLMultiIndex() to set ColumnIndexed=TRUE,
-    and fixed ticket [929cb6fc3047c5f78b95] by ignoring BLOB fields
-  - ensure duplicated indexs are not created on ID primary key column
-  - fixed TSQLRestStorageExternal.UpdateBlobFields() to return true
-    if no BLOB field is defined, and to proper handle multi-field update
-  - fixed ticket [21c2d5ae96] when inserting/updating blob-only table content
-  - handle null binding in TSQLRestStorageExternal.ExecuteInlined()
-  - added TSQLRestStorageExternal.TableHasRows/TableRowCount overrides
-  - added TSQLRestStorageExternal.PrepareInlinedForRows() and
-    PrepareDirectForRows() methods to call new ExecutePreparedAndFetchAllAsJSON()
-    method of ISQLDBStatement as expected by TSQLDBProxyStatement
-  - optimized TSQLRestStorageExternal.UpdateBlobFields()/RetrieveBlobFields()
-    methods, updating/retrieving all BLOB fields at once in the same SQL statement
-  - added VirtualTableExternalMap() function for easier mapping definition
-  - handle TSQLRecordPropertiesMapping.MapAutoKeywordFields for automatic
-    maping of field which name conflicts with a SQL keyword - see [7fbbd53966]
-  - handle TSQLRecordPropertiesMapping.Options settings to customize tables
-    or fields automatic creation on external DB
-  - this unit will now set SynDBLog := TSQLLog during its initialization
-  - replaced confusing TVarData by a new dedicated TSQLVar memory structure,
-    shared with SynDB and mORMot units (includes methods refactoring)
-
 }
 
 {$I Synopse.inc} // define HASINLINE CPU32 CPU64 OWNNORMTOUPPER
@@ -281,7 +187,8 @@ type
     /// compute the INSERT or UPDATE statement as decoded from a JSON object
     function JSONDecodedPrepareToSQL(var Decoder: TJSONObjectDecoder;
       out ExternalFields: TRawUTF8DynArray; out Types: TSQLDBFieldTypeArray;
-      Occasion: TSQLOccasion; BatchOptions: TSQLRestBatchOptions): RawUTF8;
+      Occasion: TSQLOccasion; BatchOptions: TSQLRestBatchOptions;
+      BoundArray: boolean): RawUTF8;
     function GetConnectionProperties: TSQLDBConnectionProperties;
     /// check rpmClearPoolOnConnectionIssue in fStoredClassMapping.Options
     function HandleClearPoolOnConnectionIssue: boolean;
@@ -412,6 +319,8 @@ type
     // on exception, release fStatement and optionally clear the pool
     procedure HandleClearPoolOnConnectionIssue;
   public
+    /// finalize the external cursor by calling ReleaseRows
+    destructor Destroy; override;
     /// called to begin a search in the virtual table, creating a SQL query
     // - the TSQLVirtualTablePrepared parameters were set by
     // TSQLVirtualTable.Prepare and will contain both WHERE and ORDER BY statements
@@ -925,27 +834,26 @@ begin
   result := false;
   if SQL='' then
     exit;
-  Stmt := TSynTableStatement.Create(SQL,
-    fStoredClassRecordProps.Fields.IndexByName,
+  Stmt := TSynTableStatement.Create(SQL,fStoredClassRecordProps.Fields.IndexByName,
     fStoredClassRecordProps.SimpleFieldsBits[soSelect]);
   try
     if (Stmt.SQLStatement='') or // parsing failed
       not IdemPropNameU(Stmt.TableName,fStoredClassRecordProps.SQLTableName) then begin
-      InternalLog('%.AdaptSQLForEngineList: statement too complex -> '+
-        'would use SQLite3 virtual engine [%]',[ClassType,SQL],sllWarning);
+      InternalLog('AdaptSQLForEngineList: complex statement -> switch to '+
+        'SQLite3 virtual engine - check efficiency',[],sllDebug);
       exit;
     end;
     if Stmt.Offset<>0 then begin
-      InternalLog('%.AdaptSQLForEngineList: unsupported OFFSET for [%]',
-        [ClassType,SQL],sllWarning);
+      InternalLog('AdaptSQLForEngineList: unsupported OFFSET for [%]',
+        [SQL],sllWarning);
       exit;
     end;
     if Stmt.Limit=0 then
       limit.Position := posNone else begin
       limit := fProperties.SQLLimitClause(Stmt);
       if limit.Position=posNone then begin
-        InternalLog('%.AdaptSQLForEngineList: unknown % LIMIT syntax for [%]',
-          [ClassType,ToText(fProperties.DBMS)^,SQL],sllWarning);
+        InternalLog('AdaptSQLForEngineList: unknown % LIMIT syntax for [%]',
+          [ToText(fProperties.DBMS)^,SQL],sllWarning);
         exit;
       end;
       if  limit.Position = posOuter then
@@ -1014,8 +922,8 @@ begin
         for f := 0 to n do
         with Stmt.Where[f] do begin
           if (FunctionName<>'') or (Operator>high(DB_SQLOPERATOR)) then begin
-            InternalLog('%.AdaptSQLForEngineList: unsupported function %() for [%]',
-              [ClassType,FunctionName,SQL],sllWarning);
+            InternalLog('AdaptSQLForEngineList: unsupported function %() for [%]',
+              [FunctionName,SQL],sllWarning);
             exit;
           end;
           if f>0 then
@@ -1171,7 +1079,8 @@ begin
             RecordVersionFieldHandle(Occasion,Decode);
             if Fields=nil then begin
               Decode.AssignFieldNamesTo(Fields);
-              SQL := JSONDecodedPrepareToSQL(Decode,ExternalFields,Types,Occasion,[]);
+              SQL := JSONDecodedPrepareToSQL(
+                Decode,ExternalFields,Types,Occasion,[],{array=}true);
               SetLength(Values,Decode.FieldCount);
               ValuesMax := fBatchCount-BatchBegin;
               if ValuesMax>max then
@@ -1195,8 +1104,12 @@ begin
         end;
       end;
       mDelete: begin
-        SQL := FormatUTF8('delete from % where %=?',
-          [fTableName,fStoredClassMapping^.RowIDFieldName]);
+        if cPostgreBulkArray in fProperties.BatchSendingAbilities then
+          // for SynDBPostgres array binding
+          SQL := 'delete from % where %=ANY(?)' else
+          // regular SQL
+          SQL := 'delete from % where %=?';
+        SQL := FormatUTF8(SQL,[fTableName,fStoredClassMapping^.RowIDFieldName]);
         n := BatchEnd-BatchBegin+1;
         if n+1>=max then begin
           n := max; // do not send too much items at once, for better speed
@@ -1226,6 +1139,7 @@ begin
             Query.BindArray(1,ftInt64,Values[0],n);
           end;
           Query.ExecutePrepared;
+          Query.ReleaseRows;
           Query := nil;
         end;
       except
@@ -1420,8 +1334,7 @@ begin // TableModelIndex is not useful here
   end;
 end;
 
-function TSQLRestStorageExternal.EngineExecute(
-  const aSQL: RawUTF8): boolean;
+function TSQLRestStorageExternal.EngineExecute(const aSQL: RawUTF8): boolean;
 begin
   if aSQL='' then
     result := false else
@@ -1466,6 +1379,7 @@ begin
   if (rows<>nil) and rows.Step then
   try
     BlobData := rows.ColumnBlob(0);
+    rows.ReleaseRows;
     rows := nil;
     result := true; // success
   except
@@ -1493,6 +1407,7 @@ begin
         rows.ColumnToSQLVar(f,data,temp);
         BlobFields[f].SetFieldSQLVar(Value,data);
       end;
+      rows.ReleaseRows;
       rows := nil;
       result := true; // success
     except
@@ -1522,6 +1437,7 @@ begin
           JSONEncodeNameSQLValue(SetFieldName,SetValue,JSON);
           while rows.Step do
             Owner.InternalUpdateEvent(seUpdate,TableModelIndex,rows.ColumnInt(0),JSON,nil);
+          rows.ReleaseRows;
         end;
         Owner.FlushInternalDBCache;
       end;
@@ -1651,6 +1567,8 @@ begin
     if ExpectResults and (sftDateTimeMS in fStoredClassRecordProps.HasTypeFields) then
       stmt.ForceDateWithMS := true;
     stmt.ExecutePrepared;
+    if not ExpectResults then
+      stmt.ReleaseRows;
     result := stmt;
   except
     stmt := nil;
@@ -1699,6 +1617,9 @@ begin
     if ExpectResults and (sftDateTimeMS in fStoredClassRecordProps.HasTypeFields) then
       stmt.ForceDateWithMS := true;
     stmt.ExecutePrepared;
+    if IdemPChar(SQLFormat, 'DROP TABLE ') then begin
+      fEngineLockedMaxID := 0;
+    end;
     result := stmt;
   except
     stmt := nil;
@@ -1750,9 +1671,11 @@ begin
     n := 0;
     rows := ExecuteDirect('select % from % where %=?',
       [fStoredClassMapping^.RowIDFieldName,fTableName,FieldName],FieldValue,true);
-    if rows<>nil then
+    if rows<>nil then begin
       while rows.Step do
         AddInt64(TInt64DynArray(ResultID),n,rows.ColumnInt(0));
+      rows.ReleaseRows;
+    end;
     SetLength(ResultID,n);
     result := n>0;
   except
@@ -1931,7 +1854,8 @@ begin
     end;
     RecordVersionFieldHandle(Occasion,Decoder);
     // compute SQL statement and associated bound parameters
-    SQL := JSONDecodedPrepareToSQL(Decoder,ExternalFields,Types,Occasion,[]);
+    SQL := JSONDecodedPrepareToSQL(
+      Decoder,ExternalFields,Types,Occasion,[],{array=}false);
     if Occasion=soUpdate then  // Int64ToUTF8(var) fails on D2007
       Decoder.FieldValues[Decoder.FieldCount-1] := Int64ToUTF8(UpdatedID);
     // execute statement
@@ -1974,7 +1898,7 @@ end;
 function TSQLRestStorageExternal.JSONDecodedPrepareToSQL(
   var Decoder: TJSONObjectDecoder; out ExternalFields: TRawUTF8DynArray;
   out Types: TSQLDBFieldTypeArray; Occasion: TSQLOccasion;
-  BatchOptions: TSQLRestBatchOptions): RawUTF8;
+  BatchOptions: TSQLRestBatchOptions; BoundArray: boolean): RawUTF8;
 var f,k: Integer;
 begin
   SetLength(ExternalFields,Decoder.FieldCount);
@@ -1990,6 +1914,9 @@ begin
   end;
   // compute SQL statement and associated bound parameters
   Decoder.DecodedFieldNames := pointer(ExternalFields);
+  if BoundArray and (cPostgreBulkArray in fProperties.BatchSendingAbilities) then
+    // SynDBPostgres array binding e.g. via 'insert into ... values (unnest...)'
+    Decoder.DecodedFieldTypesToUnnest := @Types;
   result := Decoder.EncodeAsSQLPrepared(fTableName,Occasion,
     fStoredClassMapping^.RowIDFieldName,BatchOptions);
   if Occasion=soUpdate then
@@ -2061,6 +1988,13 @@ begin
   fHasData := false;
   if (self<>nil) and (Table<>nil) and (Table.Static<>nil) then
     (Table.Static as TSQLRestStorageExternal).HandleClearPoolOnConnectionIssue;
+end;
+
+destructor TSQLVirtualTableCursorExternal.Destroy;
+begin
+  if fStatement <> nil then
+    fStatement.ReleaseRows;
+  inherited Destroy;
 end;
 
 function TSQLVirtualTableCursorExternal.Column(aColumn: integer;

@@ -273,6 +273,10 @@ begin
   inherited Destroy;
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5024 off : Parameter "FieldName" not used}
+{$ENDIF}
 procedure TZAbstractResultSetMetadata.FillColumInfoFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo;
   const TableColumns: IZResultSet; const FieldName: String);
@@ -309,6 +313,8 @@ begin
   {default value}
   SetDefaultValueFromGetColumnsRS(ColumnInfo, TableColumns);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
 
 {**
   Maps the given <code>Metadata</code> column name to its
@@ -832,8 +838,9 @@ procedure TZAbstractResultSetMetadata.SetAutoIncrementFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo; const TableColumns: IZResultSet);
 begin
   { Zeos all time code.. Is this correct? if not use a override and fix it}
-  if not TableColumns.IsNull(TableColColumnAutoIncIndex) then
+  if not TableColumns.IsNull(TableColColumnAutoIncIndex) then begin
     ColumnInfo.AutoIncrement := TableColumns.GetBoolean(TableColColumnAutoIncIndex);
+  end;
 end;
 
 procedure TZAbstractResultSetMetadata.SetCaseSensitiveFromGetColumnsRS(
@@ -844,18 +851,16 @@ begin
     ColumnInfo.CaseSensitive := TableColumns.GetBoolean(TableColColumnCaseSensitiveIndex);
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5024 off : Parameter "TableColumns" not used}
+{$ENDIF}
 procedure TZAbstractResultSetMetadata.SetColumnCodePageFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo; const TableColumns: IZResultSet);
 begin
-  if ColumnInfo.ColumnType in [stString, stUnicodeString, stAsciiStream, stUnicodeStream] then begin
-    if FConSettings^.ClientCodePage^.IsStringFieldCPConsistent then
-      if FConSettings^.ClientCodePage.Encoding = ceUTF16
-      then ColumnInfo.ColumnCodePage := zCP_UTF16
-      else ColumnInfo.ColumnCodePage := FConSettings^.ClientCodePage^.CP
-    {else keep Resultset info}
-  end else
-    ColumnInfo.ColumnCodePage := zCP_NONE; //not a character column
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
 
 procedure TZAbstractResultSetMetadata.SetColumnNullableFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo; const TableColumns: IZResultSet);
@@ -865,17 +870,27 @@ begin
     ColumnInfo.Nullable := TZColumnNullableType(TableColumns.GetInt(TableColColumnNullableIndex));
 end;
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5024 off : Parameter "ColumnIndex" not used}
+{$ENDIF}
 procedure TZAbstractResultSetMetadata.SetColumnPrecisionFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo; const TableColumns: IZResultSet);
 begin
   //it's a nop -> use a Override if necessary
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5024 off : Parameter "ColumnIndex/TableColumns" not used}
+{$ENDIF}
 procedure TZAbstractResultSetMetadata.SetColumnScaleFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF} ColumnInfo: TZColumnInfo; const TableColumns: IZResultSet);
 begin
   //it's a nop -> use a Override if necessary
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 procedure TZAbstractResultSetMetadata.SetColumnTypeFromGetColumnsRS(
   {$IFDEF AUTOREFCOUNT}const{$ENDIF}ColumnInfo: TZColumnInfo;

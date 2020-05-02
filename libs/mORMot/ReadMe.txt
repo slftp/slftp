@@ -44,12 +44,15 @@ Contributors
   Kevin Chen
   Lagodny
   Leon Oosthuizen
+  Macc2010
   Maciej Izak (hnb)
   Marcos Douglas B. Santos (mdbs99)
   Mario Moretti
   Marius Maximus (mariuszekpl)
   Martin Eckes
   Martin Suer
+  Mapes
+  Maxim Masiutin
   Mazinsw
   MChaos
   Miab3

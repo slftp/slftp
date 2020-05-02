@@ -1225,6 +1225,7 @@ var
   List: TZTokenList;
   I: Integer;
 begin
+  {$IFDEF FPC} Result := nil;{$ENDIF}
   FBuffer := Buffer;
   List := Self.TokenizeBufferToList(FBuffer, Options);
   try
@@ -1280,13 +1281,13 @@ begin
     if State <> nil then
     begin
       Token := State.NextToken(Buffer, EOS, Self);
-      { Decode strings.
+      (*{ Decode strings.
       if (State is TZQuoteState) and (toDecodeStrings in Options) then begin
         Token.Value := (State as TZQuoteState).DecodeString(TokenAsString(Token), Token.P^);
         Token.P := Pointer(Token.Value);
         Token.L := Length(Token.Value);
       end;
-      { Skips comments if option set. }
+      { Skips comments if option set. }*)
       if (Token.TokenType = ttComment) and (toSkipComments in Options) then
         Goto EOL;
       { Skips whitespaces if option set. }
@@ -1342,6 +1343,7 @@ var
   List: TZTokenList;
 begin
   List := TokenizeStreamToList(Stream, Options);
+  {$IFDEF FPC} Result := nil;{$ENDIF}
   try
     SetLength(Result, List.Count);
     for I := 0  to List.Count - 1 do
@@ -1462,6 +1464,7 @@ begin
   {$R-}
   for i := iStart to iEnd do
     Inc(P, FTokens^[I].L);
+  {$IFDEF FPC} Result := '';{$ENDIF}
   SetLength(Result, P-PChar(nil));
   P := Pointer(Result);
   for i := iStart to iEnd do begin
@@ -1739,6 +1742,7 @@ begin
   {$R-}
   for i := 0 to FCount - 1 do
     Inc(P, FTokens^[I].L);
+  {$IFDEF FPC} Result := '';{$ENDIF}
   SetLength(Result, P-PChar(Nil));
   P := Pointer(Result);
   for i := 0 to FCount - 1 do begin

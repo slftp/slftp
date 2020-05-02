@@ -1217,6 +1217,8 @@
 {$IFDEF VCL_XE2_OR_ABOVE}
   {$DEFINE HAS_SIZE_T}
   {$DEFINE HAS_PSIZE_T}
+  {$DEFINE HAS_SSIZE_T}
+  {$DEFINE HAS_PSSIZE_T}
   {$DEFINE HAS_LONG}
   {$DEFINE HAS_ComponentPlatformsAttribute}
   {$DEFINE HAS_ComponentPlatformsAttribute_Win32}
@@ -1377,10 +1379,15 @@
     {$DEFINE HAS_SharedSuffix}
   {$ENDIF}
   {$IFDEF FPC_2_2_4_OR_ABOVE}
-    // size_t and psize_t are only available on Unix systems (FreeBSD, Linux, etc)
+    // these types are only available on Unix systems (FreeBSD, Linux, etc)
     {$IFDEF UNIX}
+      {$DEFINE HAS_UNIT_UnixType}
       {$DEFINE HAS_SIZE_T}
       {$DEFINE HAS_PSIZE_T}
+      {$DEFINE HAS_SSIZE_T}
+      {$DEFINE HAS_PSSIZE_T}
+      {$DEFINE HAS_TIME_T}
+      {$DEFINE HAS_PTIME_T}
     {$ENDIF}
   {$ENDIF}
   {$DEFINE HAS_PtrInt}

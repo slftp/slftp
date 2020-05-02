@@ -44,61 +44,6 @@ unit SynLog;
 
   ***** END LICENSE BLOCK *****
 
-  Version 1.18
-  - first public release, extracted from SynCommons.pas unit
-  - BREAKING CHANGE: PWinAnsiChar type for constant text format parameters has
-    been changed into a RawUTF8, to please all supported platforms and compilers
-  - WARNING: any user of the framework in heavy-loaded multi-threaded application
-    should UPGRADE to at least revision 1.18.1351, fixing a long-standing bug
-  - all logged timestamps are now in much less error-prone UTC by default,
-    unless the TSynLogFamily.LocalTimestamp property is defined
-  - unit fixed and tested with Delphi XE2 (and up) 64-bit compiler under Windows
-  - compatibility with (Cross)Kylix 3 and FPC 3.1 under Linux (and Darwin)
-  - Exception logging and Stack trace do work now on Linux with Kylix/CrossKylix
-  - added TSynLogFile.Freq read-only property
-  - added DefaultSynLogExceptionToStr() function and TSynLogExceptionToStrCustom
-    variable, and ESynException.CustomLog() method to customize how raised
-    exception are logged when intercepted - feature request [495720e0b9]
-  - added new sllDDDError, sllDDDInfo log levels
-  - added TSynLogFamily.EndOfLineCRLF properties
-  - added TSynLogFamily's NoFile and EchoCustom properties - see [91a114d2f6]
-  - TSynLog will now append only the execution time when leaving a method,
-    without the class/method name (smaller log file, and less resource use)
-  - TSynLog header now contains system environment variables
-  - added overloaded ISynLog.Log(string) method for Unicode Delphi
-  - added TSynLog.DebuggerNotify() and TSynLog.CloseLogFile / Release methods
-  - protected the global TSynLog instances list against potential race condition
-  - introducing TSynLogFamily.StackTraceUse: TSynLogStackTraceUse property
-    (set to stManualAndAPI by default, but stOnlyAPI within the Delphi IDE)
-  - introducing TSynLogFamily.EchoToConsole: TSynLogInfos property, able to
-    optionally echo the process log to the current console window, using colors
-  - added TSynLogFamily.EchoRemoteStart() and EchoRemoteStop methods
-  - added TSynLog.Void class function
-  - added TSynLogFile.EventSelect method
-  - if new property TSynLogFamily.PerThreadLog is set to ptIdentifiedInOnFile,
-    a new column will be added for each logged row - LogViewer has been updated
-    to allow easy and efficient multi-thread process logging
-  - introducing TSynLogFamily.RotateFileCount and associated RotateFileSizeKB,
-    RotateFileDailyAtHour and OnRotate properties, to enable log file rotation
-    by size or at given hour - request [72feb66d45] + [b3e8cc8424]
-  - added TSynLog.CustomFileName property - see [d8fbc10bf8]
-  - added TSynLog.ComputeFileName virtual method and TSynLogFamily.FileExistsAction
-    property for feature request [d029051dcb]
-  - added TSynLog/ISynLog.LogLines() method for direct multi-line text logging
-  - added optional TextTruncateAtLength parameter for TSynLog/ISynLog.Log()
-  - declared TSynLog.LogInternal() methods as virtual - request [e47c64fb2c]
-  - .NET/CLR external exceptions will now be logged with their C# type name
-  - special 'SetThreadName' exception will now be ignored by TSynLog hook
-  - introducing TSynLog.Enter overload method, with FormatUTF8-like parameters
-  - fixed ticket [19e567b8ca] about TSynLog issue in heavily concurrent mode:
-    now a per-thread context will be stored, e.g. for Enter/Leave tracking
-  - fixed ticket [a516b1a954] about ptOneFilePerThread log file rotation
-  - introduced clear distinction between absolute and relative memory address
-    values, and TSynMapFile.AbsoluteToOffset(), as reported by [0aeaa1353149]
-  - introduced ISynLogCallback and TSynLogCallbacks types for easy integration
-    with mORMot's interface-based services real-time notification
-  - FPC compatibility - with source lines if compiled using -g or -gl switches
-
 *)
 
 
@@ -532,6 +477,9 @@ type
     procedure SetEchoToConsole(aEnabled: TSynLogInfos);
     procedure SetEchoCustom(const aEvent: TOnTextWriterEcho);
     function GetSynLogClassName: string;
+    function GetExceptionIgnoreCurrentThread: boolean;
+    procedure SetExceptionIgnoreCurrentThread(
+      aExceptionIgnoreCurrentThread: boolean);
   public
     /// intialize for a TSynLog class family
     // - add it in the global SynLogFileFamily[] list
@@ -571,7 +519,18 @@ type
     // - for instance, EConvertError may be added to the list, as such:
     // ! TSQLLog.Family.ExceptionIgnore.Add(EConvertError);
     // - you may also trigger ESynLogSilent exceptions for silent process
+    // - see also ExceptionIgnoreCurrentThread property, if you want a per-thread
+    // filtering of all exceptions
     property ExceptionIgnore: TList read fExceptionIgnore;
+    /// allow to (temporarly) ignore exceptions in the current thread
+    // - this property will affect all TSynLogFamily instances, for the
+    // current thread
+    // - may be used in a try...finally block e.g. when notifying the exception
+    // to a third-party service, or during a particular process
+    // - see also ExceptionIgnore property - which is also checked in addition
+    // to this flag
+    property ExceptionIgnoreCurrentThread: boolean
+      read GetExceptionIgnoreCurrentThread write SetExceptionIgnoreCurrentThread;
     /// you can let exceptions be ignored from a callback
     // - if set and returns true, the given exception won't be logged
     // - execution of this event handler is protected via the logs global lock
@@ -1783,7 +1742,7 @@ constructor TSynMapFile.Create(const aExeName: TFileName=''; MabCreate: boolean=
           inc(U.Symbol.Stop,U.Symbol.Start-1);
           if (U.Symbol.Name<>'') and
              ((U.Symbol.Start<>0) or (U.Symbol.Stop<>0)) then
-            fUnits.FindHashedAndUpdate(U,true); // true for adding
+            fUnits.FindHashedAndUpdate(U,{addifnotexisting=}true);
         end;
         NextLine;
       end;
@@ -2358,14 +2317,14 @@ type
   TSynLogFileIndex = array[0..MAX_SYNLOGFAMILY] of integer;
 
 var
-  /// internal list of registered TSynLogFamily
+  /// internal list of registered TSynLogFamily instances
   // - up to MAX_SYNLOGFAMILY+1 families may be defined
-  SynLogFamily: TObjectList = nil;
+  SynLogFamily: TSynObjectList = nil;
 
-  /// internal list of created TSynLog instance, one per each log file on disk
+  /// internal list of created TSynLog instances, one per each log file on disk
   // - do not use directly - necessary for inlining TSynLogFamily.SynLog method
   // - also used by AutoFlushProc() to get a global list of TSynLog instances
-  SynLogFileList: TObjectListLocked = nil;
+  SynLogFileList: TSynObjectListLocked = nil;
 
 threadvar
   /// each thread can access to its own TSynLogFile
@@ -2373,6 +2332,9 @@ threadvar
   // - the current TSynLogFile instance of the living thread is
   // ! SynLogFileList[SynLogFileIndexThreadVar[TSynLogFamily.Ident]-1]
   SynLogFileIndexThreadVar: TSynLogFileIndex;
+  /// each thread can have exceptions interception disabled
+  // - as set by TSynLogFamily.ExceptionIgnoreCurrentThread property
+  ExceptionIgnorePerThread: boolean;
 
 /// if defined, will use AddVectoredExceptionHandler() API call
 // - this one does not produce accurate stack trace by now, and is supported
@@ -2493,18 +2455,20 @@ end;
 function IsActiveLogFile(const aFileName: TFileName): boolean;
 var i: PtrInt;
     one: ^TSynLog;
+    files: TSynObjectListLocked;
 begin
   result := true;
-  SynLogFileList.Safe.Lock;
+  files := SynLogFileList;
+  files.Safe.Lock;
   try
-    one := pointer(SynLogFileList.List);
-    for i := 1 to SynLogFileList.Count do
+    one := pointer(files.List);
+    for i := 1 to files.Count do
       if {$ifdef MSWINDOWS}CompareText(one^.FileName,aFileName)=0{$else}
          one^.FileName=aFileName{$endif} then
         exit else
         inc(one);
   finally
-    SynLogFileList.Safe.UnLock;
+    files.Safe.UnLock;
   end;
   result := false;
 end;
@@ -2610,13 +2574,14 @@ end;
 // this is the main entry point for all intercepted exceptions
 procedure SynLogException(const Ctxt: TSynLogExceptionContext);
   function GetHandleExceptionSynLog: TSynLog;
-  var Index: ^TSynLogFileIndex;
+  var files: TSynObjectListLocked;
+      Index: ^TSynLogFileIndex;
       i: PtrInt;
       ndx, n: cardinal;
   begin
     result := nil;
-    if SynLogFileList=nil then begin
-      // we are here if no log content was generated yet (i.e. no log file yet)
+    files := SynLogFileList;
+    if files.Count=0 then begin // no log content yet
       for i := 0 to SynLogFamily.Count-1 do
         with TSynLogFamily(SynLogFamily.List[i]) do
         if fHandleExceptions then begin
@@ -2624,26 +2589,26 @@ procedure SynLogException(const Ctxt: TSynLogExceptionContext);
           exit;
         end;
     end else begin
-      SynLogFileList.Safe.Lock;
+      files.Safe.Lock;
       try
         Index := @SynLogFileIndexThreadVar;
-        n := SynLogFileList.Count;
+        n := files.Count;
         for i := 0 to high(Index^) do begin
           ndx := Index^[i]-1;
           if ndx<=n then begin
-            result := TSynLog(SynLogFileList.List[ndx]);
+            result := files.List[ndx];
             if result.fFamily.fHandleExceptions then
               exit;
           end;
         end;
         for i := 0 to n-1 do begin
-          result := TSynLog(SynLogFileList.List[i]);
+          result := files.List[i];
           if result.fFamily.fHandleExceptions then
             exit;
         end;
         result := nil;
       finally
-        SynLogFileList.Safe.UnLock;
+        files.Safe.UnLock;
       end;
     end;
   end;
@@ -2653,6 +2618,8 @@ var log: TSynLog;
     {$ifdef FPC}i: PtrInt;{$endif}
 label adr,fin;
 begin
+  if ExceptionIgnorePerThread then
+    exit;
   {$ifdef CPU64DELPHI} // Delphi<XE6 in System.pas to retrieve x64 dll exit code
   {$ifndef ISDELPHIXE6}
   if (Ctxt.EInstance<>nil) and // Ctxt.EClass is EExternalException
@@ -3202,8 +3169,6 @@ end;
 constructor TSynLogFamily.Create(aSynLog: TSynLogClass);
 begin
   fSynLogClass := aSynLog;
-  if SynLogFamily=nil then
-    GarbageCollectorFreeAndNil(SynLogFamily,TList.Create);
   fIdent := SynLogFamily.Add(self);
   fDestinationPath := ExeVersion.ProgramFilePath; // use .exe path
   fDefaultExtension := '.log';
@@ -3223,11 +3188,20 @@ begin
     {$ifndef FPC},sllError,sllFail,sllLastError,sllDDDError{$endif}];
 end;
 
+function TSynLogFamily.GetExceptionIgnoreCurrentThread: boolean;
+begin
+  result := ExceptionIgnorePerThread;
+end;
+
+procedure TSynLogFamily.SetExceptionIgnoreCurrentThread(
+  aExceptionIgnoreCurrentThread: boolean);
+begin
+  ExceptionIgnorePerThread := aExceptionIgnoreCurrentThread;
+end;
+
 function TSynLogFamily.CreateSynLog: TSynLog;
 var i: integer;
 begin
-  if SynLogFileList=nil then
-    GarbageCollectorFreeAndNil(SynLogFileList,TObjectListLocked.Create);
   SynLogFileList.Safe.Lock;
   try
     result := fSynLogClass.Create(self);
@@ -3292,6 +3266,7 @@ end;
 procedure TAutoFlushThread.Execute;
 {$endif}
 var i: integer;
+    files: TSynObjectListLocked;
 begin
   SetThreadNameDefault(GetCurrentThreadID,'SynLog AutoFlushProc');
   try
@@ -3307,13 +3282,14 @@ begin
       if Terminated then
         exit;
       {$endif}
-      if SynLogFileList=nil then
+      files := SynLogFileList;
+      if files.Count=0 then
         continue; // nothing to flush
       inc(AutoFlushSecondElapsed);
-      SynLogFileList.Safe.Lock;
+      files.Safe.Lock;
       try
-        for i := 0 to SynLogFileList.Count-1 do
-        with TSynLog(SynLogFileList.List[i]) do
+        for i := 0 to files.Count-1 do
+        with TSynLog(files.List[i]) do
           if Terminated then
             break else // avoid GPF
           if (fFamily.fAutoFlush<>0) and (fWriter<>nil) and (fWriter.PendingBytes>1) and
@@ -3326,7 +3302,7 @@ begin
               Flush(false); // write pending data
             end;
        finally
-         SynLogFileList.Safe.UnLock;
+         files.Safe.UnLock;
        end;
     until Terminated;
   finally
@@ -3431,21 +3407,26 @@ begin
     result := nil;
 end;
 
-procedure TSynLogFamily.SynLogFileListEcho(const aEvent: TOnTextWriterEcho; aEventAdd: boolean);
+procedure TSynLogFamily.SynLogFileListEcho(const aEvent: TOnTextWriterEcho;
+  aEventAdd: boolean);
 var i: integer;
+    files: TSynObjectListLocked;
+    f: TSynLog;
 begin
-  if (self=nil) or (SynLogFileList=nil) or not Assigned(aEvent) then
+  if (self=nil) or (SynLogFileList.Count=0) or not Assigned(aEvent) then
     exit;
-  SynLogFileList.Safe.Lock;
+  files := SynLogFileList;
+  files.Safe.Lock;
   try
-    for i := 0 to SynLogFileList.Count-1 do
-      if TSynLog(SynLogFileList.List[i]).fFamily=self then
-        with TSynLog(SynLogFileList.List[i]).fWriter do
-          if aEventAdd then
-            EchoAdd(aEvent) else
-            EchoRemove(aEvent);
+    for i := 0 to files.Count-1 do begin
+      f := files.List[i];
+      if f.fFamily=self then
+        if aEventAdd then
+          f.fWriter.EchoAdd(aEvent) else
+          f.fWriter.EchoRemove(aEvent);
+    end;
   finally
-    SynLogFileList.Safe.UnLock;
+    files.Safe.UnLock;
   end;
 end;
 
@@ -3484,6 +3465,7 @@ begin
     except
       on Exception do ;
     end;
+  fEchoRemoteClient := nil;
   SynLogFileListEcho(fEchoRemoteEvent,false); // unsubscribe
   fEchoRemoteEvent := nil;
 end;
@@ -3498,12 +3480,11 @@ var log: TSynLog;
     P: PAnsiChar;
 begin
   result := '';
-  if SynLogFileList<>nil then begin
+  if SynLogFileList.Count<>0 then begin
     SynLogFileList.Safe.Lock;
     try
-      for i := 0 to SynLogFileList.Count-1 do
-      if SynLogFileList.Count=1 then begin
-        log := SynLogFileList.List[0];
+      for i := 0 to SynLogFileList.Count-1 do begin
+        log := SynLogFileList.List[i];
         if log.fFamily<>self then
           continue;
         EnterCriticalSection(GlobalThreadLock);
@@ -4053,10 +4034,8 @@ begin // private sub function makes the code faster in most case
       result := PPointer(PVMT)^;
       if result=nil then begin // protect from (unlikely) concurrent call
         // create the properties information from RTTI
-        result := TSynLogFamily.Create(self);
-        PatchCodePtrUInt(PVMT,PtrUInt(result),true); // LeaveUnprotected=true
-        // register to the internal garbage collection (avoid memory leak)
-        GarbageCollectorFreeAndNil(PVMT^,result); // set to nil at finalization
+        result := TSynLogFamily.Create(self); // stored in SynLogFamily list
+        PatchCodePtrUInt(PVMT,PtrUInt(result),{LeaveUnprotected=}true);
       end;
     finally
       LeaveCriticalSection(GlobalThreadLock);
@@ -4278,7 +4257,7 @@ begin
     {$endif FPC}
     {$else}
     {$I-}
-    write(Msg, '  ');
+    write(Msg,'  ');
     ioresult;
     {$I+}
     {$endif MSWINDOWS}
@@ -6006,7 +5985,9 @@ const
 initialization
   assert(ord(sfLocal7)=23);
   assert(ord(ssDebug)=7);
-  InitializeCriticalSection(GlobalThreadLock); // will be deleted with the process
+  InitializeCriticalSection(GlobalThreadLock);   // deleted with the process
+  SynLogFamily := TSynObjectList.Create;         // TSynLogFamily instances
+  SynLogFileList := TSynObjectListLocked.Create; // TSynLog instances
   {$ifndef NOEXCEPTIONINTERCEPT}
   DefaultSynLogExceptionToStr := InternalDefaultSynLogExceptionToStr;
   {$endif}
@@ -6016,4 +5997,8 @@ initialization
   TTextWriter.RegisterCustomJSONSerializerFromText([
     TypeInfo(TSynMapSymbol),_TSynMapSymbol,
     TypeInfo(TSynMapUnit),_TSynMapUnit]);
+
+finalization
+  SynLogFileList.Free; // release in proper order: TSynLog then TSynLogFamily
+  SynLogFamily.Free;
 end.

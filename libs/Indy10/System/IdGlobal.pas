@@ -763,9 +763,14 @@ const
   INFINITE = UInt32($FFFFFFFF);     { Infinite timeout }
   {$ENDIF}
 
-  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause, only
-  // in the implementation's 'uses' clause, so map to what DynLibs.NilHandle maps to...
-  IdNilHandle = {$IFDEF FPC}{DynLibs.NilHandle}PtrInt(0){$ELSE}THandle(0){$ENDIF};
+  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause on
+  // all platforms, so map to what DynLibs.NilHandle maps to...
+  {$IFDEF FPC}
+  IdNilHandle = {DynLibs.NilHandle}{$IFDEF WINDOWS}PtrUInt(0){$ELSE}PtrInt(0){$ENDIF};
+  {$ELSE}
+  IdNilHandle = THandle(0);
+  {$ENDIF}
+
   LF = #10;
   CR = #13;
 
@@ -1027,11 +1032,12 @@ type
   // RLebeau 12/1/2018: FPC's System unit defines an HMODULE type as a PtrUInt. But,
   // the DynLibs unit defines its own HModule type that is a TLibHandle, which is a
   // PtrInt instead. And to make matters worse, although FPC's System.THandle is a
-  // platform-dependant type, it is not always defined as 8 bytes on 64bit platforms,
-  // which has been known to cause overflows when dynamic libraries are loaded at
-  // high addresses! (FPC bug?)  So, we can't rely on THandle to hold correct handles
-  // for libraries that we load dynamically at runtime (which is probably why FPC
-  // defines TLibHandle in the first place, but why is it signed instead of unsigned?).
+  // platform-dependant type, it is not always defined as 8 bytes on 64bit platforms
+  // (https://bugs.freepascal.org/view.php?id=21669), which has been known to cause
+  // overflows when dynamic libraries are loaded at high addresses! (FPC bug?)  So,
+  // we can't rely on THandle to hold correct handles for libraries that we load
+  // dynamically at runtime (which is probably why FPC defines TLibHandle in the first
+  // place, but why is it signed instead of unsigned?).
   //
   // Delphi's HMODULE is a System.THandle, which is a NativeUInt, and so is defined
   // with a proper byte size across all 32bit and 64bit platforms.
@@ -1041,9 +1047,38 @@ type
   // signed vs unsigned library handles.  I would prefer to use unsigned everywhere,
   // but we should use what is more natural for each compiler...
 
-  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause, only
-  // in the implementation's 'uses' clause, so map to what DynLibs.TLibHandle maps to...
-  TIdLibHandle = {$IFDEF FPC}{DynLibs.TLibHandle}PtrInt{$ELSE}THandle{$ENDIF};
+  // FPC's DynLibs unit is not included in this unit's interface 'uses' clause on all
+  // platforms, so map to what DynLibs.TLibHandle maps to...
+
+  // RLebeau 4/29/2020: to make metters worse, FPC defines TLibHandle as System.THandle
+  // on Windows, not as PtrInt as previously observed!  And FPC's Windows.GetProcAddress()
+  // uses HINST, which is also defined as System.THandle.  But, as we know from above,
+  // FPC's System.THandle has problems on some 64bit systems! But does that apply on
+  // Windows?  I THINK the latest FPC uses QWord/DWord (aka PtrUInt) for all Windows
+  // platforms, which is good...
+
+  {$IFDEF FPC}
+  // TODO: use the THANDLE_(32|64|CPUBITS) defines in IdCompilerDefines.inc to decide
+  // how to define TIdLibHandle when not using the DynLibs unit?
+  TIdLibHandle = {DynLibs.TLibHandle}{$IFDEF WINDOWS}PtrUInt{$ELSE}PtrInt{$ENDIF};
+  {$ELSE}
+  TIdLibHandle = THandle;
+  {$ENDIF}
+
+  { IMPORTANT!!!
+
+  WindowsCE only has a Unicode (WideChar) version of GetProcAddress.  We could use
+  a version of GetProcAddress in the FreePascal dynlibs unit but that does a
+  conversion from ASCII to Unicode which might not be necessary since most calls
+  pass a constant anyway.
+  }
+  {$IFDEF WINCE}
+  TIdLibFuncName = TIdUnicodeString;
+  PIdLibFuncNameChar = PWideChar;
+  {$ELSE}
+  TIdLibFuncName = String;
+  PIdLibFuncNameChar = PChar;
+  {$ENDIF}
 
   {$IFDEF STRING_IS_IMMUTABLE}
   // In .NET and Delphi next-gen, strings are immutable (and zero-indexed), so we
@@ -1817,6 +1852,7 @@ function IPv4MakeLongWordInRange(const AInt: Int64; const A256Power: Integer): U
 function IndyRegisterExpectedMemoryLeak(AAddress: Pointer): Boolean;
   {$ENDIF}
 {$ENDIF}
+function LoadLibFunction(const ALibHandle: TIdLibHandle; const AProcName: TIdLibFuncName): Pointer;
 {$IFDEF UNIX}
 function HackLoad(const ALibName : String; const ALibVersions : array of String) : TIdLibHandle;
 {$ENDIF}
@@ -1903,6 +1939,11 @@ function IndyCheckWindowsVersion(const AMajor: Integer; const AMinor: Integer = 
 // For Nextgen compilers: IdDisposeAndNil calls TObject.DisposeOf() to ensure
 // the object is freed immediately even if it has active references to it,
 // for instance when freeing an Owned component
+
+// Embarcadero changed the signature of FreeAndNil() in 10.4 Denali:
+// procedure FreeAndNil(const [ref] Obj: TObject); inline;
+
+// TODO: Change the signature of IdDisposeAndNil() to match FreeAndNil() in 10.4+...
 procedure IdDisposeAndNil(var Obj); {$IFDEF USE_INLINE}inline;{$ENDIF}
 
 //RLebeau: FPC does not provide mach_timebase_info() and mach_absolute_time() yet...
@@ -2922,18 +2963,20 @@ end;
 
 {$IFDEF WINDOWS}
   // TODO: move this into IdCompilerDefines.inc?
-  {$IFDEF DCC}
-    {$IFDEF VCL_2009_OR_ABOVE}
-      {$DEFINE HAS_GetCPInfoEx}
+  {$IFNDEF WINCE}
+    {$IFDEF DCC}
+      {$IFDEF VCL_2009_OR_ABOVE}
+        {$DEFINE HAS_GetCPInfoEx}
+      {$ELSE}
+        {$UNDEF HAS_GetCPInfoEx}
+      {$ENDIF}
     {$ELSE}
-      {$UNDEF HAS_GetCPInfoEx}
+      // TODO: when was GetCPInfoEx() added to FreePascal?
+      {$DEFINE HAS_GetCPInfoEx}
     {$ENDIF}
-  {$ELSE}
-    // TODO: when was GetCPInfoEx() added to FreePascal?
-    {$DEFINE HAS_GetCPInfoEx}
-  {$ENDIF}
 
-  {$IFNDEF HAS_GetCPInfoEx}
+    {$IFNDEF HAS_GetCPInfoEx}
+// TODO: implement GetCPInfoEx() as a stub that falls back to GetCPInfo() if needed
 type
   TCPInfoEx = record
     MaxCharSize: UINT;                       { max length (bytes) of a char }
@@ -2945,6 +2988,7 @@ type
   end;
 
 function GetCPInfoEx(CodePage: UINT; dwFlags: DWORD; var lpCPInfoEx: TCPInfoEx): BOOL; stdcall; external 'KERNEL32' name {$IFDEF UNICODE}'GetCPInfoExW'{$ELSE}'GetCPInfoExA'{$ENDIF};
+    {$ENDIF}
   {$ENDIF}
 {$ENDIF}
 
@@ -2958,7 +3002,7 @@ const
   cValue: array[0..1] of UInt16 = ($DBFF, $DFFF);
 {$ELSE}
 var
-  LCPInfo: TCPInfoEx;
+  LCPInfo: {$IFDEF WINCE}TCPInfo{$ELSE}TCPInfoEx{$ENDIF};
   LError: Boolean;
 {$ENDIF}
 begin
@@ -2968,30 +3012,36 @@ begin
   FMBToWCharFlags := MBToWCharFlags;
   FWCharToMBFlags := WCharToMBFlags;
 
-  {$IFDEF FPC}
+  {$IFDEF FPC} // TODO: do this for Delphi 2009+, too...
   if FCodePage = CP_ACP then begin
     FCodePage := DefaultSystemCodePage;
   end;
   {$ENDIF}
 
   {$IFDEF WINDOWS}
-  LError := not GetCPInfoEx(FCodePage, 0, LCPInfo);
+
+  LError := not {$IFDEF WINCE}GetCPInfo(FCodePage, LCPInfo){$ELSE}GetCPInfoEx(FCodePage, 0, LCPInfo){$ENDIF};
   if LError and (FCodePage = 20127) then begin
     // RLebeau: 20127 is the official codepage for ASCII, but not
     // all OS versions support that codepage, so fallback to 1252
     // or even 437...
-    LError := not GetCPInfoEx(1252, 0, LCPInfo);
+    LError := not {$IFDEF WINCE}GetCPInfo(1252, LCPInfo){$ELSE}GetCPInfoEx(1252, 0, LCPInfo){$ENDIF};
     // just in case...
     if LError then begin
-      LError := not GetCPInfoEx(437, 0, LCPInfo);
+      LError := not {$IFDEF WINCE}GetCPInfo(437, LCPInfo){$ELSE}GetCPInfoEx(437, 0, LCPInfo){$ENDIF};
     end;
   end;
   if LError then begin
     raise EIdException.CreateResFmt(PResStringRec(@RSInvalidCodePage), [FCodePage]);
   end;
+
+  {$IFNDEF WINCE}
   FCodePage := LCPInfo.CodePage;
+  {$ENDIF}
   FMaxCharSize := LCPInfo.MaxCharSize;
+
   {$ELSE}
+
   case FCodePage of
     65000: begin
       FMaxCharSize := 5;
@@ -3017,11 +3067,13 @@ begin
     // FMaxCharSize gets set to 0, preventing any character conversions.  So
     // force FMaxCharSize to 1 if GetByteCount() fails, until a better solution
     // can be found.  Maybe loop through the codepoints until we find the largest
-    // one that is supported by this codepage (though that will take time)...
+    // one that is supported by this codepage (though that will take time). Or
+    // at least implement a lookup table for the more commonly used charsets...
     if FMaxCharSize = 0 then begin
       FMaxCharSize := 1;
     end;
   end;
+
   {$ENDIF}
 
   FIsSingleByte := (FMaxCharSize = 1);
@@ -4448,6 +4500,13 @@ begin
 end;
 {$ENDIF}
 
+function LoadLibFunction(const ALibHandle: TIdLibHandle; const AProcName: TIdLibFuncName): Pointer;
+begin
+  {$I IdRangeCheckingOff.inc}
+  Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(ALibHandle, PIdLibFuncNameChar(AProcName));
+  {$I IdRangeCheckingOn.inc}
+end;
+
 {$IFDEF UNIX}
 function HackLoadFileName(const ALibName, ALibVer : String) : string;
   {$IFDEF USE_INLINE}inline;{$ENDIF}
@@ -4689,7 +4748,7 @@ function Stub_InterlockedCompareExchange(var Destination: PtrInt; Exchange, Comp
     // TODO: what is Embarcadero's 64-bit define going to be?
     cInterlockedCompareExchange = {$IFDEF CPU64}'InterlockedCompareExchange64'{$ELSE}'InterlockedCompareExchange'{$ENDIF}; {do not localize}
   begin
-    Result := GetProcAddress(GetModuleHandle(cKernel32), cInterlockedCompareExchange);
+    Result := LoadLibFunction(GetModuleHandle(cKernel32), cInterlockedCompareExchange);
     if Result = nil then begin
       Result := @Impl_InterlockedCompareExchange;
     end;
@@ -5760,7 +5819,7 @@ function Stub_GetTickCount64: UInt64; stdcall;
 
   function GetImpl: Pointer;
   begin
-    Result := GetProcAddress(GetModuleHandle('KERNEL32'), 'GetTickCount64'); {do not localize}
+    Result := LoadLibFunction(GetModuleHandle('KERNEL32'), 'GetTickCount64'); {do not localize}
     if Result = nil then begin
       Result := @Impl_GetTickCount64;
     end;
@@ -7466,6 +7525,9 @@ begin
   end else
   begin
     SetString(Result, Buffer, Len);
+    {$IFDEF STRING_IS_ANSI}
+    // TODO: do we need to use SetCodePage() here?
+    {$ENDIF}
   end;
       {$ELSE}
   Result := SysUtils.Format(AFormat, Args, EnglishFmt);
@@ -9533,8 +9595,11 @@ begin
   // System.RegisterExpectedMemoryLeak() redirects to the leak registration
   // code of the installed memory manager."
 
+    {$I IdSymbolPlatformOff.inc}
   //Result := System.SysRegisterExpectedMemoryLeak(AAddress);
   Result := System.RegisterExpectedMemoryLeak(AAddress);
+    {$I IdSymbolPlatformOn.inc}
+
   {$ELSE}
     // RLebeau 10/5/2014: the user can override the RTL's version of FastMM
     // (2006+ only) with any memory manager, such as MadExcept, so check for
@@ -9770,6 +9835,16 @@ begin
 end;
 {$ENDIF}
 
+// Embarcadero changed the signature of FreeAndNil() in 10.4 Denali...
+{$UNDEF HAS_FreeAndNil_ConstRef_Param}
+{$IFNDEF USE_OBJECT_ARC}
+  {$IFDEF DCC}
+    {$IFDEF VCL_10_4_OR_ABOVE}
+      {$DEFINE HAS_FreeAndNil_TObject_Param}
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}
+
 procedure IdDisposeAndNil(var Obj);
 {$IFDEF USE_OBJECT_ARC}
 var
@@ -9792,7 +9867,7 @@ begin
   Temp.DisposeOf;
   // __ObjRelease() is called when Temp goes out of scope
   {$ELSE}
-  FreeAndNil(Obj);
+  FreeAndNil({$IFDEF HAS_FreeAndNil_TObject_Param}TObject(Obj){$ELSE}Obj{$ENDIF});
   {$ENDIF}
 end;
 
