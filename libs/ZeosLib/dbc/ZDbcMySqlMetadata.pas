@@ -60,7 +60,7 @@ interface
 uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZClasses, ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZCompatibility,
-  ZURL, ZDbcConnection, ZPlainMySqlConstants;
+  ZDbcConnection, ZPlainMySqlConstants;
 
 type
 
@@ -1333,7 +1333,7 @@ begin
           ConvertMySQLColumnInfoFromString(TypeName, ConSettings,
             TypeInfoSecond, MySQLType, ColumnSize, ColumnDecimals, fMySQL_FieldType_Bit_1_IsBoolean);
           if TypeName = 'enum'
-          then AddToBoolCache := AddToBoolCache or ((TypeInfoSecond = '''Y'''#0'''N''') or (TypeInfoSecond = '''N'''#0'''Y'''))
+          then AddToBoolCache := AddToBoolCache or ((TypeInfoSecond = '''Y'',''N''') or (TypeInfoSecond = '''N'',''Y'''))
           else if TypeName = 'bit'
           then AddToBoolCache := AddToBoolCache or (TypeInfoSecond = '1');
 
@@ -1397,7 +1397,8 @@ begin
           begin
             // String values in the 'Default value' field are not escaped with apostrophes.
             // Guess this makes it impossible to specify a function call or similar via default values.
-            if (MySQLType in [stString, stUnicodeString, stBinaryStream, stAsciiStream]) then
+            if (MySQLType in [stString, stUnicodeString, stBinaryStream, stAsciiStream]) or
+               (not fMySQL_FieldType_Bit_1_IsBoolean and (MySQLType = stBoolean)) then
             begin
               // Since we changed date/time-related columntypes to be presented
               // as strings, we need to move the CURRENT_TIMESTAMP-check to here.
@@ -2577,7 +2578,7 @@ var
   SQL: String;
   TypeName, Temp: RawByteString;
   ParamList, Params, Names{ Returns}: TStrings;
-  I, ColumnSize, Precision: Integer;
+  I, ColumnSize, Scale: Integer;
   FieldType: TZSQLType;
   ProcedureNameCondition, SchemaCondition: string;
 
@@ -2712,7 +2713,7 @@ begin
           Result.UpdatePAnsiChar(SchemaNameIndex, GetPAnsiChar(PROCEDURE_SCHEM_index, Len), Len); //PROCEDURE_SCHEM
           Result.UpdatePAnsiChar(ProcColProcedureNameIndex, GetPAnsiChar(PROCEDURE_NAME_Index, Len), Len); //PROCEDURE_NAME
           TypeName := ConSettings^.ConvFuncs.ZStringToRaw(Params[2], ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP);
-          ConvertMySQLColumnInfoFromString(TypeName, ConSettings, Temp, FieldType, ColumnSize, Precision,
+          ConvertMySQLColumnInfoFromString(TypeName, ConSettings, Temp, FieldType, ColumnSize, Scale,
             fMySQL_FieldType_Bit_1_IsBoolean);
           { process COLUMN_NAME }
           if Params[1] = '' then
@@ -2741,10 +2742,13 @@ begin
           Result.UpdateByte(ProcColDataTypeIndex, Ord(FieldType));
           { TYPE_NAME }
           Result.UpdateRawByteString(ProcColTypeNameIndex, TypeName);
+
           { PRECISION }
           Result.UpdateInt(ProcColPrecisionIndex, ColumnSize);
           { LENGTH }
-          Result.UpdateInt(ProcColLengthIndex, Precision);
+          Result.UpdateInt(ProcColLengthIndex, ColumnSize);
+          { SCALE }
+          Result.UpdateInt(ProcColScaleIndex, Scale);
 
           //Result.UpdateNull(ProcColScaleIndex);
           //Result.UpdateNull(ProcColRadixIndex);
@@ -2784,7 +2788,16 @@ var
   procedure MysqlTypeToZeos(TypeName: String; const MysqlPrecision, MySqlScale, MysqlCharLength: integer; out ZType, ZPrecision, ZScale: Integer);
   begin
     TypeName := LowerCase(TypeName);
-    if TypeName = 'tinyint' then begin
+    if TypeName = 'bit' then begin
+      if MysqlPrecision = 1 then begin
+        ZType := Ord(stBoolean);
+        ZPrecision := -1;
+      end else begin
+        ZType := Ord(stBytes);
+        ZPrecision := MysqlPrecision;
+      end;
+      ZScale := -1;
+    end else if TypeName = 'tinyint' then begin
       ZType := Ord(stShort);
       ZPrecision := -1;
       ZScale := -1;
@@ -2840,8 +2853,8 @@ var
         ZPrecision := MysqlPrecision;
         ZScale := MySqlScale;
       end;
-    end else if TypeName = 'varchar' then begin
-      ZType := Ord(stUnicodeString);
+    end else if EndsWith(TypeName, 'char') then begin
+      ZType := Ord(stString);
       ZPrecision := MysqlCharLength;
       ZScale := -1;
     end else if TypeName = 'date' then begin
@@ -2864,44 +2877,20 @@ var
       ZType := Ord(stTimestamp);
       ZPrecision := -1;
       ZScale := -1;
-    end else if TypeName = 'tinyblob' then begin
+    end else if EndsWith(TypeName, 'blob') then begin
       ZType := Ord(stBinaryStream);
       ZPrecision := -1;
       ZScale := -1;
-    end else if TypeName = 'blob' then begin
-      ZType := Ord(stBinaryStream);
+    end else if EndsWith(TypeName, 'text') then begin
+      ZType := Ord(stAsciiStream);
       ZPrecision := -1;
       ZScale := -1;
-    end else if TypeName = 'mediumblob' then begin
-      ZType := Ord(stBinaryStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'longblob' then begin
-      ZType := Ord(stBinaryStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'tinytext' then begin
-      ZType := Ord(stUnicodeStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'text' then begin
-      ZType := Ord(stUnicodeStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'mediumtext' then begin
-      ZType := Ord(stUnicodeStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'longtext' then begin
-      ZType := Ord(stUnicodeStream);
-      ZPrecision := -1;
-      ZScale := -1;
-    end else if TypeName = 'varbinary' then begin
+    end else if EndsWith(TypeName, 'binary') then begin
       ZType := Ord(stBytes);
       ZPrecision := MysqlCharLength;
       ZScale := -1;
     end else if TypeName = 'set' then begin
-      ZType := Ord(stUnicodeString);
+      ZType := Ord(stString);
       ZPrecision := MysqlCharLength;
       ZScale := -1;
     end;
