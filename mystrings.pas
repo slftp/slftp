@@ -166,6 +166,12 @@ procedure SplitString(const Source: String; const Delimiter: String; const Dest:
 
 procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartFromSizeUnit: Integer = 0);
 
+{ Parses a FTP stat line finding and splitting Credits and Ratio
+  @param(aStatLine "site stat" line which should be parsed to extract credits and ratio)
+  @param(aCredits Credits (two decimal places) with unit, removes locale delimited and replaces it with a dot)
+  @param(aRatio Ratio as seen in the "site stat" output with the exception of 1:0 being returned as the string "Unlimited") }
+procedure ParseSTATLine(const aStatLine: String; out aCredits, aRatio: String);
+
 implementation
 
 uses
@@ -178,7 +184,7 @@ uses
   {$IFDEF MSWINDOWS}
     registry, Windows,
   {$ENDIF}
-  DateUtils, IdGlobal, debugunit;
+  DateUtils, IdGlobal, debugunit, regexpr, configunit;
 
 const
   section = 'mystrings';
@@ -889,5 +895,78 @@ begin
   sizevalue := FileSizeUnits[StartFromSizeUnit];
 end;
 
-end.
+procedure ParseSTATLine(const aStatLine: String; out aCredits, aRatio: String);
+  var
+    x: TRegExpr;
+    ss, ratio: String;
+    c: double;
+    sizeValueIndex: Integer;
+  begin
+    aRatio := '';
+    aCredits := '';
+    sizeValueIndex := 2;
 
+    x := TRegExpr.Create;
+    try
+      x.ModifierI := True;
+
+      x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?');
+      if x.Exec(aStatLine) then
+      begin
+        if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0')) then
+          ratio := 'Unlimited'
+        else
+          ratio := x.Match[2];
+      end;
+
+      // ratio(UL: 1:3 | DL: 1:1)
+      if ratio = '' then
+      begin
+        x.Expression := '(Ratio\(\w*:\s*(\d+:\d+).*?\))';
+        if x.Exec(aStatLine) then
+        begin
+          ratio := x.Match[2];
+        end;
+      end;
+
+      x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
+      if x.Exec(aStatLine) then
+      begin
+        ss := x.Match[2];
+
+        {$IFDEF FPC}
+          ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+        {$ELSE}
+          ss := StringReplace(ss, '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
+        {$ENDIF}
+
+        c := strtofloat(ss);
+        ss := UpperCase(x.Match[3]);
+
+        if (ss = 'MB') or (ss = 'MIB') then
+        begin
+          ss := 'MB';
+          RecalcSizeValueAndUnit(c, ss, sizeValueIndex);
+        end
+        else if (ss = 'GB') or (ss = 'GIB') then
+        begin
+          ss := 'GB';
+          RecalcSizeValueAndUnit(c, ss, sizeValueIndex+1);
+        end
+        else if (ss = 'TIB') then
+        begin
+          ss := 'TB';
+        end;
+
+        aCredits := Format('%.2f %s', [c, ss] );
+        aCredits := StringReplace(aCredits, ',', '.', [rfReplaceAll, rfIgnoreCase]);
+        aRatio := ratio;
+      end;
+
+    finally
+      x.free;
+    end;
+  end;
+
+
+end.
