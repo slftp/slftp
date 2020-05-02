@@ -59,7 +59,7 @@ interface
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZCompatibility, ZDbcIntfs, ZDbcConnection, ZPlainMySqlDriver, ZPlainDriver,
-  ZURL, ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser, ZPlainMySqlConstants,
+  ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser, ZPlainMySqlConstants,
   ZClasses;
 type
 
@@ -67,6 +67,9 @@ type
 
   { TZMySQLDriver }
   TZMySQLDriver = class(TZAbstractDriver)
+  private
+    FServerArgs: array of PAnsiChar;
+    FServerArgsRaw: array of RawByteString;
   protected
     function GetPlainDriver(const Url: TZURL; const InitDriver: Boolean = True): IZPlainDriver; override;
   public
@@ -87,11 +90,13 @@ type
     function GetDatabaseName: String;
     function MySQL_FieldType_Bit_1_IsBoolean: Boolean;
     function SupportsFieldTypeBit: Boolean;
+    function GetPlainDriver: TZMySQLPlainDriver;
+    procedure GetEscapeString(Buf: PAnsichar; Len: LengthInt; out Result: RawByteString);
   end;
 
   {** Implements MySQL Database Connection. }
-  TZMySQLConnection = class(TZAbstractDbcConnection, IZMySQLConnection,
-    IZTransaction)
+  TZMySQLConnection = class(TZAbstractDbcConnection, IZConnection,
+    IZMySQLConnection, IZTransaction)
   private
     FCatalog: string;
     FHandle: PMySQL;
@@ -105,17 +110,17 @@ type
     procedure InternalClose; override;
     procedure ExecuteImmediat(const SQL: RawByteString; LoggingCategory: TZLoggingCategory); override;
   public
-    function CreateRegularStatement(Info: TStrings): IZStatement; override;
-    function CreatePreparedStatement(const SQL: string; Info: TStrings):
-      IZPreparedStatement; override;
-    function CreateCallableStatement(const SQL: string; Info: TStrings):
-      IZCallableStatement; override;
+    function CreateStatementWithParams(Info: TStrings): IZStatement;
+    function PrepareStatementWithParams(const SQL: string; Info: TStrings):
+      IZPreparedStatement;
+    function PrepareCallWithParams(const Name: String; Info: TStrings):
+      IZCallableStatement;
 
-    procedure Commit; override;
-    procedure Rollback; override;
+    procedure Commit;
+    procedure Rollback;
     procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); override;
     procedure SetAutoCommit(Value: Boolean); override;
-    function StartTransaction: Integer; override;
+    function StartTransaction: Integer;
 
     destructor Destroy; override;
     procedure SetReadOnly(Value: Boolean); override;
@@ -133,7 +138,9 @@ type
     function GetHostVersion: Integer; override;
     {END ADDED by fduenas 15-06-2006}
     function GetConnectionHandle: PPMYSQL;
-    procedure GetEscapeString(Buf: PAnsichar; Len: LengthInt; out Result: RawByteString); override;
+    function EscapeString(const Value: RawByteString): RawByteString; overload; override;
+    function GetEscapeString(const Value: ZWideString): ZWideString; overload; override;
+    procedure GetEscapeString(Buf: PAnsichar; Len: LengthInt; out Result: RawByteString); overload;
 
     function GetDatabaseName: String;
     function GetServerProvider: TZServerProvider; override;
@@ -141,6 +148,7 @@ type
     function SupportsFieldTypeBit: Boolean;
     procedure ReleaseImmediat(const Sender: IImmediatelyReleasable;
       var AError: EZSQLConnectionLost); override;
+    function GetPlainDriver: TZMySQLPlainDriver;
   end;
 
 var
@@ -154,7 +162,7 @@ implementation
 uses
   ZMessages, ZSysUtils, ZDbcMySqlStatement, ZMySqlToken, ZFastCode,
   ZDbcMySqlUtils, ZDbcMySqlMetadata, ZMySqlAnalyser, TypInfo,
-  ZEncoding, ZConnProperties, ZDbcProperties, ZCollections,
+  ZEncoding, ZDbcProperties, ZDbcUtils,
   {$IFDEF FPC}syncobjs{$ELSE}SyncObjs{$ENDIF};
 
 { TZMySQLDriver }
@@ -239,17 +247,55 @@ end;
 }
 function TZMySQLDriver.GetPlainDriver(const Url: TZURL;
   const InitDriver: Boolean = True): IZPlainDriver;
+var I: Integer;
+  PlainDriver: TZMySQLPLainDriver;
+  TmpList: TStrings;
+  ErrorNo: Integer;
 begin
+  //if libLocation is not in cache the driver will return a clone
+  if URL.Properties.Values[ConnProps_Library] <> '' then
+    URL.LibLocation := URL.Properties.Values[ConnProps_Library];
+
   // added by tohenk, 2009-10-11
   // before PlainDriver is initialized, we can perform pre-library loading
   // requirement check here, e.g. Embedded server argument params
-  Result := inherited GetPlainDriver(URL, False);
-  if Assigned(Result) then
-  begin
-    if Url.Properties.Count >0  then
-      (Result as IZMySQLPlainDriver).SetDriverOptions(Url.Properties);
-    // end added by tohenk, 2009-10-11
-    if InitDriver then Result.Initialize(Url.LibLocation);
+  Result := inherited GetPlainDriver(URL, True);
+  if Assigned(Result) then begin
+    PlainDriver := TZMySQLPLainDriver(Result.GetInstance);
+    if (Assigned(PlainDriver.mysql_server_init) or Assigned(PlainDriver.mysql_library_init)) and
+      not PlainDriver.IsInitialized and InitDriver and (Url.Properties.Count >0) then begin
+      GlobalCriticalSection.Enter;
+      TmpList := TStringList.Create;
+      try
+        if Url.Properties.Values[ConnProps_Datadir] = ''
+        then TmpList.Add(EMBEDDED_DEFAULT_DATA_DIR)
+        else Url.Properties.Values[ConnProps_Datadir];
+        for i := 0 to Url.Properties.Count -1 do
+          if StartsWith(SERVER_ARGUMENTS_KEY_PREFIX, Url.Properties[i]) and
+            (Length(Url.Properties[i])>Length(SERVER_ARGUMENTS_KEY_PREFIX)+1) then
+            TmpList.Add(Url.Properties.ValueFromIndex[i]);
+        SetLength(FServerArgs, TmpList.Count);
+        SetLength(FServerArgsRaw, TmpList.Count);
+        for i := 0 to TmpList.Count - 1 do begin
+          {$IFDEF UNICODE}
+          FServerArgsRaw[i] := ZUnicodeToRaw(TmpList[i], ZOSCodePage);
+          {$ELSE}
+          FServerArgsRaw[i] := TmpList[i];
+          {$ENDIF}
+          FServerArgs[i] :=  Pointer(FServerArgsRaw[i]);
+        end;
+        I := TmpList.Count;
+        if Assigned(PlainDriver.mysql_library_init)
+        then ErrorNo := PlainDriver.mysql_library_init(i, Pointer(FServerArgs), @SERVER_GROUPS) //<<<-- Isn't threadsafe
+        else ErrorNo := PlainDriver.mysql_server_init(I, Pointer(FServerArgs), @SERVER_GROUPS); //<<<-- Isn't threadsafe
+        if ErrorNo <> 0 then
+          raise Exception.Create('Could not initialize the MySQL / MariaDB client library. Error No: ' + ZFastCode.IntToStr(ErrorNo));  // The manual says nothing else can be called until this call succeeds. So lets just throw the error number...
+        PlainDriver.IsInitialized := True;
+      finally
+        FreeAndNil(TmpList);
+        GlobalCriticalSection.Leave;
+      end;
+    end;
   end
   else
     raise Exception.Create('Can''t receive Plaindriver!');
@@ -333,7 +379,7 @@ begin
   LogMessage := 'CONNECT TO "'+ConSettings^.Database+'" AS USER "'+ConSettings^.User+'"';
   GlobalCriticalSection.Enter;
   try
-    FHandle := FPlainDriver.Init(FHandle); //is not threadsave!
+    FHandle := FPlainDriver.mysql_init(FHandle); //is not threadsave!
   finally
     GlobalCriticalSection.Leave;
   end;
@@ -348,7 +394,7 @@ begin
     if (sMy_client_Char_Set <> '') {mysql 4down doesn't have this function } and
      (sMy_client_Char_Set <> FClientCodePage) then begin
       ConSettings^.ClientCodePage := FPlainDriver.ValidateCharEncoding(sMy_client_Char_Set);
-      ZEncoding.SetConvertFunctions(ConSettings);
+      SetConvertFunctions(ConSettings);
     end;
   end;
   try
@@ -550,7 +596,7 @@ setuint:      UIntOpt := StrToIntDef(Info.Values[sMyOpt], 0);
       Close;
     end;
     ConSettings^.ClientCodePage := FPlainDriver.ValidateCharEncoding(FClientCodePage);
-    ZEncoding.SetConvertFunctions(ConSettings);
+    SetConvertFunctions(ConSettings);
   end;
 end;
 
@@ -569,41 +615,38 @@ begin
 end;
 
 {**
-  Creates a <code>Statement</code> object for sending
-  SQL statements to the database.
-  SQL statements without parameters are normally
-  executed using Statement objects. If the same SQL statement
-  is executed many times, it is more efficient to use a
-  <code>PreparedStatement</code> object.
-  <P>
-  Result sets created using the returned <code>Statement</code>
-  object will by default have forward-only type and read-only concurrency.
+  Creates a <code>CallableStatement</code> object for calling
+  database stored procedures.
+  The <code>CallableStatement</code> object provides
+  methods for setting up its IN and OUT parameters, and
+  methods for executing the call to a stored procedure.
 
+  <P><B>Note:</B> This method is optimized for handling stored
+  procedure call statements. Some drivers may send the call
+  statement to the database when the method <code>prepareCall</code>
+  is done; others
+  may wait until the <code>CallableStatement</code> object
+  is executed. This has no
+  direct effect on users; however, it does affect which method
+  throws certain SQLExceptions.
+
+  Result sets created using the returned CallableStatement will have
+  forward-only type and read-only concurrency, by default.
+
+  @param Name a procedure or function identifier
+    parameter placeholders. Typically this  statement is a JDBC
+    function call escape string.
   @param Info a statement parameters.
-  @return a new Statement object
+  @return a new CallableStatement object containing the
+    pre-compiled SQL statement
 }
-function TZMySQLConnection.CreateRegularStatement(Info: TStrings):
-  IZStatement;
+function TZMySQLConnection.PrepareCallWithParams(const Name: String;
+  Info: TStrings): IZCallableStatement;
 begin
-  if IsClosed then
-     Open;
-  Result := TZMySQLStatement.Create(Self, Info);
-end;
-
-destructor TZMySQLConnection.Destroy;
-begin
-  inherited Destroy;
-  FSavePoints.Free;
-end;
-
-procedure TZMySQLConnection.ExecuteImmediat(const SQL: RawByteString;
-  LoggingCategory: TZLoggingCategory);
-begin
-  if FPlainDriver.mysql_real_query(FHandle,
-    Pointer(SQL), Length(SQL){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF}) <> 0 then
-      CheckMySQLError(FPlainDriver, FHandle, nil, LoggingCategory, SQL, Self);
-  if DriverManager.HasLoggingListener then
-    DriverManager.LogMessage(LoggingCategory, ConSettings^.Protocol, SQL);
+  if (FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 100000)) or
+     (not FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 50608))
+  then Result := TZMySQLCallableStatement56up.Create(Self, Name, Info)
+  else Result := TZMySQLCallableStatement56down.Create(Self, Name, Info);
 end;
 
 {**
@@ -634,7 +677,7 @@ end;
   @return a new PreparedStatement object containing the
     pre-compiled statement
 }
-function TZMySQLConnection.CreatePreparedStatement(const SQL: string;
+function TZMySQLConnection.PrepareStatementWithParams(const SQL: string;
   Info: TStrings): IZPreparedStatement;
 begin
   if IsClosed then
@@ -643,38 +686,47 @@ begin
 end;
 
 {**
-  Creates a <code>CallableStatement</code> object for calling
-  database stored procedures.
-  The <code>CallableStatement</code> object provides
-  methods for setting up its IN and OUT parameters, and
-  methods for executing the call to a stored procedure.
+  Creates a <code>Statement</code> object for sending
+  SQL statements to the database.
+  SQL statements without parameters are normally
+  executed using Statement objects. If the same SQL statement
+  is executed many times, it is more efficient to use a
+  <code>PreparedStatement</code> object.
+  <P>
+  Result sets created using the returned <code>Statement</code>
+  object will by default have forward-only type and read-only concurrency.
 
-  <P><B>Note:</B> This method is optimized for handling stored
-  procedure call statements. Some drivers may send the call
-  statement to the database when the method <code>prepareCall</code>
-  is done; others
-  may wait until the <code>CallableStatement</code> object
-  is executed. This has no
-  direct effect on users; however, it does affect which method
-  throws certain SQLExceptions.
-
-  Result sets created using the returned CallableStatement will have
-  forward-only type and read-only concurrency, by default.
-
-  @param sql a SQL statement that may contain one or more '?'
-    parameter placeholders. Typically this  statement is a JDBC
-    function call escape string.
   @param Info a statement parameters.
-  @return a new CallableStatement object containing the
-    pre-compiled SQL statement
+  @return a new Statement object
 }
-function TZMySQLConnection.CreateCallableStatement(const SQL: string; Info: TStrings):
-  IZCallableStatement;
+function TZMySQLConnection.CreateStatementWithParams(
+  Info: TStrings): IZStatement;
 begin
-  if (FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 100000)) or
-     (not FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 50608))
-  then Result := TZMySQLCallableStatement56up.Create(Self, SQL, Info)
-  else Result := TZMySQLCallableStatement56down.Create(Self, SQL, Info);
+  if IsClosed then
+     Open;
+  Result := TZMySQLStatement.Create(Self, Info);
+end;
+
+destructor TZMySQLConnection.Destroy;
+begin
+  inherited Destroy;
+  FSavePoints.Free;
+end;
+
+function TZMySQLConnection.EscapeString(
+  const Value: RawByteString): RawByteString;
+begin
+  GetEscapeString(Pointer(Value), Length(Value), Result);
+end;
+
+procedure TZMySQLConnection.ExecuteImmediat(const SQL: RawByteString;
+  LoggingCategory: TZLoggingCategory);
+begin
+  if FPlainDriver.mysql_real_query(FHandle,
+    Pointer(SQL), Length(SQL){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF}) <> 0 then
+      CheckMySQLError(FPlainDriver, FHandle, nil, LoggingCategory, SQL, Self);
+  if DriverManager.HasLoggingListener then
+    DriverManager.LogMessage(LoggingCategory, ConSettings^.Protocol, SQL);
 end;
 
 {**
@@ -824,8 +876,11 @@ begin
 end;
 
 {**
-  Sets a new transact isolation level.
-  @param Level a new transact isolation level.
+  Drops all changes made since the previous
+  commit/rollback and releases any database locks currently held
+  by this Connection. This method should be used only when auto-
+  commit has been disabled.
+  @see #setAutoCommit
 }
 procedure TZMySQLConnection.SetTransactionIsolation(
   Level: TZTransactIsolationLevel);
@@ -929,6 +984,11 @@ begin
   Result := ConvertMySQLVersionToSQLVersion( FPlainDriver.mysql_get_server_version(FHandle) );
 end;
 
+function TZMySQLConnection.GetPlainDriver: TZMySQLPlainDriver;
+begin
+  Result := FPlainDriver;
+end;
+
 {**
   Gets a reference to MySQL connection handle.
   @return a reference to MySQL connection handle.
@@ -958,6 +1018,15 @@ begin
   Result := FDatabaseName;
 end;
 
+function TZMySQLConnection.GetEscapeString(
+  const Value: ZWideString): ZWideString;
+var tmp: RawByteString;
+begin
+  tmp := ZUnicodeToRaw(Value, ConSettings.ClientcodePage.CP);
+  GetEscapeString(Pointer(tmp), Length(Tmp), tmp);
+  Result := ZRawToUnicode(tmp, ConSettings.ClientcodePage.CP);
+end;
+
 procedure TZMySQLConnection.GetEscapeString(Buf: PAnsichar; Len: LengthInt;
   out Result: RawByteString);
 var
@@ -965,6 +1034,7 @@ var
   P: PAnsichar;
   EscapedLen: ULong;
 begin
+  {$IFDEF FPC}Result := '';{$ENDIF}
   if ((Len+1) shl 1) > (SizeOf(Buf)-1) then begin
     SetLength(Result, (Len+1) shl 1);
     P := Pointer(Result);

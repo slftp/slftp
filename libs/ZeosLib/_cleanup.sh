@@ -8,6 +8,7 @@ cd "$(dirname "$0")"
 
 # delete unwanted folders
 rm -r component
+rm -r webservice
 
 # delete unwanted file types
 find * -iname "repl.*" -type f -delete
@@ -38,6 +39,7 @@ sed -i 's/{.$DEFINE ZEOS_DISABLE_POSTGRESQL}/{$DEFINE ZEOS_DISABLE_POSTGRESQL}/'
 sed -i 's/{.$DEFINE ZEOS_DISABLE_DBLIB}/{$DEFINE ZEOS_DISABLE_DBLIB}/' Zeos.inc
 sed -i 's/{.$DEFINE ZEOS_DISABLE_ADO}/{$DEFINE ZEOS_DISABLE_ADO}/' Zeos.inc
 sed -i 's/{.$DEFINE ZEOS_DISABLE_INTERBASE}/{$DEFINE ZEOS_DISABLE_INTERBASE}/' Zeos.inc
+sed -i 's/{.$DEFINE ZEOS_DISABLE_FIREBIRD}/{$DEFINE ZEOS_DISABLE_FIREBIRD}/' Zeos.inc
 sed -i 's/{.$DEFINE ZEOS_DISABLE_SQLITE}/{$DEFINE ZEOS_DISABLE_SQLITE}/' Zeos.inc
 sed -i 's/{.$DEFINE ZEOS_DISABLE_ORACLE}/{$DEFINE ZEOS_DISABLE_ORACLE}/' Zeos.inc
 sed -i 's/{.$DEFINE ZEOS_DISABLE_ASA}/{$DEFINE ZEOS_DISABLE_ASA}/' Zeos.inc

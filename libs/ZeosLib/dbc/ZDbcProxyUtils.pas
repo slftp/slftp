@@ -1,13 +1,14 @@
 {*********************************************************}
 {                                                         }
 {                 Zeos Database Objects                   }
-{ Constant property names used by all connections and     }
-{ other utilities on core and plain levels                }
+{       DBC Layer Proxy Database Connectivity Classes     }
+{                                                         }
+{        Originally written by Jan Baumgarten             }
 {                                                         }
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2017 Zeos Development Group       }
+{    Copyright (c) 1999-2012 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -38,22 +39,64 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
-{   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
-{   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
+{  http://zeoslib.sourceforge.net  (FORUM)                }
+{  http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER) }
+{  http://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
-{   http://www.sourceforge.net/projects/zeoslib.          }
+{  http://www.sourceforge.net/projects/zeoslib.           }
 {                                                         }
 {                                                         }
 {                                 Zeos Development Group. }
 {********************************************************@}
 
-unit ZConnProperties;
+unit ZDbcProxyUtils;
 
 interface
 
-{$MESSAGE 'This unit will be removed soon! Use ZDbcProperties.pas instead'}
+{$I ZDbc.inc}
+
+{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+
+function XMLEncode(Input: String): String;
+
+{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
 
 implementation
+
+{$I ZDbc.inc}
+
+{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+
+uses SysUtils;
+
+function XMLEncode(Input: String): String;
+var
+  x: Integer;
+  Position: Integer;
+
+  procedure CutAndInsert(Replacement: String);
+  begin
+    if Position < x then Result := Result + Copy(Input, Position, x - Position);
+    Result := Result + Replacement;
+    Position := x + 1;
+  end;
+begin
+  Position := 1;
+  Result := '';
+  for x := 1 to Length(Input) do begin
+    case Input[x] of
+      #9, #10, #13, '%': CutAndInsert('&#' + IntToStr(Ord(Input[x])) + ';');
+      #00..#8, #11, #12, #14..#31: raise Exception.Create('Character #' + IntToStr(Ord(Input[x])) + ' is not allowed in strings.');
+      '<': CutAndInsert('&lt;');
+      '>': CutAndInsert('&gt;');
+      '&': CutAndInsert('&amp;');
+      '''': CutAndInsert('&apos;');
+      '"': CutAndInsert('&quot;');
+    end;
+  end;
+  if Position <= Length(Input) then Result := Result + Copy(Input, Position, Length(Input));
+end;
+
+{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
 
 end.

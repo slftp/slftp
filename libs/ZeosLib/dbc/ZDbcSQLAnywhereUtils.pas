@@ -1,13 +1,14 @@
 {*********************************************************}
 {                                                         }
 {                 Zeos Database Objects                   }
-{ Constant property names used by all connections and     }
-{ other utilities on core and plain levels                }
+{         Sybase SQL Anywhere Connectivity Classes        }
+{                                                         }
+{            Originally written by EgonHugeist            }
 {                                                         }
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2017 Zeos Development Group       }
+{    Copyright (c) 1999-2012 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -48,12 +49,59 @@
 {                                 Zeos Development Group. }
 {********************************************************@}
 
-unit ZConnProperties;
+unit ZDbcSQLAnywhereUtils;
+
+{$I ZDbc.inc}
 
 interface
 
-{$MESSAGE 'This unit will be removed soon! Use ZDbcProperties.pas instead'}
+{$IFNDEF ZEOS_DISABLE_ASA}
+uses ZPlainSQLAnywhere, ZDbcIntfs;
 
+{**
+  Converts a Sybase SQLAnywhere native types into ZDBC SQL types.
+  @param native_type the sybase native type.
+  @return a SQL undepended type.
+}
+
+function ConvertSQLAnyTypeToSQLType(native_type: Ta_sqlany_native_type): TZSQLType;
+{$ENDIF ZEOS_DISABLE_ASA}
 implementation
+{$IFNDEF ZEOS_DISABLE_ASA}
 
+{**
+  Converts a Sybase SQLAnywhere native types into ZDBC SQL types.
+  @param native_type the sybase native type.
+  @return a SQL undepended type.
+}
+function ConvertSQLAnyTypeToSQLType(native_type: Ta_sqlany_native_type): TZSQLType;
+begin
+  case native_type of
+    //DT_NOTYPE:          Result := stUnknown;
+    DT_SMALLINT:        Result := stSmall;
+    DT_INT:             Result := stInteger;
+    DT_DECIMAL:         Result := stBigDecimal;
+    DT_FLOAT:           Result := stFloat;
+    DT_DOUBLE:          Result := stDouble;
+    DT_DATE:            Result := stDate;
+    DT_VARIABLE, DT_STRING, DT_FIXCHAR, DT_VARCHAR: Result := stString;
+    DT_NSTRING, DT_NFIXCHAR, DT_NVARCHAR: Result := stUnicodeString; //just tag it
+    DT_LONGNVARCHAR:    Result := stUnicodeStream; //just tag it
+    DT_LONGVARCHAR:     Result := stAsciiStream;
+    DT_TIME:            Result := stTime;
+    DT_TIMESTAMP:       Result := stTimestamp;
+    DT_TIMESTAMP_STRUCT:Result := stTimestamp;
+    DT_BINARY:          Result := stBytes;
+    DT_LONGBINARY:      Result := stBinaryStream;
+    DT_TINYINT:         Result := stByte;
+    DT_BIGINT:          Result := stLong;
+    DT_UNSINT:          Result := stInteger;
+    DT_UNSSMALLINT:     Result := stSmall;
+    DT_UNSBIGINT:       Result := stLong;
+    DT_BIT:             Result := stBoolean;
+    else                Result := stUnknown;
+  end;
+end;
+initialization
+{$ENDIF ZEOS_DISABLE_ASA}
 end.

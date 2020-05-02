@@ -63,7 +63,7 @@ uses
   {$IFDEF TLIST_IS_DEPRECATED}ZSysUtils,{$ENDIF}
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
   ZClasses, ZDbcIntfs, ZTokenizer, ZCompatibility, ZGenericSqlToken, ZVariant,
-  ZGenericSqlAnalyser, ZPlainDriver, ZURL, ZCollections, ZDbcLogging;
+  ZGenericSqlAnalyser, ZPlainDriver, ZCollections, ZDbcLogging;
 
 type
 
@@ -81,9 +81,7 @@ type
     destructor Destroy; override;
 
     function GetSupportedProtocols: TStringDynArray;
-    function GetSupportedClientCodePages(const Url: TZURL;
-      Const {$IFNDEF UNICODE}AutoEncode, {$ENDIF} SupportedsOnly: Boolean;
-      CtrlsCPType: TZControlsCodePage = cCP_UTF16): TStringDynArray;
+    function GetClientCodePages(const Url: TZURL): TStringDynArray;
     function Connect(const Url: string; Info: TStrings = nil): IZConnection; overload; deprecated;
     function Connect(const {%H-}Url: TZURL): IZConnection; overload; virtual;
     function AcceptsURL(const Url: string): Boolean; virtual;
@@ -101,8 +99,7 @@ type
 
   { TZAbstractDbcConnection }
 
-  TZAbstractDbcConnection = class(TZCodePagedObject, IZConnection,
-    IImmediatelyReleasable)
+  TZAbstractDbcConnection = class(TZCodePagedObject, IImmediatelyReleasable)
   private
     FOnConnectionLostError: TOnConnectionLostError; //error handle which can be registered
     FDriver: IZDriver;
@@ -128,6 +125,7 @@ type
     procedure SetPassword(const Value: String);
     function GetInfo: TStrings;
   protected
+    fWeakReferenceOfSelfInterface: Pointer;
     FRestartTransaction: Boolean;
     FDisposeCodePage: Boolean;
     FChunkSize: Integer; //indicates reading / writing lobs in Chunks of x Byte
@@ -136,6 +134,7 @@ type
     {$IFDEF ZEOS_TEST_ONLY}
     FTestMode: Byte;
     {$ENDIF}
+    procedure BeforeUrlAssign; virtual;
     procedure InternalCreate; virtual; abstract;
     procedure InternalClose; virtual; abstract;
     procedure ExecuteImmediat(const SQL: RawByteString; LoggingCategory: TZLoggingCategory); overload; virtual;
@@ -146,22 +145,13 @@ type
     function GetEncoding: TZCharEncoding;
     function GetClientVariantManager: IZClientVariantManager;
     procedure CheckCharEncoding(const CharSet: String; const DoArrange: Boolean = False);
-    function GetClientCodePageInformations: PZCodePage; //EgonHugeist
-    function GetAutoEncodeStrings: Boolean; //EgonHugeist
-    procedure SetAutoEncodeStrings(const Value: Boolean);
     procedure OnPropertiesChange({%H-}Sender: TObject); virtual;
 
-    procedure RegisterOnConnectionLostErrorHandler(Handler: TOnConnectionLostError);
+    procedure SetOnConnectionLostErrorHandler(Handler: TOnConnectionLostError);
     procedure RegisterStatement(const Value: IZStatement);
     procedure DeregisterStatement(const Value: IZStatement);
     procedure CloseRegisteredStatements;
 
-    function CreateRegularStatement({%H-}Info: TStrings): IZStatement;
-      virtual;
-    function CreatePreparedStatement(const {%H-}SQL: string; {%H-}Info: TStrings):
-      IZPreparedStatement; virtual;
-    function CreateCallableStatement(const {%H-}SQL: string; {%H-}Info: TStrings):
-      IZCallableStatement; virtual;
     property Driver: IZDriver read FDriver write FDriver;
     property PlainDriver: IZPlainDriver read FIZPlainDriver write FIZPlainDriver;
     property HostName: string read GetHostName write SetHostName;
@@ -182,16 +172,11 @@ type
       Info: TStrings); overload; deprecated;
     constructor Create(const ZUrl: TZURL); overload;
     destructor Destroy; override;
+    procedure AfterConstruction; override;
 
     function CreateStatement: IZStatement;
     function PrepareStatement(const SQL: string): IZPreparedStatement;
     function PrepareCall(const SQL: string): IZCallableStatement;
-
-    function CreateStatementWithParams(Info: TStrings): IZStatement;
-    function PrepareStatementWithParams(const SQL: string; Info: TStrings):
-      IZPreparedStatement;
-    function PrepareCallWithParams(const SQL: string; Info: TStrings):
-      IZCallableStatement;
 
     function CreateNotification(const {%H-}Event: string): IZNotification; virtual;
     function CreateSequence(const {%H-}Sequence: string; {%H-}BlockSize: Integer):
@@ -201,10 +186,6 @@ type
 
     procedure SetAutoCommit(Value: Boolean); virtual;
     function GetAutoCommit: Boolean; virtual;
-
-    procedure Commit; virtual;
-    procedure Rollback; virtual;
-    function StartTransaction: Integer; virtual; abstract;
 
     //2Phase Commit Support initially for PostgresSQL (firmos) 21022006
     procedure PrepareTransaction(const {%H-}transactionid: string);virtual;
@@ -243,21 +224,11 @@ type
 
     function GetWarnings: EZSQLWarning; virtual;
     procedure ClearWarnings; virtual;
-    {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
-    function GetBinaryEscapeString(const Value: RawByteString): String; overload; virtual;
-    {$ENDIF}
+
     function GetBinaryEscapeString(const Value: TBytes): String; overload; virtual;
-    procedure GetBinaryEscapeString(Buf: Pointer; Len: LengthInt; out Result: RawByteString); overload; virtual;
-    procedure GetBinaryEscapeString(Buf: Pointer; Len: LengthInt; out Result: ZWideString); overload; virtual;
 
     function GetEscapeString(const Value: ZWideString): ZWideString; overload; virtual;
     function GetEscapeString(const Value: RawByteString): RawByteString; overload; virtual;
-    function GetEscapeString(Buf: PAnsichar; Len: LengthInt): RawByteString; overload; virtual;
-
-    procedure GetEscapeString(Buf: PAnsichar; Len: LengthInt; out Result: RawByteString); overload; virtual;
-    procedure GetEscapeString(Buf: PAnsichar; Len: LengthInt; RawCP: Word; out Result: ZWideString); overload; virtual;
-    procedure GetEscapeString(Buf: PWideChar; Len: LengthInt; RawCP: Word; out Result: RawByteString); overload; virtual;
-    procedure GetEscapeString(Buf: PWideChar; Len: LengthInt; out Result: ZWideString); overload; virtual;
 
     function UseMetadata: boolean;
     procedure SetUseMetadata(Value: Boolean); virtual;
@@ -367,6 +338,24 @@ type
 
   TZAbstractSequenceClass = class of TZAbstractSequence;
 
+  {** Implements a variant manager with connection related convertion rules. }
+  TZClientVariantManager = class (TZSoftVariantManager, IZVariantManager, IZClientVariantManager)
+  protected
+    FConSettings: PZConSettings;
+    FClientCP, FCtrlsCP: Word;
+    FUseWComparsions: Boolean;
+    procedure ProcessString(const Value: TZVariant; out Result: TZVariant); override;
+    procedure ProcessUnicodeString(const Value: TZVariant; out Result: TZVariant); override;
+    procedure ProcessRawByteString(const Value: TZVariant; out Result: TZVariant); override;
+    {$IFNDEF NO_ANSISTRING}procedure ProcessAnsiString(const Value: TZVariant; out Result: TZVariant); override; {$ENDIF NO_ANSISTRING}
+    {$IFNDEF NO_UTF8STRING}procedure ProcessUTF8String(const Value: TZVariant; out Result: TZVariant); override; {$ENDIF NO_UTF8STRING}
+    procedure ProcessCharRec(const Value: TZVariant; out Result: TZVariant); override;
+  public
+    constructor Create(const ConSettings: PZConSettings{; FormatSettings: TZFormatSettings});
+    function UseWComparsions: Boolean;
+    function GetAsDateTime(const Value: TZVariant): TDateTime; reintroduce;
+  end;
+
 type
   TZSavePointQueryType = (spqtSavePoint, spqtCommit, spqtRollback);
 
@@ -377,6 +366,7 @@ const
   cEmpty = '';
   cRollbackTran = 'ROLLBACK TRANSACTION ';
   cRollbackTo = 'ROLLBACK TO ';
+  cRollbackToSP = 'ROLLBACK TO SAVEPOINT ';
   cUnknown = '';
   //(*
   cSavePointSyntaxW: array[TZServerProvider, TZSavePointQueryType] of UnicodeString =
@@ -385,7 +375,7 @@ const
       ({spMSJet}      cUnknown,   cUnknown,   cUnknown),
       ({spOracle}     cSavePoint, cEmpty,     cRollbackTo),
       ({spASE}        cSaveTrans, cEmpty,     cRollbackTran),
-      ({spASA}        cSavePoint, cReleaseSP, cRollbackTo),
+      ({spASA}        cSavePoint, cReleaseSP, cRollbackToSP),
       ({spPostgreSQL} cSavePoint, cReleaseSP, cRollbackTo),
       ({spIB_FB}      cSavePoint, cReleaseSP, cRollbackTo),
       ({spMySQL}      cSavePoint, cReleaseSP, cRollbackTo),
@@ -403,7 +393,7 @@ const
       ({spMSJet}      cUnknown,   cUnknown,   cUnknown),
       ({spOracle}     cSavePoint, cEmpty,     cRollbackTo),
       ({spASE}        cSaveTrans, cEmpty,     cRollbackTran),
-      ({spASA}        cSavePoint, cReleaseSP, cRollbackTo),
+      ({spASA}        cSavePoint, cReleaseSP, cRollbackToSP),
       ({spPostgreSQL} cSavePoint, cReleaseSP, cRollbackTo),
       ({spIB_FB}      cSavePoint, cReleaseSP, cRollbackTo),
       ({spMySQL}      cSavePoint, cReleaseSP, cRollbackTo),
@@ -418,7 +408,7 @@ const
 implementation
 
 uses ZMessages,{$IFNDEF TLIST_IS_DEPRECATED}ZSysUtils, {$ENDIF}
-  ZDbcMetadata, ZDbcUtils, ZEncoding, ZConnProperties, StrUtils,
+  ZDbcMetadata, ZDbcUtils, ZEncoding, StrUtils,
   ZDbcProperties, {$IFDEF FPC}syncobjs{$ELSE}SyncObjs{$ENDIF}
   {$IFDEF WITH_INLINE},ZFastCode{$ENDIF}
   {$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF}
@@ -476,16 +466,13 @@ end;
   Get names of the supported CharacterSets.
   For example: ASCII, UTF8...
 }
-function TZAbstractDriver.GetSupportedClientCodePages(const Url: TZURL;
-  Const {$IFNDEF UNICODE}AutoEncode,{$ENDIF} SupportedsOnly: Boolean;
-  CtrlsCPType: TZControlsCodePage = cCP_UTF16): TStringDynArray;
+function TZAbstractDriver.GetClientCodePages(const Url: TZURL): TStringDynArray;
 var
   Plain: IZPlainDriver;
 begin
   Plain := GetPlainDriverFromCache(Url.Protocol, '');
   if Assigned(Plain) then
-  Result := Plain.GetSupportedClientCodePages({$IFNDEF UNICODE}AutoEncode,{$ENDIF}
-    not SupportedsOnly, CtrlsCPType);
+  Result := Plain.GetClientCodePages;
 end;
 
 {**
@@ -838,7 +825,7 @@ begin
   ConSettings^.DisplayFormatSettings.DateTimeFormatLen := Length(ConSettings^.DisplayFormatSettings.DateTimeFormat);
 end;
 
-procedure TZAbstractDbcConnection.RegisterOnConnectionLostErrorHandler(
+procedure TZAbstractDbcConnection.SetOnConnectionLostErrorHandler(
   Handler: TOnConnectionLostError);
 begin
   if Assigned(FOnConnectionLostError) then
@@ -897,7 +884,7 @@ begin
   SetConvertFunctions(ConSettings^.CTRL_CP, ConSettings^.ClientCodePage.CP,
     ConSettings^.PlainConvertFunc, ConSettings^.DbcConvertFunc);
   {$ENDIF}
-  ZEncoding.SetConvertFunctions(ConSettings);
+  SetConvertFunctions(ConSettings);
   FClientVarManager := TZClientVariantManager.Create(ConSettings);
 end;
 
@@ -906,37 +893,29 @@ begin
   Result := ConSettings.ClientCodePage^.Encoding;
 end;
 
-function TZAbstractDbcConnection.GetEscapeString(Buf: PAnsichar;
-  Len: LengthInt): RawByteString;
-begin
-  Result := SQLQuotedStr(Buf, Len, AnsiChar(#39));
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PAnsichar; Len: LengthInt;
-  out Result: RawByteString);
-begin
-  Result := SQLQuotedStr(Buf, Len, AnsiChar(#39));
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PAnsichar; Len: LengthInt;
-  RawCP: Word; out Result: ZWideString);
-var RawTmp: RawByteString;
-begin
-  GetEscapeString(Buf, Len, RawTmp);
-  Result := ZRawToUnicode(RawTmp, RawCP);
-end;
-
 function TZAbstractDbcConnection.GetClientVariantManager: IZClientVariantManager;
 begin
   Result := TZClientVariantManager.Create(ConSettings);
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5033 off : Function result does not seem to be set} {$ENDIF}
 function TZAbstractDbcConnection.AbortOperation: Integer;
 begin
 //  Would this work...?
 //  for i := fRegisteredStatements.Count-1 downto 0 do
 //   IZStatement(fRegisteredStatements[i]).Cancel;
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+procedure TZAbstractDbcConnection.AfterConstruction;
+var iCon: IZConnection;
+begin
+  if QueryInterface(IZConnection, ICon) = S_OK then begin
+    fWeakReferenceOfSelfInterface := Pointer(iCon);
+    iCon := nil;
+  end;
+  inherited AfterConstruction;
 end;
 
 {**
@@ -959,44 +938,8 @@ begin
   SetConvertFunctions(ConSettings^.CTRL_CP, ConSettings^.ClientCodePage.CP,
     ConSettings^.PlainConvertFunc, ConSettings^.DbcConvertFunc);
   {$ENDIF}
-  ZEncoding.SetConvertFunctions(ConSettings);
+  SetConvertFunctions(ConSettings);
   FClientVarManager := TZClientVariantManager.Create(ConSettings);
-end;
-
-
-{**
-  EgonHugeist: this is a compatibility-Option for exiting Applictions.
-    Zeos is now able to preprepare direct insered SQL-Statements.
-    Means do the UTF8-preparation if the CharacterSet was choosen.
-    So we do not need to do the SQLString + UTF8Encode(Edit1.Test) for example.
-  @result if AutoEncodeStrings should be used
-}
-function TZAbstractDbcConnection.GetAutoEncodeStrings: Boolean;
-begin
-  {$IFDEF UNICODE}
-  Result := True;
-  {$ELSE}
-  Result := ConSettings.AutoEncode;
-  {$ENDIF}
-end;
-
-procedure TZAbstractDbcConnection.GetBinaryEscapeString(Buf: Pointer;
-  Len: LengthInt; out Result: ZWideString);
-begin
-  Result := GetSQLHexWideString(Buf, Len);
-end;
-
-procedure TZAbstractDbcConnection.GetBinaryEscapeString(Buf: Pointer;
-  Len: LengthInt; out Result: RawByteString);
-begin
-  Result := GetSQLHexAnsiString(Buf, Len);
-end;
-
-procedure TZAbstractDbcConnection.SetAutoEncodeStrings(const Value: Boolean);
-begin
-  {$IFNDEF UNICODE}
-  ConSettings.AutoEncode := Value;
-  {$ENDIF}
 end;
 
 {**
@@ -1045,6 +988,7 @@ begin
   FDriver := DriverManager.GetDriver(ZURL.URL);
   FIZPlainDriver := FDriver.GetPlainDriver(ZUrl);
   fRegisteredStatements := {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF}.Create;
+  BeforeUrlAssign;
   FURL.OnPropertiesChange := OnPropertiesChange;
   FURL.URL := ZUrl.URL;
 
@@ -1115,47 +1059,7 @@ end;
 }
 function TZAbstractDbcConnection.CreateStatement: IZStatement;
 begin
-  Result := CreateStatementWithParams(nil);
-end;
-
-{**
-  Creates a <code>Statement</code> object for sending
-  SQL statements to the database.
-  SQL statements without parameters are normally
-  executed using Statement objects. If the same SQL statement
-  is executed many times, it is more efficient to use a
-  <code>PreparedStatement</code> object.
-  <P>
-  Result sets created using the returned <code>Statement</code>
-  object will by default have forward-only type and read-only concurrency.
-
-  @param Info a statement parameters.
-  @return a new Statement object
-}
-function TZAbstractDbcConnection.CreateStatementWithParams(Info: TStrings):
-  IZStatement;
-var UsedInfo: TStrings;
-begin
-  UsedInfo := Info;
-  If StrToBoolEx(GetInfo.Values[DSProps_PreferPrepared]) then
-    If UsedInfo = nil then
-    begin
-      UsedInfo := TStringList.Create;
-      UsedInfo.Values[DSProps_PreferPrepared] := 'true';
-    end;
-  Result := CreateRegularStatement(Info);
-  if UsedInfo <> Info then UsedInfo.Free;
-end;
-
-{**
-  Creates a regular statement object.
-  @param Info a statement parameters.
-  @returns a created statement.
-}
-function TZAbstractDbcConnection.CreateRegularStatement(
-  Info: TStrings): IZStatement;
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
+  Result := IZConnection(fWeakReferenceOfSelfInterface).CreateStatementWithParams(nil);
 end;
 
 {**
@@ -1187,47 +1091,10 @@ end;
 }
 function TZAbstractDbcConnection.PrepareStatement(const SQL: string): IZPreparedStatement;
 begin
-  Result := CreatePreparedStatement(SQL, nil);
-end;
-
-{**
-  Creates a <code>PreparedStatement</code> object for sending
-  parameterized SQL statements to the database.
-
-  @param SQL a SQL statement that may contain one or more '?' IN
-    parameter placeholders
-  @param Info a statement parameters.
-  @return a new PreparedStatement object containing the
-    pre-compiled statement
-}
-function TZAbstractDbcConnection.PrepareStatementWithParams(const SQL: string;
-  Info: TStrings): IZPreparedStatement;
-var UsedInfo: TStrings;
-begin
-  UsedInfo := Info;
-  If StrToBoolEx(GetInfo.Values[DSProps_PreferPrepared]) then
-    If UsedInfo = nil then
-    begin
-      UsedInfo := TStringList.Create;
-      UsedInfo.Values[DSProps_PreferPrepared] := 'true';
-    end;
-  Result := CreatePreparedStatement(SQL, UsedInfo);
-  if UsedInfo <> Info then UsedInfo.Free;
+  Result := IZConnection(fWeakReferenceOfSelfInterface).PrepareStatementWithParams(SQL, nil);
 end;
 
 procedure TZAbstractDbcConnection.PrepareTransaction(const transactionid: string);
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
-end;
-
-{**
-  Creates a prepared statement object.
-  @param SQL a SQL query string.
-  @param Info a statement parameters.
-  @returns a created statement.
-}
-function TZAbstractDbcConnection.CreatePreparedStatement(const SQL: string;
-  Info: TStrings): IZPreparedStatement;
 begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
@@ -1261,48 +1128,7 @@ end;
 function TZAbstractDbcConnection.PrepareCall(
   const SQL: string): IZCallableStatement;
 begin
-  Result := CreateCallableStatement(SQL, nil);
-end;
-
-{**
-  Creates a <code>CallableStatement</code> object for calling
-  database stored procedures.
-  The <code>CallableStatement</code> object provides
-  methods for setting up its IN and OUT parameters, and
-  methods for executing the call to a stored procedure.
-
-  @param SQL a SQL statement that may contain one or more '?'
-    parameter placeholders. Typically this  statement is a JDBC
-    function call escape string.
-  @param Info a statement parameters.
-  @return a new CallableStatement object containing the
-    pre-compiled SQL statement
-}
-function TZAbstractDbcConnection.PrepareCallWithParams(const SQL: string;
-  Info: TStrings): IZCallableStatement;
-var UsedInfo: TStrings;
-begin
-  UsedInfo := Info;
-  If StrToBoolEx(GetInfo.Values[DSProps_PreferPrepared]) then
-    If UsedInfo = nil then
-    begin
-      UsedInfo := TStringList.Create;
-      UsedInfo.Values[DSProps_PreferPrepared] := 'true';
-    end;
-  Result := CreateCallableStatement(SQL, UsedInfo);
-  if UsedInfo <> Info then UsedInfo.Free;
-end;
-
-{**
-  Creates a callable statement object.
-  @param SQL a SQL query string.
-  @param Info a statement parameters.
-  @returns a created statement.
-}
-function TZAbstractDbcConnection.CreateCallableStatement(const SQL: string;
-  Info: TStrings): IZCallableStatement;
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
+  Result := IZConnection(fWeakReferenceOfSelfInterface).PrepareCallWithParams(SQL, nil);
 end;
 
 {**
@@ -1310,10 +1136,12 @@ end;
   @param Event an event name.
   @returns a created notification object.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5033 off : Function result does not seem to be set} {$ENDIF}
 function TZAbstractDbcConnection.CreateNotification(const Event: string): IZNotification;
 begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Creates a sequence generator object.
@@ -1325,7 +1153,7 @@ function TZAbstractDbcConnection.CreateSequence(const Sequence: string;
   BlockSize: Integer): IZSequence;
 begin
   if TZDefaultProviderSequenceClasses[GetServerProvider] <> nil then
-    Result := TZDefaultProviderSequenceClasses[GetServerProvider].Create(Self, Sequence, BlockSize)
+    Result := TZDefaultProviderSequenceClasses[GetServerProvider].Create(IZConnection(fWeakReferenceOfSelfInterface), Sequence, BlockSize)
   else
     Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
@@ -1380,31 +1208,7 @@ begin
   Result := FAutoCommit;
 end;
 
-{**
-  Makes all changes made since the previous
-  commit/rollback permanent and releases any database locks
-  currently held by the Connection. This method should be
-  used only when auto-commit mode has been disabled.
-  @see #setAutoCommit
-}
-procedure TZAbstractDbcConnection.Commit;
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
-end;
-
 procedure TZAbstractDbcConnection.CommitPrepared(const transactionid: string);
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
-end;
-
-{**
-  Drops all changes made since the previous
-  commit/rollback and releases any database locks currently held
-  by this Connection. This method should be used only when auto-
-  commit has been disabled.
-  @see #setAutoCommit
-}
-procedure TZAbstractDbcConnection.Rollback;
 begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
@@ -1419,10 +1223,12 @@ end;
   the connection is resumed.
   @return 0 if succesfull or error code if any error occurs
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5033 off : Function result does not seem to be set} {$ENDIF}
 function TZAbstractDbcConnection.PingServer: Integer;
 begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Escape a string so it's acceptable for the Connection's server.
@@ -1496,6 +1302,11 @@ begin
   end;
 end;
 
+procedure TZAbstractDbcConnection.BeforeUrlAssign;
+begin
+  //dummy
+end;
+
 {**
   Tests to see if a Connection is closed.
   @return true if the connection is closed; false if it's still open
@@ -1560,7 +1371,7 @@ end;
 }
 function TZAbstractDbcConnection.GetClientVersion: Integer;
 begin
- Result := 0;
+  Result := 0;
 end;
 
 {**
@@ -1573,7 +1384,7 @@ end;
 }
 function TZAbstractDbcConnection.GetHostVersion: Integer;
 begin
- Result := 0;
+  Result := 0;
 end;
 
 function TZAbstractDbcConnection.GetDescription: String;
@@ -1702,68 +1513,36 @@ begin
   FUseMetadata := Value;
 end;
 
-{$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
-function TZAbstractDbcConnection.GetBinaryEscapeString(const Value: RawByteString): String;
-begin
-  GetBinaryEscapeString(Pointer(Value), Length(Value), {$IFNDEF UNICODE}RawByteString{$ELSE}ZWideString{$ENDIF}(Result));
-end;
-{$ENDIF}
-
 function TZAbstractDbcConnection.GetBinaryEscapeString(const Value: TBytes): String;
 begin
-  GetBinaryEscapeString(Pointer(Value), Length(Value), {$IFNDEF UNICODE}RawByteString{$ELSE}ZWideString{$ENDIF}(Result));
+  Result := GetSQLHexString(Pointer(Value), Length(Value), GetServerProvider in [spMSSQL, spASE, spASA, spDB2]);
 end;
 
 function TZAbstractDbcConnection.GetEscapeString(const Value: ZWideString): ZWideString;
+var P: PWideChar;
+    L: LengthInt;
 begin
-  GetEscapeString(Pointer(Value), Length(Value), Result);
+  P := Pointer(Value);
+  L := Length(Value);
+  if (P <> nil) and ((PWord(P)^=Word(#39)) and (PWord(P+L-1)^=Word(#39)))
+  then Result := Value
+  else Result := SQLQuotedStr(P, L, WideChar(#39));
 end;
 
 function TZAbstractDbcConnection.GetEscapeString(const Value: RawByteString): RawByteString;
 var P: PAnsiChar;
+    L: LengthInt;
 begin
   P := Pointer(Value);
-  if (P <> nil) and (Length(Value)>1) and (AnsiChar(P^)=AnsiChar(#39)) and (AnsiChar((P+Length(Value)-1)^)=AnsiChar(#39))
+  L := Length(Value);
+  if (P <> nil) and ((PByte(P)^=Byte(#39)) and (PByte(P+L-1)^=Byte(#39)))
   then Result := Value
-  else GetEscapeString(P, Length(Value), Result);
-end;
-
-{**
-  Result 100% Compiler-Compatible
-  And sets it Result to ClientCodePage by calling the
-    PlainDriver.GetClientCodePageInformations function
-
-  @param ClientCharacterSet the CharacterSet which has to be checked
-  @result PZCodePage see ZCompatible.pas
-}
-function TZAbstractDbcConnection.GetClientCodePageInformations: PZCodePage; //EgonHugeist
-begin
-  Result := ConSettings.ClientCodePage
+  else Result := SQLQuotedStr(P, L, AnsiChar(#39));
 end;
 
 procedure TZAbstractDbcConnection.OnPropertiesChange(Sender: TObject);
 begin
   // do nothing in base class
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
-  RawCP: Word; out Result: RawByteString);
-var RawTemp: RawByteString;
-begin
-  RawTemp := PUnicodeToRaw(Buf, Len, RawCP);
-  GetEscapeString(Pointer(RawTemp), Length(RawTemp), Result);
-end;
-
-procedure TZAbstractDbcConnection.GetEscapeString(Buf: PWideChar; Len: LengthInt;
-  out Result: ZWideString);
-var RawTemp: RawByteString;
-begin
-  if ConSettings^.ClientCodePage^.Encoding = ceUTF16 then
-    Result := SQLQuotedStr(Buf, Len, WideChar(#39))
-  else begin
-    RawTemp := PUnicodeToRaw(Buf, Len, ConSettings^.ClientCodePage^.CP);
-    GetEscapeString(Pointer(RawTemp), Length(RawTemp), ConSettings^.ClientCodePage^.CP, Result);
-  end;
 end;
 
 { TZAbstractNotification }
@@ -2011,6 +1790,345 @@ end;
 function TZPostgreSQLSequence.GetNextValueSQL: string;
 begin
   Result := 'SELECT NEXTVAL('''+FName+''')';
+end;
+
+{ TZClientVariantManager }
+
+{**
+  Constructs this object and assigns the main properties.
+  @param ClientCodePage the current ClientCodePage.
+}
+constructor TZClientVariantManager.Create(const ConSettings: PZConSettings);
+begin
+  inherited Create; //Set all standard converters functions
+  FConSettings := ConSettings;
+  FFormatSettings := FConSettings.ReadFormatSettings;
+  FClientCP := Consettings.ClientCodePage.CP;
+  FCtrlsCP := Consettings.CTRL_CP;
+  FUseWComparsions := (FClientCP <> ZOSCodePage) or
+    (FClientCP = zCP_UTF8) or
+    Consettings.ClientCodePage.IsStringFieldCPConsistent or
+    (Consettings.ClientCodePage.Encoding = ceUTF16);
+end;
+
+function TZClientVariantManager.GetAsDateTime(
+  const Value: TZVariant): TDateTime;
+var P: Pointer;
+  L: LengthInt;
+label DateTimeFromRaw, DateTimeFromUnicode, Fail;
+begin
+  case Value.VType of
+    {$IFNDEF UNICODE}vtString,{$ENDIF}
+    {$IFNDEF NO_ANSISTRING}vtAnsiString,{$ENDIF}
+    {$IFNDEF NO_UTF8STRING}vtUTF8String,{$ENDIF}
+    vtRawByteString: begin
+        P := Pointer(Value.VRawByteString);
+        L := Length(Value.VRawByteString);
+DateTimeFromRaw:
+        if not ZSysUtils.TryPCharToDateTime(PAnsiChar(P), L, FConSettings^.ReadFormatSettings, Result{%H-}) then
+          goto Fail;
+      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      begin
+        P := Pointer(Value.VUnicodeString);
+        L := Length(Value.VUnicodeString);
+DateTimeFromUnicode:
+        if not ZSysUtils.TryPCharToDateTime(PWideChar(P), L, FConSettings^.ReadFormatSettings, Result) then
+          goto Fail;
+      end;
+    vtCharRec: begin
+        P := Value.VCharRec.P;
+        L := Value.VCharRec.Len;
+        if (Value.VCharRec.CP = zCP_UTF16)
+        then goto DateTimeFromUnicode
+        else goto DateTimeFromRaw;
+      end;
+    else
+Fail: Result := inherited GetAsDateTime(Value);
+  end;
+end;
+
+{$IFNDEF NO_ANSISTRING}
+procedure TZClientVariantManager.ProcessAnsiString(const Value: TZVariant;
+  out Result: TZVariant);
+var ResTmp: RawByteString;
+begin
+  Result.VType := vtAnsiString;
+  case Value.VType of
+    {$IFNDEF UNICODE}
+    vtString: if FConSettings.AutoEncode
+              then ResTmp := ZConvertStringToAnsiWithAutoEncode(Value.VRawByteString, FCtrlsCP)
+              else ResTmp := Value.VRawByteString;
+    {$ENDIF}
+    vtAnsiString: ResTmp := Value.VRawByteString;
+    vtUTF8String: if ZOSCodePage = zCP_UTF8
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, zCP_UTF8, ZOSCodePage);
+    vtRawByteString: if ZOSCodePage = FClientCP
+                     then ResTmp := Value.VRawByteString
+                     else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, ZOSCodePage);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, ZOSCodePage);
+    vtCharRec:
+      if (Value.VCharRec.CP = zCP_UTF16) then
+        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage)
+      else if (ZOSCodePage = Value.VCharRec.CP) then
+        ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, ZOSCodePage{$ENDIF})
+      else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, ZOSCodePage);
+    vtDateTime: ResTmp := ZSysUtils.DateTimeToRawSQLTimeStamp(Value.VDateTime, FFormatSettings, False);
+    else ConvertFixedTypesToRaw(Value, ResTmp{$IFDEF WITH_RAWBYTESTRING}, ZOSCodePage{$ENDIF});
+  end;
+  Result.VRawByteString := ResTmp;
+end;
+{$ENDIF NO_ANSISTRING}
+
+procedure TZClientVariantManager.ProcessCharRec(const Value: TZVariant;
+  out Result: TZVariant);
+label SetRaw;
+begin
+  Result.VType := vtCharRec;
+  case Value.VType of
+    vtNull:
+      begin
+        Result.VCharRec.Len := 0;
+        Result.VCharRec.CP := High(Word);
+        Result.VCharRec.P := nil;
+      end;
+    {$IFNDEF UNICODE}
+    vtString: begin
+        Result.VCharRec.CP := FCtrlsCP;
+        goto SetRaw;
+      end;
+    {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}
+    vtAnsiString: begin
+        Result.VCharRec.CP := ZOSCodePage;
+        goto SetRaw;
+      end;
+    {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}
+    vtUTF8String: begin
+        Result.VCharRec.CP := zCP_UTF8;
+        goto SetRaw;
+      end;
+    {$ENDIF}
+    vtRawByteString: begin
+        Result.VCharRec.CP := fClientCP;
+SetRaw: if Pointer(Result.VRawByteString) = nil then begin
+          Result.VCharRec.Len := 0;
+          Result.VCharRec.P := PEmptyAnsiString; //avoid nil result
+        end else begin
+          Result.VCharRec.Len := {%H-}PLengthInt(NativeUInt(Result.VRawByteString) - StringLenOffSet)^; //fast Length() helper
+          Result.VCharRec.P := Pointer(Result.VRawByteString); //avoid RTL conversion to PAnsiChar
+        end;
+      end;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      begin
+        Result.VUnicodeString := Value.VUnicodeString;
+        Result.VCharRec.CP := zCP_UTF16;
+        Result.VCharRec.Len := Length(Result.VUnicodeString);
+        if Result.VCharRec.Len = 0 then
+          Result.VCharRec.P := PEmptyUnicodeString //avoid nil result
+        else
+          Result.VCharRec.P := Pointer(Result.VUnicodeString); //avoid RTL conversion to PWideChar
+      end;
+    vtCharRec:
+      Result.VCharRec := Value.VCharRec;
+    else if (Ord(FConSettings^.ClientCodePage^.Encoding) < Ord(ceUTF16)) then begin
+          Result.VRawByteString := Convert(Value, vtRawByteString).VRawByteString;
+          Result.VCharRec.CP := FClientCP;
+          if Pointer(Result.VRawByteString) = nil then begin
+            Result.VCharRec.Len := 0;
+            Result.VCharRec.P := PEmptyAnsiString; //avoid nil result
+          end else begin
+            Result.VCharRec.Len := {%H-}PLengthInt(NativeUInt(Result.VRawByteString) - StringLenOffSet)^; //fast Length() helper
+            Result.VCharRec.P := Pointer(Result.VRawByteString); //avoid RTL conversion to PAnsiChar
+          end;
+        end else begin
+          Result.VUnicodeString := Convert(Value, vtUnicodeString).VUnicodeString;
+          Result.VCharRec.CP := zCP_UTF16;
+          Result.VCharRec.Len := Length(Result.VUnicodeString);
+          if Result.VCharRec.Len = 0
+          then Result.VCharRec.P := PEmptyUnicodeString //avoid nil result
+          else Result.VCharRec.P := Pointer(Result.VUnicodeString); //avoid RTL conversion to PAnsiChar
+        end;
+
+  end;
+end;
+
+procedure TZClientVariantManager.ProcessRawByteString(const Value: TZVariant;
+  out Result: TZVariant);
+var ResTmp: RawByteString;
+begin
+  Result.VType := vtRawByteString;
+  case Value.VType of
+    {$IFNDEF UNICODE}
+    vtString: if FConSettings.AutoEncode
+              then ResTmp := ZConvertStringToRawWithAutoEncode(Value.VRawByteString, FCtrlsCP, FClientCP)
+              else ResTmp := Value.VRawByteString;
+    {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}
+    vtAnsiString: if FClientCP = ZOSCodePage
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, FClientCP);
+    {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}
+    vtUTF8String: if FClientCP = zCP_UTF8
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, zCP_UTF8, FClientCP);
+    {$ENDIF}
+    vtRawByteString: ResTmp := Value.VRawByteString;
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, zCP_UTF8);
+    vtCharRec:
+      if (Value.VCharRec.CP = zCP_UTF16) then
+        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, FClientCP)
+      else if (FClientCP = Value.VCharRec.CP) then
+        ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, FClientCP{$ENDIF})
+      else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, FClientCP);
+    vtDateTime: ResTmp := ZSysUtils.DateTimeToRawSQLTimeStamp(Value.VDateTime, FFormatSettings, False);
+    else ConvertFixedTypesToRaw(Value, ResTmp{$IFDEF WITH_RAWBYTESTRING}, zCP_UTF8{$ENDIF});
+  end;
+  Result.VRawByteString := ResTmp;
+end;
+
+procedure TZClientVariantManager.ProcessString(const Value: TZVariant;
+  out Result: TZVariant);
+var ResTmp: {$IFDEF UNICODE}UnicodeString{$ELSE}RawByteString{$ENDIF};
+begin
+  Result.VType := vtString;
+  case Value.VType of
+    {$IFNDEF UNICODE}
+    vtString: Result.VRawByteString := Value.VRawByteString;
+    {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}
+    vtAnsiString: {$IFDEF UNICODE}
+                  ResTmp := ZRawToUnicode(Value.VRawByteString, ZOSCodePage);
+                  {$ELSE}
+                  if FConSettings^.CTRL_CP = ZOSCodePage
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, FCtrlsCP);
+                  {$ENDIF}
+    {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}
+    vtUTF8String: {$IFDEF UNICODE}
+                  ResTmp := ZRawToUnicode(Value.VRawByteString, zCP_UTF8);
+                  {$ELSE}
+                  if FCtrlsCP = zCP_UTF8
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, zCP_UTF8, FCtrlsCP);
+                  {$ENDIF}
+    {$ENDIF}
+    vtRawByteString: {$IFDEF UNICODE}
+                  ResTmp := ZRawToUnicode(Value.VRawByteString, FClientCP);
+                  {$ELSE}
+                  if (FCtrlsCP = FClientCP) or (not FConSettings.AutoEncode)
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, FCtrlsCP);
+                  {$ENDIF}
+   {$IFDEF UNICODE}vtString,{$ENDIF}
+   vtUnicodeString:
+      {$IFDEF UNICODE}
+      ResTmp := Value.VUnicodeString;
+      {$ELSE}
+      //hint: VarArrayOf(['Test']) returns allways varOleStr which is type WideString don't change that again
+      //this hint means a cast instead of convert. The user should better use WideString constants!
+      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, FCtrlsCP);
+      {$ENDIF}
+    vtCharRec: if (Value.VCharRec.CP = zCP_UTF16) then
+        {$IFDEF UNICODE}
+        SetString(ResTmp, PChar(Value.VCharRec.P), Value.VCharRec.Len)
+        {$ELSE}
+        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage)
+        {$ENDIF}
+      else
+        {$IFNDEF UNICODE}
+        if (FCtrlsCP = Value.VCharRec.CP)
+        then ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp)
+        else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, FCtrlsCP);
+        {$ELSE}
+        ResTmp := PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP);
+        {$ENDIF}
+    vtDateTime:
+      ResTmp := ZSysUtils.{$IFDEF UNICODE}DateTimeToUnicodeSQLTimeStamp{$ELSE}DateTimeToRawSQLTimeStamp{$ENDIF}(Value.VDateTime, FFormatSettings, False);
+    else {$IFDEF UNICODE}ConvertFixedTypesToUnicode{$ELSE}ConvertFixedTypesToRaw{$ENDIF}(Value, ResTmp{$IF defined(WITH_RAWBYTESTRING) and not defined(UNICODE)}, FCtrlsCP{$IFEND});
+  end;
+  Result.{$IFDEF UNICODE}VUnicodeString{$ELSE}VRawByteString{$ENDIF} := ResTmp;
+end;
+
+procedure TZClientVariantManager.ProcessUnicodeString(const Value: TZVariant;
+  out Result: TZVariant);
+var ResTmp: UnicodeString;
+begin
+  Result.VType := vtUnicodeString;
+  case Value.VType of
+    {$IFNDEF UNICODE}
+    vtString: if FConSettings.AutoEncode
+              then ResTmp := ZConvertStringToUnicodeWithAutoEncode(Value.VRawByteString, FCtrlsCP)
+              else ResTmp := ZRawToUnicode(Value.VRawByteString, FCtrlsCP);
+    {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}
+    vtAnsiString: ResTmp := ZRawToUnicode(Value.VRawByteString, ZOSCodePage);
+    {$ENDIF}
+    {$IFNDEF NO_UTF8STRING}
+    vtUTF8String: ResTmp := ZRawToUnicode(Value.VRawByteString, zCP_UTF8);
+    {$ENDIF}
+    vtRawByteString: ResTmp := ZRawToUnicode(Value.VRawByteString, FClientCP);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString: ResTmp := Value.VUnicodeString;
+    vtDateTime:      ResTmp := ZSysUtils.DateTimeToUnicodeSQLTimeStamp(Value.VDateTime, FFormatSettings, False);
+    vtCharRec: if (Value.VCharRec.CP = zCP_UTF16)
+        then SetString(ResTmp, PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
+        else ResTmp := PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP);
+    else ConvertFixedTypesToUnicode(Value, ResTmp);
+  end;
+  Result.VUnicodeString := ResTmp;
+end;
+
+{$IFNDEF NO_UTF8STRING}
+procedure TZClientVariantManager.ProcessUTF8String(const Value: TZVariant;
+  out Result: TZVariant);
+var ResTmp: RawByteString;
+begin
+  Result.VType := vtUTF8String;
+  case Value.VType of
+    {$IFNDEF UNICODE}
+    vtString: if FConSettings.AutoEncode
+              then ResTmp := ZConvertStringToUTF8WithAutoEncode(Value.VRawByteString, FCtrlsCP)
+              else ResTmp := Value.VRawByteString;
+    {$ENDIF}
+    {$IFNDEF NO_ANSISTRING}
+    vtAnsiString: if ZOSCodePage = zCP_UTF8
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, zCP_UTF8);
+    {$ENDIF}
+    vtUTF8String: ResTmp := Value.VRawByteString;
+    vtRawByteString: if ZOSCodePage = FClientCP
+                     then ResTmp := Value.VRawByteString
+                     else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, ZOSCodePage);
+    {$IFDEF UNICODE}vtString,{$ENDIF}
+    vtUnicodeString:
+      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, zCP_UTF8);
+    vtCharRec:
+      if (Value.VCharRec.CP = zCP_UTF16) then
+        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, zCP_UTF8)
+      else if (zCP_UTF8 = Value.VCharRec.CP) then
+        ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, zCP_UTF8{$ENDIF})
+      else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, zCP_UTF8);
+    vtDateTime: ResTmp := ZSysUtils.DateTimeToRawSQLTimeStamp(Value.VDateTime, FFormatSettings, False);
+    else ConvertFixedTypesToRaw(Value, ResTmp{$IFDEF WITH_RAWBYTESTRING}, zCP_UTF8{$ENDIF});
+  end;
+  Result.VRawByteString := ResTmp;
+end;
+{$ENDIF NO_UTF8STRING}
+
+function TZClientVariantManager.UseWComparsions: Boolean;
+begin
+  Result := FUseWComparsions;
 end;
 
 end.
