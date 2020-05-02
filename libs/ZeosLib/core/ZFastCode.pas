@@ -541,7 +541,7 @@ implementation
 uses
   {$IF defined(PatchSystemMove) and defined(MSWINDOWS)}Windows,{$IFEND}
   {$IF defined(WITH_STRLEN_DEPRECATED) and defined(WITH_UNITANSISTRINGS)}AnsiStrings, {$IFEND}
-  SysConst{$IFNDEF WITH_PUREPASCAL_INTPOWER}, Math{$ENDIF};
+  SysConst, Math;
 
 {$IF defined(PatchSystemMove) or defined(FAST_MOVE)} //set in Zeos.inc
 var
@@ -2649,6 +2649,11 @@ end; {PatchMove}
 {$ENDIF PatchSystemMove}
 {$IFEND} //set in Zeos.inc
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5093 off : Function result variable of a managed type does not seem to be initialized} //cpu 32
+  {$WARN 5094 off : Function result variable of a managed type does not seem to be initialized} //cpu 64
+{$ENDIF} // ZSetString does the job even if NOT required
 function IntToRaw(Value: Cardinal): RawByteString;
 var Digits: Byte;
 begin
@@ -2656,6 +2661,7 @@ begin
   ZSetString(nil, Digits, Result);
   IntToRaw(Value, Pointer(Result), Digits);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF} // ZSetString does the job even if NOT required
 
 {$IF defined(Delphi) and defined(WIN32)}
 function IntToRaw(Value: Integer): RawByteString;
@@ -3012,6 +3018,11 @@ asm
   pop    ebx
 end;
 {$ELSE}
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5093 off : Function result variable of a managed type does not seem to be initialized} //cpu 32
+  {$WARN 5094 off : Function result variable of a managed type does not seem to be initialized} //cpu 64
+{$ENDIF} // ZSetString does the job even if NOT required
 function IntToRaw(Value: Integer): RawByteString;
 var C: Cardinal;
   Digits: Byte;
@@ -3025,7 +3036,13 @@ begin
     PByte(P)^ := Ord('-');
   IntToRaw(C, P+Ord(Negative), Digits);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF} // ZSetString does the job even if NOT required
 
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 5093 off : Function result variable of a managed type does not seem to be initialized} //cpu 32
+  {$WARN 5094 off : Function result variable of a managed type does not seem to be initialized} //cpu 64
+{$ENDIF} // ZSetString does the job even if NOT required
 function IntToRaw(Value: Int64): RawByteString;
 var U: UInt64;
   Digits: Byte;
@@ -3039,6 +3056,7 @@ begin
     PByte(P)^ := Ord('-');
   IntToRaw(U, P+Ord(Negative), Digits);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF} // ZSetString does the job even if NOT required
 {$IFEND}
 
 function IntToRaw(Value: Byte): RawByteString;
@@ -3194,6 +3212,10 @@ cardinal_range:
     PByte(Buf)^ := I32 or ord('0');
 end;
 
+{$IFDEF FPC} {$PUSH}
+  {$WARN 5094 off : Function result variable of a managed type does not seem to be initialized}
+  {$WARN 5093 off : Function result variable of a managed type does not seem to be initialized}
+{$ENDIF} // ZSetString does the job even if NOT required
 function IntToRaw(const Value: UInt64): RawByteString;
 var Digits: Byte;
 begin
@@ -3201,6 +3223,7 @@ begin
   ZSetString(nil, Digits, Result);
   IntToRaw(Value, Pointer(Result), Digits);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF} // ZSetString does the job even if NOT required
 
 procedure CurrToRaw(const Value: Currency; Buf: PAnsiChar; PEnd: PPAnsiChar = nil);
 var
@@ -3249,8 +3272,9 @@ end;
 
 {$IFDEF FPC}
   {$PUSH}
-  {$WARN 5060 off : Function result variable does not seem to be initialized}
-{$ENDIF}
+  {$WARN 5093 off : Function result variable of a managed type does not seem to be initialized} //cpu 32
+  {$WARN 5094 off : Function result variable of a managed type does not seem to be initialized} //cpu 64
+{$ENDIF} // ZSetString does the job even if NOT required
 function CurrToRaw(const Value: Currency): RawByteString;
 var buf: array[0..31] of AnsiChar;
   P: PAnsiChar;
@@ -5485,6 +5509,23 @@ begin
     inc(Code);
     Neg := (Ch = Ord('-'));
   end;
+  if (Ch or $20 = Byte('n')) and not Neg then //test NAN (overrun safe)
+    if (S[Code+1] or $20 = Byte('a')) and (S[Code+2] or $20 = Byte('n')) and (S[Code+3] = 0) then begin
+      Code := 0;
+      Result := NaN;
+      Exit;
+    end;
+  if (S[code] or $20 = Byte('i')) then //test Infinity (overrun safe)
+    if (S[Code+1] or $20 = Byte('n')) and (S[Code+2] or $20 = Byte('f')) and
+       (S[Code+3] or $20 = Byte('i')) and (S[Code+4] or $20 = Byte('n')) and
+       (S[Code+5] or $20 = Byte('i')) and (S[Code+6] or $20 = Byte('t')) and
+       (S[Code+7] or $20 = Byte('y')) and (S[Code+8] = 0) then begin
+      Code := 0;
+      if Neg
+      then Result := NegInfinity
+      else Result := Infinity;
+      Exit;
+    end;
   while true do begin
     Ch := S[code];
     inc(Code);
@@ -5627,6 +5668,23 @@ begin
     inc(Code);
     Neg := (Ch = Ord('-'));
   end;
+  if (Ch or $20 = Byte('n')) and not Neg then //test NAN (overrun safe)
+    if (S[Code+1] or $20 = Byte('a')) and (S[Code+2] or $20 = Byte('n')) and (S[Code+3] = 0) then begin
+      Code := 0;
+      Result := NaN;
+      Exit;
+    end;
+  if (S[code] or $20 = Byte('i')) then //test Infinity (overrun safe)
+    if (S[Code+1] or $20 = Byte('n')) and (S[Code+2] or $20 = Byte('f')) and
+       (S[Code+3] or $20 = Byte('i')) and (S[Code+4] or $20 = Byte('n')) and
+       (S[Code+5] or $20 = Byte('i')) and (S[Code+6] or $20 = Byte('t')) and
+       (S[Code+7] or $20 = Byte('y')) and (S[Code+8] = 0) then begin
+      Code := 0;
+      if Neg
+      then Result := NegInfinity
+      else Result := Infinity;
+      Exit;
+    end;
   while true do begin
     Ch := S[code];
     inc(Code);
@@ -6408,6 +6466,23 @@ begin
     inc(Code);
     Neg := (W = Ord('-'));
   end;
+  if (W or $0020 = Byte('n')) and not Neg then //test NAN (overrun safe)
+    if (S[Code+1] or $0020 = Byte('a')) and (S[Code+2] or $0020 = Byte('n')) and (S[Code+3] = 0) then begin
+      Code := 0;
+      Result := NaN;
+      Exit;
+    end;
+  if (S[code] or $0020 = Byte('i')) then //test Infinity (overrun safe)
+    if (S[Code+1] or $0020 = Byte('n')) and (S[Code+2] or $0020 = Byte('f')) and
+       (S[Code+3] or $0020 = Byte('i')) and (S[Code+4] or $0020 = Byte('n')) and
+       (S[Code+5] or $0020 = Byte('i')) and (S[Code+6] or $0020 = Byte('t')) and
+       (S[Code+7] or $0020 = Byte('y')) and (S[Code+8] = 0) then begin
+      Code := 0;
+      if Neg
+      then Result := NegInfinity
+      else Result := Infinity;
+      Exit;
+    end;
   while true do begin
     W := S[code];
     inc(Code);
@@ -6497,6 +6572,23 @@ begin
     inc(Code);
     Neg := (W = Ord('-'));
   end;
+  if (W or $0020 = Byte('n')) and not Neg then //test NAN (overrun safe)
+    if (S[Code+1] or $0020 = Byte('a')) and (S[Code+2] or $0020 = Byte('n')) and (S[Code+3] = 0) then begin
+      Code := 0;
+      Result := NaN;
+      Exit;
+    end;
+  if (S[code] or $0020 = Byte('i')) then //test Infinity (overrun safe)
+    if (S[Code+1] or $0020 = Byte('n')) and (S[Code+2] or $0020 = Byte('f')) and
+       (S[Code+3] or $0020 = Byte('i')) and (S[Code+4] or $0020 = Byte('n')) and
+       (S[Code+5] or $0020 = Byte('i')) and (S[Code+6] or $0020 = Byte('t')) and
+       (S[Code+7] or $0020 = Byte('y')) and (S[Code+8] = 0) then begin
+      Code := 0;
+      if Neg
+      then Result := NegInfinity
+      else Result := Infinity;
+      Exit;
+    end;
   while true do begin
     W := S[code];
     inc(Code);
@@ -7004,25 +7096,22 @@ end;
 //Optimized for:     Pure-Pascal
 
 //changed to PByte support:
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF} // uses pointer maths
 function StrLen_JOH_PAS_3_a(const Str: PAnsiChar): Cardinal;
 var
   P, PStr: PAnsiChar;
   I, J: Integer;
 begin
-  if (Str = nil) or (Ord(Str^) = Ord(#0)) then
-    begin
+  if (Str = nil) or (PByte(Str)^ = 0) then begin
       Result := 0; Exit;
     end;
-  if Ord((Str+1)^) = Ord(#0) then
-    begin
+  if PByte(Str+1)^ = 0 then begin
       Result := 1; Exit;
     end;
-  if Ord((Str+2)^) = Ord(#0) then
-    begin
+  if PByte(Str+2)^ = 0 then begin
       Result := 2; Exit;
     end;
-  if Ord((Str+3)^) = Ord(#0) then
-    begin
+  if PByte(Str+3)^ = 0 then begin
       Result := 3; Exit;
     end;
  P := Pointer(Str);
@@ -7045,6 +7134,7 @@ begin
      else
        Inc(Result, 3)
 end;
+{$IFDEF FPC} {$POP} {$ENDIF} // uses pointer maths
   {$ENDIF PUREPASCAL}
 {$ENDIF USE_FAST_STRLEN}
 
