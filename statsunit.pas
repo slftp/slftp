@@ -519,7 +519,7 @@ begin
   if (ORMStatsDB = nil) then
   begin
     Debug(dpSpam, section, '[StatRaces] stats disabled.');
-    irc_addtext(aNetname, aChannel, Format('Stats are disabled.', [fAllSizeTransfered, fSizeAllUnit, fAllFilesTransfered]));
+    irc_addtext(aNetname, aChannel, 'Stats are disabled.');
     exit;
   end;
 
