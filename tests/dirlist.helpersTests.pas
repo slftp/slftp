@@ -18,6 +18,7 @@ type
     procedure TestIsFtpRushScrewedUpFile4;
     procedure TestIsFtpRushScrewedUpFile5;
     procedure TestIsFtpRushScrewedUpFile6;
+    procedure TestIsFtpRushScrewedUpFile7;
   end;
 
 implementation
@@ -86,6 +87,16 @@ begin
   fFileExtensionStr := '.jpg';
 
   CheckTrue(IsFtpRushScrewedUpFile(fFilenameStr, fFileExtensionStr), 'File is fucked up!');
+end;
+
+procedure TTestDirlistHelpers.TestIsFtpRushScrewedUpFile7;
+var
+  fFilenameStr, fFileExtensionStr: String;
+begin
+  fFilenameStr := 'watchable-swordclaw-watchable-1080p(1975).nfo';
+  fFileExtensionStr := '.nfo';
+
+  CheckFalse(IsFtpRushScrewedUpFile(fFilenameStr, fFileExtensionStr), 'File is legit!');
 end;
 
 initialization
