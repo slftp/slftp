@@ -138,6 +138,13 @@ var
   fFileInfoRec: TSQLFileInfoRecord;
   fStatsRec: TSQLStatsRecord;
 begin
+
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
+    exit;
+  end;
+
   if (aFilesize < _GetMinFilesize) then
   begin
     Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
@@ -236,6 +243,12 @@ var
   fOnlyUsedForDeletedSites: Boolean;
 begin
   Result := False;
+
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[RemoveStats] stats disabled.');
+    exit;
+  end;
 
   { delete sitename from site table }
   try
@@ -503,6 +516,13 @@ var
   end;
 
 begin
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[StatRaces] stats disabled.');
+    irc_addtext(aNetname, aChannel, 'Stats are disabled.');
+    exit;
+  end;
+
   fSQLPeriod := GetSQLPeriod(aPeriod);
 
   if aSitename = '*' then
