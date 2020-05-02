@@ -172,11 +172,11 @@ type
     property FullPath: String read FFullPath write FFullPath;
   end;
 
-{ Just a helper function to initialize @link(global_skip), image_files_priority and video_files_priority }
+{ Just a helper function to initialize @link(GlobalSkiplistRegex), image_files_priority and video_files_priority }
 procedure DirlistInit;
 
 var
-  global_skip: String; //< global_skip value from slftp.ini
+
   AsciiFiletypes: array [1..5] of String = ('.nfo', '.sfv', '.m3u', '.cue', '.diz'); //< ASCII files which may need special handling because they might differ in size due to different line endings etc
 
 implementation
@@ -576,11 +576,10 @@ var
   skip_being_uploaded_files: boolean;
   de: TDirListEntry;
   added: Boolean;
-  dirmaszk, username, groupname, datum, filename: String;
-  filesize: Int64;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
   i: Integer;
   fTagCompleteType: TTagCompleteType;
-  rrgx: TRegExpr;
 begin
   added := False;
 
@@ -601,10 +600,6 @@ begin
     skip_being_uploaded_files := site.SkipBeingUploadedFiles;
   end;
 
-  rrgx := TRegExpr.Create;
-  rrgx.ModifierI := True;
-  rrgx.Expression := global_skip;
-
   dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
@@ -612,85 +607,70 @@ begin
       de := TDirlistEntry(entries[i]);
       de.IsOnSite := False;
     end;
-	
-    while(true) do
+
+{
+  s contains the whole ftpd response:
+  drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample
+  drwxrwxrwx   2 xxxx     USA              2 Apr 19 23:15 [xxx] - ( 2539M 28F - COMPLETE ) - [xxx]
+  -rw-r--r--   1 dqdq     DSE          10295 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.nfo
+  -rw-r--r--   1 abc      Friends  100000000 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.r00
+  ...
+  drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+}
+    while (True) do
     begin
       tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      // tmp contains a single line:
+      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 
       if tmp = '' then break;
-
-      //drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-      if (length(tmp) > 11) then
+      if (Length(tmp) > 11) then
       begin
         if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
           continue;
 
-        dirmaszk := Fetch(tmp, ' ', True, False); // dir mask
-        tmp := TrimLeft(tmp);
-        Fetch(tmp, ' ', True, False); // No. of something
-        tmp := TrimLeft(tmp);
-        username := Fetch(tmp, ' ', True, False); // username
-        tmp := TrimLeft(tmp);
-        groupname := Fetch(tmp, ' ', True, False); // groupname
-        tmp := TrimLeft(tmp);
-        filesize := StrToInt64Def(Fetch(tmp, ' ', True, False), -1); // filesize
+        ParseStatResponseLine(tmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
 
-        if filesize < 0 then
+        if fFilesize < 0 then
           Continue;
 
-        datum := Fetch(tmp, ' ', True, False);
-        tmp := TrimLeft(tmp);
-        datum := datum + ' ' + Fetch(tmp, ' ', True, False);
-        tmp := TrimLeft(tmp);
-        datum := datum + ' ' + Fetch(tmp, ' ', True, False); // date and time
-        filename := Trim(tmp); // file or dirname
-
-        if filename = '' then
+        if not IsValidFilename(fFilename) then
           Continue;
-
-        if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
-          continue;
-
-        if rrgx.Exec(filename) then
-        begin
-          //debugunit.Debug(dpMessage, section, Format('[iNFO] --> ParseDirlist skip: %s', [filename]));
-          Continue;
-        end;
 
         // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
         begin
           // Dont add complete tags to dirlist entries
-          if ((dirmaszk[1] = 'd') or (filesize < 1)) then
+          if ((fDirMask[1] = 'd') or (fFilesize < 1)) then
           begin
-            fTagCompleteType := TagComplete(filename);
+            fTagCompleteType := TagComplete(fFilename);
             if (fTagCompleteType <> tctUNMATCHED) then
             begin
-              FCompleteDirTag := filename;
+              FCompleteDirTag := fFilename;
               Continue;
             end;
           end;
 
           // entry is a dir with unwanted characters
-          if ((dirmaszk[1] = 'd') and (AnsiMatchText(filename, ['[', ']', ',', '=']))) then
+          if ((fDirMask[1] = 'd') and (AnsiMatchText(fFilename, ['[', ']', ',', '=']))) then
           begin
             Continue;
           end;
 
           // file is flagged as skipped
-          if (skipped.IndexOf(filename) <> -1) then
+          if (skipped.IndexOf(fFilename) <> -1) then
           begin
             Continue;
           end;
 
           // entry is a file and is 0 byte
-          if ((dirmaszk[1] <> 'd') and (filesize < 1)) then
+          if ((fDirMask[1] <> 'd') and (fFilesize < 1)) then
           begin
             Continue;
           end;
 
           // entry is a file and is not downlodable
-          if ((dirmaszk[1] <> 'd') and ((dirmaszk[5] <> 'r') and (dirmaszk[8] <> 'r'))) then
+          if ((fDirMask[1] <> 'd') and ((fDirMask[5] <> 'r') and (fDirMask[8] <> 'r'))) then
           begin
             Continue;
           end;
@@ -698,19 +678,19 @@ begin
           // entry is a file and is being uploaded (glftpd only?)
           if skip_being_uploaded_files then
           begin
-            if ((dirmaszk[1] <> 'd') and ((dirmaszk[7] = 'x') and (dirmaszk[10] = 'x'))) then
+            if ((fDirMask[1] <> 'd') and ((fDirMask[7] = 'x') and (fDirMask[10] = 'x'))) then
             begin
               Continue;
             end;
           end;
         end;
 
-        akttimestamp := Timestamp(datum);
+        akttimestamp := Timestamp(fDatum);
 
-        de := Find(filename);
+        de := Find(fFilename);
         if de = nil then
         begin
-          de := TDirListEntry.Create(filename, self);
+          de := TDirListEntry.Create(fFilename, self);
 
           if ((de.Extension = '.sfv') and (HasSFV)) then
           begin
@@ -723,15 +703,15 @@ begin
             Continue;
           end;
 
-          de.FUsername := username;
-          de.FGroupname := groupname;
+          de.FUsername := fUsername;
+          de.FGroupname := fGroupname;
           de.timestamp := akttimestamp;
           de.done := True;
           de.justadded := True;
-          de.directory := (dirmaszk[1] = 'd');
+          de.directory := (fDirMask[1] = 'd');
 
           if not de.directory then
-            de.filesize := filesize;
+            de.filesize := fFilesize;
 
           // Do not filter if we call the dirlist from irc
           if not FIsFromIrc then
@@ -740,7 +720,7 @@ begin
             begin
               try
                 // check if we have a special kind of subdirectory
-                de.DirType := RecognizeDirTypeFromDirname(filename);
+                de.DirType := RecognizeDirTypeFromDirname(fFilename);
               except
                 on e: Exception do
                   debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
@@ -805,17 +785,17 @@ begin
           LastChanged := Now();
           added := True;
         end
-        else if (de.filesize <> filesize) then
+        else if (de.filesize <> fFilesize) then
         begin
-          if ((de.filesize <> filesize) or (de.FUsername <> username)) then
+          if ((de.filesize <> fFilesize) or (de.FUsername <> fUsername)) then
           begin
             LastChanged := Now();
           end;
 
-          de.filesize := filesize;
+          de.filesize := fFilesize;
           de.timestamp := akttimestamp;
-          de.FUsername := username;
-          de.FGroupname := groupname;
+          de.FUsername := fUsername;
+          de.FGroupname := fGroupname;
         end;
         de.IsOnSite := True;
       end;
@@ -823,7 +803,6 @@ begin
 
   finally
     dirlist_lock.Leave;
-    rrgx.Free;
   end;
 
   // entries found means the dir exists
@@ -1779,7 +1758,7 @@ end;
 
 procedure DirlistInit;
 begin
-  global_skip := config.ReadString(section, 'global_skip', '\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)');
+  GlobalSkiplistRegex := config.ReadString(section, 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
