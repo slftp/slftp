@@ -71,7 +71,8 @@ uses
   globalskipunitTests,
   irccolorunitTests,
   ircparsingTests,
-  slmasksTests;
+  slmasksTests,
+  dirlist.helpersTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -100,6 +101,7 @@ begin
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
+  InitialDirlistSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

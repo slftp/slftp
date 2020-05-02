@@ -53,7 +53,8 @@ uses
   globalskipunitTests,
   irccolorunitTests,
   ircparsingTests,
-  slmasksTests;
+  slmasksTests,
+  dirlist.helpersTests;
 
 var
   filecheck: String;
@@ -74,6 +75,7 @@ begin
   InitialSLLanguagesSetup;
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
+  InitialDirlistSetup;
 
 
   // run all registered tests
