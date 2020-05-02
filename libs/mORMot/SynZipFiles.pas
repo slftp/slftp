@@ -43,20 +43,6 @@ unit SynZipFiles;
 
   ***** END LICENSE BLOCK *****
 
-  Version 1.10
-  - code modifications to compile with Delphi 6 compiler
-
-  Version 1.13
-  - handle Unicode versions of Delphi (Delphi 2009/2010/XE)
-  - now officialy handle UTF-8 encoded file names inside .Zip archive
-
-  Version 1.18
-  - removed uneeded reference to SynCrypto unit in uses clause
-  - fixed pure pascal compilation issue
-  - unit fixed and tested with Delphi XE2 (and up) 64-bit compiler
-  - fixed ticket [63132b355e] about reading empty folders from .zip archive
-  - added TZipEntry.LocalHeader and TZipEntry.LocalDataPosition methods
-
 *)
 
 interface
@@ -121,7 +107,8 @@ type
 
   TSynCompressionAlgoClass = class of TSynCompressionAlgo;
 
-  {$ifdef UNICODE}TSynCompressionAlgos = record{$else}TSynCompressionAlgos = object{$endif}
+  {$ifdef USERECORDWITHMETHODS}TSynCompressionAlgos = record
+    {$else}TSynCompressionAlgos = object{$endif}
   public
     Values: array of record
       ID, WholeID: integer;
@@ -241,7 +228,8 @@ type
   // used to transfert Blob Data from/to Client without compress/uncompress:
 {$A-}
   PBlobData = ^TBlobData;
-  {$ifdef UNICODE}TBlobData = record{$else}TBlobData = object{$endif}
+  {$ifdef USERECORDWITHMETHODS}TBlobData = record
+    {$else}TBlobData = object{$endif}
   private
     // test if algo is registered, perform crc32 check and create one instance
     function AlgoCreate(data: pointer): TSynCompressionAlgo;
