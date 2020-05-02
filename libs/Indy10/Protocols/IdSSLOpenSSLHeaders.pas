@@ -17065,7 +17065,7 @@ var
   {$EXTERNALSYM d2i_X509_bio}
   d2i_X509_bio : function(bp: PBIO; x: PPx509): PX509 cdecl = nil;
   {$EXTERNALSYM i2d_X509_REQ_bio}
-  i2d_X509_REQ_bio : function(x: PX509_REQ; bp: PBIO): TIdC_INT cdecl = nil;
+  i2d_X509_REQ_bio : function(bp: PBIO; x: PX509_REQ): TIdC_INT cdecl = nil;
   {$EXTERNALSYM i2d_X509_bio}
   i2d_X509_bio : function(bp: PBIO; x: PX509): TIdC_INT cdecl = nil;
   {$EXTERNALSYM i2d_PrivateKey_bio}
@@ -18933,7 +18933,9 @@ uses
   IdResourceStringsOpenSSL,
   IdStack
   {$IFDEF FPC}
-    , DynLibs  // better add DynLibs only for fpc
+    {$IFNDEF WINDOWS}
+      , DynLibs  // needed for FreeLibrary
+    {$ENDIF}
   {$ENDIF};
 
 {$IFNDEF OPENSSL_NO_HMAC}
@@ -19561,7 +19563,17 @@ const
   where the symbolic link libbsl.so and libcrypto.so do not exist}
   SSL_DLL_name         = 'libssl'; {Do not localize}
   SSLCLIB_DLL_name     = 'libcrypto'; {Do not localize}
-  SSLDLLVers : array [0..7] of string = ('.10','.1.0.2','.1.0.1','.1.0.0','.0.9.9','.0.9.8','.0.9.7','.0.9.6');
+  SSLDLLVers : array [0..10] of string = (
+    '.10',
+    '.1.0.2','.1.0.1',
+    // TODO: IFDEF the following for OSX only?
+    '.44',              // MacOS LibreSSL forked from which OpenSSL version? Sometimes found ...
+    '.43',              // MacOS LibreSSL forked from which OpenSSL version? Sometimes found ...
+                        // TODO: Add '.41' as well?
+    '.35',              // MacOS LibreSSL forked from OpenSSL version 1.0.1, almost always found
+    //
+    '.1.0.0','.0.9.9','.0.9.8','.0.9.7','.0.9.6'
+  );
   SSLDLLVersChar : array [0..26] of string = ('','a','b','c','d','e','f','g','h','i',
                                                  'j','k','l','m','n','o','p','q','r',
                                                  's','t','u','v','w','x','y','z');
@@ -22542,26 +22554,19 @@ them in case we use them later.}
   {$ENDIF}
 
 
-{ IMPORTANT!!!
-
-WindowsCE only has a Unicode (WideChar) version of GetProcAddress.  We could use
-a version of GetProcAddress in the FreePascal dynlibs unit but that does a
-conversion from ASCII to Unicode which might not be necessary since most calls
-pass a constant anyway.
-}
-function LoadFunction(const FceName: {$IFDEF WINCE}TIdUnicodeString{$ELSE}string{$ENDIF}; const ACritical : Boolean = True): Pointer;
+function LoadFunction(const FceName: TIdLibFuncName; const ACritical : Boolean = True): Pointer;
 begin
-  Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(hIdSSL, {$IFDEF WINCE}PWideChar{$ELSE}PChar{$ENDIF}(FceName));
+  Result := LoadLibFunction(hIdSSL, FceName);
   if (Result = nil) and ACritical then begin
-    FFailedLoadList.Add(FceName); {do not localize}
+    FFailedLoadList.Add(FceName);
   end;
 end;
 
-function LoadFunctionCLib(const FceName: {$IFDEF WINCE}TIdUnicodeString{$ELSE}string{$ENDIF}; const ACritical : Boolean = True): Pointer;
+function LoadFunctionCLib(const FceName: TIdLibFuncName; const ACritical : Boolean = True): Pointer;
 begin
-  Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(hIdCrypto, {$IFDEF WINCE}PWideChar{$ELSE}PChar{$ENDIF}(FceName));
+  Result := LoadLibFunction(hIdCrypto, FceName);
   if (Result = nil) and ACritical then begin
-    FFailedLoadList.Add(FceName); {do not localize}
+    FFailedLoadList.Add(FceName);
   end;
 end;
 
@@ -22574,11 +22579,11 @@ The OpenSSL developers changed that interface to a new "des_*" API.  They have s
  "_ossl_old_des_*" for backwards compatability with the old functions
  which are defined in des_old.h. 
 }
-function LoadOldCLib(const AOldName, ANewName : {$IFDEF WINCE}TIdUnicodeString{$ELSE}String{$ENDIF}; const ACritical : Boolean = True): Pointer;
+function LoadOldCLib(const AOldName, ANewName : TIdLibFuncName; const ACritical : Boolean = True): Pointer;
 begin
-  Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(hIdCrypto, {$IFDEF WINCE}PWideChar{$ELSE}PChar{$ENDIF}(AOldName));
+  Result := LoadLibFunction(hIdCrypto, AOldName);
   if Result = nil then begin
-    Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(hIdCrypto, {$IFDEF WINCE}PWideChar{$ELSE}PChar{$ENDIF}(ANewName));
+    Result := LoadLibFunction(hIdCrypto, ANewName);
     if (Result = nil) and ACritical then begin
       FFailedLoadList.Add(AOldName);
     end;
@@ -22943,10 +22948,6 @@ begin
   @X509_STORE_CTX_get_current_cert := LoadFunctionCLib(fn_X509_STORE_CTX_get_current_cert);  //Used by Indy
   @X509_STORE_add_lookup := LoadFunctionCLib(fn_X509_STORE_add_lookup);  //Used by Indy
   @X509_STORE_load_locations := LoadFunctionCLib(fn_X509_STORE_load_locations);  //Used by Indy
-  @i2d_DSAPrivateKey := LoadFunctionCLib(fn_i2d_DSAPrivateKey); //Used by Indy
-  @d2i_DSAPrivateKey := LoadFunctionCLib(fn_d2i_DSAPrivateKey); //Used by Indy
-  @d2i_PrivateKey := LoadFunctionCLib(fn_d2i_PrivateKey);  //Used by Indy
-  @d2i_PrivateKey_bio := LoadFunctionCLib(fn_d2i_PrivateKey_bio);  //Used by Indy
   @X509_sign := LoadFunctionCLib(fn_X509_sign,False);
   @X509_REQ_sign := LoadFunctionCLib(fn_X509_REQ_sign,False);
   @X509_REQ_add_extensions := LoadFunctionCLib(fn_X509_REQ_add_extensions,False);
@@ -23097,15 +23098,18 @@ we have to handle both cases.
   @d2i_RSAPublicKey := LoadFunctionCLib(fn_d2i_RSAPublicKey,False);
   @i2d_PrivateKey := LoadFunctionCLib(fn_i2d_PrivateKey,False);
   @d2i_PrivateKey := LoadFunctionCLib(fn_d2i_PrivateKey);  //Used by Indy
+  @d2i_PrivateKey_bio := LoadFunctionCLib(fn_d2i_PrivateKey_bio);  //Used by Indy
 
+  @i2d_DSAPrivateKey := LoadFunctionCLib(fn_i2d_DSAPrivateKey); //Used by Indy
+  @d2i_DSAPrivateKey := LoadFunctionCLib(fn_d2i_DSAPrivateKey); //Used by Indy
   @i2d_DSAparams := LoadFunctionCLib(fn_i2d_DSAparams,False);
   @d2i_DSAparams := LoadFunctionCLib(fn_d2i_DSAparams,False);
   @i2d_DHparams := LoadFunctionCLib(fn_i2d_DHparams,False);
   @d2i_DHparams := LoadFunctionCLib(fn_d2i_DHparams);  //Used by Indy
   @i2d_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_i2d_NETSCAPE_CERT_SEQUENCE,False);
-  @d2i_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_i2d_NETSCAPE_CERT_SEQUENCE);  //Indy by Indy
+  @d2i_NETSCAPE_CERT_SEQUENCE := LoadFunctionCLib(fn_d2i_NETSCAPE_CERT_SEQUENCE);  //Indy by Indy
   @i2d_PUBKEY := LoadFunctionCLib(fn_i2d_PUBKEY,False);
-  @d2i_PUBKEY := LoadFunctionCLib(fn_i2d_PUBKEY,False);
+  @d2i_PUBKEY := LoadFunctionCLib(fn_d2i_PUBKEY,False);
 
   //X509
   @X509_get_default_cert_file := LoadFunctionCLib(fn_X509_get_default_cert_file); //Used by Indy
@@ -23216,7 +23220,7 @@ we have to handle both cases.
  // @EVP_des_ede_cfb1 := LoadFunctionCLib(fn_EVP_des_ede_cfb1,False);
  // @EVP_des_ede_cfb8 := LoadFunctionCLib(fn_EVP_des_ede_cfb8,False);
   //#endif
-  @EVP_des_ede3_cfb64 := LoadFunctionCLib(fn_EVP_des_cfb64);
+  @EVP_des_ede3_cfb64 := LoadFunctionCLib(fn_EVP_des_ede3_cfb64,False);
   @EVP_des_ede3_cfb1 := LoadFunctionCLib(fn_EVP_des_ede3_cfb1,False);
   @EVP_des_ede3_cfb8 := LoadFunctionCLib(fn_EVP_des_ede3_cfb8,False);
   @EVP_des_ofb := LoadFunctionCLib(fn_EVP_des_ofb,False);
@@ -23410,7 +23414,6 @@ we have to handle both cases.
   @BIO_set_cipher :=LoadFunctionCLib(fn_BIO_set_cipher,False);
 {$endif}
 
-  @EVP_PKEY_type := LoadFunctionCLib(fn_EVP_PKEY_type);
   @EVP_PKEY_new := LoadFunctionCLib(fn_EVP_PKEY_new);
   @EVP_PKEY_free := LoadFunctionCLib(fn_EVP_PKEY_free);  //USED in Indy
   @EVP_PKEY_assign := LoadFunctionCLib(fn_EVP_PKEY_assign);
@@ -24497,6 +24500,7 @@ begin
   SetString(time_str, UCTtime^.data, UCTtime^.length);
     {$ELSE}
   SetString(LTemp, UCTtime^.data, UCTtime^.length);
+  // TODO: do we need to use SetCodePage() here?
   time_str := String(LTemp); // explicit convert to Unicode
     {$ENDIF}
   {$ENDIF}
