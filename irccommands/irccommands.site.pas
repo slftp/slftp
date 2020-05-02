@@ -1826,78 +1826,11 @@ var
   sitesList : TStringList;
   site: TSite;
 
-  { parses the output of 'SITE STAT' for credits and ratio }
-  function _parseSTATLine(const sitename, line: String): String;
-  var
-    x: TRegExpr;
-    ss, creds, ratio: String;
-    minus: boolean;
-    c: double;
-  begin
-    ratio := '';
-    creds := '';
-
-    x := TRegExpr.Create;
-    try
-      x.ModifierI := True;
-
-      x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)');
-      if x.Exec(line) then
-      begin
-        if (AnsiContainsText(x.Match[3], 'Unlimited') or (x.Match[3] = '1:0.0')) then
-          ratio := 'Unlimited'
-        else
-          ratio := x.Match[2];
-      end;
-
-      // ratio(UL: 1:3 | DL: 1:1)
-      if ratio = '' then
-      begin
-        x.Expression := '(Ratio\((.*)\))';
-        if x.Exec(line) then
-        begin
-          ratio := x.Match[2];
-        end;
-      end;
-
-      x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?(MB|GB|TB|EP|ZP)\]?');
-      if x.Exec(line) then
-      begin
-        minus := False;
-        ss := x.Match[2];
-        if AnsiContainsText(ss, '-') then
-        begin
-          minus := True;
-          ss := StringReplace(ss, '-', '', [rfReplaceAll, rfIgnoreCase]);
-        end;
-        {$IFDEF FPC}
-          ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-        {$ELSE}
-          ss := StringReplace(ss, '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-        {$ENDIF}
-        c := strtofloat(ss);
-        ss := x.Match[3];
-        if UpperCase(ss) = 'MB' then
-        begin
-          RecalcSizeValueAndUnit(c, ss, 2);
-        end;
-
-        if minus then
-          creds := Format('<c4> -%.2f %s </c>', [c, ss])
-        else
-          creds := Format('<c3> %.2f %s </c>', [c, ss]);
-      end;
-
-      result := Format('Credits on <b>%s</b>: %s (%s)', [sitename, creds, ratio]);
-    finally
-      x.free;
-    end;
-  end;
-
   procedure _ShowCredits(const Netname, Channel: String; s: TSite);
   var
     r: TRawTask;
     tn: TTaskNotify;
+    fCredits, fRatio: String;
   begin
     if ((s = nil) or (s.Name = getAdminSiteName)) then
       exit;
@@ -1927,7 +1860,20 @@ var
           exit;
         end;
       end;
-      irc_addtext(Netname, Channel, _parseSTATLine(s.Name, TSiteResponse(tn.responses[0]).response));
+
+      ParseSTATLine(TSiteResponse(tn.responses[0]).response, fCredits, fRatio);
+      // if negative, set color accordingly
+      if AnsiContainsText(fCredits, '-') then
+      begin
+        fCredits := Format('<c4> %s </c>', [fCredits]);
+      end
+      else
+      begin
+        fCredits := Format('<c3> %s </c>', [fCredits]);
+      end;
+
+      fCredits := StringReplace(fCredits, ',', '.', [rfReplaceAll, rfIgnoreCase]);
+      irc_addtext(Netname, Channel, Format('Credits on <b>%s</b>: %s (%s)', [s.Name, fCredits, fRatio]));
     finally
       RemoveTN(tn);
     end;
