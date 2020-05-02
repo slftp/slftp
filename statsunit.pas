@@ -138,6 +138,13 @@ var
   fFileInfoRec: TSQLFileInfoRecord;
   fStatsRec: TSQLStatsRecord;
 begin
+
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
+    exit;
+  end;
+
   if (aFilesize < _GetMinFilesize) then
   begin
     Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
@@ -236,6 +243,12 @@ var
   fOnlyUsedForDeletedSites: Boolean;
 begin
   Result := False;
+
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[RemoveStats] stats disabled.');
+    exit;
+  end;
 
   { delete sitename from site table }
   try
@@ -352,6 +365,13 @@ var
   var
     fStatsRec: TSQLStatsRecord;
   begin
+
+    if (ORMStatsDB = nil) then
+    begin
+      Debug(dpSpam, section, '[GetTransferStats] stats disabled.');
+      exit;
+    end;
+
     InitValues(aFileSizeStats);
 
     fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
@@ -385,6 +405,13 @@ var
     fSitename, fSizeUnit: String;
     fSize: Double;
   begin
+
+    if (ORMStatsDB = nil) then
+    begin
+      Debug(dpSpam, section, '[GetDetailedTransferStats] stats disabled.');
+      exit;
+    end;
+
     fSiteInfosList := TDictionary<String, TFileSizeStats>.Create;
     try
       case aDirection of
