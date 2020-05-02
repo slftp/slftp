@@ -1,2 +1,2 @@
-39b514b661494cfdfbfc264ba6f719f05fce1698
-Fix for THANDLE_32 define on OSX for FreePascal.
+2d7f939c62778bd7954397fb658a80092a914924
+Trying to fix a Range Check error in FPC on Windows CE
