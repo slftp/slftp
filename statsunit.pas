@@ -365,13 +365,6 @@ var
   var
     fStatsRec: TSQLStatsRecord;
   begin
-
-    if (ORMStatsDB = nil) then
-    begin
-      Debug(dpSpam, section, '[GetTransferStats] stats disabled.');
-      exit;
-    end;
-
     InitValues(aFileSizeStats);
 
     fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
@@ -405,13 +398,6 @@ var
     fSitename, fSizeUnit: String;
     fSize: Double;
   begin
-
-    if (ORMStatsDB = nil) then
-    begin
-      Debug(dpSpam, section, '[GetDetailedTransferStats] stats disabled.');
-      exit;
-    end;
-
     fSiteInfosList := TDictionary<String, TFileSizeStats>.Create;
     try
       case aDirection of
@@ -530,6 +516,13 @@ var
   end;
 
 begin
+  if (ORMStatsDB = nil) then
+  begin
+    Debug(dpSpam, section, '[StatRaces] stats disabled.');
+    irc_addtext(aNetname, aChannel, Format('Stats are disabled.', [fAllSizeTransfered, fSizeAllUnit, fAllFilesTransfered]));
+    exit;
+  end;
+
   fSQLPeriod := GetSQLPeriod(aPeriod);
 
   if aSitename = '*' then
