@@ -27,6 +27,16 @@ type
     procedure TestParseEPSVStringIPv41;
     procedure TestParseEPSVStringIPv42;
     procedure TestParseEPSVStringIPv43;
+    procedure TestParseSTATLine1;
+    procedure TestParseSTATLine2;
+    procedure TestParseSTATLine3;
+    procedure TestParseSTATLine4;
+    procedure TestParseSTATLine5;
+    procedure TestParseSTATLine6;
+    procedure TestParseSTATLine7;
+    procedure TestParseSTATLine8;
+    procedure TestParseSTATLine9;
+    procedure TestParseSTATLine10;
   end;
 
 implementation
@@ -333,6 +343,146 @@ begin
   CheckEquals(fExpecHost, fHost);
   CheckEquals(fExpecPort, fPort);
   CheckEquals(fExpecIPv4, fIPv4Mode);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine1;
+var
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.09 Unlimited
+  fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MB] [Ratio: UL&DL: Unlimited]';
+  fExpectedCredits := '14.60 MB';
+  fExpectedRatio := 'Unlimited';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine2;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.09 MB Ratio
+  fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
+  fExpectedCredits := '14.60 MB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine3;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.09 MB Ratio MiB -> GB
+  fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
+  fExpectedCredits := '1.37 GB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine4;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.10 MiB Ratio
+  fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
+  fExpectedCredits := '14.60 MB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine5;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.10 GiB Ratio
+  fStatLine := '226  [Section: DEFAULT] [Credits: 14.6GiB] [Ratio: UL: 1:3 | DL: 1:1]';
+  fExpectedCredits := '14.60 GB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine6;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // GL 2.10 MiB Ratio -> GB
+  fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
+  fExpectedCredits := '1.37 GB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine7;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // DrFTPd leech
+  fStatLine := '200-      [Credits: 1.1TB] [Ratio: 1:0.0]';
+  fExpectedCredits := '1.10 TB';
+  fExpectedRatio := 'Unlimited';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine8;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // DrFTPd
+  fStatLine := '200-      [Credits: 4.9TB] [Ratio: 1:3.0]';
+  fExpectedCredits := '4.90 TB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine9;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // glftpd Credits mb -> gb
+  fStatLine := '226  daydn(0.0mb) weekdn(0.0mb) monthdn(0.0mb) alup(1471.5mb) aldn(422927.2mb) credits(1476624.8mb) ratio(UL: 1:3 | DL: 1:1)';
+  fExpectedCredits := '1.41 TB';
+  fExpectedRatio := '1:3';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestParseSTATLine10;
+var
+   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+begin
+  // glftpd negative credits
+  fStatLine := '[Section: DEFAULT] [Credits: -106.6MB] [Ratio: UL&DL: Unlimited]';
+  fExpectedCredits := '-106.60 MB';
+  fExpectedRatio := 'Unlimited';
+  parseSTATLine(fStatLine, fCredits, fRatio);
+
+  CheckEqualsString(fExpectedCredits, fCredits);
+  CheckEqualsString(fExpectedRatio, fRatio);
 end;
 
 initialization
