@@ -1460,7 +1460,7 @@ begin
   try
     try
       rrgx.ModifierI := True;
-      rrgx.Expression := global_skip;
+      rrgx.Expression := GlobalSkiplistRegex;
 
       if rrgx.Exec(filename) then
       begin
