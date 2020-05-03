@@ -42,9 +42,11 @@
       new_news_announce_interval=3
       dbms=
       complete sections [http], [news] added/changed
+      enabled= flag for [stats]
 
     NEW slftp.spamconf parameter(s):
         global_skip_group=1
+        already_in_another_section=1
 
     NEW rules tvlookupdone/imdblookupdone
       these replace previous imdbyear/tvpremieryear = 0 DROP constructs
@@ -106,6 +108,7 @@
     {+} !rulecp can now copy rules to a differently named target section (#249)
     {+} New rule tvrating analog to imdbrating (#228)
     {+} New rules currentyear, imdbcurrentyear, imdbcurrentcineyear, mp3currentyear and mvidcurrentyear (#29)
+    {+} Setting to disable message that rls was already catched in different section
     {#} Fixed !routelock so it doesn't remove normal route when removing lock
     {#} precmd can be removed by omitting precommand via !setprecmd (#178)
     {#} Remove language and 2160(p|i) tags before searching on TVmaze
@@ -138,6 +141,7 @@
     {#} TMyIrcThread.IrcProcess: List index (1) out of bounds avoided by use of locked list (#89)
     {#} Allow !setaffils to remove all affils
     {#} Fully working incomplete filler (#10)
+    {#} Credits parsing for newer glFTPd (#284)
     {^} Requests can be filled from sites without checking the routes. (#168)
     {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
     {^} [MKDIR Denied] msg shows path with denied releasename.
