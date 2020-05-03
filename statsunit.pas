@@ -101,9 +101,10 @@ procedure statsInit;
 var
   fDBName: String;
 begin
+  if not config.ReadBool(section, 'enabled', True) then
+    Exit;
+
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
-  if fDBName = '' then
-    exit;
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
