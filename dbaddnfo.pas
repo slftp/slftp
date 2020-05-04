@@ -33,7 +33,7 @@ var
 implementation
 
 uses
-  DateUtils, SysUtils, configunit, mystrings, queueunit, regexpr, debugunit, taskhttpnfo,
+  DateUtils, SysUtils, configunit, mystrings, queueunit, RegExpr, debugunit, taskhttpnfo,
   dbaddurl, dbaddimdb;
 
 const
