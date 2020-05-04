@@ -1714,6 +1714,7 @@ begin
 
           if ((0 < Pos('does not exist in the sfv', lastResponse)) OR (0 < Pos('File not found in sfv', lastResponse)) OR (0 < Pos('File not found in SFV', lastResponse))) then
           begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
