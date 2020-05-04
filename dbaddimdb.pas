@@ -58,7 +58,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, configunit, mystrings, FLRE,
-  queueunit, regexpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+  queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const
   section = 'dbaddimdb';
