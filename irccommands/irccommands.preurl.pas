@@ -13,7 +13,7 @@ function IrcTestOffset(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, irc, mrdohutils, mystrings, http, regexpr;
+  SysUtils, Classes, DateUtils, irc, mrdohutils, mystrings, http, RegExpr;
 
 const
   section = 'irccommands.preurl';

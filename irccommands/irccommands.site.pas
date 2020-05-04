@@ -40,7 +40,7 @@ function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, queueunit, mystrings, notify, taskraw, regexpr,
+  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, queueunit, mystrings, notify, taskraw, RegExpr,
   globals, indexer, ranksunit, kb, configunit, precatcher, speedstatsunit, statsunit, rulesunit,
   mainthread, tasklogin, irccommandsunit;
 
