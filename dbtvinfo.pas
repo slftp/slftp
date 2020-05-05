@@ -12,9 +12,10 @@ type
     @value(tvConversionError Value if StrToIntDef failed to convert input)
     @value(tvDatedShow Season value for dated shows)
     @value(tvRegularSerieWithoutSeason Season value for shows which only have an episode tag)
-    @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports)) }
+    @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports))
+    @value(tvNoEpisodeTag Shows without episode tag (mostly full season releases)) }
   TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
-    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100);
+    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100, tvNoEpisodeTag = -110);
 
   { @abstract(Possible 'error' values for season and episode info lookups on the web)
     @value(tvSeEpInitialValue Initial value which is set as default value)
@@ -229,7 +230,11 @@ begin
       if StrToIntDef(rx.Match[3], 0) > 0 then
       begin
         season := StrToIntDef(rx.Match[3], Ord(tvConversionError));
-        episode := StrToIntDef(rx.Match[5], Ord(tvConversionError));
+
+        if StrToIntDef(rx.Match[5], -1) = -1 then
+          episode := Ord(tvNoEpisodeTag)
+        else
+          episode := StrToIntDef(rx.Match[5], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
           Debug(dpSpam, section, Format('getShowValues-case-2-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));

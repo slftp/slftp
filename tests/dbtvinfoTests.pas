@@ -554,7 +554,7 @@ begin
   fInputStr := 'Rescue.Me.S07D02.COMPLETE.BLURAY-BluBlade';
   fExpectedResultStr := 'Rescue.Me';
   fSeason := 7;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -574,7 +574,7 @@ begin
   fInputStr := 'Crashing.US.S02.COMPLETE.BLURAY-WESTCOAST';
   fExpectedResultStr := 'Crashing.US';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -594,7 +594,7 @@ begin
   fInputStr := 'Father.Brown.2013.S04D03.COMPLETE.BLURAY-PFa';
   fExpectedResultStr := 'Father.Brown.2013';
   fSeason := 4;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -614,7 +614,7 @@ begin
   fInputStr := 'No.Offence.S03.MULTi.COMPLETE.BLURAY-SharpHD';
   fExpectedResultStr := 'No.Offence';
   fSeason := 3;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -634,7 +634,7 @@ begin
   fInputStr := 'All.Round.To.Mrs.Browns.S02D01.PAL.DVD9-WaLMaRT';
   fExpectedResultStr := 'All.Round.To.Mrs.Browns';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -654,7 +654,7 @@ begin
   fInputStr := 'Designated.Survivor.S02.D01.MULTi.COMPLETE.BLURAY-SharpHD';
   fExpectedResultStr := 'Designated.Survivor';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -674,7 +674,7 @@ begin
   fInputStr := 'Doctor.Who.2005.S10.Part.One.D01.COMPLETE.BLURAY-OCULAR';
   fExpectedResultStr := 'Doctor.Who.2005';
   fSeason := 10;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
