@@ -16,6 +16,13 @@ type
   TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
     tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100);
 
+  { @abstract(Possible 'error' values for season and episode info lookups on the web)
+    @value(tvSeEpInitialValue Initial value which is set as default value)
+    @value(tvSeEpAirdatePrevAndNextOnSameDay Airdate of previous and next episode are on the same day)
+    @value(tvSeEpShowEnded Show ended)
+    @value(tvSeEpNoNextOrPrev No information about the next episode and next season) }
+  TTVSeasonEpisodeWebInfo = (tvSeEpInitialValue = -3, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpShowEnded = -5, tvSeEpNoNextOrPrev = -6);
+
   TTVInfoDB = class
   public
     ripname: String;
@@ -504,9 +511,8 @@ begin
     tv_next_season := tr.season;
   end;
 
-  // TODO: might need some fixes according to TTVGetShowValuesIdentifier enum
   case tv_next_season of
-    -5:
+    Ord(tvSeEpAirdatePrevAndNextOnSameDay):
       begin
         //Prev and Next are on the same day.
         tv_next_ep := tr.episode;
@@ -515,7 +521,7 @@ begin
         tr.currentepisode := true;
         tr.currentair := true;
       end;
-    -10:
+    Ord(tvSeEpShowEnded):
       begin
         //show is ended.
         tv_next_ep := 0;
@@ -524,7 +530,7 @@ begin
         tr.currentepisode := False;
         tr.currentair := False;
       end;
-    -15:
+    Ord(tvSeEpNoNextOrPrev):
       begin
         //neither next nor prev
 
@@ -574,6 +580,8 @@ begin
   self.tv_endedyear := -1;
   self.tv_rating := 0;
   self.last_updated:= 3817;
+  self.tv_next_ep := Ord(tvSeEpInitialValue);
+  self.tv_next_season := Ord(tvSeEpInitialValue);
 end;
 
 destructor TTVInfoDB.Destroy;
