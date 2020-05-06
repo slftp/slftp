@@ -42,7 +42,7 @@
       new_news_announce_interval=3
       dbms=
       complete sections [http], [news] added/changed
-      enabled= flag for [stats]
+      enabled=1 flag for [stats]
 
     NEW slftp.spamconf parameter(s):
         global_skip_group=1
