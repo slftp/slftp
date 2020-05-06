@@ -75,7 +75,7 @@ test:
 
 clean:
 	@find . -name "*.ppu" -type f -delete
-	@find . -path "./libs/mORMot/static" -prune -o -name "*.o" -type f -exec rm {} +
+	@find . \( -path "./libs/mORMot/static" -o -wholename "./libs/mORMot/SQLite3/sqlite3.o" -o -wholename "./libs/mORMot/padlock*" -o -wholename "./libs/mORMot/SynEcc64O2.o" \) -prune -o -name "*.o" -type f -exec rm {} +
 	@rm -f slftp *.exe
 	@make cleanuptestdir
 
