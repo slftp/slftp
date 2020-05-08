@@ -25,7 +25,7 @@ function RemoveWEB(const aGroupname: String): String;
 implementation
 
 uses
-  Classes, SysUtils, StrUtils, RegExpr;
+  Classes, SysUtils, StrUtils, regexpr;
 
 function GetGroupname(const aRlz: String): String;
 var

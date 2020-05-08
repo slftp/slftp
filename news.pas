@@ -57,7 +57,7 @@ var
 implementation
 
 uses
-  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, RegExpr, PasMP;
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, regexpr, PasMP;
 
 const
   section = 'news';

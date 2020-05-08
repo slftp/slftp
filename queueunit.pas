@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, regexpr, sitesunit;
 
 type
   TQueueThread = class(TThread)

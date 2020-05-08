@@ -26,7 +26,7 @@ function IsValidFilename(const aInput: String): Boolean;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals;
+  SysUtils, IdGlobal, regexpr, globals;
 
 const
   section = 'dirlist.helpers';

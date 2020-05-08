@@ -184,7 +184,7 @@ uses
   {$IFDEF MSWINDOWS}
     registry, Windows,
   {$ENDIF}
-  DateUtils, IdGlobal, debugunit, RegExpr, configunit;
+  DateUtils, IdGlobal, debugunit, regexpr, configunit;
 
 const
   section = 'mystrings';

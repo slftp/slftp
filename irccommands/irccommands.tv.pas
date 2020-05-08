@@ -13,7 +13,7 @@ function IrcDelTheTVDbInfo(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, dbtvinfo, tasktvinfolookup, irc, debugunit, configunit, http, RegExpr, mystrings;
+  SysUtils, Classes, DateUtils, dbtvinfo, tasktvinfolookup, irc, debugunit, configunit, http, regexpr, mystrings;
 
 const
   section = 'irccommands.tv';
