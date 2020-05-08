@@ -22,7 +22,7 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers;
+  globalskipunit, configunit, mainthread, regexpr, taskraw, sltcp, mygrouphelpers;
 
 const
   section = 'irccommands.work';

@@ -27,7 +27,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo;
+  sitesunit, regexpr, dbaddimdb, mystrings, dbtvinfo;
 
 const
   section = 'taskhttpimdb';
