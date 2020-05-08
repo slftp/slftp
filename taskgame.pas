@@ -22,7 +22,7 @@ implementation
 
 uses
   SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-  configunit, tasksunit, dirlist, mystrings, sitesunit, RegExpr, sllanguagebase;
+  configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr, sllanguagebase;
 
 const
   section = 'taskgame';
