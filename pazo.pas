@@ -1454,8 +1454,7 @@ function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
-  fSite: TSite;
-  fSkipBeingUploadedFiles, fJustAdded: boolean;
+  fJustAdded: boolean;
 begin
   Result := False;
   fJustAdded := False;
@@ -1485,9 +1484,6 @@ begin
     rrgx.Free;
   end;
 
-
-
-
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
   try
     dl.dirlist_lock.Enter;
@@ -1495,31 +1491,6 @@ begin
       de := dl.Find(filename);
       if de = nil then
       begin
-
-        if (not aIsComplete) then
-        begin
-          //TODO: copied from parsedirlist - reuse code.
-          fSite := FindSiteByName('', Name);
-          if fSite = nil then
-          begin
-            // should never happen
-            Debug(dpError, section, 'ERROR: Can''t lookup site %s. Using defaults.', [Name]);
-            fSkipBeingUploadedFiles := config.ReadBool(section, 'skip_being_uploaded_files', False);
-          end
-          else
-          begin
-            fSkipBeingUploadedFiles := fSite.SkipBeingUploadedFiles;
-          end;
-
-          if (fSkipBeingUploadedFiles) then
-          begin
-            exit;
-          end;
-
-        end;
-
-
-
         // this means that it has not been fired
         de := TDirListEntry.Create(filename, dl);
         de.directory := False;
@@ -1532,6 +1503,16 @@ begin
         dl.entries.Add(de);
         dl.LastChanged := Now();
         Result := True;
+      end;
+
+      if aIsComplete then
+      begin
+        if (de.filesize < 1) then
+        begin
+          //since the file is complete, it must have at least size 1.
+          de.filesize := 1;
+        end;
+        de.IsBeingUploaded := False;
       end;
 
       if (de.Extension = '.sfv') then
@@ -1555,7 +1536,6 @@ begin
     finally
       dl.dirlist_lock.Leave;
     end;
-
 
     //do this outside dirlist_lock to avoid deadlocks
     if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(netname, channel, dir, de)) then

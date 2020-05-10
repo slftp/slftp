@@ -69,7 +69,7 @@ type
     property Directory: Boolean read FDirectory write SetDirectory;
     property DirType: TDirType read FDirType write FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
-    property IsBeingUploaded: Boolean read FIsBeingUploaded;
+    property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
   end;
 
   { @abstract(Information for a single release dirlist) }
