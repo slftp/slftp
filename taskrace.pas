@@ -2596,6 +2596,15 @@ begin
       Inc(ps2.badcrcevents);
     end;
 
+    if 0 < Pos('0byte-file: Not allowed', sdst.lastResponse) then
+    begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+      end;
+      Inc(ps2.badcrcevents);
+    end;
+
     if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
