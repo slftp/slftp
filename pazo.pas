@@ -1617,7 +1617,7 @@ begin
 
       for fFilename in fFileList do
       begin
-        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False, True);
+        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False, False);
       end;
     finally
       fFileList.Free;
