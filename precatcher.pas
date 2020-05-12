@@ -45,10 +45,13 @@ procedure Precatcher_Init;
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
-function FindSection(const section: String): boolean;
 function ExtractReleasename(ts_data: TStringList): String;
 function RemoveSpecialCharsAndBareIt(const s: String): String;
-function StripNoValidChars(aInput: String): String; // { removes all chars from string which are not in array ValidChars }
+
+{ Replaces all characters from input which are not listed in ValidChars array with whitespace
+  @param(aInput String to be cleaned)
+  @returns(Cleaned string) }
+function StripNoValidChars(const aInput: String): String;
 
 function KibontasSection(const s, section: String): String;
 function ProcessDoReplace(const s: String): String;
@@ -84,8 +87,7 @@ var
   precatcher_debug_lock: TCriticalSection;
   precatcher_lock: TCriticalSection;
 
-  ValidChars: set of Char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
-    '/', ':', ';', ' '];
+  ValidChars: set of Char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
   StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 procedure mydebug(const s: String); overload;
@@ -121,15 +123,6 @@ end;
 procedure mydebug(const s: String; args: array of const); overload;
 begin
   myDebug(Format(s, args));
-end;
-
-
-function FindSection(const section: String): boolean;
-begin
-  Result := False;
-  if sectionlist.IndexOf(UpperCase(section)) = -1 then
-    exit;
-  Result := True;
 end;
 
 function ExtractReleasename(ts_data: TStringList): String;
@@ -212,17 +205,16 @@ begin
       Dec(skip);
 end;
 
-function StripNoValidChars(aInput: String): String;
+function StripNoValidChars(const aInput: String): String;
 var
   I: integer;
 begin
-  Result := '';
-  for I := 1 to length(aInput) do
-  begin
-    if not (aInput[I] in ValidChars) then
-      aInput[I] := ' ';
-  end;
   Result := aInput;
+  for I := 1 to Length(Result) do
+  begin
+    if not (Result[I] in ValidChars) then
+      Result[I] := ' ';
+  end;
 end;
 
 function MainStripping(const idata: String): String;
@@ -240,7 +232,8 @@ begin
     end;
   end;
 
-  // this part below is useless, or?
+{
+  // this part doesn't change the result at all (reason see below)
   // above we only allow a-z, A-Z, Numbers and StrippingChars - else we replace the char with ' '
   // then we check the response in StripNoValidChars against ValidChars which includes a lot more chars but our
   // response won't have them in it because it's already replaced with ' '
@@ -255,6 +248,7 @@ begin
       exit;
     end;
   end;
+}
 end;
 
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
