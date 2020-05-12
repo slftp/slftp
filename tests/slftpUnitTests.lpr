@@ -54,7 +54,8 @@ uses
   irccolorunitTests,
   ircparsingTests,
   slmasksTests,
-  dirlist.helpersTests;
+  dirlist.helpersTests,
+  precatcherTests;
 
 var
   filecheck: String;
