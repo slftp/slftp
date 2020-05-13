@@ -832,13 +832,13 @@ begin
 
 end;
 
-procedure ProcessReplace(s: String);
+function _IsLineCommentedOut(const s: String): Boolean;
 var
-  i, db: integer;
-  replacetoline: String;
-  rx: TRegexpr;
+  rx: TRegExpr;
 begin
-  rx := TRegexpr.Create;
+  Result := False;
+
+  rx := TRegExpr.Create;
   try
     rx.ModifierI := True;
     rx.ModifierM := True;
@@ -846,11 +846,21 @@ begin
 
     if rx.Exec(s) then
     begin
-      exit;
+      exit(True);
     end;
-
   finally
     rx.Free;
+  end;
+end;
+
+procedure ProcessReplace(s: String);
+var
+  i, db: integer;
+  replacetoline: String;
+begin
+  if _IsLineCommentedOut(s) then
+  begin
+    exit;
   end;
 
   if (SubString(s, '=', 1) = 'replacefrom') then
@@ -874,21 +884,10 @@ end;
 procedure ProcessSections(s: String);
 var
   v, vv, section: String;
-  rx: TRegexpr;
 begin
-  rx := TRegexpr.Create;
-  try
-    rx.ModifierI := True;
-    rx.ModifierM := True;
-    rx.Expression := '^(\#|\/\/)';
-
-    if rx.Exec(s) then
-    begin
-      exit;
-    end;
-
-  finally
-    rx.Free;
+  if _IsLineCommentedOut(s) then
+  begin
+    exit;
   end;
 
   section := UpperCase(SubString(s, '=', 1));
@@ -911,18 +910,16 @@ procedure ProcessMappings(s: String);
 var
   db, i: integer;
   ss: String;
-  rx: TRegexpr;
+  rx: TRegExpr;
 begin
-  rx := TRegexpr.Create;
+  if _IsLineCommentedOut(s) then
+  begin
+    exit;
+  end;
+
+  rx := TRegExpr.Create;
   try
     rx.ModifierI := True;
-    rx.ModifierM := True;
-    rx.Expression := '^(\#|\/\/)';
-
-    if rx.Exec(s) then
-    begin
-      exit;
-    end;
 
     if Count(';', s) = 2 then
     begin
