@@ -73,7 +73,7 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
-  precatcherTests;
+  precatcher.helpersTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
