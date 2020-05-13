@@ -55,7 +55,7 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
-  precatcherTests;
+  precatcher.helpersTests;
 
 var
   filecheck: String;
