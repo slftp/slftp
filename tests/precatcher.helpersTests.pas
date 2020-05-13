@@ -1,4 +1,4 @@
-unit precatcherTests;
+unit precatcher.helpersTests;
 
 interface
 
@@ -10,7 +10,7 @@ uses
   {$ENDIF}
 
 type
-  TTestPrecatcher = class(TTestCase)
+  TTestPrecatcherHelpers = class(TTestCase)
   published
     procedure TestRemoveSpecialCharsAndBareIt1;
     procedure TestRemoveSpecialCharsAndBareIt2;
@@ -20,16 +20,19 @@ type
     procedure TestStripNoValidChars2;
     procedure TestStripNoValidChars3;
     procedure TestStripNoValidChars4;
+    procedure TestIsLineCommentedOut1;
+    procedure TestIsLineCommentedOut2;
+    procedure TestIsLineCommentedOut3;
   end;
 
 implementation
 
 uses
-  SysUtils, precatcher;
+  SysUtils, precatcher.helpers;
 
-{ TTestPrecatcher }
+{ TTestPrecatcherHelpers }
 
-procedure TTestPrecatcher.TestRemoveSpecialCharsAndBareIt1;
+procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt1;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -40,7 +43,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestRemoveSpecialCharsAndBareIt2;
+procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt2;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -51,7 +54,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestRemoveSpecialCharsAndBareIt3;
+procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt3;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -62,7 +65,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestRemoveSpecialCharsAndBareIt4;
+procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt4;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -73,7 +76,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestStripNoValidChars1;
+procedure TTestPrecatcherHelpers.TestStripNoValidChars1;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -84,7 +87,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestStripNoValidChars2;
+procedure TTestPrecatcherHelpers.TestStripNoValidChars2;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -95,7 +98,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestStripNoValidChars3;
+procedure TTestPrecatcherHelpers.TestStripNoValidChars3;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -106,7 +109,7 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
-procedure TTestPrecatcher.TestStripNoValidChars4;
+procedure TTestPrecatcherHelpers.TestStripNoValidChars4;
 var
   fInputStr, fOutputStr, fExpectedResultStr: String;
 begin
@@ -117,10 +120,34 @@ begin
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
+procedure TTestPrecatcherHelpers.TestIsLineCommentedOut1;
+var
+  fInputStr: String;
+begin
+  fInputStr := '# this is a comment';
+  CheckTrue(IsLineCommentedOut(fInputStr), 'It is a comment!');
+end;
+
+procedure TTestPrecatcherHelpers.TestIsLineCommentedOut2;
+var
+  fInputStr: String;
+begin
+  fInputStr := 'this is a comment';
+  CheckFalse(IsLineCommentedOut(fInputStr), 'It is not a comment!');
+end;
+
+procedure TTestPrecatcherHelpers.TestIsLineCommentedOut3;
+var
+  fInputStr: String;
+begin
+  fInputStr := '//this is a comment';
+  CheckTrue(IsLineCommentedOut(fInputStr), 'It is a comment!');
+end;
+
 initialization
   {$IFDEF FPC}
-    RegisterTest('precatcher', TTestPrecatcher.Suite);
+    RegisterTest('precatcher helpers', TTestPrecatcherHelpers.Suite);
   {$ELSE}
-    TDUnitX.RegisterTestFixture(TTestPrecatcher);
+    TDUnitX.RegisterTestFixture(TTestPrecatcherHelpers);
   {$ENDIF}
 end.
