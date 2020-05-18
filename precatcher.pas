@@ -45,10 +45,7 @@ procedure Precatcher_Init;
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
-function FindSection(const section: String): boolean;
 function ExtractReleasename(ts_data: TStringList): String;
-function RemoveSpecialCharsAndBareIt(const s: String): String;
-function StripNoValidChars(aInput: String): String; // { removes all chars from string which are not in array ValidChars }
 
 function KibontasSection(const s, section: String): String;
 function ProcessDoReplace(const s: String): String;
@@ -66,7 +63,7 @@ var
 implementation
 
 uses
-  SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings,
+  SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
   console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
@@ -83,10 +80,6 @@ var
   debug_f: TextFile;
   precatcher_debug_lock: TCriticalSection;
   precatcher_lock: TCriticalSection;
-
-  ValidChars: set of Char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\',
-    '/', ':', ';', ' '];
-  StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 procedure mydebug(const s: String); overload;
 var
@@ -121,15 +114,6 @@ end;
 procedure mydebug(const s: String; args: array of const); overload;
 begin
   myDebug(Format(s, args));
-end;
-
-
-function FindSection(const section: String): boolean;
-begin
-  Result := False;
-  if sectionlist.IndexOf(UpperCase(section)) = -1 then
-    exit;
-  Result := True;
 end;
 
 function ExtractReleasename(ts_data: TStringList): String;
@@ -172,59 +156,6 @@ begin
   Result := Trim(Result);
 end;
 
-function RemoveSpecialCharsAndBareIt(const s: String): String;
-var
-  i: integer;
-  skip: integer;
-begin
-  Result := '';
-  skip := 0;
-  for i := 1 to length(s) do
-    if (skip = 0) then
-    begin
-      if (Ord(s[i]) >= 32) then
-      begin
-        if (Ord(s[i]) <> 255) then
-        begin
-          if (IsALetter(s[i]) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
-            Result := Result + s[i]
-          else
-            Result := Result + ' ';
-        end
-        else
-          Result := Result + ' ';
-      end
-      else
-      begin
-        if ((s[i] = #3) and (i < length(s) - 2)) then
-        begin
-          if IsANumber(s[i + 1]) then
-          begin
-            if IsANumber(s[i + 2]) then
-              skip := 2
-            else
-              skip := 1;
-          end;
-        end;
-      end;
-    end
-    else
-      Dec(skip);
-end;
-
-function StripNoValidChars(aInput: String): String;
-var
-  I: integer;
-begin
-  Result := '';
-  for I := 1 to length(aInput) do
-  begin
-    if not (aInput[I] in ValidChars) then
-      aInput[I] := ' ';
-  end;
-  Result := aInput;
-end;
-
 function MainStripping(const idata: String): String;
 begin
   Result := idata;
@@ -240,7 +171,8 @@ begin
     end;
   end;
 
-  // this part below is useless, or?
+{
+  // this part doesn't change the result at all (reason see below)
   // above we only allow a-z, A-Z, Numbers and StrippingChars - else we replace the char with ' '
   // then we check the response in StripNoValidChars against ValidChars which includes a lot more chars but our
   // response won't have them in it because it's already replaced with ' '
@@ -255,6 +187,7 @@ begin
       exit;
     end;
   end;
+}
 end;
 
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
@@ -831,33 +764,12 @@ begin
 
 end;
 
-function _IsLineCommentedOut(const s: String): Boolean;
-var
-  rx: TRegExpr;
-begin
-  Result := False;
-
-  rx := TRegExpr.Create;
-  try
-    rx.ModifierI := True;
-    rx.ModifierM := True;
-    rx.Expression := '^(\#|\/\/)';
-
-    if rx.Exec(s) then
-    begin
-      exit(True);
-    end;
-  finally
-    rx.Free;
-  end;
-end;
-
 procedure ProcessReplace(s: String);
 var
   i, db: integer;
   replacetoline: String;
 begin
-  if _IsLineCommentedOut(s) then
+  if IsLineCommentedOut(s) then
   begin
     exit;
   end;
@@ -884,7 +796,7 @@ procedure ProcessSections(s: String);
 var
   v, vv, section: String;
 begin
-  if _IsLineCommentedOut(s) then
+  if IsLineCommentedOut(s) then
   begin
     exit;
   end;
@@ -911,7 +823,7 @@ var
   ss: String;
   rx: TRegExpr;
 begin
-  if _IsLineCommentedOut(s) then
+  if IsLineCommentedOut(s) then
   begin
     exit;
   end;
