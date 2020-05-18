@@ -803,7 +803,7 @@ begin
       end;
       tt := TTask(tasks[i]);
       try
-        if ((tt.ClassType = TIdleTask) and (tt.slot1 = s)) then
+        if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
         begin
           exit;
         end;
