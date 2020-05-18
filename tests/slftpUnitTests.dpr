@@ -72,7 +72,8 @@ uses
   irccolorunitTests,
   ircparsingTests,
   slmasksTests,
-  dirlist.helpersTests;
+  dirlist.helpersTests,
+  precatcher.helpersTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
