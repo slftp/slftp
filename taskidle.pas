@@ -61,6 +61,7 @@ var
     then
     begin
       irc_Adderror(Format('<c7>[ERROR idle]</c> %s: %s', [Name, s.Name]));
+      Debug(dpMessage, section, Format('[ERROR idle] %s: %s - %s', [Name, s.Name, s.lastResponse]));
       s.Quit;
     end;
 
