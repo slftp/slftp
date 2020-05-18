@@ -56,7 +56,6 @@ function ProcessDoReplace(const s: String): String;
 var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
-  precatcher_spamevents: TStringList;
   precatcher_debug_netname, precatcher_debug_channel: String;
   //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
@@ -472,7 +471,7 @@ begin
   if not precatcher_debug then
   begin
     try
-      if (precatcher_spamevents.IndexOf(event) <> -1) then
+      if spamcfg.ReadBool('precatcher', 'announce_event', True) then
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
@@ -1060,9 +1059,6 @@ begin
       halt;
     end;
   end;
-
-  precatcher_spamevents := TStringList.Create;
-  precatcher_spamevents.CommaText := spamcfg.ReadString('precatcher', 'announce_event', '');
 end;
 
 procedure Precatcher_UnInit;
@@ -1084,8 +1080,6 @@ begin
 
   cdClear;
   cd.Free;
-
-  precatcher_spamevents.Free;
 
   precatcher_debug_lock.Free;
   Closefile(debug_f);
