@@ -6,6 +6,24 @@ uses
   Classes, IniFiles, irc, kb, Contnrs;
 
 type
+  { @abstract(Possible return values for special cases in getShowValues procedure)
+    @value(tvInitialValue Initial value which is set as default value)
+    @value(tvNotMatched For cases where main regex matched but single matches don't contain useful values)
+    @value(tvConversionError Value if StrToIntDef failed to convert input)
+    @value(tvDatedShow Season value for dated shows)
+    @value(tvRegularSerieWithoutSeason Season value for shows which only have an episode tag)
+    @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports))
+    @value(tvNoEpisodeTag Shows without episode tag (mostly full season releases)) }
+  TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
+    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100, tvNoEpisodeTag = -110);
+
+  { @abstract(Possible 'error' values for season and episode info lookups on the web)
+    @value(tvSeEpInitialValue Initial value which is set as default value)
+    @value(tvSeEpAirdatePrevAndNextOnSameDay Airdate of previous and next episode are on the same day)
+    @value(tvSeEpShowEnded Show ended)
+    @value(tvSeEpNoNextOrPrev No information about the next episode and next season) }
+  TTVSeasonEpisodeWebInfo = (tvSeEpInitialValue = -3, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpShowEnded = -5, tvSeEpNoNextOrPrev = -6);
+
   TTVInfoDB = class
   public
     ripname: String;
@@ -146,12 +164,19 @@ var
   rx: TRegexpr;
   ttags, ltags: TStringlist;
   showDate: TDateTime;
+
+  procedure SetNotMatchedValues;
+  begin
+    season := Ord(tvNotMatched);
+    episode := Ord(tvNotMatched);
+  end;
+
 begin
   showName := aRlsname;
 
   // default values for not parsed/matched
-  season := -10;
-  episode := -10;
+  season := Ord(tvInitialValue);
+  episode := Ord(tvInitialValue);
 
   rx := TRegexpr.Create;
   try
@@ -165,15 +190,16 @@ begin
     if rx.Exec(aRlsname) then
     begin
       showName := rx.Match[1];
+      SetNotMatchedValues;
 
       {$IFDEF DEBUG}
-        Debug(dpMessage, section, Format('getShowValues-case-1 - matches: %s %s %s %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4]]));
+        Debug(dpSpam, section, Format('getShowValues-case-1 - matches: %s %s %s %s', [rx.Match[1], rx.Match[2], rx.Match[3], rx.Match[4]]));
       {$ENDIF}
 
       if DateUtils.IsValidDate(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]))
        and TryEncodeDateTime(StrToInt(rx.Match[2]), StrToInt(rx.Match[3]), StrToInt(rx.Match[4]), 0, 0 , 0, 0 , showDate) then
       begin
-        season := -99;
+        season := Ord(tvDatedShow);
         episode := DateTimeToUnix(showDate);
       end
       else
@@ -183,7 +209,7 @@ begin
       end;
 
       {$IFDEF DEBUG}
-        Debug(dpMessage, section, Format('getShowValues-case-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+        Debug(dpSpam, section, Format('getShowValues-case-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
       {$ENDIF}
 
       exit;
@@ -195,18 +221,23 @@ begin
     if rx.Exec(aRlsname) then
     begin
       showName := rx.Match[1];
+      SetNotMatchedValues;
 
       {$IFDEF DEBUG}
-        Debug(dpMessage, section, Format('getShowValues-case-2 - matches: %s %s %s %s %s', [rx.Match[1], rx.Match[3], rx.Match[5], rx.Match[6], rx.Match[7]]));
+        Debug(dpSpam, section, Format('getShowValues-case-2 - matches: %s %s %s %s %s', [rx.Match[1], rx.Match[3], rx.Match[5], rx.Match[6], rx.Match[7]]));
       {$ENDIF}
 
       if StrToIntDef(rx.Match[3], 0) > 0 then
       begin
-        season := StrToIntDef(rx.Match[3], 0);
-        episode := StrToIntDef(rx.Match[5], 0);
+        season := StrToIntDef(rx.Match[3], Ord(tvConversionError));
+
+        if StrToIntDef(rx.Match[5], -1) = -1 then
+          episode := Ord(tvNoEpisodeTag)
+        else
+          episode := StrToIntDef(rx.Match[5], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-2-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-2-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
 
         exit;
@@ -214,11 +245,11 @@ begin
 
       if StrToIntDef(rx.Match[6], 0) > 0 then
       begin
-        season := StrToIntDef(rx.Match[6], 0);
-        episode := StrToIntDef(rx.Match[7], 0);
+        season := StrToIntDef(rx.Match[6], Ord(tvConversionError));
+        episode := StrToIntDef(rx.Match[7], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-2-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-2-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
 
         exit;
@@ -230,27 +261,29 @@ begin
     if rx.Exec(aRlsname) then
     begin
       showName := rx.Match[1];
+      SetNotMatchedValues;
 
       {$IFDEF DEBUG}
-        Debug(dpMessage, section, Format('getShowValues-case-3 - matches: %s %s %s', [rx.Match[1], rx.Match[5], rx.Match[7]]));
+        Debug(dpSpam, section, Format('getShowValues-case-3 - matches: %s %s %s', [rx.Match[1], rx.Match[5], rx.Match[7]]));
       {$ENDIF}
 
-      episode := StrToIntDef(rx.Match[7], 0);
+      season := Ord(tvRegularSerieWithoutSeason);
+      episode := StrToIntDef(rx.Match[7], Ord(tvConversionError));
 
       if StrToIntDef(rx.Match[5], 0) > 0 then
       begin
-        episode := StrToIntDef(rx.Match[5], 0);
+        episode := StrToIntDef(rx.Match[5], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-3-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-3-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
       end
       else
       begin
-        episode := StrToIntDef(rx.Match[7], 0);
+        episode := StrToIntDef(rx.Match[7], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-3-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-3-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
       end;
 
@@ -262,27 +295,28 @@ begin
     if rx.Exec(aRlsname) then
     begin
       showName := rx.Match[1];
+      SetNotMatchedValues;
 
       {$IFDEF DEBUG}
-        Debug(dpMessage, section, Format('getShowValues-case-4 - matches: %s %s %s', [rx.Match[1], rx.Match[4], rx.Match[7]]));
+        Debug(dpSpam, section, Format('getShowValues-case-4 - matches: %s %s %s', [rx.Match[1], rx.Match[4], rx.Match[7]]));
       {$ENDIF}
 
       if StrToIntDef(rx.Match[4], 0) > 0 then
       begin
-        episode := StrToIntDef(rx.Match[4], 0);
-        season := StrToIntDef(rx.Match[4], 0);
+        episode := StrToIntDef(rx.Match[4], Ord(tvConversionError));
+        season := StrToIntDef(rx.Match[4], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-4-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-4-1 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
       end
       else
       begin
-        episode := StrToIntDef(rx.Match[7], 0);
-        season := StrToIntDef(rx.Match[7], 0);
+        episode := StrToIntDef(rx.Match[7], Ord(tvConversionError));
+        season := StrToIntDef(rx.Match[7], Ord(tvConversionError));
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-4-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-4-2 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
       end;
 
@@ -311,11 +345,11 @@ begin
         rx.Expression := '[._\-\s]((19|20)\d{2}|(480|720|1080|1440|2160)(p|i)|REPACK|PROPER|INTERNAL|(DIR|NFO|SFV|PROOF|SAMPLE)[._]?FIX).*$';
         showName := rx.Replace(showName, '', False);
 
-        season := 0;
-        episode := 0;
+        season := Ord(tvNoExplicitShowTag);
+        episode := Ord(tvNoExplicitShowTag);
 
         {$IFDEF DEBUG}
-          Debug(dpMessage, section, Format('getShowValues-case-5 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
+          Debug(dpSpam, section, Format('getShowValues-case-5 - rls: %s, showname: %s, season: %d, episode: %d', [aRlsname, showName, season, episode]));
         {$ENDIF}
 
       finally
@@ -483,7 +517,7 @@ begin
   end;
 
   case tv_next_season of
-    -5:
+    Ord(tvSeEpAirdatePrevAndNextOnSameDay):
       begin
         //Prev and Next are on the same day.
         tv_next_ep := tr.episode;
@@ -492,7 +526,7 @@ begin
         tr.currentepisode := true;
         tr.currentair := true;
       end;
-    -10:
+    Ord(tvSeEpShowEnded):
       begin
         //show is ended.
         tv_next_ep := 0;
@@ -501,7 +535,7 @@ begin
         tr.currentepisode := False;
         tr.currentair := False;
       end;
-    -15:
+    Ord(tvSeEpNoNextOrPrev):
       begin
         //neither next nor prev
 
@@ -517,9 +551,9 @@ begin
         self.tv_next_ep := 0;
         tr.episode := 0;
       end;
-    -99:
+    Ord(tvDatedShow): // probably set by TTVRelease.Create
       begin
-        //dated show
+        // dated show
         tr.season := YearOf(UnixToDateTime(tr.episode));
         tv_next_season := YearOf(UnixToDateTime(tv_next_date));
         tr.episode := self.tv_next_ep; // no episode tag, so we must trust tvmaze
@@ -551,6 +585,8 @@ begin
   self.tv_endedyear := -1;
   self.tv_rating := 0;
   self.last_updated:= 3817;
+  self.tv_next_ep := Ord(tvSeEpInitialValue);
+  self.tv_next_season := Ord(tvSeEpInitialValue);
 end;
 
 destructor TTVInfoDB.Destroy;
