@@ -1057,7 +1057,7 @@ begin
       n.multiplier := multiplier;
       n.reason := reason;
 
-      nukequeue.Add(n);
+      NukeQueue.Add(n);
 
       if sitename <> '' then
         break;
@@ -1155,7 +1155,7 @@ begin
       n.multiplier := -1;
       n.reason := reason;
 
-      nukequeue.Add(n);
+      NukeQueue.Add(n);
     end;
   end;
 
