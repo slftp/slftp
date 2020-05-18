@@ -273,7 +273,7 @@ var
 begin
   fInputStr := 'The.Eccentric.Family.E03.Der.innere.Salon.des.Lehrmeisters.German.DL.ANiME.BDRiP.x264-ATAX';
   fExpectedResultStr := 'The.Eccentric.Family';
-  fSeason := -10;
+  fSeason := Ord(tvRegularSerieWithoutSeason);
   fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
@@ -413,8 +413,8 @@ var
 begin
   fInputStr := 'Kaya.Yanar.LIVE.All.Inclusive.GERMAN.720p.HDTV.x264-TVP';
   fExpectedResultStr := 'Kaya.Yanar.LIVE.All.Inclusive';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -433,8 +433,8 @@ var
 begin
   fInputStr := 'Nicky.Deuce.2013.720p.HDTV.x264-DEADPOOL';
   fExpectedResultStr := 'Nicky.Deuce';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -453,7 +453,7 @@ var
 begin
   fInputStr := '2017.Flick.Electric.Co.Comedy.Gala.Part.1.HDTV.x264-FiHTV';
   fExpectedResultStr := '2017.Flick.Electric.Co.Comedy.Gala';
-  fSeason := -10;
+  fSeason := Ord(tvRegularSerieWithoutSeason);
   fEpisode := 1;
   
   getShowValues(fInputStr, fOutputStr);
@@ -473,8 +473,8 @@ var
 begin
   fInputStr := 'Biodiversite.Climat.L.Europe.Peut.Elle.Stopper.La.Catastrophe.28.Minutes.2018.DOC.FRENCH.720p.WEB.H264-SLiPS';
   fExpectedResultStr := 'Biodiversite.Climat.L.Europe.Peut.Elle.Stopper.La.Catastrophe.28.Minutes';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -493,7 +493,7 @@ var
 begin
   fInputStr := 'Super.League.2019.03.30.Lamia.vs.Panionios.GREEK.720p.HDTV.x264-IcHoR';
   fExpectedResultStr := 'Super.League';
-  fSeason := -99;
+  fSeason := Ord(tvDatedShow);
   fEpisode := 1553904000;
   
   getShowValues(fInputStr, fOutputStr);
@@ -513,7 +513,7 @@ var
 begin
   fInputStr := 'Japan.von.oben.E03.Wiege.der.Tradition.GERMAN.DOKU.720p.HDTV.x264-BTVG';
   fExpectedResultStr := 'Japan.von.oben';
-  fSeason := -10;
+  fSeason := Ord(tvRegularSerieWithoutSeason);
   fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
@@ -554,7 +554,7 @@ begin
   fInputStr := 'Rescue.Me.S07D02.COMPLETE.BLURAY-BluBlade';
   fExpectedResultStr := 'Rescue.Me';
   fSeason := 7;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -574,7 +574,7 @@ begin
   fInputStr := 'Crashing.US.S02.COMPLETE.BLURAY-WESTCOAST';
   fExpectedResultStr := 'Crashing.US';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -594,7 +594,7 @@ begin
   fInputStr := 'Father.Brown.2013.S04D03.COMPLETE.BLURAY-PFa';
   fExpectedResultStr := 'Father.Brown.2013';
   fSeason := 4;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -614,7 +614,7 @@ begin
   fInputStr := 'No.Offence.S03.MULTi.COMPLETE.BLURAY-SharpHD';
   fExpectedResultStr := 'No.Offence';
   fSeason := 3;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -634,7 +634,7 @@ begin
   fInputStr := 'All.Round.To.Mrs.Browns.S02D01.PAL.DVD9-WaLMaRT';
   fExpectedResultStr := 'All.Round.To.Mrs.Browns';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -654,7 +654,7 @@ begin
   fInputStr := 'Designated.Survivor.S02.D01.MULTi.COMPLETE.BLURAY-SharpHD';
   fExpectedResultStr := 'Designated.Survivor';
   fSeason := 2;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -674,7 +674,7 @@ begin
   fInputStr := 'Doctor.Who.2005.S10.Part.One.D01.COMPLETE.BLURAY-OCULAR';
   fExpectedResultStr := 'Doctor.Who.2005';
   fSeason := 10;
-  fEpisode := 0;
+  fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -756,8 +756,8 @@ var
 begin
   fInputStr := 'UFC.Fight.Night.155.Prelims.REAL.1080p.HDTV.x264-VERUM';
   fExpectedResultStr := 'UFC.Fight.Night.155.Prelims';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -776,8 +776,8 @@ var
 begin
   fInputStr := 'UFC.Fight.Night.155.REPACK.INTERNAL.REAL.WEB.H264-LEViTATE';
   fExpectedResultStr := 'UFC.Fight.Night.155';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -796,8 +796,8 @@ var
 begin
   fInputStr := 'The.Final.Quarter.2019.720p.HDTV.x264-CBFM';
   fExpectedResultStr := 'The.Final.Quarter';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -837,8 +837,8 @@ var
 begin
   fInputStr := 'The.Man.Who.Saw.Too.Much.2009.NFOFIX.720p.HDTV.x264-PVR';
   fExpectedResultStr := 'The.Man.Who.Saw.Too.Much';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -857,8 +857,8 @@ var
 begin
   fInputStr := 'Dersu.Uzala.1975.SUBBED.DiRFiX.NFOFiX.1080p.HDTV.x264-REGRET';
   fExpectedResultStr := 'Dersu.Uzala';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -877,8 +877,8 @@ var
 begin
   fInputStr := 'UFC.222.iNTERNAL.NFOFIX.720p.HDTV.x264-KOENiG';
   fExpectedResultStr := 'UFC.222';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -897,7 +897,7 @@ var
 begin
   fInputStr := 'Brynhildr.In.The.Darkness.E02.SFVFIX.SUBFRENCH.720p.WEBRip.X264-SLEEPINGFOREST';
   fExpectedResultStr := 'Brynhildr.In.The.Darkness';
-  fSeason := -10;
+  fSeason := Ord(tvRegularSerieWithoutSeason);
   fEpisode := 2;
 
   getShowValues(fInputStr, fOutputStr);
@@ -937,7 +937,7 @@ var
 begin
   fInputStr := 'Ascendance.Of.A.Bookworm.E01.SAMPLEFiX.WEB.x264-URANiME';
   fExpectedResultStr := 'Ascendance.Of.A.Bookworm';
-  fSeason := -10;
+  fSeason := Ord(tvRegularSerieWithoutSeason);
   fEpisode := 1;
 
   getShowValues(fInputStr, fOutputStr);
@@ -957,8 +957,8 @@ var
 begin
   fInputStr := 'Min.Far.Er.Rocker.Thorhjoern.2019.SAMPLEFIX.DANISH.720p.WEB.h264-FFD';
   fExpectedResultStr := 'Min.Far.Er.Rocker.Thorhjoern';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
@@ -977,8 +977,8 @@ var
 begin
   fInputStr := 'Cage.Fury.FC.77.DIRFIX.WEB.H264-LEViTATE';
   fExpectedResultStr := 'Cage.Fury.FC.77';
-  fSeason := 0;
-  fEpisode := 0;
+  fSeason := Ord(tvNoExplicitShowTag);
+  fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
