@@ -3,21 +3,21 @@ unit nuke;
 interface
 
 uses
-  Contnrs;
+  Generics.Collections;
 
-{ Just a helper function to initialize @link(nukequeue) }
+{ Just a helper function to initialize @link(NukeQueue) }
 procedure NukeInit;
-{ Just a helper function to free @link(nukequeue) }
+{ Just a helper function to free @link(NukeQueue) }
 procedure NukeUnInit;
-{ Reads existing values from slftp.nukequeue on startup }
+{ Reads existing values from slftp.NukeQueue on startup }
 procedure NukeStart;
-{ Saves existing values from memory to slftp.nukequeue when closing slftp. }
+{ Saves existing values from memory to slftp.NukeQueue when closing slftp. }
 procedure NukeSave;
 
 type
   TNukeQueueItem = class
     site: String; //< sitename
-    section: String;
+    section: String; //< sectioname
     yyyy: String; //< year, e.g. 2019
     yy: String; //< last two numbers of year, e.g. 19
     mm: String; //< month
@@ -28,22 +28,22 @@ type
   end;
 
 var
-  nukequeue: TObjectList; //< Queue of added nukes which need to be send to site
+  NukeQueue: TObjectList<TNukeQueueItem>; //< Queue of added nukes which need to be send to site
 
 implementation
 
 uses
-  Classes, SysUtils, encinifile, configunit, mystrings;
+  SysUtils, encinifile, configunit, mystrings;
 
 procedure NukeInit;
 begin
-  nukequeue := TObjectList.Create(True);
+  NukeQueue := TObjectList<TNukeQueueItem>.Create(True);
 end;
 
 procedure NukeUnInit;
 begin
-  if Assigned(nukequeue) then
-    nukequeue.Free;
+  if Assigned(NukeQueue) then
+    NukeQueue.Free;
 end;
 
 procedure NukeStart;
@@ -62,7 +62,7 @@ begin
     x.LoadFromFile(fn);
     for i := 0 to x.Count - 1 do
     begin
-      x[i] := trim(x[i]);
+      x[i] := Trim(x[i]);
       n := TNukeQueueItem.Create;
       n.site := SubString(x[i], ' ', 1);
       n.section := SubString(x[i], ' ', 2);
@@ -74,7 +74,7 @@ begin
       n.multiplier := StrToIntDef( SubString(x[i], ' ', 7) , 0) ;
       n.reason := Copy(x[i], Length(n.site) + 1 + Length(n.section) + 1 + 4 + 1 + 2 + 1 + 2 + 1 + Length(n.rip) + 1 + Length(SubString(x[i], ' ', 7)) + 1 + 1, 1000);
 
-      nukequeue.Add(n);
+      NukeQueue.Add(n);
     end;
   finally
     x.Free;
@@ -84,16 +84,14 @@ end;
 procedure NukeSave;
 var
   x: TEncStringlist;
-  i: Integer;
   n: TNukeQueueItem;
   s: String;
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    for i := 0 to nukequeue.Count - 1 do
+    for n in NukeQueue do
     begin
-      n := TNukeQueueItem(nukequeue[i]);
-      s := Format('%s %s %s %s %s %s %d %s',[n.site, n.section, n.yyyy, n.mm, n.dd, n.rip, n.multiplier, n.reason]);
+      s := Format('%s %s %s %s %s %s %d %s', [n.site, n.section, n.yyyy, n.mm, n.dd, n.rip, n.multiplier, n.reason]);
       x.Add(s);
     end;
     x.SaveToFile(ExtractfilePath(ParamStr(0)) + 'slftp.nukequeue');
