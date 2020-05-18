@@ -51,7 +51,10 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.7 )===================================-
-
+    {#} Relogin of slots didn't brought up all slots as intended
+    {#} announce_event for precatcher from spam config never worked
+    {^} Enumerations for some TV function for better clarification
+    {^} Idling keeps all slots in a ready state now
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
