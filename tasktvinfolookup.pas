@@ -283,8 +283,8 @@ begin
 
   if ((not hadNext) and (not hadPrev)) then
   begin
-    episode := -15;
-    season := -15;
+    episode := Ord(tvSeEpNoNextOrPrev);
+    season := Ord(tvSeEpNoNextOrPrev);
     date := UnixToDateTime(3817); //1.1.1970 031337
     exit;
   end;
@@ -299,8 +299,8 @@ begin
 
   if IsSameDay(prevdt, nextdt) then
   begin
-    episode := -5;
-    season := -5;
+    episode := Ord(tvSeEpAirdatePrevAndNextOnSameDay);
+    season := Ord(tvSeEpAirdatePrevAndNextOnSameDay);
     date := nextdt;
     exit;
   end;
@@ -466,10 +466,10 @@ begin
     else
       tvr.tv_premiered_year := -1;
 
-      tvr.tv_endedyear := -1;
-      tvr.tv_next_ep := -10;
-      tvr.tv_next_season := -10;
-      tvr.tv_next_date := 3817;
+    tvr.tv_endedyear := -1;
+    tvr.tv_next_ep := Ord(tvSeEpShowEnded);
+    tvr.tv_next_season := Ord(tvSeEpShowEnded);
+    tvr.tv_next_date := 3817;
 
     // Show not ended so we check for next.
     if lowercase(tvr.tv_status) <> 'ended' then
