@@ -89,9 +89,9 @@ TryAgain:
   end;
 
   i := 0;
-  while ((i < nukequeue.Count) and (not slshutdown) and (not s.shouldquit)) do
+  while ((i < NukeQueue.Count) and (not slshutdown) and (not s.shouldquit)) do
   begin
-    n := TNukeQueueItem(nukequeue[i]);
+    n := TNukeQueueItem(NukeQueue[i]);
     if n.site = site1 then
     begin
       sectiondir := s.site.sectiondir[n.section];
@@ -129,7 +129,7 @@ TryAgain:
         end;
       end;
 
-      nukequeue.Remove(n);
+      NukeQueue.Remove(n);
       NukeSave;
 
       i := -1;
