@@ -333,7 +333,11 @@ begin
     // All others (Dirlists and so on)
     Result := compareDate(tp1.mainpazo.lastTouch, tp2.mainpazo.lastTouch);
   except
-    Result := 0;
+  on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
+      Result := 0;
+    end;
   end;
 end;
 
@@ -530,7 +534,11 @@ begin
     ss2.Fire;
     ss1.Fire;
   except
-    exit;
+  on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots : %s', [e.Message]);
+      exit;
+    end;
   end;
 end;
 
@@ -587,7 +595,11 @@ begin
     ss.todotask := t;
     ss.Fire;
   except
-    exit;
+  on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignLoginSlot : %s', [e.Message]);
+      exit;
+    end;
   end;
 end;
 
@@ -602,11 +614,11 @@ var
 begin
   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
+  try
   s := TSite(t.ssite1);
   if s.freeslots = 0 then
     exit;
 
-  try
     Inc(t.TryToAssign);
     if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
     begin
@@ -621,21 +633,13 @@ begin
       end;
       exit;
     end;
-  except
-    exit;
-  end;
 
-  try
     if t.ClassType = TPazoRaceTask then
     begin
       TryToAssignRaceSlots(TPazoRaceTask(t));
       exit;
     end;
-  except
-    exit;
-  end;
 
-  try
     if t is TLoginTask then
     begin
       if not TLoginTask(t).readd then
@@ -644,11 +648,7 @@ begin
         exit;
       end;
     end;
-  except
-    exit;
-  end;
 
-  try
     if t.ClassType = TPazoDirlistTask then
     begin
       actual_count := 0;
@@ -673,11 +673,7 @@ begin
         exit;
       end;
     end;
-  except
-    exit;
-  end;
 
-  try
     ss := nil;
     if t.wantedslot <> '' then
     begin
@@ -764,7 +760,10 @@ begin
     ss.todotask := t;
     ss.Fire;
   except
-    exit;
+  on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignSlots : %s', [e.Message]);
+    end;
   end;
 end;
 
@@ -780,7 +779,10 @@ begin
     AddTask(q);
     s.Fire;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.AddQuitTask : %s', [e.Message]);
+    end;
   end;
 end;
 
@@ -801,8 +803,10 @@ begin
       end;
       tt := TTask(tasks[i]);
       try
-        if ((tt.ClassType = TIdleTask) and (tt.site1 = s.site.Name)) then
+        if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
+        begin
           exit;
+        end;
       except
         Break;
       end;
@@ -815,7 +819,10 @@ begin
     AddTask(ti);
     s.Fire;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.AddIdleTask : %s', [e.Message]);
+    end;
   end;
 end;
 
@@ -829,7 +836,7 @@ begin
 
   for i := tasks.Count - 1 downto 0 do
   begin
-    if i < 0 then 
+    if i < 0 then
       Break;
     try
       t := TTask(tasks[i]);
@@ -1218,7 +1225,11 @@ begin
             end;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazoRace : %s', [e.Message]));
+            Continue;
+          end;
         end;
       end;
     finally
@@ -1336,51 +1347,6 @@ begin
           try
             if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
             begin
-              t.readydel   := True;
-              t.readydelat := Now();
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-              Continue;
-            end;
-          end;
-        end;
-      finally
-        queueth.main_lock.Leave;
-      end;
-
-      queueth.main_lock.Enter();
-      try
-        for i := tasks.Count - 1 downto 0 do
-        begin
-          try
-            if i < 0 then
-              Break;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
-              Break;
-            end;
-          end;
-          try
-            t := TTask(tasks.items[i]);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-              Continue;
-            end;
-          end;
-
-          if t = nil then
-            Continue;
-
-          try
-            if (t.readydel) then
-            begin
               ss := t.uidtext;
               TaskReady(t);
 
@@ -1405,12 +1371,7 @@ begin
             end;
           end;
         end;
-      finally
-        queueth.main_lock.Leave;
-      end;
 
-      queueth.main_lock.Enter();
-      try
         for i := 0 to tasks.Count - 1 do
         begin
           try
@@ -1513,14 +1474,19 @@ begin
             Continue;
 
           try
-            if ((s.todotask = nil) and (s.status = ssOnline)) then
+            if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
-              if ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
+              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0)) and
                 (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000))) then
               begin
                 AddQuitTask(s);
               end
-              else if (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000) then
+              //we also want idle tasks to relogin slots that are not ssOnline but the sites are in WorkingStatus sstUp
+              //at startup only few slots are needed (e.g. autologin), but we want all the slots to be ready for action if
+              //an idle interval is configured. also there are several occasions where DestroySocket or Quit are invoked
+              //on a slot. the IdleTask will take care to relogin these slots as well.
+              else if (((s.status = ssOnline) or (s.site.WorkingStatus in [sstUp]))
+              and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
               begin
                 AddIdleTask(s);
               end;

@@ -32,9 +32,6 @@ type
     ready: Boolean; //< ready to free because the task is done
     readyerror: Boolean;
 
-    readydel: Boolean;
-    readydelat: TDateTime;
-
     uid: UInt64;
     time: TDateTime; //< some time value
 
@@ -100,7 +97,6 @@ begin
 
   ready := False;
   readyerror := False;
-  readydel := False;
 
   startat := 0;
   announce := '';
