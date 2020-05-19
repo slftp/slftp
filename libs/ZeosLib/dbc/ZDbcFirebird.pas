@@ -53,13 +53,15 @@ unit ZDbcFirebird;
 
 interface
 
+{$I ZDbc.inc}
+
 {$IFNDEF ZEOS_DISABLE_FIREBIRD} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZPlainFirebirdDriver, ZCompatibility, ZDbcUtils, ZDbcIntfs, ZDbcConnection,
-  ZPlainFirebirdInterbaseConstants, ZSysUtils, ZDbcLogging, ZDbcInterbase6Utils,
-  ZTokenizer, ZGenericSqlAnalyser, ZClasses, ZCollections, ZDbcFirebirdInterbase,
-  Firebird;
+  ZCompatibility, ZDbcUtils, ZDbcIntfs, ZDbcConnection,
+  ZPlainFirebirdInterbaseDriver, ZSysUtils, ZDbcLogging, ZDbcInterbase6Utils,
+  ZGenericSqlAnalyser, ZClasses, ZDbcFirebirdInterbase,
+  ZPlainFirebird;
 
 type
 
@@ -91,6 +93,7 @@ type
     FTransaction: ITransaction;
   protected
     function TxnIsStarted: Boolean; override;
+    function TestCachedResultsAndForceFetchAll: Boolean; override;
   public { implement ITransaction}
     procedure Commit;
     procedure Rollback;
@@ -111,6 +114,7 @@ type
     FProvider: IProvider;
     FAttachment: IAttachment;
     FStatus: IStatus;
+    FUtil: IUtil;
     FPlainDriver: TZFirebird3UpPlainDriver;
     function ConstructConnectionString(out LocalDB: Boolean): String;
   protected
@@ -146,7 +150,7 @@ implementation
 {$IFNDEF ZEOS_DISABLE_FIREBIRD} //if set we have an empty unit
 
 uses ZFastCode, ZDbcFirebirdStatement, ZDbcInterbaseFirebirdMetadata, ZEncoding,
-  ZInterbaseToken, ZInterbaseAnalyser, ZDbcMetadata, ZMessages,
+  ZDbcMetadata, ZMessages,
   ZDbcProperties, Math
   {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES},System.Types{$ENDIF}
   {$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF};
@@ -214,7 +218,7 @@ begin
       Result := Result + '/' + Database
     end else
       Result := Result + Database;
-  end else if (Protocol <> 'local') and (HostName <> 'localhost') then
+  end else if (Protocol <> 'local') and (HostName <> 'localhost') and (HostName <> '') then
     if Port <> 0
       then Result := HostName + '/' + ZFastCode.IntToStr(Port) + ':' + Database
       else Result := HostName + ':' + Database
@@ -249,7 +253,7 @@ function TZFirebirdConnection.CreateTransaction(AutoCommit, ReadOnly: Boolean;
   Params: TStrings): IZTransaction;
 begin
   if FTPBs[AutoCommit][ReadOnly][TransactIsolationLevel] = EmptyRaw then
-    FTPBs[AutoCommit][ReadOnly][TransactIsolationLevel] := GenerateTPB(AutoCommit, ReadOnly, TransactIsolationLevel, Info);
+    FTPBs[AutoCommit][ReadOnly][TransactIsolationLevel] := GenerateTPB(AutoCommit, ReadOnly, TransactIsolationLevel, Params);
   Result := TZFirebirdTransaction.Create(Self, AutoCommit, ReadOnly, FTPBs[AutoCommit][ReadOnly][TransactIsolationLevel]);
 end;
 
@@ -267,6 +271,8 @@ begin
   FBTrans := ZTrans.GetTransaction;
   FAttachment.execute(FStatus, FBTrans, Length(SQL), Pointer(SQL),
     FDialect, nil, nil, nil, nil);
+  if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
+    HandleError(FStatus, SQL, Self, LoggingCategory);
 end;
 
 function TZFirebirdConnection.GetActiveTransaction: IZFirebirdTransaction;
@@ -304,8 +310,8 @@ procedure TZFirebirdConnection.HandleError(Status: IStatus;
 var
 	statusVector: PARRAY_ISC_STATUS;
 begin
-	if ((status.getState and status.STATE_ERRORS) = 0) then
-		Exit;
+  if ((status.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) = 0) then
+    Exit;
   statusVector := PARRAY_ISC_STATUS(Status.getErrors);
   try
     CheckInterbase6Error(FPlainDriver, statusVector^, Sender, LoggingCategory, Msg);
@@ -360,18 +366,18 @@ procedure TZFirebirdConnection.Open;
 var
   ti: IZFirebirdTransaction;
   DPB: RawByteString;
-  DBCP, ConnectionString, CSNoneCP: String;
+  DBCP, ConnectionString, CSNoneCP, CreateDB: String;
   DBName: array[0..512] of AnsiChar;
   LocaleDB: Boolean;
   P: PAnsiChar;
   DBCreated: Boolean;
   Statement: IZStatement;
+  CP: Word;
   procedure PrepareDPB;
   var
     R: RawByteString;
     P: PAnsiChar;
     L: LengthInt;
-    CP: Word;
   begin
     if (Info.IndexOf('isc_dpb_utf8_filename') = -1)
     then CP := zOSCodePage
@@ -381,7 +387,7 @@ var
     {$ELSE}
     R := ZConvertStringToRawWithAutoEncode(ConnectionString, ConSettings^.CTRL_CP, CP);
     {$ENDIF}
-    DPB := GenerateDPB(Info, ConSettings, CP);
+    DPB := GenerateDPB(FPlainDriver, Info, ConSettings, CP);
     P := Pointer(R);
     L := Min(SizeOf(DBName)-1, Length(R){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF});
     if P <> nil then
@@ -394,6 +400,7 @@ begin
     Exit;
   FProvider := FMaster.getDispatcher;
   FStatus := FMaster.getStatus;
+  FUtil := FMaster.getUtilInterface;
   DBCP := '';
   if TransactIsolationLevel = tiReadUncommitted then
     raise EZSQLException.Create('Isolation level do not capable');
@@ -402,15 +409,64 @@ begin
 
   AssignISC_Parameters;
   CSNoneCP := Info.Values[DSProps_ResetCodePage];
+  ConnectionString := ConstructConnectionString(LocaleDB);
 
   DBCreated := False;
-  ConnectionString := ConstructConnectionString(LocaleDB);
+  CreateDB := Info.Values[ConnProps_CreateNewDatabase];
+  if (CreateDB <> '') then begin
+    if StrToBoolEx(CreateDB) then begin
+      if (Info.Values['isc_dpb_lc_ctype'] <> '') and (Info.Values['isc_dpb_set_db_charset'] = '') then
+        Info.Values['isc_dpb_set_db_charset'] := Info.Values['isc_dpb_lc_ctype'];
+      DBCP := Info.Values['isc_dpb_set_db_charset'];
+      PrepareDPB;
+      FAttachment := FProvider.createDatabase(FStatus, @DBName[0], Smallint(Length(DPB)),Pointer(DPB));
+      Info.Values[ConnProps_CreateNewDatabase] := '';
+      DBCreated := True;
+    end else begin
+      if (Info.IndexOf('isc_dpb_utf8_filename') = -1)
+      then CP := zOSCodePage
+      else CP := zCP_UTF8;
+      {$IFDEF UNICODE}
+      DPB := ZUnicodeToRaw(CreateDB, CP);
+      {$ELSE}
+      DPB := ZConvertStringToRawWithAutoEncode(ConnectionString, ConSettings^.CTRL_CP, CP);
+      {$ENDIF}
+      FAttachment := FUtil.executeCreateDatabase(FStatus, Length(DPB), Pointer(DPB), fDialect, @DbCreated);
+    end;
+    if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
+      HandleError(FStatus, 'IProvider.createDatabase', Self, lcConnect);
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcConnect, ConSettings^.Protocol,
+        'CREATE DATABASE "'+ConSettings.Database+'" AS USER "'+ ConSettings^.User+'"');
+  end;
 reconnect:
-  PrepareDPB;
-  if LocaleDB
-  then P := Pointer(ConSettings.Database)
-  else P := nil;
-  FAttachment := FProvider.attachDatabase(FStatus, P, Length(DPB), Pointer(DPB));
+  if FAttachment = nil then begin
+    PrepareDPB;
+    if LocaleDB
+    then P := Pointer(ConSettings.Database)
+    else P := nil;
+    FAttachment := FProvider.attachDatabase(FStatus, P, Length(DPB), Pointer(DPB));
+    if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
+      HandleError(FStatus, 'IProvider.attachDatabase', Self, lcConnect);
+    { Logging connection action }
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcConnect, ConSettings^.Protocol,
+        'CONNECT TO "'+ConSettings^.DataBase+'" AS USER "'+ConSettings^.User+'"');
+  end;
+  { Dialect could have changed by isc_dpb_set_db_SQL_dialect command }
+  DBName[0] := AnsiChar(isc_info_db_SQL_Dialect);
+  FAttachment.getInfo(FStatus, 1, @DBName[0], SizeOf(DBName)-1, @DBName[1]);
+  if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
+    HandleError(FStatus, 'IAttachment.getInfo', Self, lcConnect);
+  if DBName[1] = AnsiChar(isc_info_db_SQL_Dialect)
+  then FDialect := ReadInterbase6Number(FPlainDriver, DBName[2])
+  else FDialect := SQL_DIALECT_V5;
+  inherited SetAutoCommit(AutoCommit or (Info.IndexOf('isc_tpb_autocommit') <> -1));
+  FRestartTransaction := not AutoCommit;
+
+  FHardCommit := StrToBoolEx(Info.Values[ConnProps_HardCommit]);
+  if (DBCP <> '') and not DBCreated then
+    Exit;
   inherited Open;
   with GetMetadata.GetDatabaseInfo as IZInterbaseDatabaseInfo do
   begin
@@ -581,7 +637,7 @@ begin
       ReleaseTransaction(Self);
     end;
     FExplicitTransactionCounter := 0;
-	  if ((Fstatus.getState and IStatus.STATE_ERRORS) <> 0) then
+	  if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
       HandleError(FStatus, sCommitMsg, self, lcTransaction);
   finally
     if fDoLog and DriverManager.HasLoggingListener then
@@ -644,7 +700,7 @@ begin
       ReleaseTransaction(Self);
     end;
     FExplicitTransactionCounter := 0;
-	  if ((Fstatus.getState and IStatus.STATE_ERRORS) <> 0) then
+	  if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
       HandleError(FStatus, sRollbackMsg, self, lcTransaction);
   finally
     if fDoLog and DriverManager.HasLoggingListener then
@@ -680,6 +736,23 @@ begin
     Result := FSavePoints.Add(S)+2;
   end;
   FExplicitTransactionCounter := Result;
+end;
+
+function TZFireBirdTransaction.TestCachedResultsAndForceFetchAll: Boolean;
+var I, RowNo: Integer;
+  P: Pointer;
+begin
+  Result := False;
+  for I := 0 to FOpenCursors.Count -1 do
+    if IZResultSet(FOpenCursors[i]).GetConcurrency <> rcUpdatable then
+      Exit;
+  Result := True;
+  while FOpenCursors.Count > 0 do begin
+    P := FOpenCursors[FOpenCursors.Count-1];
+    RowNo := IZResultSet(P).GetRow;
+    IZResultSet(P).Last; //now the pointer will be removed from the open cursor list
+    IZResultSet(P).MoveAbsolute(RowNo); //restore current position
+  end;
 end;
 
 function TZFireBirdTransaction.TxnIsStarted: Boolean;
