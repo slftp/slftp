@@ -254,8 +254,11 @@ begin
   State := USASCII7ToUnicodeString(@StateBuf[0], st_Len);
   ErrMsg := PRawToUnicode(Pointer(ErrBuf), err_Len, ZOSCodePage);
   {$ELSE}
-  {$IFDEF FPC} State := ''; {$ENDIF}
+  {$IFDEF WITH_VAR_INIT_WARNING} State := ''; {$ENDIF}
   System.SetString(State, PAnsiChar(@StateBuf[0]), st_Len);
+  {$IFDEF WITH_VAR_INIT_WARNING} ErrMsg := ''; {$ENDIF}
+  P := Pointer(ErrBuf);
+  System.SetString(ErrMsg, P, err_Len);
   {$ENDIF}
   ErrMsg := ErrMsg + ' The SQL: ';
   {$IFDEF UNICODE}
@@ -692,7 +695,7 @@ end;
 initialization
   SQLAynwhereDriver := TZSQLAnywhereDriver.Create;
   DriverManager.RegisterDriver(SQLAynwhereDriver);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}ConParams := nil;{$ENDIF}
   SetLength(ConParams, 41);
   addParams(0,  [ConnProps_APP, ConnProps_AppInfo]);
   addParams(1,  [ConnProps_ASTART, ConnProps_AutoStart]);

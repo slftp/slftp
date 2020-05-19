@@ -60,7 +60,7 @@ interface
 uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZClasses, ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZCompatibility,
-  ZDbcConnection, ZPlainMySqlConstants;
+  ZDbcConnection, ZPlainMySqlDriver;
 
 type
 
@@ -299,7 +299,7 @@ implementation
 uses
   Math, {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF}
   ZFastCode, ZMessages, ZDbcMySqlUtils, ZDbcUtils, ZCollections,
-  ZDbcProperties, ZPlainMySqlDriver;
+  ZDbcProperties;
 
 { TZMySQLDatabaseInfo }
 
@@ -456,6 +456,11 @@ begin
     + 'UTC_TIMESTAMP,VARBINARY,VARCHARACTER,VARYING,WHEN,WHILE,WITH,'
     + 'WRITE,X509,XOR,YEAR_MONTH,ACCESSIBLE,LINEAR,'
     + 'MASTER_SSL_VERIFY_SERVER_CERT,RANGE,READ_ONLY,READ_WRITE';
+  { more reserved words, introduced after MySQL 5.1, up to version 8, thanks to abonic. }
+  Result := Result + 'CUBE,CUME_DIST,DENSE_RANK,EMPTY,EXCEPT,FIRST_VALUE,FUNCTION,'
+    + 'GENERATED,GET,GROUPING,GROUPS,IO_AFTER_GTIDS,IO_BEFORE_GTIDS,JSON_TABLE,'
+    + 'LAG,LAST_VALUE,LATERAL,LEAD,MASTER_BIND,NTH_VALUE,NTILE,OF,OPTIMIZER_COSTS,OVER,'
+    + 'PARTITION,PERCENT_RANK,RANK,RECURSIVE,ROW,ROWS,ROW_NUMBER,STORED,SYSTEM,VIRTUAL,WINDOW';
 end;
 
 {**
@@ -1330,8 +1335,8 @@ begin
           Result.UpdatePAnsiChar(ColumnNameIndex, GetPAnsiChar(ColumnIndexes[1], Len), Len);
 
           TypeName := GetRawByteString(ColumnIndexes[2]);
-          ConvertMySQLColumnInfoFromString(TypeName, ConSettings,
-            TypeInfoSecond, MySQLType, ColumnSize, ColumnDecimals, fMySQL_FieldType_Bit_1_IsBoolean);
+          ConvertMySQLColumnInfoFromString(TypeName, TypeInfoSecond, MySQLType,
+            ColumnSize, ColumnDecimals, fMySQL_FieldType_Bit_1_IsBoolean);
           if TypeName = 'enum'
           then AddToBoolCache := AddToBoolCache or ((TypeInfoSecond = '''Y'',''N''') or (TypeInfoSecond = '''N'',''Y'''))
           else if TypeName = 'bit'
@@ -2713,7 +2718,7 @@ begin
           Result.UpdatePAnsiChar(SchemaNameIndex, GetPAnsiChar(PROCEDURE_SCHEM_index, Len), Len); //PROCEDURE_SCHEM
           Result.UpdatePAnsiChar(ProcColProcedureNameIndex, GetPAnsiChar(PROCEDURE_NAME_Index, Len), Len); //PROCEDURE_NAME
           TypeName := ConSettings^.ConvFuncs.ZStringToRaw(Params[2], ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP);
-          ConvertMySQLColumnInfoFromString(TypeName, ConSettings, Temp, FieldType, ColumnSize, Scale,
+          ConvertMySQLColumnInfoFromString(TypeName, Temp, FieldType, ColumnSize, Scale,
             fMySQL_FieldType_Bit_1_IsBoolean);
           { process COLUMN_NAME }
           if Params[1] = '' then
@@ -2857,6 +2862,10 @@ var
       ZType := Ord(stString);
       ZPrecision := MysqlCharLength;
       ZScale := -1;
+    end else if EndsWith(TypeName, 'binary') then begin
+      ZType := Ord(stBytes);
+      ZPrecision := MysqlCharLength;
+      ZScale := -1;
     end else if TypeName = 'date' then begin
       ZType := Ord(stDate);
       ZPrecision := -1;
@@ -2878,8 +2887,13 @@ var
       ZPrecision := -1;
       ZScale := -1;
     end else if EndsWith(TypeName, 'blob') then begin
-      ZType := Ord(stBinaryStream);
-      ZPrecision := -1;
+      if StartsWith(TypeName, 'tiny') then begin
+        ZType := Ord(stBytes);
+        ZPrecision := 255;
+      end else begin
+        ZType := Ord(stBinaryStream);
+        ZPrecision := -1;
+      end;
       ZScale := -1;
     end else if EndsWith(TypeName, 'text') then begin
       ZType := Ord(stAsciiStream);
@@ -2927,7 +2941,8 @@ begin
        + ' ORDER BY P.SPECIFIC_SCHEMA, P.SPECIFIC_NAME, P.ORDINAL_POSITION) ';
   with GetConnection.CreateStatementWithParams(FInfo).ExecuteQuery(SQL) do begin
     while Next do begin
-      MysqlTypeToZeos(GetString(myProcColTypeNameIndex), GetInt(myExtraNumericPrecisionIndex), GetInt(myProcColScaleIndex), GetInt(myExtraMaxCharLength), ZType, ZPrecision, ZScale);
+      MysqlTypeToZeos(GetString(myProcColTypeNameIndex), GetInt(myExtraNumericPrecisionIndex),
+        GetInt(myProcColScaleIndex), GetInt(myExtraMaxCharLength), ZType, ZPrecision, ZScale);
 
       Result.MoveToInsertRow;
       if not IsNull(CatalogNameIndex) then
