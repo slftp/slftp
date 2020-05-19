@@ -25,9 +25,6 @@ program slftpUnitTests;
 
 uses
   {$IFDEF UNIX}
-    {$IFNDEF CPUARM}
-      FastMM4,
-    {$ENDIF}
     cthreads,
     cmem,
   {$ENDIF}

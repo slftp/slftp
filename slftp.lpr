@@ -49,16 +49,9 @@ program slftp;
 {$ENDIF}
 
 uses
-  {$IFDEF LINUX}
-    {$IFNDEF DEBUG}
-      {$IFNDEF CPUARM}
-        FastMM4,
-      {$ENDIF}
-    {$ENDIF}
-      cthreads,
-    {$IFNDEF DEBUG}
-      cmem,
-    {$ENDIF}
+  {$IFDEF UNIX}
+    cthreads,
+    cmem,
   {$ENDIF}
   console;
 

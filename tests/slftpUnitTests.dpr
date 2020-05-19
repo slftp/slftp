@@ -47,7 +47,7 @@ program slftpUnitTests;
 {$ENDIF}
 
 uses
-  FastMM4,
+  FastMM5,
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX,
   {$ENDIF}
