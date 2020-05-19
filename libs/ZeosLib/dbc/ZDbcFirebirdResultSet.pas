@@ -57,13 +57,14 @@ interface
 
 {$IFNDEF ZEOS_DISABLE_FIREBIRD} //if set we have an empty unit
 
-uses FmtBCD, {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
+uses
+  {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF}
-  Firebird, ZCompatibility, ZClasses,
-  ZDbcIntfs, ZDbcResultSet, ZDbcFirebirdStatement, ZDbcInterbase6Utils,
+  ZPlainFirebird, ZCompatibility, ZClasses,
+  ZDbcResultSet, ZDbcInterbase6Utils,
   ZDbcFirebird, ZDbcCachedResultSet, ZDbcCache, ZDbcResultSetMetadata,
-  ZPlainFirebirdInterbaseConstants, ZPlainFirebirdInterbaseDriver,
-  ZPlainFirebirdDriver, ZDbcFirebirdInterbase, ZDbcLogging;
+  ZPlainFirebirdInterbaseDriver,
+  ZDbcFirebirdInterbase, ZDbcLogging, ZDbcIntfs;
 
 type
   IZFirebirdResultSet = Interface(IZResultSet)
@@ -76,9 +77,7 @@ type
   TZAbstractFirebirdResultSet = Class(TZAbstractInterbaseFirebirdResultSet,
     IZResultSet, IZFirebirdResultSet)
   private
-    FFBStatement: IStatement;
     FStatus: IStatus;
-    FMessageMetadata: IMessageMetadata;
     FDataBuffer: Pointer;
     FFBConnection: IZFirebirdConnection;
     FFBTransaction: IZFirebirdTransaction;
@@ -89,12 +88,10 @@ type
     function GetConnection: IZFirebirdConnection;
   public
     procedure RegisterCursor;
-  protected
-    procedure Open; override;
   public
     Constructor Create(const Statement: IZStatement; const SQL: String;
-      FBStmt: IStatement; MessageMetadata: IMessageMetadata; Status: IStatus);
-    procedure AfterClose; override;
+      MessageMetadata: IMessageMetadata; Status: IStatus;
+      DataBuffer: Pointer);
   public
     function GetBlob(ColumnIndex: Integer; LobStreamMode: TZLobStreamMode = lsmRead): IZBlob;
   end;
@@ -105,9 +102,8 @@ type
     FResultSetAddr: PIResultSet;
   public
     Constructor Create(const Statement: IZStatement; const SQL: String;
-      FBStmt: IStatement; MessageMetadata: IMessageMetadata; Status: IStatus;
-      ResultSet: PIResultSet);
-    procedure AfterClose; override;
+      MessageMetadata: IMessageMetadata; Status: IStatus;
+      DataBuffer: Pointer; ResultSet: PIResultSet);
     procedure ResetCursor; override;
 
   public { Traversal/Positioning }
@@ -124,7 +120,7 @@ type
   TZFirebirdOutParamResultSet = class(TZAbstractFirebirdResultSet)
   public
     Constructor Create(const Statement: IZStatement; const SQL: String;
-      FBStmt: IStatement; MessageMetadata: IMessageMetadata; Status: IStatus;
+      MessageMetadata: IMessageMetadata; Status: IStatus;
       DataBuffer: Pointer);
   public { Traversal/Positioning }
     function Next: Boolean; override;
@@ -133,16 +129,13 @@ type
 
   TZFirebirdLob = class;
 
-  {** EH: implements a sequential Firebird large object stream }
-  TZFirebirdLobStream = class(TZImmediatelyReleasableLobStream, IImmediatelyReleasable)
+  {** EH: implements a Firebird large object stream }
+  TZFirebirdLobStream = class(TZAbstractInterbaseFirebirdLobStream)
   private
-    FPlainDriver: TZInterbaseFirebirdPlainDriver;
     FAttachment: IAttachment;
     FFBTransaction: ITransaction;
     FStatus: IStatus;
     FBlob: IBlob;
-    FLobIsOpen: Boolean;
-    FPosition: Integer;
     FOwnerLob: TZFirebirdLob;
   protected
     procedure FillBlobInfo;
@@ -150,10 +143,6 @@ type
   public
     constructor Create(const OwnerLob: TZFirebirdLob);
     destructor Destroy; override;
-  public
-    BlobId: TISC_QUAD;
-    Updated: Boolean;
-    BlobInfo: PIbBlobInfo;
   public
     procedure OpenLob;
     procedure CloseLob;
@@ -165,20 +154,16 @@ type
     function Seek(Offset: Longint; Origin: Word): Longint; overload; override;
   end;
 
-  IZInterbaseLob = interface(IZLob)
-    ['{85E3AA45-07A5-476E-83A7-15D40C4DEFCE}']
-    function GetBlobId: TISC_QUAD;
-  end;
-
   { TZFirebirdLob }
 
   TZFirebirdLob = Class(TZAbstractStreamedLob, IZLob, IZBlob,
-    IImmediatelyReleasable, IZInterbaseLob)
+    IImmediatelyReleasable, IZInterbaseFirebirdLob)
   private
     FLobStream: TZFirebirdLobStream;
     FPlainDriver: TZFirebird3UpPlainDriver;
     FBlobId: TISC_QUAD;
     FFBConnection: IZFirebirdConnection;
+    FFBTransaction: IZFirebirdTransaction;
     FReleased: Boolean;
     FBlobInfo: TIbBlobInfo;
     FBlobInfoFilled: Boolean;
@@ -197,7 +182,7 @@ type
   public //obsolate
     function Length: Integer; override;
   public
-    constructor Create(const Connection: IZFirebirdConnection; BlobId: TISC_QUAD;
+    constructor Create(const Connection: IZFirebirdConnection; const BlobId: TISC_QUAD;
       LobStreamMode: TZLobStreamMode; ColumnCodePage: Word;
       const OpenLobStreams: TZSortedList);
     procedure AfterConstruction; override;
@@ -290,37 +275,145 @@ begin
         then Result := stAsciiStream
         else Result := stBinaryStream;
     SQL_ARRAY: Result := stArray;
-    else  Result := TZSQLType.stUnknown;
+    else  Result := stUnknown;
   end;
 end;
 { TZAbstractFirebirdResultSet }
 
-procedure TZAbstractFirebirdResultSet.AfterClose;
-begin
-  inherited;
-  if FMessageMetadata <> nil then begin
-    FMessageMetadata.release;
-    FMessageMetadata := nil;
-  end;
-  if FFBStatement <> nil then begin
-    FFBStatement.release;
-    FFBStatement := nil;
-  end;
-end;
-
 constructor TZAbstractFirebirdResultSet.Create(const Statement: IZStatement;
-  const SQL: String; FBStmt: IStatement; MessageMetadata: IMessageMetadata;
-  Status: IStatus);
+  const SQL: String; MessageMetadata: IMessageMetadata;
+  Status: IStatus; DataBuffer: Pointer);
+var I, Len, OffSet: Cardinal;
+  CP_ID: Word;
+  ColumnInfo: TZInterbaseFirebirdColumnInfo;
+  P: PAnsiChar;
+  ZCodePageInfo: PZCodePage;
+label jmpLen;
 begin
   inherited Create(Statement, SQL);
-  FFBStatement := FBStmt;
-  FFBStatement.addRef;
-  FMessageMetadata := MessageMetadata;
-  FMessageMetadata.addRef;
   FStatus := Status;
   FFBConnection := Statement.GetConnection as IZFirebirdConnection;
   FPlainDriver := FFBConnection.GetPlainDriver;
   FFirstRow := True;
+  FDataBuffer := DataBuffer;
+
+  I := MessageMetadata.getCount(FStatus);
+  if i = 0 then
+    raise EZSQLException.Create(SCanNotRetrieveResultSetData);
+  ColumnsInfo.Capacity := I;
+  for i := 0 to I -1 do begin
+    {$IFDEF UNICODE}
+    if ConSettings.ClientCodePage.ID = CS_NONE
+    then CP_ID := zCP_UTF8
+    else CP_ID := ConSettings.ClientCodePage.CP;
+    {$ENDIF UNICODE}
+    ColumnInfo := TZInterbaseFirebirdColumnInfo.Create;
+    ColumnsInfo.Add(ColumnInfo);
+    with ColumnInfo do begin
+      P := MessageMetadata.getRelation(FStatus, I);
+      Len := ZFastCode.StrLen(P);
+      {$IFDEF UNICODE}
+      TableName := PRawToUnicode(P, Len, CP_ID);
+      {$ELSE}
+      System.SetString(TableName, P, Len);
+      {$ENDIF}
+      if TableName <> '' then begin //firebird does not corectly clear the name
+        //see TestColumnTypeAndTableDetermination we get a 'ADD' in buffer back
+        P := MessageMetadata.getField(FStatus, I);
+        Len := ZFastCode.StrLen(P);
+        {$IFDEF UNICODE}
+        ColumnName := PRawToUnicode(P, Len, CP_ID);
+        {$ELSE}
+        System.SetString(ColumnName, P, Len);
+        {$ENDIF}
+      end;
+      P := MessageMetadata.getAlias(FStatus, I);
+      Len := ZFastCode.StrLen(P);
+      {$IFDEF UNICODE}
+      ColumnLabel := PRawToUnicode(P, Len, CP_ID);
+      {$ELSE}
+      System.SetString(ColumnLabel, P, Len);
+      {$ENDIF}
+      sqltype := MessageMetadata.getType(FStatus, I);
+      sqlsubType := MessageMetadata.getSubType(FStatus, I);
+      Len := MessageMetadata.getLength(FStatus, I);
+      sqlscale := MessageMetadata.getScale(FStatus, I);
+      Scale := -sqlscale;
+      if (sqltype = SQL_TEXT) or (sqltype = SQL_VARYING) then begin //SQL_BLOB
+        CP_ID := Word(MessageMetadata.getCharSet(FStatus, I)) and 255;
+        ColumnType := ConvertIB_FBType2SQLType(sqltype, CP_ID, sqlscale);
+      end else
+        ColumnType := ConvertIB_FBType2SQLType(sqltype, sqlsubtype, sqlscale);
+      if FGUIDProps.ColumnIsGUID(ColumnType, len, ColumnName) then
+        ColumnType := stGUID;
+      if MessageMetadata.isNullable(FStatus, I) then begin
+        OffSet := MessageMetadata.getNullOffset(FStatus, I);
+        sqlind := PISC_SHORT(PAnsiChar(FDataBuffer)+OffSet);
+        Nullable := ntNullable;
+      end;
+      OffSet := MessageMetadata.getOffset(FStatus, I);
+      sqldata := PAnsiChar(FDataBuffer)+OffSet;
+      if sqlind = sqldata then
+        sqlind := nil;
+      case ColumnType of
+        stString, stGUID: begin
+            //see test Bug#886194, we retrieve 565 as CP... the modula returns the FBID of CP
+            CP_ID := Word(MessageMetadata.getCharSet(FStatus, I)) and 255;
+            //see: http://sourceforge.net/p/zeoslib/tickets/97/
+            if (CP_ID = ConSettings^.ClientCodePage^.ID)
+            then ZCodePageInfo := ConSettings^.ClientCodePage
+            else ZCodePageInfo := FPlainDriver.ValidateCharEncoding(CP_ID); //get column CodePage info}
+            ColumnCodePage := ZCodePageInfo.CP;
+            if (ColumnType = stGUID) or (ConSettings^.ClientCodePage^.ID = CS_NONE) then begin
+  jmpLen:     Precision := Len;
+              CharOctedLength := Precision;
+            end else begin
+              CharOctedLength := len;
+              Precision := len div Cardinal(ZCodePageInfo^.CharWidth);
+            end;
+            Signed := sqltype = SQL_TEXT;
+          end;
+        stAsciiStream, stUnicodeStream: if ConSettings^.ClientCodePage^.ID = CS_NONE
+          then if FIsMetadataResultSet
+            then ColumnCodePage := zCP_UTF8
+            else begin //connected with CS_NONE no transliterations are made by FB
+              CP_ID := FFBConnection.GetSubTypeTextCharSetID(TableName,ColumnName);
+              if CP_ID = CS_NONE
+              then ZCodePageInfo := ConSettings^.ClientCodePage
+              else ZCodePageInfo := FPlainDriver.ValidateCharEncoding(CP_ID);
+              ColumnCodePage := ZCodePageInfo.CP;
+            end else ColumnCodePage := ConSettings^.ClientCodePage^.CP;
+        stBytes: begin
+            ColumnCodePage := zCP_Binary;
+            goto jmpLen;
+          end;
+        stBinaryStream: ColumnCodePage := zCP_Binary;
+        else begin
+          ColumnCodePage := zCP_NONE;
+          case ColumnType of
+            stShort, stSmall, stInteger, stLong: Signed := True;
+            stCurrency, stBigDecimal: begin
+              Signed  := True;
+              Scale   := Scale;
+              //first digit does not count because of overflow (FB does not allow this)
+              case sqltype of
+                SQL_SHORT:  Precision := 4;
+                SQL_LONG:   Precision := 9;
+                SQL_INT64:  Precision := 18;
+                {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //nothing todo
+              end;
+            end;
+            stTime, stTimeStamp: Scale := {-}4; //fb supports 10s of millisecond fractions
+            {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //nothing todo
+          end;
+        end;
+      end;
+      ReadOnly := (TableName = '') or (ColumnName = '') or
+        (ColumnName = 'RDB$DB_KEY') or (ColumnType = ZDbcIntfs.stUnknown);
+      Writable := not ReadOnly;
+      CaseSensitive := UpperCase(ColumnName) <> ColumnName; //non quoted fiels are uppercased by default
+    end;
+  end;
   Open;
 end;
 
@@ -360,133 +453,6 @@ begin
   Result := FFBConnection;
 end;
 
-{**
-  Opens this recordset.
-}
-procedure TZAbstractFirebirdResultSet.Open;
-var I, Len: Cardinal;
-  CP_ID: Word;
-  ColumnInfo: TZInterbaseFirebirdColumnInfo;
-  P: PAnsiChar;
-  ZCodePageInfo: PZCodePage;
-label jmpLen;
-begin
-  I := FMessageMetadata.getCount(FStatus);
-  if i = 0 then
-    raise EZSQLException.Create(SCanNotRetrieveResultSetData);
-  if FDataBuffer = nil then begin
-    Len := FMessageMetadata.getMessageLength(FStatus);
-    GetMem(FDataBuffer, Len);
-  end;
-  ColumnsInfo.Capacity := I;
-  for i := 0 to I -1 do begin
-    if ConSettings.ClientCodePage.ID = CS_NONE
-    then CP_ID := zCP_UTF8
-    else CP_ID := ConSettings.ClientCodePage.CP;
-
-    ColumnInfo := TZInterbaseFirebirdColumnInfo.Create;
-    ColumnsInfo.Add(ColumnInfo);
-    with ColumnInfo do begin
-      sqltype := FMessageMetadata.getType(FStatus, I);
-      sqlsubtype := FMessageMetadata.getSubType(FStatus, I);
-      sqlscale := FMessageMetadata.getScale(FStatus, I);
-      P := FMessageMetadata.getRelation(FStatus, I);
-      Len := ZFastCode.StrLen(P);
-      {$IFDEF UNICODE}
-      TableName := PRawToUnicode(P, Len, CP_ID);
-      {$ELSE}
-      System.SetString(TableName, P, Len);
-      {$ENDIF}
-      if TableName <> '' then begin //firebird does not corectly clear the name
-        //see TestColumnTypeAndTableDetermination we get a 'ADD' in buffer back
-        P := FMessageMetadata.getField(FStatus, I);
-        Len := ZFastCode.StrLen(P);
-        {$IFDEF UNICODE}
-        ColumnName := PRawToUnicode(P, Len, CP_ID);
-        {$ELSE}
-        System.SetString(ColumnName, P, Len);
-        {$ENDIF}
-      end;
-      P := FMessageMetadata.getAlias(FStatus, I);
-      Len := ZFastCode.StrLen(P);
-      {$IFDEF UNICODE}
-      ColumnLabel := PRawToUnicode(P, Len, CP_ID);
-      {$ELSE}
-      System.SetString(ColumnLabel, P, Len);
-      {$ENDIF}
-      sqltype := FMessageMetadata.getType(FStatus, I);
-      sqlsubType := FMessageMetadata.getSubType(FStatus, I);
-      Len := FMessageMetadata.getLength(FStatus, I);
-      sqlscale := FMessageMetadata.getScale(FStatus, I);
-      Scale := -sqlscale;
-      ColumnType := ConvertIB_FBType2SQLType(sqltype, sqlsubtype, sqlscale);
-      if FGUIDProps.ColumnIsGUID(ColumnType, len, ColumnName) then
-        ColumnType := stGUID;
-      if FMessageMetadata.isNullable(FStatus, I) then begin
-        sqlind := PISC_SHORT(PAnsiChar(FDataBuffer)+FMessageMetadata.getNullOffset(FStatus, I));
-        Nullable := ntNullable;
-      end;
-      sqldata := PAnsiChar(FDataBuffer)+FMessageMetadata.getOffset(FStatus, I);
-      case ColumnType of
-        stString: begin
-            //see test Bug#886194, we retrieve 565 as CP... the modula returns the FBID of CP
-            CP_ID := Word(FMessageMetadata.getCharSet(FStatus, I)) and 255;
-            //see: http://sourceforge.net/p/zeoslib/tickets/97/
-            if (CP_ID = ConSettings^.ClientCodePage^.ID)
-            then ZCodePageInfo := ConSettings^.ClientCodePage
-            else ZCodePageInfo := FPlainDriver.ValidateCharEncoding(CP_ID); //get column CodePage info}
-            ColumnCodePage := ZCodePageInfo.CP;
-            if ConSettings^.ClientCodePage^.ID = CS_NONE then begin
-  jmpLen:     Precision := Len;
-              CharOctedLength := Precision;
-            end else begin
-              CharOctedLength := len;
-              Precision := len div Cardinal(ZCodePageInfo^.CharWidth);
-            end;
-            Signed := sqltype = SQL_TEXT;
-          end;
-        stAsciiStream, stUnicodeStream: if ConSettings^.ClientCodePage^.ID = CS_NONE
-          then if FIsMetadataResultSet
-            then ColumnCodePage := zCP_UTF8
-            else begin //connected with CS_NONE no transliterions are made by FB
-              CP_ID := FFBConnection.GetSubTypeTextCharSetID(TableName,ColumnName);
-              if CP_ID = CS_NONE
-              then ZCodePageInfo := ConSettings^.ClientCodePage
-              else ZCodePageInfo := FPlainDriver.ValidateCharEncoding(CP_ID);
-              ColumnCodePage := ZCodePageInfo.CP;
-            end else ColumnCodePage := ConSettings^.ClientCodePage^.CP;
-        stBytes: begin
-            ColumnCodePage := zCP_Binary;
-            goto jmpLen;
-          end;
-        stBinaryStream: ColumnCodePage := zCP_Binary;
-        else begin
-          ColumnCodePage := zCP_NONE;
-          case ColumnType of
-            stShort, stSmall, stInteger, stLong: Signed := True;
-            stCurrency, stBigDecimal: begin
-              Signed  := True;
-              Scale   := Scale;
-              //first digit does not count because of overflow (FB does not allow this)
-              case sqltype of
-                SQL_SHORT:  Precision := 4;
-                SQL_LONG:   Precision := 9;
-                SQL_INT64:  Precision := 18;
-              end;
-            end;
-            stTime, stTimeStamp: Scale := {-}4; //fb supports 10s of milli second fractions
-          end;
-        end;
-      end;
-      ReadOnly := (TableName = '') or (ColumnName = '') or
-        (ColumnName = 'RDB$DB_KEY') or (ColumnType = ZDbcIntfs.stUnknown);
-      Writable := not ReadOnly;
-      CaseSensitive := UpperCase(ColumnName) <> ColumnName; //non quoted fiels are uppercased by default
-    end;
-  end;
-  inherited Open;
-end;
-
 procedure TZAbstractFirebirdResultSet.RegisterCursor;
 begin
   FFBTransaction := FFBConnection.GetActiveTransaction;
@@ -495,24 +461,11 @@ end;
 
 { TZFirebirdResultSet }
 
-procedure TZFirebirdResultSet.AfterClose;
-begin
-  if FResultset <> nil then begin
-    FResultset.release;
-    FResultset := nil;
-  end;
-  if FDataBuffer <> nil then begin
-    FreeMem(FDataBuffer);
-    FDataBuffer := nil;
-  end;
-  inherited AfterClose;
-end;
-
 constructor TZFirebirdResultSet.Create(const Statement: IZStatement;
-  const SQL: String; FBStmt: IStatement; MessageMetadata: IMessageMetadata;
-  Status: IStatus; ResultSet: PIResultSet);
+  const SQL: String; MessageMetadata: IMessageMetadata;
+  Status: IStatus; DataBuffer: Pointer; ResultSet: PIResultSet);
 begin
-  inherited Create(Statement, SQL, FBStmt, MessageMetadata, Status);
+  inherited Create(Statement, SQL, MessageMetadata, Status, DataBuffer);
   FResultset := ResultSet^;
   FResultSetAddr := ResultSet;
 end;
@@ -527,15 +480,16 @@ end;
 function TZFirebirdResultSet.First: Boolean;
 var Status: Integer;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := False;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchFirst(FStatus, FDataBuffer);
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         LastRowNo := 0;
         RowNo := 1; //set AfterLast
       end else
@@ -545,7 +499,7 @@ begin
       if LastRowNo < RowNo then
         LastRowNo := RowNo;
     end;
-  end else Result := False;
+  end;
 end;
 
 {**
@@ -558,13 +512,14 @@ end;
 }
 function TZFirebirdResultSet.IsAfterLast: Boolean;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := True;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Result := FResultset.isEof(FStatus)
-  end else Result := True;
+  end;
 end;
 
 {**
@@ -577,13 +532,14 @@ end;
 }
 function TZFirebirdResultSet.IsBeforeFirst: Boolean;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := True;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Result := FResultset.isBof(FStatus)
-  end else Result := True;
+  end;
 end;
 
 {**
@@ -596,15 +552,16 @@ end;
 function TZFirebirdResultSet.Last: Boolean;
 var Status: Integer;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := False;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchLast(FStatus, FDataBuffer);
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         if RowNo = 0 then
           RowNo := 1; //else ?? which row do we have now?
       end else
@@ -612,7 +569,7 @@ begin
     end else begin
       //how to know a rowno now?
     end;
-  end else Result := False;
+  end;
 end;
 
 {**
@@ -645,15 +602,16 @@ end;
 function TZFirebirdResultSet.MoveAbsolute(Row: Integer): Boolean;
 var Status: Integer;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := False;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchAbsolute(FStatus, Row, FDataBuffer);
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         RowNo := Row;
         if LastRowNo >= Row then
           LastRowNo := Row -1;
@@ -664,8 +622,7 @@ begin
       if LastRowNo < Row then
         LastRowNo := Row;
     end;
-  end else
-    Result := False;
+  end;
 end;
 
 {**
@@ -688,16 +645,17 @@ end;
 function TZFirebirdResultSet.MoveRelative(Rows: Integer): Boolean;
 var Status: Integer;
 begin
-  if not Closed then begin
-    if FResultSet = nil then begin
+  Result := False;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchRelative(FStatus, Rows, FDataBuffer);
     RowNo := RowNo + Rows;
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         if LastRowNo >= RowNo then
           LastRowNo := RowNo -1;
       end else
@@ -706,8 +664,7 @@ begin
       if LastRowNo < RowNo then
         LastRowNo := RowNo;
     end;
-  end else
-    Result := False;
+  end;
 end;
 
 {**
@@ -730,20 +687,30 @@ var Status: Integer;
 begin
   { Checks for maximum row. }
   Result := False;
-  if Closed or (RowNo > LastRowNo ) or ((MaxRows > 0) and (LastRowNo >= MaxRows) or (FResultSetAddr^ = nil)) then
+  if Closed or (FResultSetAddr^ = nil) or (RowNo > LastRowNo ) or ((MaxRows > 0) and (LastRowNo >= MaxRows)) then
     Exit;
   if not Closed then begin
-    if FResultSet = nil then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchNext(FStatus, FDataBuffer);
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         if LastRowNo < RowNo then
           LastRowNo := RowNo;
         RowNo := RowNo +1; //set AfterLast
+        if GetType = rtForwardOnly then begin
+          FResultSet.Close(FStatus); //dereister cursor from Txn
+          if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+            FFBConnection.HandleError(FStatus, 'IResultSet.close', Self, lcOther);
+          FResultSet.release;
+          FResultSet := nil;
+          FResultSetAddr^ := nil;
+          if (FFBTransaction <> nil) then
+            DeRegisterCursor;
+        end;
       end else
         FFBConnection.HandleError(FStatus, 'IResultSet.fetchNext', Self, lcExecute);
     end else begin
@@ -751,7 +718,7 @@ begin
       if LastRowNo < RowNo then
         LastRowNo := RowNo;
     end;
-  end else Result := False;
+  end;
 end;
 
 {**
@@ -768,22 +735,23 @@ end;
 function TZFirebirdResultSet.Previous: Boolean;
 var Status: Integer;
 begin
-  if not Closed and (RowNo > 0) then begin
-    if FResultSet = nil then begin
+  Result := False;
+  if not Closed and (FResultSetAddr^ <> nil) then begin
+    if (FResultSet = nil) then begin
       FResultSet := FResultSetAddr^;
       RegisterCursor;
     end;
     Status := FResultSet.fetchPrior(FStatus, FDataBuffer);
-    Result := Status = IStatus.RESULT_OK;
+    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
     RowNo := RowNo -1;
     if not Result then begin
-      if Status = IStatus.RESULT_NO_DATA then begin
+      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
         if LastRowNo < RowNo then
           LastRowNo := RowNo;
       end else
         FFBConnection.HandleError(FStatus, 'IResultSet.fetchPrior', Self, lcExecute);
     end;
-  end else Result := False;
+  end;
 end;
 
 procedure TZFirebirdResultSet.ResetCursor;
@@ -791,10 +759,11 @@ begin
   inherited;
   if FResultSet <> nil then begin
     FResultSet.close(FStatus);
-    if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
       FFBConnection.HandleError(FStatus, 'IResultSet.close', Self, lcOther);
     FResultSet.release;
     FResultSet := nil;
+    FResultSetAddr^ := nil;
   end;
   if FFBTransaction <> nil then
     DeRegisterCursor;
@@ -803,11 +772,10 @@ end;
 { TZFirebirdOutParamResultSet }
 
 constructor TZFirebirdOutParamResultSet.Create(const Statement: IZStatement;
-  const SQL: String; FBStmt: IStatement; MessageMetadata: IMessageMetadata;
+  const SQL: String; MessageMetadata: IMessageMetadata;
   Status: IStatus; DataBuffer: Pointer);
 begin
-  FDataBuffer := DataBuffer;
-  inherited Create(Statement, SQL, FBStmt, MessageMetadata, Status);
+  inherited Create(Statement, SQL, MessageMetadata, Status, DataBuffer);
   LastRowNo := 1;
 end;
 
@@ -877,7 +845,7 @@ begin
     Assert(FLobIsOpen);
     try
       FBlob.cancel(FStatus);
-      if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
         FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
       FOwnerLob.FFBConnection.GetActiveTransaction.DeRegisterOpenUnCachedLob(FOwnerLob);
     finally
@@ -895,8 +863,9 @@ procedure TZFirebirdLobStream.CloseLob;
 begin
   Assert(FLobIsOpen);
   FBlob.close(FStatus);
-  if ((Fstatus.getState and IStatus.STATE_ERRORS) <> 0) then
+  if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
     FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.close', Self, lcOther);
+  FBlob.release;
   FLobIsOpen := False;
   FPosition := 0;
 end;
@@ -923,7 +892,7 @@ begin
   WasRegistered := Int64(BlobId) <> 0;
   { create blob handle }
   FBlob := FAttachment.createBlob(Fstatus, FFBTransaction, @BlobId, 0, nil);
-  if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+  if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
     FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
   if not WasRegistered then
     FOwnerLob.FFBConnection.GetActiveTransaction.RegisterOpenUnCachedLob(FOwnerLob);
@@ -941,23 +910,13 @@ end;
 destructor TZFirebirdLobStream.Destroy;
 begin
   try
-    if not FReleased then begin
-      if (FBlob <> nil) then begin
-        if FLobIsOpen then { close blob handle }
-          FBlob.close(FStatus);
-        if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
-          FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.close', Self, lcOther);
-        FBlob.release;
-        if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
-          FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.release', Self, lcOther);
-        FBlob := nil;
-      end;
-    end;
+    if not FReleased and (FBlob <> nil) and FLobIsOpen then
+      CloseLob;
   finally
     FOwnerLob.FLobStream := nil;
     FOwnerLob.FIsUpdated := Updated;
     FAttachment.release;
-    FFBTransaction.release
+    FFBTransaction.release;
   end;
   inherited;
 end;
@@ -975,7 +934,7 @@ begin
   Items[3] := isc_info_blob_type;
 
   FBlob.getInfo(FStatus, 4, @Items[0], SizeOf(Results), @Results[0]);
-  if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+  if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
      FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
   pBufStart := @Results[0];
   pBuf := pBufStart;
@@ -1020,7 +979,7 @@ begin
   if not FLobIsOpen then begin
     if (Int64(BlobID) <> 0) then begin
       FBlob := FAttachment.openBlob(FStatus, FFBTransaction, @BlobID, 0, nil);
-      if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
         FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
       FillBlobInfo;
     end else
@@ -1048,16 +1007,24 @@ begin
       then SegLen := FOwnerLob.FBlobInfo.MaxSegmentSize
       else SegLen := Word(Count);
       Status := FBlob.getSegment(FStatus, SegLen, PBuf, @BytesRead);
-      if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
+      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
         FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
       case Status of
-        IStatus.RESULT_OK, IStatus.RESULT_SEGMENT: begin
-            Inc(Result, BytesRead);
+        {$IFDEF WITH_CLASS_CONST}
+        IStatus.RESULT_OK, IStatus.RESULT_SEGMENT
+        {$ELSE}
+        IStatus_RESULT_OK, IStatus_RESULT_SEGMENT
+        {$ENDIF}: begin
+            Inc(Result, Integer(BytesRead));
             Dec(Count, BytesRead);
             Inc(PBuf, BytesRead);
           end;
-        IStatus.RESULT_NO_DATA: begin
-           Inc(Result, BytesRead);
+        {$IFDEF WITH_CLASS_CONST}
+        IStatus.RESULT_NO_DATA
+        {$ELSE}
+        IStatus_RESULT_NO_DATA
+        {$ENDIF}: begin
+           Inc(Result, Integer(BytesRead));
            Break;
           end
         else FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.getSegment', Self, lcOther);
@@ -1073,12 +1040,15 @@ begin
     Result := FOwnerLob.FBlobInfo.TotalSize - OffSet
   else if Origin = soFromCurrent then
     Result := FPosition + OffSet
-  else
+  else begin
     Result := OffSet;
-  if (Result <> 0) then begin
+    if (Result = 0) and (FPosition > 0) then //seek to bos ?
+      CloseLob;
+  end;
+  if (Result <> FPosition) then begin
     Result := FBlob.seek(FStatus, Origin, Offset);
-    if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
-      FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
+    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.seek', Self, lcOther);
   end;
   FPosition := Result;
 end;
@@ -1106,8 +1076,8 @@ begin
     then SegLen := BlobInfo.MaxSegmentSize
     else SegLen := Count;
     FBlob.putSegment(FStatus, SegLen, TempBuffer);
-    if (FStatus.getState and FStatus.STATE_ERRORS) <> 0 then
-      FOwnerLob.FFBConnection.HandleError(FStatus, '', Self, lcOther);
+    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      FOwnerLob.FFBConnection.HandleError(FStatus, 'IBlob.putSegment', Self, lcOther);
     Inc(Result, SegLen);
     Inc(TempBuffer, SegLen);
     Dec(Count, SegLen);
@@ -1143,7 +1113,8 @@ begin
         TZColumnInfo(ColumnsInfo[ColumnIndex]).ColumnCodePage, FOpenLobStreams);
       UpdateLob(ColumnIndex{$IFNDEF GENERIC_INDEX} + 1{$ENDIF}, Result);
     end else raise CreateCanNotAccessBlobRecordException(ColumnIndex{$IFNDEF GENERIC_INDEX} + 1{$ENDIF}, SQLType);
-  end;
+  end else
+    Result := nil;
 end;
 
 class function TZFirebirdCachedResultSet.GetRowAccessorClass: TZRowAccessorClass;
@@ -1199,15 +1170,17 @@ end;
 
 procedure TZFirebirdLob.AfterConstruction;
 begin
-  if Int64(FBlobID) <> 0 then
-    FFBConnection.GetActiveTransaction.RegisterOpenUnCachedLob(Self);
+  FFBTransaction := FFBConnection.GetActiveTransaction;
+  FFBTransaction.RegisterOpenUnCachedLob(Self);
   inherited;
 end;
 
 procedure TZFirebirdLob.BeforeDestruction;
 begin
-  if Int64(FBlobID) <> 0 then
-    FFBConnection.GetActiveTransaction.DeRegisterOpenUnCachedLob(Self);
+  if FFBTransaction <> nil then begin
+    FFBTransaction.DeRegisterOpenUnCachedLob(Self);
+    FFBTransaction := nil;
+  end;
   inherited;
 end;
 
@@ -1266,7 +1239,7 @@ begin
 end;
 
 constructor TZFirebirdLob.Create(const Connection: IZFirebirdConnection;
-  BlobId: TISC_QUAD; LobStreamMode: TZLobStreamMode; ColumnCodePage: Word;
+  const BlobId: TISC_QUAD; LobStreamMode: TZLobStreamMode; ColumnCodePage: Word;
   const OpenLobStreams: TZSortedList);
 begin
   inherited Create(ColumnCodePage, OpenLobStreams);
@@ -1326,7 +1299,9 @@ begin
   if (FFBConnection <> nil) and (FFBConnection.GetActiveTransaction <> nil) and
      (FFBConnection.GetActiveTransaction.QueryInterface(IImmediatelyReleasable, imm) = S_OK) and
      (Sender <> imm) then begin
-    FFBConnection.GetActiveTransaction.DeRegisterOpenUnCachedLob(Self);
+    FFBTransaction.DeRegisterOpenUnCachedLob(Self);
+    FFBTransaction := nil;
+    FFBConnection := nil;
     Imm.ReleaseImmediat(Sender, AError);
     if FlobStream <> nil then begin
       FlobStream.FReleased := True;

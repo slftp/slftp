@@ -60,8 +60,7 @@ uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, Types, FmtBCD,
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
   ZClasses, ZDbcIntfs, ZDbcStatement, ZDbcMySql, ZVariant, ZPlainMySqlDriver,
-  ZPlainMySqlConstants, ZCompatibility, ZDbcLogging, ZDbcUtils, ZDbcMySqlUtils,
-  ZCollections;
+  ZCompatibility, ZDbcLogging, ZDbcUtils, ZDbcMySqlUtils, ZCollections;
                                                                                    
 type
   TMySQLPreparable = (myDelete, myInsert, myUpdate, mySelect, mySet, myCall);
@@ -394,7 +393,9 @@ begin
   ParamCount := BindList.Count;
   inherited Unprepare;
   FExecCount := 0;
-  FlushPendingResults;
+  //FlushPendingResults; //EH: if we receive a "Malformed communication packet" error
+  //i.e. old lib for new servers, we leak mem everywhere
+  //thus i commented it...
   try
     if not FEmulatedParams and (FMYSQL_STMT <> nil) then begin
       //cancel all pending results:
@@ -640,7 +641,7 @@ end;
 
 procedure TZAbstractMySQLPreparedStatement.UnPrepareInParameters;
 begin
-  inherited UnPrepareInParameters;
+  SetBindCapacity(0);
   FBindAgain := True;
   FChunkedData := False;
 end;
@@ -1282,6 +1283,7 @@ begin
                             Bind^.Length[0] := 1;
                             PWord(Bind^.buffer)^ := PWord(EnumBool[Value <> 0])^;
                           end;
+      else raise CreateConversionError(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stLongWord, SQLType);
     end;
     Bind^.is_null_address^ := 0;
   end;
@@ -1633,6 +1635,7 @@ begin
                             Bind^.Length[0] := BcdToRaw(Value, Bind.buffer, '.');
                             PByte(PAnsiChar(Bind.buffer)+Bind^.Length[0])^ := Ord(#0);
                           end;
+      else raise CreateConversionError(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stBigDecimal, BindList.SQLTypes[Index]);
     end;
     Bind^.is_null_address^ := 0;
   end;
@@ -1761,6 +1764,7 @@ begin
                             Bind^.Length[0] := PEnd-PAnsiChar(Bind.buffer);
                             PByte(PEnd)^ := 0;
                           end;
+      else raise CreateConversionError(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stCurrency, BindList.SQLTypes[Index]);
     end;
     Bind^.is_null_address^ := 0;
   end;
@@ -1829,6 +1833,7 @@ var
   label move_from_temp;
   begin
     BufferSize := 0;
+    {$IFDEF WITH_VAR_INIT_WARNING}ClientStrings := nil;{$ENDIF}
     SetLength(ClientStrings, BatchDMLArrayCount);
     case VariantType of
       {$IFNDEF UNICODE}
@@ -1912,6 +1917,7 @@ move_from_temp:
             end;
           Bind^.buffer_address^ := Pointer(Bind^.buffer);
         end;
+      {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //tested alread in inherited call
     end;
     SetLength(ClientStrings, 0);
   end;
@@ -2144,6 +2150,7 @@ begin
         end;
       end;
     stAsciiStream, stUnicodeStream, stBinaryStream: BindLobs;
+    else raise CreateUnsupportedParameterTypeException(ParameterIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, SQLType);
   end;
   Bind^.Iterations := BatchDMLArrayCount;
 end;
@@ -2369,6 +2376,7 @@ begin
                             Bind^.Length[0] := 1;
                             PWord(Bind^.buffer)^ := PWord(EnumBool[Value <> 0])^;
                           end;
+      {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //impossible
     end;
     Bind^.is_null_address^ := 0;
   end;
@@ -2612,6 +2620,7 @@ begin
                             Bind^.Length[0] := 1;
                             PWord(Bind^.buffer)^ := PWord(EnumBool[Value <> 0])^;
                           end;
+      {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //impossible
     end;
     Bind^.is_null_address^ := 0;
   end;
@@ -2823,6 +2832,7 @@ begin
               stString, stUnicodeString: RS.UpdatePAnsiChar(J, Result.GetPAnsiChar(J, L), L);
               stBytes, stGUID: RS.UpdateBytes(J, Result.GetBytes(J));
               stAsciiStream..stBinaryStream: RS.UpdateLob(J, Result.GetBlob(J));
+              {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF} //impossible
             end;
           Inc(J);
         end;
@@ -2898,7 +2908,7 @@ end;
 initialization
 
 { preparable statements: }
-
+{$IFDEF WITH_VAR_INIT_WARNING}MySQL568PreparableTokens := nil;{$ENDIF}
 SetLength(MySQL568PreparableTokens, Ord(myCall)+1);
 MySQL568PreparableTokens[Ord(myDelete)].MatchingGroup := 'DELETE';
 MySQL568PreparableTokens[Ord(myInsert)].MatchingGroup := 'INSERT';
