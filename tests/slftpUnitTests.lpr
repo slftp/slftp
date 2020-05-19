@@ -25,10 +25,11 @@ program slftpUnitTests;
 
 uses
   {$IFDEF UNIX}
-    {$IFNDEF CPUARM}
-      FastMM4,
-    {$ENDIF}
     cthreads,
+  {$ENDIF}
+  {$IFDEF CPUX86_64}
+    SynFPCx64MM,
+  {$ELSE}
     cmem,
   {$ENDIF}
   {$IFDEF TextRunner}

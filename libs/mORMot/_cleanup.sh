@@ -12,11 +12,10 @@ rm -r SQLite3/DDD
 rm -r SQLite3/Documentation
 rm -r SQLite3/Samples
 rm -r SQLite3/build-scripts
-rm -r static/aarch64-linux
 rm -r static/arm-linux
 rm -r static/i386-darwin
 rm -r static/i386-freebsd
-rm -r static/x86_64-freebsd
+rm -r static/*-android
 rm -r SyNode
 rm -r Packages
 rm -r SynDBDataset

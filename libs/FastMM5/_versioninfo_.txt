@@ -1,0 +1,3 @@
+41da9425e992dc11dba6ef1b367c6ebf0ec22fc9
+
+ Increase the number of virtual methods supported by TFastMM_FreedObject to 75. (There are some classes in the RTL that have more than 30 virtual methods, e.g. TStringList).

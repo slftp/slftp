@@ -59,8 +59,8 @@ interface
 {$IFNDEF ZEOS_DISABLE_MYSQL} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZSysUtils, ZDbcIntfs, ZPlainMySqlDriver, ZPlainMySqlConstants, ZDbcLogging,
-  ZCompatibility, ZDbcResultSetMetadata, ZVariant;
+  ZSysUtils, ZDbcIntfs, ZPlainMySqlDriver, ZDbcLogging, ZCompatibility,
+  ZDbcResultSetMetadata, ZVariant;
 
 const
   MAXBUF = 65535;
@@ -138,7 +138,7 @@ function GetMySQLColumnInfoFromFieldHandle(MYSQL_FIELD: PMYSQL_FIELD; FieldOffse
   ConSettings: PZConSettings; MySQL_FieldType_Bit_1_IsBoolean: boolean): TZColumnInfo;
 
 procedure ConvertMySQLColumnInfoFromString(var TypeName: RawByteString;
-  ConSettings: PZConSettings; out TypeInfoSecond: RawByteString;
+  out TypeInfoSecond: RawByteString;
   out FieldType: TZSQLType; out ColumnSize: Integer; out Scale: Integer;
   MySQL_FieldType_Bit_1_IsBoolean: Boolean);
 
@@ -240,7 +240,10 @@ end;
   @param FieldFlags a field flags.
   @return a SQL undepended type.
 }
-{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF} // uses pointer maths
+{$IFDEF FPC} {$PUSH}
+  {$WARN 4055 off : Conversion between ordinals and pointers is not portable}
+  {$WARN 4079 off : Convering the operants to "Int64" before doing the add could prevent overflow errors}
+{$ENDIF} // uses pointer maths
 function ConvertMySQLHandleToSQLType(MYSQL_FIELD: PMYSQL_FIELD;
   FieldOffsets: PMYSQL_FIELDOFFSETS; MySQL_FieldType_Bit_1_IsBoolean: Boolean): TZSQLType;
 var PrecOrLen: ULong;
@@ -292,7 +295,7 @@ begin
             else Result := stBigDecimal;
           end
         else begin
-          Dec(PrecOrLen, 1+ORd(PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.flags)^ and UNSIGNED_FLAG = 0)); //one digit for the decimal sep and one for the sign
+          Dec(PrecOrLen, 1+Byte(PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.flags)^ and UNSIGNED_FLAG = 0)); //one digit for the decimal sep and one for the sign
           if (PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.decimals)^ <= 4) and
              (PrecOrLen < ULong(sAlignCurrencyScale2Precision[PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.decimals)^]))
             then Result := stCurrency
@@ -576,7 +579,7 @@ end;
 {$IFDEF FPC} {$POP} {$ENDIF} // uses pointer maths
 
 procedure ConvertMySQLColumnInfoFromString(var TypeName: RawByteString;
-  ConSettings: PZConSettings; out TypeInfoSecond: RawByteString;
+  out TypeInfoSecond: RawByteString;
   out FieldType: TZSQLType; out ColumnSize: Integer; out Scale: Integer;
   MySQL_FieldType_Bit_1_IsBoolean: Boolean);
 const

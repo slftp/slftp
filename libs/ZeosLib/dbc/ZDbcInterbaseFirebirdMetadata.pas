@@ -55,7 +55,7 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_INTERBASE} //if set we have an empty unit
+{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD} //if set we have an empty unit
 uses
   Types, Classes, SysUtils, StrUtils, ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZCompatibility,
   ZDbcInterbase6, ZEncoding;
@@ -99,8 +99,8 @@ type
     function GetDatabaseProductVersion: string; override;
     function GetDriverName: string; override;
 //    function GetDriverVersion: string; override; -> Same as parent
-    function GetDriverMajorVersion: Integer; override;
-    function GetDriverMinorVersion: Integer; override;
+//    function GetDriverMajorVersion: Integer; override; Same as parent
+//    function GetDriverMinorVersion: Integer; override; > Same as parent
     function GetServerVersion: string; override;
 
     // capabilities (what it can/cannot do):
@@ -283,13 +283,15 @@ type
     procedure BeforeDestruction; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_INTERBASE} //if set we have an empty unit
+{$ENDIF DISABLE_INTERBASE_AND_FIREBIRD} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_INTERBASE} //if set we have an empty unit
+{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD} //if set we have an empty unit
 
-uses ZMessages, ZDbcInterbase6Utils, ZPlainFirebirdInterbaseConstants,
+uses ZMessages, ZDbcInterbase6Utils,
   ZFastCode, ZSelectSchema, Math, ZDbcUtils, ZPlainFirebirdInterbaseDriver,
-  ZDbcFirebirdInterbase, Firebird, ZDbcFirebird, ZDbcLogging;
+  ZDbcFirebirdInterbase,
+  {$IFNDEF ZEOS_DISABLE_FIREBIRD}ZPlainFirebird, ZDbcFirebird,{$ENDIF}
+  ZDbcLogging;
 
 const
   DBProvider: array[Boolean] of String = ('Interbase', 'Firebird');
@@ -302,28 +304,36 @@ const
 procedure TZInterbase6DatabaseInfo.CollectServerInformations;
 var
   Connection: IZConnection;
-  FBConnection: IZFirebirdConnection;
+  {$IFNDEF ZEOS_DISABLE_INTERBASE}
   IBConnection: IZInterbase6Connection;
   PlainDriver: TZInterbasePlainDriver;
+  StatusVector: TARRAY_ISC_STATUS;
+  ISC_DB_HANDLE: PISC_DB_HANDLE;
+  {$ENDIF ZEOS_DISABLE_INTERBASE}
+  {$IFNDEF ZEOS_DISABLE_FIREBIRD}
+  FBConnection: IZFirebirdConnection;
   Attachment: IAttachment;
   Status: IStatus;
+  {$ENDIF ZEOS_DISABLE_FIREBIRD}
   I: Integer;
   tmp: string;
-  StatusVector: TARRAY_ISC_STATUS;
   Buffer: array[0..IBBigLocalBufferLength - 1] of AnsiChar;
   isc_info: Byte;
-  ISC_DB_HANDLE: PISC_DB_HANDLE;
 begin
   if FServerVersion = '' then begin
     Connection := Metadata.GetConnection;
     isc_info := isc_info_version;
+    {$IFNDEF ZEOS_DISABLE_FIREBIRD}
     if Connection.QueryInterface(IZFirebirdConnection, FBConnection) = S_OK then begin
       Attachment := FBConnection.GetAttachment;
       Status := FBConnection.GetStatus;
       Attachment.getInfo(Status, 1, @isc_info, SizeOf(Buffer), @Buffer[0]);
-      if (Status.getState and Status.STATE_ERRORS) <> 0 then
+      if (Status.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
         FBConnection.HandleError(Status, 'IAttachment.getInfo', FBConnection, lcOther);
-    end else begin
+    {$IFNDEF ZEOS_DISABLE_INTERBASE}end else {$ELSE}end;{$ENDIF}
+    {$ENDIF ZEOS_DISABLE_FIREBIRD}
+    {$IFNDEF ZEOS_DISABLE_INTERBASE}
+    begin
       IBConnection := Connection as IZInterbase6Connection;
       ISC_DB_HANDLE := IBConnection.GetDBHandle;
       PlainDriver := TZInterbasePlainDriver(IBConnection.GetIZPlainDriver.GetInstance);
@@ -331,6 +341,7 @@ begin
           SizeOf(Buffer), @Buffer[0]) <> 0 then
         CheckInterbase6Error(PlainDriver, StatusVector, IBConnection);
     end;
+    {$ENDIF ZEOS_DISABLE_INTERBASE}
 
   { Buffer:
       0     - type of info
@@ -417,24 +428,6 @@ end;
 function TZInterbase6DatabaseInfo.GetDriverName: string;
 begin
   Result := 'Zeos Database Connectivity Driver for Interbase and Firebird';
-end;
-
-{**
-  What's this JDBC driver's major version number?
-  @return JDBC driver major version
-}
-function TZInterbase6DatabaseInfo.GetDriverMajorVersion: Integer;
-begin
-  Result := 1;
-end;
-
-{**
-  What's this JDBC driver's minor version number?
-  @return JDBC driver minor version number
-}
-function TZInterbase6DatabaseInfo.GetDriverMinorVersion: Integer;
-begin
-  Result := 0;
 end;
 
 {**
@@ -1135,7 +1128,13 @@ end;
 }
 function TZInterbase6DatabaseInfo.GetMaxStatementLength: Integer;
 begin
-  Result := 640;
+  // Increased size for FB 3.0+
+  // See release notes. Can be used by the legacy API too, if Karol Bieniaszewski
+  // is right at http://tracker.firebirdsql.org/browse/CORE-1117?focusedCommentId=31493&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#action_31493
+  if FIsFireBird and (FHostVersion >= 3000000) {and Client Library Version >= 3000000} then
+    Result := 10*1024*1024 //Release notes say there is an hard coded limit at 10MB
+  else
+    Result := 64*1024; //64KB by default
 end;
 
 {**
@@ -1287,7 +1286,8 @@ end;
 }
 function TZInterbase6DatabaseInfo.SupportsArrayBindings: Boolean;
 begin
-  Result := True;
+  // we use the execute block syntax that is only available from Firebird 2.0 on
+  Result := FIsFireBird and (FHostVersion >= 2000000)
 end;
 
 { TZInterbase6DatabaseMetadata }
@@ -1318,17 +1318,24 @@ end;
 function TZInterbase6DatabaseMetadata.ConstructNameCondition(const Pattern: string;
   const Column: string): string;
 begin
-  if HasNoWildcards(Pattern)
-  then Result := Inherited ConstructnameCondition(Pattern,Column)
-  else if not (GetDatabaseInfo as IZInterbaseDatabaseInfo).SupportsTrim
-  //Old FireBird do NOT support 'trim'
-  //-> raise exception to find bugs in Software...
-  then raise EZSQLException.Create('Wildcard searches are not suported with Firebird 1.5 and 1.0. Use IZDatabaseMetadata.AddEscapeCharToWildcards to escape wildcards in table names.')
-  // add trim because otherwise the like condition will not find the table columns
-  // because they are padded with spaces in Firebird
-  else Result := Inherited ConstructnameCondition(Pattern,'trim('+Column+')');
+  if HasNoWildcards(Pattern) then begin
+    Result := Inherited ConstructnameCondition(Pattern,Column)
+  end else begin
+    if not (GetDatabaseInfo as IZInterbaseDatabaseInfo).SupportsTrim then begin
+      //Old FireBird do NOT support 'trim'
+      //-> raise exception to find bugs in Software...
+      if Pattern = '%'
+      then Result := ''
+      else raise EZSQLException.Create('Wildcard searches are not suported with Interbase and Firebird 1.5 and 1.0. Use IZDatabaseMetadata.AddEscapeCharToWildcards to escape wildcards in table names.')
+    end else begin
+      // add trim because otherwise the like condition will not find the table columns
+      // because they are padded with spaces in Firebird
+      Result := Inherited ConstructnameCondition(Pattern,'trim('+Column+')');
+    end;
+  end;
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Catalog/SchemaPattern" not used} {$ENDIF}
 function TZInterbase6DatabaseMetadata.UncachedGetTriggers(const Catalog: string;
   const SchemaPattern: string; const TableNamePattern: string;
   const TriggerNamePattern: string): IZResultSet;
@@ -1353,6 +1360,7 @@ begin
     CreateStatement.ExecuteQuery(SQL),
     ConstructVirtualResultSet(TriggersColumnsDynArray));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a description of the stored procedures available in a
@@ -1387,6 +1395,7 @@ end;
   @return <code>ResultSet</code> - each row is a procedure description
   @see #getSearchStringEscape
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Catalog/SchemaPattern" not used} {$ENDIF}
 function TZInterbase6DatabaseMetadata.UncachedGetProcedures(const Catalog: string;
   const SchemaPattern: string; const ProcedureNamePattern: string): IZResultSet;
 var
@@ -1400,7 +1409,7 @@ begin
     'SELECT NULL AS PROCEDURE_CAT, NULL AS PROCEDURE_SCHEM,'
     + ' RDB$PROCEDURE_NAME AS PROCEDURE_NAME, NULL AS PROCEDURE_OVERLOAD,'
     + ' NULL AS RESERVED1, NULL AS RESERVED2, RDB$DESCRIPTION AS REMARKS,'
-    + ' IIF(RDB$PROCEDURE_OUTPUTS IS NULL, %d, %d) AS PROCEDURE_TYPE'
+    + ' case when RDB$PROCEDURE_OUTPUTS IS NULL then %d else %d end AS PROCEDURE_TYPE'
     + ' FROM RDB$PROCEDURES'
     + ' WHERE 1=1' + AppendCondition(LProcedureNamePattern),
     [Ord(prtNoResult), Ord(prtReturnsResult)]);
@@ -1409,6 +1418,7 @@ begin
     CreateStatement.ExecuteQuery(SQL),
     ConstructVirtualResultSet(ProceduresColumnsDynArray));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a description of a catalog's stored procedure parameters
@@ -1918,6 +1928,7 @@ end;
   @return <code>ResultSet</code> - each row is a column privilege description
   @see #getSearchStringEscape
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Catalog/Schema" not used} {$ENDIF}
 function TZInterbase6DatabaseMetadata.UncachedGetColumnPrivileges(const Catalog: string;
   const Schema: string; const Table: string; const ColumnNamePattern: string): IZResultSet;
 var SQL, LColumnNameCondition, LTable: String;
@@ -1949,6 +1960,7 @@ begin
     CreateStatement.ExecuteQuery(SQL),
      ConstructVirtualResultSet(TableColPrivColumnsDynArray));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a description of the access rights for each table available
@@ -2342,6 +2354,7 @@ end;
   @return <code>ResultSet</code> - each row is a foreign key column description
   @see #getImportedKeys
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF}
 function TZInterbase6DatabaseMetadata.UncachedGetCrossReference(
   const PrimaryCatalog: string; const PrimarySchema: string;
   const PrimaryTable: string; const ForeignCatalog: string; const ForeignSchema: string;
@@ -2379,6 +2392,7 @@ begin
     CreateStatement.ExecuteQuery(SQL),
     ConstructVirtualResultSet(CrossRefColumnsDynArray));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a description of all the standard SQL types supported by
@@ -2568,6 +2582,7 @@ begin
   end;
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Catalog/SchemaPattern" not used} {$ENDIF}
 function TZInterbase6DatabaseMetadata.UncachedGetSequences(
   const Catalog: string; const SchemaPattern: string;
   const SequenceNamePattern: string): IZResultSet;
@@ -2587,6 +2602,7 @@ begin
     CreateStatement.ExecuteQuery(SQL),
     ConstructVirtualResultSet(SequenceColumnsDynArray));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 procedure TZInterbase6DatabaseMetadata.SetUTF8CodePageInfo;
 begin
@@ -2689,5 +2705,5 @@ begin
     CreateStatement.ExecuteQuery(SQL),
     ConstructVirtualResultSet(CharacterSetsColumnsDynArray));
 end;
-{$ENDIF ZEOS_DISABLE_INTERBASE} //if set we have an empty unit
+{$ENDIF DISABLE_INTERBASE_AND_FIREBIRD} //if set we have an empty unit
 end.

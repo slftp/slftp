@@ -27338,7 +27338,7 @@ begin
 end;
 
 procedure TJSONObjectDecoder.Decode(const JSON: RawUTF8; const Fields: TRawUTF8DynArray;
-  Params: TJSONObjectDecoderParams; const RowID: TID=0; ReplaceRowIDWithID: Boolean=false);
+  Params: TJSONObjectDecoderParams; const RowID: TID; ReplaceRowIDWithID: Boolean);
 var tmp: TSynTempBuffer;
     P: PUTF8Char;
 begin
@@ -40937,7 +40937,7 @@ begin
   if FileTime=0 then
     if Error404Redirect<>'' then
       Redirect(Error404Redirect) else
-      Error('',HTTP_NOTFOUND) else begin
+      Error('',HTTP_NOTFOUND,CacheControlMaxAge) else begin
     if not ExistsIniName(pointer(Call.OutHead),HEADER_CONTENT_TYPE_UPPER) then begin
       if Call.OutHead<>'' then
         Call.OutHead := Call.OutHead+#13#10;
