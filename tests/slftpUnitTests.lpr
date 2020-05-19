@@ -26,6 +26,10 @@ program slftpUnitTests;
 uses
   {$IFDEF UNIX}
     cthreads,
+  {$ENDIF}
+  {$IFDEF CPUX86_64}
+    SynFPCx64MM,
+  {$ELSE}
     cmem,
   {$ENDIF}
   {$IFDEF TextRunner}
