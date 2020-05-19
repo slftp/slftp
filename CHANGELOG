@@ -51,7 +51,10 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.7 )===================================-
-    {+} FastMM5 memory manager with better multithreading scaling (https://github.com/pleriche/FastMM5)
+    {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
+    {+} SynFPCx64MM memory manager with better multithreading scaling for x86_64
+        (http://blog.synopse.info/post/2020/05/07/New-Multi-thread-Friendly-Memory-Manager-for-FPC-written-in-x86_64-assembly)
+    {+} Default C memory manager for other 32-bit unix targets (https://www.freepascal.org/docs-html/current/rtl/cmem/index.html)
     {#} Relogin of slots didn't brought up all slots as intended
     {#} announce_event for precatcher from spam config never worked
     {^} Enumerations for some TV function for better clarification
