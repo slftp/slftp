@@ -51,6 +51,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.7 )===================================-
+    {+} FastMM5 memory manager with better multithreading scaling (https://github.com/pleriche/FastMM5)
     {#} Relogin of slots didn't brought up all slots as intended
     {#} announce_event for precatcher from spam config never worked
     {^} Enumerations for some TV function for better clarification

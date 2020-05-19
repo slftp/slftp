@@ -43,7 +43,7 @@ program slftp;
 {$endif}
 
 uses
-  FastMM4,
+  FastMM5,
   console;
 
 {$APPTYPE CONSOLE}
