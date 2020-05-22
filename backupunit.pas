@@ -77,7 +77,7 @@ begin
 
         // adding stats database
         fFileName := Trim(config.ReadString('stats', 'database', 'stats.db'));
-        if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
+        if IsStatsDatabaseActive and ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
         begin
           doStatsBackup(fDatabasePath, fFileName + '.bak');
           AddFile(fDatabasePath + fFileName + '.bak', fDatabasePath + fFileName);
