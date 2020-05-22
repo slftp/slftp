@@ -52,6 +52,10 @@ procedure statsInit;
 { Just a helper function to free @link(ORMStatsDB) }
 procedure statsUninit;
 
+{ Checks if stats database client/server is active
+  @returns(@true if @link(ORMStatsDB) is not nil, @false otherwise.) }
+function IsStatsDatabaseActive: Boolean;
+
 { Add the raced file and appropriate infos into database
   @param(aSrcSite source sitename)
   @param(aDstSite destination sitename)
@@ -132,6 +136,14 @@ begin
   Debug(dpSpam, section, 'Uninit2');
 end;
 
+function IsStatsDatabaseActive: Boolean;
+begin
+  if (ORMStatsDB = nil) then
+    Result := False
+  else
+    Result := True;
+end;
+
 procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
 var
   fSrcSiteRec, fDstSiteRec: TSQLSitesRecord;
@@ -140,7 +152,7 @@ var
   fStatsRec: TSQLStatsRecord;
 begin
 
-  if (ORMStatsDB = nil) then
+  if not IsStatsDatabaseActive then
   begin
     Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
     exit;
@@ -245,7 +257,7 @@ var
 begin
   Result := False;
 
-  if (ORMStatsDB = nil) then
+  if not IsStatsDatabaseActive then
   begin
     Debug(dpSpam, section, '[RemoveStats] stats disabled.');
     exit;
@@ -517,7 +529,7 @@ var
   end;
 
 begin
-  if (ORMStatsDB = nil) then
+  if not IsStatsDatabaseActive then
   begin
     Debug(dpSpam, section, '[StatRaces] stats disabled.');
     irc_addtext(aNetname, aChannel, 'Stats are disabled.');
@@ -559,6 +571,12 @@ end;
 
 procedure doStatsBackup(const aPath, aFileName: String);
 begin
+  if not IsStatsDatabaseActive then
+  begin
+    Debug(dpSpam, section, '[doStatsBackup] stats disabled.');
+    exit;
+  end;
+
   if ORMStatsDB.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
     ORMStatsDB.DB.BackupBackgroundWaitUntilFinished(5);
 end;
