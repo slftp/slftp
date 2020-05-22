@@ -182,7 +182,6 @@ function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
-  irc_message_lock: TCriticalSection;
 
 const
   irc_chanroleindex = 25;
@@ -259,7 +258,6 @@ begin
 
   // okay it's not for the console
   msgs := TStringList.Create;
-  irc_message_lock.Enter;
   try
     msgs.Text := WrapText(msg, 250);
     try
@@ -281,7 +279,6 @@ begin
       end;
     end;
   finally
-    irc_message_lock.Leave;
     msgs.Free;
   end;
 end;
@@ -1439,25 +1436,21 @@ procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
 var
   fChanSettingsObj: TIrcChannelSettings;
 begin
-  irc_message_lock.Enter;
-  try
-    irc_last_read := Now();
+  irc_last_read := Now();
 
-    if channel <> '' then
-    begin
-      fChanSettingsObj := FindIrcChannelSettings(netname, channel);
-      IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-      console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
-    end
-    else
-    begin
-      // Allow sending raw commands from sl console to the IRC server like MODE #chan +o mynick
-      IrcWrite(plainmsg);
-    end;
-    irc_last_written := Now;
-  finally
-    irc_message_lock.Leave;
+  if channel <> '' then
+  begin
+    fChanSettingsObj := FindIrcChannelSettings(netname, channel);
+    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
+  end
+  else
+  begin
+    // Allow sending raw commands from sl console to the IRC server like MODE #chan +o mynick
+    IrcWrite(plainmsg);
   end;
+
+  irc_last_written := Now;
 end;
 
 function TMyIrcThread.ShouldJoinGame: Boolean;
@@ -1791,7 +1784,6 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
-  irc_message_lock:= TCriticalSection.Create;
 end;
 
 procedure IrcUnInit;
@@ -1802,7 +1794,6 @@ begin
     myIrcThreads.Free;
     myIrcThreads := nil;
   end;
-  irc_message_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
