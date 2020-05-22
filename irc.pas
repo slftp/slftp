@@ -28,9 +28,8 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-
-    irc_lock: TCriticalSection;
-    pending_messages_queue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
+    FSocketWriteLock: TCriticalSection; //< Lock to protected the underlying write function of the socket to disallow concurrent access
+    FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
 
     irc_last_read: TDateTime;
     registered: Boolean;
@@ -127,6 +126,8 @@ type
 
     property MangleHost: boolean read Getmanglehost write Setmanglehost;
     property Invisible: boolean read Getinvisible write Setinvisible;
+
+    property PendingMessagesQueue: TThreadList<TIrcEchoItem> read FPendingMessagesQueue write FPendingMessagesQueue;
 
     //    property NickServNick:string read GetNickServNick write SetNickServNick;
     //    property NickServPassword:string read GetNickServPassw write SetNickServpassw;
@@ -271,7 +272,7 @@ begin
       else
       begin
         for i := 0 to msgs.Count - 1 do
-          fIrcNetThread.pending_messages_queue.Add(TIrcEchoItem.Create(channel, msgs.Strings[i]));
+          fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(channel, msgs.Strings[i]));
       end;
     except
       on e: Exception do
@@ -577,12 +578,12 @@ begin
   self.netname := aNetname;
   status := 'creating...';
 
-  irc_lock := TCriticalSection.Create;
+  FSocketWriteLock := TCriticalSection.Create;
   channels := TStringList.Create;
 
-  pending_messages_queue := TThreadList<TIrcEchoItem>.Create;
+  FPendingMessagesQueue := TThreadList<TIrcEchoItem>.Create;
   // a message might be repeated several times so accept dupes to always write everything
-  pending_messages_queue.Duplicates := dupAccept;
+  FPendingMessagesQueue.Duplicates := dupAccept;
 
   irc_last_written := Now;
   shouldquit := False;
@@ -603,9 +604,9 @@ end;
 
 destructor TMyIrcThread.Destroy;
 begin
-  irc_lock.Free;
+  FSocketWriteLock.Free;
 
-  pending_messages_queue.Free;
+  FPendingMessagesQueue.Free;
 
   status := 'destroying...';
   console_delwindow(netname);
@@ -655,7 +656,7 @@ end;
 function TMyIrcThread.IrcWrite(const s: String): Boolean;
 begin
   Result := False;
-  irc_lock.Enter;
+  FSocketWriteLock.Enter;
   try
     irc_last_read := Now();
     try
@@ -664,7 +665,7 @@ begin
         Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite : %s', [e.Message]);
     end;
   finally
-    irc_lock.Leave;
+    FSocketWriteLock.Leave;
   end;
 
   try
@@ -1551,7 +1552,7 @@ begin
 
     if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
-      fEchoQueueList := pending_messages_queue.LockList;
+      fEchoQueueList := PendingMessagesQueue.LockList;
       try
         if fEchoQueueList.Count > 0 then
         begin
@@ -1560,7 +1561,7 @@ begin
           fEchoItem.Free;
         end;
       finally
-        pending_messages_queue.UnlockList;
+        PendingMessagesQueue.UnlockList;
       end;
     end;
 
