@@ -1476,8 +1476,8 @@ begin
           try
             if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
-              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0)) and
-                (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000))) then
+              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
+                (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000)))) then
               begin
                 AddQuitTask(s);
               end
@@ -1485,7 +1485,8 @@ begin
               //at startup only few slots are needed (e.g. autologin), but we want all the slots to be ready for action if
               //an idle interval is configured. also there are several occasions where DestroySocket or Quit are invoked
               //on a slot. the IdleTask will take care to relogin these slots as well.
-              else if (((s.status = ssOnline) or (s.site.WorkingStatus in [sstUp]))
+              else if (((s.status = ssOnline) or ((s.site.WorkingStatus in [sstUp]) and
+              ((s.site.maxidle = 0) or (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) < s.site.maxidle * 1000))))
               and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
               begin
                 AddIdleTask(s);
