@@ -1461,6 +1461,19 @@ begin
     if ( (lastResponseCode <> 200) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
     begin
       case lastResponseCode of
+        530:
+        begin
+          if (0 < Pos('No transfer-slave(s) available', lastResponse)) then
+          begin
+            sdst.site.SetOutofSpace;
+            if ssrc.site.SetDownOnOutOfSpace then
+              sdst.DestroySocket(True);
+            readyerror := True;
+            mainpazo.errorreason := 'No freespace or slave';
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+        end;
         553:
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
@@ -1580,6 +1593,14 @@ begin
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             ssrc.Quit;
+            sdst.Quit;
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 421 Timeout (90 seconds): closing control connection.
+          if (0 < Pos('closing control connection', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             sdst.Quit;
             goto TryAgain;
           end;
@@ -1834,6 +1855,16 @@ begin
             goto TryAgain;
           end;
 
+        end;
+
+      540:
+        begin
+          //COMPLETE MSG: 540 Command execution failed
+          if (0 < Pos('Command execution failed', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
         end;
       end;
 
@@ -2250,10 +2281,12 @@ begin
         //COMPLETE MSG: 426 Received fatal alert: handshake_failure
         //COMPLETE MSG: 426 Socket closed
         //COMPLETE MSG: 426 Connection closed by remote host
+        //COMPLETE MSG: 426 Data connection: Success.
         if ((0 < Pos('Transfer failed', lastResponse)) OR
           (0 < Pos('Accept timed out', lastResponse)) OR
           (0 < Pos('fatal alert', lastResponse)) OR
-          (0 < Pos('Socket closed', lastResponse))OR
+          (0 < Pos('Socket closed', lastResponse)) OR
+          (0 < Pos('Data connection', lastResponse)) OR
           (0 < Pos('Connection closed', lastResponse))) then
         begin
           //try again
@@ -2409,6 +2442,16 @@ begin
           //COMPLETE MSG: 426 Connection closed; transfer aborted.
           //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
           if ((0 < Pos('transfer aborted', lastResponse)) OR (0 < Pos('Transfer was aborted', lastResponse))) then
+          begin
+            //try again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 426 Data connection: Connection reset by peer.
+          //COMPLETE MSG: 426 Data Connection: Success.
+          if ((0 < Pos('Connection reset by peer', lastResponse)) OR
+            (0 < Pos('Data connection', lastResponse))) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
