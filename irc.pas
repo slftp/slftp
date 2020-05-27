@@ -236,8 +236,19 @@ end;
 procedure irc_Addtext_b(const netname, channel, msg: String); overload;
 var
   fIrcNetThread: TMyIrcThread;
-  msgs: TStringList;
-  i: Integer;
+  fStrArr: TArray<String>;
+  fStr: String;
+
+  procedure _WriteToIRC(const aChannel, aMessage: String);
+  begin
+    fIrcNetThread.IrcSendPrivMessage(aChannel, aMessage);
+  end;
+
+  procedure _AppendToQueue(const aChannel, aMessage: String);
+  begin
+    fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(aChannel, aMessage));
+  end;
+
 begin
   if slshutdown then
     exit;
@@ -257,29 +268,40 @@ begin
   end;
 
   // okay it's not for the console
-  msgs := TStringList.Create;
   try
-    msgs.Text := WrapText(msg, 250);
-    try
-      fIrcNetThread := FindIrcnetwork(netname);
+    fIrcNetThread := FindIrcnetwork(netname);
+    if msg.Length < 250 then
+    begin
       if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        for i := 0 to msgs.Count - 1 do
-          fIrcNetThread.IrcSendPrivMessage(channel, msgs.Strings[i]);
+        _WriteToIRC(channel, msg);
       end
       else
       begin
-        for i := 0 to msgs.Count - 1 do
-          fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(channel, msgs.Strings[i]));
+        _AppendToQueue(channel, msg);
       end;
-    except
-      on e: Exception do
+    end
+    else
+    begin
+      // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
+      fStrArr := WrapText(msg, 250).Split([sLineBreak]);
+
+      if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
+        for fStr in fStrArr do
+          _WriteToIRC(channel, fStr);
+      end
+      else
+      begin
+        for fStr in fStrArr do
+          _AppendToQueue(channel, fStr);
       end;
     end;
-  finally
-    msgs.Free;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
+    end;
   end;
 end;
 
