@@ -57,9 +57,13 @@
     {+} Default C memory manager for other 32-bit unix targets (https://www.freepascal.org/docs-html/current/rtl/cmem/index.html)
     {#} Relogin of slots didn't bring up all slots as intended
     {#} announce_event for precatcher from spam config never worked
+    {#} Backup causes access violation if stats db is disabled but a stats db file exists
+    {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
     {^} Added a new option (2) for the setting skip_being_uploaded_files to allow downloading 0byte files
+    {^} Remove unnecessary global lock when writing to IRC
+    {^} Optimized code for splitting long messages before writing to IRC
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
