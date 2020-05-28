@@ -33,6 +33,7 @@ type
     FDirectory: Boolean; //< @true if current dir is a directory
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
+    FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
   public
     dirlist: TDirList;
     justadded: Boolean;
@@ -68,6 +69,7 @@ type
     property Directory: Boolean read FDirectory write SetDirectory;
     property DirType: TDirType read FDirType write FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
+    property IsBeingUploaded: Boolean read FIsBeingUploaded;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -572,8 +574,6 @@ procedure TDirList.ParseDirlist(s: String);
 var
   tmp: String;
   akttimestamp: TDateTime;
-  site: TSite;
-  skip_being_uploaded_files: boolean;
   de: TDirListEntry;
   added: Boolean;
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
@@ -587,18 +587,6 @@ begin
   if FCachedCompleteResult then exit;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
-
-  site := FindSiteByName('', site_name);
-  if site = nil then
-  begin
-    // should never happen
-    Debug(dpError, section, 'ERROR: Can''t lookup site %s. Using defaults.', [site_name]);
-    skip_being_uploaded_files := config.ReadBool(section, 'skip_being_uploaded_files', False);
-  end
-  else
-  begin
-    skip_being_uploaded_files := site.SkipBeingUploadedFiles;
-  end;
 
   dirlist_lock.Enter;
   try
@@ -663,25 +651,10 @@ begin
             Continue;
           end;
 
-          // entry is a file and is 0 byte
-          if ((fDirMask[1] <> 'd') and (fFilesize < 1)) then
-          begin
-            Continue;
-          end;
-
           // entry is a file and is not downlodable
           if ((fDirMask[1] <> 'd') and ((fDirMask[5] <> 'r') and (fDirMask[8] <> 'r'))) then
           begin
             Continue;
-          end;
-
-          // entry is a file and is being uploaded (glftpd only?)
-          if skip_being_uploaded_files then
-          begin
-            if ((fDirMask[1] <> 'd') and ((fDirMask[7] = 'x') and (fDirMask[10] = 'x'))) then
-            begin
-              Continue;
-            end;
           end;
         end;
 
@@ -728,12 +701,6 @@ begin
             end;
 
             if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
-            begin
-              de.Free;
-              Continue;
-            end;
-
-            if ((not de.Directory) and (not (de.filesize > 0))) then
             begin
               de.Free;
               Continue;
@@ -797,6 +764,10 @@ begin
           de.FUsername := fUsername;
           de.FGroupname := fGroupname;
         end;
+
+        // entry is a file and is being uploaded (glftpd only?)
+        de.FIsBeingUploaded := (fDirMask[1] <> 'd') and ((fDirMask[7] = 'x') and (fDirMask[10] = 'x'));
+
         de.IsOnSite := True;
       end;
     end;
@@ -1588,6 +1559,7 @@ begin
   self.done := False;
   self.skiplisted := False;
   self.IsOnSite := False;
+  self.FIsBeingUploaded := False;
   self.error := False;
   subdirlist := nil;
 
@@ -1612,6 +1584,7 @@ begin
   self.subdirlist := nil;
   self.timestamp := de.timestamp;
   self.IsOnSite := False;
+  self.FIsBeingUploaded := False;
   self.error := False;
   self.justadded := True;
   FFilenameLowerCase := LowerCase(filename);
