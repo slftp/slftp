@@ -474,6 +474,12 @@ begin
   else
     if s.max_dn = 0 then exit;
 
+  if (not de.Directory) then
+  begin
+    if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then exit;
+    if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then exit;
+  end;
+
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
