@@ -1445,11 +1445,24 @@ function IrcSkipBeingUploadedFiles(const netname, channel, params: String): bool
 var
   svalue, sname: String;
   ss: TSite;
-  i: integer;
+  i, fValueInt: integer;
+
+  procedure _AnnounceConfigValue;
+  begin
+    irc_addtext(Netname, Channel, '%s skip incomplete files: %d (%s)', [ss.Name, Ord(ss.SkipBeingUploadedFiles), TEnum<TSkipBeingUploaded>.ToString(ss.SkipBeingUploadedFiles)]);
+  end;
 begin
   Result := False;
   sname := UpperCase(SubString(params, ' ', 1));
-  svalue := SubString(params, ' ', 2);
+  sValue := SubString(params, ' ', 2);
+  fValueInt := StrToIntDef(sValue, -1);
+
+  //if svalue is empty that means the current setting should be displayed, so that is valid too
+  if ((svalue <> '') and ((fValueInt < Ord(Low(TSkipBeingUploaded))) or (fValueInt > Ord(High(TSkipBeingUploaded))))) then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid.', [svalue]);
+    Exit;
+  end;
 
   if sname = '*' then
   begin
@@ -1460,14 +1473,12 @@ begin
         Continue;
 
       if svalue = '' then
-        irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)])
-      else if ((svalue = '1') or (svalue = '0')) then
-      begin
-        ss.SkipBeingUploadedFiles := StrToBoolDef(svalue, False);
-        irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)]);
-      end
+        _AnnounceConfigValue
       else
-        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+      begin
+        ss.SkipBeingUploadedFiles := TSkipBeingUploaded(fValueInt);
+        _AnnounceConfigValue;
+      end
     end;
   end
   else
@@ -1481,14 +1492,12 @@ begin
     end;
 
     if svalue = '' then
-      irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)])
-    else if ((svalue = '1') or (svalue = '0')) then
-    begin
-      ss.SkipBeingUploadedFiles := StrToBoolDef(svalue, False);
-      irc_addtext(Netname, Channel, '%s Skip incomplete files: %d', [ss.Name, Ord(ss.SkipBeingUploadedFiles)]);
-    end
+      _AnnounceConfigValue
     else
-      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+    begin
+      ss.SkipBeingUploadedFiles := TSkipBeingUploaded(fValueInt);
+      _AnnounceConfigValue;
+    end
   end;
 
   Result := True;

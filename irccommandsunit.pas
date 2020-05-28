@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, dirlist, irc, irccommands.rank, irccommands.tv, irccommands.speed, irccommands.work,
-  irccommands.windows, irccommands.slots, irccommands.news, irccommands.kb, irccommands.indexer, 
+  irccommands.windows, irccommands.slots, irccommands.news, irccommands.kb, irccommands.indexer,
   irccommands.reload, irccommands.section, irccommands.imdb, irccommands.pretime, irccommands.socks,
   irccommands.rules, irccommands.info, irccommands.precatcher, irccommands.irc, irccommands.misc,
   irccommands.stats, irccommands.prebot, irccommands.route, irccommands.site, irccommands.test,
