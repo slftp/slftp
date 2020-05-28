@@ -28,9 +28,8 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-
-    irc_lock: TCriticalSection;
-    pending_messages_queue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
+    FSocketWriteLock: TCriticalSection; //< Lock to protected the underlying write function of the socket to disallow concurrent access
+    FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
 
     irc_last_read: TDateTime;
     registered: Boolean;
@@ -128,6 +127,8 @@ type
     property MangleHost: boolean read Getmanglehost write Setmanglehost;
     property Invisible: boolean read Getinvisible write Setinvisible;
 
+    property PendingMessagesQueue: TThreadList<TIrcEchoItem> read FPendingMessagesQueue write FPendingMessagesQueue;
+
     //    property NickServNick:string read GetNickServNick write SetNickServNick;
     //    property NickServPassword:string read GetNickServPassw write SetNickServpassw;
   end;
@@ -181,7 +182,6 @@ function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
-  irc_message_lock: TCriticalSection;
 
 const
   irc_chanroleindex = 25;
@@ -236,8 +236,19 @@ end;
 procedure irc_Addtext_b(const netname, channel, msg: String); overload;
 var
   fIrcNetThread: TMyIrcThread;
-  msgs: TStringList;
-  i: Integer;
+  fStrArr: TArray<String>;
+  fStr: String;
+
+  procedure _WriteToIRC(const aChannel, aMessage: String);
+  begin
+    fIrcNetThread.IrcSendPrivMessage(aChannel, aMessage);
+  end;
+
+  procedure _AppendToQueue(const aChannel, aMessage: String);
+  begin
+    fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(aChannel, aMessage));
+  end;
+
 begin
   if slshutdown then
     exit;
@@ -257,31 +268,40 @@ begin
   end;
 
   // okay it's not for the console
-  msgs := TStringList.Create;
-  irc_message_lock.Enter;
   try
-    msgs.Text := WrapText(msg, 250);
-    try
-      fIrcNetThread := FindIrcnetwork(netname);
+    fIrcNetThread := FindIrcnetwork(netname);
+    if msg.Length < 250 then
+    begin
       if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        for i := 0 to msgs.Count - 1 do
-          fIrcNetThread.IrcSendPrivMessage(channel, msgs.Strings[i]);
+        _WriteToIRC(channel, msg);
       end
       else
       begin
-        for i := 0 to msgs.Count - 1 do
-          fIrcNetThread.pending_messages_queue.Add(TIrcEchoItem.Create(channel, msgs.Strings[i]));
+        _AppendToQueue(channel, msg);
       end;
-    except
-      on e: Exception do
+    end
+    else
+    begin
+      // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
+      fStrArr := WrapText(msg, 250).Split([sLineBreak]);
+
+      if (config.ReadBool(section, 'direct_echo', False)) then
       begin
-        Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
+        for fStr in fStrArr do
+          _WriteToIRC(channel, fStr);
+      end
+      else
+      begin
+        for fStr in fStrArr do
+          _AppendToQueue(channel, fStr);
       end;
     end;
-  finally
-    irc_message_lock.Leave;
-    msgs.Free;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] irc_Addtext_b: %s', [e.Message]));
+    end;
   end;
 end;
 
@@ -577,12 +597,12 @@ begin
   self.netname := aNetname;
   status := 'creating...';
 
-  irc_lock := TCriticalSection.Create;
+  FSocketWriteLock := TCriticalSection.Create;
   channels := TStringList.Create;
 
-  pending_messages_queue := TThreadList<TIrcEchoItem>.Create;
+  FPendingMessagesQueue := TThreadList<TIrcEchoItem>.Create;
   // a message might be repeated several times so accept dupes to always write everything
-  pending_messages_queue.Duplicates := dupAccept;
+  FPendingMessagesQueue.Duplicates := dupAccept;
 
   irc_last_written := Now;
   shouldquit := False;
@@ -603,9 +623,9 @@ end;
 
 destructor TMyIrcThread.Destroy;
 begin
-  irc_lock.Free;
+  FSocketWriteLock.Free;
 
-  pending_messages_queue.Free;
+  FPendingMessagesQueue.Free;
 
   status := 'destroying...';
   console_delwindow(netname);
@@ -655,7 +675,7 @@ end;
 function TMyIrcThread.IrcWrite(const s: String): Boolean;
 begin
   Result := False;
-  irc_lock.Enter;
+  FSocketWriteLock.Enter;
   try
     irc_last_read := Now();
     try
@@ -664,7 +684,7 @@ begin
         Debug(dpError, section, '[EXCEPTION] TMyIrcThread.IrcWrite : %s', [e.Message]);
     end;
   finally
-    irc_lock.Leave;
+    FSocketWriteLock.Leave;
   end;
 
   try
@@ -1438,25 +1458,21 @@ procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
 var
   fChanSettingsObj: TIrcChannelSettings;
 begin
-  irc_message_lock.Enter;
-  try
-    irc_last_read := Now();
+  irc_last_read := Now();
 
-    if channel <> '' then
-    begin
-      fChanSettingsObj := FindIrcChannelSettings(netname, channel);
-      IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-      console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
-    end
-    else
-    begin
-      // Allow sending raw commands from sl console to the IRC server like MODE #chan +o mynick
-      IrcWrite(plainmsg);
-    end;
-    irc_last_written := Now;
-  finally
-    irc_message_lock.Leave;
+  if channel <> '' then
+  begin
+    fChanSettingsObj := FindIrcChannelSettings(netname, channel);
+    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
+  end
+  else
+  begin
+    // Allow sending raw commands from sl console to the IRC server like MODE #chan +o mynick
+    IrcWrite(plainmsg);
   end;
+
+  irc_last_written := Now;
 end;
 
 function TMyIrcThread.ShouldJoinGame: Boolean;
@@ -1551,7 +1567,7 @@ begin
 
     if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
-      fEchoQueueList := pending_messages_queue.LockList;
+      fEchoQueueList := PendingMessagesQueue.LockList;
       try
         if fEchoQueueList.Count > 0 then
         begin
@@ -1560,7 +1576,7 @@ begin
           fEchoItem.Free;
         end;
       finally
-        pending_messages_queue.UnlockList;
+        PendingMessagesQueue.UnlockList;
       end;
     end;
 
@@ -1790,7 +1806,6 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
-  irc_message_lock:= TCriticalSection.Create;
 end;
 
 procedure IrcUnInit;
@@ -1801,7 +1816,6 @@ begin
     myIrcThreads.Free;
     myIrcThreads := nil;
   end;
-  irc_message_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
