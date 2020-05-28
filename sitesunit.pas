@@ -79,6 +79,13 @@ type
   }
   TSSLReq = (srNone, srNeeded, srUnsupported);
 
+  {
+  @value(sbuOnly0Byte Skip only 0 byte files - on most ftpd this means someone started to transfer it)
+  @value(sbuBeingUploaded Skip being uploaded files including 0 byte files)
+  @value(sbuNone Skip neither 0byte nor being uploaded files)
+  }
+  TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2);
+
   TSite = class; // forward
 
   { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
@@ -302,8 +309,10 @@ type
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
 
-    function GetSkipBeingUploadedFiles: boolean;
-    procedure SetSkipBeingUploadedFiles(Value: boolean);
+    { function for @link(SkipBeingUploadedFiles) property to read skip being uploaded files config value from inifile }
+    function GetSkipBeingUploadedFiles: TSkipBeingUploaded;
+    { procedure for @link(SkipBeingUploadedFiles) property to write skip being uploaded files config value to inifile }
+    procedure SetSkipBeingUploadedFiles(const Value: TSkipBeingUploaded);
 
     { function for @link(IRCNick) property to read ircnick from inifile }
     function GetIRCNick: String;
@@ -478,7 +487,7 @@ type
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
 
     property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
-    property SkipBeingUploadedFiles: boolean read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
+    property SkipBeingUploadedFiles: TSkipBeingUploaded read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
@@ -3723,14 +3732,14 @@ begin
   WCInteger('usefornfodownload', Value);
 end;
 
-function TSite.GetSkipBeingUploadedFiles: boolean;
+function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;
 begin
-  Result := RCBool('skip_being_uploaded_files', config.ReadBool('dirlist', 'skip_being_uploaded_files', False));
+  Result := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
 end;
 
-procedure TSite.SetSkipBeingUploadedFiles(Value: boolean);
+procedure TSite.SetSkipBeingUploadedFiles(const Value: TSkipBeingUploaded);
 begin
-  WCBool('skip_being_uploaded_files', Value);
+  WCInteger('skip_being_uploaded_files', Ord(Value));
 end;
 
 function TSite.GetPermDownStatus: boolean;
