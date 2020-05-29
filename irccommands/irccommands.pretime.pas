@@ -12,7 +12,7 @@ function IrcSetPretime(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, Contnrs, dbaddpre, irc, configunit, sitesunit, regexpr, mystrings;
+  SysUtils, Classes, DateUtils, Contnrs, dbaddpre, irc, configunit, sitesunit, RegExpr, mystrings;
 
 const
   section = 'irccommands.pretime';
