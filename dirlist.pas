@@ -184,7 +184,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, regexpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers;
 
 const
   section = 'dirlist';
