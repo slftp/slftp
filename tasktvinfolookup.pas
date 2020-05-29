@@ -63,7 +63,7 @@ begin
     x.ModifierM := True;
 
     // Cut off Year tag
-    x.Expression := '[._-\s]((19|20)\d{2})[\s._-]?$';
+    x.Expression := '[-._\s]((19|20)\d{2})[\s._-]?$';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
@@ -77,7 +77,7 @@ begin
     end;
 
     // Cut off Country tag
-    x.Expression := '[._-\s](US|UK|AU|CA|NZ)[\s._-]?$';
+    x.Expression := '[-._\s](US|UK|AU|CA|NZ)[\s._-]?$';
     if x.Exec(showName) then
     begin
       country := x.Match[1];

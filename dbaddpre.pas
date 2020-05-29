@@ -72,7 +72,7 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, regexpr, IniFiles,
+  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, RegExpr, IniFiles,
   irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
 
 const

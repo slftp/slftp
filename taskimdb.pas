@@ -57,7 +57,7 @@ end;
 implementation
 
 uses SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
-     configunit, tasksunit, dirlist, mystrings, sitesunit, regexpr,
+     configunit, tasksunit, dirlist, mystrings, sitesunit, RegExpr,
      tasksitenfo, Contnrs;
 
 const
