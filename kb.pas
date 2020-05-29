@@ -1923,13 +1923,30 @@ begin
 end;
 
 function TTVRelease.AsText(pazo_id: integer): String;
+var
+  fMismatchReason: String;
 begin
   Result := inherited AsText(pazo_id);
   try
     Result := Result + Format('Show name: %s', [showname]) + #13#10;
     Result := Result + Format('URL: http://www.tvmaze.com/shows/%s/%s', [showid, Lowercase(ReplaceText(showname, ' ', '-'))]) + #13#10;
-    Result := Result + Format('Season: %d', [season]) + #13#10;
-    Result := Result + Format('Episode: %d', [episode]) + #13#10;
+
+    if (season < 0) then
+    begin
+      fMismatchReason := TEnum<TTVGetShowValuesIdentifier>.ToString(TTVGetShowValuesIdentifier(season)).Replace('tv', '');
+      Result := Result + Format('Season: %d (Reason: %s)', [season, fMismatchReason]) + #13#10;
+    end
+    else
+      Result := Result + Format('Season: %d', [season]) + #13#10;
+
+    if (episode < 0) then
+    begin
+      fMismatchReason := TEnum<TTVGetShowValuesIdentifier>.ToString(TTVGetShowValuesIdentifier(episode)).Replace('tv', '');
+      Result := Result + Format('Episode: %d (Reason: %s)', [episode, fMismatchReason]) + #13#10;
+    end
+    else
+      Result := Result + Format('Episode: %d', [episode]) + #13#10;
+
     if premier_year <> -1 then
       Result := Result + Format('Premier: %d', [premier_year]) + #13#10;
     if ended_year > 0 then
