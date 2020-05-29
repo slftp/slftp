@@ -64,6 +64,7 @@
     {^} Added a new option (2) for the setting skip_being_uploaded_files to allow downloading 0byte files
     {^} Remove unnecessary global lock when writing to IRC
     {^} Optimized code for splitting long messages before writing to IRC
+    {^} Announce reason why getting TV season and/or episode from releasename failed
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
