@@ -20,7 +20,7 @@ function Ircaddknowngroup(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, Types, irc, kb, sitesunit, mystrings, mrdohutils, regexpr,
+  SysUtils, Classes, Contnrs, Types, irc, kb, sitesunit, mystrings, mrdohutils, RegExpr,
   debugunit, sllanguagebase, taskrace, knowngroups, configunit, queueunit, irccommandsunit;
 
 const

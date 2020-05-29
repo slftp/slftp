@@ -41,7 +41,9 @@
 
     1. compare your slftp.ini with the provided one in /dist folder
     2. update your helpfiles with the provided ones in /dist/help folder
-    3. enjoy!
+    3. verify that all your regexes are valid and don't throw errors during running
+       as TRegExpr allowed invalid regexes before
+    4. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
@@ -59,6 +61,7 @@
     {#} announce_event for precatcher from spam config never worked
     {#} Backup causes access violation if stats db is disabled but a stats db file exists
     {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
+    {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
     {^} Added a new option (2) for the setting skip_being_uploaded_files to allow downloading 0byte files
