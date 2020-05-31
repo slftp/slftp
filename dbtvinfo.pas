@@ -327,7 +327,7 @@ begin
     (* remove scene/language/tv tags from releasename *)
     ttags := TStringlist.Create;
     try
-      ttags.Assign(tvtags);
+      ttags.Assign(GlTvTags);
       ttags.Delimiter := '|';
 
       ltags := TStringlist.Create;

@@ -24,6 +24,7 @@ type
   }
   TKBEventType = (kbeUNKNOWN, kbePRE, kbeSPREAD, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
 
+  { @abstract(Base class for common release information) }
   TRelease = class
   private
     FCurrentYear: Integer; //< Value of the current year (e.g. 2019)
@@ -79,6 +80,7 @@ type
     property CurrentYear: Integer read FCurrentYear;
   end;
 
+  { @abstract(Class with support for 0-DAY release information) }
   T0DayRelease = class(TRelease)
   public
     nulldaysource: String;
@@ -92,6 +94,7 @@ type
     function AsText(pazo_id: integer = -1): String; override;
   end;
 
+  { @abstract(Class with support for music release information) }
   TMP3Release = class(TRelease)
     mp3year: integer;
     mp3lng: String; //< mapped language from @link(TRelease.language), remains for backward compatibility of mp3language rule
@@ -122,6 +125,7 @@ type
     procedure NumberOfDisksTag(const tag: String; var Source: String; var disks: integer);
   end;
 
+  { @abstract(Class with support for release information which are parsed from NFO file) }
   TNFORelease = class(TRelease)
     nfogenre: String;
 
@@ -136,6 +140,7 @@ type
     class function DefaultSections: String; override;
   end;
 
+  { @abstract(Class with support for release information parsed from IMDb) }
   TIMDBRelease = class(TRelease)
     FLookupDone: Boolean;
     imdb_id: String;
@@ -167,6 +172,7 @@ type
     property IsLookupDone: Boolean read FLookupDone; //< @true of IMDb Lookup is done and infos are fully added to @link(TIMDBRelease), otherwise @false
   end;
 
+  { @abstract(Class with support for release information parsed from TVMaze) }
   TTVRelease = class(TRelease)
     FLookupDone: Boolean;
     showname: String;
@@ -208,6 +214,7 @@ type
     property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and infos are fully added to @link(TTVRelease), otherwise @false
   end;
 
+  { @abstract(Class with support for music video release information) }
   TMVIDRelease = class(TRelease)
     FileCount: integer;
     mvid_Genre: TStringList;
@@ -233,9 +240,12 @@ type
 
 type
   TCRelease = class of TRelease;
-  TSectionHandlers = array[0..6] of TCRelease;
+  TSectionHandlers = array[0..6] of TCRelease; //< see @link(GlSectionHandlers)
 
+{ Just a helper function to initialize the variables }
 procedure KbClassesInit;
+
+{ Just a helper function to free the variables }
 procedure KbClassesUninit;
 
 { Converts a stringified event to a real KB Event
@@ -250,12 +260,11 @@ function EventStringToTKBEventType(const aEvent: string): TKBEventType;
 function KBEventTypeToString(const aEvent: TKBEventType): String;
 
 var
-  sectionhandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease);
-  nulldaysources: TStringList;
-  mp3sources: TStringList;
-  tvtags: TStringList; //< holds the list of tvtags from config file
+  GlSectionHandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease); //< Array of all release information classes
+  GlNullDayPlatformTags: TStringList; //< List with 0Day platform tags which define the platform when tagging releases
+  GlTvTags: TStringList; //< List with TV tags which are used for tagging releases
   mp3types: TStringList;
-  kb_sectionhandlers: TStringList;
+  mp3sources: TStringList;
 
 implementation
 
@@ -273,6 +282,7 @@ const
   rsections = 'kb.release';
 
 var
+  kb_sectionhandlers: TStringList;
   // [kb] config vars from inifile
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
@@ -290,17 +300,17 @@ begin
   nomvdirlistgenre := config.ReadBool(configsection, 'nomvdirlistgenre', False);
 
   kb_sectionhandlers := TStringList.Create;
-  for i := 1 to High(sectionhandlers) do
+  for i := 1 to High(GlSectionHandlers) do
   begin
     {
     * some examples for both variables
-    sectionhandlers: TMP3Release -- x: MP3,FLAC
-    sectionhandlers: T0dayRelease -- x: 0DAY,PDA
-    sectionhandlers: TNFORelease -- x: MDVDR,MV,MHD
-    sectionhandlers: TTVRelease -- x: TVSD*,TV720P-*,TV*BLURAY,TV1080P
+    GlSectionHandlers: TMP3Release -- x: MP3,FLAC
+    GlSectionHandlers: T0dayRelease -- x: 0DAY,PDA
+    GlSectionHandlers: TNFORelease -- x: MDVDR,MV,MHD
+    GlSectionHandlers: TTVRelease -- x: TVSD*,TV720P-*,TV*BLURAY,TV1080P
     }
 
-    kb_sectionhandlers.Add(sectionhandlers[i].Name);
+    kb_sectionhandlers.Add(GlSectionHandlers[i].Name);
 
     sectionmasks := TObjectList.Create;
 
@@ -312,7 +322,7 @@ begin
       x.Sorted := True;
       x.Duplicates := dupIgnore;
 
-      x.DelimitedText := config.ReadString(configsection, sectionhandlers[i].Name, sectionhandlers[i].DefaultSections);
+      x.DelimitedText := config.ReadString(configsection, GlSectionHandlers[i].Name, GlSectionHandlers[i].DefaultSections);
 
       for j := 0 to x.Count - 1 do
       begin
@@ -327,7 +337,7 @@ begin
   end;
 
   mp3sources := TStringList.Create;
-  nulldaysources := TStringList.Create;
+  GlNullDayPlatformTags := TStringList.Create;
 
   x := TStringList.Create;
   try
@@ -340,7 +350,7 @@ begin
       end
       else if (1 = Pos('0daysource_', x[i])) then
       begin
-        nulldaysources.Values[UpperCase(Copy(x[i], 12, 20))] := ' ' + config.ReadString(configsection, x[i], '') + ' ';
+        GlNullDayPlatformTags.Values[UpperCase(Copy(x[i], 12, 20))] := ' ' + config.ReadString(configsection, x[i], '') + ' ';
       end;
     end;
   finally
@@ -352,19 +362,19 @@ begin
   mp3types.QuoteChar := '"';
   mp3types.DelimitedText := config.ReadString(configsection, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
 
-  tvtags := TStringList.Create;
-  tvtags.CaseSensitive := False;
-  tvtags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
+  GlTvTags := TStringList.Create;
+  GlTvTags.CaseSensitive := False;
+  GlTvTags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
 end;
 
 procedure KbClassesUninit;
 var
   i: integer;
 begin
-  nulldaysources.Free;
+  GlNullDayPlatformTags.Free;
   mp3sources.Free;
   mp3types.Free;
-  tvtags.Free;
+  GlTvTags.Free;
 
   for i := 0 to kb_sectionhandlers.Count - 1 do
   begin
@@ -1203,10 +1213,10 @@ begin
 
   for i := 1 to words.Count - 1 do
   begin
-    j := tvtags.IndexOf(words[i]);
+    j := GlTvTags.IndexOf(words[i]);
     if j <> -1 then
     begin
-      tvtag := tvtags[j];
+      tvtag := GlTvTags[j];
       Break;
     end;
   end;
@@ -1257,12 +1267,12 @@ begin
 
   for i := words.Count - 1 downto 1 do
   begin
-    for j := 0 to nulldaysources.Count - 1 do
+    for j := 0 to GlNullDayPlatformTags.Count - 1 do
     begin
-      if (AnsiContainsText(nulldaysources.ValueFromIndex[j], ' ' + words[i] +
+      if (AnsiContainsText(GlNullDayPlatformTags.ValueFromIndex[j], ' ' + words[i] +
         ' ')) then
       begin
-        nulldaysource := nulldaysources.Names[j];
+        nulldaysource := GlNullDayPlatformTags.Names[j];
         Break;
       end;
     end;
