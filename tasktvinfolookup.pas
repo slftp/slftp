@@ -33,8 +33,8 @@ function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: S
 implementation
 
 uses
-  DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb,
-  http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
+  DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb.release,
+  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
 
 const
   section = 'tasktvinfo';

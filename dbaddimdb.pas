@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs, SyncObjs;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs;
 
 type
   TDbImdb = class
@@ -57,7 +57,7 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, FLRE,
+uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.release,
   queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const

@@ -171,7 +171,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, DateUtils, kb, debugunit, knowngroups;
+  SysUtils, Contnrs, DateUtils, kb.release, debugunit, knowngroups;
 
 const
   dsection = 'rules.common';

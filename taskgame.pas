@@ -21,7 +21,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  SysUtils, SyncObjs, Contnrs, irc, StrUtils, kb, kb.release, debugunit, dateutils, queueunit, tags,
   configunit, tasksunit, dirlist, mystrings, sitesunit, RegExpr, sllanguagebase;
 
 const

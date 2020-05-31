@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses SysUtils, StrUtils, kb, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
+uses SysUtils, StrUtils, kb, kb.release, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
 
 const
   section = 'taskgenredirlist';
