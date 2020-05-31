@@ -33,7 +33,7 @@ implementation
 
 uses
   SysUtils, StrUtils, configunit, mystrings, sitesunit, queueunit,
-  debugunit, pazo {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  debugunit, kb.release, pazo {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   section = 'dbaddgenre';

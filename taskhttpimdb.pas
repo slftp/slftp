@@ -26,7 +26,7 @@ type
 implementation
 
 uses
-  SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, http,
+  SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.release, http,
   sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo;
 
 const

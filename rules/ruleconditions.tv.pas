@@ -123,7 +123,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, kb, debugunit;
+  SysUtils, Contnrs, kb.release, debugunit;
 
 const
   dsection = 'rules.tv';

@@ -11,7 +11,7 @@ function IrcKbAdd(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, kb, pazo, precatcher, irc, mystrings;
+  SysUtils, Classes, kb, kb.release, pazo, precatcher, irc, mystrings;
 
 const
   section = 'irccommands.kb';
