@@ -1112,7 +1112,6 @@ var
   i: integer;
   ss: String;
   //  xin: Tinifile;
-  x: TStringList;
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
@@ -1154,26 +1153,6 @@ begin
       Inc(i);
     end;
     Inc(i);
-  end;
-
-  if FileExists(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo') then
-  begin
-    x := TStringList.Create;
-    try
-      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
-      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
-      {$IFDEF MSWINDOWS}
-        {$IFDEF UNICODE}
-          DeleteFile(PChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
-        {$ELSE}
-          DeleteFile(PAnsiChar(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo'));
-        {$ENDIF}
-      {$ELSE}
-        DeleteFile(ExtractFilePath(ParamStr(0)) + 'imdbcountrys.nwo');
-      {$ENDIF}
-    finally
-      x.Free;
-    end;
   end;
 
   imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
