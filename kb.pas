@@ -85,13 +85,13 @@ function FindSectionHandler(const section: String): TCRelease;
 var
   i: integer;
 begin
-  Result := sectionhandlers[0];
+  Result := GlSectionHandlers[0];
 
-  for i := 1 to High(sectionhandlers) do
+  for i := 1 to High(GlSectionHandlers) do
   begin
-    if sectionhandlers[i].SectionAccepted(section) then
+    if GlSectionHandlers[i].SectionAccepted(section) then
     begin
-      Result := sectionhandlers[i];
+      Result := GlSectionHandlers[i];
       exit;
     end;
   end;
