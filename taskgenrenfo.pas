@@ -20,7 +20,7 @@ type
 implementation
 
 uses
-  SysUtils, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags,
+  SysUtils, irc, StrUtils, kb, kb.release, debugunit, dateutils, queueunit, tags,
   console, configunit, tasksunit, dirlist, sitesunit, dbaddnfo, mystrings;
 
 const

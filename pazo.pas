@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
+  Classes, kb.release, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -212,7 +212,7 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb;
 
 const
   section = 'pazo';

@@ -16,7 +16,7 @@ type
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, kb;
+  SysUtils, Classes, Contnrs, kb.release;
 
 const
   dsection = 'rules.zeroday';
