@@ -243,10 +243,10 @@ type
   TSectionHandlers = array[0..6] of TCRelease; //< see @link(GlSectionHandlers)
 
 { Just a helper function to initialize the variables }
-procedure KbClassesInit;
+procedure KbReleaseInit;
 
 { Just a helper function to free the variables }
-procedure KbClassesUninit;
+procedure KbReleaseUninit;
 
 { Converts a stringified event to a real KB Event
   @param(aEvent event name as a string)
@@ -263,8 +263,9 @@ var
   GlSectionHandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease); //< Array of all release information classes
   GlNullDayPlatformTags: TStringList; //< List with 0Day platform tags which define the platform when tagging releases
   GlTvTags: TStringList; //< List with TV tags which are used for tagging releases
-  mp3types: TStringList;
   mp3sources: TStringList;
+  mp3types: TStringList;
+  mp3genres: TStringList;
 
 implementation
 
@@ -274,7 +275,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -288,12 +289,13 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
 
-procedure KbClassesInit;
+procedure KbReleaseInit;
 var
   i, j: integer;
   x: TStringList;
   sectionmasks: TObjectList;
   sectionmask: String;
+  ss: String;
 begin
   nomp3dirlistgenre := config.ReadBool(configsection, 'nomp3dirlistgenre', False);
   nonfodirlistgenre := config.ReadBool(configsection, 'nonfodirlistgenre', False);
@@ -362,18 +364,35 @@ begin
   mp3types.QuoteChar := '"';
   mp3types.DelimitedText := config.ReadString(configsection, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
 
+  mp3genres := TStringList.Create;
+  mp3genres.Delimiter := ' ';
+  mp3genres.QuoteChar := '"';
+  mp3genres.DelimitedText := config.ReadString(rsections, 'mp3genres', '');
+  i := 0;
+  while (i < mp3genres.Count) do
+  begin
+    ss := ReplaceText(mp3genres[i], ' ', '');
+    if ss <> mp3genres[i] then
+    begin
+      mp3genres.Insert(i + 1, ss);
+      Inc(i);
+    end;
+    Inc(i);
+  end;
+
   GlTvTags := TStringList.Create;
   GlTvTags.CaseSensitive := False;
   GlTvTags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
 end;
 
-procedure KbClassesUninit;
+procedure KbReleaseUninit;
 var
   i: integer;
 begin
   GlNullDayPlatformTags.Free;
   mp3sources.Free;
   mp3types.Free;
+  mp3genres.Free;
   GlTvTags.Free;
 
   for i := 0 to kb_sectionhandlers.Count - 1 do

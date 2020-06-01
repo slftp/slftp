@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, IniFiles, kb.release;
+  Classes, SyncObjs, kb.release;
 
 type
   TKBThread = class(TThread)
@@ -37,13 +37,9 @@ function kb_reloadsections: boolean;
 
 var
   kb_sections: TStringList;
-  mp3genres: TStringList;
   kb_list: TStringList;
   kb_thread: TKBThread;
-  kb_last_saved: TDateTime;
   kb_lock: TCriticalSection;
-  imdbcountries: TIniFile;
-  kbevent: TEvent;
 
 implementation
 
@@ -53,7 +49,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -61,6 +57,8 @@ const
 
 var
   addpreechocmd: String;
+  kb_last_saved: TDateTime;
+  kbevent: TEvent;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -1108,15 +1106,13 @@ begin
 end;
 
 procedure kb_Init;
-var
-  i: integer;
-  ss: String;
+//var
   //  xin: Tinifile;
 begin
   kb_last_saved := Now();
   //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
 
-  KbClassesInit;
+  KbReleaseInit;
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
@@ -1138,24 +1134,6 @@ begin
   //xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
   //  xin.ReadSection('sections', kb_sections);
   //  xin.Free;
-
-  mp3genres := TStringList.Create;
-  mp3genres.Delimiter := ' ';
-  mp3genres.QuoteChar := '"';
-  mp3genres.DelimitedText := config.ReadString(rsections, 'mp3genres', '');
-  i := 0;
-  while (i < mp3genres.Count) do
-  begin
-    ss := ReplaceText(mp3genres[i], ' ', '');
-    if ss <> mp3genres[i] then
-    begin
-      mp3genres.Insert(i + 1, ss);
-      Inc(i);
-    end;
-    Inc(i);
-  end;
-
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
@@ -1184,13 +1162,11 @@ begin
   Debug(dpSpam, rsections, 'Uninit1');
   kbevent.Free;
   kb_sections.Free;
-  mp3genres.Free;
   kb_latest.Free;
   kb_skip.Free;
   kb_groupcheck_rls.Free;
-  imdbcountries.Free;
 
-  KbClassesUninit;
+  KbReleaseUninit;
 
   kb_lock.Free;
 
