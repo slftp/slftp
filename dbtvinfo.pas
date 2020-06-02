@@ -3,7 +3,7 @@ unit dbtvinfo;
 interface
 
 uses
-  Classes, IniFiles, irc, kb, Contnrs;
+  Classes, IniFiles, irc, kb.release, Contnrs;
 
 type
   { @abstract(Possible return values for special cases in getShowValues procedure)
@@ -116,7 +116,7 @@ implementation
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
   debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, SynDBSQLite3, SynDB,
-  Generics.Collections, news;
+  Generics.Collections, news, kb;
 
 const
   section = 'tasktvinfo';
@@ -327,7 +327,7 @@ begin
     (* remove scene/language/tv tags from releasename *)
     ttags := TStringlist.Create;
     try
-      ttags.Assign(tvtags);
+      ttags.Assign(GlTvTags);
       ttags.Delimiter := '|';
 
       ltags := TStringlist.Create;

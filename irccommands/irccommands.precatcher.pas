@@ -14,7 +14,7 @@ function IrcDisplayMappings(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, precatcher, irc, ircchansettings, sitesunit, mystrings, kb;
+  SysUtils, Classes, Contnrs, precatcher, irc, ircchansettings, sitesunit, mystrings, kb, kb.release;
 
 const
   section = 'irccommands.precatcher';
