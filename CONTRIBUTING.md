@@ -34,6 +34,16 @@ git commit
 git push origin <feature-branch>
 ``` 
 
+Updating an outdated branch with latest development branch:
+  - rebase should be favoured over merge to avoid useless merge commits in history
+```shell
+git checkout dev
+git pull
+git checkout mybranch
+git rebase dev
+git push --force-with-lease origin mybranch
+``` 
+
 [anyway, here is git for dummies](https://www.mediawiki.org/wiki/Git_for_dummies)
 or
 [the full documentaion](https://git-scm.com/docs/)
@@ -73,7 +83,7 @@ In the body it should say: ```This reverts commit <hash>.```, where the hash is 
 * <b>perf</b>: A code change that improves performance
 * <b>chore</b>: Changes to the build process or auxiliary tools and libraries such as documentation generation
 * <b>remove</b>: Removal of code duplicates, deprecated functions, unused files, etc
-* <b>update</b>: An update of external library files
+* <b>update</b>: An update of e.g. external library files
 
 ## Scope
 
@@ -128,10 +138,18 @@ or in case of multiple issues:
   - comments have to be written in [PasDoc](https://github.com/pasdoc/pasdoc/wiki) style
   - variables and functions in `interface` section <b>MUST</b> be documented
   - other comments could be made if useful (could be made in PasDoc style but not enforced)
+- Global variables
+  - use with care - only if it is REALLY needed
+  - variables which are defined in the `interface` section
+  - should start with `Gl` followed by an uppercased character
+```
+  GlSkiplistRegex: TRegExpr;
+  GlMainConfig: TConfig;
+```
 - Variables in classes/records/etc
   - should start with a capital `F` and the following character should also be uppercased
   - be made `private` if possible
-  - if it needs to be accessible by others do it with a `property`
+  - if it needs to be public accessible do it with a `property` (write access only if really needed!)
 ```
   TIrcChannelSettings = class
   private
@@ -141,9 +159,18 @@ or in case of multiple issues:
     ...
     property Netname: String read FNetname;
     property Channel: String read FChannel;
-    property InviteOnly: Boolean read FInviteOnly;
+    property InviteOnly: Boolean read FInviteOnly write FInviteOnly;
     ...
 ```
+- Functions
+  - function name should describe the main functionality of the code
+  - better write a few shorter functions instead of a huge one as it makes it complicated to follow everything
+  - name of functions which exist in `implementation` part only should begin with `_`
+    - could also be inside a function itself if it e.g. helps to reduce code duplications
+    ```
+    function _findMP3GenreOnAnnounce(const text: String; ts_data: TStringList): String;
+    procedure _AnnounceConfigValue;
+    ```
 - Variables in functions
   - local variables should start with a lowercase `f` while the next character is uppercased
   - index variables can still be called `i`, `j`, etc
