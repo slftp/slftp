@@ -3,7 +3,7 @@
   The classes hold different information which are needed for all the different
   categories of releases
 }
-unit kb.release;
+unit kb.releaseinfo;
 
 interface
 
@@ -280,7 +280,7 @@ uses
 
 const
   configsection = 'kb';
-  rsections = 'kb.release';
+  rsections = 'kb.releaseinfo';
 
 var
   kb_sectionhandlers: TStringList;

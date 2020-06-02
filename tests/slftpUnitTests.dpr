@@ -73,7 +73,8 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
-  precatcher.helpersTests;
+  precatcher.helpersTests,
+  kb.releaseinfo.MP3Tests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

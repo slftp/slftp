@@ -3,7 +3,7 @@ unit dbtvinfo;
 interface
 
 uses
-  Classes, IniFiles, irc, kb.release, Contnrs;
+  Classes, IniFiles, irc, kb.releaseinfo, Contnrs;
 
 type
   { @abstract(Possible return values for special cases in getShowValues procedure)

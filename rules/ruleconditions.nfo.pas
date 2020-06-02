@@ -17,7 +17,7 @@ type
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, kb.release;
+  SysUtils, Classes, Contnrs, kb.releaseinfo;
 
 const
   dsection = 'rules.nfo';
