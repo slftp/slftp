@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, kb, Contnrs, SyncObjs;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs;
 
 type
   TDbImdb = class
@@ -54,10 +54,11 @@ var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
   dbaddimdb_cs: TCriticalSection;
+  imdbcountries: TIniFile;
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, FLRE,
+uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.release,
   queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const
@@ -440,6 +441,7 @@ begin
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
+  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
 end;
 
 procedure dbaddimdbStart;
@@ -449,6 +451,7 @@ end;
 
 procedure dbaddimdbUninit;
 begin
+  imdbcountries.Free;
   dbaddimdb_cs.Enter;
   try
     FreeAndNil(last_addimdb);
