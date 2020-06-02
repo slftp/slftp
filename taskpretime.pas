@@ -25,7 +25,7 @@ implementation
 
 uses
   DateUtils, SysUtils, queueunit, debugunit, configunit,
-  sltcp, http, RegExpr, irc, mrdohutils, kb.release;
+  sltcp, http, RegExpr, irc, mrdohutils, kb.releaseinfo;
 
 const
   section = 'taskpretime';
