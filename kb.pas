@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, kb.release;
+  Classes, SyncObjs, kb.releaseinfo;
 
 type
   TKBThread = class(TThread)

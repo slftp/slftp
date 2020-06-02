@@ -56,7 +56,8 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
-  precatcher.helpersTests;
+  precatcher.helpersTests,
+  kb.releaseinfo.MP3Tests;
 
 var
   filecheck: String;

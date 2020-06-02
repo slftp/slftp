@@ -2,7 +2,7 @@ unit precatcher;
 
 interface
 
-uses Classes, Contnrs, slmasks, encinifile, kb, kb.release;
+uses Classes, Contnrs, slmasks, encinifile, kb, kb.releaseinfo;
 
 type
   TSection = class

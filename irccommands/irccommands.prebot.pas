@@ -26,7 +26,7 @@ implementation
 
 uses
   SysUtils, Classes, StrUtils, DateUtils, Contnrs, SyncObjs, irc, sitesunit, configunit, dirlist, pazo,
-  debugunit, queueunit, mystrings, notify, taskdel, statsunit, kb, kb.release, taskdirlist, taskraw, slmasks, skiplists,
+  debugunit, queueunit, mystrings, notify, taskdel, statsunit, kb, kb.releaseinfo, taskdirlist, taskraw, slmasks, skiplists,
   rulesunit, irccommands.work, irccommands.site, irccommandsunit, Generics.Collections;
 
 const
