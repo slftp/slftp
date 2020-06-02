@@ -3,7 +3,7 @@ unit dbaddpre;
 interface
 
 uses
-  Classes, kb;
+  Classes, kb, kb.release;
 
 type
   TPretimeResult = record

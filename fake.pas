@@ -3,7 +3,7 @@ unit fake;
 interface
 
 uses
-  Classes, SysUtils, kb;
+  Classes, SysUtils, kb, kb.release;
 
 procedure FakeStart;
 procedure FakeCheck(r: TRelease);

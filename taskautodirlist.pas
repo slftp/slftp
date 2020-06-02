@@ -18,7 +18,7 @@ implementation
 uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
-  mystrings, IdGlobal;
+  kb.release, mystrings, IdGlobal;
 
 const
   rsections = 'autodirlist';

@@ -34,7 +34,7 @@ implementation
 
 uses
   DateUtils, SysUtils, configunit, mystrings, queueunit, RegExpr, debugunit, taskhttpnfo,
-  dbaddurl, dbaddimdb;
+  dbaddurl, dbaddimdb, kb.release;
 
 const
   section = 'dbaddnfo';

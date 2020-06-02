@@ -16,7 +16,7 @@ type
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, kb;
+  SysUtils, Classes, Contnrs, kb.release;
 
 const
   dsection = 'rules.zeroday';
@@ -28,7 +28,7 @@ const
 function TCondition0daySource.Verify(const s: String): boolean;
 begin
   try
-    Result := nulldaysources.IndexOfName(s) <> -1;
+    Result := GlNullDayPlatformTags.IndexOfName(s) <> -1;
   except
     Result := False;
   end;
