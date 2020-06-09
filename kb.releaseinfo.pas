@@ -34,7 +34,7 @@ type
     rlsname: String; //< releasename
     rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
     section: String;
-    words: TStringList; //< list of all words which occur in @link(rlsname), replaces ().-_ with whitespace to determine them
+    words: TStringList; //< list of all words which occur in @link(rlsname), firstly removes () and then replaces .-_ with whitespace
     groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
     internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
@@ -96,6 +96,15 @@ type
 
   { @abstract(Class with support for music release information) }
   TMP3Release = class(TRelease)
+  private
+    { Splits the word into source type and number of disks if word contains at least one number. Extracted values could be garbish, verifying of aSourceType needed!
+      @param(aWord Single word from the releasename)
+      @param(aSourceType Extracted source type)
+      @param(aNumberOfDisks Extracted number) }
+    procedure GetNumberOfDisksFromTag(const aWord: String; var aSourceType: String; var aNumberOfDisks: Integer);
+    function Evszam(s: String): boolean;
+    procedure AddSource(const src: String);
+  public
     mp3year: integer;
     mp3lng: String; //< mapped language from @link(TRelease.language), remains for backward compatibility of mp3language rule
     mp3genre: String;
@@ -103,9 +112,9 @@ type
     mp3types1: String;
     mp3types2: String;
     mp3types3: String;
-    mp3_numdisks: integer;
+    mp3_numdisks: integer; //< Amount of disks
     mp3_number_of: String;
-    mp3_va: boolean;
+    mp3_va: boolean; //< @true if made by Various Artists, otherwise @false
 
     function Bootleg: boolean;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
@@ -119,10 +128,6 @@ type
     function mp3type(const s: String): boolean;
     class function Name: String; override;
     class function DefaultSections: String; override;
-  private
-    function Evszam(s: String): boolean;
-    procedure AddSource(const src: String);
-    procedure NumberOfDisksTag(const tag: String; var Source: String; var disks: integer);
   end;
 
   { @abstract(Class with support for release information which are parsed from NFO file) }
@@ -688,6 +693,35 @@ end;
 
 { TMP3Release }
 
+procedure TMP3Release.GetNumberOfDisksFromTag(const aWord: String; var aSourceType: String; var aNumberOfDisks: Integer);
+var
+  i, fWordLen: Integer;
+  fNumber: Integer;
+begin
+  fWordLen := Length(aWord);
+  fNumber := 0;
+
+  aSourceType := '';
+  aNumberOfDisks := 0;
+
+  for i := 1 to fWordLen do
+  begin
+    if IsANumber(aWord[i]) then
+      fNumber := fNumber * 10 + Ord(aWord[i]) - 48
+    else
+      Break;
+  end;
+
+  if fNumber = 0 then
+    exit; // nothing found
+
+  if ((i <= fWordLen - 2) and (aWord[i] = 'x')) then
+    Inc(i);
+
+  aSourceType := Copy(aWord, i, fWordLen);
+  aNumberOfDisks := fNumber;
+end;
+
 function TMP3Release.Evszam(s: String): boolean;
 var
   i: integer;
@@ -731,57 +765,38 @@ begin
   end;*)
 end;
 
-procedure TMP3Release.NumberOfDisksTag(const tag: String; var Source: String;
-  var disks: integer);
-var
-  i: integer;
-  szam: integer;
-begin
-  disks := 0;
-  Source := '';
-  szam := 0;
-  try
-    i := 1;
-    while (i <= length(tag)) do
-    begin
-      if tag[i] in ['0'..'9'] then
-        szam := szam * 10 + Ord(tag[i]) - 48
-      else
-        Break;
-      Inc(i);
-    end;
-    if szam = 0 then
-      exit; // nem nyert
-    if ((i <= length(tag) - 2) and (tag[i] = 'x')) then
-      Inc(i);
-
-    disks := szam;
-    Source := ' ' + Copy(tag, i, 15) + ' ';
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, 'TMP3Release.NumberOfDisksTag : %s',
-        [e.Message]);
-      disks := 0;
-      Source := '';
-    end;
-  end;
-end;
-
 constructor TMP3Release.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
 var
-  evszamindex, i: integer;
-  fNumberOfDashes: integer;
-  types: integer;
-  j: integer;
-  szo, szamoknelkul: String;
-  db: integer;
+  evszamindex, i: Integer;
+
+  types: Integer;
+  j: Integer;
+  fWord, fSource: String;
+
   lrx: TRegexpr;
+  fNumberDisks: Integer;
+  fNumberOfDashes: Integer;
+  fNumDisksAlreadyFound: Boolean;
 begin
   inherited Create(rlsname, section, False, savedpretime);
   aktualizalva := False;
+  fNumDisksAlreadyFound := False;
 
+  // some kind of fake/scam detection?
   if words.Count < 3 then
+    exit;
+
+  fNumberOfDashes := 0;
+  for i := 1 to Length(rlsname) do
+  begin
+    if rlsname[i] = '-' then
+    begin
+      Inc(fNumberOfDashes);
+      if (fNumberOfDashes = 2) then
+        Break;
+    end;
+  end;
+  if fNumberOfDashes < 2 then
     exit;
 
   try
@@ -806,42 +821,31 @@ begin
     // use language from TRelease ancestor
     mp3lng := language;
 
-    fNumberOfDashes := 0;
-    for i := 1 to length(rlsname) do
-    begin
-      if rlsname[i] = '-' then
-      begin
-        Inc(fNumberOfDashes);
-        if (fNumberOfDashes = 2) then
-          Break;
-      end;
-    end;
-
-    if fNumberOfDashes < 2 then
-      exit;
-
     types := 0;
     mp3_numdisks := 1;
 
     for i := words.Count - 1 downto 1 do
     begin
       //1CD 99DVD
-      szo := ' ' + words[i] + ' ';
-      db := 0;
-      NumberOfDisksTag(words[i], szamoknelkul, db);
+      fWord := ' ' + words[i] + ' ';
+      if not fNumDisksAlreadyFound then
+      begin
+        fNumberDisks := 0;
+        GetNumberOfDisksFromTag(words[i], fSource, fNumberDisks);
+      end;
       for j := 0 to mp3sources.Count - 1 do
       begin
-        if (AnsiContainsText(mp3sources.ValueFromIndex[j], szo)) then
+        if (AnsiContainsText(mp3sources.ValueFromIndex[j], fWord)) then
         begin
           AddSource(mp3sources.Names[j]);
           Break;
         end
-        else if ((db <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j],
-          szamoknelkul))) then
+        else if ((fNumberDisks <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j], ' ' + fSource + ' '))) then
         begin
           AddSource(mp3sources.Names[j]);
-          mp3_numdisks := db;
+          mp3_numdisks := fNumberDisks;
           mp3_number_of := words[i];
+          fNumDisksAlreadyFound := True;
           Break;
         end;
       end;
