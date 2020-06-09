@@ -43,7 +43,8 @@
     2. update your helpfiles with the provided ones in /dist/help folder
     3. verify that all your regexes are valid and don't throw errors during running
        as TRegExpr allowed invalid regexes before
-    4. enjoy!
+    4. delete your slftp.kb file which is needed due to some internal changes
+    5. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
@@ -63,6 +64,7 @@
     {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
     {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
     {#} Sometimes files that should have been skipped were transfered anyway
+    {#} mp3numdisks took the wrong value, e.g. VA-Serious_Beats_92-(541833CD)-4CD-FLAC-2019-WRE
     {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
