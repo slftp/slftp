@@ -1525,8 +1525,14 @@ begin
       begin
         if (de.filesize < 1) then
         begin
-          //since the file is complete, it must have at least size 1.
-          de.filesize := 1;
+          //try to get the actual file size from pazo
+          de.filesize := pazo.PFileSize(aDir, aFilename);
+
+          if (de.filesize < 1) then
+          begin
+            //since the file is complete, it must have at least size 1.
+            de.filesize := 1;
+          end;
         end;
         de.IsBeingUploaded := False;
       end;
