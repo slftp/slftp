@@ -1461,6 +1461,19 @@ begin
     if ( (lastResponseCode <> 200) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
     begin
       case lastResponseCode of
+        530:
+        begin
+          if (0 < Pos('No transfer-slave(s) available', lastResponse)) then
+          begin
+            sdst.site.SetOutofSpace;
+            if ssrc.site.SetDownOnOutOfSpace then
+              sdst.DestroySocket(True);
+            readyerror := True;
+            mainpazo.errorreason := 'No freespace or slave';
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+        end;
         553:
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
@@ -1583,6 +1596,14 @@ begin
             sdst.Quit;
             goto TryAgain;
           end;
+
+          //COMPLETE MSG: 421 Timeout (90 seconds): closing control connection.
+          if (0 < Pos('closing control connection', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            sdst.Quit;
+            goto TryAgain;
+          end;
         end;
 
       425:
@@ -1644,6 +1665,10 @@ begin
 
           if (0 < Pos('not allowed in this file name', lastResponse)) then
           begin   //530 .. not allowed in this file name
+            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            begin
+              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            end;
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -1710,6 +1735,7 @@ begin
 
           if ((0 < Pos('does not exist in the sfv', lastResponse)) OR (0 < Pos('File not found in sfv', lastResponse)) OR (0 < Pos('File not found in SFV', lastResponse))) then
           begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -1829,6 +1855,16 @@ begin
             goto TryAgain;
           end;
 
+        end;
+
+      540:
+        begin
+          //COMPLETE MSG: 540 Command execution failed
+          if (0 < Pos('Command execution failed', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
         end;
       end;
 
@@ -2164,7 +2200,9 @@ begin
           if (0 <> Pos('t open data connection', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
+            end;
 
             goto TryAgain;
           end;
@@ -2189,8 +2227,11 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
           mainpazo.errorreason := 'File has been deleted on the master';
           readyerror := True;
           exit;
@@ -2201,7 +2242,9 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
           mainpazo.errorreason := 'File is being deleted';
           readyerror := True;
@@ -2213,7 +2256,9 @@ begin
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          begin
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+          end;
 
           mainpazo.errorreason := 'File wasn''t found in any root';
           readyerror := True;
@@ -2236,10 +2281,12 @@ begin
         //COMPLETE MSG: 426 Received fatal alert: handshake_failure
         //COMPLETE MSG: 426 Socket closed
         //COMPLETE MSG: 426 Connection closed by remote host
+        //COMPLETE MSG: 426 Data connection: Success.
         if ((0 < Pos('Transfer failed', lastResponse)) OR
           (0 < Pos('Accept timed out', lastResponse)) OR
           (0 < Pos('fatal alert', lastResponse)) OR
-          (0 < Pos('Socket closed', lastResponse))OR
+          (0 < Pos('Socket closed', lastResponse)) OR
+          (0 < Pos('Data connection', lastResponse)) OR
           (0 < Pos('Connection closed', lastResponse))) then
         begin
           //try again
@@ -2369,7 +2416,7 @@ begin
           if (0 < Pos('Slow transfer', lastResponse)) then
           begin
             //try again, maybe lower routing from srcsite to dstsite
-            Debug(dpMessage, c_section, '<- ' + tname);
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             goto TryAgain;
           end;
@@ -2395,6 +2442,16 @@ begin
           //COMPLETE MSG: 426 Connection closed; transfer aborted.
           //COMPLETE MSG: 426- Transfer was aborted - File has been deleted on the master
           if ((0 < Pos('transfer aborted', lastResponse)) OR (0 < Pos('Transfer was aborted', lastResponse))) then
+          begin
+            //try again
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 426 Data connection: Connection reset by peer.
+          //COMPLETE MSG: 426 Data Connection: Success.
+          if ((0 < Pos('Connection reset by peer', lastResponse)) OR
+            (0 < Pos('Data connection', lastResponse))) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2582,8 +2639,21 @@ begin
       Inc(ps2.badcrcevents);
     end;
 
+    if 0 < Pos('0byte-file: Not allowed', sdst.lastResponse) then
+    begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+      end;
+      Inc(ps2.badcrcevents);
+    end;
+
     if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
     begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
+      end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
 
