@@ -14,7 +14,7 @@ set CTESTINCLUDES=-Utests/DUnitX
 REM
 REM OpenSSL version, depending names for 32/64bit will be added later
 REM
-set OPENSSL_NAME=openssl-1.0.2r
+set OPENSSL_NAME=openssl-1.0.2u
 
 REM
 REM Inject git commit into slftp.inc if .git exists
@@ -94,7 +94,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win32 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('http://wiki.overbyte.eu/arch/%OPENSSL_NAME%-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
 if errorlevel 1 (
 echo Failure reason for downloading OpenSSL is %errorlevel%
 exit /b %errorlevel%
@@ -140,7 +140,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('http://wiki.overbyte.eu/arch/%OPENSSL_NAME%-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
 if errorlevel 1 (
    echo Failure reason for downloading OpenSSL is %errorlevel%
    exit /b %errorlevel%
