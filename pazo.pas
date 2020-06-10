@@ -90,20 +90,40 @@ type
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
+
     { Add the raced file and appropiate infos into database
       @param(aParentPazo pazo where this TPazoSite belongs to)
       @param(aName sitename)
       @param(aMaindir sectiondir? TODO: debug real value) }
     constructor Create(const aParentPazo: TPazo; const aName, aMaindir: String);
     destructor Destroy; override;
+
     { Processes the X-DUPE response from FTPd which is send if file already exists when trying to transfer it.
       @param(aNetname netname)
       @param(aChannel channelname)
-      @param(aDir releasename? TODO: debug real value)
+      @param(aDir directory inside the rls e.g. '/' if it's the main dir or '/Sample')
       @param(aFullResponse complete X-DUPE response from FTPd) }
     procedure ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullResponse: String);
-    function ParseDupe(const netname, channel, dir, filename: String; const byme, aIsComplete: boolean): boolean; overload;
-    function ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; const byme, aIsComplete: boolean): boolean; overload;
+
+    { Adds info about that the given file exists on this site (DirListEntry)
+      @param(aNetname netname)
+      @param(aChannel channelname)
+      @param(aDir directory inside the rls e.g. '/' if it's the main dir or '/Sample')
+      @param(aFilename filename)
+      @param(aSentByMe the file was sent or is being sent by me)
+      @param(aIsComplete the file is complete) }
+    procedure ParseDupe(const aNetname, aChannel, aDir, aFilename: String; const aSentByMe, aIsComplete: boolean) overload;
+
+    { Adds info about that the given file exists on this site (DirListEntry)
+      @param(aNetname netname)
+      @param(aChannel channelname)
+      @param(aDirlist TDirlist where it should be added to)
+      @param(aDir directory inside the rls e.g. '/' if it's the main dir or '/Sample')
+      @param(aFilename filename)
+      @param(aSentByMe the file was sent or is being sent by me)
+      @param(aIsComplete the file is complete) }
+    procedure ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean) overload;
+
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
     function Allfiles: String;
@@ -1450,17 +1470,16 @@ begin
   end;
 end;
 
-function TPazoSite.ParseDupe(const netname, channel: String; dl: TDirlist; const dir, filename: String; const byme, aIsComplete: boolean): boolean;
+procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean);
 var
   de: TDirlistEntry;
   rrgx: TRegExpr;
   fJustAdded: boolean;
 begin
-  Result := False;
   fJustAdded := False;
 
   // skip filenames dotfiles
-  if ((filename = '.') or (filename = '..') or (filename[1] = '.')) then
+  if ((aFilename = '.') or (aFilename = '..') or (aFilename[1] = '.')) then
     exit;
 
   // skip global_skip matches
@@ -1470,7 +1489,7 @@ begin
       rrgx.ModifierI := True;
       rrgx.Expression := GlobalSkiplistRegex;
 
-      if rrgx.Exec(filename) then
+      if rrgx.Exec(aFilename) then
       begin
         exit;
       end;
@@ -1484,25 +1503,22 @@ begin
     rrgx.Free;
   end;
 
-  //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
+  //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
   try
-    dl.dirlist_lock.Enter;
+    aDirlist.dirlist_lock.Enter;
     try
-      de := dl.Find(filename);
+      de := aDirlist.Find(aFilename);
       if de = nil then
       begin
         // this means that it has not been fired
-        de := TDirListEntry.Create(filename, dl);
+        de := TDirListEntry.Create(aFilename, aDirlist);
         de.directory := False;
         de.done := True;
         de.filesize := -1;
-        if byme then
-          de.RacedByMe := byme;
 
         de.RegenerateSkiplist;
-        dl.entries.Add(de);
-        dl.LastChanged := Now();
-        Result := True;
+        aDirlist.entries.Add(de);
+        aDirlist.LastChanged := Now();
       end;
 
       if aIsComplete then
@@ -1517,28 +1533,25 @@ begin
 
       if (de.Extension = '.sfv') then
       begin
-        dl.sfv_status := dlSFVFound;
+        aDirlist.sfv_status := dlSFVFound;
       end;
 
-      if not de.done then
-        Result := True;
-
-      if byme then
-        de.RacedByMe := byme;
+      if aSentByMe then
+        de.RacedByMe := aSentByMe;
 
       de.done := True;
       if (not de.IsOnSite) then
       begin
         de.IsOnSite := True;
         fJustAdded := True;
-        RemovePazoRace(pazo.pazo_id, Name, dir, filename);
+        RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
       end;
     finally
-      dl.dirlist_lock.Leave;
+      aDirlist.dirlist_lock.Leave;
     end;
 
     //do this outside dirlist_lock to avoid deadlocks
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(netname, channel, dir, de)) then
+    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(aNetname, aChannel, aDir, de)) then
     begin
       QueueFire;
     end;
@@ -1547,31 +1560,28 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
-      Result := False;
     end;
   end;
-  //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, dir, filename]));
+  //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
 end;
 
-function TPazoSite.ParseDupe(const netname, channel, dir, filename: String; const byme, aIsComplete: boolean): boolean;
+procedure TPazoSite.ParseDupe(const aNetname, aChannel, aDir, aFilename: String; const aSentByMe, aIsComplete: boolean);
 var
   dl: TDirList;
 begin
-  Result := False;
   try
-    dl := dirlist.FindDirlist(dir);
+    dl := dirlist.FindDirlist(aDir);
     if dl = nil then
     begin
       pazo.errorreason := 'Dirlist is NIL';
       exit;
     end;
 
-    Result := ParseDupe(netname, channel, dl, dir, filename, byme, aIsComplete);
+    ParseDupe(aNetname, aChannel, dl, aDir, aFilename, aSentByMe, aIsComplete);
   except
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
-      Result := False;
     end;
   end;
 end;
