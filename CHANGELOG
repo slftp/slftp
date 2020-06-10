@@ -61,6 +61,8 @@
     {#} announce_event for precatcher from spam config never worked
     {#} Backup causes access violation if stats db is disabled but a stats db file exists
     {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
+    {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
+    {#} Sometimes files that should have been skipped were transfered anyway
     {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
@@ -68,6 +70,7 @@
     {^} Remove unnecessary global lock when writing to IRC
     {^} Optimized code for splitting long messages before writing to IRC
     {^} Announce reason why getting TV season and/or episode from releasename failed
+    {^} Some improvements in racing mechanics and FTP response handling
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
