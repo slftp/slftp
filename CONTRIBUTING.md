@@ -140,11 +140,18 @@ or in case of multiple issues:
   - other comments could be made if useful (could be made in PasDoc style but not enforced)
 - Global variables
   - use with care - only if it is REALLY needed
-  - variables which are defined in the `interface` section
+  - variables which are defined in the `interface` section and thus available in all units which use/include this unit
   - should start with `Gl` followed by an uppercased character
 ```
   GlSkiplistRegex: TRegExpr;
   GlMainConfig: TConfig;
+```
+- Unit _global_ variables
+  - variables which are defined in the `implementation` section and thus available everywhere in that unit file
+  - should start with `gl` followed by an uppercased character
+```
+  glLastAddtvmazeIDs: TList<String>;
+  glSQLite3Lock: TCriticalSection = nil;
 ```
 - Variables in classes/records/etc
   - should start with a capital `F` and the following character should also be uppercased
