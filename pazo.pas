@@ -435,6 +435,9 @@ begin
         if p = nil then
           Continue;
 
+        if p.rls = nil then
+          Continue;
+
         if (p.rls.rlsname = rlsname) then
         begin
           Result := p;
