@@ -1550,11 +1550,7 @@ begin
       begin
         de.IsOnSite := True;
         fJustAdded := True;
-
-        //no need to RemovePazoRace if we sent the file because there should only be 1 racetask per file and site anyway
-        if not aSentByMe then
-          RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
-
+        RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
       end;
     finally
       aDirlist.dirlist_lock.Leave;
