@@ -1817,6 +1817,13 @@ begin
             goto TryAgain;
           end;
 
+          //550 System Error- file.rar: No space left on device.
+          if (0 < Pos('No space left on device', lastResponse)) then
+          begin
+            _setOutOfSpace(sdst, 'No space left on device');
+            exit;
+          end;
+
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
