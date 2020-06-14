@@ -2443,7 +2443,8 @@ begin
           //COMPLETE MSG: 426 Data connection: Connection reset by peer.
           //COMPLETE MSG: 426 Data Connection: Success.
           if ((0 < Pos('Connection reset by peer', lastResponse)) OR
-            (0 < Pos('Data connection', lastResponse))) then
+            (0 < Pos('Data connection', lastResponse)) OR
+            (0 < Pos('Data Connection', lastResponse))) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
