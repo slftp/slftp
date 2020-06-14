@@ -1642,6 +1642,14 @@ begin
             sdst.Quit;
             goto TryAgain;
           end;
+
+          //426 Sendfile error: Connection reset by peer.
+          if (0 < Pos('Connection reset by peer', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            //just retry
+            goto TryAgain;
+          end;
         end;
 
       427, 530:
