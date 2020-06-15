@@ -1035,6 +1035,17 @@ var
   fsize, racebw: double;
   lastResponseCode: integer;
   lastResponse: String;
+
+  procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
+  begin
+    aSlot.site.SetOutofSpace;
+    if aSlot.site.SetDownOnOutOfSpace then
+      aSlot.DestroySocket(True);
+    readyerror := True;
+    mainpazo.errorreason := aErrorReason;
+    Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+  end;
+
 begin
   Result := False;
   ssrc := slot1;
@@ -1240,15 +1251,7 @@ begin
         //530 No transfer-slave(s) available
         if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
           begin
-            ssrc.site.SetOutofSpace;
-            if ssrc.site.SetDownOnOutOfSpace then
-            begin
-              ssrc.DestroySocket(True);
-            end;
-
-            mainpazo.errorreason := 'No transfer-slave(s) available';
-            readyerror := True;
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            _setOutOfSpace(ssrc, 'No transfer-slave(s) available');
             exit;
           end;
 
@@ -1358,15 +1361,7 @@ begin
           begin
             // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
             // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
-            ssrc.site.SetOutofSpace;
-            if ssrc.site.SetDownOnOutOfSpace then
-            begin
-              ssrc.DestroySocket(True);
-            end;
-
-            mainpazo.errorreason := 'No transfer-slave(s) available';
-            readyerror := True;
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            _setOutOfSpace(ssrc, 'No transfer-slave(s) available');
             exit;
           end;
 
@@ -1465,12 +1460,7 @@ begin
         begin
           if (0 < Pos('No transfer-slave(s) available', lastResponse)) then
           begin
-            sdst.site.SetOutofSpace;
-            if ssrc.site.SetDownOnOutOfSpace then
-              sdst.DestroySocket(True);
-            readyerror := True;
-            mainpazo.errorreason := 'No freespace or slave';
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            _setOutOfSpace(sdst, 'No transfer-slave(s) available');
             exit;
           end;
         end;
@@ -1652,6 +1642,14 @@ begin
             sdst.Quit;
             goto TryAgain;
           end;
+
+          //426 Sendfile error: Connection reset by peer.
+          if (0 < Pos('Connection reset by peer', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            //just retry
+            goto TryAgain;
+          end;
         end;
 
       427, 530:
@@ -1706,12 +1704,7 @@ begin
             or (0 < Pos('Error writing file', lastResponse))
             or (0 < Pos('No transfer-slave(s) available', lastResponse)) ) then
           begin       //553 .. out of disk space                            //452 .. No space left on device                      //450 .. No transfer-slave(s) available
-            sdst.site.SetOutofSpace;
-            if ssrc.site.SetDownOnOutOfSpace then
-              sdst.DestroySocket(True);
-            readyerror := True;
-            mainpazo.errorreason := 'No freespace or slave';
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            _setOutOfSpace(sdst, 'No freespace or slave');
             exit;
           end;
 
@@ -1830,6 +1823,13 @@ begin
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             //just retry
             goto TryAgain;
+          end;
+
+          //550 System Error- file.rar: No space left on device.
+          if (0 < Pos('No space left on device', lastResponse)) then
+          begin
+            _setOutOfSpace(sdst, 'No space left on device');
+            exit;
           end;
 
           if (ResponseContainsDupeKeyword(lastResponse)) then
@@ -2451,7 +2451,8 @@ begin
           //COMPLETE MSG: 426 Data connection: Connection reset by peer.
           //COMPLETE MSG: 426 Data Connection: Success.
           if ((0 < Pos('Connection reset by peer', lastResponse)) OR
-            (0 < Pos('Data connection', lastResponse))) then
+            (0 < Pos('Data connection', lastResponse)) OR
+            (0 < Pos('Data Connection', lastResponse))) then
           begin
             //try again
             irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2516,12 +2517,7 @@ begin
           //COMPLETE MSG: 452 Error writing file: Success.
           if (0 < Pos('Error writing file', lastResponse)) then
           begin
-            sdst.site.SetOutofSpace;
-            if ssrc.site.SetDownOnOutOfSpace then
-              sdst.DestroySocket(True);
-            readyerror := True;
-            mainpazo.errorreason := 'No freespace or slave';
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            _setOutOfSpace(sdst, 'No freespace or slave');
             exit;
           end;
         end;
