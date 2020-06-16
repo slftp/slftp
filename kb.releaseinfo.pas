@@ -8,7 +8,7 @@ unit kb.releaseinfo;
 interface
 
 uses
-  Classes, knowngroups;
+  Classes, knowngroups, Generics.Collections;
 
 type
   {
@@ -66,11 +66,23 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
+
     function Aktualizald(const extrainfo: String): boolean; virtual;
-    function AsText(pazo_id: integer = -1): String; virtual;
     function Aktualizal(p: TObject): boolean; virtual;
+
     procedure SetPretime(TimeStamp: int64 = 0);
-    class function Name: String; virtual;// abstract;
+
+    { Get values of class variables as formatted text
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; virtual;
+
+    { Get name of this class
+      @returns(Name of this class) }
+    class function Name: String; virtual;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; virtual; abstract;
     class function SectionAccepted(const section: String): boolean;
 
@@ -83,42 +95,92 @@ type
     nulldaysource: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
-    function AsText(pazo_id: integer = -1): String; override;
   end;
 
   { @abstract(Class with support for music release information) }
   TMP3Release = class(TRelease)
   private
+    FMP3Year: integer; //< year (see also @link(GetYear))
+    FMP3Language: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mp3language rule
+    FMP3Source: String; //< mp3 source (see @link(GlMP3Sources)) - default value: CD
+    FMP3Types: TList<String>; //< mp3 types (see @link(glMP3Types)) which where found in the releasename
+    FMP3NumDisks: integer; //< Number of disks
+    FMP3NumDisksWord: String; //< tag/word which was used for the amount of disks value
+    FMP3IsVariousArtists: boolean; //< @true if made by Various Artists, otherwise @false
+    FMP3IsBootleg: boolean; //< @true if Bootleg, otherwise @false
+    FMP3IsLive: boolean; //< @true if LIVE, otherwise @false
+
     { Splits the word into source type and number of disks if word contains at least one number. Extracted values could be garbish, verifying of aSourceType needed!
       @param(aWord Single word from the releasename)
       @param(aSourceType Extracted source type)
       @param(aNumberOfDisks Extracted number) }
     procedure GetNumberOfDisksFromTag(const aWord: String; var aSourceType: String; var aNumberOfDisks: Integer);
-    function Evszam(s: String): boolean;
-    procedure AddSource(const src: String);
-  public
-    mp3year: integer;
-    mp3lng: String; //< mapped language from @link(TRelease.language), remains for backward compatibility of mp3language rule
-    mp3genre: String;
-    mp3source: String;
-    mp3types1: String;
-    mp3types2: String;
-    mp3types3: String;
-    mp3_numdisks: integer; //< Amount of disks
-    mp3_number_of: String;
-    mp3_va: boolean; //< @true if made by Various Artists, otherwise @false
 
-    function Bootleg: boolean;
-    constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    function Aktualizald(const extrainfo: String): boolean; override;
-    function AsText(pazo_id: integer = -1): String; override;
-    function Numdisks: integer;
-    function Aktualizal(p: TObject): boolean; override;
-    function mp3type(const s: String): boolean;
+    { Checks if the given word is a year value (also converts e.g. 201x to 2010) and sets the @link(FMP3Year)
+      @param(aWord Single word from the releasename)
+      @param(aYear year value (-1 if aWord is no year, 1900 in case the conversion of StrToInt failed))
+      @returns(@true if aWord is year value, otherwise @false) }
+    function GetYear(const aWord: String; out aYear: Integer): Boolean;
+
+    { Checks if this release has this @link(aType) MP3 type by searching in the @link(FMP3Types) list for it
+      @param(aType MP3 type)
+      @returns(@true if release is of that type, otherwise @false) }
+    function HasThisMP3Type(const aType: String): boolean;
+
+    { Sets @link(FMP3Source) to given source if not already set. Will be set to value from first call if more than one source was detected (multiple calls to function). 
+      @param(aSource Detected source type) }
+    procedure TrySetSource(const aSource: String);
+  public
+    mp3genre: String;
+
+    { Creates a new MP3/FLAC object and sets the values accordingly to the extracted infos from releasename
+      @param(aRlsname releasename)
+      @param(aSection sectionname)
+      @param(aFakeChecking @true if fake checking should be done, otherwise @false)
+      @param(aSavedPretime Value for @link(TRelease.pretime)) }
+    constructor Create(const aRlsname, aSection: String; aFakeChecking: boolean = True; aSavedPretime: int64 = -1); override;
+
+    { Destructor of the class to free @link(FMP3Types) }
+    destructor Destroy; override;
+
+    function Aktualizald(const extrainfo: String): boolean; override; // TODO: translated: updated -- sets the extrainfo directly if possible for this kind of info, return value isn't used at all -- sets aktualizalva which then prevents another call to Aktualizal
+    function Aktualizal(p: TObject): boolean; override; // TODO: translated: update it -- creates a task which calls kb_add with newly gained info then which triggers the function then again -- sets aktualizalva which then prevents another call to Aktualizal
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
+
+    property mp3year: Integer read FMP3Year;
+    property mp3lng: String read FMP3Language;
+    property mp3source: String read FMP3Source;
+    property mp3types: TList<String> read FMP3Types;
+    property mp3_numdisks: Integer read FMP3NumDisks;
+    property mp3_numdisks_word: String read FMP3NumDisksWord;
+    property mp3_va: Boolean read FMP3IsVariousArtists;
+    property mp3_bootleg: Boolean read FMP3IsBootleg;
+    property mp3_live: Boolean read FMP3IsLive;
   end;
 
   { @abstract(Class with support for release information which are parsed from NFO file) }
@@ -126,16 +188,29 @@ type
     nfogenre: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+
     function Aktualizald(const extrainfo: String): boolean; override;
-    function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
   end;
 
   { @abstract(Class with support for release information parsed from IMDb) }
   TIMDBRelease = class(TRelease)
-    FLookupDone: Boolean;
+  private
+    FLookupDone: Boolean; //< @true of IMDb Lookup is done and infos are fully added to @link(TIMDBRelease), otherwise @false
+  public
     imdb_id: String;
     imdb_year: integer;
     imdb_languages: TStringList;
@@ -153,18 +228,32 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
+
     function Aktualizald(const extrainfo: String): boolean; override;
-    function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
 
-    property IsLookupDone: Boolean read FLookupDone; //< @true of IMDb Lookup is done and infos are fully added to @link(TIMDBRelease), otherwise @false
+    property IsLookupDone: Boolean read FLookupDone;
   end;
 
   { @abstract(Class with support for release information parsed from TVMaze) }
   TTVRelease = class(TRelease)
-    FLookupDone: Boolean;
+  //private
+    // TODO: fix this mess and allow setting only inside this class!!
+    FLookupDone: Boolean; //< @true of TVMaze Lookup is done and infos are fully added to @link(TTVRelease), otherwise @false
+  //public
     showname: String;
     episode: integer;
     season: integer;
@@ -192,13 +281,24 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
+
     function Aktualizald(const extrainfo: String): boolean; override;
-    function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
 
-    property IsLookupDone: Boolean read FLookupDone; //< @true of TVMaze Lookup is done and infos are fully added to @link(TTVRelease), otherwise @false
+    property IsLookupDone: Boolean read FLookupDone;
   end;
 
   { @abstract(Class with support for music video release information) }
@@ -215,10 +315,21 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
+
     function Aktualizald(const extrainfo: String): boolean; override;
-    function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
+
+    { Get values of class variables as formatted text (includes information of inherited class)
+      @param(aPazoID ID of the associated Pazo)
+      @returns(Formatted text of all collected information) }
+    function AsText(const aPazoID: Integer): String; override;
+
+    { Get name of this class
+      @returns(Name of this class) }
     class function Name: String; override;
+
+    { Get default section(s) this class is used for as comma separated list
+      @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
   end;
 
@@ -259,7 +370,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   configsection = 'kb';
@@ -423,14 +534,11 @@ begin
   Result := False;
 end;
 
-function TRelease.AsText(pazo_id: integer = -1): String;
+function TRelease.AsText(const aPazoID: Integer): String;
 begin
   Result := '';
   try
-    Result := Format('<b>%s</b>', [rlsname]);
-    if pazo_id <> -1 then
-      Result := Result + Format(' (%d)', [pazo_id]);
-    Result := Result + #13#10;
+    Result := Format('<b>%s</b> (Pazo ID: %d)', [rlsname, aPazoID]) + #13#10;
 
     Result := Result + 'Knowngroup: ';
     if knowngroup = grp_known then
@@ -677,6 +785,137 @@ end;
 
 { TMP3Release }
 
+constructor TMP3Release.Create(const aRlsname, aSection: String; aFakeChecking: boolean = True; aSavedPretime: int64 = -1);
+var
+  i: Integer;
+  j: Integer;
+  fWord: String;
+  fSource: String;
+  lrx: TRegExpr;
+  fNumberDisks: Integer;
+  fNumberOfDashes: Integer;
+  fYearIndex: Integer;
+  fYear: Integer;
+  fNumDisksAlreadyFound: Boolean;
+begin
+  inherited Create(aRlsname, aSection, False, aSavedPretime);
+
+  aktualizalva := False;
+  fNumDisksAlreadyFound := False;
+  try
+    { some kind of fake detection and access violation protection }
+    if words.Count < 3 then
+      exit;
+
+    fNumberOfDashes := 0;
+    for i := 1 to Length(aRlsname) do
+    begin
+      if aRlsname[i] = '-' then
+      begin
+        Inc(fNumberOfDashes);
+        if (fNumberOfDashes = 2) then
+          Break;
+      end;
+    end;
+    if fNumberOfDashes < 2 then
+      exit;
+
+    { year }
+    FMP3Year := 0;
+    fYearIndex := 0;
+    // year has to be near of the end of the releasename
+    for i := 1 to 3 do
+    begin
+      if GetYear(words[words.Count - i], fYear) then
+      begin
+        fYearIndex := words.Count - i;
+        FMP3Year := fYear;
+        Break;
+      end;
+    end;
+
+    if FMP3Year = 0 then
+      FMP3Year := year;
+    if FMP3Year = 0 then
+      exit; // did not find out the year. Sucking, useless to continue.
+
+    { groupname }
+    if ((not internal) and (fYearIndex + 3 = words.Count)) then
+      groupname := words[fYearIndex + 1] + '_' + words[fYearIndex + 2]; // grpnames like XY_WEB
+
+    { language }
+    FMP3Language := language; // use language from TRelease ancestor
+
+    { number of disks, mp3 source and type }
+    FMP3Types := TList<String>.Create; // TODO: make case-insensitve but atm causes AV on FPC
+    FMP3NumDisks := 1;
+
+    // start from the end to find the sources/numdisks
+    for i := words.Count - 1 downto 1 do
+    begin
+      //1CD 99DVD
+      fWord := ' ' + words[i] + ' ';
+      fNumberDisks := 0;
+      if not fNumDisksAlreadyFound then
+      begin
+        GetNumberOfDisksFromTag(words[i], fSource, fNumberDisks);
+      end;
+      for j := 0 to GlMP3Sources.Count - 1 do
+      begin
+        if (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], fWord)) then
+        begin
+          TrySetSource(GlMP3Sources.Names[j]);
+          Break;
+        end
+        else if ((fNumberDisks <> 0) and (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], ' ' + fSource + ' '))) then
+        begin
+          TrySetSource(GlMP3Sources.Names[j]);
+          FMP3NumDisks := fNumberDisks;
+          FMP3NumDisksWord := words[i];
+          fNumDisksAlreadyFound := True;
+          Break;
+        end;
+      end;
+
+      if (glMP3Types.IndexOf(words[i]) <> -1) then
+      begin
+        if not FMP3Types.Contains(words[i]) then
+          FMP3Types.Add(words[i]);
+      end;
+    end;
+
+    { various artists }
+    lrx := TRegExpr.Create;
+    try
+      lrx.ModifierI := True;
+      lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+      FMP3IsVariousArtists := lrx.Exec(aRlsname);
+    finally
+      lrx.Free;
+    end;
+
+    FMP3IsBootleg := HasThisMP3Type('Bootleg');
+    FMP3IsLive := (FMP3Source = 'LIVE') or HasThisMP3Type('LIVE');
+
+    TrySetSource('CD'); // default - in case no other source was found
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TMP3Release.Create : %s', [e.Message]);
+    end;
+  end;
+
+  if aFakeChecking then
+    FakeCheck(self);
+end;
+
+destructor TMP3Release.Destroy;
+begin
+  FMP3Types.Free;
+
+  inherited;
+end;
+
 procedure TMP3Release.GetNumberOfDisksFromTag(const aWord: String; var aSourceType: String; var aNumberOfDisks: Integer);
 var
   i, fWordLen: Integer;
@@ -706,164 +945,52 @@ begin
   aNumberOfDisks := fNumber;
 end;
 
-function TMP3Release.Evszam(s: String): boolean;
+function TMP3Release.GetYear(const aWord: String; out aYear: Integer): Boolean;
 var
   i: integer;
+  fInputWord: String;
 begin
   Result := False;
-  try
-    if (length(s) = 4) then
-    begin
-      i := OccurrencesOfNumbers(s);
-      if (i = 4) then
-      begin
-        mp3Year := StrToIntDef(s, 1900);
-        Result := True;
-      end
-      else if ((i = 3) and ((s[4] = 'x') or (s[4] = 'X'))) then
-      begin
-        s[4] := '0';
-        mp3Year := StrToIntDef(s, 1900);
-        Result := True;
-      end;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, 'TMP3Release.Evszam : %s', [e.Message]);
-      Result := False;
-    end;
-  end;
-end;
+  fInputWord := aWord;
+  aYear := -1;
 
-procedure TMP3Release.AddSource(const src: String);
-begin
-  // TODO: find out what it does, maybe mp3source + src is better?
-  if mp3source = '' then
-    mp3source := src;
-  (*
-  case sources of
-    1: mp3source1:= src;
-    2: mp3source2:= src;
-    3: mp3source3:= src;
-  end;*)
-end;
-
-constructor TMP3Release.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
-var
-  evszamindex, i: Integer;
-
-  types: Integer;
-  j: Integer;
-  fWord, fSource: String;
-
-  lrx: TRegexpr;
-  fNumberDisks: Integer;
-  fNumberOfDashes: Integer;
-  fNumDisksAlreadyFound: Boolean;
-begin
-  inherited Create(rlsname, section, False, savedpretime);
-  aktualizalva := False;
-  fNumDisksAlreadyFound := False;
-
-  // some kind of fake/scam detection?
-  if words.Count < 3 then
-    exit;
-
-  fNumberOfDashes := 0;
-  for i := 1 to Length(rlsname) do
+  if (Length(fInputWord) = 4) then
   begin
-    if rlsname[i] = '-' then
+    i := OccurrencesOfNumbers(fInputWord);
+    if (i = 4) then
     begin
-      Inc(fNumberOfDashes);
-      if (fNumberOfDashes = 2) then
-        Break;
+      aYear := StrToIntDef(fInputWord, 1900);
+      Result := True;
+    end
+    else if ((i = 3) and ((fInputWord[4] = 'x') or (fInputWord[4] = 'X'))) then
+    begin
+      fInputWord[4] := '0';
+      aYear := StrToIntDef(fInputWord, 1900);
+      Result := True;
     end;
   end;
-  if fNumberOfDashes < 2 then
-    exit;
+end;
 
-  try
-    mp3year := 0;
-    evszamindex := 0;
-    for i := 1 to 3 do
-      if Evszam(words[words.Count - i]) then
-      begin
-        evszamindex := words.Count - i;
-        Break;
-      end;
+function TMP3Release.HasThisMP3Type(const aType: String): boolean;
+var
+  fStr: String;
+begin
+  Result := False;
 
-    if mp3year = 0 then
-      mp3year := year;
-    if mp3year = 0 then
-      exit;
-    //We did not find out the year. Sucking, useless to continue.
-
-    if ((not internal) and (evszamindex + 3 = words.Count)) then
-      groupname := words[evszamindex + 1] + '_' + words[evszamindex + 2]; //tweak
-
-    // use language from TRelease ancestor
-    mp3lng := language;
-
-    types := 0;
-    mp3_numdisks := 1;
-
-    for i := words.Count - 1 downto 1 do
+  for fStr in FMP3Types do
+  begin
+    if SameText(fStr, aType) then
     begin
-      //1CD 99DVD
-      fWord := ' ' + words[i] + ' ';
-      if not fNumDisksAlreadyFound then
-      begin
-        fNumberDisks := 0;
-        GetNumberOfDisksFromTag(words[i], fSource, fNumberDisks);
-      end;
-      for j := 0 to GlMP3Sources.Count - 1 do
-      begin
-        if (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], fWord)) then
-        begin
-          AddSource(GlMP3Sources.Names[j]);
-          Break;
-        end
-        else if ((fNumberDisks <> 0) and (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], ' ' + fSource + ' '))) then
-        begin
-          AddSource(GlMP3Sources.Names[j]);
-          mp3_numdisks := fNumberDisks;
-          mp3_number_of := words[i];
-          fNumDisksAlreadyFound := True;
-          Break;
-        end;
-      end;
-
-      if ((types < 3) and (glMP3Types.IndexOf(words[i]) <> -1)) then
-      begin
-        Inc(types);
-        case types of
-          1: mp3types1 := words[i];
-          2: mp3types2 := words[i];
-          3: mp3types3 := words[i];
-        end;
-      end;
-    end;
-
-    lrx := TRegexpr.Create;
-    try
-      lrx.ModifierI := True;
-      lrx.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
-      mp3_va := lrx.Exec(rlsname);
-    finally
-      lrx.Free;
-    end;
-
-    AddSource('CD'); // default
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, 'TMP3Release.Create : %s', [e.Message]);
+      Result := True;
+      Break;
     end;
   end;
+end;
 
-  if FakeChecking then
-    FakeCheck(self);
+procedure TMP3Release.TrySetSource(const aSource: String);
+begin
+  if FMP3Source = '' then
+    FMP3Source := aSource;
 end;
 
 function TMP3Release.Aktualizald(const extrainfo: String): boolean;
@@ -875,48 +1002,6 @@ begin
     Result := True;
     mp3genre := extrainfo;
   end;
-end;
-
-function TMP3Release.AsText(pazo_id: integer = -1): String;
-begin
-  Result := inherited AsText(pazo_id);
-
-  try
-    Result := Result + Format('Year: %d', [mp3year]) + #13#10;
-    if mp3genre <> '' then
-      Result := Result + Format('Genre: %s', [mp3genre]) + #13#10;
-    Result := Result + Format('Source: %s', [mp3source]) + #13#10;
-    if mp3types1 <> '' then
-      Result := Result + Format('Type1: %s', [mp3types1]) + #13#10;
-    if mp3types2 <> '' then
-      Result := Result + Format('Type2: %s', [mp3types2]) + #13#10;
-    if mp3types3 <> '' then
-      Result := Result + Format('Type3: %s', [mp3types3]) + #13#10;
-    Result := Result + Format('Disks: %d', [mp3_numdisks]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mp3_va, True)]) + #13#10;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, 'TMP3Release.AsText : %s', [e.Message]);
-    end;
-  end;
-end;
-
-function TMP3Release.Bootleg: boolean;
-begin
-  Result := False;
-  if 0 = AnsiCompareText(mp3types1, 'bootleg') then
-    Result := True
-  else if 0 = AnsiCompareText(mp3types2, 'bootleg') then
-    Result := True
-  else if 0 = AnsiCompareText(mp3types3, 'bootleg') then
-    Result := True;
-
-end;
-
-function TMP3Release.Numdisks: integer;
-begin
-  Result := mp3_numdisks;
 end;
 
 function TMP3Release.Aktualizal(p: TObject): boolean;
@@ -949,6 +1034,37 @@ begin
   end;
 end;
 
+function TMP3Release.AsText(const aPazoID: Integer): String;
+var
+  fTypes: String;
+begin
+  Result := inherited AsText(aPazoID);
+  try
+    Result := Result + Format('Year: %d', [mp3year]) + #13#10;
+    Result := Result + Format('Language: %s', [mp3lng]) + #13#10;
+
+    if mp3genre <> '' then
+      Result := Result + Format('Genre: %s', [mp3genre]) + #13#10
+    else
+      Result := Result + 'Genre:' + #13#10;
+
+    Result := Result + Format('Source: %s', [mp3source]) + #13#10;
+
+    fTypes := String.Join(', ', mp3types.ToArray);
+    Result := Result + Format('Type(s): %s', [fTypes]) + #13#10;
+
+    Result := Result + Format('Disks: %d', [mp3_numdisks]) + #13#10;
+    Result := Result + Format('VA: %s', [BoolToStr(mp3_va, True)]) + #13#10;
+    Result := Result + Format('Bootleg: %s', [BoolToStr(mp3_bootleg, True)]) + #13#10;
+    Result := Result + Format('Live: %s', [BoolToStr(mp3_live, True)]) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'TMP3Release.AsText : %s', [e.Message]);
+    end;
+  end;
+end;
+
 class function TMP3Release.Name: String;
 begin
   Result := 'TMP3Release';
@@ -956,14 +1072,7 @@ end;
 
 class function TMP3Release.DefaultSections: String;
 begin
-  Result := 'MP3';
-end;
-
-function TMP3Release.mp3type(const s: String): boolean;
-begin
-  Result := False;
-  if ((SameText(mp3types1, s)) or (SameText(mp3types2, s)) or (SameText(mp3types3, s))) then
-    Result := True;
+  Result := 'MP3,MP3-*,FLAC,ABOOK';
 end;
 
 { TNFORelease }
@@ -1013,9 +1122,9 @@ begin
   end;
 end;
 
-function TNFORelease.AsText(pazo_id: integer = -1): String;
+function TNFORelease.AsText(const aPazoID: Integer): String;
 begin
-  Result := inherited AsText(pazo_id);
+  Result := inherited AsText(aPazoID);
   try
     Result := Result + Format('nfo genre: %s', [nfogenre]) + #13#10;
   except
@@ -1035,7 +1144,7 @@ end;
 
 class function TNFORelease.DefaultSections: String;
 begin
-  Result := 'MDVDR MV MHD';
+  Result := 'MDVDR,MVID';
 end;
 
 class function TNFORelease.Name: String;
@@ -1131,11 +1240,11 @@ begin
   Result := False;
 end;
 
-function TTVRelease.AsText(pazo_id: integer): String;
+function TTVRelease.AsText(const aPazoID: Integer): String;
 var
   fMismatchReason: String;
 begin
-  Result := inherited AsText(pazo_id);
+  Result := inherited AsText(aPazoID);
   try
     Result := Result + Format('Show name: %s', [showname]) + #13#10;
     Result := Result + Format('URL: http://www.tvmaze.com/shows/%s/%s', [showid, Lowercase(ReplaceText(showname, ' ', '-'))]) + #13#10;
@@ -1221,7 +1330,7 @@ end;
 
 class function TTVRelease.DefaultSections: String;
 begin
-  Result := 'TV TVDVDRIP TVDVDR TV720 TV1080';
+  Result := 'ENGTV*,ENGTV720P*,ENGTV1080P*';
 end;
 
 class function TTVRelease.Name: String;
@@ -1237,9 +1346,9 @@ end;
 
 { T0DayRelease }
 
-function T0DayRelease.AsText(pazo_id: integer): String;
+function T0DayRelease.AsText(const aPazoID: Integer): String;
 begin
-  Result := inherited AsText(pazo_id);
+  Result := inherited AsText(aPazoID);
   try
     Result := Result + Format('0daysource: %s', [nulldaysource]) + #13#10;
   except
@@ -1395,9 +1504,9 @@ begin
   Result := False;
 end;
 
-function TIMDBRelease.AsText(pazo_id: integer): String;
+function TIMDBRelease.AsText(const aPazoID: Integer): String;
 begin
-  Result := inherited AsText(pazo_id);
+  Result := inherited AsText(aPazoID);
   try
     Result := Result + Format('IMDB id: %s', [imdb_id]) + #13#10;
     Result := Result + Format('IMDB URL: https://imdb.com/title/%s', [imdb_id]) + #13#10;
@@ -1435,7 +1544,7 @@ end;
 
 class function TIMDBRelease.DefaultSections: String;
 begin
-  Result := 'DIVX DVDR';
+  Result := '/(GER720P|GER1080P|ENG720P|ENG1080P)/,*X264SD,BLURAY*';
 end;
 
 destructor TIMDBRelease.Destroy;
@@ -1475,9 +1584,9 @@ begin
   // aktualizalva := True;
 end;
 
-function TMVIDRelease.AsText(pazo_id: integer): String;
+function TMVIDRelease.AsText(const aPazoID: Integer): String;
 begin
-  Result := inherited AsText(pazo_id);
+  Result := inherited AsText(aPazoID);
   try
     Result := Result + Format('MVID Genre: %s', [mvid_Genre.CommaText]) + #13#10;
     Result := Result + Format('MVID Year: %d', [mvid_year]) + #13#10;
@@ -1535,7 +1644,7 @@ end;
 
 class function TMVIDRelease.DefaultSections: String;
 begin
-  Result := 'MVID';
+  Result := '*MVID*';
 end;
 
 destructor TMVIDRelease.Destroy;

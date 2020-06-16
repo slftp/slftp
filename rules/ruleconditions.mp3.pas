@@ -246,8 +246,7 @@ begin
   Result := False;
   try
     if (r.rls is TMP3Release) then
-      with TMP3Release(r.rls) do
-        Result := ((mp3source = 'LIVE') or (mp3type('LIVE')));
+      Result := TMP3Release(r.rls).mp3_live;
   except
     Result := False;
   end;
@@ -267,18 +266,13 @@ end;
 
 procedure TConditionMP3Type.SupplyValues(r: TPazo; re: TStringList);
 var
-  mp: TMP3Release;
+  fStr: String;
 begin
   try
     if r.rls is TMP3Release then
     begin
-      mp := TMP3Release(r.rls);
-      if mp.mp3types1 <> '' then
-        re.Add(mp.mp3types1);
-      if mp.mp3types2 <> '' then
-        re.Add(mp.mp3types2);
-      if mp.mp3types3 <> '' then
-        re.Add(mp.mp3types3);
+      for fStr in TMP3Release(r.rls).mp3types do
+        re.Add(fStr);
     end;
   except
     on E: Exception do
@@ -307,7 +301,7 @@ begin
   Result := False;
   try
     if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).bootleg;
+      Result := TMP3Release(r.rls).mp3_bootleg;
   except
     Result := False;
   end;
@@ -330,7 +324,7 @@ begin
   Result := 1;
   try
     if r.rls is TMP3Release then
-      Result := TMP3Release(r.rls).Numdisks;
+      Result := TMP3Release(r.rls).mp3_numdisks;
   except
     Result := 1;
   end;
