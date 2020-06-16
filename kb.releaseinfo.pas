@@ -66,9 +66,6 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(Empty String) }
-    function ShowExtraInfo: String; virtual;
     function Aktualizald(const extrainfo: String): boolean; virtual;
     function AsText(pazo_id: integer = -1): String; virtual;
     function Aktualizal(p: TObject): boolean; virtual;
@@ -86,9 +83,6 @@ type
     nulldaysource: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(nulldaysource)) }
-    function ShowExtraInfo: String; override;
     class function Name: String; override;
     class function DefaultSections: String; override;
     function AsText(pazo_id: integer = -1): String; override;
@@ -118,9 +112,6 @@ type
 
     function Bootleg: boolean;
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(Mp3genre)) }
-    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Numdisks: integer;
@@ -135,9 +126,6 @@ type
     nfogenre: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(nfogenre)) }
-    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -165,9 +153,6 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(imdb_id)) }
-    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -207,9 +192,6 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(showname)) }
-    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -233,9 +215,6 @@ type
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
-    { Get additional info which is specific for this class of TRelease
-      @returns(@link(FileCount) as string) }
-    function ShowExtraInfo: String; override;
     function Aktualizald(const extrainfo: String): boolean; override;
     function AsText(pazo_id: integer = -1): String; override;
     function Aktualizal(p: TObject): boolean; override;
@@ -646,11 +625,6 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
 
-function TRelease.ShowExtraInfo: String;
-begin
-  Result := '';
-end;
-
 class function TRelease.SectionAccepted(const section: String): boolean;
 var
   i, j: integer;
@@ -965,11 +939,6 @@ begin
   end;
 end;
 
-function TMP3Release.ShowExtraInfo: String;
-begin
-  Result := Mp3genre;
-end;
-
 class function TMP3Release.Name: String;
 begin
   Result := 'TMP3Release';
@@ -1057,11 +1026,6 @@ end;
 class function TNFORelease.DefaultSections: String;
 begin
   Result := 'MDVDR MV MHD';
-end;
-
-function TNFORelease.ShowExtraInfo: String;
-begin
-  Result := nfogenre;
 end;
 
 class function TNFORelease.Name: String;
@@ -1250,11 +1214,6 @@ begin
   Result := 'TV TVDVDRIP TVDVDR TV720 TV1080';
 end;
 
-function TTVRelease.ShowExtraInfo: String;
-begin
-  Result := showname;
-end;
-
 class function TTVRelease.Name: String;
 begin
   Result := 'TTVRelease';
@@ -1308,11 +1267,6 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
-end;
-
-function T0DayRelease.ShowExtraInfo: String;
-begin
-  Result := nulldaysource;
 end;
 
 class function T0DayRelease.DefaultSections: String;
@@ -1482,11 +1436,6 @@ begin
   inherited;
 end;
 
-function TIMDBRelease.ShowExtraInfo: String;
-begin
-  Result := imdb_id;
-end;
-
 class function TIMDBRelease.Name: String;
 begin
   Result := 'TIMDBRelease';
@@ -1583,11 +1532,6 @@ destructor TMVIDRelease.Destroy;
 begin
   mvid_Genre.Free;
   inherited;
-end;
-
-function TMVIDRelease.ShowExtraInfo: String;
-begin
-  Result := IntToStr(FileCount);
 end;
 
 class function TMVIDRelease.Name: String;

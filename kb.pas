@@ -895,62 +895,49 @@ end;
 
 {!--- KB Utils ---?}
 
-function GetKbPazo(p: TPazo): String;
-begin
-  Result := p.rls.section + #9 + p.rls.rlsname + #9 + p.rls.ShowExtraInfo +
-    #9 + IntToStr(DateTimeToUnix(p.added)) + #9 +
-    IntToStr(p.rls.pretime) + #9 + KBEventTypeToString(p.rls.kb_event);
-end;
-
-procedure AddKbPazo(const line: String);
-var
-  section, rlsname, extra: String;
-  event: TKBEventType;
-  added: TDateTime;
-  p: TPazo;
-  r: TRelease;
-  rc: TCRelease;
-  ctime: int64;
-begin
-  section := SubString(line, #9, 1);
-  rlsname := SubString(line, #9, 2);
-  extra := SubString(line, #9, 3);
-  added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
-  ctime := Strtoint64(SubString(line, #9, 5));
-  event := EventStringToTKBEventType(SubString(line, #9, 6));
-  kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
-  kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
-
-  rc := FindSectionHandler(section);
-
-  if ctime > 0 then
-    r := rc.Create(rlsname, section, True, ctime)
-  else
-    r := rc.Create(rlsname, section);
-
-  //r.pretime:=UnixToDateTime(ctime);
-  r.kb_event := event;
-
-  if extra <> '' then
-  begin
-    r.Aktualizald(extra);
-    r.aktualizalva := True;
-  end;
-
-  p := PazoAdd(r);
-
-  p.added := added;
-  p.stated := True;
-  p.cleared := True;
-  p.ExcludeFromIncfiller := True;
-  kb_list.AddObject(section + '-' + rlsname, p);
-end;
-
 procedure KB_start;
 var
   x: TEncStringlist;
   i: integer;
   last: TDateTime;
+
+  procedure AddKbPazo(const line: String);
+  var
+    section, rlsname: String;
+    event: TKBEventType;
+    added: TDateTime;
+    p: TPazo;
+    r: TRelease;
+    rc: TCRelease;
+    ctime: int64;
+  begin
+    section := SubString(line, #9, 1);
+    rlsname := SubString(line, #9, 2);
+    added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
+    ctime := Strtoint64(SubString(line, #9, 5));
+    event := EventStringToTKBEventType(SubString(line, #9, 6));
+    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
+    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
+
+    rc := FindSectionHandler(section);
+
+    if ctime > 0 then
+      r := rc.Create(rlsname, section, True, ctime)
+    else
+      r := rc.Create(rlsname, section);
+
+    //r.pretime:=UnixToDateTime(ctime);
+    r.kb_event := event;
+
+    p := PazoAdd(r);
+
+    p.added := added;
+    p.stated := True;
+    p.cleared := True;
+    p.ExcludeFromIncfiller := True;
+    kb_list.AddObject(section + '-' + rlsname, p);
+  end;
+
 begin
   kb_reloadsections;
 
@@ -1002,6 +989,15 @@ var
   seconds: integer;
   x: TEncStringList;
   p: TPazo;
+
+  function GetKbPazoInfoLine(p: TPazo): String;
+  const
+    fSeparator: Char = #9;
+  begin
+    Result := Format('%s%s%s%s%d%s%d%s%s', [p.rls.section, fSeparator, p.rls.rlsname, fSeparator,
+      DateTimeToUnix(p.added), fSeparator, p.rls.pretime, fSeparator, KBEventTypeToString(p.rls.kb_event)]);
+  end;
+
 begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
@@ -1015,7 +1011,7 @@ begin
         if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
           (1 <> Pos('REQUEST-', kb_list[i])) and
           (SecondsBetween(Now, p.added) < seconds)) then
-          x.Add(GetKbPazo(p));
+          x.Add(GetKbPazoInfoLine(p));
       end;
     except
       exit;
