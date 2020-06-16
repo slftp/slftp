@@ -266,17 +266,17 @@ var
   i: Integer;
 begin
   Result := '';
-  for i := 0 to mp3genres.Count - 1 do
+  for i := 0 to GlMP3Genres.Count - 1 do
   begin
   {
   * TODO
   * only useful if we add an extra event for GENRE
     * [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
     * ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
-    x := ts_data.IndexOf(mp3genres[i]);
+    x := ts_data.IndexOf(GlMP3Genres[i]);
     if x <> -1 then
     begin
-      Result := mp3genres[i];
+      Result := GlMP3Genres[i];
       Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
     end;
 
@@ -284,9 +284,9 @@ begin
 
   }
 
-    if (AnsiContainsText(text, mp3genres[i]) or AnsiContainsText(ReplaceText(mp3genres[i], ' ', ''), text)) then
+    if (AnsiContainsText(text, GlMP3Genres[i]) or AnsiContainsText(ReplaceText(GlMP3Genres[i], ' ', ''), text)) then
     begin
-      Result := mp3genres[i];
+      Result := GlMP3Genres[i];
       break;
     end;
   end;
