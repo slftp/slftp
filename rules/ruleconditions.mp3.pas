@@ -212,7 +212,7 @@ end;
 function TConditionMP3Source.Verify(const s: String): boolean;
 begin
   try
-    Result := mp3sources.IndexOfName(s) <> -1;
+    Result := GlMP3Sources.IndexOfName(s) <> -1;
   except
     Result := False;
   end;

@@ -268,9 +268,8 @@ var
   GlSectionHandlers: TSectionHandlers = (TRelease, TMP3Release, T0dayRelease, TNFORelease, TIMDBRelease, TTVRelease, TMVIDRelease); //< Array of all release information classes
   GlNullDayPlatformTags: TStringList; //< List with 0Day platform tags which define the platform when tagging releases
   GlTvTags: TStringList; //< List with TV tags which are used for tagging releases
-  mp3sources: TStringList;
-  mp3types: TStringList;
-  mp3genres: TStringList;
+  GlMP3Sources: TStringList; //< List of MP3 sources used for tagging; Names = source & Value = possible release tag(s)
+  GlMP3Genres: TStringList; //< List of MP3 genres
 
 implementation
 
@@ -293,6 +292,7 @@ var
   nomp3dirlistgenre: boolean;
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
+  glMP3Types: TStringList; //< List of MP3 types
 
 procedure KbReleaseInit;
 var
@@ -343,7 +343,7 @@ begin
     kb_sectionhandlers.Objects[kb_sectionhandlers.Count - 1] := sectionmasks;
   end;
 
-  mp3sources := TStringList.Create;
+  GlMP3Sources := TStringList.Create;
   GlNullDayPlatformTags := TStringList.Create;
 
   x := TStringList.Create;
@@ -353,7 +353,7 @@ begin
     begin
       if (1 = Pos('mp3source_', x[i])) then
       begin
-        mp3sources.Values[UpperCase(Copy(x[i], 11, 20))] := ' ' + config.ReadString(configsection, x[i], '') + ' ';
+        GlMP3Sources.Values[UpperCase(Copy(x[i], 11, 20))] := ' ' + config.ReadString(configsection, x[i], '') + ' ';
       end
       else if (1 = Pos('0daysource_', x[i])) then
       begin
@@ -364,22 +364,22 @@ begin
     x.Free;
   end;
 
-  mp3types := TStringList.Create;
-  mp3types.Delimiter := ' ';
-  mp3types.QuoteChar := '"';
-  mp3types.DelimitedText := config.ReadString(configsection, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
+  glMP3Types := TStringList.Create;
+  glMP3Types.Delimiter := ' ';
+  glMP3Types.QuoteChar := '"';
+  glMP3Types.DelimitedText := config.ReadString(configsection, 'mp3types', 'Bootleg MAG Advance Bonus CDM CDS Concert Demo Digipak EP Live LP MCD Promo Reissue Remastered Retail Sampler Split Audiobook ABOOK INTERVIEW');
 
-  mp3genres := TStringList.Create;
-  mp3genres.Delimiter := ' ';
-  mp3genres.QuoteChar := '"';
-  mp3genres.DelimitedText := config.ReadString(rsections, 'mp3genres', '');
+  GlMP3Genres := TStringList.Create;
+  GlMP3Genres.Delimiter := ' ';
+  GlMP3Genres.QuoteChar := '"';
+  GlMP3Genres.DelimitedText := config.ReadString(rsections, 'GlMP3Genres', '');
   i := 0;
-  while (i < mp3genres.Count) do
+  while (i < GlMP3Genres.Count) do
   begin
-    ss := ReplaceText(mp3genres[i], ' ', '');
-    if ss <> mp3genres[i] then
+    ss := ReplaceText(GlMP3Genres[i], ' ', '');
+    if ss <> GlMP3Genres[i] then
     begin
-      mp3genres.Insert(i + 1, ss);
+      GlMP3Genres.Insert(i + 1, ss);
       Inc(i);
     end;
     Inc(i);
@@ -395,9 +395,9 @@ var
   i: integer;
 begin
   GlNullDayPlatformTags.Free;
-  mp3sources.Free;
-  mp3types.Free;
-  mp3genres.Free;
+  GlMP3Sources.Free;
+  glMP3Types.Free;
+  GlMP3Genres.Free;
   GlTvTags.Free;
 
   for i := 0 to kb_sectionhandlers.Count - 1 do
@@ -833,16 +833,16 @@ begin
         fNumberDisks := 0;
         GetNumberOfDisksFromTag(words[i], fSource, fNumberDisks);
       end;
-      for j := 0 to mp3sources.Count - 1 do
+      for j := 0 to GlMP3Sources.Count - 1 do
       begin
-        if (AnsiContainsText(mp3sources.ValueFromIndex[j], fWord)) then
+        if (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], fWord)) then
         begin
-          AddSource(mp3sources.Names[j]);
+          AddSource(GlMP3Sources.Names[j]);
           Break;
         end
-        else if ((fNumberDisks <> 0) and (AnsiContainsText(mp3sources.ValueFromIndex[j], ' ' + fSource + ' '))) then
+        else if ((fNumberDisks <> 0) and (AnsiContainsText(GlMP3Sources.ValueFromIndex[j], ' ' + fSource + ' '))) then
         begin
-          AddSource(mp3sources.Names[j]);
+          AddSource(GlMP3Sources.Names[j]);
           mp3_numdisks := fNumberDisks;
           mp3_number_of := words[i];
           fNumDisksAlreadyFound := True;
@@ -850,7 +850,7 @@ begin
         end;
       end;
 
-      if ((types < 3) and (mp3types.IndexOf(words[i]) <> -1)) then
+      if ((types < 3) and (glMP3Types.IndexOf(words[i]) <> -1)) then
       begin
         Inc(types);
         case types of
