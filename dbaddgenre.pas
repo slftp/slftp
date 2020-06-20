@@ -33,7 +33,7 @@ implementation
 
 uses
   SysUtils, StrUtils, configunit, mystrings, sitesunit, queueunit,
-  debugunit, kb.release, pazo {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  debugunit, kb.releaseinfo, pazo {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   section = 'dbaddgenre';
@@ -152,17 +152,17 @@ begin
     if p.rls is TMP3Release then
     begin
       mp3genre := '';
-      for i := 0 to mp3genres.Count - 1 do
+      for i := 0 to GlMP3Genres.Count - 1 do
       begin
-        if (0 = AnsiCompareText(genre, mp3genres[i])) then
+        if (0 = AnsiCompareText(genre, GlMP3Genres[i])) then
         begin
-          mp3genre := mp3genres[i];
+          mp3genre := GlMP3Genres[i];
           if i > 0 then
           begin
-            ss := ReplaceText(mp3genres[i-1], ' ', '');
+            ss := ReplaceText(GlMP3Genres[i-1], ' ', '');
             if (0 = AnsiCompareText(ss, mp3genre)) then
             begin
-              mp3genre := mp3genres[i - 1];
+              mp3genre := GlMP3Genres[i - 1];
             end;
           end;
           Break;

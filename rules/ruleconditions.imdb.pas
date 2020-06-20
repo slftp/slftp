@@ -99,7 +99,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, kb.release, debugunit;
+  SysUtils, Contnrs, kb.releaseinfo, debugunit;
 
 const
   dsection = 'rules.imdb';

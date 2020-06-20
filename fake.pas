@@ -3,7 +3,7 @@ unit fake;
 interface
 
 uses
-  Classes, SysUtils, kb, kb.release;
+  Classes, SysUtils, kb, kb.releaseinfo;
 
 procedure FakeStart;
 procedure FakeCheck(r: TRelease);
@@ -372,10 +372,11 @@ var
 begin
   r.fake := True;
 
+  // words.Count - 1 is the groupname -> ignore it
   for i := 0 to r.words.Count - 2 do
   begin
-    if (r.mp3_number_of = r.words[i]) then
-      Break;
+    if (r.mp3_numdisks_word = r.words[i]) then
+      Break; // we don't care about infos like year, source, etc
 
     j := OccurrencesOfNumbers(r.words[i]);
     k := length(r.words[i]);

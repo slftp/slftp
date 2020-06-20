@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses SysUtils, StrUtils, kb, kb.release, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
+uses SysUtils, StrUtils, kb, kb.releaseinfo, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
 
 const
   section = 'taskgenredirlist';
@@ -53,11 +53,11 @@ var
 begin
   Result:= '';
   try
-    for i:= 0 to mp3genres.Count-1 do
+    for i:= 0 to GlMP3Genres.Count-1 do
     begin
-      if AnsiContainsText(filename, mp3genres[i]) then
+      if AnsiContainsText(filename, GlMP3Genres[i]) then
       begin
-        Result:= mp3genres[i];
+        Result:= GlMP3Genres[i];
         Break;
       end;
     end;

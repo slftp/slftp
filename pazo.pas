@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.release, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
