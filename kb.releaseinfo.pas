@@ -91,10 +91,15 @@ type
 
   { @abstract(Class with support for 0-DAY release information) }
   T0DayRelease = class(TRelease)
+  private
+    FNullDaySource: String; //< platform type @br (Note: default value is WIN if no platform found in releasename)
   public
-    nulldaysource: String;
-
-    constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
+    { Creates a new 0-DAY object and sets the values accordingly to the extracted infos from releasename
+      @param(aRlsname releasename)
+      @param(aSection sectionname)
+      @param(aFakeChecking @true if fake checking should be done, otherwise @false)
+      @param(aSavedPretime Value for @link(TRelease.pretime)) }
+    constructor Create(const aRlsname, aSection: String; aFakeChecking: boolean = True; aSavedPretime: int64 = -1); override;
 
     { Get values of class variables as formatted text (includes information of inherited class)
       @param(aPazoID ID of the associated Pazo)
@@ -108,6 +113,8 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
+
+    property nulldaysource: String read FNullDaySource;
   end;
 
   { @abstract(Class with support for music release information) }
@@ -783,6 +790,59 @@ begin
   Result := 'TRelease';
 end;
 
+{ T0DayRelease }
+
+constructor T0DayRelease.Create(const aRlsname, aSection: String; aFakeChecking: boolean = True; aSavedPretime: int64 = -1);
+var
+  i, j: integer;
+begin
+  inherited Create(aRlsname, aSection, False, aSavedPretime);
+
+  for i := words.Count - 1 downto 1 do
+  begin
+    for j := 0 to GlNullDayPlatformTags.Count - 1 do
+    begin
+      if (AnsiContainsText(GlNullDayPlatformTags.ValueFromIndex[j], ' ' + words[i] + ' ')) then
+      begin
+        FNullDaySource := GlNullDayPlatformTags.Names[j];
+        Break;
+      end;
+    end;
+
+    if FNullDaySource <> '' then
+      Break;
+  end;
+
+  if FNullDaySource = '' then
+    FNullDaySource := 'WIN';
+
+  if aFakeChecking then
+    FakeCheck(self);
+end;
+
+function T0DayRelease.AsText(const aPazoID: Integer): String;
+begin
+  Result := inherited AsText(aPazoID);
+  try
+    Result := Result + Format('0daysource: %s', [nulldaysource]) + #13#10;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, 'T0DayRelease.AsText : %s', [e.Message]);
+    end;
+  end;
+end;
+
+class function T0DayRelease.Name: String;
+begin
+  Result := 'T0dayRelease';
+end;
+
+class function T0DayRelease.DefaultSections: String;
+begin
+  Result := '0DAY,PDA';
+end;
+
 { TMP3Release }
 
 constructor TMP3Release.Create(const aRlsname, aSection: String; aFakeChecking: boolean = True; aSavedPretime: int64 = -1);
@@ -1342,60 +1402,6 @@ destructor TTVRelease.Destroy;
 begin
   genres.Free;
   inherited;
-end;
-
-{ T0DayRelease }
-
-function T0DayRelease.AsText(const aPazoID: Integer): String;
-begin
-  Result := inherited AsText(aPazoID);
-  try
-    Result := Result + Format('0daysource: %s', [nulldaysource]) + #13#10;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, rsections, 'T0DayRelease.AsText : %s', [e.Message]);
-    end;
-  end;
-end;
-
-constructor T0DayRelease.Create(const rlsname, section: String;
-  FakeChecking: boolean = True; SavedPretime: int64 = -1);
-var
-  i, j: integer;
-begin
-  inherited Create(rlsname, section, False, savedpretime);
-
-  for i := words.Count - 1 downto 1 do
-  begin
-    for j := 0 to GlNullDayPlatformTags.Count - 1 do
-    begin
-      if (AnsiContainsText(GlNullDayPlatformTags.ValueFromIndex[j], ' ' + words[i] +
-        ' ')) then
-      begin
-        nulldaysource := GlNullDayPlatformTags.Names[j];
-        Break;
-      end;
-    end;
-    if nulldaysource <> '' then
-      Break;
-  end;
-
-  if nulldaysource = '' then
-    nulldaysource := 'WIN';
-
-  if FakeChecking then
-    FakeCheck(self);
-end;
-
-class function T0DayRelease.DefaultSections: String;
-begin
-  Result := '0DAY,PDA';
-end;
-
-class function T0DayRelease.Name: String;
-begin
-  Result := 'T0dayRelease';
 end;
 
 { TIMDBRelease }
