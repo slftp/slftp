@@ -58,7 +58,7 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.release,
+uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
   queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const

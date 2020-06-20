@@ -20,7 +20,7 @@ implementation
 
 uses
   SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
-  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.release;
+  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.releaseinfo;
 
 const
   section = 'tasksitenfo';
