@@ -21,7 +21,7 @@ implementation
 
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
-  kb, kb.release, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
+  kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
   globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers;
 
 const
