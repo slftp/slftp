@@ -74,7 +74,8 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   precatcher.helpersTests,
-  kb.releaseinfo.MP3Tests;
+  kb.releaseinfo.MP3Tests,
+  kb.releaseinfo.ZeroDayTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

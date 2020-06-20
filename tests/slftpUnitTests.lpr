@@ -57,7 +57,8 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   precatcher.helpersTests,
-  kb.releaseinfo.MP3Tests;
+  kb.releaseinfo.MP3Tests,
+  kb.releaseinfo.ZeroDayTests;
 
 var
   filecheck: String;
