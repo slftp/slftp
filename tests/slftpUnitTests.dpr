@@ -75,7 +75,7 @@ uses
   dirlist.helpersTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
-  kb.releaseinfo.ZeroDayTests;
+  kb.releaseinfo.NullDayTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
