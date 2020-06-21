@@ -1,4 +1,4 @@
-unit kb.releaseinfo.ZeroDayTests;
+unit kb.releaseinfo.NullDayTests;
 
 interface
 
@@ -20,6 +20,7 @@ type
     procedure TestT0DayRelease6;
     procedure TestT0DayRelease7;
     procedure TestT0DayRelease8;
+    procedure TestT0DayRelease9;
   end;
 
 implementation
@@ -120,6 +121,18 @@ begin
   fClass := T0DayRelease.Create('Richardson.Software.RazorSQL.v9.1.2.Solaris.Incl.KeyMaker-DVT', '0DAY');
   try
     CheckEqualsString('UNIX', fClass.nulldaysource, '0day source mismatch');
+  finally
+    fClass.Free;
+  end;
+end;
+
+procedure TTestT0DayRelease.TestT0DayRelease9;
+var
+  fClass: T0DayRelease;
+begin
+  fClass := T0DayRelease.Create('Elsten.Software.Bliss.v20200423.QNAP.Incl.KeyMaker-DVT', '0DAY');
+  try
+    CheckEqualsString('NAS', fClass.nulldaysource, '0day source mismatch');
   finally
     fClass.Free;
   end;
