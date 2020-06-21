@@ -58,7 +58,7 @@ uses
   dirlist.helpersTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
-  kb.releaseinfo.ZeroDayTests;
+  kb.releaseinfo.NullDayTests;
 
 var
   filecheck: String;
