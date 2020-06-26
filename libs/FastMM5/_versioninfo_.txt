@@ -1,3 +1,3 @@
-41da9425e992dc11dba6ef1b367c6ebf0ec22fc9
+071acc9586dfe0963f3195e5049c4bcfcb763962
 
- Increase the number of virtual methods supported by TFastMM_FreedObject to 75. (There are some classes in the RTL that have more than 30 virtual methods, e.g. TStringList).
+Fix a Delphi Seattle and earlier compiler error introduced in previous commit
