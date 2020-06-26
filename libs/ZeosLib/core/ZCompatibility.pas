@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -74,6 +74,22 @@ type
   {$IF not declared(PUInt64)}
   PUInt64               = {$IFDEF FPC}PQWord{$ELSE}^UInt64{$ENDIF};
   {$IFEND}
+  {$IF not declared(UInt128)}
+  UInt128                = packed record
+    {$IFNDEF ENDIAN_BIG}hi,lo{$ELSE}lo, hi{$ENDIF}: UInt64;
+  end;
+  {$IFEND}
+  {$IF not declared(Int128)}
+  Int128                = packed record
+    {$IFNDEF ENDIAN_BIG}
+    hi: Int64;
+    lo: UInt64;
+    {$ELSE}
+    lo: UInt64;
+    hi: Int64;
+    {$ENDIF}
+  end;
+  {$IFEND}
   {$IF not declared(PPLongWord)}
   PPLongWord            = ^PLongWord;
   {$IFEND}
@@ -90,6 +106,7 @@ type
 {$ELSE}
   {$IFNDEF HAVE_TRUE_NATIVE_TYPES}  //introduced since D2007 but "stable" since XE2
   NativeInt             = Integer;
+  PNativeInt            = ^NativeInt;
   NativeUInt            = LongWord;
   PNativeUInt           = ^NativeUInt;
   PWord                 = ^Word; // M.A.

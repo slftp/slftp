@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -411,29 +411,36 @@ end;
 function TZAbstractResultSetMetadata.GetColumnLabel(ColumnIndex: Integer): string;
 var
   I, J, N: Integer;
-  ColumnName: string;
+  ColumnName, OrgLabel: string;
   ColumnsInfo: TObjectList;
+  B: Boolean;
 begin
   { Prepare unique column labels. }
-  if FColumnsLabels = nil then
-  begin
+  if FColumnsLabels = nil then begin
     ColumnsInfo := FResultSet.ColumnsInfo;
     FColumnsLabels := TStringList.Create;
-    for I := 0 to ColumnsInfo.Count - 1 do
-    begin
+    for I := 0 to ColumnsInfo.Count - 1 do begin
       N := 0;
       ColumnName := TZColumnInfo(ColumnsInfo[I]).ColumnLabel;
-      for J := 0 to I - 1 do
-        if TZColumnInfo(ColumnsInfo[J]).ColumnLabel = ColumnName then
-          Inc(N);
       if ColumnName = '' then
         ColumnName := 'Column';
-      if N > 0 then
-        ColumnName := ColumnName + '_' + ZFastCode.IntToStr(N);
+      OrgLabel := ColumnName;
+      Repeat
+        //see test TestDuplicateColumnNames or
+        //https://zeoslib.sourceforge.io/viewtopic.php?f=50&t=120692
+        b := False;
+        for J := 0 to I - 1 do
+          if TZColumnInfo(ColumnsInfo[J]).ColumnLabel = ColumnName then
+            Begin
+             Inc(N);
+             b := True;
+            End;
+        if N > 0 then
+          ColumnName := OrgLabel + '_' + ZFastCode.IntToStr(N);
+      Until Not b;
       FColumnsLabels.Add(ColumnName);
     end;
   end;
-
   Result := ColumnsLabels[ColumnIndex{$IFNDEF GENERIC_INDEX} - 1{$ENDIF}];
 end;
 

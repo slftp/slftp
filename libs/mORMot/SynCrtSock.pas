@@ -286,12 +286,13 @@ type
     // Windows by now, using the SChannel API)
     constructor Open(const aServer, aPort: SockString; aLayer: TCrtSocketLayer=cslTCP;
       aTimeOut: cardinal=10000; aTLS: boolean=false);
-    /// bind to a Port
-    // - expects the port to be specified as Ansi string, e.g. '1234'
-    // - you can optionally specify a server address to bind to, e.g.
-    // '1.2.3.4:1234'
-    // - for unix domain socket use unix:/path/to/file
-    constructor Bind(const aPort: SockString; aLayer: TCrtSocketLayer=cslTCP);
+    /// bind to an address
+    // - aAddr='1234' - bind to a port on all interfaces, the same as '0.0.0.0:1234'
+    // - aAddr='IP:port' - bind to specified interface only, e.g. '1.2.3.4:1234'
+    // - aAddr='unix:/path/to/file' - bind to unix domain socket, e.g. 'unix:/run/mormot.sock'
+    // - aAddr='' - bind to systemd descriptor on linux. See
+    // http://0pointer.de/blog/projects/socket-activation.html
+    constructor Bind(const aAddr: SockString; aLayer: TCrtSocketLayer=cslTCP);
     /// low-level internal method called by Open() and Bind() constructors
     // - raise an ECrtSocket exception on error
     // - you may ask for a TLS secured client connection (only available under
@@ -361,7 +362,7 @@ type
     procedure SockSend(P: pointer; Len: integer); overload;
     /// flush all pending data to be sent, optionally with some body content
     // - raise ECrtSocket on error
-    procedure SockSendFlush(const aBody: SockString='');
+    procedure SockSendFlush(const aBody: SockString=''); virtual;
     /// flush all pending data to be sent
     // - returning true on success
     function TrySockSendFlush: boolean;
@@ -1879,6 +1880,10 @@ type
     // - this constructor will raise a EHttpServer exception if binding failed
     // - expects the port to be specified as string, e.g. '1234'; you can
     // optionally specify a server address to bind to, e.g. '1.2.3.4:1234'
+    // - can listed on UDS in case port is specified with 'unix:' prefix, e.g.
+    // 'unix:/run/myapp.sock'
+    // - on Linux in case aPort is empty string will check if external fd
+    // is passed by systemd and use it (so called systemd socked activation)
     // - you can specify a number of threads to be initialized to handle
     // incoming connections. Default is 32, which may be sufficient for most
     // cases, maximum is 256. If you set 0, the thread pool will be disabled
@@ -1890,7 +1895,8 @@ type
     // THttpServer.Create()
     constructor Create(const aPort: SockString; OnStart,OnStop: TNotifyThreadEvent;
       const ProcessName: SockString; ServerThreadPoolCount: integer=32;
-      KeepAliveTimeOut: integer=30000; HeadersUnFiltered: boolean=false); reintroduce; virtual;
+      KeepAliveTimeOut: integer=30000; HeadersUnFiltered: boolean=false;
+      CreateSuspended: boolean = false); reintroduce; virtual;
     /// ensure the HTTP server thread is actually bound to the specified port
     // - TCrtSocket.Bind() occurs in the background in the Execute method: you
     // should call and check this method result just after THttpServer.Create
@@ -2470,7 +2476,7 @@ type
   protected
     fHttp: THttpClientSocket;
     fHttps: THttpRequest;
-    fBody, fHeaders, fUserAgent: SockString;
+    fProxy, fBody, fHeaders, fUserAgent: SockString;
     fOnlyUseClientSocket, fIgnoreSSLCertificateErrors: boolean;
   public
     /// initialize the instance
@@ -2494,6 +2500,8 @@ type
     /// allows to customize HTTPS connection and allow weak certificates
     property IgnoreSSLCertificateErrors: boolean read fIgnoreSSLCertificateErrors
       write fIgnoreSSLCertificateErrors;
+    /// alows to customize the connection using a proxy
+    property Proxy: SockString read fProxy write fProxy;
   end;
 
 
@@ -2561,6 +2569,13 @@ procedure IP4Text(const ip4addr; var result: SockString); overload;
 /// compute the text representation of a IP4/IP6 low-level connection
 procedure IPText(const sin: TVarSin; var result: SockString;
   localasvoid: boolean=false);
+
+var
+  /// defines if a connection from the loopback should be reported as ''
+  // (no Remote-IP - which is the default) or as '127.0.0.1' (force to false)
+  // - used by both TCrtSock.AcceptRequest and THttpApiServer.Execute servers
+  RemoteIPLocalHostAsVoidInServers: boolean = true;
+
 
 const
   /// the layout of TSMTPConnection.FromText method
@@ -3708,8 +3723,10 @@ begin
     while result^>#13 do
       inc(result);
     while result^<=#13 do
-      if result^=#0 then
-        exit else
+      if result^=#0 then begin
+        result := nil;
+        exit;
+      end else
         inc(result);
   until false;
 end;
@@ -4911,22 +4928,41 @@ begin
   result := false;
 end;
 
-constructor TCrtSocket.Bind(const aPort: SockString; aLayer: TCrtSocketLayer);
+constructor TCrtSocket.Bind(const aAddr: SockString; aLayer: TCrtSocketLayer);
 var s,p: SockString;
+    aSock: integer;
+    {$ifdef LINUXNOTBSD}
+    n: integer;
+    {$endif}
 begin
   Create(10000);
-  if not Split(aPort,':',s,p) then begin
-    s := '0.0.0.0';
-    p := aPort;
+  if aAddr='' then begin
+    {$ifdef LINUXNOTBSD} // try systemd
+    if not SystemdIsAvailable then
+      raise ECrtSocket.Create('Bind('''') but Systemd is not available');
+    n := ExternalLibraries.sd_listen_fds(0);
+    if n > 1 then
+      raise ECrtSocket.Create('Bind(''''): Systemd activation failed - too ' +
+        'many file descriptors received');
+    aSock := SD_LISTEN_FDS_START + 0;
+    {$else}
+    raise ECrtSocket.Create('Bind('''') is not allowed on this platform');
+    {$endif}
+  end else begin
+    aSock := -1; // force OpenBind to create listening socket
+    if not Split(aAddr,':',s,p) then begin
+      s := '0.0.0.0';
+      p := aAddr;
+    end;
+    {$ifndef MSWINDOWS}
+    if s='unix' then begin
+      aLayer := cslUNIX;
+      s := p;
+      p := '';
+    end;
+    {$endif MSWINDOWS}
   end;
-  {$ifndef MSWINDOWS}
-  if s='unix' then begin
-    aLayer := cslUNIX;
-    s := p;
-    p := '';
-  end;
-  {$endif}
-  OpenBind(s,p,{dobind=}true,-1,aLayer); // raise a ECrtSocket on error
+  OpenBind(s,p,{dobind=}true,aSock,aLayer); // raise a ECrtSocket on error
 end;
 
 constructor TCrtSocket.Open(const aServer, aPort: SockString; aLayer: TCrtSocketLayer;
@@ -4957,6 +4993,12 @@ begin
   end;
   if fSock<=0 then
     exit; // no opened connection, or Close already executed
+  {$ifdef LINUXNOTBSD}
+  if (fWasBind and (fPort='')) then begin // binded on external socket
+    fSock := -1;
+    exit;
+  end;
+  {$endif}
   {$ifdef MSWINDOWS}
   if fSecure.Initialized then
     fSecure.BeforeDisconnection(fSock);
@@ -5009,8 +5051,10 @@ begin
     SendTimeout := TimeOut;
   end;
   if aLayer=cslTCP then begin
-    TCPNoDelay := 1; // disable Nagle algorithm since we use our own buffers
-    KeepAlive := 1; // enable TCP keepalive (even if we rely on transport layer)
+    if (aSock<0) or ((aSock>0) and not doBind) then begin // do not touch externally created socket
+      TCPNoDelay := 1; // disable Nagle algorithm since we use our own buffers
+      KeepAlive := 1; // enable TCP keepalive (even if we rely on transport layer)
+    end;
     if aTLS and (aSock<=0) and not doBind then
       try
         {$ifdef MSWINDOWS}
@@ -5043,7 +5087,7 @@ begin
   Linger := 5; // should remain open for 5 seconds after a closesocket() call
   {$endif LINUXNOTBSD}
   if aClientSin<>nil then
-    IPText(aClientSin^,fRemoteIP,{localasvoid=}true);
+    IPText(aClientSin^,fRemoteIP,RemoteIPLocalHostAsVoidInServers);
 end;
 
 procedure TCrtSocket.SockSend(const Values: array of const);
@@ -5135,12 +5179,12 @@ end;
 
 function TCrtSocket.TrySndLow(P: pointer; Len: integer): boolean;
 var sent: integer;
-    endtix: Int64;
+    now, start: Int64;
 begin
   result := Len=0;
   if (self=nil) or (fSock<=0) or (Len<=0) or (P=nil) then
     exit;
-  endtix := {$ifdef MSWINDOWS}GetTick64{$else}0{$endif};
+  start := {$ifdef MSWINDOWS}GetTick64{$else}0{$endif};
   repeat
     {$ifdef MSWINDOWS}
     if fSecure.Initialized then
@@ -5155,11 +5199,10 @@ begin
       inc(PByte(P),sent);
     end else if WSAIsFatalError then
       exit; // fatal socket error
-    {$ifndef MSWINDOWS}
-    if endtix=0 then // measure time elapsed only if write was not finished
-      endtix := GetTick64+TimeOut else
-    {$endif}
-      if GetTick64>endtix then
+    now := GetTick64; 
+    if (start=0) or (sent>0) then
+      start := now else // measure timeout since nothing written
+      if now-start>TimeOut then
         exit; // identify timeout as error
     SleepHiRes(1);
   until false;
@@ -5373,13 +5416,13 @@ const
 function TCrtSocket.TrySockRecv(Buffer: pointer; var Length: integer;
   StopBeforeLength: boolean): boolean;
 var expected,read: PtrInt;
-    start, diff: Int64;
+    now, last, diff: Int64;
 begin
   result := false;
   if (self<>nil) and (fSock>0) and (Buffer<>nil) and (Length>0) then begin
     expected := Length;
     Length := 0;
-    start := {$ifdef MSWINDOWS}GetTick64{$else}0{$endif};
+    last := {$ifdef MSWINDOWS}GetTick64{$else}0{$endif};
     repeat
       read := expected-Length;
       {$ifdef MSWINDOWS}
@@ -5405,10 +5448,10 @@ begin
           break; // good enough for now
         inc(PByte(Buffer),read);
       end;
-      {$ifndef MSWINDOWS}
-      if start=0 then // measure time elapsed only if read was not finished
-        start := GetTick64 else {$endif} begin
-        diff := GetTick64-start;
+      now := GetTick64;
+      if (last=0) or (read>0) then // check timeout from unfinished read 
+        last := now else begin
+        diff := now-last;
         if diff>=TimeOut then begin
           {$ifdef SYNCRTDEBUGLOW}
           TSynLog.Add.Log(sllCustom2, 'TrySockRecv: timeout (diff=%>%)',[diff,TimeOut],self);
@@ -6188,7 +6231,7 @@ end;
 constructor THttpServer.Create(const aPort: SockString; OnStart,
   OnStop: TNotifyThreadEvent; const ProcessName: SockString;
   ServerThreadPoolCount: integer; KeepAliveTimeOut: integer;
-  HeadersUnFiltered: boolean);
+  HeadersUnFiltered: boolean; CreateSuspended: boolean);
 begin
   fSockPort := aPort;
   fInternalHttpServerRespList := {$ifdef FPC}TFPList{$else}TList{$endif}.Create;
@@ -6208,7 +6251,7 @@ begin
     fHTTPQueueLength := 1000;
   end;
   fHeadersNotFiltered := HeadersUnFiltered;
-  inherited Create(false,OnStart,OnStop,ProcessName);
+  inherited Create(CreateSuspended,OnStart,OnStop,ProcessName);
 end;
 
 function THttpServer.GetAPIVersion: string;
@@ -6369,6 +6412,13 @@ begin
   // main server process loop
   try
     fSock := TCrtSocket.Bind(fSockPort); // BIND + LISTEN
+    {$ifdef LINUXNOTBSD}
+    // in case we started by systemd, listening socket is created by another process
+    // and do not interrupt while process got a signal. So we need to set a timeout to
+    // unblock accept() periodically and check we need terminations
+    if fSockPort = '' then // external socket
+      fSock.ReceiveTimeout := 1000; // unblock accept every second
+    {$endif}
     fExecuteState := esRunning;
     if fSock.Sock<=0 then // paranoid (Bind would have raise an exception)
       raise ECrtSocket.Create('THttpServer.Execute: TCrtSocket.Bind failed');
@@ -7833,7 +7883,16 @@ type
   end;
 
   HTTP_REQUEST_INFO_TYPE = (
-    HttpRequestInfoTypeAuth
+    HttpRequestInfoTypeAuth,
+    HttpRequestInfoTypeChannelBind,
+    HttpRequestInfoTypeSslProtocol,
+    HttpRequestInfoTypeSslTokenBindingDraft,
+    HttpRequestInfoTypeSslTokenBinding,
+    HttpRequestInfoTypeRequestTiming,
+    HttpRequestInfoTypeTcpInfoV0,
+    HttpRequestInfoTypeRequestSizing,
+    HttpRequestInfoTypeQuicStats,
+    HttpRequestInfoTypeTcpInfoV1
     );
 
   // about Authentication in HTTP Version 2.0
@@ -7867,7 +7926,9 @@ type
     PackedContextType: ULONG;
     PackedContext: pointer;
     MutualAuthDataLength: ULONG;
-    pMutualAuthData: PCHAR;
+    pMutualAuthData: PAnsiChar;
+    PackageNameLength: word;
+    pPackageName: LPWSTR;
   end;
   PHTTP_REQUEST_AUTH_INFO = ^HTTP_REQUEST_AUTH_INFO;
 
@@ -7917,9 +7978,13 @@ type
     RawConnectionId: HTTP_RAW_CONNECTION_ID;
     // SSL connection information
     pSslInfo: PHTTP_SSL_INFO;
-    // beginning of HTTP_REQUEST_V2 structure
-    xxxPadding: DWORD;
+    { beginning of HTTP_REQUEST_V2 structure - manual padding is needed :( }
+    {$ifdef CPU32}
+    padding: dword;
+    {$endif CPU32}
+    /// how many extended info about a specific request is available in v2
     RequestInfoCount: word;
+    /// v2 trailing structure used to handle extended info about a specific request
     pRequestInfo: PHTTP_REQUEST_INFOS;
   end;
   PHTTP_REQUEST = ^HTTP_REQUEST;
@@ -8380,7 +8445,7 @@ begin
       inc(P);
   end;
   if (RemoteIP='') and (Request.Address.pRemoteAddress<>nil) then
-    IPText(PVarSin(Request.Address.pRemoteAddress)^,RemoteIP,{localasvoid=}true);
+    IPText(PVarSin(Request.Address.pRemoteAddress)^,RemoteIP,RemoteIPLocalHostAsVoidInServers);
   // compute headers length
   Lip := length(RemoteIP);
   if Lip<>0 then
@@ -9160,6 +9225,9 @@ begin
     repeat
       Context.fInContent := ''; // release input/output body buffers ASAP
       Context.fOutContent := '';
+      // Reset AuthenticationStatus & user between requests
+      Context.fAuthenticationStatus := hraNone; 
+      Context.fAuthenticatedUser := '';
       // retrieve next pending request, and read its headers
       fillchar(Req^,sizeof(HTTP_REQUEST),0);
       Err := Http.ReceiveHttpRequest(fReqQueue,ReqID,0,Req^,length(ReqBuf),bytesRead);
@@ -9207,8 +9275,12 @@ begin
             HttpAuthStatusSuccess:
             if AuthType>HttpRequestAuthTypeNone then begin
               byte(Context.fAuthenticationStatus) := ord(AuthType)+1;
-              if AccessToken<>0 then
+              if AccessToken<>0 then begin
                 GetDomainUserNameFromToken(AccessToken,Context.fAuthenticatedUser);
+                // Per spec https://docs.microsoft.com/en-us/windows/win32/http/authentication-in-http-version-2-0
+                // AccessToken lifecycle is application responsability and should be closed after use 
+                CloseHandle(AccessToken);
+              end;
             end;
             HttpAuthStatusFailure:
               Context.fAuthenticationStatus := hraFailed;
@@ -11984,13 +12056,13 @@ function TSimpleHttpClient.RawRequest(const Uri: TURI; const Method, Header,
   Data, DataType: SockString; KeepAlive: cardinal): integer;
 begin
   result := 0;
-  if Uri.Https and not fOnlyUseClientSocket then
+  if (Uri.Https or (Proxy <> '')) and not fOnlyUseClientSocket then
     try
       if (fHttps = nil) or (fHttps.Server <> Uri.Server) or
          (integer(fHttps.Port) <> Uri.PortInt) then begin
         FreeAndNil(fHttp);
-        fHttps.Free; // need a new HTTPS connection
-        fHttps := MainHttpClass.Create(Uri.Server,Uri.Port,Uri.Https,'','',5000,5000,5000);
+        FreeAndNil(fHttps); // need a new HTTPS connection
+        fHttps := MainHttpClass.Create(Uri.Server,Uri.Port,Uri.Https,Proxy,'',5000,5000,5000);
         fHttps.IgnoreSSLCertificateErrors := fIgnoreSSLCertificateErrors;
         if fUserAgent<>'' then
           fHttps.UserAgent := fUserAgent;
@@ -12007,7 +12079,7 @@ begin
       if (fHttp = nil) or (fHttp.Server <> Uri.Server) or
          (fHttp.Port <> Uri.Port) then begin
         FreeAndNil(fHttps);
-        fHttp.Free; // need a new HTTP connection
+        FreeAndNil(fHttp); // need a new HTTP connection
         fHttp := THttpClientSocket.Open(Uri.Server,Uri.Port,cslTCP,5000,Uri.Https);
         if fUserAgent<>'' then
           fHttp.UserAgent := fUserAgent;
@@ -12324,7 +12396,7 @@ begin
   if (self=nil) or (socket=0) or (socket=fEPFD) or
      (byte(events)=0) or (fCount=fMaxSockets) then
     exit;
-  e.data.u64 := tag;
+  e.data.ptr := pointer(tag);
   if pseRead in events then
     e.events := EPOLLIN else
     e.events := 0;
