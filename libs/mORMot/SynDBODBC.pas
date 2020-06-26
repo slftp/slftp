@@ -1261,7 +1261,9 @@ begin
 end;
 
 procedure TODBCConnection.StartTransaction;
+var log: ISynLog;
 begin
+  log := SynDBLog.Enter(self,'StartTransaction');
   if TransactionCount>0 then
     raise EODBCException.CreateUTF8('% do not support nested transactions',[self]);
   inherited StartTransaction;
@@ -1702,6 +1704,9 @@ begin
             end;
           ftDouble: begin
             CValueType := SQL_C_DOUBLE;
+	    // in case of "Invalid character value for cast specification" error
+            // for small digits like 0.01, -0.0001 under Linux msodbcsql17 should
+            // be updated to >= 17.5.2
             ParameterValue := pointer(@VInt64);
           end;
           ftCurrency:
