@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -121,6 +121,7 @@ type
     FClosing: Boolean;
     FClientCP: Word;
     FMySQLConnection: IZMySQLConnection;
+    FByteBuffer: PByteBuffer;
     function CreateMySQLConvertError(ColumnIndex: Integer; DataType: TMysqlFieldType): EZMySQLConvertError;
   protected
     procedure Open; override;
@@ -207,10 +208,10 @@ type
     FBind: PMYSQL_aligned_BIND;
     FStmtHandle: PPMYSQL_STMT;
     FIndex: Cardinal;
-    FOwner: IImmediatelyReleasable;
     FReleased: Boolean;
     FLobRow: Integer;
     FCurrentRowAddr: PInteger;
+    FMySQLConnection: IZMySQLConnection;
   protected
     function CreateLobStream(CodePage: Word; LobStreamMode: TZLobStreamMode): TStream; override;
   public
@@ -473,14 +474,14 @@ begin
                                     else if jcoMongoISODate in JSONComposeOptions then
                                       JSONWriter.AddShort('ISODate("')
                                     else JSONWriter.Add('"');
-                                    DateToIso8601PChar(@FTinyBuffer[0], True, PMYSQL_TIME(Bind^.Buffer)^.Year,
+                                    DateToIso8601PChar(PUTF8Char(FByteBuffer), True, PMYSQL_TIME(Bind^.Buffer)^.Year,
                                       PMYSQL_TIME(Bind^.Buffer)^.Month, PMYSQL_TIME(Bind^.Buffer)^.Day);
                                     MS := ((PMYSQL_TIME(Bind^.Buffer)^.second_part) * Byte(ord(jcoMilliseconds in JSONComposeOptions)) div 1000000);
-                                    TimeToIso8601PChar(@FTinyBuffer[10], True, PMYSQL_TIME(Bind^.Buffer)^.Hour,
+                                    TimeToIso8601PChar(PUTF8Char(FByteBuffer)+10, True, PMYSQL_TIME(Bind^.Buffer)^.Hour,
                                       PMYSQL_TIME(Bind^.Buffer)^.Minute, PMYSQL_TIME(Bind^.Buffer)^.Second, MS, 'T', jcoMilliseconds in JSONComposeOptions);
                                     if (jcoMilliseconds in JSONComposeOptions)
-                                    then JSONWriter.AddNoJSONEscape(@FTinyBuffer[0],23)
-                                    else JSONWriter.AddNoJSONEscape(@FTinyBuffer[0],19);
+                                    then JSONWriter.AddNoJSONEscape(PUTF8Char(FByteBuffer),23)
+                                    else JSONWriter.AddNoJSONEscape(PUTF8Char(FByteBuffer),19);
                                     goto FinalizeDT;
                                   end;
           FIELD_TYPE_DATE,
@@ -490,9 +491,9 @@ begin
                                     else if jcoMongoISODate in JSONComposeOptions then
                                       JSONWriter.AddShort('ISODate("')
                                     else JSONWriter.Add('"');
-                                    DateToIso8601PChar(@FTinyBuffer[0], True, PMYSQL_TIME(Bind^.Buffer)^.Year,
+                                    DateToIso8601PChar(PUTF8Char(FByteBuffer), True, PMYSQL_TIME(Bind^.Buffer)^.Year,
                                       PMYSQL_TIME(Bind^.Buffer)^.Month, PMYSQL_TIME(Bind^.Buffer)^.Day);
-                                    JSONWriter.AddNoJSONEscape(@FTinyBuffer[0],10);
+                                    JSONWriter.AddNoJSONEscape(PUTF8Char(FByteBuffer),10);
                                     goto FinalizeDT;
                                   end;
           FIELD_TYPE_TIME       : begin
@@ -502,11 +503,9 @@ begin
                                       JSONWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
                                     else JSONWriter.AddShort('"');
                                     MS := (PMYSQL_TIME(Bind^.Buffer)^.second_part) div 1000000;
-                                    TimeToIso8601PChar(@FTinyBuffer[0], True, PMYSQL_TIME(Bind^.Buffer)^.Hour,
+                                    TimeToIso8601PChar(PUTF8Char(FByteBuffer), True, PMYSQL_TIME(Bind^.Buffer)^.Hour,
                                       PMYSQL_TIME(Bind^.Buffer)^.Minute, PMYSQL_TIME(Bind^.Buffer)^.Second, MS, 'T', jcoMilliseconds in JSONComposeOptions);
-                                    if jcoMilliseconds in JSONComposeOptions
-                                    then JSONWriter.AddNoJSONEscape(@FTinyBuffer[0],12)
-                                    else JSONWriter.AddNoJSONEscape(@FTinyBuffer[0],8);
+                                    JSONWriter.AddNoJSONEscape(PUTF8Char(FByteBuffer),9+(4*Ord(jcoMilliseconds in JSONComposeOptions)));
                                     goto FinalizeDT;
                                   end;
           FIELD_TYPE_BIT        : if Bind^.Length[0] = 1
@@ -514,13 +513,13 @@ begin
                                   else JSONWriter.WrBase64(Pointer(Bind^.Buffer), Bind^.Length[0], True);
           MYSQL_TYPE_JSON: if (Bind^.Buffer <> nil) then
                             JSONWriter.AddNoJSONEscape(Pointer(Bind^.Buffer), Bind^.Length[0])
-                        else if Bind^.Length[0] < SizeOf(FTinyBuffer) then begin
-                          Bind^.buffer_address^ := @FTinyBuffer[0];
-                          Bind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
+                        else if Bind^.Length[0] < SizeOf(TByteBuffer) then begin
+                          Bind^.buffer_address^ := PAnsiChar(FByteBuffer);
+                          Bind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
                           FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, Bind^.mysql_bind, C, 0);
                           Bind^.buffer_address^ := nil;
                           Bind^.buffer_Length_address^ := 0;
-                          JSONWriter.AddNoJSONEscape(@FTinyBuffer[0], Bind^.Length[0]);
+                          JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), Bind^.Length[0]);
                         end else begin
                           FTempBlob := TZMySQLPreparedCLob.Create(FMySQLConnection,
                             Bind, FMYSQL_STMT, C{$IFNDEF GENERIC_INDEX}+1{$ENDIF},
@@ -547,17 +546,17 @@ begin
                             JSONWriter.AddJSONEscape(Pointer(Bind^.Buffer), Bind^.Length[0]);
                             JSONWriter.Add('"');
                           end
-                        else if Bind^.Length[0] < SizeOf(FTinyBuffer) then begin
-                          Bind^.buffer_address^ := @FTinyBuffer[0];
-                          Bind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
+                        else if Bind^.Length[0] < SizeOf(TByteBuffer) then begin
+                          Bind^.buffer_address^ := PAnsiChar(FByteBuffer);
+                          Bind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
                           FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, Bind^.mysql_bind, C, 0);
                           Bind^.buffer_address^ := nil;
                           Bind^.buffer_Length_address^ := 0;
                           if Bind^.binary then
-                            JSONWriter.WrBase64(@FTinyBuffer[0], Bind^.Length[0], True)
+                            JSONWriter.WrBase64(PAnsiChar(FByteBuffer), Bind^.Length[0], True)
                           else begin
                             JSONWriter.Add('"');
-                            JSONWriter.AddJSONEscape(@FTinyBuffer[0], Bind^.Length[0]);
+                            JSONWriter.AddJSONEscape(PAnsiChar(FByteBuffer), Bind^.Length[0]);
                             JSONWriter.Add('"');
                           end;
                         end else begin
@@ -700,12 +699,13 @@ begin
   inherited Create(Statement, SQL, TZMySQLResultSetMetadata.Create(
     Connection.GetMetadata, SQL, Self), Connection.GetConSettings);
   FMySQLConnection := Connection;
+  FByteBuffer := FMySQLConnection.GetByteBufferAddress;
   FClientCP := ConSettings.ClientCodePage.CP;
   fServerCursor := Self is TZMySQL_Use_ResultSet;
   FMYSQL_Col_BIND_Address := @MYSQL_ColumnsBinding.MYSQL_Col_BINDs;
   FMYSQL_aligned_BINDs := MYSQL_ColumnsBinding.MYSQL_aligned_BINDs;
   FFieldCount := MYSQL_ColumnsBinding.FieldCount;
-  FPMYSQL := Connection.GetConnectionHandle;
+  FPMYSQL := Connection.GetConnectionHandleAddress;
   FPMYSQL_STMT := PMYSQL_STMT;
   FMYSQL_STMT  := FPMYSQL_STMT^;
   FQueryHandle := nil;
@@ -766,7 +766,7 @@ begin
       then FPlainDriver.mysql_stmt_attr_set517UP(FPMYSQL_STMT^,STMT_ATTR_UPDATE_MAX_LENGTH,one)
       else FPlainDriver.mysql_stmt_attr_set(FPMYSQL_STMT^,STMT_ATTR_UPDATE_MAX_LENGTH,one);
       if FPlainDriver.mysql_stmt_store_result(FPMYSQL_STMT^) <> 0 then
-        checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_store_result', Self);
+        FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_store_result', Self);
     end;
     if FFieldCount > 0
     then QueryHandle := FPlainDriver.mysql_stmt_result_metadata(FMYSQL_STMT)
@@ -816,7 +816,7 @@ begin
       fBindBufferAllocated := True;
     end;
     if (FPlainDriver.mysql_stmt_bind_result(FMYSQL_STMT,FMYSQL_Col_BIND_Address^)<>0) then
-      checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_bind_result', Self);
+      FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_bind_result', Self);
   end;
 end;
 
@@ -925,7 +925,7 @@ begin
     if FFetchStatus in [STMT_FETCH_OK, MYSQL_DATA_TRUNCATED] then
       Result := True
     else if FFetchStatus = STMT_FETCH_ERROR then
-      checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, '', Self);
+      FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_fetch', Self);
   end else begin
     if (FQueryHandle = nil) then begin
       FQueryHandle := FPlainDriver.mysql_store_result(FPMYSQL^);
@@ -987,29 +987,29 @@ begin
       case ColBind^.buffer_type_address^ of
         FIELD_TYPE_TINY: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToRaw(Integer(PShortInt(ColBind^.buffer)^), @FTinyBuffer, @Result)
-            else IntToRaw(Cardinal(PByte(ColBind^.buffer)^), @FTinyBuffer, @Result);
+            then IntToRaw(Integer(PShortInt(ColBind^.buffer)^), PAnsiChar(FByteBuffer), @Result)
+            else IntToRaw(Cardinal(PByte(ColBind^.buffer)^), PAnsiChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_SHORT: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToRaw(Integer(PSmallInt(ColBind^.buffer)^), @FTinyBuffer, @Result)
-            else IntToRaw(Cardinal(PWord(ColBind^.buffer)^), @FTinyBuffer, @Result);
+            then IntToRaw(Integer(PSmallInt(ColBind^.buffer)^), PAnsiChar(FByteBuffer), @Result)
+            else IntToRaw(Cardinal(PWord(ColBind^.buffer)^), PAnsiChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_LONG: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToRaw(PInteger(ColBind^.buffer)^, @FTinyBuffer, @Result)
-            else IntToRaw(PCardinal(ColBind^.buffer)^, @FTinyBuffer, @Result);
+            then IntToRaw(PInteger(ColBind^.buffer)^, PAnsiChar(FByteBuffer), @Result)
+            else IntToRaw(PCardinal(ColBind^.buffer)^, PAnsiChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_FLOAT: begin
-            Len := FloatToSQLRaw(PSingle(ColBind^.buffer)^, @FTinyBuffer);
-            Result := @FTinyBuffer;
+            Len := FloatToSQLRaw(PSingle(ColBind^.buffer)^, PAnsiChar(FByteBuffer));
+            Result := PAnsiChar(FByteBuffer);
           end;
         FIELD_TYPE_DOUBLE: begin
-            Len := FloatToSQLRaw(PDouble(ColBind^.buffer)^, @FTinyBuffer);
-            Result := @FTinyBuffer;
+            Len := FloatToSQLRaw(PDouble(ColBind^.buffer)^, PAnsiChar(FByteBuffer));
+            Result := PAnsiChar(FByteBuffer);
           end;
         FIELD_TYPE_NULL: begin
             Result := nil;
@@ -1017,7 +1017,7 @@ begin
           end;
         FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME:
           begin
-            Result := @FTinyBuffer[0];
+            Result := PAnsiChar(FByteBuffer);
             Len := DateTimeToRaw(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               PMYSQL_TIME(ColBind^.buffer)^.Hour, PMYSQL_TIME(ColBind^.buffer)^.Minute,
@@ -1027,27 +1027,27 @@ begin
           end;
         FIELD_TYPE_LONGLONG: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToRaw(PInt64(ColBind^.buffer)^, @FTinyBuffer, @Result)
-            else IntToRaw(PUInt64(ColBind^.buffer)^, @FTinyBuffer, @Result);
+            then IntToRaw(PInt64(ColBind^.buffer)^, PAnsiChar(FByteBuffer), @Result)
+            else IntToRaw(PUInt64(ColBind^.buffer)^, PAnsiChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE: begin
-            Result := @FTinyBuffer;
+            Result := PAnsiChar(FByteBuffer);
             Len := DateToRaw(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               Result, ConSettings^.ReadFormatSettings.DateFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_TIME: begin
-            Result := @FTinyBuffer;
+            Result := PAnsiChar(FByteBuffer);
             Len := TimeToRaw(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute,
               PMYSQL_TIME(ColBind^.buffer)^.Second, 0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
-              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
+              Result, ConSettings^.ReadFormatSettings.TimeFormat, False, PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_YEAR: begin
-            IntToRaw(Cardinal(PWord(ColBind^.buffer)^), @FTinyBuffer, @Result);
-set_Results:Len := Result - PAnsiChar(@FTinyBuffer);
-            Result := @FTinyBuffer;
+            IntToRaw(Cardinal(PWord(ColBind^.buffer)^), PAnsiChar(FByteBuffer), @Result);
+set_Results:Len := Result - PAnsiChar(FByteBuffer);
+            Result := PAnsiChar(FByteBuffer);
           end;
         FIELD_TYPE_NEWDECIMAL,
         FIELD_TYPE_DECIMAL,
@@ -1063,17 +1063,17 @@ set_Results:Len := Result - PAnsiChar(@FTinyBuffer);
             if ColBind.buffer <> nil then begin
               Result := ColBind^.buffer;
               Len := ColBind^.length[0];
-            end else if ColBind^.Length[0] < SizeOf(FTinyBuffer) then begin
-              ColBind^.buffer_address^ := @FTinyBuffer[0];
-              ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
+            end else if ColBind^.Length[0] < SizeOf(TByteBuffer) then begin
+              ColBind^.buffer_address^ := PAnsiChar(FByteBuffer);
+              ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
               Status := FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
               ColBind^.buffer_address^ := nil;
               ColBind^.buffer_Length_address^ := 0;
-              Result := @FTinyBuffer[0];
+              Result := PAnsiChar(FByteBuffer);
               if Status <> 0 then
                 if Status = STMT_FETCH_ERROR
                 then raise EZSQLException.Create('Fetch error')
-                else checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_fetch_column', Self);
+                else FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_fetch_column', Self);
               Len := ColBind^.Length[0];
             end else begin
               FTempBlob := GetBlob(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
@@ -1128,36 +1128,36 @@ begin
       case ColBind^.buffer_type_address^ of
         FIELD_TYPE_TINY: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToUnicode(Integer(PShortInt(ColBind^.buffer)^), @FTinyBuffer, @Result)
-            else IntToUnicode(Cardinal(PByte(ColBind^.buffer)^), @FTinyBuffer, @Result);
+            then IntToUnicode(Integer(PShortInt(ColBind^.buffer)^), PWideChar(FByteBuffer), @Result)
+            else IntToUnicode(Cardinal(PByte(ColBind^.buffer)^), PWideChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_SHORT: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToUnicode(Integer(PSmallInt(ColBind^.buffer)^), @FTinyBuffer, @Result)
-            else IntToUnicode(Cardinal(PWord(ColBind^.buffer)^), @FTinyBuffer, @Result);
+            then IntToUnicode(Integer(PSmallInt(ColBind^.buffer)^), PWideChar(FByteBuffer), @Result)
+            else IntToUnicode(Cardinal(PWord(ColBind^.buffer)^), PWideChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_LONG: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToUnicode(PInteger(ColBind^.buffer)^, @FTinyBuffer, @Result)
-            else IntToUnicode(PCardinal(ColBind^.buffer)^, @FTinyBuffer, @Result);
+            then IntToUnicode(PInteger(ColBind^.buffer)^, PWideChar(FByteBuffer), @Result)
+            else IntToUnicode(PCardinal(ColBind^.buffer)^, PWideChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_FLOAT: begin
-            Len := FloatToSQLUnicode(PSingle(ColBind^.buffer)^, @FTinyBuffer);
-            Result := @FTinyBuffer;
+            Len := FloatToSQLUnicode(PSingle(ColBind^.buffer)^, PWideChar(FByteBuffer));
+            Result := PWideChar(FByteBuffer);
           end;
         FIELD_TYPE_DOUBLE: begin
-            Len := FloatToSQLUnicode(PDouble(ColBind^.buffer)^, @FTinyBuffer);
-            Result := @FTinyBuffer;
+            Len := FloatToSQLUnicode(PDouble(ColBind^.buffer)^, PWideChar(FByteBuffer));
+            Result := PWideChar(FByteBuffer);
           end;
         FIELD_TYPE_NULL: begin
             Result := nil;
             Len := 0;
           end;
         FIELD_TYPE_TIMESTAMP, FIELD_TYPE_DATETIME: begin
-            Result := @FTinyBuffer[0];
+            Result := PWideChar(FByteBuffer);
             Len := DateTimeToUni(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               PMYSQL_TIME(ColBind^.buffer)^.Hour, PMYSQL_TIME(ColBind^.buffer)^.Minute,
@@ -1167,29 +1167,29 @@ begin
           end;
         FIELD_TYPE_LONGLONG: begin
             if ColBind^.is_unsigned_address^ = 0
-            then IntToUnicode(PInt64(ColBind^.buffer)^, @FTinyBuffer, @Result)
-            else IntToUnicode(PUInt64(ColBind^.buffer)^, @FTinyBuffer, @Result);
+            then IntToUnicode(PInt64(ColBind^.buffer)^, PWideChar(FByteBuffer), @Result)
+            else IntToUnicode(PUInt64(ColBind^.buffer)^, PWideChar(FByteBuffer), @Result);
             goto set_results;
           end;
         FIELD_TYPE_DATE, FIELD_TYPE_NEWDATE: begin
-            Result := @FTinyBuffer;
+            Result := PWideChar(FByteBuffer);
             Len := DateToUni(PMYSQL_TIME(ColBind^.buffer)^.Year,
               PMYSQL_TIME(ColBind^.buffer)^.Month, PMYSQL_TIME(ColBind^.buffer)^.Day,
               Result, ConSettings^.ReadFormatSettings.DateFormat, False,
               PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
           end;
         FIELD_TYPE_TIME: begin
+            Result := PWideChar(FByteBuffer);
             Len := TimeToUni(PMYSQL_TIME(ColBind^.buffer)^.Hour,
               PMYSQL_TIME(ColBind^.buffer)^.Minute, PMYSQL_TIME(ColBind^.buffer)^.Second,
               0{PMYSQL_TIME(ColBind^.buffer)^.second_part},
-              @FTinyBuffer, ConSettings^.ReadFormatSettings.TimeFormat, False,
+              Result, ConSettings^.ReadFormatSettings.TimeFormat, False,
               PMYSQL_TIME(ColBind^.buffer)^.neg <> 0);
-            Result := @FTinyBuffer;
           end;
         FIELD_TYPE_YEAR: begin
-            IntToUnicode(Cardinal(PWord(ColBind^.buffer)^), @FTinyBuffer, @Result);
-set_Results:Len := Result - PWideChar(@FTinyBuffer);
-            Result := @FTinyBuffer;
+            IntToUnicode(Cardinal(PWord(ColBind^.buffer)^), PWideChar(FByteBuffer), @Result);
+set_Results:Len := Result - PWideChar(FByteBuffer);
+            Result := PWideChar(FByteBuffer);
           end;
         FIELD_TYPE_NEWDECIMAL,
         FIELD_TYPE_DECIMAL,
@@ -1202,23 +1202,20 @@ set_Results:Len := Result - PWideChar(@FTinyBuffer);
               then FUniTemp := Ascii7ToUnicodeString(ColBind^.buffer, ColBind^.length[0])
               else FUniTemp := PRawToUnicode(ColBind^.buffer, ColBind^.length[0], FClientCP);
               goto set_from_tmp;
-            end else if ColBind^.Length[0] < SizeOf(FTinyBuffer) then begin
-              ColBind^.buffer_address^ := @FTinyBuffer[0];
-              ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
+            end else if ColBind^.Length[0] < SizeOf(TByteBuffer) then begin
+              ColBind^.buffer_address^ := PAnsiChar(FByteBuffer);
+              ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1; //mysql sets $0 on to of data and corrupts our mem
               Status := FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
               ColBind^.buffer_address^ := nil;
               ColBind^.buffer_Length_address^ := 0;
-              Result := @FTinyBuffer[0];
+              Result := PWideChar(FByteBuffer);
               if Status <> 0 then
                 if Status = STMT_FETCH_ERROR
                 then raise EZSQLException.Create('Fetch error')
-                else checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_fetch_column', Self);
+                else FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_fetch_column', Self);
               if ColBind^.binary
-              then FUniTemp := Ascii7ToUnicodeString(@FTinyBuffer[0], ColBind^.length[0])
-              else FUniTemp := PRawToUnicode(@FTinyBuffer[0], ColBind^.length[0], FClientCP);
-              if ColBind^.binary
-              then FUniTemp := Ascii7ToUnicodeString(ColBind^.buffer, ColBind^.length[0])
-              else FUniTemp := PRawToUnicode(ColBind^.buffer, ColBind^.length[0], FClientCP);
+              then FUniTemp := Ascii7ToUnicodeString(PAnsiChar(FByteBuffer), ColBind^.length[0])
+              else FUniTemp := PRawToUnicode(PAnsiChar(FByteBuffer), ColBind^.length[0], FClientCP);
               goto set_from_tmp;
             end else begin
               FTempBlob := GetBlob(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
@@ -1419,12 +1416,12 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 12{Max Int32 Length = 11} ) then
           begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(FByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := StrToBoolEx(PAnsiChar(@FTinyBuffer[0]), @FTinyBuffer[ColBind^.Length[0]]);
+            Result := StrToBoolEx(PAnsiChar(fByteBuffer), PAnsiChar(fByteBuffer)+ColBind^.Length[0]);
           end;
         else raise CreateConversionError(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, TZColumnInfo(ColumnsInfo[ColumnIndex]).ColumnType, stBoolean);
       end
@@ -1487,13 +1484,13 @@ begin
           end;
         FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB,
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
-          if ColBind^.Length[0] < SizeOf(FTinyBuffer) then begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+          if ColBind^.Length[0] < SizeOf(TByteBuffer) then begin
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := @FTinyBuffer[0];
+            Result := PByte(fByteBuffer);
             Len := ColBind^.Length[0];
           end else begin
             FTempBlob := GetBlob(ColumnIndex{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
@@ -1574,12 +1571,12 @@ begin
         FIELD_TYPE_BLOB,
         FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 13{Max Int32 Length = 11+#0} ) then begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on top of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on top of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := RawToIntDef(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
+            Result := RawToIntDef(PAnsiChar(fByteBuffer), PAnsiChar(fByteBuffer)+ColBind^.Length[0], 0);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -1662,12 +1659,12 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 22{Max Int64 Length = 20+#0}) then
           begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := RawToInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
+            Result := RawToInt64Def(PAnsiChar(fByteBuffer), PAnsiChar(fByteBuffer)+ColBind^.Length[0], 0);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -1752,12 +1749,12 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
         if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 22{Max UInt64 Length = 20+#0} ) then
           begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := RawToUInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
+            Result := RawToUInt64Def(PAnsiChar(fByteBuffer), PAnsiChar(fByteBuffer)+ColBind^.Length[0], 0);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -1834,12 +1831,12 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
         if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 22{Max UInt64 Length = 20+#0} ) then
           begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            Result := RawToUInt64Def(@FTinyBuffer[0], @FTinyBuffer[ColBind^.Length[0]], 0);
+            Result := RawToUInt64Def(PAnsiChar(fByteBuffer), PAnsiChar(fByteBuffer)+ColBind^.Length[0], 0);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -2070,13 +2067,13 @@ begin
         FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB,
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and (ColBind^.Length[0]  < 30{Max Extended Length = 28 ??} ) then begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            FTinyBuffer[ColBind^.Length[0]] := 0;
-            RawToFloatDef(PAnsichar(@FTinyBuffer[0]), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
+            PByte(PAnsiChar(fByteBuffer)+ColBind^.Length[0])^ := 0;
+            RawToFloatDef(PAnsiChar(fByteBuffer), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -2148,12 +2145,12 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and
              (ColBind^.Length[0]  <= 66{MaxFMTBcdFractionSize + dot + sign} ) then begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            LastWasNull := not TryRawToBCD(@FTinyBuffer[0], ColBind^.Length[0], Result, '.');
+            LastWasNull := not TryRawToBCD(PAnsiChar(fByteBuffer), ColBind^.Length[0], Result, '.');
           end else
             Result := nullbcd;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
@@ -2228,13 +2225,13 @@ begin
         FIELD_TYPE_BLOB, FIELD_TYPE_GEOMETRY:
           if ( ColBind^.Length[0]  > 0 ) and
              (ColBind^.Length[0]  < 30{Max Extended Length = 28 ??} ) then begin
-            ColBind^.buffer_address^ := @FTinyBuffer[0];
-            ColBind^.buffer_Length_address^ := SizeOf(FTinyBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
+            ColBind^.buffer_address^ := PAnsiChar(fByteBuffer);
+            ColBind^.buffer_Length_address^ := SizeOf(TByteBuffer)-1;//mysql sets $0 on to of data and corrupts our mem
             FPlainDriver.mysql_stmt_fetch_column(FMYSQL_STMT, ColBind^.mysql_bind, ColumnIndex, 0);
             ColBind^.buffer_address^ := nil;
             ColBind^.buffer_Length_address^ := 0;
-            FTinyBuffer[ColBind^.Length[0]] := 0;
-            RawToFloatDef(PAnsichar(@FTinyBuffer[0]), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
+            PByte(PAnsiChar(fByteBuffer)+ColBind^.Length[0])^ := 0;
+            RawToFloatDef(PAnsiChar(fByteBuffer), {$IFDEF NO_ANSICHAR}Ord{$ENDIF}('.'), 0, Result);
           end;
         else raise CreateMySQLConvertError(ColumnIndex, ColBind^.buffer_type_address^);
       end
@@ -2571,13 +2568,13 @@ begin
       FMYSQL_STMT := FPMYSQL_STMT^;
       if FPlainDriver.mysql_stmt_store_result(FMYSQL_STMT)=0
       then LastRowNo := FPlainDriver.mysql_stmt_num_rows(FMYSQL_STMT)
-      else checkMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_stmt_store_result', Self)
+      else FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_store_result', Self);
     end;
   end else begin
     FQueryHandle := FPlainDriver.mysql_store_result(FPMYSQL^);
     if Assigned(FQueryHandle)
     then LastRowNo := FPlainDriver.mysql_num_rows(FQueryHandle)
-    else CheckMySQLError(FPlainDriver, FPMYSQL^, FMYSQL_STMT, lcOther, 'mysql_store_result', Self)
+    else FMySQLConnection.HandleErrorOrWarning(lcOther, nil, 'mysql_store_result', Self)
   end;
 end;
 
@@ -2587,7 +2584,7 @@ begin
     if fBindBufferAllocated then begin
       if Assigned(FMYSQL_STMT) then
         if FPlainDriver.mysql_stmt_free_result(FMYSQL_STMT) <> 0 then
-          checkMySQLError(FPlainDriver,FPMYSQL^, FMYSQL_STMT, lcOther, '', Self);
+          FMySQLConnection.HandleErrorOrWarning(lcOther, FMYSQL_STMT, 'mysql_stmt_free_result', Self)
     end else if FQueryHandle <> nil then begin
       FPlainDriver.mysql_free_result(FQueryHandle);
       FQueryHandle := nil;
@@ -2716,12 +2713,12 @@ constructor TZMySQLPreparedLob.Create(const Connection: IZMySQLConnection;
   const OpenLobStreams: TZSortedList; CurrentRowAddr: PInteger);
 begin
   inherited Create(ColumnCodePage, OpenLobStreams);
+  FMySQLConnection := Connection;
   FConSettings := Connection.GetConSettings;
   FPlainDriver := Connection.GetPlainDriver;
   FBind := Bind;
   FStmtHandle := StmtHandle;
   FIndex := Index;
-  FOwner := Connection;
   FLobStreamMode := LobStreamMode;
   FCurrentRowAddr := CurrentRowAddr;
   FLobRow := FCurrentRowAddr^ -1;
@@ -2741,7 +2738,7 @@ begin
         FPlainDriver.mysql_stmt_data_seek(FStmtHandle, FLobRow);
         Status := FPlainDriver.mysql_stmt_fetch(FStmtHandle);
         if Status = STMT_FETCH_ERROR then
-          checkMySQLError(FPlainDriver, nil, FStmtHandle, lcOther, 'mysql_stmt_fetch', Self);
+          FMySQLConnection.HandleErrorOrWarning(lcOther, FStmtHandle, 'mysql_stmt_fetch', Self);
         FCurrentRowAddr^ := FLobRow +1;
       end;
     end;
@@ -2753,7 +2750,7 @@ end;
 
 function TZMySQLPreparedLob.GetConSettings: PZConSettings;
 begin
-  Result := FOwner.GetConSettings
+  Result := FMySQLConnection.GetConSettings
 end;
 
 function TZMySQLPreparedLob.IsEmpty: Boolean;
@@ -2770,10 +2767,12 @@ end;
 
 procedure TZMySQLPreparedLob.ReleaseImmediat(
   const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
+var imm: IImmediatelyReleasable;
 begin
   FReleased := True;
-  if Sender <> FOwner then
-    FOwner.ReleaseImmediat(Sender, AError);
+  if (FMySQLConnection.QueryInterface(IImmediatelyReleasable, imm) = S_OK) and
+     (imm <> Sender) then
+    imm.ReleaseImmediat(Sender, AError);
 end;
 
 { TZMySQL_Use_ResultSet }
@@ -2831,11 +2830,11 @@ begin
     Count := FOwner.FBind.Length[0] - FOffset;
   FOwner.FBind^.buffer_Length_address^ := Count;
   FOwner.FBind^.buffer_address^ := @Buffer;
-  Status := FOwner.FPlainDriver.mysql_stmt_fetch_column(FOwner.FStmtHandle, FOwner.FBind.mysql_bind, FOwner.FIndex, Foffset);
+  Status := FOwner.FPlainDriver.mysql_stmt_fetch_column(FOwner.FStmtHandle^, FOwner.FBind.mysql_bind, FOwner.FIndex, Foffset);
   FOwner.FBind^.buffer_Length_address^ := 0;
   FOwner.FBind^.buffer_address^ := nil;
   if Status = STMT_FETCH_ERROR then
-    checkMySQLError(FOwner.FPlainDriver, nil, FOwner.FStmtHandle^, lcOther, 'mysql_stmt_fetch_column', FOwner);
+    FOwner.FMySQLConnection.HandleErrorOrWarning(lcOther, FOwner.FStmtHandle^, 'mysql_stmt_fetch_column', Self);
   Result := Count;
   FOffSet := Foffset + ULong(Count);
 end;
@@ -2864,10 +2863,10 @@ begin
   end;
   if FOwner.FLobStreamMode = lsmRead then
     raise CreateWriteOnlyException;
-  Status := FOwner.FPlainDriver.mysql_stmt_send_long_data(FOwner.FStmtHandle, FOwner.FIndex,
+  Status := FOwner.FPlainDriver.mysql_stmt_send_long_data(FOwner.FStmtHandle^, FOwner.FIndex,
     @Buffer, Count);
   if Status = 1 then
-    checkMySQLError(FOwner.FPlainDriver, nil, FOwner.FStmtHandle, lcOther, 'mysql_stmt_send_long_data', FOwner);
+    FOwner.FMySQLConnection.HandleErrorOrWarning(lcOther, FOwner.FStmtHandle^, 'mysql_stmt_send_long_data', Self);
   Result := Count;
   FOffSet := Foffset + ULong(Result);
   FOwner.FBind.length[0] := Foffset;

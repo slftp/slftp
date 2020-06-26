@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -317,8 +317,6 @@ type
   end;
 
   TZAbstractReadOnlyResultSet = class(TZAbstractResultSet)
-  protected
-    FTinyBuffer: Array[Byte] of Byte;
   public //getter
     function GetUnicodeString(ColumnIndex: Integer): UnicodeString;
     function GetString(ColumnIndex: Integer): String;
@@ -3570,7 +3568,7 @@ begin
           else
             Result[i] := CompareNothing;
         end;
-      ckEquals: raise Exception.Create('Compare Equals is not allowed here!');
+      ckEquals: raise EZSQLException.Create('Compare Equals is not allowed here!');
     end;
 end;
 
@@ -4500,7 +4498,12 @@ jmpW2A: GetMem(Dst, (L+1) shl 1);
   finally
     FInConstructionState := True;
     inherited Destroy;
+    {$IFNDEF AUTOREFCOUNT}
     FreeAndNil(FOwnerStream);
+    {$ELSE}
+    FOwnerStream.Free;
+    FOwnerStream := nil;
+    {$ENDIF}
   end;
 end;
 
