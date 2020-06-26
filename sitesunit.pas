@@ -167,6 +167,9 @@ type
     function Mkdir(const dirtocreate: String): boolean;
     function TranslateFilename(const filename: String): String;
     function Pwd(var dir: String): boolean;
+    { Get the ident reply for an ident request
+      @returns(Ident reply for the site) }
+    function GetIdentReply: String;
 
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
@@ -305,6 +308,10 @@ type
     function GetSiteNotes: String;
     { procedure for @link(SiteNotes) property to write additional notes to inifile }
     procedure SetSiteNotes(const Value: String);
+    { function for @link(Ident) property to read ident from inifile (default value: <took from config file>) }
+    function GetSiteIdent: String;
+    { procedure for @link(Ident) property to write ident to inifile }
+    procedure SetSiteIdent(const Value: String);
 
     function GetUseForNFOdownload: integer;
     procedure SetUseForNFOdownload(Value: integer);
@@ -469,6 +476,7 @@ type
     property SiteLinkSpeed: String read GetSiteLinkSpeed write SetSiteLinkSpeed; //< link speed of site
     property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
     property SiteNotes: String read GetSiteNotes write SetSiteNotes; //< additional notes for the site
+    property Ident: String read GetSiteIdent write SetSiteIdent; //< Ident reply for the site
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
     property features: TSiteFeatures read fFeatures write fFeatures;
@@ -1997,6 +2005,10 @@ begin
   end;
 end;
 
+function TSiteSlot.GetIdentReply: String;
+begin
+  Result := site.Ident;
+end;
 
 function TSiteSlot.Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
 var
@@ -3717,6 +3729,16 @@ end;
 procedure TSite.SetSiteNotes(const Value: String);
 begin
   WCString('notes', Value);
+end;
+
+function TSite.GetSiteIdent;
+begin
+  Result := RCString('ident_response', config.ReadString('ident', 'response', 'slftpuser'));
+end;
+
+procedure TSite.SetSiteIdent(const Value: String);
+begin
+  WCString('ident_response', Value);
 end;
 
 function TSite.GetUseForNFOdownload: integer;

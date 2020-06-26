@@ -73,6 +73,7 @@
     {^} Optimized code for splitting long messages before writing to IRC
     {^} Announce reason why getting TV season and/or episode from releasename failed
     {^} Some improvements in racing mechanics and FTP response handling
+    {^} Rewritten Ident support (cross-platform)
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
