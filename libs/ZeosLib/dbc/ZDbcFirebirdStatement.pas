@@ -120,10 +120,9 @@ type
 implementation
 {$IFNDEF ZEOS_DISABLE_FIREBIRD}
 
-uses Math,
-  ZMessages, ZSysUtils, ZFastCode, ZEncoding, ZVariant,
+uses ZMessages, ZSysUtils, ZFastCode, ZEncoding, ZVariant,
   ZDbcLogging, ZDbcFirebirdResultSet, ZDbcResultSet, ZDbcCachedResultSet,
-  ZDbcUtils;
+  ZDbcUtils, ZDbcProperties;
 
 const
   EBStart = {$IFNDEF NO_ANSISTRING}AnsiString{$ELSE}RawByteString{$ENDIF}('EXECUTE BLOCK(');
@@ -275,17 +274,18 @@ begin
     end;
     Inc(SingleStmtLength, 1{;}+Length(LineEnding));
     if MaxRowsPerBatch = 0 then //calc maximum batch count if not set already
-      MaxRowsPerBatch := Min(Integer(XSQLDAMaxSize div MemPerRow),     {memory limit of XSQLDA structs}
-        Integer(((32*1024)-LBlockLen) div (HeaderLen+SingleStmtLength)))+1; {32KB limited Also with FB3};
+      MaxRowsPerBatch := {Min(}Integer(XSQLDAMaxSize div MemPerRow);//,     {memory limit of XSQLDA structs}
+        //Integer(((32*1024)-LBlockLen) div (HeaderLen+SingleStmtLength)))+1; {32KB limited Also with FB3};
     Inc(StmtLength, HeaderLen+SingleStmtLength);
     Inc(FullHeaderLen, HeaderLen);
     //we run into XSQLDA !update! count limit of 255 see:
     //http://tracker.firebirdsql.org/browse/CORE-3027?page=com.atlassian.jira.plugin.system.issuetabpanels%3Aall-tabpanel
-    if (PreparedRowsOfArray = MaxRowsPerBatch-1) or
-       ((InitialStatementType = stInsert) and (PreparedRowsOfArray > 255)) or
-       ((InitialStatementType <> stInsert) and (PreparedRowsOfArray > 125)) then begin
+    if //(PreparedRowsOfArray = MaxRowsPerBatch-1) or
+       ((InitialStatementType = stInsert) and (PreparedRowsOfArray = 254)) or
+       ((InitialStatementType <> stInsert) and (PreparedRowsOfArray = 124)) then begin
       StmtLength := LastStmLen;
       Dec(FullHeaderLen, HeaderLen);
+      MaxRowsPerBatch := J;
       Break;
     end else
       PreparedRowsOfArray := J;
@@ -399,8 +399,9 @@ begin
         FInMessageMetadata, FInData, FOutMessageMetadata, flags)
     end else FFBTransaction := FFBStatement.execute(FStatus, FFBTransaction,
       FInMessageMetadata, FInData, FOutMessageMetadata, FOutData);
-    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-      FFBConnection.HandleError(FStatus, fASQL, Self, lcExecute);
+    if ((FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) or
+       ((FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_WARNINGS{$ELSE}IStatus_STATE_WARNINGS{$ENDIF}) <> 0)  then
+      FFBConnection.HandleErrorOrWarning(lcExecPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), fASQL, Self);
   end else ExceuteBatch;
 end;
 
@@ -489,7 +490,7 @@ begin
         end else if FResultSet <> nil then begin
           FResultSet.Close(FStatus);
           if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-            FFBConnection.HandleError(FStatus, fASQL, Self, lcExecute);
+            FFBConnection.HandleErrorOrWarning(lcExecPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), fASQL, Self);
           FResultSet.Release;
         end;
       stExecProc: begin{ Create ResultSet if possible }
@@ -515,6 +516,7 @@ var Transaction: ITransaction;
   flags: Cardinal;
   PreparedRowsOfArray: Integer;
   FinalChunkSize: Integer;
+  TimeOut: Cardinal;
 label jmpEB;
   procedure PrepareArrayStmt(var Slot: TZIB_FBStmt);
   begin
@@ -569,7 +571,15 @@ begin
     FFBStatement := FAttachment.prepare(FStatus, Transaction, Length(fASQL),
       Pointer(fASQL), FDialect, flags);
     if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-      FFBConnection.HandleError(FStatus, fASQL, Self, lcExecute);
+      FFBConnection.HandleErrorOrWarning(lcPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), fASQL, Self);
+    if FFBStatement.vTable.version > 3 then begin
+      TimeOut := StrToInt(DefineStatementParameter(Self, DSProps_StatementTimeOut, '0'));
+      if TimeOut <> 0 then begin
+        IStatement_V4(FFBStatement).setTimeout(FStatus, TimeOut);
+        if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+          FFBConnection.HandleErrorOrWarning(lcPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), fASQL, Self);
+      end;
+    end;
     FStatementType := TZIbSqlStatementType(FFBStatement.getType(FStatus));
     FOutMessageMetadata := FFBStatement.getOutputMetadata(FStatus);
     FOutMessageCount := FOutMessageMetadata.getCount(FStatus);
@@ -685,7 +695,7 @@ begin
   if FFBStatement <> nil then begin
     FFBStatement.free(FStatus);
     if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-      FFBConnection.HandleError(FStatus, fASQL, Self, lcExecute);
+      FFBConnection.HandleErrorOrWarning(lcUnprepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), fASQL, Self);
     FFBStatement.release;
     FFBStatement := nil;
   end;
@@ -715,14 +725,14 @@ begin
         SegLen := Len - CurPos;
       Blob.putSegment(FStatus, SegLen, P);
       if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-        FFBConnection.HandleError(FStatus, 'IBlob.putSegment', Self, lcExecute);
+        FFBConnection.HandleErrorOrWarning(lcBindPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.putSegment', Self);
       Inc(CurPos, SegLen);
       Inc(P, SegLen);
     end;
     { close blob handle }
     Blob.close(FStatus);
     if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
-      FFBConnection.HandleError(FStatus, 'IBlob.close', Self, lcExecute);
+      FFBConnection.HandleErrorOrWarning(lcBindPrepStmt, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.close', Self);
     Blob.release;
     sqlind^ := ISC_NOTNULL;
   end;
