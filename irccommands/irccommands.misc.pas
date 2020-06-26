@@ -260,30 +260,25 @@ end;
 
 function IrcIdent(const netname, channel, params: String): boolean;
 var
-  ss, sitename: String;
+  fSitename: String;
   s: TSite;
-  ident: String;
+  fIdent: String;
 begin
   Result := False;
-  sitename := UpperCase(SubString(params, ' ', 1));
-  ident := mystrings.RightStr(params, length(sitename) + 1);
+  fSitename := UpperCase(SubString(params, ' ', 1));
+  fIdent := mystrings.RightStr(params, Length(fSitename) + 1);
 
-  s := FindSiteByName(Netname, sitename);
+  s := FindSiteByName(Netname, fSitename);
   if s = nil then
   begin
-    irc_addtext(Netname, Channel, 'Site %s not found.', [sitename]);
+    irc_addtext(Netname, Channel, 'Site %s not found.', [fSitename]);
     exit;
   end;
 
-  // TODO: Add property, seems it's never read from TSite! only from TSiteSlot...
-  if ident <> '' then
-    s.WCString('ident', ident)
-  else
-    s.DeleteKey('ident');
+  if fIdent <> '' then
+    s.Ident := fIdent;
 
-  ss := s.RCString('ident', config.ReadString(section, 'response', 'rsctm'));
-  if ss <> '' then
-    irc_addtext(Netname, Channel, 'Ident reply for %s is %s', [sitename, ss]);
+  irc_addtext(Netname, Channel, 'Ident reply for %s is %s', [fSitename, s.Ident]);
 
   Result := True;
 end;
