@@ -52,7 +52,7 @@ var
 implementation
 
 uses
-  ident, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
+  identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
@@ -82,6 +82,7 @@ function Main_Init: String;
 var
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
   fOpenSSLVersion: String;
+  fError: String;
 begin
   Result := '';
 
@@ -142,7 +143,7 @@ begin
     exit;
   end;
 
-  //< initialize global SQLite3 object for API calls (only load from current dir)
+  // initialize global SQLite3 object for API calls (only load from current dir)
   try
     sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
   except
@@ -214,6 +215,12 @@ begin
     end;
   {$ENDIF}
 
+  fError := IdentServerInit;
+  if fError <> '' then
+  begin
+    Result := Format('Unable to start ident server! %s%s', [sLineBreak, fError]);
+    exit;
+  end;
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
@@ -437,7 +444,6 @@ begin
   MidnightStart;
   SkiplistStart;
   KnowngroupsStart;
-  IdentStart();
   RulesStart();
   FakeStart();
   kb_Start();
@@ -459,7 +465,7 @@ begin
   NukeSave;
   SpeedStatsSave;
   //  EPrecatcherStop;
-  IdentStop();
+  IdentServerStop;
   IrcStop();
   kb_Save();
   kb_Stop;
@@ -473,8 +479,6 @@ begin
   (*
     // Looks like this was an attempt to ensure a clean exit when everything is shut down
     while
-      (myIdentserver <> nil)
-      or
       (kb_thread <> nil)
       or
       (myIrcThreads.Count <> 0)
