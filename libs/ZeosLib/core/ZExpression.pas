@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -55,7 +55,7 @@ interface
 
 {$I ZCore.inc}
 
-uses SysUtils, Classes, {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Contnrs, {$ENDIF}
+uses SysUtils, Classes, {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
   ZClasses, ZCompatibility, ZVariant, ZTokenizer, ZExprParser;
 
 type

@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -81,6 +81,9 @@ type
       const OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver);
     {END of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
     procedure RefreshCurrentRow(const Sender: IZCachedResultSet; RowAccessor: TZRowAccessor); //FOS+ 07112006
+
+    procedure SetReadOnlyTransaction(const Value: IZTransaction);
+    procedure SetReadWriteTransaction(const Value: IZTransaction);
   end;
 
   {** Represents a cached result set. }
@@ -2375,8 +2378,14 @@ end;
   Opens this recordset.
 }
 procedure TZCachedResultSet.Open;
+var
+  Statement: IZStatement;
 begin
-  FCachedLobs := StrToBoolEx(DefineStatementParameter(ResultSet.GetStatement, DSProps_CachedLobs, 'false'));
+  Statement := ResultSet.GetStatement;
+  if Assigned(Statement) then
+    FCachedLobs := StrToBoolEx(DefineStatementParameter(Statement, DSProps_CachedLobs, 'false'))
+  else
+    FCachedLobs := False;
   ColumnsInfo.Clear;
   FillColumnsInfo(ColumnsInfo);
   inherited Open;
@@ -2424,11 +2433,17 @@ begin
 end;
 
 procedure TZCachedResultSet.ResetCursor;
+var
+  Statement: IZStatement;
 begin
   if not Closed then begin
     If Assigned(FResultset) then begin
       FResultset.ResetCursor;
-      FCachedLobs := StrToBoolEx(DefineStatementParameter(ResultSet.GetStatement, DSProps_CachedLobs, 'false'));
+      Statement := ResultSet.GetStatement;
+      if Assigned(Statement) then
+        FCachedLobs := StrToBoolEx(DefineStatementParameter(Statement, DSProps_CachedLobs, 'false'))
+      else
+        FCachedLobs := false;
       FRowAccessor.CachedLobs := FCachedLobs;
       FOldRowAccessor.CachedLobs := FCachedLobs;
       FNewRowAccessor.CachedLobs := FCachedLobs;

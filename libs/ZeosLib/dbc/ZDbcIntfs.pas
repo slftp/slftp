@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -105,6 +105,8 @@ type
     property SpecificData: TZExceptionSpecificData read FSpecificData; // Engine-specific data
   end;
 
+  EZSQLThrowableClass = class of EZSQLThrowable;
+
   {** Generic SQL exception. }
   EZSQLException = class(EZSQLThrowable);
 
@@ -113,6 +115,14 @@ type
 
   {** Reqquested operation is not (yet) supported by Zeos }
   EZUnsupportedException = class(EZSQLException);
+
+  /// <summary>
+  ///   Generic connection lost exception.
+  /// </summary>
+  EZSQLConnectionLost = class(EZSQLException);
+
+  TOnConnectionLostError = procedure(var AError: EZSQLConnectionLost) of Object;
+  TOnConnect = procedure of Object;
 
   {** hold some connection parameters }
   PZConSettings = ^TZConSettings;
@@ -139,7 +149,17 @@ type
     function GetConSettings: PZConSettings;
   end;
 
-type
+  {** a base class for most dbc-layer objects }
+
+  { TZImmediatelyReleasableObject }
+
+  TZImmediatelyReleasableObject = Class(TZCodePagedObject)
+  protected
+    FWeakImmediatRelPtr: Pointer;
+  public
+    procedure AfterConstruction; override;
+  end;
+
   // List of URL properties that could operate with URL-escaped strings
   TZURLStringList = Class(TStringList)
   protected
@@ -313,21 +333,19 @@ type
     spInformix, spCUBRID, spFoxPro);
 
   /// <summary>
-  ///   Generic connection lost exception.
-  /// </summary>
-  EZSQLConnectionLost = class(EZSQLException);
-
-  TOnConnectionLostError = procedure(var AError: EZSQLConnectionLost) of Object;
-  TOnConnect = procedure of Object;
-
-  /// <summary>
   ///  Defines a LOB stream mode.
   /// </summary>
   TZLobStreamMode = (lsmRead, lsmWrite, lsmReadWrite);
 
+  PByteBuffer = ^TByteBuffer;
+  TByteBuffer = array[0..1024] of Byte;
+
+  PWordBuffer = ^TWordBuffer;
+  TWordBuffer = array[0..512] of Word;
+
+
 // Interfaces
 type
-
   // Forward declarations
   IZDriverManager = interface;
   IZDriver = interface;
@@ -531,24 +549,40 @@ type
     function GetStatementAnalyser: IZStatementAnalyser;
   end;
 
-  IZTransaction = interface(IZInterface)
-    ['{501FDB3C-4D44-4BE3-8BB3-547976E6500E}']
-    procedure Commit;
-    procedure Rollback;
-  end;
-
-  IZTransactionManager = interface(IZInterface)
-    ['{BF61AD03-1072-473D-AF1F-67F90DFB4E6A}']
-    function CreateTransaction(AutoCommit, ReadOnly: Boolean;
-      TransactIsolationLevel: TZTransactIsolationLevel; Params: TStrings): IZTransaction;
-    procedure ReleaseTransaction(const Transaction: IZTransaction);
-    procedure SetActiveTransaction(const Transaction: IZTransaction);
-  end;
-
   IImmediatelyReleasable = interface(IZInterface)
     ['{7AA5A5DA-5EC7-442E-85B0-CCCC71C13169}']
     procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
     function GetConSettings: PZConSettings;
+  end;
+
+  IZTransaction = interface(IImmediatelyReleasable)
+    ['{501FDB3C-4D44-4BE3-8BB3-547976E6500E}']
+    procedure Commit;
+    procedure Rollback;
+    /// <summary>
+    ///  Starts transaction support or saves the current transaction.
+    ///  If the connection is closed, the connection will be opened.
+    ///  If a transaction is underway a nested transaction or a savepoint will be spawned.
+    ///  While the tranaction(s) is/are underway the AutoCommit property is set to False.
+    ///  Ending up the transaction with a commit/rollback the autocommit property will be restored
+    ///  if changing the autocommit mode was triggered by a starttransaction call.
+    /// </summary>
+    /// <returns>
+    ///  Returns the current txn-level. 1 means a transaction was started.
+    ///  2 means the transaction was saved. 3 means the previous savepoint got saved too and so on
+    /// </returns>
+    function StartTransaction: Integer;
+    function GetConnection: IZConnection;
+    function GetTransactionLevel: Integer;
+  end;
+
+  IZTransactionManager = interface(IImmediatelyReleasable)
+    ['{BF61AD03-1072-473D-AF1F-67F90DFB4E6A}']
+    function CreateTransaction(AutoCommit, ReadOnly: Boolean;
+      TransactIsolationLevel: TZTransactIsolationLevel; Params: TStrings): IZTransaction;
+    procedure ReleaseTransaction(const Transaction: IZTransaction);
+    function GetTransactionCount: Integer;
+    function GetTransaction(Index: Cardinal): IZTransaction;
   end;
 
   {** Implements a variant manager with connection related convertion rules. }
@@ -1965,6 +1999,17 @@ type
     procedure AddGarbage(const Value: IZInterface);
     procedure ClearGarbageCollector;
   end;
+
+{ TZImmediatelyReleasableObject }
+
+procedure TZImmediatelyReleasableObject.AfterConstruction;
+var imm: IImmediatelyReleasable;
+begin
+  QueryInterface(IImmediatelyReleasable, imm);
+  FWeakImmediatRelPtr := Pointer(imm);
+  imm := nil;
+  inherited AfterConstruction; //release constructor RefCnt
+end;
 
 { TZDriverManager }
 
