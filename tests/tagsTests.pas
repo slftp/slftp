@@ -27,6 +27,7 @@ type
     procedure TestTagComplete13;
     procedure TestTagComplete14;
     procedure TestTagComplete15;
+    procedure TestTagComplete16;
   end;
 
 implementation
@@ -168,6 +169,15 @@ var
 begin
   fExpected := Ord(tctCOMPLETE);
   fResult := Ord(TagComplete('100% complete'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete16;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[ 132M 8F - COMPLETE ]'));
   CheckEquals(fExpected, fResult);
 end;
 
