@@ -1383,7 +1383,6 @@ begin
           begin
             irc_AddINFO('[iNFO] PRET needed for: ' + ssrc.Name);
             ssrc.site.sw := sswDrftpd;
-            ssrc.site.legacydirlist := True;
             goto TryAgain;
           end;
           if ((RequireSSL) and (0 < Pos('understood', lastResponse))) then
@@ -1538,7 +1537,9 @@ begin
 
   if ((lastResponseCode = 500) and (0 <> Pos('You need to use a client supporting PRET', lastResponse))) then
   begin
+    irc_AddINFO('[iNFO] PRET needed for: ' + sdst.Name);
     sdst.site.sw := sswDrftpd;
+    goto TryAgain;
   end;
 
 
