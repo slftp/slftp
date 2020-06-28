@@ -1451,16 +1451,21 @@ begin
       exit;
     end;
 
-    de := dl.Find(filename);
-    if de <> nil then
-    begin
-      de.error := True;
-    end
-    else
-    begin
-      de := TDirListEntry.Create(filename, dl);
-      de.error := True;
-      dl.entries.Add(de);
+    dl.dirlist_lock.Enter;
+    try
+      de := dl.Find(filename);
+      if de <> nil then
+      begin
+        de.error := True;
+      end
+      else
+      begin
+        de := TDirListEntry.Create(filename, dl);
+        de.error := True;
+        dl.entries.Add(de);
+      end;
+    finally
+      dl.dirlist_lock.Leave;
     end;
 
     Result := True;
