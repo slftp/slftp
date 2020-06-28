@@ -409,9 +409,14 @@ end;
 
 destructor TDirList.Destroy;
 begin
-  entries.Free;
-  dirlist_lock.Free;
   skipped.Free;
+  dirlist_lock.Enter;
+  try
+    entries.Free;
+  finally
+    dirlist_lock.Leave;
+  end;
+  dirlist_lock.Free;
   inherited;
 end;
 
@@ -1186,16 +1191,21 @@ begin
       lastdir := '';
     end;
 
-    d := Find(firstdir);
-    if d = nil then
-    begin
-      if not createit then
+    dirlist_lock.Enter;
+    try
+      d := Find(firstdir);
+      if d = nil then
       begin
-        exit;
+        if not createit then
+        begin
+          exit;
+        end;
+        d := TDirListEntry.Create(firstdir, self);
+        d.Directory := True;
+        entries.Add(d);
       end;
-      d := TDirListEntry.Create(firstdir, self);
-      d.Directory := True;
-      entries.Add(d);
+    finally
+      dirlist_lock.Leave;
     end;
 
     if (not d.Directory) then
