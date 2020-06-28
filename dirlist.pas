@@ -409,10 +409,15 @@ end;
 
 destructor TDirList.Destroy;
 begin
-  entries.Free;
-  dirlist_lock.Free;
   skipped.Free;
-  inherited;
+  dirlist_lock.Enter;
+  try
+    entries.Free;
+  finally
+    dirlist_lock.Leave;
+    dirlist_lock.Free;
+    inherited;
+  end;
 end;
 
 procedure TDirList.SetSkiplists;
