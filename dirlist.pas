@@ -415,9 +415,9 @@ begin
     entries.Free;
   finally
     dirlist_lock.Leave;
-    dirlist_lock.Free;
-    inherited;
   end;
+  dirlist_lock.Free;
+  inherited;
 end;
 
 procedure TDirList.SetSkiplists;
