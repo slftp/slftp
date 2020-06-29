@@ -46,11 +46,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(4, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('4CD', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckTrue(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(4, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('4CD', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckTrue(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -69,11 +69,11 @@ begin
     CheckEqualsString('WEB', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -92,11 +92,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('MAG', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckTrue(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckTrue(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -115,11 +115,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('Bootleg', fTypes, 'types mismatch');
-    CheckEquals(4, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('4CD', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckTrue(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(4, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('4CD', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckTrue(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -138,11 +138,11 @@ begin
     CheckEqualsString('WEB', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -161,11 +161,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -184,11 +184,11 @@ begin
     CheckEqualsString('WEB', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -207,11 +207,11 @@ begin
     CheckEqualsString('VINYL', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('LP, REISSUE', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -230,11 +230,11 @@ begin
     CheckEqualsString('WEB', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckTrue(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckTrue(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -253,11 +253,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('PROMO, EP, Demo', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -276,11 +276,11 @@ begin
     CheckEqualsString('WEB', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('Live', fTypes, 'types mismatch');
-    CheckEquals(1, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckTrue(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckTrue(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
@@ -299,11 +299,11 @@ begin
     CheckEqualsString('CD', fClass.mp3source, 'source mismatch');
     fTypes := String.Join(', ', fClass.mp3types.ToArray);
     CheckEqualsString('', fTypes, 'types mismatch');
-    CheckEquals(2, fClass.mp3_numdisks, 'numdisks mismatch');
-    CheckEqualsString('2CD', fClass.mp3_numdisks_word, 'numdisks_word mismatch');
-    CheckFalse(fClass.mp3_va, 'va mismatch');
-    CheckFalse(fClass.mp3_bootleg, 'Bootleg mismatch');
-    CheckFalse(fClass.mp3_live, 'mp3_live mismatch');
+    CheckEquals(2, fClass.mp3numdisks, 'numdisks mismatch');
+    CheckEqualsString('2CD', fClass.mp3numdisksword, 'numdisks_word mismatch');
+    CheckFalse(fClass.mp3va, 'va mismatch');
+    CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
+    CheckFalse(fClass.mp3live, 'mp3live mismatch');
   finally
     fClass.Free;
   end;
