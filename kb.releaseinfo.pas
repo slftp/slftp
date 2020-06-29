@@ -183,11 +183,11 @@ type
     property mp3lng: String read FMP3Language;
     property mp3source: String read FMP3Source;
     property mp3types: TList<String> read FMP3Types;
-    property mp3_numdisks: Integer read FMP3NumDisks;
-    property mp3_numdisks_word: String read FMP3NumDisksWord;
-    property mp3_va: Boolean read FMP3IsVariousArtists;
-    property mp3_bootleg: Boolean read FMP3IsBootleg;
-    property mp3_live: Boolean read FMP3IsLive;
+    property mp3numdisks: Integer read FMP3NumDisks;
+    property mp3numdisksword: String read FMP3NumDisksWord;
+    property mp3va: Boolean read FMP3IsVariousArtists;
+    property mp3bootleg: Boolean read FMP3IsBootleg;
+    property mp3live: Boolean read FMP3IsLive;
   end;
 
   { @abstract(Class with support for release information which are parsed from NFO file) }
@@ -1113,10 +1113,10 @@ begin
     fTypes := String.Join(', ', mp3types.ToArray);
     Result := Result + Format('Type(s): %s', [fTypes]) + #13#10;
 
-    Result := Result + Format('Disks: %d', [mp3_numdisks]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mp3_va, True)]) + #13#10;
-    Result := Result + Format('Bootleg: %s', [BoolToStr(mp3_bootleg, True)]) + #13#10;
-    Result := Result + Format('Live: %s', [BoolToStr(mp3_live, True)]) + #13#10;
+    Result := Result + Format('Disks: %d', [mp3numdisks]) + #13#10;
+    Result := Result + Format('VA: %s', [BoolToStr(mp3va, True)]) + #13#10;
+    Result := Result + Format('Bootleg: %s', [BoolToStr(mp3bootleg, True)]) + #13#10;
+    Result := Result + Format('Live: %s', [BoolToStr(mp3live, True)]) + #13#10;
   except
     on e: Exception do
     begin

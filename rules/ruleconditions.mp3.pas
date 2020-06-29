@@ -246,7 +246,7 @@ begin
   Result := False;
   try
     if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3_live;
+      Result := TMP3Release(r.rls).mp3live;
   except
     Result := False;
   end;
@@ -301,7 +301,7 @@ begin
   Result := False;
   try
     if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3_bootleg;
+      Result := TMP3Release(r.rls).mp3bootleg;
   except
     Result := False;
   end;
@@ -324,7 +324,7 @@ begin
   Result := 1;
   try
     if r.rls is TMP3Release then
-      Result := TMP3Release(r.rls).mp3_numdisks;
+      Result := TMP3Release(r.rls).mp3numdisks;
   except
     Result := 1;
   end;
@@ -347,7 +347,7 @@ begin
   Result := False;
   try
     if (r.rls is TMP3Release) then
-      Result := TMP3Release(r.rls).mp3_va;
+      Result := TMP3Release(r.rls).mp3va;
   except
     Result := False;
   end;

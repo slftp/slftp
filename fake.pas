@@ -375,7 +375,7 @@ begin
   // words.Count - 1 is the groupname -> ignore it
   for i := 0 to r.words.Count - 2 do
   begin
-    if (r.mp3_numdisks_word = r.words[i]) then
+    if (r.mp3numdisksword = r.words[i]) then
       Break; // we don't care about infos like year, source, etc
 
     j := OccurrencesOfNumbers(r.words[i]);
