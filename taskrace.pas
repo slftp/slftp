@@ -1244,6 +1244,16 @@ begin
           ssrc.Quit;
           goto TryAgain;
         end;
+      426:
+      begin
+        //426- Accept timed out
+        if (0 <> Pos('Accept timed out', lastResponse)) then
+        begin
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      end;
       530:
       begin
         //530 - Not logged in.
@@ -1407,6 +1417,19 @@ begin
           begin
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
             goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 550 file.rar: No such file or directory.
+          if (0 <> Pos('No such file or directory', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            begin
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+            end;
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            mainpazo.errorreason := 'No such file';
+            readyerror := True;
+            exit;
           end;
         end;
 
@@ -1746,7 +1769,6 @@ begin
 
           if ( (0 < Pos('maximum simultaneous uploads', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
-            //TODO add reached_max_sim_up to spamconf
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
 
@@ -1830,6 +1852,18 @@ begin
           if (0 < Pos('No space left on device', lastResponse)) then
           begin
             _setOutOfSpace(sdst, 'No space left on device');
+            exit;
+          end;
+
+          //550 Your have reached your maximum of 3 simultaneous uploads. Transfer denied.
+          if 0 < Pos('Your have reached your maximum of', lastResponse) then
+          begin
+            if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
+
+            mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
 
