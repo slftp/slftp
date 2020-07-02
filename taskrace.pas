@@ -1422,7 +1422,7 @@ begin
           //COMPLETE MSG: 550 file.rar: No such file or directory.
           if (0 <> Pos('No such file or directory', lastResponse)) then
           begin
-          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
             begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
             end;
