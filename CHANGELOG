@@ -42,7 +42,8 @@
     1. compare your slftp.ini with the provided one in /dist folder
     2. update your helpfiles with the provided ones in /dist/help folder
     3. verify that all your regexes are valid and don't throw errors during running
-       as TRegExpr allowed invalid regexes before
+       as TRegExpr allowed invalid regexes before. E.g. range [.-_] is no longer working and
+       must be changed to for example [.\-_] or [-._]
     4. delete your slftp.kb file which is needed due to some internal changes
     5. enjoy!
 
@@ -65,6 +66,7 @@
     {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
     {#} Sometimes files that should have been skipped were transfered anyway
     {#} mp3numdisks took the wrong value, e.g. VA-Serious_Beats_92-(541833CD)-4CD-FLAC-2019-WRE
+    {#} Fix some dirlist related access violations
     {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
@@ -74,6 +76,8 @@
     {^} Announce reason why getting TV season and/or episode from releasename failed
     {^} Some improvements in racing mechanics and FTP response handling
     {^} Rewritten Ident support (cross-platform)
+    {^} Use up to half of a site's slots for dirlist in case of multiple simultaneous races
+    {-} Remove auto-set of legacydirlist in case of 'PRET required' FTP response
 
 --=============================( SLFTP v1.5.6 )===================================-
  ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
