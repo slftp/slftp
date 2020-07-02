@@ -1244,6 +1244,16 @@ begin
           ssrc.Quit;
           goto TryAgain;
         end;
+      426:
+      begin
+        //426- Accept timed out
+        if (0 <> Pos('Accept timed out', lastResponse)) then
+        begin
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          goto TryAgain;
+        end;
+      end;
       530:
       begin
         //530 - Not logged in.
