@@ -1856,6 +1856,18 @@ begin
             exit;
           end;
 
+          //550 Your have reached your maximum of 3 simultaneous uploads. Transfer denied.
+          if 0 < Pos('Your have reached your maximum of', lastResponse) then
+          begin
+            if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
+
+            mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
+            readyerror := True;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
