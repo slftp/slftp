@@ -1769,7 +1769,6 @@ begin
 
           if ( (0 < Pos('maximum simultaneous uploads', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
-            //TODO add reached_max_sim_up to spamconf
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
 
