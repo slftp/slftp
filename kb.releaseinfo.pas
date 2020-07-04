@@ -326,6 +326,13 @@ type
     function Aktualizald(const extrainfo: String): boolean; override;
     function Aktualizal(p: TObject): boolean; override;
 
+    { Sets class variables with infos which are fetched by the MVID task
+      @param(aFileCount Amount of files in SFV)
+      @param(aIsVideoRegionPAL Should be @true if video source is PAL, otherwise @false)
+      @param(aIsVideoRegionNTSC Should be @true if video source is NTSC, otherwise @false)
+      @param(aGenreList List of Genres without any special characters) }
+    procedure SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
+
     { Get values of class variables as formatted text (includes information of inherited class)
       @param(aPazoID ID of the associated Pazo)
       @returns(Formatted text of all collected information) }
@@ -1647,6 +1654,19 @@ begin
   end;
 
   // aktualizalva := True;
+end;
+
+procedure TMVIDRelease.SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
+var
+  fGenre: String;
+begin
+  FMVIDFileCount := aFileCount;
+
+  FMVIDIsPAL := aIsVideoRegionPAL;
+  FMVIDIsNTSC := aIsVideoRegionNTSC;
+
+  for fGenre in aGenreList do
+    FMVIDGenre.Add(fGenre);
 end;
 
 function TMVIDRelease.AsText(const aPazoID: Integer): String;
