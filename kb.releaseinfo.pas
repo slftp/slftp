@@ -1100,23 +1100,23 @@ var
 begin
   Result := inherited AsText(aPazoID);
   try
-    Result := Result + Format('Year: %d', [mp3year]) + #13#10;
-    Result := Result + Format('Language: %s', [mp3lng]) + #13#10;
+    Result := Result + Format('MP3 Year: %d', [mp3year]) + #13#10;
+    Result := Result + Format('MP3 Language: %s', [mp3lng]) + #13#10;
 
     if mp3genre <> '' then
-      Result := Result + Format('Genre: %s', [mp3genre]) + #13#10
+      Result := Result + Format('MP3 Genre: %s', [mp3genre]) + #13#10
     else
-      Result := Result + 'Genre:' + #13#10;
+      Result := Result + 'MP3 Genre:' + #13#10;
 
-    Result := Result + Format('Source: %s', [mp3source]) + #13#10;
+    Result := Result + Format('MP3 Source: %s', [mp3source]) + #13#10;
 
     fTypes := String.Join(', ', mp3types.ToArray);
-    Result := Result + Format('Type(s): %s', [fTypes]) + #13#10;
+    Result := Result + Format('MP3 Type(s): %s', [fTypes]) + #13#10;
 
-    Result := Result + Format('Disks: %d', [mp3numdisks]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mp3va, True)]) + #13#10;
-    Result := Result + Format('Bootleg: %s', [BoolToStr(mp3bootleg, True)]) + #13#10;
-    Result := Result + Format('Live: %s', [BoolToStr(mp3live, True)]) + #13#10;
+    Result := Result + Format('MP3 Disks: %d', [mp3numdisks]) + #13#10;
+    Result := Result + Format('MP3 VA: %s', [BoolToStr(mp3va, True)]) + #13#10;
+    Result := Result + Format('MP3 Bootleg: %s', [BoolToStr(mp3bootleg, True)]) + #13#10;
+    Result := Result + Format('MP3 Live: %s', [BoolToStr(mp3live, True)]) + #13#10;
   except
     on e: Exception do
     begin
