@@ -55,6 +55,7 @@ type
   end;
 
   TConditionMVIDLanguage = class(TStringCondition)
+    function Verify(const s: String): boolean; override;
     function SupplyValue(r: TPazo): String; override;
     class function Name: String; override;
     class function Description: String; override;
@@ -63,7 +64,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, kb.releaseinfo, debugunit;
+  SysUtils, Contnrs, kb.releaseinfo, debugunit, sllanguagebase;
 
 const
   dsection = 'rules.mvid';
@@ -75,8 +76,8 @@ const
 procedure TConditionMVIDGenre.SupplyValues(r: TPazo; re: TStringList);
 begin
   try
-    if r.rls is TMVIDRelease then
-      re.Assign(TMvidRelease(r.rls).mvid_Genre);
+    if (r.rls is TMVIDRelease) then
+      re.Assign(TMVIDRelease(r.rls).mvidgenre);
   except
     on E: Exception do
     begin
@@ -102,8 +103,9 @@ end;
 function TConditionMVIDFiles.SupplyValue(r: TPazo): integer;
 begin
   Result := -1;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).FileCount;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidfiles;
 end;
 
 class function TConditionMVIDFiles.Name: String;
@@ -121,8 +123,9 @@ end;
 function TConditionMVIDYear.SupplyValue(r: TPazo): integer;
 begin
   Result := 0;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_year;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidyear;
 end;
 
 class function TConditionMVIDYear.Name: String;
@@ -142,9 +145,7 @@ begin
   Result := False;
 
   if (r.rls is TMVIDRelease) then
-  begin
-    Result := (TMVIDRelease(r.rls).mvid_year = r.rls.CurrentYear);
-  end;
+    Result := (TMVIDRelease(r.rls).mvidyear = r.rls.CurrentYear);
 end;
 
 class function TConditionMVIDCurrentYear.Name: String;
@@ -162,8 +163,9 @@ end;
 function TConditionMVIDVA.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_va;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidva;
 end;
 
 class function TConditionMVIDVA.Name: String;
@@ -181,8 +183,9 @@ end;
 function TConditionMVIDPAL.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_pal;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidpal;
 end;
 
 class function TConditionMVIDPAL.Name: String;
@@ -200,8 +203,9 @@ end;
 function TConditionMVIDNTSC.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_ntsc;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidntsc;
 end;
 
 class function TConditionMVIDNTSC.Name: String;
@@ -219,8 +223,9 @@ end;
 function TConditionMVIDLIVE.SupplyValue(r: TPazo): boolean;
 begin
   Result := False;
-  if r.rls is TMVIDRelease then
-    Result := TMVIDRelease(r.rls).mvid_live;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidlive;
 end;
 
 class function TConditionMVIDLIVE.Name: String;
@@ -234,15 +239,22 @@ begin
 end;
 
 { TConditionMVIDLanguage }
-// TODO: use verify stuff as we do for TConditionMP3Language.Verify
-function TConditionMVIDLanguage.SupplyValue(r: TPazo): String;
+
+function TConditionMVIDLanguage.Verify(const s: String): boolean;
 begin
   try
-    if r.rls is TMVIDRelease then
-      Result := TMVIDRelease(r.rls).language;
+    Result := VerifyMusicLanguage(s);
   except
-    Result := '';
+    Result := False;
   end;
+end;
+
+function TConditionMVIDLanguage.SupplyValue(r: TPazo): String;
+begin
+  Result := '';
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).mvidlanguage;
 end;
 
 class function TConditionMVIDLanguage.Name: String;

@@ -41,13 +41,13 @@ var
 begin
   fClass := TMVIDRelease.Create('The_Big_3_Palladium_Orchestra-Live_At_39th_Internationale_Jazzwoche_Burghausen_2008-03-07-ES-x264-2008-gFViD', 'MVID');
   try
-    CheckEquals(23, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2008, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(23, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2008, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -59,13 +59,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Lauv-MTV_Live_2020-1080p-x264-2020-SRPx', 'MVID');
   try
-    CheckEquals(4, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2020, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(4, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2020, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -77,13 +77,13 @@ var
 begin
   fClass := TMVIDRelease.Create('The_Living_End-Live_At_Berlin_Live_2018-02-18-x264-2018-gFViD', 'MVID');
   try
-    CheckEquals(52, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2018, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2018, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -95,13 +95,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Momoiro_Clover_Z-Hakkin_no_Yoake-JA-BLURAY-RETAIL-x264-2016-DARKFLiX', 'MVID');
   try
-    CheckEquals(52, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2016, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -113,13 +113,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Carousel_Kings-Bad_Habit-DDC-720p-x264-2016-LOVERS_iNT', 'MVID');
   try
-    CheckEquals(3, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2016, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(3, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -131,13 +131,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Juliette_Armanet-Live_W9_Garden_Concert_(2017-09-09)-FR-x264-2017-iUF', 'MVID');
   try
-    CheckEquals(1, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2017, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -149,13 +149,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Skrillex_And_Poo_Bear-Would_You_Ever-DVDRip-x264-2017-SRPx', 'MVID');
   try
-    CheckEquals(3, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2017, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(3, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -167,13 +167,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Pimpinela.Las.Numero.1.2006.ES.NTSC.BONUS.COMPLETE.INTERNAL.MDVDR-NORTE', 'MDVDR');
   try
-    CheckEquals(50, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckFalse(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckFalse(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2006, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(50, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckFalse(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckFalse(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2006, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -185,13 +185,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Krabathor.Rebirth.Of.Brutality.Live.In.Uherske.Hradiste.2015.PAL.2DiSC.BONUS.MDVDR-AURORA', 'MDVDR');
   try
-    CheckEquals(50, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckFalse(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2015, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(50, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2015, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -203,13 +203,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Twisted.Sister.Metal.Meltdown.Live.From.The.Hard.Rock.Casino.Las.Vegas.2016.DVD9.NTSC.MDVDR-RUiL', 'MDVDR');
   try
-    CheckEquals(81, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckFalse(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2016, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(81, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckFalse(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -221,13 +221,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Bohemian.Rhapsody.The.Complete.Live.Aid.Movie.Performance.2018.2160p.UHD.MBluRay.x265-HFPA', 'MBLURAY');
   try
-    CheckEquals(90, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckTrue(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2018, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(90, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckTrue(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2018, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -239,13 +239,13 @@ var
 begin
   fClass := TMVIDRelease.Create('Belcea.Quartet.Beethoven.The.Complete.String.Quartets.DiSC.1.2012.COMPLETE.MBLURAY-EUROARTS', 'MBLURAY');
   try
-    CheckEquals(63, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckFalse(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2012, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(63, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckFalse(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2012, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -257,13 +257,13 @@ var
 begin
   fClass := TMVIDRelease.Create('New.Years.Eve.Concert.2019.2020.720p.MBLURAY.x264-MBLURAYFANS', 'MBLURAY');
   try
-    CheckEquals(52, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckTrue(fClass.mvid_pal, 'PAL mismatch');
-    CheckTrue(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckFalse(fClass.mvid_va, 'Various Artists mismatch');
-    CheckFalse(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2020, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckTrue(fClass.mvidpal, 'PAL mismatch');
+    CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
+    CheckFalse(fClass.mvidva, 'Various Artists mismatch');
+    CheckFalse(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2020, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;
@@ -275,13 +275,13 @@ var
 begin
   fClass := TMVIDRelease.Create('VA-Tribute_To_George_Michael_(2017_BET_Awards)-720p-x264-2017-SRPx', 'MVID');
   try
-    CheckEquals(1, fClass.FileCount, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvid_Genre.CommaText, 'genre mismatch');
-    CheckFalse(fClass.mvid_pal, 'PAL mismatch');
-    CheckFalse(fClass.mvid_ntsc, 'NTSC mismatch');
-    CheckTrue(fClass.mvid_va, 'Various Artists mismatch');
-    CheckFalse(fClass.mvid_live, 'LIVE mismatch');
-    CheckEquals(2017, fClass.mvid_year, 'Year mismatch');
+    CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
+    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckFalse(fClass.mvidpal, 'PAL mismatch');
+    CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
+    CheckTrue(fClass.mvidva, 'Various Artists mismatch');
+    CheckFalse(fClass.mvidlive, 'LIVE mismatch');
+    CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
   finally
     fClass.Free;
   end;

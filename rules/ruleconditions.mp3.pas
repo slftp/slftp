@@ -3,7 +3,7 @@ unit ruleconditions.mp3;
 interface
 
 uses
-  Classes, pazo, rulesunit, sllanguagebase;
+  Classes, pazo, rulesunit;
 
 type
   TConditionMP3Genre = class(TStringCondition)
@@ -77,7 +77,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, kb.releaseinfo, debugunit;
+  SysUtils, Contnrs, kb.releaseinfo, debugunit, sllanguagebase;
 
 const
   dsection = 'rules.mp3';

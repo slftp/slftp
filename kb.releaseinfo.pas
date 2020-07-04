@@ -310,16 +310,16 @@ type
 
   { @abstract(Class with support for music video release information) }
   TMVIDRelease = class(TRelease)
-    FileCount: integer;
-    mvid_Genre: TStringList;
-    // TRelease.language is mapped for mvidlanguage rule
-    mvid_source: String;
-    mvid_pal: boolean;
-    mvid_ntsc: boolean;
-    mvid_va: boolean;
-    mvid_live: boolean;
-    mvid_year: integer;
-
+  private
+    FMVIDFileCount: Integer; //< Amount of packed files -- cannot work as dirlist doesn't has the info when task is triggered?
+    FMVIDGenre: TStringList; //< List of Genres
+    FMVIDLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mvidlanguage rule
+    FMVIDIsPAL: Boolean; //< @true if releasename contains PAL, otherwise @false
+    FMVIDIsNTSC: Boolean; //< @true if releasename contains NTSC, otherwise @false
+    FMVIDIsVariousArtists: Boolean; //< @true if made by Various Artists, otherwise @false
+    FMVIDIsLive: Boolean; //< @true if LIVE, otherwise @false
+    FMVIDYear: Integer; //< year tag between - and -
+  public
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
 
@@ -338,6 +338,15 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
+
+    property mvidfiles: Integer read FMVIDFileCount;
+    property mvidgenre: TStringList read FMVIDGenre;
+    property mvidlanguage: String read FMVIDLanguage;
+    property mvidpal: Boolean read FMVIDIsPAL;
+    property mvidntsc: Boolean read FMVIDIsNTSC;
+    property mvidva: Boolean read FMVIDIsVariousArtists;
+    property mvidlive: Boolean read FMVIDIsLive;
+    property mvidyear: Integer read FMVIDYear;
   end;
 
 type
@@ -1566,7 +1575,57 @@ begin
   Result := 'TIMDBRelease';
 end;
 
-{ TMVIDRelease  }
+{ TMVIDRelease }
+
+constructor TMVIDRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
+var
+  fRegex: TRegExpr;
+begin
+  inherited Create(rlsname, section, True, savedpretime);
+
+  { values are set after mvidtask was executed }
+  aktualizalva := False;
+  FMVIDFileCount := 0;
+  FMVIDIsPAL := False;
+  FMVIDIsNTSC := False;
+  FMVIDGenre := TStringList.Create;
+  FMVIDGenre.Duplicates := dupIgnore;
+
+  { language }
+  FMVIDLanguage := language; // use language from TRelease ancestor
+
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.ModifierI := True;
+
+    { year }
+    fRegex.Expression := '\-((19|20)\d{2})\-';
+    if fRegex.Exec(rlsname) then
+      FMVIDYear := StrToIntDef(fRegex.Match[1], 0);
+
+    { various artists }
+    fRegex.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+    FMVIDIsVariousArtists := fRegex.Exec(rlsname);
+
+    { live }
+    fRegex.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
+    FMVIDIsLive := fRegex.Exec(rlsname);
+  finally
+    fRegex.Free;
+  end;
+end;
+
+destructor TMVIDRelease.Destroy;
+begin
+  FMVIDGenre.Free;
+
+  inherited;
+end;
+
+function TMVIDRelease.Aktualizald(const extrainfo: String): boolean;
+begin
+  Result := False;
+end;
 
 function TMVIDRelease.Aktualizal(p: TObject): boolean;
 var
@@ -1594,14 +1653,14 @@ function TMVIDRelease.AsText(const aPazoID: Integer): String;
 begin
   Result := inherited AsText(aPazoID);
   try
-    Result := Result + Format('MVID Genre: %s', [mvid_Genre.CommaText]) + #13#10;
-    Result := Result + Format('MVID Year: %d', [mvid_year]) + #13#10;
-    Result := Result + Format('MVID Files: %d', [FileCount]) + #13#10;
-    Result := Result + Format('MVID Source: %s', [mvid_source]) + #13#10;
-    Result := Result + Format('MVID Region PAL: %s', [BoolToStr(mvid_pal, True)]) + #13#10;
-    Result := Result + Format('MVID Region NTSC: %s', [BoolToStr(mvid_ntsc, True)]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mvid_va, True)]) + #13#10;
-    Result := Result + Format('Live: %s', [BoolToStr(mvid_live, True)]) + #13#10;
+    Result := Result + Format('MVID Files: %d', [mvidfiles]) + #13#10;
+    Result := Result + Format('MVID Genre: %s', [mvidgenre.CommaText]) + #13#10;
+    Result := Result + Format('MVID Language: %s', [mvidlanguage]) + #13#10;
+    Result := Result + Format('MVID Region PAL: %s', [BoolToStr(mvidpal, True)]) + #13#10;
+    Result := Result + Format('MVID Region NTSC: %s', [BoolToStr(mvidntsc, True)]) + #13#10;
+    Result := Result + Format('MVID VA: %s', [BoolToStr(mvidva, True)]) + #13#10;
+    Result := Result + Format('MVID Live: %s', [BoolToStr(mvidlive, True)]) + #13#10;
+    Result := Result + Format('MVID Year: %d', [mvidyear]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1610,58 +1669,14 @@ begin
   end;
 end;
 
-function TMVIDRelease.Aktualizald(const extrainfo: String): boolean;
+class function TMVIDRelease.Name: String;
 begin
-  Result := False;
-end;
-
-constructor TMVIDRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
-var
-  mvrx: TRegexpr;
-begin
-  inherited Create(rlsname, section, True, savedpretime);
-  aktualizalva := False;
-  FileCount := 0;
-  mvid_Genre := TStringList.Create;
-  mvid_source := '';
-  mvid_pal := False;
-  mvid_ntsc := False;
-  mvid_va := False;
-  mvid_live := False;
-  mvid_year := -1;
-
-  mvrx := TRegexpr.Create;
-  try
-    mvrx.ModifierI := True;
-
-    mvrx.Expression := '\-((19|20)\d{2})\-';
-    if mvrx.Exec(rlsname) then
-      mvid_year := StrToIntDef(mvrx.Match[1], 0);
-
-    mvrx.Expression := '^VA[\-\_\.]';
-    mvid_va := mvrx.Exec(rlsname);
-
-    mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
-    mvid_live := mvrx.Exec(rlsname);
-  finally
-    mvrx.Free;
-  end;
+  Result := 'TMVIDRelease';
 end;
 
 class function TMVIDRelease.DefaultSections: String;
 begin
   Result := '*MVID*';
-end;
-
-destructor TMVIDRelease.Destroy;
-begin
-  mvid_Genre.Free;
-  inherited;
-end;
-
-class function TMVIDRelease.Name: String;
-begin
-  Result := 'TMVIDRelease';
 end;
 
 end.
