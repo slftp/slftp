@@ -127,7 +127,7 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(23, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Latin', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEqualsString('Latin,Mambo,Salsa', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
@@ -445,7 +445,7 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Rock', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEqualsString('Punk,Rock,Rockabilly', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
@@ -1127,7 +1127,7 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(50, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEqualsString('Ballad,Latin,Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
@@ -1340,7 +1340,7 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(81, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Heavy Metal', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEqualsString('Heavy,Metal', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
@@ -1609,7 +1609,7 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(63, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Classical music, Musicals, Concert', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEqualsString('Classical,Concert,music,Musicals', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
