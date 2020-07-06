@@ -318,7 +318,7 @@ type
     FMVIDIsNTSC: Boolean; //< @true if releasename contains NTSC, otherwise @false
     FMVIDIsVariousArtists: Boolean; //< @true if made by Various Artists, otherwise @false
     FMVIDIsLive: Boolean; //< @true if LIVE, otherwise @false
-    FMVIDYear: Integer; //< year tag between - and -
+    FMVIDYear: Integer; //< year tag between - and - (e.g. -2020-), fallbacks to @link(TRelease.year) if no specific MVID year tag found
   public
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
@@ -1615,6 +1615,8 @@ begin
     fRegex.Expression := '\-((19|20)\d{2})\-';
     if fRegex.Exec(rlsname) then
       FMVIDYear := StrToIntDef(fRegex.Match[1], 0);
+    if (FMVIDYear = 0) then
+      FMVIDYear := year;
 
     { various artists }
     fRegex.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
@@ -1623,6 +1625,9 @@ begin
     { live }
     fRegex.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
     FMVIDIsLive := fRegex.Exec(rlsname);
+
+    fRegex.Expression := '[\.](Live\.(From|In))[\.]';
+    FMVIDIsLive := FMVIDIsLive or fRegex.Exec(rlsname);
   finally
     fRegex.Free;
   end;
