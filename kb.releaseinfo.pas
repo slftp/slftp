@@ -311,6 +311,7 @@ type
   { @abstract(Class with support for music video release information) }
   TMVIDRelease = class(TRelease)
   private
+    FLookupDone: Boolean; //< @true if MVID lookup is done and infos are fully added to @link(TMVIDRelease), otherwise @false
     FMVIDFileCount: Integer; //< Amount of packed files -- cannot work as dirlist doesn't has the info when task is triggered?
     FMVIDGenres: TStringList; //< List of Genres
     FMVIDLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mvidlanguage rule
@@ -326,7 +327,7 @@ type
     function Aktualizald(const extrainfo: String): boolean; override;
     function Aktualizal(p: TObject): boolean; override;
 
-    { Sets class variables with infos which are fetched by the MVID task
+    { Sets class variables with infos which are fetched by the MVID task. @link(FLookupDone) is @true after the first call to the function.
       @param(aFileCount Amount of files in SFV)
       @param(aIsVideoRegionPAL Should be @true if video source is PAL, otherwise @false)
       @param(aIsVideoRegionNTSC Should be @true if video source is NTSC, otherwise @false)
@@ -346,6 +347,7 @@ type
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
 
+    property IsLookupDone: Boolean read FLookupDone;
     property mvidfiles: Integer read FMVIDFileCount;
     property mvidgenre: TStringList read FMVIDGenres;
     property mvidlanguage: String read FMVIDLanguage;
@@ -1595,6 +1597,7 @@ begin
   inherited Create(rlsname, section, True, savedpretime);
 
   { values are set after mvidtask was executed }
+  FLookupDone := False;
   aktualizalva := False;
   FMVIDFileCount := 0;
   FMVIDIsPAL := False;
@@ -1678,6 +1681,8 @@ begin
 
   for fGenre in aGenreList do
     FMVIDGenres.Add(fGenre);
+
+  FLookupDone := True;
 end;
 
 function TMVIDRelease.AsText(const aPazoID: Integer): String;
