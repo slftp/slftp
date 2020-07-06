@@ -21,9 +21,9 @@ type
       @returns(Amount of files from SFV) }
     class function GetFileCountFromSFV(const aSFV: String): Integer;
 
-    { Searches for @italic(Genre) in aNFO and returns the genre(s) if found
+    { Searches for @italic(Genre) and @italic(Subgenre) as a single line in aNFO and returns the genre(s) which are separated by each whitespace
       @param(aNFO Text from NFO file)
-      @returns(List with all found Genres (splitted by whitespace), can be empty) }
+      @returns(List with all found Genres or empty if none found) }
     class function TryToParseGenre(const aNFO: String): TArray<String>;
 
     { Parses the NFO for the video region by searching for PAL/NTSC or the appropriate FPS
@@ -79,27 +79,53 @@ end;
 class function TPazoMVIDTask.TryToParseGenre(const aNFO: String): TArray<String>;
 const
   OffsetForStringGenre = 5;
+  OffsetForStringSubGenre = 8;
 var
-  i: Integer;
-  fGenre: String;
-begin
-  i := Pos('genre', LowerCase(aNFO));
-  if i = 0 then
-    exit;
+  fPos: Integer;
+  fGenreLine: String;
+  fGenres, fSubgenres: String;
 
-  fGenre := Copy(aNFO, i + OffsetForStringGenre, 100);
-  for i := 1 to Length(fGenre) do
+  { extracts and cleans all genres found in a single line }
+  function ExtractGenres(const aNFOLine: String): String;
+  var
+    i: Integer;
   begin
-    if fGenre[i] in [#13, #10] then
+    Result := aNFOLine;
+
+    for i := 1 to Length(Result) do
     begin
-      fGenre := Copy(fGenre, 1, i - 1);
-      Break;
+      if Result[i] in [#13, #10] then
+      begin
+        Result := Copy(Result, 1, i - 1);
+        Break;
+      end;
+
+      if not (IsALetter(Result[i])) then
+        Result[i] := ' ';
     end;
-    if not (IsALetter(fGenre[i])) then
-      fGenre[i] := ' ';
+
+    Result := Result.Trim;
+    Result := Result.Replace('  ', ' ');
   end;
 
-  Result := fGenre.Replace('  ', ' ', [rfReplaceAll]).Split([' ']);
+begin
+  { search for Genre }
+  fPos := Pos('genre', LowerCase(aNFO));
+  if fPos = 0 then
+    Exit;
+  fGenreLine := Copy(aNFO, fPos + OffsetForStringGenre, 100);
+  fGenres := ExtractGenres(fGenreLine);
+
+  Result := fGenres.Split([' ']);
+
+  { search for Subgenre }
+  fPos := Pos('subgenre', LowerCase(aNFO));
+  if fPos = 0 then
+    Exit;
+  fGenreLine := Copy(aNFO, fPos + OffsetForStringSubGenre, 100);
+  fSubgenres := ExtractGenres(fGenreLine);
+
+  Result := Result + fSubgenres.Split([' ']);
 end;
 
 class function TPazoMVIDTask.ParseVideoRegion(const aNFO: String): String;

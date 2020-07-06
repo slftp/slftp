@@ -312,7 +312,7 @@ type
   TMVIDRelease = class(TRelease)
   private
     FMVIDFileCount: Integer; //< Amount of packed files -- cannot work as dirlist doesn't has the info when task is triggered?
-    FMVIDGenre: TStringList; //< List of Genres
+    FMVIDGenres: TStringList; //< List of Genres
     FMVIDLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mvidlanguage rule
     FMVIDIsPAL: Boolean; //< @true if releasename contains PAL, otherwise @false
     FMVIDIsNTSC: Boolean; //< @true if releasename contains NTSC, otherwise @false
@@ -347,7 +347,7 @@ type
     class function DefaultSections: String; override;
 
     property mvidfiles: Integer read FMVIDFileCount;
-    property mvidgenre: TStringList read FMVIDGenre;
+    property mvidgenre: TStringList read FMVIDGenres;
     property mvidlanguage: String read FMVIDLanguage;
     property mvidpal: Boolean read FMVIDIsPAL;
     property mvidntsc: Boolean read FMVIDIsNTSC;
@@ -1595,8 +1595,10 @@ begin
   FMVIDFileCount := 0;
   FMVIDIsPAL := False;
   FMVIDIsNTSC := False;
-  FMVIDGenre := TStringList.Create;
-  FMVIDGenre.Duplicates := dupIgnore;
+  FMVIDGenres := TStringList.Create;
+  FMVIDGenres.Sorted := True;
+  FMVIDGenres.Duplicates := dupIgnore;
+  FMVIDGenres.CaseSensitive := False;
 
   { language }
   FMVIDLanguage := language; // use language from TRelease ancestor
@@ -1624,7 +1626,7 @@ end;
 
 destructor TMVIDRelease.Destroy;
 begin
-  FMVIDGenre.Free;
+  FMVIDGenres.Free;
 
   inherited;
 end;
@@ -1666,7 +1668,7 @@ begin
   FMVIDIsNTSC := aIsVideoRegionNTSC;
 
   for fGenre in aGenreList do
-    FMVIDGenre.Add(fGenre);
+    FMVIDGenres.Add(fGenre);
 end;
 
 function TMVIDRelease.AsText(const aPazoID: Integer): String;
