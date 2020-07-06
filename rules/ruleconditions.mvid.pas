@@ -6,6 +6,12 @@ uses
   Classes, pazo, rulesunit;
 
 type
+  TConditionMVIDLookupDone = class(TBooleanCondition)
+    function SupplyValue(r: TPazo): boolean; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
   TConditionMVIDGenre = class(TMultiStringCondition)
     procedure SupplyValues(r: TPazo; re: TStringList); override;
     class function Name: String; override;
@@ -70,6 +76,26 @@ const
   dsection = 'rules.mvid';
 
 {$I ruleconditions.mvid.inc}
+
+{ TConditionMVIDLookupDone }
+
+function TConditionMVIDLookupDone.SupplyValue(r: TPazo): boolean;
+begin
+  Result := False;
+
+  if (r.rls is TMVIDRelease) then
+    Result := TMVIDRelease(r.rls).IsLookupDone;
+end;
+
+class function TConditionMVIDLookupDone.Name: String;
+begin
+  Result := 'mvidlookupdone';
+end;
+
+class function TConditionMVIDLookupDone.Description: String;
+begin
+  Result := MVIDLookupDoneDescription;
+end;
 
 { TConditionMVIDGenre }
 
