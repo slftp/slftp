@@ -689,9 +689,13 @@ begin
     rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     // language detection
-    if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+    if (Self is TMP3Release) then
     begin
       language := FindMusicLanguageOnDirectory(rlsname);
+    end
+    else if (Self is TMVIDRelease) then
+    begin
+      language := FindMusicVideoLanguageOnDirectory(rlsname);
     end
     else
     begin
