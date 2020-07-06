@@ -42,22 +42,33 @@ type
 
 { Just a helper function to initialize @link(sllanguages) with languages from slftp.languagebase and @link(slmusiclanguages) with infos from [kb] section }
 procedure SLLanguagesInit;
+
 { Just a helper function to free @link(sllanguages) and @link(slmusiclanguages) }
 procedure SLLanguagesUninit;
+
 { Loads current values from files to @link(sllanguages) and @link(slmusiclanguages)
   @returns(Count of loaded languages and music languages) }
 function SLLanguagesReload: String;
+
 { Creates a list of all expression(s) for every language from @link(sllanguages), @italic(input list will be automatically cleared)
   @param(aStringList Stringlist which should be used for storing the list of language expressions) }
 procedure SLGetLanguagesExpression(var aStringList: TStringList);
+
 { Iterates through @link(sllanguage) and searches with @link(TSLLanguages.Expression) in @link(aRlsname)
   @param(aRlsname string in which it searches for the language)
   @returns(@link(TSLLanguages.Language) string if found, otherwise default 'English') }
 function FindLanguageOnDirectory(const aRlsname: String): String;
-{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname) with respect to the specific tagging convention
+
+{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname) with respect to the specific tagging convention (-LANG-)
   @param(aRlsname string in which it searches for the language)
   @returns(Language string of matched @link(slmusiclanguages) if found, otherwise default 'EN') }
 function FindMusicLanguageOnDirectory(const aRlsname: String): String;
+
+{ Iterates through @link(slmusiclanguages) and searches with each string of it in @link(aRlsname) with respect to the specific tagging convention (-LANG- or .LANG.)
+  @param(aRlsname string in which it searches for the language)
+  @returns(Language string of matched @link(slmusiclanguages) if found, otherwise default 'EN') }
+function FindMusicVideoLanguageOnDirectory(const aRlsname: String): String;
+
 { Iterates through @link(slmusiclanguages) and compares to @link(aLanguage)
   @param(aLanguage string with a language to compare to, to check for existance)
   @returns(@True if string @link(aLanguage) is a valid language code in @link(slmusiclanguages), otherwise @False) }
@@ -247,25 +258,53 @@ begin
   end;
 end;
 
-function FindMusicLanguageOnDirectory(const aRlsname: String): String;
+function _FoundMusicLanguage(const aRlsname, aDelimiter: String; out aLanguage: String): Boolean;
 var
   j: integer;
   fRlsnameStripped: String;
   fMusicLanguage: TMusicLanguage;
 begin
-  Result := 'EN';
+  Result := False;
+
   fRlsnameStripped := ReplaceText(aRlsname, '(', '');
   fRlsnameStripped := ReplaceText(fRlsnameStripped, ')', '');
 
   for fMusicLanguage in slmusiclanguages do
   begin
-    // language is always -LANGUAGE-
-    j := Pos('-' + fMusicLanguage.LanguageCode + '-', fRlsnameStripped);
+    j := Pos(aDelimiter + fMusicLanguage.LanguageCode + aDelimiter, fRlsnameStripped);
     if (j > 1) then
     begin
-      Result := fMusicLanguage.LanguageCode;
+      aLanguage := fMusicLanguage.LanguageCode;
+      Result := True;
       break;
     end;
+  end;
+end;
+
+function FindMusicLanguageOnDirectory(const aRlsname: String): String;
+var
+  fLanguage: String;
+begin
+  // language is always -LANGUAGE-
+  if _FoundMusicLanguage(aRlsname, '-', fLanguage) then
+    Result := fLanguage
+  else
+    Result := 'EN';
+end;
+
+function FindMusicVideoLanguageOnDirectory(const aRlsname: String): String;
+var
+  fLanguage: String;
+begin
+  // language can be -LANGUAGE- or .LANGUAGE.
+  if _FoundMusicLanguage(aRlsname, '-', fLanguage) then
+    Result := fLanguage
+  else
+  begin
+    if _FoundMusicLanguage(aRlsname, '.', fLanguage) then
+      Result := fLanguage
+    else
+      Result := 'EN';
   end;
 end;
 
