@@ -2085,6 +2085,7 @@ begin
   conditions.Add(TConditionIMDBCineyear);
   conditions.Add(TConditionIMDBCurrentCineyear);
 
+  conditions.Add(TConditionMVIDLookupDone);
   conditions.Add(TConditionMVIDGenre);
   conditions.Add(TConditionMVIDFiles);
   conditions.Add(TConditionMVIDYear);

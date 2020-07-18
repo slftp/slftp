@@ -1,19 +1,21 @@
-{ Rule Descriptions for MVID => TMVIDRelease }
+{ Rule Descriptions for MVID/MDVDR/MBLURAY => TMVIDRelease }
 const
-  MVIDGenreDescription: string = 'Returns the Genre parsed from nfo.';
+  MVIDLookupDoneDescription: string = 'Returns true when the mvid lookup has been performed. Returns false if lookup is not yet ready.';
 
-  MVIDFilesDescription: string = 'Returns the number of files parsed from sfv. Returns -1 if NFO lookup is not yet ready.';
+  MVIDGenreDescription: string = 'Returns the Genre(s) and Subgenre(s) parsed from NFO (needs mvidlookupdone!).';
 
-  MVIDYearDescription: string = 'Returns with the year of the MVID release date. Returns zero if NFO lookup is not yet ready.';
+  MVIDFilesDescription: string = 'Returns the number of files parsed from SFV (needs mvidlookupdone!).';
 
-  MVIDCurrentYearDescription: string = 'Returns true, if the year of the MVID release equals the current year.';
+  MVIDYearDescription: string = 'Returns with the year of the release name. Returns with zero if year tag is not present.';
 
-  MVIDVADescription: string = 'Returns true if release is Various Artists (VA). Returns false if NFO lookup is not yet ready.';
+  MVIDCurrentYearDescription: string = 'Returns true if the year of the MVID release equals the current year.';
 
-  MVIDPALDescription: string = 'Returns with the a boolean for PAL region. Returns false if NFO lookup is not yet ready.';
+  MVIDVADescription: string = 'Returns true if release is from Various Artists (VA).';
 
-  MVIDNTSCDescription: string = 'Returns with the a boolean for NTSC region. Returns false if NFO lookup is not yet ready.';
+  MVIDPALDescription: string = 'Returns true if the NFO indicates PAL region (needs mvidlookupdone!).';
 
-  MVIDLIVEDescription: string = 'Returns with the a boolean for LIVE type. Returns false if NFO lookup is not yet ready.';
+  MVIDNTSCDescription: string = 'Returns true if the NFO indicates NTSC region (needs mvidlookupdone!).';
 
-  MVIDLanguageDescription: string = 'Returns with MVID language tag. Language is EN by default.';
+  MVIDLIVEDescription: string = 'Returns true if release is a LIVE performance.';
+
+  MVIDLanguageDescription: string = 'Returns with the MVID language tag. Language is EN by default.';
