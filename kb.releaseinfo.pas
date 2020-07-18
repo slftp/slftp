@@ -183,11 +183,11 @@ type
     property mp3lng: String read FMP3Language;
     property mp3source: String read FMP3Source;
     property mp3types: TList<String> read FMP3Types;
-    property mp3_numdisks: Integer read FMP3NumDisks;
-    property mp3_numdisks_word: String read FMP3NumDisksWord;
-    property mp3_va: Boolean read FMP3IsVariousArtists;
-    property mp3_bootleg: Boolean read FMP3IsBootleg;
-    property mp3_live: Boolean read FMP3IsLive;
+    property mp3numdisks: Integer read FMP3NumDisks;
+    property mp3numdisksword: String read FMP3NumDisksWord;
+    property mp3va: Boolean read FMP3IsVariousArtists;
+    property mp3bootleg: Boolean read FMP3IsBootleg;
+    property mp3live: Boolean read FMP3IsLive;
   end;
 
   { @abstract(Class with support for release information which are parsed from NFO file) }
@@ -310,21 +310,29 @@ type
 
   { @abstract(Class with support for music video release information) }
   TMVIDRelease = class(TRelease)
-    FileCount: integer;
-    mvid_Genre: TStringList;
-    // TRelease.language is mapped for mvidlanguage rule
-    mvid_source: String;
-    mvid_pal: boolean;
-    mvid_ntsc: boolean;
-    mvid_va: boolean;
-    mvid_live: boolean;
-    mvid_year: integer;
-
+  private
+    FLookupDone: Boolean; //< @true if MVID lookup is done and infos are fully added to @link(TMVIDRelease), otherwise @false
+    FMVIDFileCount: Integer; //< Amount of packed files -- cannot work as dirlist doesn't has the info when task is triggered?
+    FMVIDGenres: TStringList; //< List of Genres
+    FMVIDLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mvidlanguage rule
+    FMVIDIsPAL: Boolean; //< @true if releasename contains PAL, otherwise @false
+    FMVIDIsNTSC: Boolean; //< @true if releasename contains NTSC, otherwise @false
+    FMVIDIsVariousArtists: Boolean; //< @true if made by Various Artists, otherwise @false
+    FMVIDIsLive: Boolean; //< @true if LIVE, otherwise @false
+    FMVIDYear: Integer; //< year tag between - and - (e.g. -2020-), fallbacks to @link(TRelease.year) if no specific MVID year tag found
+  public
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
 
     function Aktualizald(const extrainfo: String): boolean; override;
     function Aktualizal(p: TObject): boolean; override;
+
+    { Sets class variables with infos which are fetched by the MVID task. @link(FLookupDone) is @true after the first call to the function.
+      @param(aFileCount Amount of files in SFV)
+      @param(aIsVideoRegionPAL Should be @true if video source is PAL, otherwise @false)
+      @param(aIsVideoRegionNTSC Should be @true if video source is NTSC, otherwise @false)
+      @param(aGenreList List of Genres without any special characters) }
+    procedure SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
 
     { Get values of class variables as formatted text (includes information of inherited class)
       @param(aPazoID ID of the associated Pazo)
@@ -338,6 +346,16 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
+
+    property IsLookupDone: Boolean read FLookupDone;
+    property mvidfiles: Integer read FMVIDFileCount;
+    property mvidgenre: TStringList read FMVIDGenres;
+    property mvidlanguage: String read FMVIDLanguage;
+    property mvidpal: Boolean read FMVIDIsPAL;
+    property mvidntsc: Boolean read FMVIDIsNTSC;
+    property mvidva: Boolean read FMVIDIsVariousArtists;
+    property mvidlive: Boolean read FMVIDIsLive;
+    property mvidyear: Integer read FMVIDYear;
   end;
 
 type
@@ -673,9 +691,13 @@ begin
     rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     // language detection
-    if ((Self is TMP3Release) or (Self is TMVIDRelease)) then
+    if (Self is TMP3Release) then
     begin
       language := FindMusicLanguageOnDirectory(rlsname);
+    end
+    else if (Self is TMVIDRelease) then
+    begin
+      language := FindMusicVideoLanguageOnDirectory(rlsname);
     end
     else
     begin
@@ -1100,23 +1122,23 @@ var
 begin
   Result := inherited AsText(aPazoID);
   try
-    Result := Result + Format('Year: %d', [mp3year]) + #13#10;
-    Result := Result + Format('Language: %s', [mp3lng]) + #13#10;
+    Result := Result + Format('MP3 Year: %d', [mp3year]) + #13#10;
+    Result := Result + Format('MP3 Language: %s', [mp3lng]) + #13#10;
 
     if mp3genre <> '' then
-      Result := Result + Format('Genre: %s', [mp3genre]) + #13#10
+      Result := Result + Format('MP3 Genre: %s', [mp3genre]) + #13#10
     else
-      Result := Result + 'Genre:' + #13#10;
+      Result := Result + 'MP3 Genre:' + #13#10;
 
-    Result := Result + Format('Source: %s', [mp3source]) + #13#10;
+    Result := Result + Format('MP3 Source: %s', [mp3source]) + #13#10;
 
     fTypes := String.Join(', ', mp3types.ToArray);
-    Result := Result + Format('Type(s): %s', [fTypes]) + #13#10;
+    Result := Result + Format('MP3 Type(s): %s', [fTypes]) + #13#10;
 
-    Result := Result + Format('Disks: %d', [mp3_numdisks]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mp3_va, True)]) + #13#10;
-    Result := Result + Format('Bootleg: %s', [BoolToStr(mp3_bootleg, True)]) + #13#10;
-    Result := Result + Format('Live: %s', [BoolToStr(mp3_live, True)]) + #13#10;
+    Result := Result + Format('MP3 Disks: %d', [mp3numdisks]) + #13#10;
+    Result := Result + Format('MP3 VA: %s', [BoolToStr(mp3va, True)]) + #13#10;
+    Result := Result + Format('MP3 Bootleg: %s', [BoolToStr(mp3bootleg, True)]) + #13#10;
+    Result := Result + Format('MP3 Live: %s', [BoolToStr(mp3live, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1566,7 +1588,65 @@ begin
   Result := 'TIMDBRelease';
 end;
 
-{ TMVIDRelease  }
+{ TMVIDRelease }
+
+constructor TMVIDRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
+var
+  fRegex: TRegExpr;
+begin
+  inherited Create(rlsname, section, True, savedpretime);
+
+  { values are set after mvidtask was executed }
+  FLookupDone := False;
+  aktualizalva := False;
+  FMVIDFileCount := 0;
+  FMVIDIsPAL := False;
+  FMVIDIsNTSC := False;
+  FMVIDGenres := TStringList.Create;
+  FMVIDGenres.Sorted := True;
+  FMVIDGenres.Duplicates := dupIgnore;
+  FMVIDGenres.CaseSensitive := False;
+
+  { language }
+  FMVIDLanguage := language; // use language from TRelease ancestor
+
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.ModifierI := True;
+
+    { year }
+    fRegex.Expression := '\-((19|20)\d{2})\-';
+    if fRegex.Exec(rlsname) then
+      FMVIDYear := StrToIntDef(fRegex.Match[1], 0);
+    if (FMVIDYear = 0) then
+      FMVIDYear := year;
+
+    { various artists }
+    fRegex.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+    FMVIDIsVariousArtists := fRegex.Exec(rlsname);
+
+    { live }
+    fRegex.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
+    FMVIDIsLive := fRegex.Exec(rlsname);
+
+    fRegex.Expression := '[\.](Live\.(From|In))[\.]';
+    FMVIDIsLive := FMVIDIsLive or fRegex.Exec(rlsname);
+  finally
+    fRegex.Free;
+  end;
+end;
+
+destructor TMVIDRelease.Destroy;
+begin
+  FMVIDGenres.Free;
+
+  inherited;
+end;
+
+function TMVIDRelease.Aktualizald(const extrainfo: String): boolean;
+begin
+  Result := False;
+end;
 
 function TMVIDRelease.Aktualizal(p: TObject): boolean;
 var
@@ -1590,18 +1670,33 @@ begin
   // aktualizalva := True;
 end;
 
+procedure TMVIDRelease.SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
+var
+  fGenre: String;
+begin
+  FMVIDFileCount := aFileCount;
+
+  FMVIDIsPAL := aIsVideoRegionPAL;
+  FMVIDIsNTSC := aIsVideoRegionNTSC;
+
+  for fGenre in aGenreList do
+    FMVIDGenres.Add(fGenre);
+
+  FLookupDone := True;
+end;
+
 function TMVIDRelease.AsText(const aPazoID: Integer): String;
 begin
   Result := inherited AsText(aPazoID);
   try
-    Result := Result + Format('MVID Genre: %s', [mvid_Genre.CommaText]) + #13#10;
-    Result := Result + Format('MVID Year: %d', [mvid_year]) + #13#10;
-    Result := Result + Format('MVID Files: %d', [FileCount]) + #13#10;
-    Result := Result + Format('MVID Source: %s', [mvid_source]) + #13#10;
-    Result := Result + Format('MVID Region PAL: %s', [BoolToStr(mvid_pal, True)]) + #13#10;
-    Result := Result + Format('MVID Region NTSC: %s', [BoolToStr(mvid_ntsc, True)]) + #13#10;
-    Result := Result + Format('VA: %s', [BoolToStr(mvid_va, True)]) + #13#10;
-    Result := Result + Format('Live: %s', [BoolToStr(mvid_live, True)]) + #13#10;
+    Result := Result + Format('MVID Files: %d', [mvidfiles]) + #13#10;
+    Result := Result + Format('MVID Genre: %s', [mvidgenre.CommaText]) + #13#10;
+    Result := Result + Format('MVID Language: %s', [mvidlanguage]) + #13#10;
+    Result := Result + Format('MVID Region PAL: %s', [BoolToStr(mvidpal, True)]) + #13#10;
+    Result := Result + Format('MVID Region NTSC: %s', [BoolToStr(mvidntsc, True)]) + #13#10;
+    Result := Result + Format('MVID VA: %s', [BoolToStr(mvidva, True)]) + #13#10;
+    Result := Result + Format('MVID Live: %s', [BoolToStr(mvidlive, True)]) + #13#10;
+    Result := Result + Format('MVID Year: %d', [mvidyear]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1610,58 +1705,14 @@ begin
   end;
 end;
 
-function TMVIDRelease.Aktualizald(const extrainfo: String): boolean;
+class function TMVIDRelease.Name: String;
 begin
-  Result := False;
-end;
-
-constructor TMVIDRelease.Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1);
-var
-  mvrx: TRegexpr;
-begin
-  inherited Create(rlsname, section, True, savedpretime);
-  aktualizalva := False;
-  FileCount := 0;
-  mvid_Genre := TStringList.Create;
-  mvid_source := '';
-  mvid_pal := False;
-  mvid_ntsc := False;
-  mvid_va := False;
-  mvid_live := False;
-  mvid_year := -1;
-
-  mvrx := TRegexpr.Create;
-  try
-    mvrx.ModifierI := True;
-
-    mvrx.Expression := '\-((19|20)\d{2})\-';
-    if mvrx.Exec(rlsname) then
-      mvid_year := StrToIntDef(mvrx.Match[1], 0);
-
-    mvrx.Expression := '^VA[\-\_\.]';
-    mvid_va := mvrx.Exec(rlsname);
-
-    mvrx.Expression := '[\-\_\(\)](Festival|Live)[\-\_\(\)]';
-    mvid_live := mvrx.Exec(rlsname);
-  finally
-    mvrx.Free;
-  end;
+  Result := 'TMVIDRelease';
 end;
 
 class function TMVIDRelease.DefaultSections: String;
 begin
   Result := '*MVID*';
-end;
-
-destructor TMVIDRelease.Destroy;
-begin
-  mvid_Genre.Free;
-  inherited;
-end;
-
-class function TMVIDRelease.Name: String;
-begin
-  Result := 'TMVIDRelease';
 end;
 
 end.

@@ -45,7 +45,8 @@
        as TRegExpr allowed invalid regexes before. E.g. range [.-_] is no longer working and
        must be changed to for example [.\-_] or [-._]
     4. delete your slftp.kb file which is needed due to some internal changes
-    5. enjoy!
+    5. check all your mvid rules and see if mvidlookupdone is needed
+    6. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
@@ -59,6 +60,7 @@
     {+} SynFPCx64MM memory manager with better multithreading scaling for x86_64
         (http://blog.synopse.info/post/2020/05/07/New-Multi-thread-Friendly-Memory-Manager-for-FPC-written-in-x86_64-assembly)
     {+} Default C memory manager for other 32-bit unix targets (https://www.freepascal.org/docs-html/current/rtl/cmem/index.html)
+    {+} New rule mvidlookupdone - needed for genre, filecount, ntsc and pal rule
     {#} Relogin of slots didn't bring up all slots as intended
     {#} announce_event for precatcher from spam config never worked
     {#} Backup causes access violation if stats db is disabled but a stats db file exists
