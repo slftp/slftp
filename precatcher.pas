@@ -64,7 +64,7 @@ implementation
 
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
-  inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit,
+  inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
   console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
@@ -548,6 +548,16 @@ begin
         if (mind) then
         begin
           try
+
+            if ss.eventtype = kbeADDPRE then
+            begin
+              MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+              if not precatcher_debug then
+              begin
+                dbaddpre_ADDPRE(net, chan, nick, rls, kbeADDPRE);
+              end;
+              exit;
+            end;
 
             precatcher_lock.Enter;
             try

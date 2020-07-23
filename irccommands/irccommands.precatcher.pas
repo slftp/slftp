@@ -95,7 +95,7 @@ begin
 
   kb_event := EventStringToTKBEventType(event);
 
-  if (not (kb_event in [kbePRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
+  if (not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;
@@ -188,7 +188,7 @@ begin
 
   kb_event := EventStringToTKBEventType(event);
 
-  if (not (kb_event in [kbePRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
+  if (not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST])) then
   begin
     irc_addtext(Netname, Channel, 'Syntax error, unknown event: ' + event);
     exit;
