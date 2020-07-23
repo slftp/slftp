@@ -19,7 +19,7 @@ type
   @value(kbeCOMPLETE COMPLETE event, triggered by completed races on sites)
   @value(kbeREQUEST REQUEST event, triggered by requests on sites)
   @value(kbeNUKE NUKE event, triggered by nukes on sites)
-  @value(kbeADDPRE ADDPRE event, triggered by !addpre/!sitepre announces picked up on IRC)
+  @value(kbeADDPRE ADDPRE event, triggered by !addpre/!sitepre announces picked up on IRC or by !catchadd added from user)
   @value(kbeUPDATE UPDATE event, triggered to re-check rules and routes)
   }
   TKBEventType = (kbeUNKNOWN, kbePRE, kbeSPREAD, kbeNEWDIR, kbeCOMPLETE, kbeREQUEST, kbeNUKE, kbeADDPRE, kbeUPDATE);
