@@ -913,9 +913,9 @@ var
   begin
     section := SubString(line, #9, 1);
     rlsname := SubString(line, #9, 2);
-    added := UnixToDateTime(StrToInt64(SubString(line, #9, 4)));
-    ctime := Strtoint64(SubString(line, #9, 5));
-    event := EventStringToTKBEventType(SubString(line, #9, 6));
+    added := UnixToDateTime(StrToInt64(SubString(line, #9, 3)));
+    ctime := Strtoint64(SubString(line, #9, 4));
+    event := EventStringToTKBEventType(SubString(line, #9, 5));
     kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
     kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
 
