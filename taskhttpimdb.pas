@@ -1,4 +1,4 @@
-unit taskhttpimdb;
+﻿unit taskhttpimdb;
 
 interface
 
@@ -449,7 +449,7 @@ begin
 
       // if we get values for season or episode, it's a tv show which don't has any screens
       getShowValues(rls, showname, season, episode);
-      if (season = 0) and (episode = 0) then
+      if not ((season > 0) or (episode > 0) or (season = Ord(tvDatedShow)) or (season = Ord(tvRegularSerieWithoutSeason)) or (episode = Ord(tvNoEpisodeTag))) then
       begin
 
         rr.Expression := '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
