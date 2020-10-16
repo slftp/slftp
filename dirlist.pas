@@ -627,7 +627,10 @@ begin
         if fFilesize < 0 then
           Continue;
 
-        if not IsValidFilename(fFilename) then
+        if ((fDirMask[1] = 'd') and (fFilename[1] = '.')) then
+          Continue;
+
+        if ((fDirMask[1] <> 'd') and (not IsValidFilename(fFilename))) then
           Continue;
 
         // Do not filter if we call the dirlist from irc
