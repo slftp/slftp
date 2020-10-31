@@ -83,7 +83,9 @@ type
     procedure DelaySetup;
 
     procedure RemoveMkdir;
-    procedure MarkSiteAsFailed(echomsg: boolean = False);
+    { Stop dirlisting and racing on this site as there was a catastrophic failure
+      @param(aMessage specific error message with detailed information) }
+    procedure MarkSiteAsFailed(const aMessage: string);
 
     function ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
     function MkdirReady(const dir: String): boolean;
@@ -1151,7 +1153,7 @@ var
 begin
   ps := FindSite(sitename);
   if ps <> nil then
-    ps.MarkSiteAsFailed;
+    ps.MarkSiteAsFailed('');
 end;
 
 { TPazoSite }
@@ -1882,7 +1884,7 @@ begin
   end;
 end;
 
-procedure TPazoSite.MarkSiteAsFailed(echomsg: boolean = False);
+procedure TPazoSite.MarkSiteAsFailed(const aMessage: string);
 begin
   error := True;
   Debug(dpSpam, section, Format('--> TPazoSite.MarkSiteAsFailed', []));
@@ -1893,8 +1895,8 @@ begin
     RemoveRaceTasks(pazo.pazo_id, Name);
     RemoveDirlistTasks(pazo.pazo_id, Name);
 
-    if echomsg then
-      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, pazo.errorreason]));
+    if not aMessage.IsEmpty then
+      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]));
 
   except
     on e: Exception do
