@@ -177,6 +177,10 @@ begin
       tpr1 := TPazoRaceTask(Item1);
       tpr2 := TPazoRaceTask(Item2);
 
+      Result := CompareValue(tpr2.rank, tpr1.rank);
+      if (Result <> 0) then
+        exit;
+
       // Give priority to sfv
       if ((tpr1.IsSfv) and (not tpr2.IsSfv)) then
       begin
@@ -232,8 +236,6 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
-
-        exit;
       end;
 
       // Proof priority
@@ -257,8 +259,6 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
-
-        exit;
       end;
 
       // Subs priority
@@ -282,8 +282,6 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
-
-        exit;
       end;
 
       // Covers priority
@@ -307,15 +305,11 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
-
-        exit;
       end;
 
-      Result := CompareValue(tpr2.rank, tpr1.rank);
-      if (Result <> 0) then
-        exit;
+      if (Result = 0) then
+        Result := CompareValue(tpr2.filesize, tpr1.filesize);
 
-      Result := CompareValue(tpr2.filesize, tpr1.filesize);
       exit;
     end;
 
