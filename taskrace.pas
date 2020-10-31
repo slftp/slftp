@@ -270,8 +270,15 @@ begin
       if s.Status <> ssOnline then
         goto TryAgain;
 
-      ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (CWD). Site marked as fail.', [ps1.maindir, site1]);
+      //fix drftpd messed up working directory by reconnect
+      if s.site.sw = sswDrftpd then
+      begin
+        s.Quit;
+        goto TryAgain;
+      end;
+
+      ps1.MarkSiteAsFailed(Format('Section dir %s does not seem to exists (PWD).', [ps1.maindir]));
+      mainpazo.errorreason := Format('Section dir %s on %s does not seem to exists (CWD). Site marked as failed.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -282,8 +289,15 @@ begin
       if s.Status <> ssOnline then
         goto TryAgain;
 
-      ps1.MarkSiteAsFailed;
-      mainpazo.errorreason := Format('Section dir %s on %s does not seems to exists (PWD). Site marked as fail.', [ps1.maindir, site1]);
+      //fix drftpd messed up working directory by reconnect
+      if s.site.sw = sswDrftpd then
+      begin
+        s.Quit;
+        goto TryAgain;
+      end;
+
+      ps1.MarkSiteAsFailed(Format('Section dir %s does not seem to exists (PWD).', [ps1.maindir]));
+      mainpazo.errorreason := Format('Section dir %s on %s does not seem to exists (PWD). Site marked as failed.', [ps1.maindir, site1]);
       readyerror := True;
       Debug(dpMessage, c_section, '<-- ' + tname);
       exit;
@@ -316,6 +330,7 @@ begin
 
       else
         begin
+          Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
           goto TryAgain;
         end;
     end;
@@ -674,19 +689,32 @@ begin
   bIsMidnight := IsMidnight(mainpazo.rls.section);
 
   //change working directory
+  failure := False;
   try
-    if not s.Cwd(ps1.maindir, bIsMidnight) then
-    begin
-      ps1.MarkSiteAsFailed(True);
-      irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
-      mainpazo.errorreason := ps1.Name + ' marked as failed';
-      readyerror := True;
-      exit;
-    end;
+    failure := not s.Cwd(ps1.maindir, bIsMidnight);
   except
     on e: Exception do
     begin
       Debug(dpError, c_section, Format('[EXCEPTION] TPazoMkdirTask Section dir does not exist: %s', [e.Message]));
+      readyerror := True;
+      exit;
+    end;
+  end;
+
+  if failure then
+  begin
+    irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
+
+    //fix drftpd messed up working directory by reconnect
+    if s.site.sw = sswDrftpd then
+    begin
+      s.Quit;
+      goto TryAgain;
+    end
+    else
+    begin
+      ps1.MarkSiteAsFailed('cant CWD');
+      mainpazo.errorreason := ps1.Name + ' marked as failed';
       readyerror := True;
       exit;
     end;
@@ -698,7 +726,7 @@ begin
     begin
       if not s.Pwd(ps1.maindir) then
       begin
-        ps1.MarkSiteAsFailed;
+        ps1.MarkSiteAsFailed('cant PWD');
         mainpazo.errorreason := ps1.Name + ' marked as failed';
         readyerror := True;
         exit;
@@ -956,7 +984,7 @@ begin
         ps1.MkdirError(dir);
         if (dir = '') then
         begin
-          ps1.MarkSiteAsFailed(True);
+          ps1.MarkSiteAsFailed('cant CWD');
         end;
         Result := True;
         readyerror := True;
@@ -1129,12 +1157,25 @@ begin
   try
     if not ssrc.Cwd(todir1) then
     begin
+      //fix drftpd messed up working directory by reconnect
+      if ssrc.site.sw = sswDrftpd then
+      begin
+        ssrc.Quit;
+        if not ssrc.ReLogin(0, False, 'TPazoRaceTask') then
+        begin
+          mainpazo.errorreason := 'Site ' + ssrc.site.Name + ' is offline';
+          readyerror := True;
+          Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+          exit;
+        end;
+      end;
+
       if not ssrc.Cwd(todir1) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Src ' + todir1 + ' on ' + site1 + ' does not exist']));
         if (dir = '') then
         begin
-          ps1.MarkSiteAsFailed(True);
+          ps1.MarkSiteAsFailed('cant cwd on src');
         end;
         readyerror := True;
         mainpazo.errorreason := 'cant cwd on src';
@@ -1160,12 +1201,25 @@ begin
   try
     if not sdst.Cwd(todir2) then
     begin
+      //fix drftpd messed up working directory by reconnect
+      if sdst.site.sw = sswDrftpd then
+      begin
+        sdst.Quit;
+        if not sdst.ReLogin(0, False, 'TPazoRaceTask') then
+        begin
+          mainpazo.errorreason := 'Site ' + sdst.site.Name + ' is offline';
+          readyerror := True;
+          Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+          exit;
+        end;
+      end;
+
       if not sdst.Cwd(todir2) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dst ' + todir2 + ' on ' + site2 + ' does not exist']));
         if (dir = '') then
         begin
-          ps2.MarkSiteAsFailed(True);
+          ps2.MarkSiteAsFailed('cant cwd on dst');
         end;
         readyerror := True;
         mainpazo.errorreason := 'cant cwd on dst';
@@ -1822,7 +1876,7 @@ begin
 
             if (dir = '') then
             begin
-              ps2.MarkSiteAsFailed(True);
+              ps2.MarkSiteAsFailed('No such directory');
             end;
 
             readyerror := True;

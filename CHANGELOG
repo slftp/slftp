@@ -64,6 +64,8 @@
     {+} Catchadd command now accepts event type ADDPRE which can be used to fill your pre database using the precatcher
     {#} Relogin of slots didn't bring up all slots as intended
     {#} announce_event for precatcher from spam config never worked
+    {#} Fix issue with messed up working directory on drftpd sites which would cause races to fail
+    {#} Fix wrong or no [SITE FAILED] message was shown if a race failed on a site
     {#} Backup causes access violation if stats db is disabled but a stats db file exists
     {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
     {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
