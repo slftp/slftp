@@ -68,6 +68,7 @@
     {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
     {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
     {#} Sometimes files that should have been skipped were transfered anyway
+    {#} Fix some queue sorting issues for NFO, SFV and subdir priority settings
     {#} mp3numdisks took the wrong value, e.g. VA-Serious_Beats_92-(541833CD)-4CD-FLAC-2019-WRE
     {#} Fix some dirlist related access violations
     {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
