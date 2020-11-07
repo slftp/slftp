@@ -93,8 +93,9 @@ type
     FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
     FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
     FFullPath: String; //< path of section and releasename (e.g. /MP3-today/Armin_van_Buuren_-_A_State_of_Trance_921__Incl_Ruben_de_Ronde_Guestmix-SAT-07-04-2019-TALiON/)
-    FIsSpeedTest: Boolean; //< Value of SpeedTest from @link(TDirList.Create)
-    FIsFromIrc: Boolean; //< Value of FromIrc from @link(TDirList.Create)
+    FIsSpeedTest: Boolean; //< @true if task is a speedtest, @false otherwise
+    FIsAutoIndex: Boolean; //< @true if task was created by autoindexer, @false otherwise
+    FIsFromIrc: Boolean; //< @true if task was created by an IRC command (e.g. !dirlist), @false otherwise
 
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
@@ -121,7 +122,7 @@ type
 
     procedure Clear;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
-    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False; aIsAutoIndex: boolean = False); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -355,7 +356,7 @@ begin
   Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
 end;
 
-constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False);
 var
   sf: TSkipListFilter;
 begin
@@ -389,6 +390,7 @@ begin
 
   self.FIsSpeedTest := SpeedTest;
   self.FIsFromIrc := FromIrc;
+  self.FIsAutoIndex := aIsAutoIndex;
 
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
@@ -630,7 +632,7 @@ begin
         if ((fDirMask[1] = 'd') and (fFilename[1] = '.')) then
           Continue;
 
-        if ((fDirMask[1] <> 'd') and (not IsValidFilename(fFilename))) then
+        if (not FIsAutoIndex or (fDirMask[1] <> 'd')) and (not IsValidFilename(fFilename)) then
           Continue;
 
         // Do not filter if we call the dirlist from irc
