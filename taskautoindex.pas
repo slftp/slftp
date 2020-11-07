@@ -113,7 +113,7 @@ begin
 
   // sikeres dirlist, fel kell dolgozni az elemeit
   //dirlist successful, you need to work with the elements
-  dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
+  dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse, False, False, True);
 
   try
     if nil = IndexFindNfo(dl) then
