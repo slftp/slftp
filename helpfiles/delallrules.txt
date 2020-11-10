@@ -1,0 +1,3 @@
+Remove the whole ruleset of a site.
+Useage: <cmd> SITE1,SITE2,SITE3 [SECTION1,SECTION2,SECTION3]
+Useage: <cmd> * = Will remove ALL RULES!!!

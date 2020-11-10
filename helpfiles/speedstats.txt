@@ -1,0 +1,7 @@
+Usage: <cmd> sitename [SECTION] [RELEASENAME]
+Displays the speed stats of your sites, sorted from lower to higher speed.
+If you use with releasename, you need to specify the section!
+
+Example: <cmd> HQ1
+Example: <cmd> HQ1 GAMES
+Example: <cmd> HQ1 BLURAY The.Ottoman.Lieutenant.2017.COMPLETE.BLURAY-LAZERS

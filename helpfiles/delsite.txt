@@ -1,0 +1,2 @@
+Completly removes a site including all settings.
+Usage: <cmd> sitename

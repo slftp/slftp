@@ -1,0 +1,16 @@
+Display Race stats for sites.
+Usage: <cmd> SITENAME [Period] [Detailed]
+
+Valid periods: DAY, MONTH, YEAR - default: DAY
+
+Detailed default value is false. If set to true, it shows
+detailed to/from transfer infos.
+
+<cmd> HQ <- Start of DAY and show no details
+<cmd> HQ YEAR 1 <- Start of YEAR and show details
+<cmd> * MONTH <- Start of MONTH and show total count for all sites
+<cmd> * MONTH 1 <- Start of MONTH and show detailed infos for all sites
+
+Note: The 'Total In + Out' value shows the traffic (1GB DL on a site means 1GB UL on another site = 1GB traffic)
+
+You can use the special sitename * as a wildcard for all sites.

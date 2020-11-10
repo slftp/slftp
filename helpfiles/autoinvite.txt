@@ -1,0 +1,3 @@
+Usage: <cmd> sitename [0|1]
+Enable/Disable auto irc invites at slftp startup.
+NOTE: You need to set an IRC Nick with <cmdprefix>ircnick first.

@@ -1,0 +1,8 @@
+Usage: <cmd> sitename OR !all!
+Description: marks site(s) as down
+Use this feature if a site or some sites having trouble because of temporialy problems.
+To set down several sites at once, just type <cmd> site1 site3 siteN
+If you want to make all sites down and stop racing at all, type <cmd> !all!
+
+A site marked down with this function won't be touched 
+until you do <cmdprefix>bnctest manually or restart. If you wish to set it permanent down see <cmdprefix>setpermdown.

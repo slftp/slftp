@@ -1,0 +1,4 @@
+Usage: <cmd> srcsite [section] rlsname
+Description: spreads rlsname on chain where srcsite already contains the rls. Default section is PRE.
+See also: <prefix>stop
+Example: <cmd> HQ MyRip-GRP

@@ -1,0 +1,12 @@
+Usage: <cmd> [sitename] section releasename
+Description: Executes the background lookup task attached to the TRelease descendent.
+In human words: 
+- if its a mp3 release, genre lookup will be performed by dirlisting.
+- if its a mdvdr/mvid rip, nfo will be fetched and parsed for genre
+- if its a tv release, tvmaze lookup will be done
+- if its a movie release, imdb lookup will be done
+
+Note: these lookups are done in the background automaticly without the need for 
+issuing this command manually. Use this command only if you need to (for eg
+there was a site error while fetching the nfo, so the bot couldn't get the genre
+for a mdvdr release)

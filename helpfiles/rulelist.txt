@@ -1,0 +1,8 @@
+Displays the list of implemented condition handlers.
+Usage: <cmd> [condition handlers]
+Valid condition handlers: COMMON, MP3, 0DAY, MVID, NFO, TV, IMDB
+Examples:
+<cmd> <-- lists all rules
+<cmd> COMMON <-- lists the default rules which can be used for every condition handler
+<cmd> MP3 <-- lists MP3 specific rules
+<cmd> MP3 <-- lists TV specific rules

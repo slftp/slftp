@@ -1,0 +1,2 @@
+Removes an IRC network.
+Usage: <cmd> netname

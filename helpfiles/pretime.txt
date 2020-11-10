@@ -1,0 +1,2 @@
+Lookup the pretime of the rip.
+Useage: <cmd> MY-RLS

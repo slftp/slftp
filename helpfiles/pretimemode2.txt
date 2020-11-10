@@ -1,0 +1,5 @@
+Display/Change/Modifies the 2nd Pretime lookup mode.
+Usage: <cmd> MODE
+Description: 0 = Disable lookup, 1 = Over HTTP, 2 = MySQL, 3 = SQLITE
+Example: <cmd> 1
+NOTE: Used when <cmdprefix>pretimemode failed.

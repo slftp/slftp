@@ -1,0 +1,4 @@
+Usage: <cmd> <sitename> <password>
+This command changes your password on <sitename> to the specified <password>.
+No wildcard allowed.
+

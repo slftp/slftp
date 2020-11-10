@@ -1,0 +1,6 @@
+Usage: <cmd> sitename1 sitename2 sitename3 [0|1]
+Turns on/off sslfxp. Note, sslfxp will be turned on automaticly if the site requires it.
+You only need to mark (<cmd> site 1) site that needs it.
+If transfer is done sslfxp will be used if any of the sites has this option turned on.
+
+You can use the special sitename * for site-generic rules.

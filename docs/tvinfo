@@ -1,0 +1,53 @@
+                                TVMaze SUPPORT
+-------------------------------------------------------------------------------
+Since some sites separate TV (PDTV, HDTV, DSR, etc.), TVDVDRIP, TVDVDR, TV-x264
+releases, at first you probably want to setup the mapping masks in
+slftp.precatcher, a few example are included.
+This way, if a site does not allow DVDRIP's in TV, then you simple don't set a dir
+for TVDVDRIP section. If a site allows them and has no separated dir, then you can
+set the same directory as for TV.
+This way you don't need to add rules based on the source tag, BUT adding rules to
+all the TV sections (read below, rules from #3).
+
+If you don't want to deal with this, since you have no such sites described above,
+simply delete the mappings. This way, you want to use the tags condition to filter
+what source a site allows. For e.g., if a site allows standard definition releases
+only:
+1. since high definition releases have HDTV tag as well, we drop them first:
+  !ruleadd sitename tv if tag in 720p, 1080p, 2160p then DROP
+2. now we drop everything which does not contain HDTV tag (so it is PDTV or
+DSR or other shit):
+  !ruleadd sitename tv ifnot tag in HDTV then DROP
+3. you probably want to drop every release which has some foreign language tag in it
+(for example GERMAN, check slftp.languages):
+  !ruleadd sitename tv if foreign then DROP
+OR, if you want to drop non english and non german and non italian releases:
+  !ruleadd sitename tv if foreign && not language in GERMAN, ITALIAN then DROP
+4. and now we accept everything:
+  !ruleadd sitename tv if default then ALLOW
+
+If a site allows some specific shows only, for eg 24, Lost and Prison Break, you can
+use this rule instead of #4 above:
+!ruleadd sitename tv if tvshowname in 24, Lost, Prison Break then ALLOW
+
+
+About TVMaze:
+For each TV release the following the corresponding TVMaze page will be parsed.
+For example for the crappy Prison Break show, the next one:
+http://api.tvmaze.com/shows/541?embed[]=nextepisode&embed[]=previousepisode
+Extracted fields are Premiered, Country, Classification (as tvscripted), Genres,
+Network, and Runtime.
+You will probably need the tvscripted condition only.
+
+Special note, if you want to trust the tvmaze query, you have to add a rule like 
+this before using other tv conditions:
+  !ruleadd sitename tv ifnot tvlookupdone then DROP
+This line will drop trades since at that point tvmaze lookup is not ready yet.
+
+After this, you can safely use the other tvmaze conditions.
+As an example, you can use a rule like this:
+  !ruleadd sitename tv if tvgenres =~ *Action* then ALLOW
+
+For sites, which allow everything except docus, you probably want a rule like this
+instead of a "default" rule at the end of the ruleset:
+  !ruleadd sitename tv if tvscripted then ALLOW

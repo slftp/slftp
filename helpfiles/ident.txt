@@ -1,0 +1,3 @@
+Usage: <cmd> sitename [ident]
+Sets/gets the ident response of a site.
+Note: this feature is for windows only.

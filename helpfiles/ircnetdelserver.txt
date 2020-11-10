@@ -1,0 +1,3 @@
+Removes a server from an IRC network.
+Usage: <cmd> netname host:port
+See also: <cmdprefix>ircnetadd

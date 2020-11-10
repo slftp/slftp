@@ -1,0 +1,4 @@
+Display last <lines> logfiles entries. Default is 5 lines.
+<cmd> [<lines>]
+Example:
+<cmd> 20

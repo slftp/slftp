@@ -1,0 +1,4 @@
+Usage: <cmd> [unixtime]
+Description: return the fixxed Unixtime value from slftp.ini
+Example: <cmd> 
+Example: <cmd> 1279436640

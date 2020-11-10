@@ -1,0 +1,3 @@
+Stops an active transfer.
+Usage: <cmd> Pazo ID
+Usage: <cmd> Releasename

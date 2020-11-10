@@ -1,0 +1,3 @@
+Usage: <cmd> sitename slot
+Free and Nill the slot of the site and recreate it.
+Slot is a number starting at 0, use slotsshow to find the slot number

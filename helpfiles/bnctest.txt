@@ -1,0 +1,3 @@
+Tests whether any of the bncs are up.
+Usage: <cmd> [sitename1 [sitename2]]
+If sitename is omitted, each site will be tested.

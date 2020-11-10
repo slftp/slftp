@@ -1,0 +1,2 @@
+Usage: <cmd>
+Reloads slftp.knowngroups

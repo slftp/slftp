@@ -1,0 +1,4 @@
+Get/sets autonuke status of a site.
+Usage: <cmd> sitename interval
+If interval is zero, autonuke is turned off. Interval is seconds.
+Autonuke is a stupid name which enables/disables nuke feature in slftp.

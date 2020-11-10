@@ -1,0 +1,108 @@
+                                     Files
+-------------------------------------------------------------------------------
+This file describes what the purpose is of the several files of slFtp.
+
+- sites.dat
+  this is an encrypted ini file, which contains the site settings,
+  sitename, username, password, etc.
+
+- slftp_x86
+  precompiled linux 32 bit binary (libncurses needed!)
+
+- slftp_x64
+  precompiled linux 64 bit binary (libncursesw needed!)
+
+- slftp_x86.exe
+  precompiled win32 binary
+
+- slftp_x64.exe
+  precompiled win64 binary
+
+- slftp.chans
+  this encrypted file stores the precatcher rules for irc channels
+
+- slftp.history
+  command history is being saved to this file (encrypted)
+
+- slftp.imdbcountries
+  it contains some common imdb infos.
+  syntax is: Dirtag=Region,Country
+  e.g.: German=DE,Germany
+
+- slftp.ini
+  the main configuration file
+
+- slftp.kb
+  this is the encrypted knowledge base, containing pretime and
+  some details of the rips, to avoid backfilling
+
+- slftp.knowngroups
+  file for known groupnames which can be used via knowngroup (!rulehelp knowngroup) rule
+
+- slftp.languagebase
+  previously languagebase.slftp, contains languages and associated tags for
+  release language detection
+
+- slftp.log
+  you probably already read this stuff :)
+
+- slftp.news
+  news entries are stored in this file
+
+- slftp.nukequeue
+  the queue of rips to be nuked are stored in this file
+
+- slftp.precatcher
+  encrypted file storing the builtin precatcher's rules
+
+- slftp.ranks
+  this file stores the "rank stats" (see CHAINS)
+
+- slftp.renames
+  last 250 renames that have been recognized by kb are saved in this file and
+  loaded into kb on startup
+
+- slftp.rules
+  this file stores the site rules
+
+- slftp.skip
+  skiplist used by the race engine
+
+- slftp.skipgroups
+  list of groups which are blocked globally
+
+- slftp.socks5
+  hosts, ports, usernames and passwords for socks5 servers are stored in this
+  file (encrypted)
+
+- slftp.spamconf
+  settings for enabling/disabling spam irc messages
+
+- slftp.speedstats
+  latest speed stats are stored in this file
+
+
+- db_addpre.db
+  sqlite database which stores releases and pretimes if addpremode 1 is used
+
+- indexes.db
+  sqlite database which stores the release names pathes indexed by
+  the autoindex feature
+
+- stats.db
+  sqlite database which stores the race stats
+
+- tvinfos.db
+  sqlite database which stores the tv info fetched from TVMaze & TheTVDB
+
+
+- mirktrade.dll
+  external precatcher for MiRC. See PRECATCHER
+- mirktrade.conf
+  configuration file for the MiRC based precatcher
+- mirktrade_(fish|mircryption).mrc
+  Loader MiRC script for the precatcher
+- cryptconf(.exe)
+  utility for encrypting/decrypting the config files,
+  if you need to tweak something, you probably dont, so dont touch unless
+  you know what you are doing!

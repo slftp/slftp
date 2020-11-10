@@ -1,0 +1,3 @@
+Usage: <cmd> SECTION
+Displays sites which have SECTION.
+

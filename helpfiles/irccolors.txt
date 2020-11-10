@@ -1,0 +1,2 @@
+Usage: <cmd>
+Display a line with all the irc colors.

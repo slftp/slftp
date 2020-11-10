@@ -1,0 +1,2 @@
+Recalculates the routes based on speed stats.
+(Note: it is done periodically in the background anyway)

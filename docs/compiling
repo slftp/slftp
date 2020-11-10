@@ -1,0 +1,125 @@
+                                Compiling slFtp
+-------------------------------------------------------------------------------
+
+Requirements
+------------
+on UNIX:
+    We currently _only_ support compilation using fpc 3.2+ (currently a beta version).
+    You can also use fpc 3.3.1 (trunk). This is a daily snapshot release and might be unstable.
+
+    If you want to compile it yourself, see fpc_howto file and figure it out yourself.
+    If you have a GUI available, use https://github.com/LongDirtyAnimAlf/fpcupdeluxe
+    
+on WINDOWS:
+    Use Delphi 10.3 Rio (e.g. free Community Edition) or newer
+
+
+OpenSSL
+-------
+on UNIX:
+    - We recommend to use the included libinstaller.sh script. -
+
+    NOTE: OpenSSL 1.1.* isn't supported yet.
+
+    wget https://www.openssl.org/source/openssl-1.0.2s.tar.gz
+    tar xf openssl-1.0.2*.tar.gz
+    ./config shared
+    make
+    cp lib*.so /path/to/your/slftp/
+
+on WINDOWS:
+    Download OpenSSL from https://github.com/IndySockets/OpenSSL-Binaries or
+    http://wiki.overbyte.eu/wiki/index.php/ICS_Download#Download_OpenSSL_Binaries_.28required_for_SSL-enabled_components.29
+    and choose file suitable for your slftp (32 or 64bit) and extract into slftp/bin folder.
+
+
+SQLite
+------
+on UNIX:
+    - We recommend to use the included libinstaller.sh script. -
+
+on WINDOWS:
+    Download 'Precompiled Binaries for Windows' from https://www.sqlite.org/download.html
+    depending on your version of slftp (32 or 64bit) and extract the dll into slftp/bin folder.
+
+    NOTE: For the 64bit version you have to rename the file to SQLite3-64.dll
+
+
+MySQL / MariaDB (optional)
+--------------------------
+   - If you don't need MySQL / MariaDB, just disable it in slftp.ini and ignore this section. -
+
+MySQL and MariaDB support requires appropriate libraries (MySQL/MariaDB Client).
+You also need to add an user to your Database with read and write privileges.
+
+on UNIX:
+	- We recommend to use the included libinstaller.sh script. -
+
+	compile your own library and copy it into slftp folder.
+	https://dev.mysql.com/downloads/connector/c/
+	https://mariadb.com/downloads/#connectors (C/C++ connector)
+
+on WINDOWS:
+    1. Download & install
+      MariaDB: MariaDB Connector/C
+      MySQL: MySQL Connector/C
+    2. Copy needed library files from install dir into slftp folder.
+
+    Table structure
+    ---------------
+    
+    Create the Database.
+    
+    	# CREATE DATABASE slftp;
+    
+    Switch to the Database.
+    
+    	# USE slftp;
+    
+    Create the Database table structure similar to the one below:
+    
+    	# CREATE TABLE `addpre` (
+    	#  `rls` varchar(255) NOT NULL PRIMARY KEY,
+    	#  `section` varchar(25) DEFAULT NULL,
+    	#  `ts` int(16) DEFAULT NULL,
+    	#  `source` varchar(50) DEFAULT NULL,
+        #  PRIMARY KEY (`rls`)
+    	# ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+Note: You can use an external database aswell, keep in mind that you have to disable the
+bind-network config on the MYSQL host and add the IP to the user!
+
+
+Compile
+-------
+Extract the main folder and sub folders (Replace the slFtp file/folders with your version)
+
+  # tar -xfvj slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
+  # cd slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
+
+  Change to the source directtory
+
+	# cd src/slftp
+
+on UNIX:
+    - Without editing makefile
+        1. # make
+        2. # cp slftp /My/slFtp/Path
+
+    - With editing makefile (only if you know what you do!)
+        1. Edit the SLFTPPATH in makefile
+        2. # make all_32 or make all_64
+
+    If you want to build a specific cpu architecture, use make slftp_32 or make slftp_64
+    There are also other defines for different debug versions which can be used for valgrind or gdb.
+      For gdb: make slftp_debug (or slftp_32_debug/slftp_64_debug)
+      For valgrind: make slftp_debug_valgrind
+
+on WINDOWS:
+    Open cmd.exe and switch into slFtp dir 
+	# make
+
+    There are also defines for different cpu architectures and debug versions.
+
+
+Once you have it compiled and running, read the usage file and configure your slFtp.

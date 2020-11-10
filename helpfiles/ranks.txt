@@ -1,0 +1,5 @@
+Displays the current site ranks.
+Usage: <cmd> [sectionname]
+If sectionname is omitted, slftp will display all the sites
+where the rank is locked (see <cmdprefix>ranklock), else slftp will display
+all the ranks belonging to the specified section.

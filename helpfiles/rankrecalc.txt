@@ -1,0 +1,2 @@
+Recalc the Ranking.
+Usage: <cmd>

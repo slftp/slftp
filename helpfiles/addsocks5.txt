@@ -1,0 +1,4 @@
+Usage: <cmd> Proxyname Host:Port User Password Enabled
+Usage: <cmd> Proxyname Host:Port Enabled (for anonymous socks5)
+Example: <cmd> HQ 127.0.0.1:1337 slftp slftp 1
+Example: <cmd> HQ 127.0.0.1:1337 1

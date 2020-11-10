@@ -1,0 +1,2 @@
+Usage: <cmd>
+Shows a list of valid categories for news/message system.

@@ -1,0 +1,12 @@
+Usage: <cmd> SEARCHPATTERN [-l/--limit] 
+Queries the database which is filled by the autoindex feature for SEARCHPATTERN
+and displays the results.
+
+-l/--limit
+  Sets the max. output of search results. (default 10)
+  
+Examples:
+Searches for everything which matches 'FIFA -GRPNAME' and shows the first 5 results.
+<cmd> "FIFA -GRPNAME" --limit 5
+Will show max. 10 results which match 'Soccer Game'.
+<cmd> Soccer Game
