@@ -1,0 +1,359 @@
+                                Network & Channel Setup
+-------------------------------------------------------------------------------
+
+Admin Network
+-------------
+
+You should setup your admin network on a network that has "fakelag" disabled, or the ability to OPER the bot.
+As you can imagine there is alot of data to be pasted to channels and you don't want to be kicked
+for flooding every time you type !help.
+
+Add an IRC network with direct connection
+-----------------------------------------
+
+If you want the bot to connect to your znc bouncer, look at section 1.2.
+
+Begin by editing the slftp.ini file and enter the nickname you wish to have.
+
+Then it's time to add a connection to a IRC network.
+
+	# !ircnetadd <IRCNETWORKNAME> <host>:<port> <sslmode on/off>
+
+Example:
+
+	# !ircnetadd LINKNET eu.link-net.org:7000 1
+
+*** sslmode is 0 or 1
+
+Now you have the bot on linknet. And you can add further irc networks for other sites.
+
+Check if the bot is connected
+
+	# !ircstatus
+
+Add an IRC network with ZNC
+---------------------------
+
+Making your bot connect to your ZNC bouncer is simple. Using ZNC is useful when you only want one user visible
+on channel, both the one you chat from and your bot. It is also useful if you want to have different nicknames
+on different irc networks, as the current version of slftp only allows one irc nickname for all the servers.
+
+	# !ircnetadd <IRCNETWORKNAME> <host>:<port> <sslmode on/off> <user:password> [<nickname>]
+
+Example:
+
+	# !ircnetadd SexyBnc irc.znc.bouncer.com:1337 1 myznc:easilycracked
+
+Example if you have multiple networks configured in ZNC:
+
+	# !ircnetadd SexyBnc irc.znc.bouncer.com:1337 1 myznc/zncnetworkname:easilycracked
+
+For further information check the help
+
+	# !help ircnetadd
+
+Check if the bot is connected
+
+	# !ircstatus
+
+IRC channels and blowfish
+-------------------------
+
+Adding IRC channels
+-------------------
+
+After you have created your irc networks you need to add irc channels for the bot to join.
+
+	# !ircchanadd <IRCNETWORKNAME> <channel>
+
+Example:
+
+	# !ircchanadd LINKNET #channel
+
+IRC channel passwords
+
+If the irc channel requires a password:
+
+	# !ircchankey <IRCNETWORKNAME> <channel> <key>
+
+Example:
+
+	# !ircchankey LINKNET #channel mysecretkey
+
+IRC channel fish keys
+---------------------
+If your channel requires a fish key
+NOTE: If you are using fish in your znc you can skip this step.
+      If you are setting up a admin channel, blowfish is REQUIRED to be set in slftp.
+
+	# !ircchanblow <IRCNETWORKNAME> <channel> <blowfishkey>
+
+ECB and CBC blowfish keys are supported. To indicate that a key is to be used for CBC
+encryption, prefix the key with cbc: to maintain compatibility with other scripts.
+It is highly recommended to use CBC whenever possible!
+
+Example:
+
+	# !ircchanblow LINKNET #channel cbc:feI2J$d38JF3t%fKEmdWoFDj4N)emFj3F3
+
+Adding sites
+------------
+
+Now it's time to add sites
+
+	# !addsite <SITENAME> <user> <password> <ip>:<port>
+
+Example:
+
+	# !addsite SITENAME buck angel 127.0.0.1:6969
+
+In case your site has more than one bnc's you can add more bnc's with the !addbnc command
+
+	# !addbnc SITENAME 192.168.1.1:6969
+
+Adding sections
+---------------
+
+slFtp has default section names for releases which you can see under the [sections] in the slftp.precatcher file,
+you can edit it as you like. It's highly recommended to become familiar with the file as it will make your life
+so much easier when using slFtp.
+
+For a small example as a short introduction to the sections take a look at the following:
+
+Under my [slftp.precatcher] I have:
+
+ISOAPPS=ISOAPPS,APPS,ISO APPS,APPS ISO
+ISOGAMES=ISOGAMES,ISO GAMES,GAMES ISO,GAMES
+
+This means that whenever something is uploaded to the sections that have GAMES in their name, will be put into the section ISOGAMES
+
+So if you want to race games to a site you need to add the section ISOGAMES to that particular site.
+
+NOTE: You can skip this step and just use !setdir SITENAME ISOGAMES /GAMES/ which will set the directory for that section
+      on this site and also add the section ISOGAMES to the site, the same way !sections would.
+
+We add the section with the following command:
+
+	# !sections <sitename> <section>
+
+Example:
+
+	# !sections SITENAME ISOGAMES
+
+To remove sections, just run the same !section command again with the name of the section you wish to remove
+
+	# !sections SITENAME ISOGAMES
+
+To see all the sections you have added you can use the !sections command
+
+	# !sections SITENAME
+
+
+Mapping sections
+----------------
+
+After you have set up your sections as you like them you might want to look at [mapping] under the slftp.precatcher file.
+It is going to help you sort out what goes where. Here we have a small example.
+
+	ISOGAMES;CLONEGAMES;*clone*,*clonedvd*,*clones*
+	ISOGAMES;MACGAMES;*MAC*,*MACOSX*,*OSX*,*MACOS*,*APPLE*
+
+This means that everything that comes into ISOGAMES with the name MACOS or MAC will be mapped to a section that's called MACGAMES.
+
+So if any of my sites allows MACGAMES, then I'll just have to add the MACGAMES section to it.
+
+	# !section SITENAME MACGAMES
+
+You could put everything under ISOGAMES but as some sites don't allow clone then it's necessary to map clone to another section.
+
+Here are some further examples for mapping, if you understand the mapping you can probably figure out what is being done here.
+
+	0DAY;PDA;*.SymbianOS*,*-*PDA,*.WM2003.*,*.XScale.*,*.J2Me*,*.PalmOS.*
+	0DAY;EBOOK;*.EBOOK-*,*.EBOOK.*,ActualTests.*,*.Exam.Q.*
+	X264;HD720;*.720p.*,*.720p-*
+	X264;HD1080;*.1080p.*,*.1080p-*
+	ISOAPPS;ISOTRAINING;*Lynda.com.*,*VTC.*,*Total.Training*,*TRAINSIGNAL.*,*Train.Signal*
+	MDVDR;MHD;*.1080p.*,*.1080p-*,*.720p.*,*.720p-*,*.x264.*,*.x264-*
+
+NOTE: For a more detailed explanation of the precatcher please see the docs/precatcher file.
+
+Set directories
+---------------
+
+Once you have set your sections you need to set your directories so that slftp knows where to put the files
+that are going into that particular section.
+
+This is done with the !setdir command
+
+	# !setdir <sitename> <section> <directory>
+
+NOTE: The <section> is the default section in the precatcher file, not the sitebot sections.
+
+Examples:
+
+	# !setdir SITENAME MACGAMES /MACGAMES
+	# !setdir SITENAME MP3 /MP3-TODAY
+
+Once you have set all your directories you can use the !site command to get a overview of all the sections/directories you have set, useful to see if you are forgetting something.
+
+	# !site SITENAME
+
+
+Add precatcher
+--------------
+
+Next we need to add a precatcher to catch the announce from the sitebot.
+There are a few ways to do this, so I suggest you read the precatcher file so you know what your doing,
+and can make a decision on what suits you best.
+
+Valid events are NEWDIR | PRE | COMPLETE | NUKE | REQUEST but you really only need NEWDIR
+
+	# !catchadd <SITE> <IRCNETWORKNAME> <#channel> <botname> <event> <words>
+	# For more examples run: !help catchadd
+
+Example:
+
+	# !catchadd SITENAME LINKNET #trannychan trannybot NEWDIR cum,in,my,ass
+
+To see if your precatcher works and actually catches announces you can use the !catchtest command.
+
+Example:
+
+	# !catchtest LINKNET #trannychan trannybot ( xxx|cum ) . Tranny.Grannys.20.XXX.DVDRip.XviD-SiCKFUCK . fag/iND
+	# |Process LINKNET #trannychan trannybot ( xxx|cum ) . Tranny.Grannys.20.XXX.DVDRip.XviD-SiCKFUCK . fag/iND
+	# |ProcessRelease Tranny.Grannys.20.XXX.DVDRip.XviD-SiCKFUCK iND NEWDIR
+	# |Cleanedup line wo rlsname: xxx cum fag iND
+	# |Section: XXX
+	# |Event: NEWDIR
+	# |Ok.
+
+
+Adding rules
+------------
+
+Now it's time to set up some rules to filter out what you want to trade, and what you want to skip.
+You add the rules for the site you want to trade to (the destination).
+
+Available rules
+---------------
+
+It's best to get familiar with the available rules so you can decide what you need to do. To see available rules:
+
+	# !rulelist
+
+To see how a particular rule functions:
+
+	# !rulehelp rulename
+
+Rule operators
+--------------
+
+Another thing you need to get familiar with are the rule operators, some basic knowledge that * is a wildcard is also good.
+Knowing regex might also come in handy.
+
+Operators:
+
+	= simple equality test
+	!= simple inequality test
+	=~ mask match with wildchar support. Eg.: releasename =~ *-BERC
+	=~ regex match. Eg.: releasename =~ /-(BERC|BERG)$/
+	!~ not mask/regex match
+        in list operator, matches any items in the list. Eg.: mp3source in TAPE, VINYL
+	< <= >= > comparator for e.g. mp3year or other integer ranges
+	@ equality match but it expects SITENAME as parameter 
+
+You can use the special section * for section-generic rules, also * for site-generic rules.
+
+Creating rules
+--------------
+
+Now that you've gotten yourself familiar with the available rules, operators and hopefully familiarised yourself
+with the requirements of the site ("site rules" in most cases) you need to create a list of rules.
+The order of the rules is important, the first matching (ALLOW) rule will apply.
+The exception to this rule is global rules. They will ALWAYS be put first regardless of the rule number.
+
+If our site allows everything in a section we just need one rule.
+
+	# !ruleadd SITENAME XXX if default then ALLOW
+
+Note that every other rule we'd add after that rule would get ignored, since we just allowed everything.
+
+It's best to rule out what's forbidden (DROP) and then allow the rest. Always try and do drop rules as much as possible rather than ALLOW.
+Let's say our site only allows scripted tv shows from the UK and the USA.
+
+	# !ruleadd SITENAME TV-720 ifnot tvlookupdone then DROP
+	# !ruleadd SITENAME TV-720 if tvcountry notin USA, UK then DROP
+	# !ruleadd SITENAME TV-720 ifnot tvscripted then DROP
+	# !ruleadd SITENAME TV-720 if default then ALLOW
+
+The tvlookupdone rule ensures the rest of the rules are only evaluated after the tvmaze lookup has been performed.
+Since information like tvcountry and tvscripted is only known after the lookup has been performed.
+Prior to the lookup the release will be reported as dropped due to tvlookupdone. After a tvmaze lookup has been performed
+an UPDATE event is issued which will re-evaluate the rules based on the newly available tv information.
+
+Another example where our site only allows non/foreign reggae MP3's ripped from cd, vinyl, web that's newer than 2009
+
+	# !ruleadd SITENAME MP3 if mp3genre =~ *reggae* || mp3genre =~ *Dance Hall* || mp3genre =~ *dancehall* then DROP
+	# !ruleadd SITENAME MP3 if not mp3language in en then DROP
+	# !ruleadd SITENAME MP3 if not ( mp3source in CD, CDR, Vinyl, WEB ) then DROP
+	# !ruleadd SITENAME MP3 if mp3year < 2009 then DROP
+	# !ruleadd SITENAME MP3 if default then ALLOW
+
+NOTE: In order for tvmaze, mp3/flac, imdb etc lookups to work you MUST set these slftp sections in your slftp.ini file under [kb].
+      Don't put sections in more than one line, it'll only use first appearance of them and this leads to problems with rules! 
+	TMP3Release=MP3,FLAC
+	T0dayRelease=0-DAY,0-DAY-PDA,0-DAY-GAMES
+	TTVRelease=TV,TV-DVDRIP,TV-BLURAY,TV-DVDR,TV-HR,TV-WMV,TV-X264,TV-SDX264,TV-XVID,TV-SPORT
+	TNFORelease=X265    # supports only Genre parsing!
+	TMVIDRelease=MVID,MDVDR
+	TIMDBRelease=XVID,X264,DVDR,BLURAY
+
+NOTE: The rules imdblookupdone (for TIMDBRelease), tvlookupdone (for TTVRelease) and mvidlookupdone (for TMVIDRelease) are available to be able to stop
+      rule evaluation of rules before the respective lookups have been performed (and as such would only yield invalid results for rules)
+
+Testing your rules
+------------------
+
+You can test your rules by looking up existing releases on a site and see if they are matched or not,
+or you can just wait for the next release to be caught.
+I strongly advise that you test your rules with existing releases, not all siteops are keen on trial runs.
+
+Begin by looking up the release
+
+	# !lookup SITENAME XXX Tranny.Grannys.20.XXX.DVDRip.XviD-SiCKFUCK
+
+then see the info on the release
+
+	# !kbshow XXX Tranny.Grannys.20.XXX.DVDRip.XviD-SiCKFUCK
+
+
+Add routes
+----------
+
+Now that the basic stuff has been set up, it's time to decide what sites trade where, we do that with routes.
+You can manually set the number [1-9].
+This is just the initial setup of weights for trading between sites.
+slFtp will re-calculate the routes according to speed, time and ranking regularly.
+
+If you want to read more on this look at the docs/chains file.
+
+	# !routeset sitefrom siteto 9
+
+For example if we want to trade stuff from SITE1 to SITE2 and then from SITE2 to SITE1 aswell
+
+	# !routeset SITE1 SITE2 9
+	# !routeset SITE2 SITE1 9
+
+This can also be accomplished by doing
+
+	# !routeset SITE1 SITE2 9 -b
+
+Be sure to check out !rulehelp routeset for more examples and options this command offers.
+
+
+Turn on auto
+------------
+
+Last but not least, turn on the auto
+
+	# !auto 1

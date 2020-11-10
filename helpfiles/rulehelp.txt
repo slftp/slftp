@@ -1,0 +1,3 @@
+Displays help about a condition handler.
+Usage: <cmd> rule_condition_name
+For list of conditions type <cmdprefix>rulelist.

@@ -1,0 +1,10 @@
+Usage: <cmd> sitename1,sitename2,sitename3 ... maxup maxdn [maxpredn]
+Changes the max. number of slots for uploading/downloading. Default is 2 2!
+Last parameter is optional, if empty it'll be set to maxdn. It's for max. number
+of slots for downloading a PRE from site.
+Example: <cmd> HQ1,HQ2,HQ3 2 1
+Example: <cmd> HQ4 2 1 4
+Example: <cmd> HQ1 4 0 2 <-- only leech on PRE, else gain credits
+Example: <cmd> * 3 2
+
+You can use the special sitename * as a wildcard for all sites.

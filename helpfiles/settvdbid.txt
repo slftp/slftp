@@ -1,0 +1,4 @@
+Usage: <cmd> TheTVDbID TVMazeID|Showname
+Description: Update the tvdb_id colum value in tvinfo.db
+Example: <cmd> 83729 3399
+Example: <cmd> 83729 Doctors

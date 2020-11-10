@@ -1,0 +1,3 @@
+Usage: <cmd> Releasename -c:COUNT
+Description: Read some infos from mysqldb. Max Count is 5.
+Example: <cmd> The Big Bang -c:5

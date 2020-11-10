@@ -1,0 +1,4 @@
+Usage: <cmd> TVRageID TVMazeID|Showname
+Description: Update the tvrage_id colum value in tvinfo.db
+Example: <cmd> 8511 66
+Example: <cmd> 8511 The Big Bang Theory

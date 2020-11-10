@@ -1,0 +1,3 @@
+Usage: <cmd> [section] site rlsname
+Description: just issues the pre command. Default section is PRE.
+Example: <cmd> MyHQ MyRip-GRP

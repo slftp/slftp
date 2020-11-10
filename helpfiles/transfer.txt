@@ -1,0 +1,5 @@
+Usage: <cmd> srcsite dstsite srcdir dstdir rlsname
+Description: Transfers rlsname from srcsite to dstsite. Srcdir/dstdir can be a
+slftp section or a full path without rlsname.
+Example: <cmd> HQ1 HQ2 /incoming/daily/MP3/ MP3 MyRip-GRP
+Example: <cmd> HQ1 HQ2 X264 X264-NL MyRip-GRP

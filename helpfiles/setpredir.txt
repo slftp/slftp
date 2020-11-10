@@ -1,0 +1,8 @@
+Usage: <cmd> sitename section predir
+Description: sets pre dir on site.
+Examples: <cmd> MyHQ PRE /PRE/MP3
+          <cmd> MyHQ PRE-MP3 /PRE/MP3
+          <cmd> MyHQ PRE-TV /PRE/SERIES
+See also <prefix>setprecmd
+
+Note: All pre sections need to start with 'PRE'

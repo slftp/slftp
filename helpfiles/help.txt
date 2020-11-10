@@ -1,0 +1,9 @@
+Displays help for commands.
+Usage: <cmd> --all/--a/-all/-a <-- displays complete command list
+Usage: <cmd> [commandname] <-- shows info for command
+Usage: <cmd> -group <-- displays only commands related to group
+Valid groups: general, site, auto, route, rank, speed, work, prebot, stats, slots, misc, news, irc, rules, indexer, info, reload, socks5, pretime, imdb, tv, test, section
+Examples:
+<cmd> tvinfo
+<cmd> -general
+<cmd> --all

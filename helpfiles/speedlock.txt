@@ -1,0 +1,4 @@
+Displays/turns on/off speedstat lock of a site.
+Usage: <cmd> sitename [0|1]
+Since slFtp 1.2.0.7 routes between sites are dynamically recalculated.
+If you want slftp to not change a site's routes, turn on this lock.

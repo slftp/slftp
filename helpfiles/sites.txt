@@ -1,0 +1,2 @@
+Usage: <cmd>
+Description: displays site list.

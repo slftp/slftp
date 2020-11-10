@@ -1,0 +1,12 @@
+Display/modifies/deletes the IRC oper settings.
+Usage: <cmd> <netname> [-|userid password]
+The only solution to prevent "fake lag" added by the irc server, 
+is to make the bot IRC operator. 
+You can read more about this at:
+http://forums.unrealircd.com/viewtopic.php?f=11&t=1352
+To send oper command to the ircd after connecting, use for eg:
+<cmdprefix>ircoper myprivateircnet myuser mypass
+To check the current oper settings, use:
+<cmdprefix>ircoper myprivateircnet
+To delete the oper setting:
+<cmdprefix>ircoper myprivateircnet -

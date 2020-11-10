@@ -1,0 +1,4 @@
+Usage: <cmd> id sitename netname channelname botnicks (PRE|COMPLETE|NEWDIR) words [section]
+Modifies a catchline.
+
+Note: for more syntax info read <prefix>help catchadd

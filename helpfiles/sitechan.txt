@@ -1,0 +1,7 @@
+Binds a site to a network in case it has invite only chan. 
+If site's chan is not invite only, delete the network by calling it without netname.
+Usage: <cmd> sitename [netname]
+Eg.: HQ is a nice site. It even has a sitechan! On Linknet! But its invite only :(
+No worries! We just do
+<cmd> HQ linknet
+and bot will invite itself next time when it connects to linknet.

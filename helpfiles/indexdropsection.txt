@@ -1,0 +1,2 @@
+Usage: <cmd> sitename section
+Drops entries belonging to sitename's section.

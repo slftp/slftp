@@ -1,0 +1,6 @@
+Displays/modifies/deletes the site's locked rank value.
+Usage: <cmd> sitename section [rank]
+Sitename and section are required. If no rank is specified, current rank lock will be displayed.
+If rank is 1-9, it will be set. If rank is 0, ranklock will be deleted.
+
+If a site's rank is locked, its value will be used in races for all the sections.

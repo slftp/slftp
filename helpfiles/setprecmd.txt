@@ -1,0 +1,6 @@
+Usage: <cmd> sitename section precommand
+Description: sets pre command for site and section. For release name use <rlsname> macro.
+To remove a precmd, omit precommand parameter.
+Example: <cmd> MyHQ PRE-MP3 SITE PRE <rlsname> MP3
+Example: <cmd> MyHQ PRE-X264-1080P SITE PRE <rlsname> HD1080
+See also <prefix>setpredir <prefix>pre

@@ -1,0 +1,6 @@
+Description: Mark a site not be added to Spread, check and pre commands.
+Usage: <cmd> SITENAME [STATUS]
+Usage: <cmd> MYHUHQ 1 -- Will skip MYHUHQ
+Hint: STATUS can be empty, to announce current value.
+
+

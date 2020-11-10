@@ -1,0 +1,47 @@
+                             Midnight support
+-------------------------------------------------------------------------------
+By default, slFtp does not send CWD commands but uses full paths on glFTPd 
+sites. Around midnight this might cause some troubles:
+GRP pres a release called Foobar-Foobar-2009-GRP on site SRC at 23:59:50.
+slFtp is doing mkdir on site DST at 23:59:50:
+DST: MKD /mp3-today/Foobar-Foobar-2009-GRP
+and then it starts sending files:
+SRC: RETR /today-mp3/Foobar-Foobar-2009-GRP/00-foobar.sfv
+DST: STOR /mp3-today/Foobar-Foobar-2009-GRP/00-foobar.sfv
+...
+
+Then midnight comes, the mp3-today symlinks point to a new daydir, which would
+cause slftp to be unable to complete the transfer.
+
+To prevent this, slFtp has an anti-midnight feature. In the time range 
+close to midnight, it will query the server's current dir after mkdir:
+DST: CWD /mp3-today
+DST: 200 Ok
+DST: PWD
+DST: 200 Current working directory is: /MP3/2009-0620
+DST: MKD Foobar-Foobar-2009-GRP
+DST: 200 Ok, directory created.
+
+Then at transfer:
+DST: STOR /MP3/2009-0620/Foobar-Foobar-2009-GRP/00-foobar.sfv
+
+And of course, dirlisting on SRC has some similar changes as well, and also
+using the real datedir as path on RETR.
+
+To make this work, you need to setup all the sections with dated dirs 
+in [midnight] section of slftp.ini:
+sections=MP3-*, FLAC, 0DAY, PDA, /(A|E)BOOK/i, XXXPIX, MV
+
+Most scene sites are using Central Europen Time (CET = GMT+1), but their
+clock might be inaccurate, so slFtp is doing the procedure for querying
+the current dir described above in a specified time range you can setup
+in this [midnight] section.
+
+For example, if you live in London/GMT+0 (or your shell has GMT+0 timezone 
+set), when scene sites (with GMT+1) are doing newdirs on midnight, your box
+has current localtime 23:00. For this reason you need to tweak slftp.ini:
+
+starts=22:45
+ends=23:15
+
+Users running slFtp on a shell with GMT+1 do not need to touch both variables above.

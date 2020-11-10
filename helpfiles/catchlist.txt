@@ -1,0 +1,6 @@
+List precatcher rules.
+Usage: <cmd> [sitename|netname channel]
+Output format is:
+sitename-netname-channel <nicks> [event] {words} (section)
+You can filter the list by sitename or by channel.
+NOTICE: if you delete a rule the ids will decrease by one.

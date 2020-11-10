@@ -1,0 +1,93 @@
+                                   Precatcher
+-------------------------------------------------------------------------------
+There are two ways to feed slFtp with race events:
+- using an external precatcher which sends the events in UDP packets (see 1)
+- making the bot join the sitechans and using the builtin precatcher (see 2)
+This doc file is about the 2nd way.
+
+1)
+* NOTE: This method isn't maintained nor really tested - try out yourself *
+Currently only mIRC dll plugin is implemented.
+Installation:
+- copy mirktrade.dll to mirc dir
+- copy mirktrade.conf to mirc dir
+- edit slftp.ini, enable external precatcher support in [eprecatcher]
+  set a port to listen on
+- edit ip:port in mirktrade.conf, set the same
+- edit password in mirktrade.conf
+- copy mirktrade_(fish|mirccryption).mrc into mirc dir
+- add channels/botnicks/etc into mirktrader.conf's []
+- /load -rs1 mirktrade_(fish|mirccryption).mrc
+
+Commands you can use now:
+/con       - enable precatching
+/coff      - disable precatching
+/creload   - reparse mirktrader.conf
+/ctest     - similar functionality as !catchtest for the builtin precatch, 
+             read !help catchtest (and omit netname parameter)
+
+
+2)			 
+                               How precatcher works
+-------------------------------------------------------------------------------
+When an irc line is catched from an added source (ircnet-#channel-botname),
+the following steps are being done:
+- color codes, text decorations and other control characters are stripped
+  basicly only a..z, A..Z, 0..9, ( ) _ - . & are left, others are substituted 
+  to whitespace (focsupaszitas)
+- extracting the longest phrase of the announce with at least 1 - the name 
+  this is the release name.
+- replacefrom/replaceto substitutions are executed
+- looking for nukewords (if any of them is found, execution is stopped)
+- tagline processing is being executed... some sites announce user tagline
+  as a moto... which might cause some problems when detecting genre of an
+  mp3 release or similar. if a "tagline" word is found in the announce,
+  rest words are stripped.
+  this features is useful for example:
+  "mp3 done in fooooobar-foobar-2009-grp by raceruser moto i am a 
+  motherfucer metal head"
+  this could have been announced as a metal rip of fooooobar-foobar-2009-grp
+  which is invalid, since the word "metal" is not a genre but belongs to
+  the motherfucker user. See slftp.precathcer, tagline
+- trying to recognize the section. Based on the aliases in [sections].
+  For eg. the config line "0DAY=0DAY,0 DAY,0 DAYS,0DAYS" means the irc 
+  announce line will be checked for 0DAY, "0 DAY", "0 DAYS" and 0DAYS phrases.
+  Notice the space between 0 and DAY. The reason is:
+  Some sites announce events like [0DAY-COMPLETE], and the COMPLETE event was
+  not catched. So a substituion in replacefrom/to was added to change - into
+  a whitespace. This way the event parser can find the word COMPLETE. 
+  (Read more about event parser below)
+  This has a side effect, some sites which announce section names with a -
+  in the name, will look diffent, for eg. "0-DAY NEWDIR" will become 
+  "0 DAY NEWDIR". This is the the reason why there is a "0 DAY" alias in the
+  section config.
+  Extracting the section is case INsensitive, and it needs full word match.
+  For example: if the announce line contains 0DAYCRAP it wont be recognized.
+  When a section alias is found, the release will get the main section name 
+  (at the beginning of the config line, before the = sign)
+- Since some sites announce the section name in the NEWDIR event but later 
+  not anymore, slftp maintanes a releasename/section name cache (sectionhelper)
+  If the section name couldnt be extracted, this cache will be looked up.
+- Section name mapping is being executed based on the [mappings] config.
+  This is useful if you want to remap your 0DAY stuffs to PDA or movie stuffs
+  to some localized section name.
+  Mapping syntax is:
+  old section name;new section name;mask1[,mask2[,mask3...]]
+  If "old section name" is empty string, it matches every section.
+  "New section name" is the section the release will be mapped to. It is required.
+  Masks is a comma seperated list of masks, read MASKS.
+  Processing of mappings does not stop at the first match, but it is 
+  being continued til end of mapping rules.
+- If there is still no section name, No section?! error will be announced and
+  precatcher stops processing.
+- MP3 genre parsing is being executed based on slftp.ini's [kb] mp3_genres 
+  (or mirktrade.conf's embedded list in case of using mirktrade.dll)
+- Event parsing is being executed, which basicly means, slftp is looking for 
+  some builtin words to modify event to PRE (pre) or COMPLETE 
+  (complete, completed, ended, done, end)
+- sitename/section/genre/event data is sent to the kb, which will fire the 
+  site rulesets and start transfers if its needed.
+- Regex support - dont know what to say.. its easy ha..
+  0DAY;EBOOK;/.*(eBook|EBook|EBOOK).*/i
+  ;DOX;/.*(Unlocker|Update|TRAINER|DOX|Crack|Patch).*/,/\-(RazorDOX)$/i
+  ;ABOOK;/(Audiobook|ABOOK)/i

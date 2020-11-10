@@ -1,0 +1,5 @@
+Update TVInfo value in the Database.
+Usage: <cmd> TVMazeID
+Usage: <cmd> Showname
+Example: <cmd> 66
+Example: <cmd> The Big Bang Theory

@@ -1,0 +1,4 @@
+Usage: <cmd> sitename text
+Sets the link of the site.
+Example: <cmd> HQ 10mbit
+See also: Affils/users/shit section in <cmdprefix>help

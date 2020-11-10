@@ -1,0 +1,6 @@
+Usage: <cmd> srcsite dstsite1 [dstsite2 ...]
+Bot will test outgoing speed of srcsite: it will send speedtest files
+between srcsite-dstsite1, srcsite-dstsite2, ...
+A speedtest file with size 15-100mb must already exist on srcsite.
+SPEEDTEST section must be set on each site.
+See also: <cmdprefix>speedtestlocal, <cmdprefix>speedtestin, <cmdprefix>speedtestout

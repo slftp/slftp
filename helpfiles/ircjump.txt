@@ -1,0 +1,2 @@
+Makes an IRC network reconnect.
+Usage: <cmd> netname

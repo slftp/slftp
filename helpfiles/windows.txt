@@ -1,0 +1,1 @@
+Displays the list of console windows.

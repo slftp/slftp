@@ -1,0 +1,2 @@
+Removes and delete an IRC channel.
+Usage: <cmd> netname channel

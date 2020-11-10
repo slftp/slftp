@@ -1,0 +1,10 @@
+Sets/modifes/removes a blowfish key for a channel.
+Usage: <cmd> netname #channel [key]
+If key is omitted, association is removed.
+NOTE: To use the more secure CBC mode, use the prefix 'cbc:' when specifying the key.
+
+Examples:
+<cmd> LINKNET #slftp-ecb sj28df38djfie2fj <-- ECB mode
+<cmd> LINKNET #slftp-cbc cbc:e8dje2fwwjf3gthsf38 <-- CBC mode
+
+To take effect of changing a key for an already added channel, you have to restart slftp.

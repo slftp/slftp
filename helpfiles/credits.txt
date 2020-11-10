@@ -1,0 +1,9 @@
+Usage: <cmd> sitename [sitename2 sitename3 ...] OR *
+Displays the credits/ratio of a site which is not set to perm down.
+If you got a positive credit amount the color is green, negative is red.
+
+<cmd> HQ8
+<cmd> HQ1 HQ2 HQ4
+<cmd> *
+
+You can use the special sitename * as a wildcard for all sites.

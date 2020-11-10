@@ -1,0 +1,2 @@
+Display the TVInfos from internal database.
+Useage: <cmd> Releasename or TheTVDb_id

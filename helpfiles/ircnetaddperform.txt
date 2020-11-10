@@ -1,0 +1,2 @@
+Adds a Perform Line to a Network
+Usage: <cmd> IRCNET IRC_RAW

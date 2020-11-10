@@ -1,0 +1,8 @@
+Usage: <cmd> sitename section1 section2 section3 ...
+Description: Display all rules for a site or for given section(s) of this site
+Example: <cmd> MYWHQ <-- shows all rules from site MYWHQ
+Example: <cmd> MYWHQ GAMES <-- shows rules from MYWHQ for section GAMES
+Example: <cmd> MYWHQ MP3 0DAY XXX <-- shows rules from MYWHQ for sections MP3, 0DAY and XXX
+Example: <cmd> * * <-- shows all site independant global rules
+Example: <cmd> * FRTV <-- shows all global rules for section FRTV
+NOTE: <cmd> * don't work as it would only flood/kill irc.

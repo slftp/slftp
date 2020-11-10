@@ -1,0 +1,2 @@
+Usage: <cmd> sitename
+Recalculate free slots for site, if a slot is having an error, will rebuild it

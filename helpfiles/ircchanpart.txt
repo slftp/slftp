@@ -1,0 +1,2 @@
+Part an irc channel.
+Usage: <cmd> netname channel

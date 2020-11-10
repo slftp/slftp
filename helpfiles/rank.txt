@@ -1,0 +1,6 @@
+Displays/modifies/deletes the site's rank value belonging to section.
+Usage: <cmd> sitename section [rank]
+Sitename and section are required. If no rank is specified, rank will be displayed.
+If rank is 1-9, it will be set. Use 0 to remove the rank.
+
+See also: <cmdprefix>ranklock

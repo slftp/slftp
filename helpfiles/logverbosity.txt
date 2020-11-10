@@ -1,0 +1,2 @@
+Usage: <cmd> [0|1|2|3]
+0 = error only, 1 = error and general messages, 2 = spam, 3 = No Logging 

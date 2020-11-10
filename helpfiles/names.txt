@@ -1,0 +1,3 @@
+Usage: <cmd> netname channel
+This will display the list of nick names belong to channel@netname.
+Ex.: <cmd> linknet #sitechan

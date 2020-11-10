@@ -1,0 +1,6 @@
+Usage: <cmd> sitename1 maxidle interval
+Changes the time for idling. Unit is seconds. 0 means infinite. Interval is 
+how often the client should do some activity, and this parameter is optional.
+Example: <cmd> HQ1 0 5
+
+You can use the special sitename * as a wildcard for all sites.

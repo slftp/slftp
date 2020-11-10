@@ -1,0 +1,2 @@
+Usage: <cmd> 
+This will send a destroy command to all running queues.

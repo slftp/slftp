@@ -1,0 +1,8 @@
+Get/sets autobnctest status of a site.
+Usage: <cmd> sitename interval
+If interval is zero, autobnctest is turned off. Interval is seconds.
+Examples:
+<cmd> MyHQ 180 <-- would result in autobnctesting every 3 minutes.
+<cmd> * 1800
+
+You can use the special sitename * as a wildcard for all sites.

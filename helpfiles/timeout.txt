@@ -1,0 +1,5 @@
+Usage: <cmd> sitename1 sitename2 sitename3 [connecttimeout] [iotimeout]
+Changes connect and IO timeout of a site.
+Example: <cmd> HQ1 HQ2 HQ3 20 15
+
+You can use the special sitename * as a wildcard for all sites.

@@ -1,0 +1,4 @@
+Usage: <cmd> site1,site2,site3,site4 section rlsname
+Description: deletes rlsname from site. You can use multiple sites 
+spaced with comma or * for all sites
+Example: <cmd> HQ MP3 MyRip-GRP

@@ -1,0 +1,4 @@
+Usage: <cmd> sitename [count]
+HINT: Site Nukes - Syntax: SITE NUKES [ <sp> num ]: Show nukes from today/yesterday
+Description: Shows your nukes on the site. Count does not mean how many items slftp announces, it's all about the nukes parameter!
+Example: <cmd> MyHQ 150

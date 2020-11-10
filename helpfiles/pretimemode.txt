@@ -1,0 +1,6 @@
+Display/Change/Modifies the Pretime lookup mode.
+Usage: <cmd> MODE
+Description: 0 = Disable lookup, 1 = Over HTTP, 2 = MySQL, 3 = SQLITE
+Disabling lookup can result in backfilling and to use SQLITE you need an addpre chan to fill your database.
+Example: <cmd> 1
+NOTE: For second (backup) mode see <cmdprefix>pretimemode2

@@ -1,0 +1,10 @@
+Usage: <cmd> sitename section dir
+Description: sets dir of section on site for nuking.
+To remove a nuke section, omit dir parameter.
+You can use the following macros in dir name:
+<yyyy>: year, four digits
+<yy>: last two digits of year
+<mm>: month, two digits
+<dd>: day of month, two digits
+Example: <cmd> MyHQ MP3 /MP3/<yyyy>-<mm><dd>
+See also: <cmdprefix>nuke

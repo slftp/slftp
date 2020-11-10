@@ -1,0 +1,3 @@
+Deletes a release from the batch queue.
+It needs the very same parameters as the release was added to batch queue with.
+This is useful when you realize you fucked up the release and want to remove it.

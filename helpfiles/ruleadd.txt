@@ -1,0 +1,24 @@
+Usage: <cmd> SITENAME SECTION if[not] condition1 [&& condition2 [&& condition3 ...]] then (ALLOW|DROP)
+For a list of conditions type: <cmdprefix>rulelist.
+To get descriptions of a condition type: <cmdprefix>rulehelp condition_name
+Operators:
+= simple equality test
+=~ mask match with wildchar support. Eg.: releasename =~ *-BERC
+in list operator, matches any items in the list. Eg.: mp3source in TAPE, VINYL
+< <= >= > less than, less than or equal to ... comparator. Eg.: year < 2007
+@ equality match but it expects SITENAME as parameter. Eg.: pre @ SITENAME
+
+You can use the special section * for section-generic rules, also * for site-generic rules.
+* as sitename and * as section works as well.
+
+Rules are incoming rules only.
+If no matching rules found, no action is taken, the release won't be allowed.
+If a matching rule found, its action will be taken.
+NOTE, order of the rules is important, since the first matching one will apply.
+
+The following order of rules is processed:
+1. * * <- global rules for all sites
+2. * SECTION <- global section-generic rules
+3. SITE * <- site-generic rules
+4. SITE SECTION <- site section rules
+

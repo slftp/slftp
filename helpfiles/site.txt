@@ -1,0 +1,3 @@
+Usage: <cmd> sitename
+Description: displays information about site.
+Example: <cmd> MyHQ

@@ -1,0 +1,709 @@
+-------------------------------------------------------------------------------                
+#                                  Changelog                                  #
+-------------------------------------------------------------------------------
+
+slFTP v1.3.0.16  - Statsoutput changed again xP						 
+  							   Realpre - Bold Green						 
+  							   ShouldPre - Bold Orange
+  							   No Files Raced - Red
+  							 - Uptime output modded
+  							 - Recoded DateTimeAsString function.
+  							 - Added whole IRCColors..
+                   White, Black, Blue, Green, Lightred, Brown, Purple, Orange, Yellow, Lightgreen, Cyan, Lightcyan, Lightblue, Pink, Grey, Lightgrey. (check overloaded functions!!!)
+  							 - Removing some not needed IRCCommands: (more comming)
+                   setprecmd,setpredir,setspeedtesttopredir,pre,pretest,batch,batchdel,
+                   delrelease,delallrelease,news,newsadd,newsdel,users,leechers,traders,
+                   userslots,freeslots 								   							 
+  							 - Added !allrules check !help allrules
+  							 - !statsitesbyuser command typo fixed.
+  							 - TMVIDRelease added to kb.
+
+slFTP v1.3.0.15  - Some fixxes in IMDB and TVRage parsing..
+								 - improved PreTimeTask and MYSQLUTils. Added new Modes.. 
+								 - Added Offset for Pretime
+								 - Added rule condition pretime.
+								 - Added RacedFileSize to Statsoutput and changed it a bit 
+								 - IMDBTask ALL Releases was processed as USA so we screwed the STV Result..							 
+								 - Cryptconf updated to v2.1 - password will read from masterkey.txt (atm plaintext!)	
+								 - Added Socks5List check !help			
+	 
+
+slFTP v1.3.0.14  - PRiVATE with MYSQL Support...And PRETIME CHECK... no bazinga! 
+								 - not official! pls wait for 1.3.0.15 !
+
+slFTP v1.3.0.13  - change tvragelookup to regex, you can setup exact fetchin sections
+                   this allows u to got real result (some sport events fuck up the result!)  
+                   or u setup all_exact to 1                
+                   Adding new rules condition: status and running
+                 - change imdblookup to regex, STV detection fixxed. (setup imdbcountrys.nwo)  
+                   Adding new rules condition: cineyear, festival, natowide, ldt... check out !rulelist
+                   Fixxed New regex for new imdB source (thx to a mate ;))
+                 - Adding !killall to kill quick all tasks (except AUTOLOGIN tasks)  
+                 - Removing routes on delsite
+                 - Adding  irc colors: green, cyan, grey and orange more later...
+                 - Adding !ircnick, !inviteme, !ircnetnosocks5, !ircnetaddbnc, !ircnettweakbnc
+                 - Changed irc.pas now u can setup custom username(ident) and nick (sbnc,znc work!)
+                 - If backupdir cant found SLFTP create a new. (normaly it exit with errors)
+                   Can't find dir. bug fixxed.                
+                 - Changed BackupBackup function it will do fileexists check first so no bad backups..  
+                 - Some help files added check !nohelp 
+                 - Added new event to debug 3 = no log. (slftp.log)
+                 - Fixxed Internal detection fixxed (anyone say int will not work.)   -> Regex.
+                 - Added drftpd compatibility to automated reqfilling
+                 - Announce fixxed setspeed to routeset
+                 - CryptConf modded, added trigger -k for password. now u can create bash/batch file to encrypt tones of files e.g.:
+                   CryptConf -d sites.dat sites.txt -k test
+                   CryptConf -d slftp.cini slftp.txt -k test                 
+
+slFTP v1.3.0.12  - custom window title (change in slftp.ini)
+                 - complete custom speedtest filename (removed slftp-speedtest-)
+                 - imdbvotes condition (see !rulehelp imdbvotes)
+                 - clear queue on setdown !all!
+                 - remove section ranks once set
+                 - REQUEST- also accepted now (Read INDEXER)
+								 - added Windows Open SSL dll's version 0.9.8.11 (ssleay32.dll + libeay32.dll)
+                 - typos
+
+slFTP v1.3.0.11  - small fixes in sltcp
+                 - 3 patches contributed:
+				   Zohan about tvrage and imdb genre, Sigge about tvrage url
+slFTP v1.3.0.10  - autobnctest was broken, bnctest was skipped 
+                   if a site status was down (just the opposite action as needed)
+                 - imdb lookup was broken (slUrlGet cutted the result)
+                 - sending PING to irc server if there was no activity for some time
+                 - checking for corrupted slftp.history
+slFTP v1.3.0.9   - ACL INCOMPATIBILITY!!! !irc(admin|stats|nuke)chan are removed!
+                   read !help ircchanrole
+                 - Profiled and optimized taskmanager
+                 - Profiled and optimized racetask firing
+                 - Profiled and optimized SortQueue calls
+                 - using two select/recv calls again instead of select on two 
+                   sockets (stability)
+                 - slftp segfaulted on irc KICK event :)
+                 - logging to console was fucked up
+                 - backup dir moved to bin :)
+slFTP v1.3.0.8   - duplicate codes of file fetcher tasks (nfoimdb, nfogenre, 
+                   lame checker) were merged 
+                 - !setnukedir command removed, using the normal section dir 
+                    instead.
+                 - <ww> added to supported date macros in section dir
+                 - log window displayed the dirlisting in one line
+                 - no (not that hard) flickering in TslEdit
+                 - precatcher/site condititions/skiplists now support perl style 
+				   regular expressions in the mapping section, read PRECATCHER and
+				   MASKS
+                 - INCOMPATIBILITY: precatcher now requires the event parameter.
+                   simple ircnet #channel botnick catch rules wont work anymore.
+				   you MUST specify the event and some words that are present 
+				   in the announce line, read PRECATCHER
+                 - precatcher runs mappings section even if it didnt find any 
+                   section, so its possible to map section by releasename only
+                 - tvclassification condition (by cyric)
+                 - backup dir added to the default package, so vista/win7 users 
+                   wont get an exception on startup
+slFTP v1.3.0.7   - Some commands were renamed in Route management section.
+                   !ranks, !rank, !ranklock commands added.
+				   read CHAINS file to understand how it works				   
+                 - [irc] flood didnt tolerate the setting, lines were sent faster 
+				   than the setting wanted. default flood is increased to 500
+				   (means max 2 lines sent / second)
+                 - !catchreload /creload didnt clear section list before adding 
+                   stuffs again
+                 - the algorithm how the precatcher extracts the section is changed.
+				   [section] SYNTAX HAS CHANGED in slftp.precatcher and mirktrader.conf 
+                   read PRECATCHER and change your config.
+                 - <yyyy>, <yy>, <mm>, <dd> macros are substitued with today's
+                   timestamp in section dirs, so fucked up sites without link to
+				   today dir can be supported as well
+				   this feature could be a 2nd workaround for the midnight problem
+                 - !delrelease and !delallrelease accepted the syntax without an
+                   actual releasename and started to wipe everything in the 
+				   container dir, yeah!
+slFTP v1.3.0.6   - history_maxlines added to slftp.ini
+                 - complete tag parser got false positive on drftpd
+                   tags like [ 0 of 50 files = 0% complete of 0B] 
+                 - translating some hungarian log messages to english 
+                   in dirlisting stuff
+                 - saving command history to slftp.history
+                 - DVBS added to mp3source_LIVE in slftp.ini
+                 - !skipreload added for reloading slftp.skip file
+                 - eprecather's parser was fucked up
+                 - small fix in !catchadd, parsing command for event failed 
+                   with syntax error
+                 - small fix in parseresponsecode, ftp banners of "220 \r\n"
+                   caused timeout
+                 - speedlock was out of order due to a copy paste bug :]
+slFTP v1.3.0.5   - critical memory leak in ParseDupe, TDirlistEntry objects were 
+                   not freed (and not registered either)
+                 - critical memory leak in ParseDupe, THonnanHova objects were 
+                   not freed
+                 - small memory leak in kb, nulldaysources was not freed on exit
+                 - small memory leak in precatcher on reload event
+                 - small memory leak in nfo genre task, TDirlist was not freed
+                 - small memory leak in imdb task, TDirlist was not freed
+                 - critical memory leak in TPazoSite.Tuzelj, THonnanHova objects 
+                   were not freed
+                 - small memory leak in genre dirlist task, TDirlist was not freed
+                 - small memory leak in slUrlGet, TslTCPSocket was not freed
+                 - small memory leak in TPazo.Destroy, TRelease was not freed
+                 - small memory leak of speedstatlock on exit
+                 - small memory leak in kb_sectionhandlers on exit
+                 - critical memory leak in GetClientArea of slVision
+                 - maxlines was not set in ftp/irc protocol windows which caused 
+                   memory usage to grow constantly
+                 - precatcher: checking for nukewords before backfill detection
+                 - !transfer started without a releasename...
+slFTP v1.3.0.4   - Some fixes in EncryptUDP/DecryptUDP which might have cut 
+                   releasenames when using external precatcher 
+                 - for releases like Foobar-Foobar-(Live)-DVD-2009-GRP
+                   mp3source is DVD and mp3type is Live.
+				   mp3live condition returned False for the rip above, it did not
+				   check mp3types.
+                 - home/end keys did not work on xterm (only in screen), fixed
+                 - UpperCase() added to parsing section names in precatcher, 
+                   so its not case sensitive anymore                   
+                   (of course mirktrader.dll is upgraded again)
+slFTP v1.3.0.3   - storing speedstats dropped AV in some special circumstances
+                 - false positive in backfill detector for irc lines like:
+                   LiNK INFO http://www.xonair.com/detail.cfm?id=10098390 rlsname
+				   => validating timestamps
+                 - list of mp3languages was missing in slftp.ini damn...
+                 - /ctest added for the mirc precatcher (mrc scripts are upgraded 
+				   as well)
+                 - if an irc line has both pred and ago words, it will be treated 
+                   as PRETIME event, dont care about the "inner content" anymore
+				   (external precatcher dll is upgraded as well)
+                 - help file for tweak was missing
+                 - backup feature didnt backup slftp.rules actually...
+slFTP v1.3.0.2   - user interface was hanging and cpu utilize on top cause of 
+                   bad design in slvision, fixed
+                 - auto setting version info as tagline if 550 Taglines Enforced!
+                 - changing site's username/password without delete: !help tweak
+                 - another serious fuckup: slftp was using 160 bit zero as key
+                   for encrypting slftp.chans. It is fixed now, so your 
+				   slftp.chans file is not compatible with old versions anymore.
+				   To convert your current slftp.chans to use the correct key:
+				   ./cryptconf(.exe) -fixzero slftp.chans slftp.chans.dec
+				   ./cryptconf(.exe) -e slftp.chans.dec slftp.chans
+				   (type your password twice)
+				   then wipe slftp.chans.dec
+				   You need latest version of cryptconf.
+                 - !latest cmd adds dirs to cache, so tab completion will work
+                 - calling openssl's ERR_get_error as much as it is needed 
+                   (more verbose error output)
+                 - ALL:!EXP added as default cipher list 
+                   (how the fuck was it missing?!)
+                 - echoing the command on console only if it is a valid cmd:
+                   this way you know if you mistyped it.
+                 - indexing task did not check exit event
+                 - no queue lock for speedstats
+                 - tvrage lookup wont update the show name anymore
+                 - dirlisting without locking the queue - less laggy ui
+                 - precatcher now accepts releasename only if it contains -
+                 - waiting for site answers at end of race is rewritten 
+                   (using select on both socket descriptors)
+slFTP v1.3.0.1   - added some more debug messages to imdb task and eprecatcher,
+                   also into mirktrade.dll 
+                 - added PRET support for non race tasks as well
+                   (lame checking, (genre|imdb) nfo leech, speedtest local upload)
+                 - turning to drftpd and using PRET if the site answers 
+                   500 You need to use a client supporting PRET
+				   - autobnctest will skip testing a site if its status is UP
+slFTP v1.3.0.0   - enabled added to [socks5] in slftp.ini, this setting applies
+                   in http lookups, [sites] and [irc] is NOT affected
+                 - iMDB support. [taskimdb] section in slftp.ini, new release 
+                   handler TIMDBRelease in [kb], new conditions:
+                   imdbyear, imdblanguages, imdbcountries, imdbscreens, imdbstv,
+				   imdbrating, imdbgenres
+                 - small fix in choosing file for speed testing: upper bound was
+                   incorrect
+                 - small fix in the auto completion, cutting section name 
+                   at the end
+slFTP v1.2.0.19  - indexquery changed, checking matches in release names partially
+                 - backup unit was looking for the database files with the 
+                   default name
+                 - openssl locking callbacks are now implemented
+                 - !delayleech, !delayupload commands added
+                 - auto completion of release names on tab
+                 - nosocks5 without parameters turned on socks5 again (instead of
+                   displaying the current setting)
+                 - uppercase() was missing in some of the stats commands
+slFTP v1.2.0.18  - quick fix for melancholy - AV in stats feature fixed
+slFTP v1.2.0.17  - backup feature added, see [backup] section in slftp.ini
+                 - !stat* commands added to ACL of !ircstatchan
+                 - [stats] section added to slftp.ini
+                 - race stats by section by site by group etc, read help for 
+                   commands in the Race Statistics section
+                 - discovering section depth dynamically dir by dir in indexing
+                 - local_upload_mb added to [speedtest]
+                 - !sslmethod improved
+                 - more detailed index stats
+                 - respecting the site's down status on request filling
+slFTP v1.2.0.16  - sqlite was crashing on linux
+                 - default *nix sqlite library filename changed to 
+                   libsqlite3.so.0
+                 - now you can disable the indexer feature if you set an empty 
+				   string to [indexer] database
+slFTP v1.2.0.15  - saving next timestamp of next schedule of 
+                   autodirlist/autonuke/autoindex, so these tasks wont start 
+				   immediately when you restart the app
+				 - [indexer] section added in slftp.ini
+                 - !autoindex, !indexsave, !indexstat, !indexquery commands added, 
+				   read docs in file INDEXING
+                 - loading kb entries on startup did not update the progress on the ui
+                 - remove_incomplete_stuffs is renamed to newdir_remove_if_incomplete 
+                   in slftp.ini and default value changed to 0
+                 - tvtag condition added
+				 - min/max_filesize added to [speedtest] in slftp.ini
+                 - speedtest features are rewritten to pick a file randomly
+slFTP v1.2.0.14  - local send buffer is increased in speedtestlocal, upload is way 
+                   faster now but still not max, wtf? anybody familiar to winsock?
+                 - terminating active file transfer on !stop, !setdown, exit, etc. 
+                   events
+				 - upload/download slot requirements for tasks are rewritten
+				   (for example TGenreNfoTask did not take care about max 
+				    sim downloads)
+                 - 0daysource matched WIN incorrectly if ripname contained version 
+                   number
+                 - secondary slot handling of race tasks is rewritten
+                 - fix in slftp.ini: 0daysource's were separated by commas instead of 
+                   spaces, feature was not working...
+                 - Support for Marilyn_manson-the_high_end_of_low
+slFTP v1.2.0.13  - !speedtestlocal, !speedtestin, !speedtestout, !speedtestcleanup
+                 - default 0daysource changed from empty string to WIN
+                   (empty strings are not supported by rules anyway, 
+				   so condition if not 0daysource in WIN, LINUX then DROP
+				   was not working if no OS was present)
+                 - ssl handshake moved to another step of the protocol in lame 
+                   checking
+                 - socket send timeout increased from zero to the site's 
+                   actual io timeout :$
+                 - language condition caused abstract error exception
+                 - readme about racing tv stuffs added as TVRAGE
+                 - fixed invalid reference to the main dirlist 
+                   when using !spread second time
+slFTP v1.2.0.12  - some more debug messages regarding speed recalc
+                 - !ircoper added
+                 - !manageuser added
+                 - progress meter of initial kb parsing
+                 - Baltic added to slftp.languages
+slFTP v1.2.0.11  - EN was not accepted by mp3language validator, and it was completly 
+                   fucked up anyway
+                 - HebSub added to slftp.languages
+                 - tvtags added to slftp.ini and tvtag condition added
+                 - extracting tvshowname in rips without s01e01 or 1x01 tags was 
+                   broken
+                 - !rulehelp tag
+                 - *.cue added to MP3 skiplist
+slFTP v1.2.0.10  - !tvpremieryear, !tvcountry, !tvscripted, !tvgenres, !tvnetwork, 
+                   !tvruntime conditions added
+                 - tasktvrage section in slftp.ini
+                 - TVRage support added
+                 - !genrenfo renamed to !lookup as its functionality is extended
+                 - 550- ogv releases are not accepted here. 550 MKD Denied by dirscript.
+				   auto adding drop rule for this
+slFTP v1.2.0.9   - fixed some unclean exit situation on linux
+                 - flood control added to bnctest / login tasks
+                 - readding dirlist if a _subdir_ becomes complete (irc announce) 
+                   and dirlisting was given up earlier
+                 - deadlock in !ircstatchan and !ircnukechan, thx to lazyness and 
+                   copy paste
+                 - due to invalid tagging (language code not right before year) in 
+				   VA-100_Chansons_Formidables-FR-5CD-2009-gnvr 
+				   rip was parsed as 1 CD stuff, this is now workarounded
+slFTP v1.2.0.8   - background speed recalc was running all the time
+                 - Some little fix in calculating the low boundary in speedrecalc
+slFTP v1.2.0.7   - Rebuild routing table based on latest speed stats
+                 - !speedlock, !speedstats, !speedrecalc added
+                 - speedstats section added to slftp.ini
+                 - saving speed stats
+                 - added validators for mp3language, mp3source, 0daysource conditions
+                   (some of your existing rules might be dropped if they refer 
+				   to something stupid, make backup before upgrading anyway)
+                 - release name is parsed for xDISC tags and disks condition added
+slFTP v1.2.0.6   - empty irc announce line caused exception and app freezed
+slFTP v1.2.0.5   - fixed display bug of channel list in !ircstatus
+                 - !slots rewritten, TSite is not deleted and readded, but new 
+                   slots are added in case of increasing and old ones are deleted
+				   in case of decreasing
+                 - fixed crash when deleting a site which had some running task 
+                   (for eg bnctest)
+                 - slvision frequency changed to 200 (from 50)
+                 - locks are audited, some parts rewritten
+slFtp v1.2.0.4   - news support (!news, !newsadd, !newsdel)
+                 - nukebot support
+                 - ircnetdel caused deadlock sometimes, fixed.
+                 - autodirlist bugfix in 1.2.0.2 was fucked up, and made the app 
+                   start racing in every iteration for every rip
+                 - autodirlist wont do bnctesting any more. If site status is down 
+                   iteration is skipped. Use autobnctest if you want to check status
+				   of site periodically.
+                 - !setdown !all! will make down all sites
+                 - autofollow added, !rulehelp autofollow
+                 - console section was missing accidently in slftp.ini
+slFtp v1.2.0.3   - pasting clipboard on ctrl+v (windows only)
+                 - multiple server's for irc nets (like bncs for sites)
+                 - params of !ircnetmod changed
+                 - !ircnetaddserver, !ircnetdelserver added
+                 - parameters of ircnetadd/ircnetmod modified
+                 - !ircnet added for displaying ircnet info
+                 - !names command (and shortcut /names in irc window)
+				 - displaying join/part/quit/kick events for chans
+                 - home/end scrolls to bottom/top of the window if there is no text
+                   in the editbox
+                 - you can open private message window with:
+                   !ircchanadd linknet somebodytotalkto
+				   !s linknet somebodytotalkto
+				   hey whats up?
+                 - ctcp ping reply
+                 - readding genrenfo task if we get complete announce on irc and 
+                   fetching nfo failed earlier (cause nfo was not available in time)
+				   this will also be useful for rips with imdb url
+                 - per section pre cmd support
+                 - *.[0-9][0-9][0-9] added to _RAR_ macro in skiplists
+slFtp v1.2.0.2   - 0daysource condition added, !rulehelp 0daysource
+                 - 0daysources support, check slftp.ini, NOTE T0dayRelease added
+                 - !kblist takes optional number of hits parameter
+                 - badcrcevents feature, check slftp.ini
+                 - ncurses version check is removed :$
+                 - displaying netname in !ircchannels
+                 - !autodirlist'ing a section fires a new dirlist of a rip if the main 
+                   directory's timestamp has changed and the previous dirlist was gave up
+                 - !kblist takes sectionname as optional parameter to filter the results
+                 - bold formatting the announce of dirlisted sites again on stats chan
+slFtp v1.2.0.1   - deadlock fixed in !spread which occoured if there were no sites 
+                   to spread to
+                 - support for gene6 ftp server (its dirlisting is not really standard)
+                 - year condition
+                 - sample dirs were not traded if there was an irc complete announce 
+                   (thix complex bug appaered in 1.1.2.7 with feature "dirlist parser now 
+				   removes entries which disappeared"), bug is finally fixed now
+                 - noannouncesite /noannouncesection feature added for spam sites/sections
+                   affecting irc only
+                 - logging ncurses version on *nix, quitting if older than 5.7 is installed
+slFtp v1.2.0.0   - stupid interactive irc client
+                 - INCOMPATIBILITY!: most options of [irc] section is gone, so is MAIN 
+				   irc network.
+  				   Irc control is now optional, primary user interface is the builtin 
+				   text based one. Ff you want the bot to listen to admin commands on 
+				   irc like it used to, you have to add an irc network and then set
+				   !ircadminchan command.
+                 - Text mode user interface
+                 - Free Pascal compatbility, native Linux/Linux64/Windows binaries
+                 - handling . and .. on !delrelease (this bug appaered when i fixed 
+                   another not removing files beginning with dot, hail lameness!)
+                 - not resolving dns if socks5 is being used
+                 - ABOOK added as mp3 tag
+                 - width/height option in [console] (windows only)
+                 - [console] section added in slftp.ini with maxlines option
+                 - sites.dat path feature removed from slftp.ini
+                 - this feature is disabled now, since it caused skipping subdirs 
+                   (like sample) dirs:
+                   not adding new tasks to site where irc already announced 
+                   complete, but firing tasks to next destinations automaticly
+                 - formatting !finduser, !findaffil, !freeslots output more nicely :)
+slFtp v1.1.2.11  - precatcher stripped mirc color codes incorrectly in same special cases
+                   in themes used by pay sites
+                 - irc complete announce didnt trigger dirlisting again in case of
+                   races where source site stalled after time and dirlisting was gave up
+slFtp v1.1.2.10  - announce lines like this were recognized as PRE event:
+                   Tovo_Trix_-_Live_At_Lazzurra-CDR-21-03-2009-BEC user!tagline - pre'd 15's ago.
+                   to fix this, "pre d"->pred rule added to replacelist, so catcher
+				   recognizes the line as PRETIME event for now on.
+                 - fixed bug in !traders !leechers, added !country, !notes, !name, !speed
+                 - new acl: groupchannel support with !sites and !bnctest commands 
+                   allowed added for groups purchased the private version :)
+                 - !site sitename might display other legacycwd setting than 
+                   !legacycwd command
+                 - Added default skiplist xxx paysite sections into slftp.skip
+                 - Added support for several XXX Paysite sections in slftp.precatcher
+                   (you probably need to rename your xxxpix section to xxxpaypix now)
+                 - parsing response to idle commands, if we get unexpected one,
+                   slot is being relogged in (need some testing on non gl sites)
+                 - midnight feature updated path of container dir only on sites 
+                   where it did mkdir
+                 - when a site is deleted, catch rules were not removed
+                 - when a site is deleted, site rules file was not automaticly 
+				   saved (rules were deleted in memory only)
+slFtp v1.1.2.9   - when a site is deleted the in and outroutes were not removed
+                 - timestamp parser failed with dates with 1 digit day number, oh.
+				   (and this caused dirlist based trading stop working at beginning of month)
+				 - error message added to !catchtest if it cant find matching rules
+slFtp v1.1.2.8   - default idlecommands have changed in [idle] of slftp.ini
+                 - fixing bug in a feature which is not even announced so far:
+                   if a site is down and there is a complete/pre event on its 
+				   sitechan, a logintask is fired to test bncs. Now login task is
+				   added only if it is not down due to !setdown.
+                 - sltcp lib didnt install SIGPIPE handler (oh, what a lameness)
+                   which made the app aborted (linux only)
+                 - !setdown makes slots logged out
+                 - legacycwd is True by default on non glftpd sites now
+                   (this fixes the bug sending files listed in sfv to drftpd)
+                 - list index out of bands exception with badly tagged rips is fixed now
+                   (crap like German_TOP20_BC_06_04_2009-MiNiSTRY )
+                 - small fix in logic of deciding which site to add genrenfo/genredirlist
+                   task to
+                 - !catchtest instead of !catchdebug (help/catchtest.txt added)
+                 - Transferring of actual file was not automaticly retried after
+                   "you have to turn on secure data connection" (but sslfxp flag was
+				   turned on at least for next transfers hehe)
+                 - !maxupperrip added (and help/maxupperrip)
+                 - not trying to upload the same file to the same destination site
+				   (from different sources) in the same time anymore (this usually 
+				   occoured in beginning of race with sfv files)				   
+                 - In case of broken transfer (crc check bad, cant open data 
+                   connection, 0byte files not allowed etc) not removing race tasks 
+				   with alternate source
+                 - Small fix in complete detection, dirs without sfv in skiplist 
+                   (like Sample in TV) were detected as complete with 1 zero sized
+				   file
+                 - TEncIniFile didnt autosave settings file after erasesection
+                   (affected features like !ircchandel)
+                 - regpredb's feature added xxx to channels <- fixed again
+                 - file distribution algorithm now correctly orders the race tasks
+                   by speeds/ranks
+slFtp v1.1.2.7   - !transfer treated the src site as PRE, so dirlist was not 
+                   repeated til complete detection by tag.
+                 - legacycwd default option added to slftp.ini
+                 - in two sites setup with only one route added, the bot recognized
+                   (incorrectly) that there are no routes it could spread...
+                 - ReAdding transfer again to sites which do have a 
+				   sitechan (and the bot is listening there) and rip is not
+				   completed after x seconds while it is completed on other sites				   
+                   try_to_complete_after added to slftp.ini
+                 - midnight support, see [midnight] section in slftp.ini
+                 - new file distribution algorithm, trying to better utilize 
+                   slots in full duplex way 1 up / 1 dn (it still needs improving,
+				   it sends some files to low priority sites earlier than it should)
+                 - remove_incomplete_stuffs added to slftp.ini
+                   if a rip is unchanged and still incomplete after 
+				   newdir_max_unchanged seconds, files will be removed by the bot
+				   if remove_incomplete_stuffs is true. (default false)
+                 - mark_site_down_if_out_of_space added to slftp.ini
+                 - taking care of protocol (aborting transfer with PASV command) 
+				   on src/dst site if dst/src reports error, 
+				   instead of disconnecting the site itself
+                 - parsing pzs-ng output for genre in mp3 sections
+                 - dirlist parser now removes entries which disappeared
+slFtp v1.1.2.6   - some presites were not utilizied in a special case when 
+                   dirlisting on 1st presite was slower than on 2nd
+                 - stupid bug made the bot not add race task back onto the 
+                   "original" site on xdupe event in newdir races
+                 - dot added to strip in precatcher config
+                 - irc channel names are now case-insensitive
+                 - Code is now Free Pascal compatible, binaries supplied are 
+                   still Delphi/Kylix builds
+                 - small fix in mp3 language code detection 
+                   Doide-My_Girl__Otros_Tiempos-WEB-2009-WTW was detected as MY
+slFtp v1.1.2.5   - !queue shows latest 10 queue tasks
+                 - mp3 language parsing is rewritten in respect of Ouzo.
+                 - completly rewritten condition parsing, now supported:
+                   parentheses, || operators, negation (not), notin operator,
+				   != operator
+                 - cryptconf didnt accept anything but same filenames :) fixed.
+                 - autodirlist/autologin tasks wont run on sites marked down 
+                 - default for newdir_dirlist_readd_for_nfo changed to 15s
+                 - You have to turn on secure data connection <- fixed
+                 - genre extractor in dirlist mode didnt catch genres with -
+slFtp v1.1.2.4   - CG added as language code (damn, are there any more?)
+                 - cleaning sfv dependency in racetask correctly if multiple
+                   sources were present
+                 - using STAT -la instead of STAT -l with !delrelease, so
+                   files beginning with dot will be deleted as well.
+                 - Scott_Attrill-Big_Bass__Get_To_It-WEB-2009-UKHx was 
+                   recognized as an italian CD instead of an english WEB
+                 - handling "0byte-file: Not allowed" event same as 
+                   crc-check: bad
+                 - skiplist names in slftp.skip are treated as pattern now,
+                   for eg [TV] will match TV, TVDOCU, TV720, TV1080, TVDSR, etc.
+				   Note: order of skiplist section entries are important 
+				   for now on! For eg. XXXPIX and XXX
+                 - new ACL, users added to the bots channel list with blowfish
+                   key are permitted to use the !transfer command (and nothing
+				   else)
+				   this is useful if you hire some trusted human resource to
+				   fill a section hard to make rules for (for example TV docus,
+				   since its full of crap series)
+                 - if mp3 genre is catched after race is done everywhere, and 
+                   new sites become allowed, race was not started to them
+				   (this usually happens with 1 file rips)
+                 - not adding new tasks to site where irc already announced 
+                   complete, but firing tasks to next destinations automaticly
+                 - Removing/firing all race tasks to/from a site if irc announces
+                   it as complete <- this feature didnt correctly clean the sfv
+				   dependencies, and it caused some dead tasks
+slFtp v1.1.2.3   - legacycwd command caused deadlock
+                 - regpredb's feature added xxx to channels
+                 - Removing/firing all race tasks to/from a site if irc announces
+                   it as complete
+                 - MKD dependency was not cleaned properly when this feature ran:
+                   "Removing MKDIR task if irc announce is faster"
+                 - "You have to turn on secure data connection" turning on 
+                   sslfxp in this case as well
+                 - exit sequence of siteslot threads is fixed
+                 - empty dirs without sfv were detected as complete
+                 - newdir_dirlist_readd_for_nfo in slftp.ini added
+slFtp v1.1.2.2   - Ident server was not started since the new tcp library
+                   (i forgot an additional start call)
+slFtp v1.1.2.1   - One more additional dirlist looking for nfo in non-multidir 
+				   rips in newdir races if its still not present when the rip 
+				   becomes complete				 
+				 - Presite status changed from PRE to COMPLETE if additional
+				   info (like genre in 2nd line) was announced or 
+				   taskgenredirlist reported the genre
+                 - Added event handler for wiping stuffs raced from newdir in 
+				   case source is still incompleted after x minutes
+                 - running skiplist against xdupe entries as well.
+				   yea, thats real life situation with some ftprush (1) files
+                 - Firing queue just after both siteslots are done not after 
+				   any of them is done, this should utilize speed/priority
+				   better
+                 - Fixed calculating sim up/dn slots
+                 - Support for CRC-Check: BAD! events added
+slFtp v1.1.2.0   - *.cue added to slftp.skip in MP3 section
+                 - gangsta rap added to the genre list, lol.
+                 - socket descriptors were not properly closed on disconnect 
+                   this means app ate up all the available file descriptors
+                 - ftprush filename fuckups (like 00-filename(1).mp3) added to 
+                   hardcoded skiplist                   
+                 - rewritten/faster dirlist parsing
+                 - new file distrubution algorithm, chain is dynamically 
+                   regenerated based on file status on sites, which results
+				   slots racing back if "destination" has actually more files
+				   than the "source"
+                 - HOMEMADE tag added to mp3source_OTHER
+                 - INT suffixes removed from slftp.knowngroups
+                 - two letter language codes are now case sensitive,
+                   while others arent
+                 - a few more mp3 language codes added into slftp.ini
+                 - JP added to list of mp3 language codes in slftp.ini
+                 - default irc timeout increased to 1800 seconds in slftp.ini
+				   since it seems efnet server require it
+                 - "already on site" is removed as whitelist message on mkd
+                 - !language and !foreign conditions
+                 - mcps added (next to +OK) as blowfish encrypted prefix
+                 - ircnetdel didnt free up resources correctly
+                 - new cwd feature of course broke some other features,
+                   nfo fetching and lame checking was broken due to invalid
+				   filename
+slFtp v1.1.1.3   - maxspeed of 10 is corrected in help/setspeed.txt
+                 - rewritten CWD handling (it was too complicated, ineffective)
+                   legacy dirlist is turned off by default. !help legacycwd
+                 - irc client kept disconnecting if server sent an empty line
+slFtp v1.1.1.2   - help/autodirlist.txt changed
+                 - bugfix in nfo fetcher
+                 - several bugfixes in read() function of the tcp lib
+                 - cryptconf doesnt accept the same input and output filesnames
+				   anymore
+				 - "is now closed for uploads" added into precatcher's ignorelist
+slFtp v1.1.1.1   - mdvdr/mv nfo fetcher was fucked up cause of the new tcp lib
+                   this caused some ftp protocol inconsistency between server
+                   and client after mdvdr pre
+                 - fixed bug in dirlist parser, it failed on huge dirlists,
+                   causing trimmed dirs
+                 - IL added as mp3 language code into slftp.ini
+                 - new condition, langauge, configured in slftp.languages, 
+				   default list supplied by ecti
+                 - implementation of mp3source feature is cleaned up,
+                   you can specify several tags for the different sources.
+				   Eg.:
+                   mp3source_CD=MAG CD CDS CDM
+				   mp3source_VINYL=VINYL 7inch LP
+				   this way, mp3source gets VINYL on rips with 7inch tag
+                 - knowngroup feature rewritten, its now separated from fake 
+                   checking, known groups moved to slftp.knowngroups
+                 - anonymous socks5 needs different config in slftp.ini for now 
+                   on, anonymous option is not used anymore
+                 - certificate generator segfaulted
+                 - EBOOK added to slftp.skip
+                 - MKD was done again if you did !delrelease on a site where the
+                   rip was being sent to...
+slFtp v1.1.1.0   - DROP rules did return as NOMATCH which resulted troubles...
+                 - small fix in complete detection of multicd rips
+                 - DOX added as section into slftp.precatcher
+                 - ACCEPT added as alias for ALLOW in rule processing
+                 - announcing invite events
+                 - !ruleins and !rulemod didnt accept * for site/section
+                 - in operator for tvshowname condition
+                 - help/nosocks5.txt
+                 - now SOCKS5 can be disabled per site (!nosocks5)
+                 - minor optimization in genre processing
+                 - "Heavy Metal" added to default genres :)
+                 - small memory leak in !catchreload
+                 - idle commands moved to slftp.ini (they were hardcoded before)
+                 - external precatcher support (read PRECATCHER)
+                 - using own tcp library instead of indy, moving to fpc soon
+                 - handling CRC-Check: SFV First! event
+slFtp v1.1.0.6   - exception handler for logfile opening
+                 - DK added as language into slftp.ini
+                 - Removing MKDIR task if irc announce is faster
+                 - "550- releasename is already on site " is treated as 
+                   successful mkd, since some weird dirscript answers this way
+                 - sectionhandlers are now configurable in slftp.ini [kb] 
+                   section (TNFORelease, TMP3Release, TTVRelease, ...)
+				 - Checking for "250- Matched" string in CWD reply, we treat
+				   this event as unsuccessful.
+                 - slftp.precatcher's [mappings] now affects autodirlist as well
+                 - [ignorelist] and [mappings] and [replace] update in 
+                   precatcher
+                 - racestat announce bug fixed (zero was shown instead of all 
+                   files if there are multiple pre sites )
+                 - tvshowname conditions added to rules.
+                 - max_sectionhelper with default value 1000 added to [kb] of
+                   slftp.ini. This hash helps the precatcher know about the
+				   section if the bot doesnt announce it anymore.
+                 - i forgot adding fake condition into the array
+                 - No matching rule deny reason has overwritten the real one
+slFtp v1.1.0.5   - [replace] of precatcher replaces to space if replaceto is 
+                   empty
+                 - added | letter into slftp.precatcher, it will be replaced to
+                   space
+                 - rules now accept * as sitename (to match each site) and
+                   * as section (to match each section)
+				   Generic rules are supported now, for eg.:
+				   !ruleadd * * if fake then DROP
+                 - KR added as language in default slftp.ini
+                 - genredirlist was added to a site where release is not yet
+                   spreaded in case of ring in the routes
+                 - section fix in !pretest
+                 - !latest command added
+                 - help/latest.txt added
+slFtp v1.1.0.4   - precatcher was not called in MAIN network
+                 - games section added to slftp.skiplist
+slFtp v1.1.0.3   - fake condition added
+                 - fake checking improved a bit, description of 
+                   unknowngroup/knowngroup conditions improved
+                 - TSiteSlot.ReadB failed on huge server response making 
+                   the bot race trimmed dirnames if using autodirlist feature
+                 - added some debug messages to precatcher
+                 - logging used process id instead of thread id on windows
+                 - now its possible to turn on/off socks5 for sites/irc
+                 - precatcher is now case insensitive
+                 - debug level of irc communication decreased to level 1
+                 - openssl libraries removed, download url added instead.
+slFtp v1.1.0.2   - loading openssl another way
+                 - security fix, bot responded to admin commands on MAIN network
+                   in other channels too
+                 - shutdown logic completly rewritten
+                 - ircchanadd commands
+                 - help/ircchanadd.text 
+                 - help/catchadd.txt updated
+                 - help/ruleadd.txt updated
+                 - some linking bug...
+slFtp v1.1.0.1   - default 10 seconds of sites' io timeout increased to 15 s
+				 - removed command for rereading skiplist
+                 - register_timeout=20 added to the default config
+                 - small fix in complete detection ("0% Complete" was detected
+                   as complete not incomplete)
+				 - added 0.9.8j ssleay32/libeay32 dll's to the package
+                 - checking for ssleay32 and libeay32 dll's on windows
+                 - admin commands are now accepted in private message on the 
+				   MAIN irc network if the same blowfish is used as the one
+				   configured for the admin channel
+				 - added XXX and TV skiplist sections to the default config
+				 - added command for rereading skiplist
+slFtp v1.1.0.0   - rules/auto/multiple irc networks/etc added.
+slFtp v1.0.0.27  - originally written for an MP3 group as pretool.
+pftprush/slpre   - this is the original version I started to work on ~3 years 
+ago. It is written in C, but was too buggy, segfaulted a lot, so I decided to 
+stop.

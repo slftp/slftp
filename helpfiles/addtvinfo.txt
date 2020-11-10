@@ -1,0 +1,17 @@
+Add TVMaze value to the database.
+Usage: <cmd> [--search|--s|-search|-s] release name to check
+
+On occasion slftp won't recognise special characters for TVMaze show names.
+ERROR english alphabet check failed! Law & Order: Special Victims Unit <> Law and Order Special Victims Unit 
+
+Look up Law & Order: Special Victims Unit to get the TVMazeID.
+<cmd> -s Law and Order Special Victims Unit
+
+Law & Order: Special Victims Unit: http://www.tvmaze.com/shows/103/law-order-special-victims-unit => <cmd> 103 Law and Order Special Victims Unit
+is returned.
+
+Do <cmd> 103 Law and Order Special Victims Unit
+and on next lookup it will find the right show.
+
+If not enough results use -c:NUMBER at the end: e.g. <cmd> -s Law and Order -c:15
+

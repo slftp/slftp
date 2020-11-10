@@ -1,0 +1,4 @@
+Usage: <cmd> [sitename1] [sitename2]
+Bot will remove the speedtest files on the specified sites or 
+on all of them if no parameters are specified.
+See also: <cmdprefix>speedtestlocal, <cmdprefix>speedtestin, <cmdprefix>speedtestout

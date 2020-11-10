@@ -1,0 +1,3 @@
+Usage: <cmd> [--index, --name] value
+Example: <cmd> --index 2
+Example: <cmd> --name myproxy_de

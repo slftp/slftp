@@ -1,0 +1,8 @@
+Adds a channel to a network.
+Usage: <cmd> netname #channel
+Use <cmdprefix>ircchandel to remove a channel.
+If the channel is not key protected and not invite only,
+then it will be joined immediately. If its key protected,
+use <cmdprefix>ircchankey to set it. If the channel is
+invite only, then use <cmdprefix>sitechan to bind a site
+to the irc network.

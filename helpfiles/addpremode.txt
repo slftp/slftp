@@ -1,0 +1,6 @@
+Display/Change/Modifies Add Pre mode
+Usage: <cmd> MODE
+Description: 0 = Memory, 1 = SQLiTE, 2 = MYSQL
+Example: <cmd> 1
+Notes: To use Option 1 and 2 you need to have an addpre channel, where a bot or other people spam pres like that:
+!addpre <releasename> <section> e.g. !addpre some.cool.mp3.release-grp MP3

@@ -1,0 +1,59 @@
+                                    INDEXER
+-------------------------------------------------------------------------------
+slFtp is capable to auto fill requests and therefore maintains an SQLite database
+with release names and locations (sites and paths). This is the source what it can
+reqfill from, this is called index.
+To add releases to the index, you need to add autoindex tasks. For example:
+  !setdir HQ ARCHIVE-MP3 /ARCHIVES/MP3
+  !autoindex HQ 86400 ARCHIVE-MP3
+These two commands above make slftp to index HQ's ARCHIVE-MP3 section every day.
+
+The depth of the section is discovered dynamically: the first nfo will 
+determine where the rips are stored. For eg.:
+  /ARCHIVES/MP3 has subdirs the following way:
+  /ARCHIVES/MP3/2009/01/01/Foobar-Foobar1-2009-SHIT
+  /ARCHIVES/MP3/2009/01/02/Foobar-Foobar2-2009-SHIT
+slFtp will dirlist /ARCHIVES/MP3 first, then /ARCHIVES/MP3/2009 then
+/ARCHIVES/MP3/2009/01 then /ARCHIVES/MP3/2009/01/01 then 
+/ARCHIVES/MP3/2009/01/01/Foobar-Foobar1-2009-SHIT, it finds the nfo there,
+so it treats /ARCHIVES/MP3/2009/01/01/ as a container dir and adds
+Foobar-Foobar2-2009-SHIT into the index.
+
+Then you need to setup REQUEST section on sites where you want the bot to fill 
+requests on. This is done with the autodirlist feature, since REQUEST sections
+are handled specially. For example:
+  !setdir DUMP REQUEST /requests
+  !autodirlist DUMP 900 REQUEST
+These two commands above make slftp to look for new requests on DUMP every 15 
+mins.
+
+The interval you choose will be schedule right away, interval (see !s queue).
+If you change the interval it will take effect AFTER the already scheduled run.
+When you set it to 3600 and want to change it to 900. If you run the command again,
+with 900 as interval, it's going to take effect in 1h.
+To change it right away set the interval to "0" essential removing the task, 
+then readd it with the desired 900 seconds.
+
+slFtp parses dirnames in REQUEST section with the following restrictions:
+- request dir must match the regex ^R[3E]Q(UEST)?-(by.[^\-]+\-)?(.*)$
+- the request itself might contain a timestamp prefix in 10 characters format
+
+For example these folders would be valid:
+  REQ-2005-01-13_Foobar-Foobar-2009-SHIT
+  REQUEST-Foobar-Foobar-2009-SHIT
+  REQUEST-by.user-Foobar-Foobar-2009-SHIT
+
+Then slFtp will query the index for Foobar-Foobar-2009-SHIT. If its found, 
+it will send to the site where its requested, if a direct route exists
+between a source and the site the release was requested on.
+If a release is found in more than one source, all of them will be utilized.
+If you want to also be able to reqfill from sites that have no direct route to
+the site that a release is requested on, make sure to set
+[autodirlist] only_use_routable_sites_on_reqfill=0 in slftp.ini
+
+If a release is present on the request site, then a new dir will be created
+in the requests directory showing where it can be found and the request will be
+reqfilled.
+
+Note: SQLite database is in plain text. If you don't like this, use some file
+system encryption.

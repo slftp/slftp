@@ -1,0 +1,3 @@
+Usage: <cmd> srcsite [section] rlsname
+Description: check rlsname is okay on chain compared to srcsite. Default section is PRE.
+Example: <cmd> HQ MyRip-GRP

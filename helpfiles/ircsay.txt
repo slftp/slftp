@@ -1,0 +1,2 @@
+Bounces your message to a chan.
+Usage: <cmd> netname channel something you want to say

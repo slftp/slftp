@@ -1,0 +1,42 @@
+Usage: <cmd> <srcsite> <dstsite> <rank> [--c1] [--c2] [--sw1] [--sw2] [-b/--back] [-a/--apply]
+Description: Sets routes between src and dst sites. Rank is an integer, higher value means higher priority.
+
+Normal positional parameters (mandatory):
+<srcsite>
+  Site name or wildcard * for all 
+<dstsite>
+  Site name or wildcard * for all
+<rank>
+  Rank from 1 to 9. Use 0 to remove routes
+
+Examples:
+Add route from SITE1 to SITE2 with a rank of 5
+<cmd> SITE1 SITE2 5
+
+
+Named parameters (optional wilcards filters):
+
+--c1 XX
+  Source sites country
+--c2 XX
+  Destination sites country 
+--sw1 XX
+  Source ftpd softwares 
+--sw2 XX
+  Destination ftpd softwares
+
+XX for countries is for example .fr, .hu, ...
+XX for ftpd softwares can be GLFTPD, IOFTPD or DRFTPD
+
+-a/--apply
+  Really apply changes. For safety when using wildcards the changes are not
+  applied if you don't specify that you want to apply the changes. If omitted 
+  it just displays what changes would be done.
+-b/--back
+   Add back route from dest to source aswell
+
+Examples:
+Add routes from all french sites to all swiss sites (with back routes) and apply changes.
+<cmd> * * 9 --c1 fr --c2 ch -b -a
+Add routes from SITE1 to all sites in netherlands running glftpd
+<cmd> SITE1 * --sw2 glftpd --c2 nl

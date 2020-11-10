@@ -1,0 +1,4 @@
+Usage: <cmd> sitename
+Bot will upload a 50mb speedtest file directly to sitename.
+You need to set SPEEDTEST section for sitename first.
+(You can use the special speedtest dir or usually the request dir or your predir.)

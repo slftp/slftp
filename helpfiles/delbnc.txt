@@ -1,0 +1,3 @@
+Usage: <cmd> sitename hostname:port
+Description: removes a bouncer of the site.
+Example: <cmd> MyHQ hostname1:1234

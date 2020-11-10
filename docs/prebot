@@ -1,0 +1,119 @@
+                                PREBOT
+-------------------------------------------------------------------------------
+slFtp was originally written as a pretool for group usage.
+This functionality has been maintained over the years and in parts extended to
+accommodate advanced usage.
+This document is meant to outline how to use the prebot functionality and how
+to set it up correctly.
+
+1. Set up your dump and/or pre-sites as you would with any normal site
+
+2. Set up predirs on those sites
+  You can just use the normal !setdir cmd or use the separate !setpredir cmd
+  we provide that has some additional checks.
+  Sections for preing need to be prefixed with PRE. Whether you use - to
+  separate elements is up to you.
+
+  Syntax: !setpredir <site> <section> <predirpath>
+
+  How you set up your predirs depends a bit on what the sites you pre on force
+  you to use or adhere to.
+
+  Example: All your presites have central PRE folders and you only pre MP3
+    You could also just use PRE as a section in this setup, but why not keep
+    our options open :)
+    !setpredir DUMP PRE-MYGRP /pres/
+    !setpredir SITE1 PRE-MYGRP /groups/MYGRP/
+    !setpredir SITE2 PRE-MYGRP /_PRE/MYGRP/
+
+  Example: Presites have section-based PRE folders and/or you pre to different
+    sections with your group.
+    !setpredir DUMP PRE-TV-720 /pres/
+    !setpredir DUMP PRE-TV-1080 /pres/
+    !setpredir DUMP PRE-X264-720 /pres/
+    !setpredir DUMP PRE-X264-1080 /pres/
+    !setpredir SITE1 PRE-TV-720 /tv720/_pre/
+    !setpredir SITE1 PRE-TV-1080 /tv1080/_pre/
+    !setpredir SITE1 PRE-X264-720 /720/_pre/
+    !setpredir SITE1 PRE-X264-1080 /1080/_pre/
+    !setpredir SITE2 PRE-TV-720 /_PRE/MYGRP/
+    !setpredir SITE2 PRE-TV-1080 /_PRE/MYGRP/
+    !setpredir SITE2 PRE-X264-720 /_PRE/MYGRP/
+    !setpredir SITE2 PRE-X264-1080 /_PRE/MYGRP/
+
+    Possibly you would set up a 2nd slftp instance if you have several groups
+    you pre the same sections or sites with or you need to make those sections
+    also reflect your group name to make it unique by e.g. using sections like
+    PRE-MYGRP-TV-720, PRE-MYGRP-TV-1080, etc. The idea should be clear.
+
+3. Set up precmds on those sites
+  Since you don't only want to spread releases to those sites but actually also
+  want to issue "site pre" there we need to provide that information to slFtp.
+
+  Since we don't have a separate "dump" site class you will need to set a dummy
+  precmd for your DUMP if you're spreading from there.
+
+  Syntax: !setprecmd <site> <section> <cmd>
+
+  Example:
+    !setprecmd DUMP PRE-MYGRP site pre <rlsname> MP3
+    !setprecmd SITE1 PRE-MYGRP site pre MP3 <rlsname>
+    !setprecmd SITE2 PRE-MYGRP site pre <rlsname> MP3
+
+  Example:
+    !setprecmd DUMP PRE-TV-720 site pre <rlsname> TV-720
+    !setprecmd DUMP PRE-TV-1080 site pre <rlsname> TV-1080
+    !setprecmd DUMP PRE-X264-720 site pre <rlsname> X264-720
+    !setprecmd DUMP PRE-X264-1080 site pre <rlsname> X264-1080
+    !setprecmd SITE1 PRE-TV-720 site pre <rlsname> tv720
+    !setprecmd SITE1 PRE-TV-1080 site pre <rlsname> tv1080
+    !setprecmd SITE1 PRE-X264-720 site pre <rlsname> 720
+    !setprecmd SITE1 PRE-X264-1080 site pre <rlsname> 1080
+    !setprecmd SITE2 PRE-TV-720 site pre <rlsname> tv
+    !setprecmd SITE2 PRE-TV-1080 site pre <rlsname> tv
+    !setprecmd SITE2 PRE-X264-720 site pre <rlsname> x264
+    !setprecmd SITE2 PRE-X264-1080 site pre <rlsname> x264
+
+4. Set up specific or generic rules
+  We support setting rules for pre sites and sections.
+  That means you can, based on rules, allow or deny certain releases to be
+  spread and pred on your sites.
+
+  If that's not something you desire or need just set up basic ALLOW rules.
+
+  Example:
+    !ruleadd * PRE-MYGRP if default then ALLOW
+
+  Example:
+    !ruleadd * PRE-TV-720 if default then ALLOW
+    !ruleadd * PRE-TV-1080 if default then ALLOW
+    !ruleadd * PRE-X264-720 if default then ALLOW
+    !ruleadd * PRE-X264-1080 if default then ALLOW
+
+  Example:
+    !ruleadd DUMP PRE-MYGRP if default then ALLOW
+    !ruleadd SITE1 PRE-MYGRP if internal then DROP
+    !ruleadd SITE1 PRE-MYGRP if default then ALLOW
+    !ruleadd SITE2 PRE-MYGRP if default then ALLOW
+
+
+5. Actually spread/pre your releases
+  Basically this assumes you have your releases on your DUMP and want to spread
+  from there to then issue "site pre" on all your presites.
+
+  You can do it "manually" by using separate cmds as follows:
+  * !spread DUMP PRE-MYGRP This_is_my-Awesome_release-WEB-2019-MYGRP
+  * !check DUMP PRE-MYGRP This_is_my-Awesome_release-WEB-2019-MYGRP
+  * !pre PRE-MYGRP This_is_my-Awesome_release-WEB-2019-MYGRP
+
+  Or you can make slFtp perform those steps automatically as follows:
+  * !batch DUMP PRE-MYGRP This_is_my-Awesome_release-WEB-2019-MYGRP
+
+  If you have several releases to spread and pre you can use wildcards:
+  * !batch DUMP PRE-TV-720 Best.Show.Ever.S01*720p*-MYGRP
+
+  By default !batch is a bit less verbose about what it does. If you want to
+  know specifics or need to debug certain steps you can add a --verbose flag to
+  the cmd.
+
+6. Enjoy, that's it.
