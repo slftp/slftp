@@ -1,0 +1,13 @@
+Shows/creates/modifies/deletes affil list of a site.
+Usage: <cmd> sitename ([affil1] [affil2] ...)
+If no affils are specified, then it list affil list of sitename.
+If an affil is not found in the list, the affil is being added.
+If the affil is found in the chain, the affil is being removed.
+
+Examples:
+<cmd> SITE <- shows affil list
+<cmd> SITE GRP1 GRP2 <- GRP1, GRP2 are added.
+<cmd> SITE GRP2 GRP3 <- GRP2 is removed, GRP3 is added (so list has GRP1 and GRP3 now)
+<cmd> SITE GRP1 GRP3 <- Affil list will be empty as GRP1 and GRP3 are removed.
+
+To completly reset affils with a new list use <cmdprefix>setaffils

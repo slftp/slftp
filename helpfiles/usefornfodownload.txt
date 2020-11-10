@@ -1,0 +1,11 @@
+Usage: <cmd> sitename [value]
+Display or change the usefornfodownload value.
+Value to set can be 0 or 1. Leave it blank to display current value.
+You can enable/disable usage of a site for downloading NFO to get infos from NFO.
+0 means manually disabled, 1 means enabled, 2 means automatically disabled due to problems; you can surely set it back to 0 or 1.
+Examples:
+<cmd> HQ1 1
+<cmd> * <- displays current value for all sites
+<cmd> HQ6 0
+
+You can use the special sitename * as a wildcard for all sites.

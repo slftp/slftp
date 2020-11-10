@@ -1,0 +1,5 @@
+Usage: <cmd> sitename [username]
+Display current site user information and gives some trivial recommendations for site settings.
+If no username is given, it automatically uses your nickname for this site.
+Example: <cmd> HQ
+Example: <cmd> SEHQ slFtpTrader

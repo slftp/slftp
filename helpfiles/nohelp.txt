@@ -1,0 +1,1 @@
+Displays the commands without any help text yet.

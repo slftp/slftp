@@ -1,0 +1,2 @@
+Displays the channel list with channel keys and blowfish encryption keys.
+Usage: <cmd> [network]

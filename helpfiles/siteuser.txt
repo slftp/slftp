@@ -1,0 +1,5 @@
+Usage: <cmd> <sitename> <username>
+This command changes your username on <sitename> to <username>
+If no <username> is specified, your current username on <sitename> is returned.
+No wildcard allowed.
+

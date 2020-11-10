@@ -1,0 +1,3 @@
+Displays the ruleset of a site.
+Usage: <cmd> sitename section
+NOTE: To show all rules for a site use <cmdprefix>allrules

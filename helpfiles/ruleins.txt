@@ -1,0 +1,2 @@
+Usage: <cmd> id SITENAME SECTION if[not] condition1 [&& condition2 [&& condition3 ...]] then (ALLOW|DROP)
+Inserts a rule at the specified location.

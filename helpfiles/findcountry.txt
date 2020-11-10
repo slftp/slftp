@@ -1,0 +1,4 @@
+Usage: <cmd> location
+Finds every site with the location which is set by <cmdprefix>country.
+Example: <cmd> .se
+NOTE: Take care that you always use the same acronym for a location. See https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2

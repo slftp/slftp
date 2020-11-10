@@ -1,0 +1,2 @@
+Invites the bot to the sitechan using the SITE INVITE command.
+Usage: <cmd> sitename

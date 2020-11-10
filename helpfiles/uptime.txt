@@ -1,0 +1,1 @@
+Displays uptime of the bot.

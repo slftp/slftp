@@ -1,0 +1,6 @@
+Usage: <cmd> [section] rlsname
+Description: first it checks whether rlsname exists on each site and then it sends pre commands. 
+Default section is PRE.
+Example: <cmd> MyRip-GRP
+Example: <cmd> PRE MyRip-GRP
+Example: <cmd> PRE-X264-1080P MyRip-GRP

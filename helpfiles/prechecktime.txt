@@ -1,0 +1,3 @@
+Description: Set the wait time for re-check pre-dir on pre
+Usage: <cmd> time_in_sec
+Example: <cmd> 35

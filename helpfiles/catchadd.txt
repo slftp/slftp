@@ -1,0 +1,39 @@
+Adds a rule for precatcher. Channel must already be configured. See <prefix>ircchanadd and <prefix>ircchanblow
+Usage: <cmd> sitename netname channelname botnicks (NEWDIR|PRE|COMPLETE|NUKE|REQUEST|ADDPRE) words [section]
+botnicks is a comma separated list of nicks of the bot.
+Event can be NEWDIR, PRE, COMPLETE, NUKE, REQUEST or ADDPRE.
+Words is a comma seperated list of words which are present in the actual announce line. (case insensitive)
+Section is optional, you can use it to force the section (if the announce line doesn't contain it)
+Examples:
+1.
+You probably want to add (at least) three catch rules for each of your sites.
+Ok, we have a site called X3, they are very expert guys and customized the theme, 
+so they announce pre as squirt and newdir is fisting, 1st file is anal,
+race event is gangbang, fuckup means its completed, only idiots fuck animals means it was nuked on site.
+Lets add its rules:
+<cmd> X3 LINKNET #x3 x3bot PRE squirt <- new pre on site
+<cmd> X3 LINKNET #x3 x3bot NEWDIR fisting <- dir created on site
+<cmd> X3 LINKNET #x3 x3bot NEWDIR anal <- first file uploaded
+<cmd> X3 LINKNET #x3 x3bot NEWDIR gangbang <- other people joined the race
+<cmd> X3 LINKNET #x3 x3bot COMPLETE fuckup <- its done
+<cmd> X3 LINKNET #x3 x3bot NUKE idiots,fuck,animals <- rls was nuked on site
+
+2.
+Another site ABC with newdir and pre line like that:
+NEW RACE in TV-SD releasename join in!
+We have a new PRE in TV-SD releasename THANKS affilgroup!
+Nuked TV-SD releasename for: reason
+COMPLETE in TV-SD releasename bye!
+We want to add this to site ABC on EFNET as mentioned above:
+<cmd> ABC EFNET #abc-main sitebot NEWDIR NEW,RACE,join
+<cmd> ABC EFNET #abc-main sitebot PRE new,PRE,thanks
+<cmd> ABC EFNET #abc-main sitebot COMPLETE COMPLETE,in,bye
+<cmd> ABC EFNET #abc-main sitebot NUKE Nuked,for
+
+Take care that you don't block announce lines with a wrong setup for ignorewords in precatcher.
+
+Note: for iso sites its better if you add rules for events like race, 50% complete etc,
+so the bot would know, the race is still in progress or it's being continued (after someone
+left it incomplete). Simple add several rules for them as NEWDIR.
+
+Event ADDPRE can be used to fill your pre DB using the precatcher, in case your pre source is not using standard !addpre,!sitepre

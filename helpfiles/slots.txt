@@ -1,0 +1,9 @@
+Usage: <cmd> sitename1,sitename2,sitename3 [newslots]
+Change number of slots of a site.
+Examples:
+<cmd> * <- shows all slots for each site
+<cmd> HQ1 6 <- sets slots count to 6 for HQ1
+<cmd> HQ1,HQ2,HQ3 3 <- sets slots count to 3 for HQ1. HQ2 and HQ3
+<cmd> * 2 <- sets slots count to 2 for all sites
+
+You can use the special sitename * as a wildcard for all sites.

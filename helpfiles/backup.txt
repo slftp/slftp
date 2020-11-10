@@ -1,0 +1,3 @@
+Create a backup from current files including all used files, except for
+the ones you defined in slftp.ini
+Usage: <cmd> 

@@ -1,0 +1,3 @@
+Usage: <cmd> sitename section [amount]
+Dirlist in section@sitename, displaying the latest created (amount: default 10) directories.
+Example: <cmd> HQ MP3 25

@@ -1,0 +1,2 @@
+Simple repaints the GUI.
+Sometimes needed if you changed the size of console window.

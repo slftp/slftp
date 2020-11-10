@@ -1,0 +1,2 @@
+Executes a perform on a IRCNET
+Usage: <cmd> IRCNET

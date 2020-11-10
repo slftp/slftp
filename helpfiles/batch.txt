@@ -1,0 +1,9 @@
+Enqueue a release for preing it in batch mode.
+Usage: <cmd> sitename [section] rlsname [--verbose]
+If --verbose is specified output is identical to calling all cmds separately.
+Without --verbose some of the informational messages will be suppressed.
+This command does the following steps:
+1. does a bnctest on chain grp
+2. spreads the release on chain grp
+3. checks the release on chain grp against site sitename
+4. pres the release.

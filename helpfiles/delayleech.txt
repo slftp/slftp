@@ -1,0 +1,13 @@
+This will display/modify the settings of the "delay leech" feature.
+Usage: <cmd> sitename [section] [min max]
+To setup global leech delaying for site A with min. delay of 300 and max. delay of 360 seconds, use:
+<cmd> A 300 360
+Leeching from site A will be delayed randomly in the specified time interval.
+To tweak delay on the same site for mp3 section to start after 10 seconds, you can specify the section as well:
+<cmd> A MP3 10 10
+To list the current settings, use:
+<cmd> A
+To delete the settings, use - as min delay. For example to delete the "global" delay for site A:
+<cmd> A -
+To delete the section based delay as well:
+<cmd> A MP3 -

@@ -1,0 +1,10 @@
+Usage: <cmd> SITE1 SITE2 SITE3 SITE4
+Invites you into the sitechannels if you have added your ircnick!
+If no ircnick specified, it suggest to set your sitenick as ircnick.
+
+Examples:
+<cmd> HQ4
+<cmd> HQ1 WHQ HQSE
+<cmd> *
+
+You can use the special sitename * as a wildcard for all sites.

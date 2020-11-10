@@ -1,0 +1,3 @@
+Tries to kill the ghost connections using a ! prefix before username.
+Usage <cmd> sitename
+

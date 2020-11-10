@@ -1,0 +1,9 @@
+Usage: <cmd> sitename section dir
+Description: sets dir of section on site. To remove a section, omit dir parameter.
+Example: <cmd> MyHQ MOVIES /incoming/MOVIES
+For dated dirs you can use the following macros: <yyyy>, <yy>, <mm>, <dd> and <ww>
+Example: <cmd> MyHQ M33 /incoming/MP3/<mm><dd>
+Note: 
+The section name must exists in slftp.precatcher, excepted special sections like SPEEDTEST, REQUEST and sections beginning with ARCH-.
+See also: <prefix>setprecmd <prefix>setpredir
+

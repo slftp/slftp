@@ -1,0 +1,124 @@
+                                       FAQ
+-------------------------------------------------------------------------------
+Q. ERROR channel is filled with: [ERROR Read] SITENAME3/5: WAIT sslread failed: error:00000006:lib(0):func(0):EVP lib 1/100 (1.1.1.1:1111)
+   slftp keeps breaking transfer with BAD_FILE_CRC in glftpd.log
+A. Verify slots and maxupdn configuration at that site. Having too many slots or maxupdn can be a cause of this.
+
+
+Q. slftp keeps disconnecting from irc with error: (Ping timeout: XXX seconds)
+A. Its caused by queue overload (or just issue with server where slftp is located) there are few things you can do:
+-  check slftp.log for regex errors both in slftp.precatcher and site defined rules and try to fix them.
+   If you cant do it by yourself, try online tester: regex101.com which may be helpful.
+-  check if all sites got defined slots / maxupdn. If your site dont have slots / maxupdn it can cause queue overload.
+
+
+Q. I've setup all the dir and the predir, now when I type !dirlist it puts the
+   pre dir path infront of what ever I type... so you can't search any dir except the pre dir.
+A. You do !dirlist sitename SECTION and _NOT_ !dirlist sitename DIRECTORY
+   !dirlist site /Wii <- WONT WORK
+   !setdir site WII /Wii
+   !dirlist site WII <- WORKS. 
+   This is the sense of bookmarks, you don't need to remember the actual path.
+
+
+Q. How to fix the endless scrolling of versions prior to slFtp 1.5.6 of the console on Windows 10?
+A. Run it in legacy mode.
+
+
+Q. How do I upgrade slFtp to the latest revision?
+A. Create a backup of your configuration files.
+   Overwrite the binaries, then read the CHANGELOG carefully, compare your old with the new configuration file(s)
+   and adapt them according to the changes.
+
+
+Q. Will slftp run faster if I switch to xxx from xxx?
+A. Maybe, but you only will gain some milli-, micro- or nanoseconds. All stuff slftp does
+   differs in so many ways for a race that you can't compare by just running it.
+   You would need to write test units which covers almost all cases slftp does in a race and
+   compare each code execution time with compiled version from Delphi / Free Pascal.
+   But you still can't test all ftpd stuff (login, transfer speed, how fast other traders are, etc).
+
+           "Premature optimization is the root of all evil" - Donald Knuth
+
+   There is only ONE way to really make slftp faster: LEARN Delphi/Pascal!
+   see http://newpascal.org/assets/modern_pascal_introduction.html
+
+
+Q. Does stats.db have any impact on performance?
+A. Open it with a sqlite browser and you'll notice (with a small look into sourcecode), that it's
+   only used for !statrace. You can delete/never create it without any further issues but you loose ability to use !statrace.
+   You won't even gain any performance as it's just a database where some stuff is saved (and only read by !statrace).
+   Just to make it clear: does any prebot owner delete their database every 7 days because pre search/announce takes longer and longer? NO!
+
+
+Q. Why does slftp needs longer and longer for startup?
+A. slftp.kb has a high impact on starting time but you can remove it from time to time but you'll loose ability of knowledge base (kb) history, dupe detection, etc.
+
+
+Q. I get "couldnt init TCP library!" error on my linux shell!
+A. Your shell's /etc/hosts file is probably misconfigured, and the hostname
+   cannot be resolved. Make sure the name what `hostname` reports is added
+   to this file.
+
+
+Q. Why do I get 'Failed TLS negotiation on data channel (SSL_accept(): (1) error:140760FC:SSL routines'?
+A. This is a lack of supported ciphers between both FTPd softwares. Tell your siteop to update the FTPd software, OpenSSL and to allow the current common ciphers.
+
+
+Q. How can I run the bot in background on linux?
+A. Use 'screen ./slftp' to create a new session. Use ctrl+a d to detach from the session. Use 'screen -r' to re-attach to the session.
+   Use 'tmux' to create a new session and run ./slftp. Use ctrl+b d to detach from the session. Use 'tmux attach' to re-attach to the session.
+
+
+Q. Does slftp support chains?
+A. No and yes. Chaining is old deprecated way of race tools. slFtp works 
+   differently, read CHAINS document.
+
+
+Q. What does "..is renamed group shit.." or "..is in skipped releases list!" mean?
+A. It means that someone sent a renamed version of original pre to your sites. It can also occur if a group
+   lost the race which results in the same releasename which only differs in groupname, so it's a dupe.
+   One of the messages will be shown for every new IRC event which is caught by slftp.
+   e.g.:
+    [NEW] XXX-PAYSITE Exotic4K.17.09.27.Ella.Knox.Slick.Curves.XXX.1080p.MP4-KTR @ SITE1 (XXX-PAYSITE) (01 Sec ago) (SQLite) <-- original pre
+    Exotic4K.17.09.27.Ella.Knox.Slick.Curves.XXX.1080p.MP4-KTRult @ SITE2 is renamed group shit! KTRult vs. KTR <-- someone started to race a rename on SITE2
+    Exotic4K.17.09.27.Ella.Knox.Slick.Curves.XXX.1080p.MP4-KTRult @ SITE1 is in skipped releases list! <-- rename detected on another site
+
+
+Q. Scrolling with PAGE UP/DN does not work on my SecureCRT + linux combo!
+A. Setup securecrt to use escape codes (ESC[n~) or use putty.
+
+
+Q. I want to filter releases that are not english, french or german, how do I do that?
+A. For NON mp3 sections, you can add a rule like this:
+   !ruleadd sitename section if foreign && not language in French, German then DROP
+   For MP3 sections you need to use the mp3language condition, which works
+   a bit differently:
+   !ruleadd sitename mp3 if not mp3language in EN, FR, DE then DROP
+
+
+Q. How can I stop all the transfers?!
+A. Use !setdown !all!
+   This will mark all the sites as down and clear the queue from tasks.
+   (You will need to use !bnctest when you want to use slftp again)
+
+
+Q. Does slftp support regex in precatcher/skiplist/etc. configs?
+A. Read masks documentation file.
+
+
+Q. How do I change username or password of a site without deleting/readding it?
+A. Read !help siteuser and !help sitepass
+
+
+Q. How do I flush the queue?
+A. !setdown !all!
+
+
+Q. How to fix [EXCEPTION] Run.assigned(fOnShow) '23-11-2017' is not a valid date and time?
+A. You must change the date format to 09-12-17 in settings.
+
+
+Q. How can I start slftp without specifying the password manually?
+A. Create a file called 'masterpass.txt' in the same dir as the slftp executable with the
+   content set to the password you use for encryption.

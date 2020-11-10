@@ -1,0 +1,2 @@
+Usage: <cmd> window title
+Brings the specified console window to the foreground. (Check <cmdprefix>windows for a list)

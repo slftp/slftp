@@ -1,0 +1,40 @@
+# Debugging on Linux
+
+Sometimes things do not work as expected, therefore we have this document to 
+help you to provide useful information to the development team in case of a crash.
+
+
+### Build slftp debug binary
+
+cd to your slftp source folder and run:
+
+  # make clean
+  # make debug
+
+Once that finishes, copy the binary "slftp" to your slftp folder.
+Make sure you have "gdb" (GNU Debugger) installed.
+Ubuntu and Debian users can install gdb using: apt-get install gdb -y
+
+
+### Run slftp in debug mode
+
+Make sure slftp is not alredy running before proceeding. 
+cd to your slftp folder and copy the whole command below (without the "#") into your shell:
+
+  # ulimit -c unlimited; gdb --eval-command="set confirm off" --eval-command="handle SIGINT nostop print pass" --eval-command="handle SIGUSR1 nostop noprint pass" --eval-command="handle SIGPIPE nostop print pass" --eval-command="set confirm on" --eval-command="set print thread-events off" --eval-command="set logging file /tmp/slftp.gdb.log" --eval-command="set print thread-events off" --eval-command="set logging on" --eval-command="run" slftp
+
+When slftp crashes you'll need to run the commands below.
+The terminal might still look like the slftp ui but just write these commands and press enter after each:
+
+    info threads
+    bt full
+    quit
+
+The quit command will prompt you to confirm the quit, press "y" and then <enter>.
+Now we have a file to send to the developers.
+
+Make sure the file does not contain site names or other sensitive info, then paste the contents of
+/tmp/slftp.gdb.log into a https://zerobin.net/ paste and send the link to the developers.
+
+If you were doing something specific or you have a solid way to reproduce the issue then
+please include the instructions in the paste.

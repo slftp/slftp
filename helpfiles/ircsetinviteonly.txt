@@ -1,0 +1,2 @@
+Sets invity only flag of a channel
+Usage: <cmd> netname #channel 0|1

@@ -1,0 +1,2 @@
+Usage: <cmd> sitename
+display all slots informations for sitename

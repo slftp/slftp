@@ -1,0 +1,2 @@
+Display/set/remove speedlock of a site.
+Useage: <cmd> SITE 0|1 or <cmd> SITE to display, u can use sitelist spaced by comma or *

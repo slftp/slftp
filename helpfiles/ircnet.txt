@@ -1,0 +1,3 @@
+Usage: <cmd> netname [--plain]
+Trigger: --plain show the plaintext password too.
+Displays available info of ircnet netname.

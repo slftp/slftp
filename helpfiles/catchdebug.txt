@@ -1,0 +1,4 @@
+Turns on/off debugging of precatcher.
+Usage: <cmd> 0|1
+Default is off.
+If turned on, check precatcher.log for infos.

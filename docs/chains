@@ -1,0 +1,102 @@
+                                     CHAINS
+-------------------------------------------------------------------------------
+When there is an event (newdir/pre/complete/nuke/request) on a site (caught by
+the precatcher or coming from the autodirlist feature), all outgoing routes of 
+the site will be fired recursively and sites will be checked
+1. if the site is up
+2. if the site has the actual section
+3. if the release is allowed there (based on !rules)
+
+This way a dynamic chain is generated. Routes are also sorted based on the weight
+of the rules multiplied by the destination site's rank.
+The "chain" might also be regenerated on the fly while racing, as the bot gets
+the COMPLETE and other announces.
+
+                             Controlling the transfers
+-------------------------------------------------------------------------------
+Each site has a per section "rank" in the scale 1..9. The higher value the better.
+You can query the ranks using !ranks and set them using !rank (see also !ranklock)
+Default rank is 1 for each site/section (even if you dont specify any).
+There are directed "routes" between sites with a weight (src->dst and w) in scale
+of 1..9. The higher value the better.
+If there is no route between src site and dst site, no transfer will be performed
+in this direction.
+Both ranks and routes are recalculated dynamically:
+- routes based on the actual speed of latest file transfers.
+  slftp will look for the slowest and the fastest transfer, and rescale all the
+  values in this interval. This feature will keep slftp utilizing the fastest 
+  routes first.
+  For tweaking, see the [speedstats] section of slftp.ini
+- ranks based on the irc announces. slftp will look for the first irc line 
+  connecting to a rip and check the duration needed for finishing the 
+  transfer. Using these durations slftp rescales the ranks. (see also !ranklock)
+  Updating rank for sites which dont have an irc channel (or they are not set up 
+  in slftp) will be skipped.
+  For tweaking, see the [ranks] section of slftp.ini
+
+The actual chain will be built based on multiplication of route weights and
+rank of the destination site.
+
+For example:
+
+Site     Rank
+-------------------
+A        1
+B        2
+G        9
+
+Routes:
+A->B 3
+A->G 5
+B->A 2
+B->G 6
+G->A 3
+G->B 5
+
+Lets say all sites (A B G) have an MP3 section with everything allowed.
+A and B are 100mbit sites while G is a gigabit site with fast support 
+(rank 9) and good routes (see above).
+GRP1 pres on A (they are not affil on B and G).
+slftp will:
+1. check sites if they are up (and omit the down ones in the current race)
+2. check sites if they have the current section (yes, each has MP3)
+3. fire the rules (they will all return allowed in this case)
+Now slftp is enumerating the routes, it starts with A (since it got the 
+event on site A) then recursively the same procedure is done on B and G:
+Src Site    Dst Site    Route   Dst Rank   Score
+-----------------------------------------------------
+A           B           3       2          6
+A           G           5       9          45
+B           G           6       9          54
+G           B           5       2          10
+
+Note B -> A and G -> A are missing this time, since the rip is not allowed
+on A (GRP1 is affil there). B -> A and G -> A would be present if it was
+a newdir race with the release allowed on A. In this case even if A was the
+first site fired, slftp will send "back" files to A if other sites have 
+some files faster (which is surely possible). Usually only the presites and/or
+the first site with announce will be dirlisted. slftp is building the
+presence status of files on destination sites based on the XDUPE and 
+other protocol replies.
+
+Ok, slftp is ordering the chains above based on descending scores:
+Src Site    Dst Site    Route   Dst Rank   Score
+-----------------------------------------------------
+B           G           6       9          54
+A           G           5       9          45
+G           B           5       2          10
+A           B           3       2          6
+
+This table will be used when adding the actual file transfer tasks.
+slftp will dirlist A first, it adds race tasks to A->G first, then
+G->B and then G->B and last one is A->B.
+If A has two slots (see !slots) and dual leech is allowed (see !maxupdn)
+and dual upload to G is allowed as well (see !maxupdn and !maxupperrip)
+slftp will really send to G using both slots. (And not 1 slot to G and 
+1 slot to B. But it would if G and B had the same scores!)
+As G gets the files and slftp has free slot there, it will immediately
+start sending G -> B.
+Immediately: slftp is not waiting for end of file transfers in A -> G,
+but right after the STOR command on G (sending from A) it will send RETR 
+on G as well (sending to B). At least in case of glftpd sites, other ftpds
+dont really like transfers like this.

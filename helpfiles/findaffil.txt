@@ -1,0 +1,4 @@
+Usage: <cmd> AFFILGRP
+Displays all sites having group AFFILGRP as affil.
+Example: <cmd> Razor1911
+NOTE: You need automatic adding of affils [irc event or correct configured ftpd] or add them manually.

@@ -1,0 +1,2 @@
+Usage: <cmd> id
+Deletes the rule specified. (It'll also show the rule which got deleted.)
