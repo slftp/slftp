@@ -1,0 +1,177 @@
+stages:
+  - build
+  - test
+  - documentation
+
+### build stage ###
+
+.buildwin32: &buildwin32
+  stage: build
+  artifacts:
+    name: "%CI_BUILD_REF_NAME%-%CI_BUILD_REF%-%CI_BUILD_NAME%"
+    paths:
+      - slftp.exe
+  script:
+    - make.bat slftp_32
+  tags:
+    - windows 64bit
+    - delphi 32bit
+
+buildwin32-release:
+  <<: *buildwin32
+  before_script:
+    - rmdir .git /s /q
+  only:
+    - master
+
+buildwin32-development:
+  <<: *buildwin32
+  except:
+    - master
+
+.buildwin64: &buildwin64
+  stage: build
+  artifacts:
+    name: "%CI_BUILD_REF_NAME%-%CI_BUILD_REF%-%CI_BUILD_NAME%"
+    paths:
+      - slftp.exe
+  script:
+    - make.bat slftp_64
+  tags:
+    - windows 64bit
+    - delphi 64bit
+
+buildwin64-release:
+  <<: *buildwin64
+  before_script:
+    - rmdir .git /s /q
+  only:
+    - master
+
+buildwin64-development:
+  <<: *buildwin64
+  except:
+    - master
+
+.buildlinux32: &buildlinux32
+  stage: build
+  artifacts:
+    name: "${CI_BUILD_REF_NAME}-${CI_BUILD_REF}-${CI_BUILD_NAME}"
+    paths:
+      - slftp
+  script:
+    - make slftp_32
+  tags:
+    - linux
+    - fpc
+
+buildlinux32-release:
+  <<: *buildlinux32
+  before_script:
+    - rm -fr .git
+  only:
+    - master
+
+buildlinux32-development:
+  <<: *buildlinux32
+  except:
+    - master
+
+.buildlinux64: &buildlinux64
+  stage: build
+  artifacts:
+    name: "${CI_BUILD_REF_NAME}-${CI_BUILD_REF}-${CI_BUILD_NAME}"
+    paths:
+      - slftp
+  script:
+    - make slftp_64
+  tags:
+    - linux 64bit
+    - fpc
+
+buildlinux64-release:
+  <<: *buildlinux64
+  before_script:
+    - rm -fr .git
+  only:
+    - master
+
+buildlinux64-development:
+  <<: *buildlinux64
+  except:
+    - master
+
+### test stage ###
+
+testwin32:
+  stage: test
+  when: on_success
+  before_script:
+    - move config\* tests
+  script:
+    - make.bat test_32
+  artifacts:
+    paths:
+      - tests\dunitx-results.xml
+    reports:
+      junit: tests\dunitx-results.xml
+  tags:
+    - windows 64bit
+    - delphi 32bit
+
+testwin64:
+  stage: test
+  when: on_success
+  before_script:
+    - move config\* tests
+  script:
+    - make.bat test_64
+  artifacts:
+    paths:
+      - tests\dunitx-results.xml
+    reports:
+      junit: tests\dunitx-results.xml
+  tags:
+    - windows 64bit
+    - delphi 64bit
+
+testlinux32:
+  stage: test
+  when: on_success
+  before_script:
+    - cp ~/libs/openssl-1.0.2r_64/lib*so .
+    - mv config/* tests/
+  script:
+    - make test
+  tags:
+    - linux
+    - fpc
+
+testlinux64:
+  stage: test
+  when: on_success
+  before_script:
+    - cp ~/libs/openssl-1.0.2r_64/lib*so .
+    - mv config/* tests/
+  script:
+    - make test
+  tags:
+    - linux 64bit
+    - fpc
+    
+### sourcecode documentation stage ###
+src-docs:
+  stage: documentation
+  when: always
+  allow_failure: true
+  artifacts:
+    name: "${CI_BUILD_REF_NAME}-${CI_BUILD_NAME}"
+    when: always
+    paths:
+      - src-docs/
+  before_script:
+    - mkdir src-docs
+  script:
+    - ~/tools/pasdoc/bin/pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
+  tags:
+    - linux 64bit
