@@ -75,6 +75,7 @@
     {#} mp3numdisks took the wrong value, e.g. VA-Serious_Beats_92-(541833CD)-4CD-FLAC-2019-WRE
     {#} Fix some dirlist related access violations
     {#} Fix autoindexer skipping some short dirs because filename checks were applied
+    {#} Fix error which made it impossible to load latest OpenSSL 1.0.2 Win64 DLLs
     {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
     {^} Enumerations for some TV function for better clarification
     {^} Idling keeps all slots in a ready state now
