@@ -41,12 +41,13 @@
 
     1. compare your slftp.ini with the provided one in /dist folder
     2. update your helpfiles with the provided ones in /dist/help folder
-    3. verify that all your regexes are valid and don't throw errors during running
+    3. replace your old slftp.languagebase file with the provided one in /dist folder
+    4. verify that all your regexes are valid and don't throw errors during running
        as TRegExpr allowed invalid regexes before. E.g. range [.-_] is no longer working and
        must be changed to for example [.\-_] or [-._]
-    4. delete your slftp.kb file which is needed due to some internal changes
-    5. check all your mvid rules and see if mvidlookupdone is needed
-    6. enjoy!
+    5. delete your slftp.kb file which is needed due to some internal changes
+    6. check all your mvid rules and see if mvidlookupdone is needed
+    7. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
