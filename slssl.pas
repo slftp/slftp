@@ -227,8 +227,8 @@ const
   slSsl_libcrypto_name      = 'libcrypto.so'; {Do not localize}
   {$ENDIF}
 var
-  h_libssl    : Integer = 0;
-  h_libcrypto : Integer = 0;
+  h_libssl    : {$IFDEF MSWINDOWS}Int64{$ELSE}Integer{$ENDIF} = 0;
+  h_libcrypto : {$IFDEF MSWINDOWS}Int64{$ELSE}Integer{$ENDIF} = 0;
 
 
 const
@@ -336,7 +336,7 @@ begin
 end;
 
 
-function slSsl_LoadProc(handle: Integer; const fnName: String; var fn: Pointer): Boolean;
+function slSsl_LoadProc(handle: {$IFDEF MSWINDOWS}Int64{$ELSE}Integer{$ENDIF}; const fnName: String; var fn: Pointer): Boolean;
 var fceName: String;
 begin
   Result:= False;
