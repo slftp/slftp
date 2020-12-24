@@ -1,7 +1,7 @@
 const
-  SL_VERSION: string = '1.5.7b2';
+  SL_VERSION: string = '1.5.7';
   SL_REV: string = '';
-  HELP_VERSION: string = '0.5.6';
+  HELP_VERSION: string = '0.5.7';
 
   (*   CryptConf Stuff *)
   CC_VERSION: string = '3.2.1';
