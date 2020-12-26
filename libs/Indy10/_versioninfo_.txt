@@ -1,2 +1,2 @@
-2d7f939c62778bd7954397fb658a80092a914924
-Trying to fix a Range Check error in FPC on Windows CE
+874ca5ea25ba999f9f7eefae8472dea7d6387f26
+Adding new TIdThread.Synchronize() overload for anonymous procedures in Delphi 2009+
