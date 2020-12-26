@@ -138,8 +138,9 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
 
-  queue_lock.Enter;
+  kb_lock.Enter;
   try
+
     s := FindSiteByName(netname, sitename);
     if s = nil then
     begin
@@ -217,23 +218,16 @@ begin
 
       r := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(ps.maindir) + dir);
       tn.tasks.Add(r);
-      AddTask(r);
+      AddTask(r, True);
       Inc(addednumber);
     end;
-
-    QueueFire;
   finally
-    queue_lock.Leave;
+    kb_lock.Leave;
   end;
 
   if addednumber = 0 then
   begin
-    queue_lock.Enter;
-    try
-      RemoveTN(tn);
-    finally
-      queue_lock.Leave;
-    end;
+    RemoveTN(tn);
     exit;
   end;
 
@@ -241,8 +235,6 @@ begin
 
   added := True;
 
-  queue_lock.Enter;
-  try
     csl := FindSkipList(section, False);
     if (csl = nil) then
       csl := FindSkipList('PRE', True);
@@ -372,9 +364,6 @@ begin
     end;
 
     RemoveTN(tn);
-  finally
-    queue_lock.Leave;
-  end;
 
   if added then
     Result := True;
@@ -432,7 +421,7 @@ begin
     exit;
   end;
 
-  queue_lock.Enter;
+  kb_lock.Enter;
   try
     pazo_id := kb_list.IndexOf(section + '-' + dir);
     if pazo_id = -1 then // this shouldnt happen
@@ -514,7 +503,7 @@ begin
         try
           rc := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(s.sectiondir[section]), True);
           tn1.tasks.Add(rc);
-          AddTask(rc);
+          AddTask(rc, True);
           Inc(addednumber);
         except
           on E: Exception do
@@ -528,13 +517,10 @@ begin
     elozo := Now;
 
   finally
-    queue_lock.Leave;
+    kb_lock.Leave;
   end;
 
-  queue_lock.Enter;
-  try
     try
-      QueueFire;
       tn1.event.WaitFor($FFFFFFFF);
       if verbose then
         irc_addtext(netname, channel, 'Dir change to predirs done.');
@@ -542,12 +528,7 @@ begin
       on E: Exception do
         irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: %s', [e.Message]);
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
-  queue_lock.Enter;
-  try
     if tn1.responses.Count <> addednumber then
     begin
       irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>We got different number of cwd responses.</c>. Should be %d, is %d.', [addednumber, tn1.responses.Count]);
@@ -593,21 +574,15 @@ begin
       rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]), precmd);
       rr.wantedslot := sr.slotname;
       tn2.tasks.Add(rr);
-      AddTask(rr);
+      AddTask(rr, True);
     end;
 
     RemoveTN(tn1);
     if verbose then
       irc_addtext(netname, channel, 'Sending site pre for %s', [dir]);
-    QueueFire;
-  finally
-    queue_lock.Leave;
-  end;
 
   tn2.event.WaitFor($FFFFFFFF);
 
-  queue_lock.Enter;
-  try
     if tn2.responses.Count <> addednumber then
     begin
       irc_addtext(netname, channel, '<c4><b>ERROR</c></b>: <c4>We got different number of pre responses. Should be %d, is %d.</c>', [addednumber, tn2.responses.Count]);
@@ -667,20 +642,14 @@ begin
       rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]));
       rl.wantedslot := sr.slotname;
       tn3.tasks.Add(rl);
-      AddTask(rl);
+      AddTask(rl, True);
     end;
     RemoveTN(tn2);
     if verbose then
       irc_addtext(netname, channel, 'Checking if %s is still in any of the predirs.', [dir]);
-    QueueFire;
-  finally
-    queue_lock.Leave;
-  end;
 
   tn3.event.Waitfor($FFFFFFFF);
 
-  queue_lock.Enter;
-  try
     if tn3.responses.Count <> addednumber then
     begin
       if tn3.responses.Count = 0 then
@@ -706,9 +675,6 @@ begin
       end;
     end;
     RemoveTN(tn3);
-  finally
-    queue_lock.Leave;
-  end;
   Result := added;
 
   if Result then
@@ -725,8 +691,6 @@ begin
   section := UpperCase(SubString(params, ' ', 2));
   dir := mystrings.RightStr(params, Length(sitename) + Length(section) + 2);
 
-  queue_lock.Enter;
-  try
     s := FindSiteByName(netname, sitename);
     if s = nil then
     begin
@@ -760,9 +724,6 @@ begin
       sectiontype := 'MP3';
 
     command := ReplaceText(command, '<section>', sectiontype);
-  finally
-    queue_lock.Leave;
-  end;
 
   RawB(netname, channel, sitename, predir, command);
 
@@ -791,23 +752,13 @@ var
   begin
     while (batchqueue.Count > 0) do
     begin
-      queue_lock.Enter;
-      try
         item := batchqueue.Extract(batchqueue.First);
-      finally
-        queue_lock.Leave;
-      end;
 
       sitename := item.sitename;
       section  := item.section;
       dir      := item.dir;
 
-      queue_lock.Enter;
-      try
         i := kb_add(netname, channel, sitename, section, '', kbeNEWDIR, dir, '', True, False);
-      finally
-        queue_lock.Leave;
-      end;
 
       if i = -1 then
       begin
@@ -815,8 +766,9 @@ var
         continue;
       end;
 
-      queue_lock.Enter;
+      kb_lock.Enter;
       try
+
         p := TPazo(kb_list.Objects[i]);
 
         ss := '';
@@ -849,7 +801,7 @@ var
           end;
         end;
       finally
-        queue_lock.Leave;
+        kb_lock.Leave;
       end;
 
       ss := Trim(ss);
@@ -893,17 +845,12 @@ var
   var
     item: TBatchQueueItem;
   begin
-    queue_lock.Enter;
-    try
       item.sitename := sitename;
       item.section := section;
       item.dir := dir;
       batchqueue.Add(item);
       if batchqueue.Count = 1 then
         _IrcBatch(netname, channel);
-    finally
-      queue_lock.Leave;
-    end;
   end;
 
 begin
@@ -926,8 +873,6 @@ begin
   else
     verbose := False;
 
-  queue_lock.Enter;
-  try
     s := FindSiteByName(netname, sitename);
     if s = nil then
     begin
@@ -940,9 +885,6 @@ begin
       dir     := SubString(params, ' ', 2);
       section := 'PRE';
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   if (dir.IndexOfAny(['*', '?']) <> -1) then
   begin
@@ -1005,8 +947,6 @@ begin
     dir := SubString(params, ' ', 2);
   end;
 
-  queue_lock.Enter;
-  try
     item.sitename := sitename;
     item.section := section;
     item.dir := dir;
@@ -1017,9 +957,6 @@ begin
       batchqueue.Delete(i);
       Result := True;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   if not Result then
     irc_Addtext(netname, channel, 'Cant find this one in the queue.');
@@ -1105,8 +1042,7 @@ begin
         r := TDelreleaseTask.Create(Netname, Channel, s.Name, MyIncludeTrailingSlash(predir) + dir);
         tn := AddNotify;
         tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
+        AddTask(r, True);
 
         irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
         tn.event.WaitFor($FFFFFFFF);
@@ -1150,8 +1086,7 @@ begin
       r := TDelreleaseTask.Create(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
       tn := AddNotify;
       tn.tasks.Add(r);
-      AddTask(r);
-      QueueFire;
+      AddTask(r, True);
       irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
       tn.event.WaitFor($FFFFFFFF);
 
@@ -1257,13 +1192,11 @@ begin
         r := TDelreleaseTask.Create(Netname, Channel, ps.Name,
           MyIncludeTrailingSlash(ps.maindir) + dir);
         tn.tasks.Add(r);
-        AddTask(r);
+        AddTask(r, True);
         added := True;
       end;
     end;
   end;
-
-  QueueFire;
 
   if added then
     tn.event.WaitFor($FFFFFFFF)

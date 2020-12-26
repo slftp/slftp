@@ -194,8 +194,6 @@ begin
   end;
 
   // no nfo file found. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if (nfofile = '') then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -222,9 +220,6 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // try to get the nfo file
   try
@@ -239,8 +234,6 @@ begin
   end;
 
   // nfo file could not be downloaded. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if i <> 1 then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -268,13 +261,8 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
-  queue_lock.Enter;
-  try
     try
       parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
@@ -287,9 +275,6 @@ begin
         exit;
       end;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   ready := True;
   Result := True;

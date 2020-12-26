@@ -589,7 +589,7 @@ begin
 
           // Finally add mkdir task
           try
-            AddTask(pm);
+            AddTask(pm, true);
           except
             on e: Exception do
             begin
@@ -609,7 +609,7 @@ begin
           Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
           irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
           dstdl.dirlistadded := True;
-          AddTask(pd);
+          AddTask(pd, true);
         except
           on e: Exception do
           begin
@@ -674,12 +674,16 @@ begin
           end;
 
           // Add dependency if a dependent mkdir exists
-          if dstdl.dependency_mkdir <> '' then
+          if (dstdl.dependency_mkdir <> '') and not pm.readyerror and not pm.ready then
+          begin
+            pm.dependentSiteName := self.Name;
             pr.dependencies.Add(dstdl.dependency_mkdir);
+          end;
 
           // finally we can add the task
           try
             AddTask(pr);
+            Result := True;
           except
             on e: Exception do
             begin
@@ -688,7 +692,6 @@ begin
             end;
           end;
         end;
-        Result := True;
       end;
     except
       on e: Exception do
@@ -1337,8 +1340,11 @@ var
   i: integer;
   de: TDirListEntry;
   fFoundDirListEntries: TObjectList<TDirListEntry>;
+  fTasksAdded: boolean;
+  fSite: TSite;
 begin
   Result := False;
+  fTasksAdded := False;
 
   // exit if no access to dirlist object
   if dirlist = nil then
@@ -1405,7 +1411,7 @@ begin
               if (de.justadded) then
               begin
                 de.justadded := False;
-                RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+                RemovePazoRace(self, pazo.pazo_id, Name, dir, de.filename);
               end;
               de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
@@ -1420,10 +1426,14 @@ begin
       //do this outside dirlist_lock to avoid deadlocks
       for de in fFoundDirListEntries do
       begin
-        if Tuzelj(netname, channel, dir, de) then
-        begin
-          QueueFire;
-        end;
+        fTasksAdded := Tuzelj(netname, channel, dir, de) or fTasksAdded;
+      end;
+
+      if fTasksAdded then
+      begin
+        fSite := FindSiteByName('', Name);
+        fSite.QueueSort;
+        fSite.QueueFire;
       end;
 
     finally
@@ -1433,10 +1443,6 @@ begin
 
   // Everything went fine
   Result := True;
-
-  // Sort the queue
-  if Result then
-    QueueSort;
 end;
 
 function TPazoSite.SetFileError(const netname, channel, dir, filename: String): boolean;
@@ -1485,8 +1491,11 @@ var
   de: TDirlistEntry;
   rrgx: TRegExpr;
   fJustAdded: boolean;
+  fTasksAdded: boolean;
+  fSite: TSite;
 begin
   fJustAdded := False;
+  fTasksAdded := False;
 
   // skip filenames dotfiles
   if ((aFilename = '.') or (aFilename = '..') or (aFilename[1] = '.')) then
@@ -1560,16 +1569,23 @@ begin
       begin
         de.IsOnSite := True;
         fJustAdded := True;
-        RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
+        RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
       end;
     finally
       aDirlist.dirlist_lock.Leave;
     end;
 
     //do this outside dirlist_lock to avoid deadlocks
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(aNetname, aChannel, aDir, de)) then
+    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
     begin
-      QueueFire;
+      fTasksAdded := Tuzelj(aNetname, aChannel, aDir, de) or fTasksAdded;
+    end;
+
+    if fTasksAdded then
+    begin
+      fSite := FindSiteByName('', Name);
+      fSite.QueueSort;
+      fSite.QueueFire;
     end;
 
   except

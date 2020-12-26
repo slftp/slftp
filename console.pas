@@ -412,6 +412,8 @@ begin
 end;
 
 procedure ConsoleStart;
+//var
+//fSite: TSite;
 begin
   app := TMySlApp.Create;
   with app do
@@ -423,7 +425,10 @@ begin
         if inited then
         begin
           Debug(dpError, section, 'slFtp exiting');
-          QueueFire;
+          //for fSite in sites do
+          //begin
+          //  fSite.QueueFire;
+          //end;
           SlotsFire;
         end;
         Free;

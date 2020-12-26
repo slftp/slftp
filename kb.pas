@@ -616,7 +616,7 @@ begin
         try
           l := TLoginTask.Create(netname, channel, sitename, False, False);
           l.noannounce := True;
-          AddTask(l);
+          AddTask(l, true);
         except
           on E: Exception do
             Debug(dpError, rsections, '[EXCEPTION] COMPLETE|PRE|SPREAD LoginTask : %s', [e.Message]);
@@ -809,7 +809,7 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt);
+            AddTask(dlt, true);
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -818,11 +818,15 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt);
+            AddTask(dlt, true);
           end;
 
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+            continue;
+          end;
         end;
       end;
     end;
@@ -874,8 +878,6 @@ begin
       exit;
     end;
   end;
-
-  QueueFire;
 end;
 
 function FindReleaseInKbList(const rls: String): String;

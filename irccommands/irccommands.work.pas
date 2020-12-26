@@ -733,8 +733,7 @@ begin
   ps_src.dirlist.dirlistadded := True;
 
   pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);
-  AddTask(pd);
-  QueueFire;
+  AddTask(pd, True);
 
   irc_addtext(Netname, Channel,
     'File Transfer has started. Type <c4>%sstop <b>%d</b></c> if you need.', [irccmdprefix,
@@ -1182,8 +1181,7 @@ var
     r := TRawTask.Create(Netname, Channel, sitename, dir, command);
     tn := AddNotify;
     tn.tasks.Add(r);
-    AddTask(r);
-    QueueFire;
+    AddTask(r, True);
 
     tn.event.WaitFor($FFFFFFFF);
 

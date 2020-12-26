@@ -3,58 +3,82 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+
+
+type TQueueStat = class
+    FRaceTaskCount: integer;
+    FDirlistTaskCount: integer;
+    FAutoTaskCount: integer;
+    FOtherTaskCount: integer;
+end;
 
 type
   TQueueThread = class(TThread)
     main_lock: TCriticalSection;
-    constructor Create;
+    fQueueStat: TQueueStat;
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
+
   private
+  tasks:      TObjectList;
+  queueevent: TEvent;
+  fSiteName: String;
+  fSite: TObject;
+
+  queue_last_run: TDateTime;
+  queueclean_last_run: TDateTime;
+
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
-    procedure AddIdleTask(s: TSiteSlot);
-    procedure AddQuitTask(s: TSiteSlot);
-    procedure RemoveActiveTransfer(t: TTask);
-  end;
+    //procedure AddIdleTask(s: TSiteSlot);
+    //procedure AddQuitTask(s: TSiteSlot);
+    function TaskAlreadyInQueue(t: TTask): boolean;
+    procedure QueueStat;
+
+    public
+
 
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
-procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
+function IrcKillAll(const netname, channel, params: String): boolean;
+procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
+    procedure RemoveDependencies(t: TTask);
 
 function RemovePazo(const pazo_id: integer): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
-procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
-procedure QueueInit;
-procedure QueueUninit;
+procedure RemoveDirlistTasks(const pazo_id: integer);
 
 procedure QueueSort;
 
 procedure QueueClean(run_now: boolean = False);
+constructor Create(const aSiteName: String);
 
-procedure QueueStat;
+function FetchAutoIndex: TAutoIndexTask;
+function FetchAutoBnctest: TLoginTask;
+    function FetchAutoRules: TRulesTask;
+    function FetchAutoDirlist: TAutoDirlistTask;
+    function FetchAutoNuke: TAutoNukeTask;
 
-var
-  queue_lock: TslCriticalSection;
-  tasks:      TObjectList;
-  queueth:    TQueueThread;
-  queueevent: TEvent;
+property QueueLastRun: TDateTime read queue_last_run;
+property QueueCleanLastRun: TDateTime read queueclean_last_run;
 
-  queue_last_run: TDateTime;
-  queueclean_last_run: TDateTime;
-  queue_debug_mode: boolean = False;
+  end;
+procedure QueueInit;
+procedure QueueUninit;
+  procedure QueueStatAll;
 
 implementation
 
 uses
-  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautodirlist, taskautoindex,
-  tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo;
+  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, sitesunit;
 
 const
   section = 'queue';
@@ -68,7 +92,10 @@ var
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
 
-procedure QueueFire;
+  StatsList: TObjectList<TQueueStat>;
+  QueueStatUpdateDateTime: TDateTime;
+
+procedure TQueueThread.QueueFire;
 begin
   try
     queueevent.SetEvent;
@@ -94,6 +121,12 @@ begin
   try
     i1 := TTask(item1);
     i2 := TTask(item2);
+
+    if (i1 = nil) or (i2 = nil) then
+    begin
+      Result := 0;
+      exit;
+    end;
 
     // Give priority to wait
     if ((i1.ClassType = TWaitTask) and (i2.ClassType = TWaitTask)) then
@@ -335,15 +368,15 @@ begin
   end;
 end;
 
-procedure QueueSort;
+procedure TQueueThread.QueueSort;
 begin
   try
     Debug(dpSpam, section, 'Sorting queue 1');
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       tasks.Sort(@QueueSorter);
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
     Debug(dpSpam, section, 'Sorting queue 2');
   except
@@ -354,24 +387,34 @@ begin
   end;
 end;
 
-procedure QueueStart;
+procedure TQueueThread.QueueStart;
 begin
-  QueueStat;
+  QueueStatAll;
 end;
 
-constructor TQueueThread.Create;
+constructor TQueueThread.Create(const aSiteName: String);
 begin
   inherited Create(False);
   {$IFDEF DEBUG}
-    NameThreadForDebugging('Queue', self.ThreadID);
+    NameThreadForDebugging('Queue/' + aSiteName, self.ThreadID);
   {$ENDIF}
 
   main_lock := TCriticalSection.Create;
+  tasks      := TObjectList.Create(True);
+  queueevent := TEvent.Create(nil, False, False, 'queue');
+  queue_last_run := Now;
+  queueclean_last_run := Now;
+  FreeOnTerminate := True;
+  fQueueStat := TQueueStat.Create();
+  StatsList.Add(fQueueStat);
+  fSiteName := aSiteName;
 end;
 
 destructor TQueueThread.Destroy;
 begin
   main_lock.Free;
+  tasks.Free;
+  queueevent.Free;
   inherited;
 end;
 
@@ -396,6 +439,22 @@ begin
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.activeTransfers.IndexOf(t.dir + t.filename) <> -1 then
       exit; // we are already sending this file to the same destination site
+
+    if s2.num_up >= s2.max_up then
+      exit;
+
+    // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
+    //if t.ps1.status = rssRealPre then
+    if t.ps1.StatusRealPreOrShouldPre then
+    begin
+      if s1.num_dn >= s1.max_pre_dn then
+        exit;
+    end
+    else
+    begin
+      if s1.num_dn >= s1.max_dn then
+        exit;
+    end;
 
     ss1 := nil;
     for i := 0 to s1.slots.Count - 1 do
@@ -433,17 +492,22 @@ begin
     if ss1 = nil then
       exit;
 
-    // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
-    //if t.ps1.status = rssRealPre then
-    if t.ps1.StatusRealPreOrShouldPre then
+
+    i := 0;
+    while not s2.slotsAssignmentCS.TryEnter do
     begin
-      if s1.num_dn >= ss1.site.max_pre_dn then
+      if i > 2000 then
+      begin
+        Debug(dpError, section, 'Gave up on trying to lock for slots assignment from site ' + s1.Name + ' to site ' + s2.Name);
         exit;
-    end
-    else
+      end;
+      i := i + 1;
+    end;
+
+    try
+    if i > 0 then
     begin
-      if s1.num_dn >= ss1.site.max_dn then
-        exit;
+      Debug(dpError, section, 'Lock achieved from site ' + s1.Name + ' to site ' + s2.Name + ' after ' + IntToStr(i) + ' tries');
     end;
 
     ss2 := nil;
@@ -498,8 +562,6 @@ begin
     end;
     if ss2 = nil then
       exit;
-    if s2.num_up >= ss2.site.max_up then
-      exit;
 
     // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
     i := ss2.site.MaxUpPerRip;
@@ -527,6 +589,9 @@ begin
     ss2.todotask := t.dst;
     ss2.Fire;
     ss1.Fire;
+    finally
+      s2.slotsAssignmentCS.Leave;
+    end;
   except
   on e: Exception do
     begin
@@ -610,6 +675,8 @@ begin
 
   try
   s := TSite(t.ssite1);
+  s.slotsAssignmentCS.Enter;
+  try
   if s.freeslots = 0 then
     exit;
 
@@ -655,9 +722,13 @@ begin
           Break;
         end;
         sst := TSiteSlot(s.slots[i]);
-        if ((sst.todotask <> nil) and (sst.todotask.ClassType = TPazoDirlistTask)) then
+        try
+        if (sst.todotask is TPazoDirlistTask) then
         begin
           Inc(actual_count);
+        end;
+        except
+          //ignore, this can happen if todotask is reset meanwhile
         end;
       end;
       // only half of the slots for dirlist
@@ -752,6 +823,9 @@ begin
     t.assigned  := Now;
     ss.todotask := t;
     ss.Fire;
+  finally
+    s.slotsAssignmentCS.Leave;
+  end;
   except
   on e: Exception do
     begin
@@ -760,7 +834,7 @@ begin
   end;
 end;
 
-procedure TQueueThread.AddQuitTask(s: TSiteSlot);
+procedure AddQuitTask(s: TSiteSlot);
 var
   q: TQuitTask;
 begin
@@ -779,29 +853,17 @@ begin
   end;
 end;
 
-procedure TQueueThread.AddIdleTask(s: TSiteSlot);
+procedure AddIdleTask(const s: TSiteSlot; const aQueue: TQueueThread);
 var
   ti: TIdleTask;
-  i:  integer;
   tt: TTask;
 begin
   try
-    for i := 0 to tasks.Count - 1 do
+    for tt in aQueue.tasks do
     begin
-      try
-        if i > tasks.Count then
-          Break;
-      except
-        Break;
-      end;
-      tt := TTask(tasks[i]);
-      try
-        if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
-        begin
-          exit;
-        end;
-      except
-        Break;
+      if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
+      begin
+        exit;
       end;
     end;
 
@@ -820,13 +882,11 @@ begin
 end;
 
 // IT IS ONLY GIVEN TO CALL
-procedure QueueEmpty(const sitename: String);
+procedure TQueueThread.QueueEmpty(const sitename: String);
 var
   i: integer;
   t: TTask;
 begin
-  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
-
   for i := tasks.Count - 1 downto 0 do
   begin
     if i < 0 then
@@ -845,7 +905,7 @@ begin
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
-function TaskAlreadyInQueue(t: TTask): boolean;
+function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
 var
   i:    integer;
   tpr, i_tpr: TPazoRaceTask;
@@ -859,7 +919,7 @@ begin
   begin
     try
       tpr := TPazoRaceTask(t);
-      queueth.main_lock.Enter;
+      main_lock.Enter;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -886,7 +946,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;
+        main_lock.Leave;
       end;
     except
       on E: Exception do
@@ -903,7 +963,7 @@ begin
   begin
     try
       tpd := TPazoDirlistTask(t);
-      queueth.main_lock.Enter;
+      main_lock.Enter;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -930,7 +990,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;
+        main_lock.Leave;
       end;
     except
       on E: Exception do
@@ -947,7 +1007,7 @@ begin
   begin
     try
       tpm := TPazoMkdirTask(t);
-      queueth.main_lock.Enter;
+      main_lock.Enter;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -974,7 +1034,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;
+        main_lock.Leave;
       end;
     except
       on E: Exception do
@@ -988,7 +1048,7 @@ begin
   end;
 end;
 
-procedure AddTask(t: TTask);
+procedure TQueueThread.AddTask(t: TTask);
 var
   tname: String;
 begin
@@ -996,17 +1056,27 @@ begin
     tname := t.Name;
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       if TaskAlreadyInQueue(t) then
+      begin
         t.ready := True;
+      end;
 
       tasks.Add(t);
 
       try
         if ((t is TPazoRaceTask) and (not t.ready) and (t.dependencies.Count = 0)) then
         begin
-          queueth.TryToAssignSlots(t);
+          TSite(fSite).slotsAssignmentCS.Enter;
+          try
+            if ((not t.ready) and (t.dependencies.Count = 0)) then
+             begin
+              self.TryToAssignSlots(t);
+            end;
+          finally
+            TSite(fSite).slotsAssignmentCS.Leave;
+          end;
         end;
       except
         on e: Exception do
@@ -1014,9 +1084,21 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
         end;
       end;
+
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
+
+      try
+        if t.ready and (t is TPazoMkdirTask) and (TPazoMkdirTask(t).dependentSiteName <> '') then
+          FindSiteByName('', TPazoMkdirTask(t).dependentSiteName).RemoveDependencies(t);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] AddTask RemoveDependencies: %s', [e.Message]));
+        end;
+      end;
+
   except
     on e: Exception do
     begin
@@ -1028,13 +1110,13 @@ begin
   Console_QueueAdd(t.UidText, Format('%s', [tname]));
 end;
 
-procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
+procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
 begin
   try
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1056,7 +1138,7 @@ begin
         end;
       end;
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1067,13 +1149,13 @@ begin
   end;
 end;
 
-procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
+procedure TQueueThread.RemoveDirlistTasks(const pazo_id: integer);
 var
   i:   integer;
   ttp: TPazoDirlistTask;
 begin
   try
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1087,7 +1169,7 @@ begin
           if (tasks[i] is TPazoDirlistTask) then
           begin
             ttp := TPazoDirlistTask(tasks[i]);
-            if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site1 = sitename)) then
+            if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id)) then
               ttp.ready := True;
           end;
         except
@@ -1095,7 +1177,7 @@ begin
         end;
       end;
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1106,14 +1188,14 @@ begin
   end;
 end;
 
-function RemovePazo(const pazo_id: integer): boolean;
+function TQueueThread.RemovePazo(const pazo_id: integer): boolean;
 var
   i: integer;
   t: TPazoTask;
 begin
   Result := False;
   try
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1135,7 +1217,7 @@ begin
         end;
       end;
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1148,13 +1230,13 @@ begin
 end;
 
 
-procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure TQueueThread.RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 var
   i:   integer;
   ttp: TPazoMkdirTask;
 begin
   try
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1169,7 +1251,7 @@ begin
           begin
             ttp := TPazoMkdirTask(tasks[i]);
             if ((ttp.ready = False) and (ttp.readyerror = False) and
-              (ttp.slot1 = nil) and (ttp.site1 = sitename) and (ttp.pazo_id = pazo_id) and
+              (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and
               (ttp.dir = dir)) then
             begin
               ttp.ready := True;
@@ -1180,7 +1262,7 @@ begin
         end;
       end;
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1190,13 +1272,13 @@ begin
   end;
 end;
 
-procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
+procedure TQueueThread.RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 var
   i:   integer;
   ttp: TPazoRaceTask;
 begin
   try
-    queueth.main_lock.Enter();
+    main_lock.Enter();
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1226,7 +1308,7 @@ begin
         end;
       end;
     finally
-      queueth.main_lock.Leave;
+      main_lock.Leave;
     end;
   except
     on E: Exception do
@@ -1236,11 +1318,13 @@ begin
   end;
 end;
 
-procedure RemoveDependencies(t: TTask);
+procedure TQueueThread.RemoveDependencies(t: TTask);
 var
   i, j: integer;
   tt: TTask;
 begin
+  try
+    main_lock.Enter;
   try
     for i := tasks.Count - 1 downto 0 do
     begin
@@ -1273,6 +1357,9 @@ begin
         end;
       end;
     end;
+  finally
+    main_lock.Leave;
+  end;
   except
     on e: Exception do
     begin
@@ -1284,18 +1371,6 @@ end;
 
 
 
-procedure TQueueThread.RemoveActiveTransfer(t: TTask);
-var
-  tp: TPazoRaceTask;
-  i:  integer;
-begin
-  if t.ClassType <> TPazoRaceTask then
-    exit;
-  tp := TPazoRaceTask(t);
-  i  := tp.ps2.activeTransfers.IndexOf(tp.dir + tp.filename);
-  if i <> -1 then
-    tp.ps2.activeTransfers.Delete(i);
-end;
 
 procedure TQueueThread.Execute;
 var
@@ -1308,9 +1383,16 @@ begin
   while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run := Now();
+
+    if fSite = nil then
+      fSite := FindSiteByName('', fSiteName);
+
+    if fSite = nil then continue; //happens on startup
+
+    ts := TSite(fSite);
     Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
-      queueth.main_lock.Enter();
+      main_lock.Enter();
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -1337,64 +1419,40 @@ begin
           if t = nil then
             Continue;
 
-          try
-            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
-            begin
-              ss := t.uidtext;
-              TaskReady(t);
-
-              if (t.ClassType = TPazoRaceTask) then
+          begin
+            try
+              if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
               begin
-                with TPazoRaceTask(t) do
-                  if (dst <> nil) then
-                  begin
-                    dst.event.SetEvent;
-                  end;
+                ss := t.uidtext;
+                TaskReady(t);
+
+                if (t.ClassType = TPazoRaceTask) then
+                begin
+                  with TPazoRaceTask(t) do
+                    if (dst <> nil) then
+                    begin
+                      dst.event.SetEvent;
+                    end;
+                end;
+                RemoveDependencies(t);
+                tasks.Remove(t);
+                Console_QueueDel(ss);
               end;
-              RemoveActiveTransfer(t);
-              RemoveDependencies(t);
-              tasks.Remove(t);
-              Console_QueueDel(ss);
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-              Continue;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
+                Continue;
+              end;
             end;
           end;
         end;
 
-        for i := 0 to tasks.Count - 1 do
+        ts.slotsAssignmentCS.Enter;
+        try
+        for t in tasks do
         begin
           try
-            if i > tasks.Count then
-              Break;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
-              Break;
-            end;
-          end;
-
-          try
-            t := TTask(tasks.items[i]);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-              Continue;
-            end;
-          end;
-
-          if t = nil then
-            Continue;
-
-          try
-            if queue_debug_mode then
-              Continue;
-
             if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and
               (not t.readyerror)) then
             begin
@@ -1413,59 +1471,17 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;
+        ts.slotsAssignmentCS.Leave;
+      end;
+      finally
+        main_lock.Leave;
       end;
 
       QueueStat;
 
       // We are looking for idle
-      for i := 0 to sites.Count - 1 do
-      begin
-        try
-          if i > sites.Count then
-            Break;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (sites.Count) : %s', [e.Message]));
-            Break;
-          end;
-        end;
-        try
-          ts := TSite(sites[i]);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (ts) : %s', [e.Message]));
-            Continue;
-          end;
-        end;
-
-        for j := 0 to ts.slots.Count - 1 do
+        for s in ts.slots do
         begin
-          try
-            if j > ts.slots.Count then
-              Break;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (ts.slots.Count) : %s', [e.Message]));
-              Break;
-            end;
-          end;
-          try
-            s := TSiteSlot(ts.slots[j]);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (s) : %s', [e.Message]));
-              Continue;
-            end;
-          end;
-
-          if s = nil then
-            Continue;
-
           try
             if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
@@ -1482,7 +1498,7 @@ begin
               ((s.site.maxidle = 0) or (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) < s.site.maxidle * 1000))))
               and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
               begin
-                AddIdleTask(s);
+                AddIdleTask(s, self);
               end;
             end;
           except
@@ -1493,7 +1509,6 @@ begin
             end;
           end;
         end;
-      end;
 
       Debug(dpSpam, section, 'Queue Iteration end [%d tasks]', [tasks.Count]);
     except
@@ -1522,14 +1537,6 @@ end;
 
 procedure QueueInit;
 begin
-  tasks      := TObjectList.Create(True);
-  queue_lock := TslCriticalSection.Create('queue_lock');
-  queueevent := TEvent.Create(nil, False, False, 'queue');
-  queue_last_run := Now;
-  queueclean_last_run := Now;
-
-  queueth := TQueueThread.Create;
-  queueth.FreeOnTerminate := True;
 
   // config
   maxassign := config.ReadInteger(section, 'maxassign', 200);
@@ -1549,25 +1556,23 @@ begin
   cover_dirs_priority := config.ReadInteger(section, 'cover_dirs_priority', 2);
   if not (cover_dirs_priority in [0..2]) then
     cover_dirs_priority := 2;
+
+  StatsList := TObjectList<TQueueStat>.Create(True);
 end;
 
 procedure QueueUninit;
 begin
-  Debug(dpSpam, section, 'Uninit1');
-  tasks.Free;
-  kb_FreeList;
-
-  queue_lock.Free;
-  queueevent.Free;
-  Debug(dpSpam, section, 'Uninit2');
+  StatsList.Free;
 end;
 
-procedure QueueClean(run_now: boolean = False);
+procedure TQueueThread.QueueClean(run_now: boolean = False);
 var
   i, tkill_unassigne, tkill_race, tkill_other: integer;
   ss: String;
   t:  TTask;
 begin
+
+  try
 
   if not config.ReadBool(section, 'enable_queueclean', False) then
   begin
@@ -1617,7 +1622,7 @@ begin
   end;
 
   // Check old tasks, assigned bu long time wait
-  queueth.main_lock.Enter();
+  main_lock.Enter();
   try
     for i := tasks.Count - 1 downto 0 do
     begin
@@ -1744,7 +1749,7 @@ begin
       end;
     end;
   finally
-    queueth.main_lock.Leave;
+    main_lock.Leave;
   end;
 
 
@@ -1772,14 +1777,17 @@ begin
     Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
   end;
-  queueclean_last_run := Now;
+
+  finally
+    queueclean_last_run := Now;
+  end;
 
   QueueStat;
 
   Debug(dpMessage, section, 'QueueClean end %d', [tasks.Count]);
 end;
 
-procedure QueueStat;
+procedure TQueueThread.QueueStat;
 var
   i, t_race, t_dir, t_auto, t_other: integer;
 begin
@@ -1808,12 +1816,193 @@ begin
       else
         Inc(t_other);
     except
-      Continue;
+    on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.QueueStat : %s', [e.Message]));
+        Continue;
+      end;
     end;
   end;
 
-  Console_QueueStat(tasks.Count, t_race, t_dir, t_auto, t_other);
+  fQueueStat.FRaceTaskCount := t_race;
+  fQueueStat.FDirlistTaskCount := t_dir;
+  fQueueStat.FAutoTaskCount := t_auto;
+  fQueueStat.FOtherTaskCount := t_other;
+  QueueStatAll;
 end;
 
-end.
+procedure QueueStatAll;
+var
+queueStat: TQueueStat;
+t_race, t_dir, t_auto, t_other: integer;
+begin
+  t_race  := 0;
+  t_dir   := 0;
+  t_auto  := 0;
+  t_other := 0;
 
+  for queueStat in StatsList do
+  begin
+    t_race := t_race + queueStat.FRaceTaskCount;
+    t_dir := t_dir + queueStat.FDirlistTaskCount;
+    t_auto := t_auto + queueStat.FAutoTaskCount;
+    t_other := t_other + queueStat.FOtherTaskCount;
+  end;
+
+  if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > 500 then
+  begin
+    QueueStatUpdateDateTime := Now;
+    Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
+  end;
+
+end;
+
+function TQueueThread.FetchAutoIndex: TAutoIndexTask;
+var
+  i: integer;
+  t: TAutoIndexTask;
+begin
+  Result := nil;
+  for i := 0 to tasks.Count - 1 do
+  begin
+    try
+      if (tasks[i] is TAutoIndexTask) then
+      begin
+        Result := TAutoIndexTask(tasks[i]);
+        exit;
+      end;
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function TQueueThread.FetchAutoDirlist: TAutoDirlistTask;
+var
+  i: integer;
+  t: TAutoDirlistTask;
+begin
+  Result := nil;
+  for i := 0 to tasks.Count - 1 do
+  begin
+    try
+      if (tasks[i] is TAutoDirlistTask) then
+      begin
+        Result := TAutoDirlistTask(tasks[i]);
+        exit;
+      end;
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function TQueueThread.FetchAutoNuke: TAutoNukeTask;
+var
+  i: integer;
+  t: TAutoNukeTask;
+begin
+  Result := nil;
+  for i := 0 to tasks.Count - 1 do
+  begin
+    try
+      if (tasks[i] is TAutoNukeTask) then
+      begin
+        Result := TAutoNukeTask(tasks[i]);
+        exit;
+      end;
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function TQueueThread.FetchAutoBnctest: TLoginTask;
+var
+  i: integer;
+  t: TLoginTask;
+begin
+  Result := nil;
+  for i := 0 to tasks.Count - 1 do
+  begin
+    try
+      if (tasks[i] is TLoginTask) then
+      begin
+        Result := TLoginTask(tasks[i]);
+        exit;
+      end;
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function TQueueThread.FetchAutoRules: TRulesTask;
+var
+  i: integer;
+  t: TRulesTask;
+begin
+  Result := nil;
+  for i := 0 to tasks.Count - 1 do
+  begin
+    try
+      if (tasks[i] is TRulesTask) then
+      begin
+        Result := TRulesTask(tasks[i]);
+        exit;
+      end;
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function TQueueThread.IrcKillAll(const netname, channel, params: String): boolean;
+var
+  i: integer;
+  rx: TRegExpr;
+begin
+  Result := False;
+
+  rx := TRegExpr.Create;
+  try
+    rx.ModifierI := False;
+    rx.Expression := 'AUTOLOGIN';
+    for i := 0 to tasks.Count - 1 do
+      if not rx.Exec(TPazoTask(tasks[i]).Fullname) then
+      begin
+        irc_addtext(Netname, Channel, 'Removing Task -> %s', [TPazoTask(tasks[i]).Fullname]);
+        try
+          tasks.Remove(TPazoTask(tasks[i]));
+        except
+          on E: Exception do
+            Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
+        end;
+
+      end
+      else
+        Continue;
+  finally
+    rx.Free;
+  end;
+
+  Result := True;
+end;
+
+
+  procedure TQueueThread.GetCurrentTasks(const taskLst: Contnrs.TObjectList);
+  var
+  fTask: TTask;
+  begin
+    main_lock.Enter;
+    try
+      for fTask in tasks do
+        taskLst.Add(fTask);
+
+      taskLst.Sort(@QueueSorter);
+    finally
+      main_lock.Leave;
+    end;
+  end;
+
+end.

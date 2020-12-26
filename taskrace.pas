@@ -29,6 +29,7 @@ type
 
   TPazoMkdirTask = class(TPazoTask)
     dir: String;
+    dependentSiteName: String;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;

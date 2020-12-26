@@ -370,34 +370,15 @@ end;
 
 function IrcKillAll(const netname, channel, params: String): boolean;
 var
-  i: integer;
-  rx: TRegExpr;
+  fSite: TSite;
 begin
-  Result := False;
+  Result := True;
 
-  rx := TRegExpr.Create;
-  try
-    rx.ModifierI := False;
-    rx.Expression := 'AUTOLOGIN';
-    for i := 0 to tasks.Count - 1 do
-      if not rx.Exec(TPazoTask(tasks[i]).Fullname) then
-      begin
-        irc_addtext(Netname, Channel, 'Removing Task -> %s', [TPazoTask(tasks[i]).Fullname]);
-        try
-          tasks.Remove(TPazoTask(tasks[i]));
-        except
-          on E: Exception do
-            Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
-        end;
-
-      end
-      else
-        Continue;
-  finally
-    rx.Free;
+  for fSite in sites do
+  begin
+    Result := fSite.IrcKillAll(netname, channel, params) and Result;
   end;
 
-  Result := True;
 end;
 
 function IrcSpamConfig(const netname, channel, params: String): boolean;

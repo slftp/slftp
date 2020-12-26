@@ -1481,7 +1481,6 @@ var
   fChanSettingsObj: TIrcChannelSettings;
   s: TSite;
   r: TRawTask;
-  added: Boolean;
 begin
   debug(dpSpam, section, netname + ': ShouldJoinGame');
   Result := False;
@@ -1515,7 +1514,6 @@ begin
     end;
   end;
 
-  added := False;
   for i := 0 to sites.Count - 1 do
   begin
     s := sites[i] as TSite;
@@ -1524,12 +1522,9 @@ begin
       debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, irc_nick]);
       s.siteinvited := True;
       r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + irc_nick);
-      AddTask(r);
-      added := True;
+      AddTask(r, true);
     end;
   end;
-  if added then
-    QueueFire;
 
   Result := True;
 end;

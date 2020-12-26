@@ -59,7 +59,7 @@ var
 implementation
 
 uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
-  queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const
   section = 'dbaddimdb';
@@ -336,7 +336,7 @@ end;
 procedure dbaddimdb_ParseImdb(rls, imdb_id: String);
 begin
   try
-    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls));
+    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls), true);
   except
     on e: Exception do
     begin

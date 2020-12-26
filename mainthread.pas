@@ -289,10 +289,10 @@ begin
   end;
 
   // fire queue scheduler
-  if ((queue_fire > 0) and (MilliSecondsBetween(Now, queue_last_run) >= queue_fire)) then
+  if ((queue_fire > 0)) then
   begin
     try
-      QueueFire;
+      QueueFireInverval(queue_fire);
     except
       on e: Exception do
       begin
@@ -302,15 +302,14 @@ begin
   end;
 
   // clean queue scheduler
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
+  if (queueclean_interval > 0) then
   begin
     try
-      QueueClean;
+      QueueCleanInverval(queueclean_interval);
     except
       on e: Exception do
       begin
         Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
-        queueclean_last_run := Now;
       end;
     end;
   end;
@@ -458,6 +457,8 @@ begin
 end;
 
 procedure Main_Stop;
+var
+fSite: TSite;
 begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
@@ -469,7 +470,9 @@ begin
   IrcStop();
   kb_Save();
   kb_Stop;
-  QueueFire();
+  kb_FreeList;
+  for fSite in sites do
+    fSite.QueueFire();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 

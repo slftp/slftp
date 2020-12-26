@@ -24,7 +24,7 @@ type
 implementation
 
 uses
-  DateUtils, SysUtils, queueunit, debugunit, configunit,
+  DateUtils, SysUtils, sitesunit, debugunit, configunit,
   sltcp, http, RegExpr, irc, mrdohutils, kb.releaseinfo;
 
 const

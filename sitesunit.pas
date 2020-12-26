@@ -5,7 +5,7 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules;
+  taskrules, taskrace, queueunit, Generics.Collections, pazo;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -191,6 +191,7 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    fQueue: TQueueThread;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -356,6 +357,7 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
+    slotsAssignmentCS: TCriticalSection;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -365,12 +367,29 @@ type
 
     function RCString(const Name, def: String): String;
     procedure WCString(const Name: String; const val: String);
-    function RCInteger(const Name: String; const def: integer): integer;
+    function RCInteger(Name: String; def: integer): integer;
     procedure WCInteger(const Name: String; const val: integer);
     function RCBool(const Name: String; const def: boolean): boolean;
     procedure WCBool(const Name: String; const val: boolean);
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
+
+    procedure AddTask(const t: TTask; const queueFire: boolean = false);
+    procedure QueueFire;
+    procedure QueueClean;
+    procedure QueueSort;
+    function RemovePazo(const aPazoID: integer): boolean;
+    //procedure QueueEmpty(const sitename: String);
+    procedure QueueFireInverval(const interval: integer);
+    procedure QueueCleanInverval(const interval: integer);
+    procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
+    procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
+    procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+    procedure RemoveDirlistTasks(const aPazoID: integer);
+    function IrcKillAll(const netname, channel, params: String): boolean;
+    procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
+    procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
+    procedure RemoveDependencies(t: TTask);
 
     procedure SetOutofSpace;
     procedure SetKredits;
@@ -513,6 +532,17 @@ type
 function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
+procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure QueueFireInverval(const interval: integer);
+procedure QueueCleanInverval(const interval: integer);
+function RemovePazo(const aPazoID: integer): boolean;
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
+procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+procedure RemoveDirlistTasks(const aPazoID: integer; const aSitename: String);
+function IrcQueueShow(const netname, channel, params: String): boolean;
+procedure QueueEmpty(const sitename: String);
+procedure QueueStart;
 
 { Iterates through @link(sites) and compares the entries with given aSitename.
   @param(aNetname network name, use '' or 'CONSOLE' to bypass check)
@@ -575,13 +605,13 @@ procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sit
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
-  sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
+  sites: Contnrs.TObjectList = nil; //< holds a list of all @link(TSite) objects
 
 implementation
 
 uses
-  SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle;
+  SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle;
 
 const
   section = 'sites';
@@ -595,6 +625,284 @@ var
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
+
+  procedure TSite.RemoveDependencies(t: TTask);
+  begin
+    fQueue.RemoveDependencies(t);
+  end;
+
+procedure TSite.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
+var
+  i:  integer;
+begin
+  slotsAssignmentCS.Enter;
+  try
+    try
+      i  := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
+      if i <> -1 then
+        aRaceTask.ps2.activeTransfers.Delete(i);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TSite.RemoveActiveTransfer: %s', [e.Message]));
+      end;
+    end;
+  finally
+    slotsAssignmentCS.Leave;
+  end;
+end;
+
+  procedure QueueStart;
+  var fSite: TSite;
+  begin
+    for fSite in sites do
+      fSite.fQueue.QueueStart;
+  end;
+
+  procedure TSite.GetCurrentTasks(const taskLst: Contnrs.TObjectList);
+  begin
+    fQueue.GetCurrentTasks(taskLst);
+  end;
+
+  function IrcQueueShow(const netname, channel, params: String): boolean;
+  var
+  i, ii: integer;
+  show_tasks: integer;
+  show_all: boolean;
+  rr: TRegExpr;
+  fSite: TSite;
+  fTasksList: Contnrs.TObjectList;
+begin
+  rr := TRegExpr.Create;
+  fTasksList := TObjectList.Create(False);
+  try
+
+    for fSite in sites do
+    begin
+      fSite.GetCurrentTasks(fTasksList);
+    end;
+
+    rr.ModifierI := True;
+
+    show_tasks := 10;
+    rr.Expression := '-c\:([\d]+)';
+    if rr.Exec(params) then
+    begin
+      show_tasks := StrToIntDef(rr.Match[1], 10);
+    end;
+
+    show_all := False;
+    rr.Expression := '--all';
+    if rr.Exec(params) then
+    begin
+      show_tasks := fTasksList.Count;
+      show_all := True;
+    end;
+
+    ii := 0;
+    irc_addtext(Netname, Channel, 'Tasks in queue: %d displaycount: %d', [fTasksList.Count, Min(show_tasks, fTasksList.Count)]);
+
+    for i := 0 to fTasksList.Count - 1 do
+    begin
+      try
+
+        if show_all then
+        begin
+          irc_addtext(Netname, Channel, TTask(fTasksList[i]).Fullname);
+          Continue;
+          //        Inc(ii);
+        end
+        else
+        begin
+
+          if (ii > show_tasks) then
+            break;
+
+          rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
+          if ((not rr.Exec(TTask(fTasksList[i]).Fullname)) and (not TTask(fTasksList[i]).ready) and (not TTask(fTasksList[i]).readyerror)) then
+          begin
+            irc_addtext(Netname, Channel, TTask(fTasksList[i]).Fullname);
+            Inc(ii);
+          end;
+        end;
+      except
+        break;
+      end;
+    end;
+
+  finally
+    rr.Free;
+  end;
+
+  Result := True;
+end;
+
+  function TSite.IrcKillAll(const netname, channel, params: String): boolean;
+  begin
+    Result := fQueue.IrcKillAll(netname, channel, params);
+  end;
+
+  procedure TSite.QueueSort;
+  begin
+    fQueue.QueueSort;
+  end;
+
+  procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+  begin
+    fQueue.RemoveRaceTasks(aPazoID, aSiteName);
+  end;
+
+procedure TSite.RemoveDirlistTasks(const aPazoID: integer);
+  begin
+    fQueue.RemoveDirlistTasks(aPazoID);
+  end;
+
+  procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+  var
+  fSite: TSite;
+  begin
+    for fSite in sites do
+      fSite.RemoveRaceTasks(aPazoID, aSiteName);
+  end;
+
+procedure RemoveDirlistTasks(const aPazoID: integer; const aSitename: String);
+  begin
+    FindSiteByName('', aSitename).RemoveDirlistTasks(aPazoID);
+  end;
+
+  procedure TSite.RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
+  begin
+    fQueue.RemovePazoRace(aPazoID, aDstSite, aDir, aFilename);
+  end;
+
+  procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
+  var
+    fSite: TSite;
+    fPair: TPair<TPazoSite, Integer>;
+    fPazoSite: TPazoSite;
+  begin
+    for fPazoSite in ps.pazo.PazoSitesList do
+    begin
+      for fPair in fPazoSite.destinations do
+      begin
+        if fPair.Key.Name = ps.Name then
+          FindSiteByName('', fPazoSite.Name).RemovePazoRace(aPazoID, aDstSite, aDir, aFilename);
+        end;
+      end;
+  end;
+
+  procedure TSite.RemovePazoMKDIR(const pazo_id: integer; const dir: String);
+  begin
+     fQueue.RemovePazoMKDIR( pazo_id, dir);
+  end;
+
+procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+begin
+  FindSiteByName('', sitename).RemovePazoMKDIR(pazo_id, dir);
+end;
+
+function RemovePazo(const aPazoID: integer): boolean;
+var fSite: TSite;
+begin
+  Result := True;
+  for fSite in sites do
+  begin
+    Result := fSite.RemovePazo(aPazoID) and Result;
+  end;
+end;
+
+function TSite.RemovePazo(const aPazoID: integer): boolean;
+begin
+  Result := fQueue.RemovePazo(aPazoID);
+end;
+
+procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
+begin
+  fQueue.AddTask(t);
+  if queueFire then self.QueueFire;
+end;
+
+procedure QueueFireInverval(const interval: integer);
+var fSite: TSite;
+begin
+  for fSite in sites do
+  begin
+    fSite.QueueFireInverval(interval);
+  end;
+end;
+
+procedure QueueCleanInverval(const interval: integer);
+var fSite: TSite;
+begin
+  for fSite in sites do
+  begin
+    fSite.QueueCleanInverval(interval);
+  end;
+end;
+
+procedure AddTask(const t: TTask; const queueFire: boolean = false);
+begin
+  if not (t.ssite1 = nil) then
+  begin
+    TSite(t.ssite1).AddTask(t, queueFire);
+  end
+  else
+  begin
+    if t.ready or t.readyerror then
+    begin
+      FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+    end
+    else
+      debug(dpError, section, 'AddTask - No site for task:' + t.Name);
+  end;
+end;
+
+procedure TSite.QueueFireInverval(const interval: integer);
+begin
+  try
+    if (fQueue <> nil) and (MilliSecondsBetween(Now, fQueue.QueueLastRun) >= interval) then
+      self.QueueFire;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+    end;
+  end;
+end;
+
+procedure TSite.QueueCleanInverval(const interval: integer);
+begin
+  try
+    if (fQueue <> nil) and (SecondsBetween(Now, fQueue.QueueCleanLastRun) >= interval) then
+      self.QueueClean;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+    end;
+  end;
+end;
+
+procedure TSite.QueueClean;
+begin
+  fQueue.QueueClean;
+end;
+
+procedure TSite.QueueFire;
+begin
+  fQueue.QueueFire;
+end;
+
+procedure QueueEmpty(const sitename: String);
+var
+  site: TSite;
+begin
+  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
+  for site in sites do
+  begin
+     site.fQueue.QueueEmpty(sitename);
+  end;
+end;
 
 function getAdminSiteName: String;
 begin
@@ -939,6 +1247,8 @@ end;
 procedure TSiteSlot.Execute;
 var
   tname: String;
+  fPazoSite: TPazoSite;
+  fPair: TPair<TPazoSite, Integer>;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -949,7 +1259,7 @@ begin
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
 
-      if ((todotask <> nil) and (not queue_debug_mode)) then
+      if (todotask <> nil) then
       begin
         try
           tname := todotask.Name;
@@ -988,6 +1298,32 @@ begin
         begin
           try
             try
+              if todotask is TPazoRaceTask then
+              begin
+                site.RemoveActiveTransfer(TPazoRaceTask(todotask));
+
+                if ((not shouldquit) and (not slshutdown)) then
+                begin
+                  for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
+                  begin
+                    for fPair in fPazoSite.destinations do
+                    begin
+                      if fPair.Key.Name = site.Name then
+                        FindSiteByName('', fPazoSite.Name).QueueFire;
+                    end;
+                  end;
+                end;
+              end
+              else if todotask is TPazoMkdirTask then
+              begin
+                with TPazoMkdirTask(todotask) do
+                begin
+                  if dependentSiteName <> '' then FindSiteByName('', dependentSiteName).RemoveDependencies(todotask);
+                end;
+              end;
+
+              site.RemoveDependencies(todotask);
+
               if (todotask.slot1 <> nil) then
               begin
                 todotask.slot1 := nil;
@@ -1007,7 +1343,7 @@ begin
 
         if ((not shouldquit) and (not slshutdown)) then
         begin
-          QueueFire;
+          site.QueueFire;
         end;
       end
       else
@@ -2281,6 +2617,8 @@ begin
   slots := TObjectList.Create();
   self.Name := Name;
   features := [];
+  slotsAssignmentCS := TCriticalSection.Create;
+  fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
   begin
@@ -2399,7 +2737,7 @@ begin
   sitesdat.WriteString('site-' + self.Name, Name, val);
 end;
 
-function TSite.RCInteger(const Name: String; const def: integer): integer;
+function TSite.RCInteger(Name: String; def: integer): integer;
 begin
   Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
 end;
@@ -2432,8 +2770,8 @@ end;
 destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
-  QueueEmpty(Name);
   slots.Free;
+  slotsAssignmentCS.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
@@ -2668,7 +3006,7 @@ begin
   begin
     fkreditz := Now();
     irc_addadmin(Format('Site %s is out of credits.', [Name]));
-    QueueEmpty(Name);
+    fQueue.QueueEmpty(Name);
 
     if SetDownOnOutOfCredits then
     begin
@@ -3100,23 +3438,7 @@ var
   i: integer;
   t: TAutoIndexTask;
 begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoIndexTask) then
-      begin
-        t := TAutoIndexTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
+  Result := fQueue.FetchAutoIndex;
 end;
 
 function TSite.FetchAutoDirlist: TAutoDirlistTask;
@@ -3124,23 +3446,7 @@ var
   i: integer;
   t: TAutoDirlistTask;
 begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoDirlistTask) then
-      begin
-        t := TAutoDirlistTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
+  Result := fQueue.FetchAutoDirlist;
 end;
 
 function TSite.FetchAutoNuke: TAutoNukeTask;
@@ -3148,23 +3454,7 @@ var
   i: integer;
   t: TAutoNukeTask;
 begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoNukeTask) then
-      begin
-        t := TAutoNukeTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
+  Result := fQueue.FetchAutoNuke;
 end;
 
 function TSite.FetchAutoBnctest: TLoginTask;
@@ -3172,23 +3462,7 @@ var
   i: integer;
   t: TLoginTask;
 begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TLoginTask) then
-      begin
-        t := TLoginTask(tasks[i]);
-        if (t.site1 = Name) and (t.readd) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
+  Result := fQueue.FetchAutoBnctest;
 end;
 
 function TSite.FetchAutoRules: TRulesTask;
@@ -3196,23 +3470,7 @@ var
   i: integer;
   t: TRulesTask;
 begin
-  Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TRulesTask) then
-      begin
-        t := TRulesTask(tasks[i]);
-        if (t.site1 = Name) then
-        begin
-          Result := t;
-          exit;
-        end;
-      end;
-    except
-      Result := nil;
-    end;
-  end;
+    Result := fQueue.FetchAutoRules;
 end;
 
 procedure TSite.RemoveAutoIndex;

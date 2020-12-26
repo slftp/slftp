@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
+uses Classes, Contnrs, SyncObjs, skiplists, globals;
 
 type
   {

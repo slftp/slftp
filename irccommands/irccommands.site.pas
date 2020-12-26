@@ -40,7 +40,7 @@ function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, queueunit, mystrings, notify, taskraw, RegExpr,
+  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, notify, taskraw, RegExpr,
   globals, indexer, ranksunit, kb, configunit, precatcher, speedstatsunit, statsunit, rulesunit,
   mainthread, tasklogin, irccommandsunit;
 
@@ -672,6 +672,7 @@ begin
 
         s := TSite(sites[i]);
         s.WorkingStatus := sstMarkedAsDownByUser;
+        s.QueueFire; //to remove entries from queue
       end;
     end
     else
@@ -692,13 +693,12 @@ begin
           Continue;
 
         s.WorkingStatus := sstMarkedAsDownByUser;
+        s.QueueFire; //to remove entries from queue
       end;
     end;
   finally
     x.Free;
   end;
-
-  QueueFire; //to remove entries from queue
 
   Result := True;
 end;
@@ -1537,8 +1537,7 @@ begin
   try
     r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE USER ' + username);
     tn.tasks.Add(r);
-    AddTask(r);
-    QueueFire;
+    AddTask(r, True);
     tn.event.WaitFor($FFFFFFFF);
   except
   on E: Exception do
@@ -1859,8 +1858,7 @@ var
       try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
         tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
+        AddTask(r, True);
         tn.event.WaitFor($FFFFFFFF);
       except on E: Exception do
         begin
@@ -2081,7 +2079,10 @@ begin
         if s.PermDown then
           Continue;
         if _Bnctest(Netname, Channel, s, tn) then
+        begin
           added := True;
+          s.QueueFire;
+        end;
       end;
     end
     else
@@ -2100,16 +2101,16 @@ begin
           Continue;
 
         if _Bnctest(Netname, Channel, s, tn) then
+        begin
           added := True;
+          s.QueueFire;
+        end;
       end;
     end;
 
   finally
     x.Free;
   end;
-
-  if added then
-    QueueFire;
 
   if added then
     tn.event.WaitFor($FFFFFFFF);
@@ -2159,7 +2160,7 @@ begin
   end;
 
   if _Bnctest(Netname, Channel, s, nil, True) then
-    QueueFire;
+    s.QueueFire;
 
   Result := True;
 end;

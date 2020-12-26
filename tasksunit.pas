@@ -58,7 +58,6 @@ type
 
 procedure Tasks_Init;
 procedure Tasks_Uninit;
-function FindTaskByUidText(const uidtext: String): TTask;
 
 const
   MaxNumberErrors = 3;
@@ -103,6 +102,7 @@ begin
   slot1name := '';
   slot2name := '';
   dependencies := TStringList.Create;
+
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -166,30 +166,6 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   uid_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
-end;
-
-function FindTaskByUidText(const uidtext: String): TTask;
-var
-  i: Integer;
-begin
-  Result := nil;
-
-  for i := tasks.Count - 1 downto 0 do
-  begin
-    try
-      if ((TTask(tasks[i]).UidText = uidtext) and (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
-      begin
-        Result := TTask(tasks[i]);
-        break;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] FindTaskByUidText: %s', [e.Message]));
-        Result := nil;
-      end;
-    end;
-  end;
 end;
 
 end.
