@@ -1,3 +1,2 @@
-071acc9586dfe0963f3195e5049c4bcfcb763962
-
-Fix a Delphi Seattle and earlier compiler error introduced in previous commit
+f423c4e6c33b4dada148b0edcf31efd0958ee5af
+Add a list of supported conditional defines to the documentation
