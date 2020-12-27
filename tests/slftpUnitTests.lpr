@@ -82,6 +82,7 @@ begin
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
   InitialDirlistSetup;
+  InitialDbAddImdbSetup;
 
 
   // run all registered tests

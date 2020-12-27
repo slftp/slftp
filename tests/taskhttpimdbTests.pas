@@ -1008,12 +1008,12 @@ begin
     CheckEqualsString('11 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[21];
-    CheckEqualsString('Italy', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('13 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    fReleaseDateInfo := fReleaseDateInfoList[22];
+    CheckEqualsString('Romania', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('14 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[41];
+    fReleaseDateInfo := fReleaseDateInfoList[25];
     CheckEqualsString('France', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('17 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Paris) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
@@ -1264,12 +1264,12 @@ begin
     CheckEqualsString('5 January 2006', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[9];
+    fReleaseDateInfo := fReleaseDateInfoList[7];
     CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('11 May 2006', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[19];
+    fReleaseDateInfo := fReleaseDateInfoList[16];
     CheckEqualsString('Switzerland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('7 June 2007', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(German speaking region)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
@@ -1382,7 +1382,7 @@ begin
     '                </tr>' +
     '                <tr class="ipl-zebra-list__item aka-item">' +
     '                        <td class="aka-item__name">France</td>' +
-    '                    <td class="aka-item__title">La planète des singes: Suprématie</td>' +
+    '                    <td class="aka-item__title">La Planète des singes : Suprématie</td>' +
     '                </tr>' +
     '                <tr class="ipl-zebra-list__item aka-item">' +
     '                        <td class="aka-item__name">Germany</td>' +
@@ -1525,9 +1525,21 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('War for the Planet of the Apes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[6];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    CheckEqualsString('Austria', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Planet der Affen Survival', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
     CheckEqualsString('Canada (French title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('La guerre de la planète des singes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
+    CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('War for the Planet of the Apes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[9];
+    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('La Planète des singes  Suprématie', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -1621,11 +1633,15 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[6];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    CheckEqualsString('Austria', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
     CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Fear Challenge', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[7];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
@@ -1663,6 +1679,10 @@ begin
     '                <tr class="ipl-zebra-list__item aka-item">' +
     '                        <td class="aka-item__name">Canada (French title)</td>' +
     '                    <td class="aka-item__title">Astro</td>' +
+    '                </tr>' +
+    '                <tr class="ipl-zebra-list__item aka-item">' +
+    '                        <td class="aka-item__name">Canada (English title)</td>' +
+    '                    <td class="aka-item__title">Astro Boy</td>' +
     '                </tr>' +
     '                <tr class="ipl-zebra-list__item aka-item">' +
     '                        <td class="aka-item__name">Chile</td>' +
@@ -1749,11 +1769,27 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[5];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
     CheckEqualsString('Canada (French title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[17];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
+    CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[5];
+    CheckEqualsString('Greece (DVD title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[11];
+    CheckEqualsString('Serbia', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Astro dečak', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    fAlsoKnownAsInfo := fAlsoKnownAsList[12];
     CheckEqualsString('Spain', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
@@ -1890,7 +1926,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fPageSource, fBOMCountryLinks);
 
-    CheckEquals(28, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(16, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl4094002689', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl3985016577', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl3783689985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
@@ -2045,7 +2081,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fPageSource, fBOMCountryLinks);
 
-    CheckEquals(39, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(20, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl3947005441', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl2452522497', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl2335081985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
@@ -2343,8 +2379,9 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fPageSource, fBOMCountryLinks);
 
-    CheckEquals(71, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(33, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl1782744577', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+    CheckEqualsString('/release/rl3156968961', fBOMCountryLinks.Items['UK'], 'Link mismatch');
     CheckEqualsString('/release/rl1730905601', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl1261143553', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
     CheckEqualsString('/release/rl1965786625', fBOMCountryLinks.Items['Germany'], 'Link mismatch');

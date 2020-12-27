@@ -107,6 +107,7 @@ begin
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
   InitialDirlistSetup;
+  InitialDbAddImdbSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;
