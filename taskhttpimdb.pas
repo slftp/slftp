@@ -24,7 +24,7 @@ type
   { @abstract(Class for IMDb also known as (AKA) information) }
   TIMDbAlsoKnownAsInfo = class
   private
-    FCountry: String; //< country name
+    FCountry: String; //< country name (+ extra title information)
     FTitle: String; //< title name
   public
     { Creates a class for specific AKA infos }
@@ -65,12 +65,12 @@ type
       @param(aGenresList Genre(s) of the movie as comma separated list) }
     class procedure ParseMovieGenres(const aPageSource: String; out aGenresList: String);
 
-    { Parses Releasedates(s)
+    { Parses Releasedates(s) for countries included in slftp.imdbcountries
       @param(aPageSource Releasedate Webpage HTML sourcecode)
       @param(aReleaseDateInfoList List of releasedate information) }
     class procedure ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 
-    { Parses 'Also Known As' (AKA) information
+    { Parses 'Also Known As' (AKA) information for countries included in slftp.imdbcountries plus original title
       @param(aPageSource Releasedate Webpage HTML sourcecode)
       @param(aAlsoKnownAsList List of AKA information) }
     class procedure ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
@@ -79,7 +79,7 @@ type
   { @abstract(Extracts Box Office information from boxofficemojo.com HTML page source) }
   THtmlBoxOfficeMojoParser = class
   public
-    { Parses all countries and links from the title overview page @br @note(Domestic gets renamed to USA)
+    { Parses countries (only includes one from slftp.imdbcountries) and links from the title overview page @br @note(Domestic gets renamed to USA, United Kingdom gets renamed to UK)
       @param(aPageSource Webpage HTML sourcecode)
       @param(aCountryLinks Countryname and link to the release information) }
     class procedure GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
@@ -377,10 +377,13 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fCountryCode := Trim(rr.Match[1]); // TODO: doesn't make sense to have it at all (also in slftp.imdbcountries)
+        fCountryCode := Trim(rr.Match[1]);
         fCountry := Trim(rr.Match[2]);
         fReleaseDate := Trim(rr.Match[3]);
         fExtraInfo := Trim(rr.Match[4]);
+
+        if ExcludeCountry(fCountry) then
+          Continue;
 
         aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, fExtraInfo));
       until not rr.ExecNext;
@@ -411,7 +414,8 @@ begin
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
         // TODO: also replace special chars of a language like ø, ä, é?
 
-        // TODO: filter not needed countries? maybe together with THtmlIMDbParser.ParseReleaseDateInfo?
+        if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
+          Continue;
 
         aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, fTitle));
       until not rr.ExecNext;
@@ -439,10 +443,14 @@ begin
       repeat
         fLink := Trim(rr.Match[1]);
         fCountry := Trim(rr.Match[2]);
+
         if fCountry = 'Domestic' then
           fCountry := 'USA';
+        if fCountry = 'United Kingdom' then
+          fCountry := 'UK';
 
-        // TODO: filter not needed countries? maybe together with THtmlIMDbParser.ParseReleaseDateInfo?
+        if ExcludeCountry(fCountry) then
+          Continue;
 
         aCountryLinks.Add(fCountry, fLink);
       until not rr.ExecNext;
@@ -599,9 +607,9 @@ begin
       else
         rlang := 'USA';
 
-      imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
-      imdb_region := SubString(imdb_counline, ',', 1);
-      imdb_country := SubString(imdb_counline, ',', 2);
+      //imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
+      imdb_region := SubString(imdb_counline, ',', 1); // TODO: check if regex is still needed and thus the variable
+      imdb_country := TMapLanguageCountry.GetCountrynameByLanguage(rlang);
 
       (* Movie is actually a MiniSeries designed for Television *)
       if imdb_extra = 'TV mini-series' then
