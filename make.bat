@@ -140,7 +140,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('http://wiki.overbyte.eu/arch/%OPENSSL_NAME%-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
 if errorlevel 1 (
    echo Failure reason for downloading OpenSSL is %errorlevel%
    exit /b %errorlevel%
