@@ -1,17 +1,81 @@
-﻿unit taskhttpimdb;
+unit taskhttpimdb;
 
 interface
 
 uses
-  Classes, tasksunit, sltcp;
-
-{ Just a helper function to initialize @link(ImdbVotesRegexList) and @link(ImdbRatingRegexList) }
-procedure TaskHttpImdbInit;
-
-{ Just a helper function to free @link(ImdbVotesRegexList) and @link(ImdbRatingRegexList) }
-procedure TaskHttpImdbUnInit;
+  tasksunit, Generics.Collections;
 
 type
+  { @abstract(Class for IMDb release date information) }
+  TIMDbReleaseDateInfo = class
+  private
+    FCountry: String; //< country name
+    FReleaseDate: String; //< release date
+    FExtraInfo: String; //< additional info like dvd premiere, festival, location of premiere, etc
+  public
+    { Creates a class for specific release date infos }
+    constructor Create(const aCountry, aReleaseDate, aExtraInfo: String);
+
+    property Country: String read FCountry;
+    property ReleaseDate: String read FReleaseDate;
+    property ExtraInfo: String read FExtraInfo;
+  end;
+
+  { @abstract(Class for IMDb also known as (AKA) information) }
+  TIMDbAlsoKnownAsInfo = class
+  private
+    FCountry: String; //< country name
+    FTitle: String; //< title name
+  public
+    { Creates a class for specific AKA infos }
+    constructor Create(const aCountry, aTitle: String);
+
+    property Country: String read FCountry;
+    property Title: String read FTitle;
+  end;
+
+  { @abstract(Extracts IMDb information from HTML page source) }
+  THtmlIMDbParser = class
+  public
+    { Parses title information from the meta property @italic(title) tag
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aMovieTitle Title of the movie (can be empty))
+      @param(aTitleExtraInfo Additional info (e.g. TV Series) from the title (can be empty))
+      @param(aYear Year of the movie (0 if not available)) }
+    class procedure ParseMetaTitleInformation(const aPageSource: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+
+    { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aVotes Votes of the movie)
+      @param(aRating Rating of the movie) }
+    class procedure ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: String);
+
+    { Parses language(s)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aLanguageList Language(s) of the movie as comma separated list) }
+    class procedure ParseMovieLanguage(const aPageSource: String; out aLanguageList: String);
+
+    { Parses Countrie(s)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aCountriesList Countrie(s) of the movie as comma separated list) }
+    class procedure ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
+
+    { Parses Genre(s)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aGenresList Genre(s) of the movie as comma separated list) }
+    class procedure ParseMovieGenres(const aPageSource: String; out aGenresList: String);
+
+    { Parses Releasedates(s)
+      @param(aPageSource Releasedate Webpage HTML sourcecode)
+      @param(aReleaseDateInfoList List of releasedate information) }
+    class procedure ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
+
+    { Parses 'Also Known As' (AKA) information
+      @param(aPageSource Releasedate Webpage HTML sourcecode)
+      @param(aAlsoKnownAsList List of AKA information) }
+    class procedure ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
+  end;
+
   TPazoHTTPImdbTask = class(TTask)
   private
     rls: String;
@@ -32,46 +96,315 @@ uses
 const
   section = 'taskhttpimdb';
 
-var
-  ImdbVotesRegexList, ImdbRatingRegexList: TStringList;
+{ TIMDbReleaseDateInfo }
 
-procedure TaskHttpImdbInit;
+constructor TIMDbReleaseDateInfo.Create(const aCountry, aReleaseDate, aExtraInfo: String);
 begin
-  (* Initialize StringLists with valid regex for imdb rating/votes
-     This allows us to reduce alot of code duplication and nested if/else
-     constructs. Create them here as unit variables instead of in the function
-     to not have to recreate them on every call to imdb, which is just useless
-     overhead.
+  FCountry := aCountry;
+  FReleaseDate := aReleaseDate;
+  FExtraInfo := aExtraInfo;
+end;
 
-     Newest versions should be added on top as they will be checked against the
-     website in ascending order. Quicker match = less overhead.
+{ TIMDbAlsoKnownAsInfo }
 
-     Syntax is regex=matchVariableIndex
-  *)
-  ImdbVotesRegexList := TStringList.Create;
-  with ImdbVotesRegexList do
-  begin
-    Add('<strong.*?on (\S+) user ratings\"><span.*?>\d+[,.]\d<\/span>=1');
-    Add('<span[^<>]*itemprop="ratingCount">(\S+)<\/span>=1');
-    Add('\>(\S+) votes<\/a>\)=1');
-    Add('<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>=1');
-  end;
-  ImdbRatingRegexList := TStringList.Create;
-  with ImdbRatingRegexList do
-  begin
-    Add('<strong.*?user ratings\"><span.*?>(\d+[,.]\d)<\/span>=1');
-    Add('<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>=1');
-    Add('<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>=1');
-    Add('<b>(\d+[,.]\d+)\/10<\/b>=1');
+constructor TIMDbAlsoKnownAsInfo.Create(const aCountry, aTitle: String);
+begin
+  FCountry := aCountry;
+  FTitle := aTitle;
+end;
+
+{ THtmlIMDbParser }
+
+class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aPageSource: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+var
+  rr: TRegExpr;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
+    if rr.Exec(aPageSource) then
+    begin
+      aMovieTitle := rr.Match[1];
+      aTitleExtraInfo := rr.Match[2];
+      aYear := StrToIntDef(rr.Match[3], 0);
+    end;
+  finally
+    rr.Free;
   end;
 end;
 
-procedure TaskHttpImdbUnInit;
+class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: String);
+type
+  TRegexItem = record
+    RegexString: String; // regex
+    MatchIndex: Integer; // index of match to be used
+  end;
+
+(*
+  Initialize valid regex for imdb rating/votes
+  This allows us to reduce alot of code duplication and nested if/else
+  constructs.
+  Newest versions should be added on top as they will be checked against the
+  website in ascending order. Quicker match = less overhead.
+*)
+
+const
+  VotesRegexList: array [0..3] of TRegexItem = (
+    (RegexString: '<strong.*?on (\S+) user ratings\"><span.*?>\d+[,.]\d<\/span>'; MatchIndex: 1),
+    (RegexString: '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>'; MatchIndex: 1),
+    (RegexString: '\>(\S+) votes<\/a>\)'; MatchIndex: 1),
+    (RegexString: '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>'; MatchIndex: 1)
+  );
+
+  RatingRegexList: array [0..3] of TRegexItem = (
+    (RegexString: '<strong.*?user ratings\"><span.*?>(\d+[,.]\d)<\/span>'; MatchIndex: 1),
+    (RegexString: '<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>'; MatchIndex: 1),
+    (RegexString: '<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>'; MatchIndex: 1),
+    (RegexString: '<b>(\d+[,.]\d+)\/10<\/b>'; MatchIndex: 1)
+  );
+
+var
+  rr: TRegExpr;
+  fRegexItem: TRegexItem;
 begin
-  if Assigned(ImdbVotesRegexList) then
-    ImdbVotesRegexList.Free;
-  if Assigned(ImdbRatingRegexList) then
-    ImdbRatingRegexList.Free;
+  aVotes := '0';
+  aRating := '0';
+
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+
+    for fRegexItem in VotesRegexList do
+    begin
+      rr.Expression := fRegexItem.RegexString;
+      if rr.Exec(aPageSource) then
+      begin
+        aVotes := rr.Match[fRegexItem.MatchIndex];
+        break;
+      end;
+    end;
+
+    for fRegexItem in RatingRegexList do
+    begin
+      rr.Expression := fRegexItem.RegexString;
+      if rr.Exec(aPageSource) then
+      begin
+        aRating := rr.Match[fRegexItem.MatchIndex];
+        break;
+      end;
+    end;
+  finally
+    rr.Free;
+  end;
+
+  aVotes := StringReplace(aVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
+  aVotes := StringReplace(aVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+
+  aRating := StringReplace(aRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+  aRating := StringReplace(aRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+end;
+
+class procedure THtmlIMDbParser.ParseMovieLanguage(const aPageSource: String; out aLanguageList: String);
+var
+  rr, rr2: TRegExpr;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+
+    rr2 := TRegExpr.Create;
+    try
+      rr2.ModifierI := True;
+      rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
+
+      // Trying new layout of iMDB first
+      rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
+      if rr.Exec(aPageSource) then
+      begin
+        if rr2.Exec(rr.Match[1]) then
+        begin
+          repeat
+            aLanguageList := aLanguageList + rr2.Match[1] + ',';
+          until not rr2.ExecNext;
+        end;
+      end
+      else
+      begin
+        // Trying old layout of iMDB if new layout fails
+        rr.Expression := '<div class=\"info\"><h5>Language:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
+        if rr.Exec(aPageSource) then
+        begin
+          if rr2.Exec(rr.Match[1]) then
+            repeat
+              aLanguageList := aLanguageList + rr2.Match[3] + ',';
+            until not rr2.ExecNext;
+        end;
+      end;
+    finally
+      rr2.Free;
+    end;
+  finally
+    rr.Free;
+  end;
+
+  // remove additional comma
+  SetLength(aLanguageList, Length(aLanguageList) - 1);
+end;
+
+class procedure THtmlIMDbParser.ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
+var
+  rr, rr2: TRegExpr;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+
+    rr2 := TRegExpr.Create;
+    try
+      rr2.ModifierI := True;
+      rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
+
+      // Trying new layout of iMDB first
+      rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
+      if rr.Exec(aPageSource) then
+      begin
+        if rr2.Exec(rr.Match[1]) then
+        begin
+          repeat
+            aCountriesList := aCountriesList + rr2.Match[1] + ',';
+          until not rr2.ExecNext;
+        end;
+      end
+      else
+      begin
+        // Trying old layout of iMDB if new layout fails
+        rr.Expression := '<div class=\"info\"><h5>Country:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
+        if rr.Exec(aPageSource) then
+        begin
+          if rr2.Exec(rr.Match[1]) then
+            repeat
+              aCountriesList := aCountriesList + rr2.Match[4] + ',';
+            until not rr2.ExecNext;
+        end;
+      end;
+    finally
+      rr2.Free;
+    end;
+  finally
+    rr.Free;
+  end;
+
+  // remove additional comma
+  SetLength(aCountriesList, Length(aCountriesList) - 1);
+end;
+
+class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource: String; out aGenresList: String);
+var
+  rr, rr2: TRegExpr;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+
+    rr2 := TRegExpr.Create;
+    try
+      rr2.ModifierI := True;
+      rr2.Expression := '<a[^>]+>\s(\S+)<\/a>';
+
+      // Trying new layout of iMDB first
+      rr.Expression := '<h4 class="inline">Genres:<\/h4>((\s*<a href\S+\s*>.*?<\/a>(?:\S+<\/span>)?\s*)+)<\/div>';
+      if rr.Exec(aPageSource) then
+      begin
+        if rr2.Exec(rr.Match[1]) then
+        begin
+          repeat
+            aGenresList := aGenresList + rr2.Match[1] + ',';
+          until not rr2.ExecNext;
+        end;
+      end
+      else
+      begin
+        // Trying old layout of iMDB if new layout fails
+        rr.Expression := '<h5>Genre:<\/h5>\n<div class=\"info-content\">\s+(.*?)<\/div>';
+        if rr.Exec(aPageSource) then
+        begin
+          if rr2.Exec(rr.Match[1]) then
+            repeat
+              aGenresList := aGenresList + rr2.Match[3] + ',';
+            until not rr2.ExecNext;
+        end;
+      end;
+    finally
+      rr2.Free;
+    end;
+  finally
+    rr.Free;
+  end;
+
+  // remove additional comma
+  SetLength(aGenresList, Length(aGenresList) - 1);
+end;
+
+class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
+var
+  rr: TRegExpr;
+  fCountryCode: String;
+  fCountry: String;
+  fReleaseDate: String;
+  fExtraInfo: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<td class="release-date.*?><a href="\/calendar\/\?region\=(.*?)\&.*?>(.*?)<\/a><\/td>[\s\n]*?' +
+        '<td class="release-date.*?>(.*?)<\/td>[\s\n]*?<td class="release-date.*?>(.*?)<\/td>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      repeat
+        fCountryCode := Trim(rr.Match[1]); // TODO: doesn't make sense to have it at all (also in slftp.imdbcountries)
+        fCountry := Trim(rr.Match[2]);
+        fReleaseDate := Trim(rr.Match[3]);
+        fExtraInfo := Trim(rr.Match[4]);
+
+        aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, fExtraInfo));
+      until not rr.ExecNext;
+    end;
+  finally
+    rr.Free;
+  end;
+end;
+
+class procedure THtmlIMDbParser.ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
+var
+  rr: TRegExpr;
+  fCountry: String;
+  fTitle: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<tr class=.*?\saka-item">[\s\n]*?.*?"aka-item__name">(.*?)<\/td>'
+        + '[\s\n]*?<td class="aka-item__title">(.*?)<\/td>[\s\n]*?<\/tr>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      repeat
+        fCountry := Trim(rr.Match[1]);
+        fTitle := Trim(rr.Match[2]);
+
+        fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
+        // TODO: also replace special chars of a language like ø, ä, é?
+
+        // TODO: filter not needed countries? maybe together with THtmlIMDbParser.ParseReleaseDateInfo?
+
+        aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, fTitle));
+      until not rr.ExecNext;
+    end;
+  finally
+    rr.Free;
+  end;
 end;
 
 { TPazoHTTPImdbTask }
@@ -140,7 +473,7 @@ begin
 
     imdb_year := 0;
 
-    (*  Fetch MainInfoPage from iMDB *)
+    (* Fetch MainInfoPage from iMDB *)
     if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', mainsite, fHttpGetErrMsg) then
     begin
       Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
@@ -150,202 +483,34 @@ begin
       exit;
     end;
 
-    (*  Fetch MovieTitle/Extra/Year from iMDB *)
-//    rr.Expression :=
-//      '<title>(\&\#x22;|\")?(.*?)\1?\s*\((TV\s*Series|TV\s*mini-series|TV|TV\s*Movie|Video|Video Game)?\s*(\d{4})((\-|&ndash;|–|&emdash;)(\d{4})?\s*(&nbsp;)?)?(\/.+)?\)( - IMDb)?<\/title>';
-//    if rr.Exec(mainsite) then
-//    begin
-//     imdb_year := StrToInt(rr.Match[4]);
-//      imdb_mtitle := rr.Match[2];
-//      imdb_extra := rr.Match[3];
-//    end;
-
-    {
-    * Examples:
-    * <meta property='og:title' content="War for the Planet of the Apes (2017)" />
-    * <meta property='og:title' content="The Hunger Games: Catching Fire (2013)" />
-    * <meta property='og:title' content="The Da Vinci Code (2006)" />
-    }
-    rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
-    if rr.Exec(mainsite) then
-    begin
-      imdb_mtitle := rr.Match[1];
-      imdb_extra := rr.Match[2];
-      imdb_year := StrToInt(rr.Match[3]);
-    end;
-
-
-    {
-    * examples
-    * old -> mtitle: Die glorreichen Sieben -- year: 2016 -- extra:
-    * new -> mtitle: The Magnificent Seven -- year: 2016 -- extra:
-    * old -> mtitle: Mrs. Parker und ihr lasterhafter Kreis -- year: 1994 -- extra:
-    * new -> mtitle: Mrs. Parker and the Vicious Circle -- year: 1994 -- extra:
-    * new -> mtitle: &quot;The Detour&quot; The Pilot -- year: 2016 -- extra: TV Episode
-    * new -> mtitle: &quot;The Detour&quot; The Hotel -- year: 2016 -- extra: TV Episode
-    * old -> mtitle: Sam &amp; Cat -- year: 2013 -- extra: TV Series
-    * new -> mtitle: Sam & Cat -- year: 2013 -- extra: TV Series
-    * old -> mtitle: Cars 3: Evolution -- year: 2017 -- extra:
-    * new -> mtitle: Cars 3 -- year: 2017 -- extra:
-    * old -> mtitle: Shameless - Nicht ganz nÃ¼chtern -- year: 2011 -- extra: TV Series
-    * new -> mtitle: Shameless -- year: 2011 -- extra: TV Series
-    * old -> mtitle: Hot Shots! Der 2. Versuch -- year: 1993 -- extra:
-    * new -> mtitle: Hot Shots! Part Deux -- year: 1993 -- extra:
-    * old -> mtitle: Tad Jones und das Geheimnis von KÃ¶ng Midas -- year: 2017 -- extra:
-    * new -> mtitle: Tad the Lost Explorer and the Secret of King Midas -- year: 2017 -- extra:
-    * old -> mtitle: The Da Vinci Code - Sakrileg -- year: 2006 -- extra:
-    * new -> mtitle: The Da Vinci Code -- year: 2006 -- extra:
-    }
-
-    (*
-    if imdb_year = 0 then begin
-        rr.free;
-        exit;
-    end;
-    *)
+    (* Fetch MovieTitle/Extra/Year from iMDB *)
+    THtmlIMDbParser.ParseMetaTitleInformation(mainsite, imdb_mtitle, imdb_extra, imdb_year);
 
     imdbdata := TDbImdbData.Create(imdb_id);
 
     imdbdata.imdb_origtitle := imdb_mtitle;
 
+    (* Fetch Votes and Rating from iMDB *)
+    THtmlIMDbParser.ParseVotesAndRating(mainsite, imdb_votes, imdb_rating);
+    // TODO: what to do in error case? StrToIntDef in function?
+    imdbdata.imdb_votes := StrToIntDef(imdb_votes, -5);
+    imdbdata.imdb_rating := StrToIntDef(imdb_rating, -5);
+
+    (* Fetch Languages from iMDB *)
+    THtmlIMDbParser.ParseMovieLanguage(mainsite, imdb_lang);
+    imdbdata.imdb_languages.CommaText := imdb_lang;
+
+    (* Fetch Countries from iMDB *)
+    THtmlIMDbParser.ParseMovieCountries(mainsite, imdb_countr);
+    imdbdata.imdb_countries.CommaText := imdb_countr;
+
+    (* Fetch Genres from iMDB *)
+    THtmlIMDbParser.ParseMovieGenres(mainsite, imdb_genr);
+    imdbdata.imdb_genres.CommaText := imdb_genr;
+
     rr2 := TRegexpr.Create;
     try
       rr2.ModifierI := True;
-      imdb_lang := '';
-      imdb_countr := '';
-      imdb_genr := '';
-      imdb_votes := '-10';
-      imdb_rating := '-10';
-
-      rr.Expression :=
-        '\((voting begins after release|awaiting 5 votes|noch keine 5 Bewertungen)\)|<div class="notEnoughRatings">Needs 5 Ratings</div>|<div class="notEnoughRatings">Coming Soon</div>';
-      if rr.Exec(mainsite) then
-      begin
-        imdb_votes := '-1';
-        imdb_rating := '-1';
-      end
-      else
-      begin
-        (*  Fetch Votes from iMDB *)
-        for i := 0 to ImdbVotesRegexList.Count-1 do
-        begin
-          rr.Expression := ImdbVotesRegexList.Names[i];
-          if rr.Exec(mainsite) then
-          begin
-            imdb_votes := rr.Match[StrToIntDef(ImdbVotesRegexList.ValueFromIndex[i], 1)];
-            break;
-          end;
-        end;
-
-        (*  Fetch Rating from iMDB  *)
-        for i := 0 to ImdbRatingRegexList.Count-1 do
-        begin
-          rr.Expression := ImdbRatingRegexList.Names[i];
-          if rr.Exec(mainsite) then
-          begin
-            imdb_rating := rr.Match[StrToIntDef(ImdbRatingRegexList.ValueFromIndex[i], 1)];
-            break;
-          end;
-        end;
-      end;
-
-      imdb_votes := StringReplace(imdb_votes, '.', '', [rfReplaceAll, rfIgnoreCase]);
-      imdb_votes := StringReplace(imdb_votes, ',', '', [rfReplaceAll, rfIgnoreCase]);
-      imdbdata.imdb_votes := StrToIntDef(imdb_votes, -5);
-      imdb_rating := StringReplace(imdb_rating, '.', '', [rfReplaceAll, rfIgnoreCase]);
-      imdb_rating := StringReplace(imdb_rating, ',', '', [rfReplaceAll, rfIgnoreCase]);
-      imdbdata.imdb_rating := StrToIntDef(imdb_rating, -5);
-
-      (*  Fetch Languages from iMDB  *)
-      // Expression designed to work with new and old layouts of iMDB (04/10/2010)
-      // new 'relaxed' expression to work with latest imdb changes (13/9/2016)
-      rr2.Expression :=
-        '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-      // Trying new layout of iMDB first
-      rr.Expression :=
-        '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-      if rr.Exec(mainsite) then
-      begin
-        if rr2.Exec(rr.Match[1]) then
-        begin
-          repeat imdb_lang := imdb_lang + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-        end;
-      end
-      else
-      begin
-        // Trying old layout of iMDB if new layout fails
-        rr.Expression :=
-          '<div class=\"info\"><h5>Language:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-        if rr.Exec(mainsite) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat imdb_lang := imdb_lang + rr2.Match[3] + ',';
-            until not rr2.ExecNext;
-        end;
-      end;
-      delete(imdb_lang, length(imdb_lang), 1);
-      imdbdata.imdb_languages.CommaText := imdb_lang;
-
-      (*  Fetch Countries from iMDB  *)
-      // Expression designed to work with new and old layouts of iMDB (04/10/2010)
-      // new 'relaxed' expression to work with latest imdb changes (13/9/2016)
-      rr2.Expression :=
-        '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-      // Trying new layout of iMDB first
-      rr.Expression :=
-        '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-      if rr.Exec(mainsite) then
-      begin
-        if rr2.Exec(rr.Match[1]) then
-          repeat imdb_countr := imdb_countr + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-      end
-      else
-      begin
-        // Trying old layout of iMDB if new layout fails
-        rr.Expression :=
-          '<div class=\"info\"><h5>Country:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-        if rr.Exec(mainsite) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat imdb_countr := imdb_countr + rr2.Match[4] + ',';
-            until not rr2.ExecNext;
-        end;
-      end;
-      delete(imdb_countr, length(imdb_countr), 1);
-      imdbdata.imdb_countries.CommaText := imdb_countr;
-      (*
-      end;
-      *)
-
-      (*  Fetch Gernres from iMDB  *)
-      // Expression designed to work with new and old layouts of iMDB (24.09.2011)
-      rr2.Expression :=
-        '<a[^>]+>\s(\S+)<\/a>';
-      // Trying new layout of iMDB first
-      rr.Expression := '(<h4 class="inline">Genres:<\/h4>(\s*<a href\S+\s>.*?<\/a>(\S+<\/span>)?\s*)+<\/div>)';
-      if rr.Exec(mainsite) then
-      begin
-        if rr2.Exec(rr.Match[1]) then
-          repeat imdb_genr := imdb_genr + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-      end
-      else
-      begin
-        // Trying old layout of iMDB if new layout fails
-        rr.Expression :=
-          '<h5>Genre:<\/h5>\n<div class=\"info-content\">\s+(.*?)<\/div>';
-        if rr.Exec(mainsite) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat imdb_genr := imdb_genr + rr2.Match[3] + ',';
-            until not rr2.ExecNext;
-        end;
-      end;
-
-      delete(imdb_genr, length(imdb_genr), 1);
-      imdbdata.imdb_genres.CommaText := imdb_genr;
 
       //irc_addtext('CONSOLE','ADMIN','LANGUAGE = %s -- rlang = %s',[ir.languages.text,rlang]);
 
