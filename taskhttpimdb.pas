@@ -76,6 +76,20 @@ type
     class procedure ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
   end;
 
+  { @abstract(Extracts Box Office information from boxofficemojo.com HTML page source) }
+  THtmlBoxOfficeMojoParser = class
+  public
+    { Parses all countries and links from the title overview page @br @note(Domestic gets renamed to USA)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aCountryLinks Countryname and link to the release information) }
+    class procedure GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
+
+    { Parses theaters screens of widest release
+      @param(aPageSource Webpage HTML sourcecode)
+      @returns(Screens count of widest release (0 if nothing found)) }
+    class function GetWidestScreensCount(const aPageSource: String): Integer;
+  end;
+
   TPazoHTTPImdbTask = class(TTask)
   private
     rls: String;
@@ -407,6 +421,59 @@ begin
   end;
 end;
 
+{ THtmlBoxOfficeMojoParser }
+
+class procedure THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
+var
+  rr: TRegExpr;
+  fLink: String;
+  fCountry: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<a class="a-link-normal" href="(\/release\/rl\d+)\?.*?">(.*?)<\/a>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      repeat
+        fLink := Trim(rr.Match[1]);
+        fCountry := Trim(rr.Match[2]);
+        if fCountry = 'Domestic' then
+          fCountry := 'USA';
+
+        // TODO: filter not needed countries? maybe together with THtmlIMDbParser.ParseReleaseDateInfo?
+
+        aCountryLinks.Add(fCountry, fLink);
+      until not rr.ExecNext;
+    end;
+  finally
+    rr.Free;
+  end;
+end;
+
+class function THtmlBoxOfficeMojoParser.GetWidestScreensCount(const aPageSource: String): Integer;
+var
+  rr: TRegExpr;
+  fScreensCount: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<div[^>]*><span>Widest Release<\/span><span>([0-9,]*) theaters<\/span><\/div>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      fScreensCount := rr.Match[1];
+    end;
+  finally
+    rr.Free;
+  end;
+
+  fScreensCount := StringReplace(fScreensCount, ',', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := StrToIntDef(fScreensCount, 0);
+end;
+
 { TPazoHTTPImdbTask }
 
 constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
@@ -437,6 +504,11 @@ var
   fRlsdateExtraInfo: String;
   fPictureID: String;
   fHttpGetErrMsg: String;
+  fReleasegroupID: String;
+  fDomesticReleaseID: String;
+  fBOMCountryLinks: TDictionary<String, String>; // countryname and release link
+  fBOMCountryLinkPair: TPair<String, String>;
+  fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
 begin
   Result := False;
   fPictureID := '';
@@ -685,38 +757,34 @@ begin
             exit; // TODO: skip boxofficemojo webpage crawl if failed instead of stoping complete imdb parsing task
           end;
 
-          rr2.Expression := '<option value="(/releasegroup/gr\d+/)">Original Release</option>';
-          if rr2.Exec(bomsite) then
-          begin
-            if not HttpGetUrl('https://www.boxofficemojo.com' + rr2.Match[1], bomsite, fHttpGetErrMsg) then
-            begin
-              Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-              irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-              Result := True;
-              ready := True;
-              exit;
-            end;
+          fBOMCountryLinks := TDictionary<String, String>.Create;
+          try
+            THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(bomsite, fBOMCountryLinks);
 
-            rr2.Expression := '<a class="a-link-normal" href="(/release/rl\d+/)[^\"]*">Domestic[^\n]*</a>';
-            if rr2.Exec(bomsite) then
-            begin
-              if not HttpGetUrl('https://www.boxofficemojo.com' + rr2.Match[1], bomsite, fHttpGetErrMsg) then
+            fBOMCountryScreens := TDictionary<String, Integer>.Create;
+            try
+              for fBOMCountryLinkPair in fBOMCountryLinks do
               begin
-                Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-                irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-                Result := True;
-                ready := True;
-                exit;
+                // all links on original release page have this reference
+                if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', bomsite, fHttpGetErrMsg) then
+                begin
+                  Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+                  irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+                  Result := True;
+                  ready := True;
+                  exit; // TODO: skip boxofficemojo webpage crawl if failed instead of stoping complete imdb parsing task
+                end;
+
+                fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(bomsite));
               end;
 
-              rr2.Expression := '<div[^>]*><span>Widest Release</span><span>([0-9,]*) theaters</span></div>';
-              if rr2.Exec(bomsite) then
-              begin
-                s := ReplaceText(rr2.Match[1], ',', '');
-                if StrToIntDef(s, 0) > imdb_screens then
-                  imdb_screens := StrToIntDef(s, 0);
-              end;
+              if not fBOMCountryScreens.TryGetValue('USA', imdb_screens) then
+                imdb_screens := -10;
+            finally
+              fBOMCountryScreens.Free;
             end;
+          finally
+            fBOMCountryLinks.Free;
           end;
 
           imdbdata.imdb_screens := imdb_screens;
