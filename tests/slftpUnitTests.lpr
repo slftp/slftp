@@ -59,7 +59,8 @@ uses
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
-  kb.releaseinfo.MVIDTests;
+  kb.releaseinfo.MVIDTests,
+  taskhttpimdbTests;
 
 var
   filecheck: String;
