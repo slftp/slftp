@@ -108,15 +108,14 @@ begin
             AddFile(fDatabasePath + fFileName);
         end;
 
-        (*
-        // adding imdb database (soon) (only at startup)
-        if not IMDbInfoDbAlive then
+        // adding IMDB database
+        fFileName := Trim(config.ReadString('dbaddimdb', 'database', 'imdb.db'));
+        if IsStatsDatabaseActive and ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
         begin
-          fileName := Trim(config.ReadString('taskimdb', 'database', 'imdb.db'));
-          if ( FileExists(filepath + fileName) and (skipfiles.IndexOf(fileName) = -1) ) then
-            AddFile(filepath + fileName);
+          doStatsBackup(fDatabasePath, fFileName + '.bak');
+          AddFile(fDatabasePath + fFileName + '.bak', fDatabasePath + fFileName);
+          DeleteFile({$IFDEF UNICODE}PChar{$ELSE}PAnsiChar{$ENDIF}(fDatabasePath + fFileName + '.bak'));
         end;
-        *)
 
         // adding rtpl dir
         fRtplPath := MyIncludeTrailingSlash('rtpl');

@@ -1442,81 +1442,50 @@ begin
   try
     // ugly shit
     pazo := TPazo(p);
-
-    dbaddimdb_cs.Enter;
-    try
-      i := last_imdbdata.IndexOf(rlsname);
-    finally
-      dbaddimdb_cs.Leave;
-    end;
-
-    if i = -1 then
+    if UpdateMovieInDbWithReleaseNameNeeded(rlsname) OR (NOT foundMovieAlreadyInDbWithReleaseName(rlsname)) then
     begin
-      // no imdb infos
-
-      // check if we have a nfo
-      i := last_addnfo.IndexOf(rlsname);
-      if i <> -1 then
-      begin
-        // we have the nfo
-        Result := True;
-        exit;
-      end;
-
-      // no nfo, start searching nfo
+    // we have the nfo but update needed
+      Debug(dpError, rsections, Format('[Info] [Kb.ReleaseInfo] Get or Update IMDB-Infos for ReleaseName: %s', [rlsname]));
       for j := pazo.PazoSitesList.Count - 1 downto 0 do
       begin
         ps := TPazoSite(pazo.PazoSitesList[j]);
         try
           AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
         except
-          on e: Exception do
+        on e: Exception do
           begin
             Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
           end;
         end;
       end;
-
       Result := True;
+      exit;
     end
     else
     begin
-      // we already have imdb infos
-      try
-        dbaddimdb_cs.Enter;
-        try
-          imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
-        finally
-          dbaddimdb_cs.Leave;
-        end;
-
-        if pazo.rls is TIMDBRelease then
-        begin
-          ir := TIMDBRelease(pazo.rls);
-          ir.imdb_id := imdbdata.imdb_id;
-          ir.imdb_year := imdbdata.imdb_year;
-          ir.imdb_languages := imdbdata.imdb_languages;
-          ir.imdb_countries := imdbdata.imdb_countries;
-          ir.imdb_genres := imdbdata.imdb_genres;
-          ir.imdb_screens := imdbdata.imdb_screens;
-          ir.imdb_rating := imdbdata.imdb_rating;
-          ir.imdb_votes := imdbdata.imdb_votes;
-          ir.CineYear := imdbdata.imdb_cineyear;
-          ir.imdb_ldt := imdbdata.imdb_ldt;
-          ir.imdb_wide := imdbdata.imdb_wide;
-          ir.imdb_festival := imdbdata.imdb_festival;
-          ir.imdb_stvm := imdbdata.imdb_stvm;
-          ir.imdb_stvs := imdbdata.imdb_stvs;
-
-          ir.FLookupDone := True;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
-        end;
+  // we already have imdb infos
+      imdbdata := GetImdbMovieData(pazo.rls.rlsname);
+      irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!',[pazo.rls.rlsname]));
+      imdbdata.PostResults(pazo.rls.rlsname);
+      if pazo.rls is TIMDBRelease then
+      begin
+        ir := TIMDBRelease(pazo.rls);
+        ir.imdb_id := imdbdata.imdb_id;
+        ir.imdb_year := imdbdata.imdb_year;
+        ir.imdb_languages := imdbdata.imdb_languages;
+        ir.imdb_countries := imdbdata.imdb_countries;
+        ir.imdb_genres := imdbdata.imdb_genres;
+        ir.imdb_screens := imdbdata.imdb_screens;
+        ir.imdb_rating := imdbdata.imdb_rating;
+        ir.imdb_votes := imdbdata.imdb_votes;
+        ir.CineYear := imdbdata.imdb_cineyear;
+        ir.imdb_ldt := imdbdata.imdb_ldt;
+        ir.imdb_wide := imdbdata.imdb_wide;
+        ir.imdb_festival := imdbdata.imdb_festival;
+        ir.imdb_stvm := imdbdata.imdb_stvm;
+        ir.imdb_stvs := imdbdata.imdb_stvs;
+        ir.FLookupDone := True;
       end;
-
       Result := True;
     end;
   except

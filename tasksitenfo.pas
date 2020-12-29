@@ -16,6 +16,8 @@ type
     function Name: String; override;
   end;
 
+  procedure parseNFO(const rls, rls_section, nfo_data: String);
+
 implementation
 
 uses
@@ -34,9 +36,9 @@ begin
 
   if sec.ClassName = 'TIMDBRelease' then
   begin
-    if dbaddimdb_parseid(nfo_data, imdbid) then
+    if parseImdbIDFromString(nfo_data, imdbid) then
     begin
-      dbaddimdb_SaveImdb(rls, imdbid);
+      //dbaddimdb_SaveImdb(rls, imdbid);
       dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
     end;
   end;
@@ -63,11 +65,13 @@ label
 var
   s: TSiteSlot;
   i: Integer;
+  afound: Boolean;
   de: TDirListEntry;
   r: TPazoSiteNfoTask;
   d: TDirList;
   numerrors: Integer;
   tname, nfofile: String;
+  //aFound_LastImdb: Integer;
 begin
   Result := False;
   s := slot;
@@ -83,31 +87,40 @@ begin
     exit;
   end;
 
-  // exit if imdb info is already known in last_imdbdata
-  dbaddimdb_cs.Enter;
-  try
-    try
-      i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
-      if i <> -1 then
-      begin
-        Result := True;
-        ready := True;
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
-        readyerror := True;
-        exit;
-      end;
-    end;
-  finally
-    dbaddimdb_cs.Leave;
-  end;
+//  // exit if imdb info is already known in last_imdbdata
+//    gDbAddimdb_cs.Enter;
+//    try
+//      aFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(mainpazo.rls.rlsname));
+//      if aFound_LastImdb = -1 then
+//      begin
+//
+//        last_addimdb.add(getMovieNameWithoutSceneTags(mainpazo.rls.rlsname));
+//      end;
+//    finally
+//      gDbAddimdb_cs.Leave;
+//    end;
+//
+//  try
+//      afound := (aFound_LastImdb <> -1);
+//      if afound = True then
+//      begin
+//        Result := True;
+//        ready := True;
+//        exit;
+//      end;
+//    except
+//      on e: Exception do
+//      begin
+//        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
+//        readyerror := True;
+//        exit;
+//      end;
+//  end;
 
   // exit if nfo is already in dbaddnfo
   try
+    Debug(dpError, section, Format('[Info] [tasksitenfo] IMDB-Get/Update needed for ReleaseName: %s - %s', [mainpazo.rls.rlsname,getMovieNameWithoutSceneTags(mainpazo.rls.rlsname)]));
+
     i := last_addnfo.IndexOf(mainpazo.rls.rlsname);
     if i <> -1 then
     begin
@@ -203,7 +216,7 @@ begin
         Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
         try
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 1));
           AddTask(r);
         except
           on e: Exception do
@@ -276,6 +289,7 @@ begin
   queue_lock.Enter;
   try
     try
+      Debug(dpError, section, Format('[Info] nfo file was downloaded. Parsing it and adding it to dbaddnfo: %s', [mainpazo.rls.rlsname]));
       parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
       Console_Addline('', 'NFO for ' + mainpazo.rls.rlsname + ' added from ' + s.Name);

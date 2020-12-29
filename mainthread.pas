@@ -436,7 +436,6 @@ begin
   dbaddnfoStart;
   dbaddurlStart;
   dbaddgenreStart;
-  dbaddimdbStart;
   dbtvinfoStart;
   RanksStart;
   SpeedStatsStart;

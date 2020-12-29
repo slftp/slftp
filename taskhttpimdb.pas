@@ -104,6 +104,8 @@ var
   fRlsdateExtraInfo: String;
   fPictureID: String;
   fHttpGetErrMsg: String;
+  aFound_LastImdb: Integer;
+  aFound: Boolean;
 begin
   Result := False;
   fPictureID := '';
@@ -132,6 +134,36 @@ begin
       ready := True;
       exit;
     end;
+  end;
+
+//  // exit if imdb info is already known in last_imdbdata
+    gDbAddimdb_cs.Enter;
+    try
+      aFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(rls));
+      if aFound_LastImdb = -1 then
+      begin
+        Debug(dpError, section, Format('[Info] taskhttpimdb add Release to temp Hashlist: %s - %s', [rls, getMovieNameWithoutSceneTags(rls)]));
+        last_addimdb.add(getMovieNameWithoutSceneTags(rls));
+      end;
+    finally
+      gDbAddimdb_cs.Leave;
+    end;
+
+  try
+      afound := (aFound_LastImdb <> -1);
+      if afound = True then
+      begin
+        Result := True;
+        ready := True;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] taskhttpimdb last_imdbdata.IndexOf: %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
   end;
 
   rr := TRegexpr.Create;
@@ -630,7 +662,10 @@ begin
   ir.Free;
 
   try
-    dbaddimdb_SaveImdbData(rls, imdbdata);
+    //if not foundMovieAlreadyInDbWithImdbId(imdb_id) then
+    begin
+      dbaddimdb_SaveImdbData(rls, imdbdata);
+    end;
   except
     on e: Exception do
     begin
