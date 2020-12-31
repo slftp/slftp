@@ -436,7 +436,7 @@ begin
   rr := TRegExpr.Create;
   try
     rr.ModifierI := True;
-    rr.Expression := '<a class="a-link-normal" href="(\/release\/rl\d+)\?.*?">(.*?)<\/a>';
+    rr.Expression := '<a class="a-link-normal" href="(\/release\/rl\d+).*?">(.*?)<\/a>';
 
     if rr.Exec(aPageSource) then
     begin
