@@ -184,9 +184,18 @@ begin
   Result := True;
   for fItem in glLanguageCountryMappingList do
   begin
-    // match things like 'Canada (French title)' and 'Canada (English title)'
-    if aCountryname.StartsWith(fItem.Country, True) then
-      Exit(False);
+    if (fItem.Country = 'UK') or (fItem.Country = 'USA') then
+    begin
+      // to avoid matching Ukraine with UK
+      if aCountryname.StartsWith(fItem.Country, False) then
+        Exit(False);
+    end
+    else
+    begin
+      // match things like 'Canada (French title)' and 'Canada (English title)'
+      if aCountryname.StartsWith(fItem.Country, True) then
+        Exit(False);
+    end;
   end;
 end;
 
