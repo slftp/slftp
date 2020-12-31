@@ -28,6 +28,7 @@ procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
 function RemovePazo(const pazo_id: integer): boolean;
+function TaskAlreadyInQueue(t: TTask): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
