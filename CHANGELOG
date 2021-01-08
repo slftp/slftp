@@ -51,7 +51,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.8 )===================================-
-
+    {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)

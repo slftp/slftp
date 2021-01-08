@@ -1877,6 +1877,12 @@ begin
             if (dir = '') then
             begin
               ps2.MarkSiteAsFailed('No such directory');
+            end
+            else
+            begin
+             //some sites let you create a subfolder (e.g. Proof) just to then delete it which results in a flood of "550 No such directory."
+             //do not retry the file in that case
+             ps2.SetFileError(netname, channel, dir, filename);
             end;
 
             readyerror := True;
