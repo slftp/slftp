@@ -205,6 +205,14 @@ type
     procedure TestGetWidestScreensCountGermany;
   end;
 
+  TTestTIMDbInfoChecks = class(TTestCase)
+  published
+    procedure TestIsSTVBasedOnTitleExtraInfo1;
+    procedure TestIsSTVBasedOnTitleExtraInfo2;
+    procedure TestIsSTVBasedOnTitleExtraInfo3;
+    procedure TestIsSTVBasedOnTitleExtraInfo4;
+  end;
+
 implementation
 
 uses
@@ -1379,6 +1387,70 @@ begin
   CheckEquals(932, fScreens, 'Screens count mismatch');
 end;
 
+procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo1;
+var
+  fPageSource: String;
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  // tt0382625
+  fPageSource := '<meta property=''og:title'' content="The Da Vinci Code (2006) - IMDb" />';
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+
+  CheckFalse(fIsSTV, 'STV mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo2;
+var
+  fPageSource: String;
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  // tt4919664
+  fPageSource := '<meta property=''og:title'' content="&quot;The Detour&quot; The Pilot (TV Episode 2016) - IMDb" />';
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+
+  CheckTrue(fIsSTV, 'STV mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo3;
+var
+  fPageSource: String;
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  // tt5667286
+  fPageSource := '<meta property=''og:title'' content="The Witcher 3: Wild Hunt - Blood and Wine (Video Game 2016) - IMDb" />';
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+
+  CheckTrue(fIsSTV, 'STV mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo4;
+var
+  fPageSource: String;
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  // tt2372220
+  fPageSource := '<meta property=''og:title'' content="The White Queen (TV Mini-Series 2013) - IMDb" />';
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+
+  CheckTrue(fIsSTV, 'STV mismatch');
+end;
+
 initialization
   {$IFDEF FPC}
     RegisterTest('THtmlIMDbParser', TTestTHtmlIMDbParser.Suite);
@@ -1393,6 +1465,8 @@ initialization
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt5093026', TTestTHtmlBoxOfficeMojoParser_tt5093026.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0375568', TTestTHtmlBoxOfficeMojoParser_tt0375568.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt3450958', TTestTHtmlBoxOfficeMojoParser_tt3450958.Suite);
+
+    RegisterTest('TTestTIMDbInfoChecks', TTestTIMDbInfoChecks.Suite);
   {$ELSE}
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt3450958);
@@ -1406,5 +1480,7 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt5093026);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0375568);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt3450958);
+
+    TDUnitX.RegisterTestFixture(TTestTIMDbInfoChecks);
   {$ENDIF}
 end.

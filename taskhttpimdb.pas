@@ -90,6 +90,15 @@ type
     class function GetWidestScreensCount(const aPageSource: String): Integer;
   end;
 
+  { @abstract(Functions to extract information from already parsed data) }
+  TIMDbInfoChecks = class
+  public
+    { Checks if the title extra info indicate that the movie is definitely a STV movie
+      @param(aTitleExtraInfo Additional title information extracted via @link(ParseMetaTitleInformation))
+      @returns(aIsSTV @True if extra info indicates that it's STV, @false otherwise) }
+    class function IsSTVBasedOnTitleExtraInfo(const aTitleExtraInfo: String): Boolean;
+  end;
+
   TPazoHTTPImdbTask = class(TTask)
   private
     rls: String;
@@ -482,6 +491,27 @@ begin
   Result := StrToIntDef(fScreensCount, 0);
 end;
 
+class function TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(const aTitleExtraInfo: String): Boolean;
+begin
+  Result := False;
+
+  if AnsiContainsText(aTitleExtraInfo, 'TV mini-series') then
+  begin
+    (* Mini Series designed for Television *)
+    Result := True;
+  end
+  else if AnsiContainsText(aTitleExtraInfo, 'TV') then
+  begin
+    (* TV or STV Production *)
+    Result := True;
+  end
+  else if AnsiContainsText(aTitleExtraInfo, 'Video') then
+  begin
+    (* Videogame *)
+    Result := True;
+  end;
+end;
+
 { TPazoHTTPImdbTask }
 
 constructor TPazoHTTPImdbTask.Create(const imdb_id: String; const rls: String);
@@ -497,7 +527,7 @@ var
   imdb_year, imdb_screens: Integer;
   imdbdata: TDbImdbData;
   rr, rr2: TRegexpr;
-  imdb_mtitle, imdb_extra, imdb_date, s, imdb_counline, imdb_country, rlang,
+  imdb_mtitle, imdb_date, s, imdb_counline, imdb_country, rlang,
     imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date, imdb_votes, imdb_rating: String;
   ir: TImdbRelease;
   i: integer;
@@ -507,6 +537,7 @@ var
   showname: String;
   season: integer;
   episode: int64;
+  fIMDbTitleExtraInfo: String;
   fBOMSearchNeeded: boolean;
   fBusinessInfoPart: String;
   fRlsdateExtraInfo: String;
@@ -517,6 +548,8 @@ var
   fBOMCountryLinks: TDictionary<String, String>; // countryname and release link
   fBOMCountryLinkPair: TPair<String, String>;
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
+  fIsSTV: Boolean;
+  fSTVReason: String;
 begin
   Result := False;
   fPictureID := '';
@@ -564,7 +597,7 @@ begin
     end;
 
     (* Fetch MovieTitle/Extra/Year from iMDB *)
-    THtmlIMDbParser.ParseMetaTitleInformation(mainsite, imdb_mtitle, imdb_extra, imdb_year);
+    THtmlIMDbParser.ParseMetaTitleInformation(mainsite, imdb_mtitle, fIMDbTitleExtraInfo, imdb_year);
 
     imdbdata := TDbImdbData.Create(imdb_id);
 
@@ -588,11 +621,14 @@ begin
     THtmlIMDbParser.ParseMovieGenres(mainsite, imdb_genr);
     imdbdata.imdb_genres.CommaText := imdb_genr;
 
-    rr2 := TRegexpr.Create;
-    try
-      rr2.ModifierI := True;
+    fSTVReason := '';
+    (* Check global STV status based on title *)
+    fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fIMDbTitleExtraInfo);
+    if fIsSTV then
+      fSTVReason := fIMDbTitleExtraInfo;
 
-      //irc_addtext('CONSOLE','ADMIN','LANGUAGE = %s -- rlang = %s',[ir.languages.text,rlang]);
+
+
 
       (* Get Cleanup STV Infos - mod done by a kraut so u see we can do beauty things too ;) - *)
       ir.imdb_stvs := '/!\ UNTOUCHED /!\';
@@ -610,25 +646,6 @@ begin
       //imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
       imdb_region := SubString(imdb_counline, ',', 1); // TODO: check if regex is still needed and thus the variable
       imdb_country := TMapLanguageCountry.GetCountrynameByLanguage(rlang);
-
-      (* Movie is actually a MiniSeries designed for Television *)
-      if imdb_extra = 'TV mini-series' then
-      begin
-        imdbdata.imdb_stvm := True;
-        imdb_stv := True;
-        imdbdata.imdb_stvs := 'Mini_series';
-      end;
-
-      (* Movie is actually a Videogame, STV or TV Production *)
-      if not imdb_stv then
-      begin
-        if ( AnsiContainsText(imdb_extra, 'TV') or AnsiContainsText(imdb_extra, 'Video') ) then
-        begin
-          imdbdata.imdb_stvm := True;
-          imdb_stv := True;
-          imdbdata.imdb_stvs := 'Videogame_TV_Video';
-        end;
-      end;
 
       imdb_date := '';
 
@@ -667,18 +684,23 @@ begin
 
           if fRlsdateExtraInfo <> '' then
           begin
-            rr2.ModifierI := True;
-            rr2.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
-            if rr2.Exec(fRlsdateExtraInfo) then
-            begin
-              imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, imdb_date, fRlsdateExtraInfo]); // USA, 5 December 2005 [(New York City, New York) (premiere)]
-              imdb_stv := True;
-            end;
-            (*  Fetching Festival infos for imdb_country  *)
-            rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
-            if rr2.Exec(fRlsdateExtraInfo) then
-            begin
-              imdbdata.imdb_festival := True;
+            rr2 := TRegexpr.Create;
+            try
+              rr2.ModifierI := True;
+              rr2.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
+              if rr2.Exec(fRlsdateExtraInfo) then
+              begin
+                imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, imdb_date, fRlsdateExtraInfo]); // USA, 5 December 2005 [(New York City, New York) (premiere)]
+                imdb_stv := True;
+              end;
+              (*  Fetching Festival infos for imdb_country  *)
+              rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
+              if rr2.Exec(fRlsdateExtraInfo) then
+              begin
+                imdbdata.imdb_festival := True;
+              end;
+            finally
+              rr2.free;
             end;
           end;
         end;
@@ -851,10 +873,6 @@ begin
         end;
 
       end;
-
-    finally
-      rr2.free;
-    end;
   finally
     rr.free;
   end;
