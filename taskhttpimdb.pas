@@ -241,7 +241,7 @@ begin
       rr2.ModifierI := True;
       rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
 
-      // Trying new layout of iMDB first
+      // Trying new layout of IMDb first
       rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
       if rr.Exec(aPageSource) then
       begin
@@ -254,7 +254,7 @@ begin
       end
       else
       begin
-        // Trying old layout of iMDB if new layout fails
+        // Trying old layout of IMDb if new layout fails
         rr.Expression := '<div class=\"info\"><h5>Language:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
         if rr.Exec(aPageSource) then
         begin
@@ -288,7 +288,7 @@ begin
       rr2.ModifierI := True;
       rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
 
-      // Trying new layout of iMDB first
+      // Trying new layout of IMDb first
       rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
       if rr.Exec(aPageSource) then
       begin
@@ -301,7 +301,7 @@ begin
       end
       else
       begin
-        // Trying old layout of iMDB if new layout fails
+        // Trying old layout of IMDb if new layout fails
         rr.Expression := '<div class=\"info\"><h5>Country:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
         if rr.Exec(aPageSource) then
         begin
@@ -335,7 +335,7 @@ begin
       rr2.ModifierI := True;
       rr2.Expression := '<a[^>]+>\s(\S+)<\/a>';
 
-      // Trying new layout of iMDB first
+      // Trying new layout of IMDb first
       rr.Expression := '<h4 class="inline">Genres:<\/h4>((\s*<a href\S+\s*>.*?<\/a>(?:\S+<\/span>)?\s*)+)<\/div>';
       if rr.Exec(aPageSource) then
       begin
@@ -348,7 +348,7 @@ begin
       end
       else
       begin
-        // Trying old layout of iMDB if new layout fails
+        // Trying old layout of IMDb if new layout fails
         rr.Expression := '<h5>Genre:<\/h5>\n<div class=\"info-content\">\s+(.*?)<\/div>';
         if rr.Exec(aPageSource) then
         begin
@@ -526,12 +526,13 @@ var
   imdb_stv: boolean;
   imdb_year, imdb_screens: Integer;
   imdbdata: TDbImdbData;
-  rr, rr2: TRegexpr;
-  imdb_mtitle, imdb_date, s, imdb_counline, imdb_country, rlang,
+  rr: TRegexpr;
+  imdb_mtitle, s, imdb_counline, imdb_country, rlang,
     imdb_genr, imdb_countr, imdb_lang, imdb_region, bom_date, imdb_votes, imdb_rating: String;
   ir: TImdbRelease;
   i: integer;
-  mainsite, rlsdatesite, businesssite, bomsite: String;
+  fMainPage, fReleasePage: String;
+  businesssite, bomsite: String;
   release_date: TDateTime;
   formatSettings: TFormatSettings;
   showname: String;
@@ -540,8 +541,6 @@ var
   fIMDbTitleExtraInfo: String;
   fBOMSearchNeeded: boolean;
   fBusinessInfoPart: String;
-  fRlsdateExtraInfo: String;
-  fPictureID: String;
   fHttpGetErrMsg: String;
   fReleasegroupID: String;
   fDomesticReleaseID: String;
@@ -550,9 +549,15 @@ var
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
   fIsSTV: Boolean;
   fSTVReason: String;
+  fReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>;
+  fReleasenameLanguage: String;
+  fReleasenameCountry: String;
+  fIMDbReleaseDateInfo: TIMDbReleaseDateInfo;
+  fReleaseDate: String;
+  fRlsdateExtraInfo: String;
+  fRegExpr: TRegExpr;
 begin
   Result := False;
-  fPictureID := '';
 
   if (rls = '') then
   begin
@@ -562,13 +567,14 @@ begin
     exit;
   end;
 
+  // TODO
+  // maybe simple use FindPazoByRls(rls) and then pazo.rls.<whatever is needed>?
+  // kb seems to not offer a function to get kb info for a given rlsname
   try
     ir := TImdbRelease.Create(rls, '');
   except
     on e: Exception do
     begin
-      mainsite := '';
-      rlsdatesite := '';
       businesssite := '';
       Debug(dpError, section,
         Format('[EXCEPTION] TPazoHTTPImdbTask TImdbRelease.Create: %s ',
@@ -586,8 +592,11 @@ begin
 
     imdb_year := 0;
 
-    (* Fetch MainInfoPage from iMDB *)
-    if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', mainsite, fHttpGetErrMsg) then
+
+
+
+    (* Get IMDb main page *)
+    if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/', fMainPage, fHttpGetErrMsg) then
     begin
       Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask mainpage --> %s ', [fHttpGetErrMsg]));
       irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask mainpage --> %s', [fHttpGetErrMsg]));
@@ -596,29 +605,29 @@ begin
       exit;
     end;
 
-    (* Fetch MovieTitle/Extra/Year from iMDB *)
-    THtmlIMDbParser.ParseMetaTitleInformation(mainsite, imdb_mtitle, fIMDbTitleExtraInfo, imdb_year);
+    (* Fetch MovieTitle/Extra/Year *)
+    THtmlIMDbParser.ParseMetaTitleInformation(fMainPage, imdb_mtitle, fIMDbTitleExtraInfo, imdb_year);
 
     imdbdata := TDbImdbData.Create(imdb_id);
 
     imdbdata.imdb_origtitle := imdb_mtitle;
 
-    (* Fetch Votes and Rating from iMDB *)
-    THtmlIMDbParser.ParseVotesAndRating(mainsite, imdb_votes, imdb_rating);
+    (* Fetch Votes and Rating *)
+    THtmlIMDbParser.ParseVotesAndRating(fMainPage, imdb_votes, imdb_rating);
     // TODO: what to do in error case? StrToIntDef in function?
     imdbdata.imdb_votes := StrToIntDef(imdb_votes, -5);
     imdbdata.imdb_rating := StrToIntDef(imdb_rating, -5);
 
-    (* Fetch Languages from iMDB *)
-    THtmlIMDbParser.ParseMovieLanguage(mainsite, imdb_lang);
+    (* Fetch Languages *)
+    THtmlIMDbParser.ParseMovieLanguage(fMainPage, imdb_lang);
     imdbdata.imdb_languages.CommaText := imdb_lang;
 
-    (* Fetch Countries from iMDB *)
-    THtmlIMDbParser.ParseMovieCountries(mainsite, imdb_countr);
+    (* Fetch Countries *)
+    THtmlIMDbParser.ParseMovieCountries(fMainPage, imdb_countr);
     imdbdata.imdb_countries.CommaText := imdb_countr;
 
-    (* Fetch Genres from iMDB *)
-    THtmlIMDbParser.ParseMovieGenres(mainsite, imdb_genr);
+    (* Fetch Genres *)
+    THtmlIMDbParser.ParseMovieGenres(fMainPage, imdb_genr);
     imdbdata.imdb_genres.CommaText := imdb_genr;
 
     fSTVReason := '';
@@ -627,6 +636,71 @@ begin
     if fIsSTV then
       fSTVReason := fIMDbTitleExtraInfo;
 
+    (* Get IMDb releaseinfo page *)
+    if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/releaseinfo', fReleasePage, fHttpGetErrMsg) then
+    begin
+      Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
+      Result := True;
+      ready := True;
+      exit;
+    end;
+
+    (* Extract releaseinfo *)
+    fReleaseDateInfoList := TObjectList<TIMDbReleaseDateInfo>.Create(True);
+    try
+      THtmlIMDbParser.ParseReleaseDateInfo(fReleasePage, fReleaseDateInfoList);
+
+          { NOTE: all that needs to be done separately for each dedicated releasename }
+          (* get language of release (should be moved later to kb? as it depends on the actual releasename) *)
+          if (ir.language <> 'English') then
+            fReleasenameLanguage := ir.language
+          else
+            fReleasenameLanguage := 'USA'; // could also be UK?
+
+          fReleasenameCountry := TMapLanguageCountry.GetCountrynameByLanguage(fReleasenameLanguage);
+
+          for fIMDbReleaseDateInfo in fReleaseDateInfoList do
+          begin
+            if fIMDbReleaseDateInfo.FCountry = fReleasenameCountry then
+            begin
+              fReleaseDate := fIMDbReleaseDateInfo.FReleaseDate;
+              fRlsdateExtraInfo := fIMDbReleaseDateInfo.FExtraInfo;
+
+              (* Fetching Cinedate *)
+              imdbdata.imdb_cineyear := StrToIntDef(copy(fReleaseDate, Length(fReleaseDate) - 4, 4), 0); // only useful if not STV!
+
+              if fRlsdateExtraInfo <> '' then
+              begin
+                fRegExpr := TRegexpr.Create;
+                try
+                  fRegExpr.ModifierI := True;
+
+                  (* STV infos *)
+                  fRegExpr.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
+                  if fRegExpr.Exec(fRlsdateExtraInfo) then
+                  begin
+                    imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, fReleaseDate, fRlsdateExtraInfo]); // fSTVReason
+                    imdb_stv := True; // fIsSTV
+                  end;
+
+                  (* Festival infos *)
+                  fRegExpr.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
+                  if fRegExpr.Exec(fRlsdateExtraInfo) then
+                  begin
+                    imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, fReleaseDate, fRlsdateExtraInfo]); // fSTVReason
+                    imdbdata.imdb_festival := True; // fIsFestival
+                  end;
+                finally
+                  fRegExpr.free;
+                end;
+              end;
+            end;
+          end;
+          { NOTE: all that needs to be done separately for each dedicated releasename }
+    finally
+      fReleaseDateInfoList.Free;
+    end;
 
 
 
@@ -637,74 +711,6 @@ begin
       imdb_country := '';
       imdb_counline := '';
       imdb_region := '';
-
-      if (ir.language <> 'English') then
-        rlang := ir.language
-      else
-        rlang := 'USA';
-
-      //imdb_counline := imdbcountries.ReadString('COMMON', rlang, '');
-      imdb_region := SubString(imdb_counline, ',', 1); // TODO: check if regex is still needed and thus the variable
-      imdb_country := TMapLanguageCountry.GetCountrynameByLanguage(rlang);
-
-      imdb_date := '';
-
-      (* Get STV Info through releaseinfo page from iMDB *)
-      if not HttpGetUrl('https://www.imdb.com/title/' + imdb_id + '/releaseinfo', rlsdatesite, fHttpGetErrMsg) then
-      begin
-        Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
-        irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
-        Result := True;
-        ready := True;
-        exit; // TODO: skip releaseinfo webpage crawl if failed instead of stoping complete imdb parsing task
-      end;
-
-      if not imdb_stv then
-      begin
-        rr.ModifierI := True;
-
-        // Examples:
-        //          <tr class="even"><td><a href="/calendar/?region=my&ref_=ttrel_rel_2">Malaysia</a></td><td class="release_date">28 September 2017</td><td></td></tr>
-        //          <tr class="odd"><td><a href="/calendar/?region=us&ref_=ttrel_rel_11">USA</a></td><td class="release_date">20 October 1983</td><td> (New York City, New York)</td></tr>
-        //          <tr class="even"><td><a href="/calendar/?region=us&ref_=ttrel_rel_12">USA</a></td><td class="release_date">1 December 1983</td><td></td></tr>
-        //          <tr class="odd"><td><a href="/calendar/?region=us&ref_=ttrel_rel_1">USA</a></td><td class="release_date">24 September 2017</td><td> (Beijing) (premiere)</td></tr>
-        //          <tr class="even"><td><a href="/calendar/?region=us&ref_=ttrel_rel_32">USA</a></td><td class="release_date">18 December 2017</td><td> (internet)</td></tr>
-        rr.Expression :=
-        '<tr class="(odd|even)">[\s\n]*?<td><a href=\"\/calendar\/\?region\=' + imdb_region + '\&ref\_\=ttrel\_rel\_\d+"\s*>' + imdb_country
-          + '<\/a><\/td>[\s\n]*?<td class="release_date">(.*?)<\/td>[\s\n]*?<td>(.*?)<\/td><\/tr>';
-        if rr.Exec(rlsdatesite) then
-        begin
-          imdb_date := Trim(rr.Match[2]);
-          fRlsdateExtraInfo := Trim(rr.Match[3]);
-          imdbdata.imdb_stvs := 'Cinedate: ' + imdb_date;
-          imdbdata.imdb_stvm := False;
-          imdb_stv := False;
-          (* Fetching Cinedate for imdb_country *)
-          imdbdata.imdb_cineyear :=  StrToIntDef(copy(imdb_date, Length(imdb_date) - 4, 4), -1);
-
-          if fRlsdateExtraInfo <> '' then
-          begin
-            rr2 := TRegexpr.Create;
-            try
-              rr2.ModifierI := True;
-              rr2.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
-              if rr2.Exec(fRlsdateExtraInfo) then
-              begin
-                imdbdata.imdb_stvs := Format('%s, %s [%s]', [imdb_country, imdb_date, fRlsdateExtraInfo]); // USA, 5 December 2005 [(New York City, New York) (premiere)]
-                imdb_stv := True;
-              end;
-              (*  Fetching Festival infos for imdb_country  *)
-              rr2.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
-              if rr2.Exec(fRlsdateExtraInfo) then
-              begin
-                imdbdata.imdb_festival := True;
-              end;
-            finally
-              rr2.free;
-            end;
-          end;
-        end;
-      end;
 
       s := '0';
       imdb_screens := 0;
@@ -718,9 +724,9 @@ begin
       getShowValues(rls, showname, season, episode);
       if not ((season > 0) or (episode > 0) or (season = Ord(tvDatedShow)) or (season = Ord(tvRegularSerieWithoutSeason)) or (episode = Ord(tvNoEpisodeTag))) then
       begin
-
+{
         rr.Expression := '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
-        if rr.Exec(mainsite) then
+        if rr.Exec(fMainPage) then
         begin
           fBusinessInfoPart := rr.Match[1];
 
@@ -775,8 +781,8 @@ begin
         begin
           fBOMSearchNeeded := True;
         end;
-
-        if fBOMSearchNeeded then
+}
+        if True then//fBOMSearchNeeded then -- always parse it
         begin
           if not HttpGetUrl('https://www.boxofficemojo.com/title/' + imdb_id + '/', bomsite, fHttpGetErrMsg) then
           begin
@@ -845,7 +851,7 @@ begin
               //Sometimes imdb box office has no screens for cine stuff, so we need to be tricky ;) yay i love that game :)
               rr.Expression :=
                 '<a href="\/title\/tt\d+\/business\?ref_=.*?"[\r\n\s]+class=\"quicklink quicklinkGray\" >Box Office\/Business<\/a>';
-              if not rr.Exec(mainsite) then
+              if not rr.Exec(fMainPage) then
               begin
                 imdb_stv := True;
                 imdbdata.imdb_stvs := 'No Link to business found, so its STV!';
@@ -855,7 +861,7 @@ begin
 
               rr.Expression :=
                 '<h\d?.*?>Box\s*Office<\/h\d?>(.*?)<hr\s*\/>';
-              if not rr.Exec(mainsite) then
+              if not rr.Exec(fMainPage) then
               begin
                 imdb_stv := True;
                 imdbdata.imdb_stvs := 'No Box Office found, so its STV!';
@@ -881,8 +887,6 @@ begin
   imdbdata.imdb_id := imdb_id;
   imdbdata.imdb_year := imdb_year;
   imdbdata.imdb_stvm := imdb_stv;
-  mainsite := '';
-  rlsdatesite := '';
   businesssite := '';
   bomsite := '';
 
@@ -906,9 +910,9 @@ end;
 function TPazoHTTPImdbTask.Name: String;
 begin
   try
-    Result := Format('HTTPImdb %s : %s', [rls, imdb_id]);
+    Result := Format('HTTP IMDb for %s : ID %s', [rls, imdb_id]);
   except
-    Result := 'HTTPImdb';
+    Result := 'HTTP IMDb';
   end;
 end;
 
