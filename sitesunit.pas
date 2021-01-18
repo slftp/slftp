@@ -349,6 +349,15 @@ type
     procedure SetSetDownOnOutOfCredits(const Value: boolean);
     { Sets the necessary values to set the site down due to no space or credits left }
     procedure SetDownSiteDueToCreditsOrSpace;
+
+    { Gets a value indicating whether reverse FXP will be used if the site is the source for the transfer }
+    function GetUseReverseFxpSource: boolean;
+    { Sets a value indicating whether reverse FXP will be used if the site is the source for the transfer }
+    procedure SetUseReverseFxpSource(const Value: boolean);
+    { Gets a value indicating whether reverse FXP will be used if the site is the destination for the transfer }
+    function GetUseReverseFxpDestination: boolean;
+    { Sets a value indicating whether reverse FXP will be used if the site is the destination for the transfer }
+    procedure SetUseReverseFxpDestination(const Value: boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -508,6 +517,8 @@ type
     property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus; //< Interval in seconds for autorules, zero means turned off
     property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
     property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
+    property UseReverseFxpSource: boolean read GetUseReverseFxpSource write SetUseReverseFxpSource; //< a value indicating whether reverse FXP will be used if the site is the source for the transfer
+    property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
   end;
 
 function ReadSites(): boolean;
@@ -1809,6 +1820,7 @@ begin
   try
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
+
 
     if not WriteLn(s, site.io_timeout * 1000) then
     begin
@@ -3772,6 +3784,26 @@ end;
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
   WCBool('permdown', Value);
+end;
+
+function TSite.GetUseReverseFxpSource: boolean;
+begin
+  Result := RCBool('reverse_fxp_source', False);
+end;
+
+procedure TSite.SetUseReverseFxpSource(const Value: boolean);
+begin
+  WCBool('reverse_fxp_source', Value);
+end;
+
+function TSite.GetUseReverseFxpDestination: boolean;
+begin
+  Result := RCBool('reverse_fxp_destination', False);
+end;
+
+procedure TSite.SetUseReverseFxpDestination(const Value: boolean);
+begin
+  WCBool('reverse_fxp_destination', Value);
 end;
 
 end.

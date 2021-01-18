@@ -36,6 +36,7 @@ function IrcKill(const netname, channel, params: String): boolean;
 function IrcRebuildSlot(const netname, channel, params: String): boolean;
 function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
 function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
+function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -1647,7 +1648,7 @@ begin
     ss := FindSiteByName('', sname);
     if ss = nil then
     begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sname]);
       Result := True;
       exit;
     end;
@@ -1663,6 +1664,87 @@ begin
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+  end;
+
+  Result := True;
+end;
+
+function IrcSetReverseFxp(const netname, channel, params: String): boolean;
+var
+  fSiteName, fDirection: String;
+  fDestinationMode: boolean;
+  fValue: integer;
+  fSite: TSite;
+begin
+  Result := False;
+
+  //get the site
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  if fSiteName = getAdminSiteName then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>You can not use admin site with this function</b>.</c>');
+    exit;
+  end;
+
+  fSite := FindSiteByName('', fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  //get the direction for which reverse fxp should be set (when site is used as source or as destination?)
+  fDirection := LowerCase(SubString(params, ' ', 2));
+
+  //if only site parameter is given, show current value for both directions
+  if fDirection.IsEmpty then
+  begin
+    irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)]);
+    irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+    Result := True;
+    exit;
+  end;
+
+  if (fDirection = '--source') or (fDirection = '-s') then
+    fDestinationMode := False
+  else if (fDirection = '--destination') or (fDirection = '-d') then
+    fDestinationMode := True
+  else
+  begin
+    irc_addtext(Netname, Channel, 'Unknown parameter <b>%s</b>. Use either --source (-s) or --destination (-d).', [fDirection]);
+    exit;
+  end;
+
+  //get the value (1 - enable, 0 - disable)
+  fValue := StrToIntDef(SubString(params, ' ', 3), -1);
+
+  //if the value parameter is missing, display the currently set value for the site
+  if fValue = -1 then
+  begin
+  if fDestinationMode then
+    irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)])
+  else
+    irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+  end
+
+  //if a value is given, set it to the site
+  else if ((fValue = 1) or (fValue = 0)) then
+  begin
+    if fDestinationMode then
+    begin
+      fSite.UseReverseFxpDestination := boolean(fValue);
+      irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)]);
+    end
+    else
+    begin
+      fSite.UseReverseFxpSource := boolean(fValue);
+      irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+    end;
+  end
+  else
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+    exit;
   end;
 
   Result := True;
