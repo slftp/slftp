@@ -1046,10 +1046,10 @@ end;
 
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
-  TryAgain, brokentransfer, TryAgain_RETR;
+  TryAgain, brokentransfer;
 var
-  ssrc, sdst: TSiteSlot;
-  RequireSSL: boolean;
+  ssrc, sdst, fPassiveSlot, fActiveSlot: TSiteSlot;
+  RequireSSL, fUseReverseFXP, fNeedsImmediateRETR: boolean;
   host: String;
   port: integer;
   FileSendByMe: boolean;
@@ -1344,180 +1344,6 @@ begin
     end;
   end;
 
-  (* we prefer CPSV over SSCN because it takes care of the encrypted connection
-     in one command instead of two *)
-  if (RequireSSL) and (sfCPSV in ssrc.site.features) then
-  begin
-    if not ssrc.Send('CPSV') then
-      goto TryAgain;
-  end
-  else
-  begin
-    if (sfSSCN in ssrc.site.features) then
-    begin
-      if (RequireSSL) and (not ssrc.SendSSCNEnable()) then
-        goto TryAgain;
-      if (not RequireSSL) and (not ssrc.SendSSCNDisable()) then
-	goto TryAgain;
-    end;
-
-    if not ssrc.Send('PASV') then
-      goto TryAgain;
-  end;
-  if not ssrc.Read('PASV') then
-    goto TryAgain;
-
-  //guess we need this for responses which are longer than one line, so it won't be changed of it reads further response
-  lastResponseCode := ssrc.lastResponseCode;
-  lastResponse := ssrc.lastResponse;
-
-
-  // 227 Entering Passive Mode.
-  // 1xx Positive Preliminary reply
-  // 2xx Positive Completion reply
-  if ( (lastResponseCode <> 227) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
-  begin
-
-    case lastResponseCode of
-      421:
-        begin
-
-          //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
-          if (0 < Pos('Timeout', lastResponse)) then
-          begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-            goto TryAgain; //just try again, should hopefully resolve this issue
-          end;
-        end;
-
-
-      425:
-        begin
-          //COMPLETE MSG: 425 Can't open passive connection!
-          //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
-          //COMPLETE MSG: 425 Can't open data connection.
-          if ((0 <> Pos('t open passive connection', lastResponse)) OR (0 <> Pos('t open data connection', lastResponse))) then
-          begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-            goto TryAgain;
-          end;
-        end;
-
-
-      426:
-        begin
-          //COMPLETE MSG: 426 Data connection: Broken pipe
-          //COMPLETE MSG: 426 Data connection: Connection reset by peer.
-          //COMPLETE MSG: 426 Sendfile error: Broken pipe.
-          if ((0 <> Pos('Data connection', lastResponse)) OR (0 <> Pos('Sendfile error', lastResponse))) then
-          begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-            goto TryAgain;
-          end;
-        end;
-
-
-      450, 530:
-        begin
-          //COMPLETE MSG: 450 No transfer-slave(s) available
-          //COMPLETE MSG: 530 No transfer-slave(s) available
-          if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
-          begin
-            // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
-            // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
-            _setOutOfSpace(ssrc, 'No transfer-slave(s) available');
-            exit;
-          end;
-
-          //COMPLETE MSG: 450 No data connection available
-          if (0 <> Pos('No data connection available', lastResponse)) then
-          begin
-            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            mainpazo.errorreason := 'No data connection available';
-            readyerror := True;
-            ssrc.Quit;
-            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
-            exit;
-          end;
-        end;
-
-      500:
-        begin
-          if (0 <> Pos('You need to use a client supporting PRET', lastResponse)) then
-          begin
-            irc_AddINFO('[iNFO] PRET needed for: ' + ssrc.Name);
-            ssrc.site.sw := sswDrftpd;
-            goto TryAgain;
-          end;
-          if ((RequireSSL) and (0 < Pos('understood', lastResponse))) then
-          begin
-            irc_AddINFO('[iNFO] SSLFXP not supported for: ' + ssrc.Name);
-            ssrc.site.sslfxp := srUnsupported;
-            goto TryAgain;
-          end;
-
-          //500 Unsupported command during transfer.
-          if (0 <> Pos('Unsupported command', lastResponse)) then
-          begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-            goto TryAgain;
-          end;
-        end;
-
-      550:
-        begin
-          //COMPLETE MSG: 550 Requested action not taken. File unavailable.
-          if (0 <> Pos('Requested action not taken', lastResponse)) then
-          begin
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            goto TryAgain;
-          end;
-
-          //COMPLETE MSG: 550 file.rar: No such file or directory.
-          if (0 <> Pos('No such file or directory', lastResponse)) then
-          begin
-            if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-            begin
-              irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
-            end;
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            mainpazo.errorreason := 'No such file';
-            readyerror := True;
-            exit;
-          end;
-        end;
-
-      553:
-        begin
-          //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
-          if (0 < Pos('X-DUPE', lastResponse)) then
-          begin
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            ps1.ProcessXDupeResponse(netname, channel, dir, lastResponse);
-            goto TryAgain;
-          end;
-        end;
-    end;
-
-    Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
-    irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
-    readyerror := True;
-    mainpazo.errorreason := 'PASV/CPSV failed on ' + site1;
-    Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
-    exit;
-  end;
-
-  try
-    ParsePASVString(ssrc.lastResponse, host, port);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, c_section, '[EXCEPTION] Taskrace ParsePASVString: %s', [e.Message]);
-      readyerror := True;
-      exit;
-    end;
-  end;
-
   if (sdst.site.sw = sswDrftpd) then
   begin
     if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
@@ -1603,29 +1429,237 @@ begin
     end;
   end;
 
-  if not sdst.Send('PORT %s,%d,%d', [ReplaceText(host, '.', ','), port div 256, port mod 256]) then
-    goto TryAgain;
-  if not sdst.Read('PORT') then
+  //if one site requires reverse FXP, use reverse FXP
+  fUseReverseFXP := sdst.site.UseReverseFxpDestination or ssrc.site.UseReverseFxpSource;
+
+  //in case of reverse FXP, if glFTPD is the destination, glFTPd requires the RETR command to be issued at the source before it acts
+  //else we cannot read a response from STOR (will timeout and cause "can't open data connection")
+  fNeedsImmediateRETR := fUseReverseFXP and (sdst.site.sw = sswGlftpd);
+
+  if fUseReverseFXP then
+  begin
+    fPassiveSlot := sdst;
+    fActiveSlot := ssrc;
+  end
+  else
+  begin
+    fPassiveSlot := ssrc;
+    fActiveSlot := sdst;
+  end;
+
+  (* we prefer CPSV over SSCN because it takes care of the encrypted connection
+     in one command instead of two *)
+  if (RequireSSL) and (sfCPSV in fPassiveSlot.site.features) then
+  begin
+    if not fPassiveSlot.Send('CPSV') then
+      goto TryAgain;
+  end
+  else
+  begin
+    if (sfSSCN in fPassiveSlot.site.features) then
+    begin
+      if (RequireSSL) and (not fPassiveSlot.SendSSCNEnable()) then
+        goto TryAgain;
+      if (not RequireSSL) and (not fPassiveSlot.SendSSCNDisable()) then
+	goto TryAgain;
+    end;
+
+    if not fPassiveSlot.Send('PASV') then
+      goto TryAgain;
+  end;
+  if not fPassiveSlot.Read('PASV') then
     goto TryAgain;
 
+  //guess we need this for responses which are longer than one line, so it won't be changed of it reads further response
+  lastResponseCode := fPassiveSlot.lastResponseCode;
+  lastResponse := fPassiveSlot.lastResponse;
 
-  lastResponseCode := sdst.lastResponseCode;
-  lastResponse := sdst.lastResponse;
+  Debug(dpSpam, 'taskrace', '--> SENT: CPSV/PASV');
+  Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
+
+  // 227 Entering Passive Mode.
+  // 1xx Positive Preliminary reply
+  // 2xx Positive Completion reply
+  if ( (lastResponseCode <> 227) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
+  begin
+
+    case lastResponseCode of
+      421:
+        begin
+
+          //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
+          if (0 < Pos('Timeout', lastResponse)) then
+          begin
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain; //just try again, should hopefully resolve this issue
+          end;
+        end;
+
+
+      425:
+        begin
+          //COMPLETE MSG: 425 Can't open passive connection!
+          //COMPLETE MSG: 425 Can't open passive connection: Address already in use.
+          //COMPLETE MSG: 425 Can't open data connection.
+          if ((0 <> Pos('t open passive connection', lastResponse)) OR (0 <> Pos('t open data connection', lastResponse))) then
+          begin
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+
+      426:
+        begin
+          //COMPLETE MSG: 426 Data connection: Broken pipe
+          //COMPLETE MSG: 426 Data connection: Connection reset by peer.
+          //COMPLETE MSG: 426 Sendfile error: Broken pipe.
+          if ((0 <> Pos('Data connection', lastResponse)) OR (0 <> Pos('Sendfile error', lastResponse))) then
+          begin
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+
+      450, 530:
+        begin
+          //COMPLETE MSG: 450 No transfer-slave(s) available
+          //COMPLETE MSG: 530 No transfer-slave(s) available
+          if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
+          begin
+            // no available transfer-slave(s) on drftpd means that you can't upload/download (latter is the case here, srcsite) because drftpd has no slave to use,
+            // so it's out of space. iirc drftpd also shows less space then when typing !df in sitechan when slaves are offline
+            _setOutOfSpace(fPassiveSlot, 'No transfer-slave(s) available');
+            exit;
+          end;
+
+          //COMPLETE MSG: 450 No data connection available
+          if (0 <> Pos('No data connection available', lastResponse)) then
+          begin
+            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            mainpazo.errorreason := 'No data connection available';
+            readyerror := True;
+            fPassiveSlot.Quit;
+            Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+            exit;
+          end;
+        end;
+
+      500:
+        begin
+          if (0 <> Pos('You need to use a client supporting PRET', lastResponse)) then
+          begin
+            irc_AddINFO('[iNFO] PRET needed for: ' + fPassiveSlot.Name);
+            fPassiveSlot.site.sw := sswDrftpd;
+            goto TryAgain;
+          end;
+          if ((RequireSSL) and (0 < Pos('understood', lastResponse))) then
+          begin
+            irc_AddINFO('[iNFO] SSLFXP not supported for: ' + fPassiveSlot.Name);
+            fPassiveSlot.site.sslfxp := srUnsupported;
+            goto TryAgain;
+          end;
+
+          //500 Unsupported command during transfer.
+          if (0 <> Pos('Unsupported command', lastResponse)) then
+          begin
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
+        end;
+
+      550:
+        begin
+          //COMPLETE MSG: 550 Requested action not taken. File unavailable.
+          if (0 <> Pos('Requested action not taken', lastResponse)) then
+          begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            goto TryAgain;
+          end;
+
+          //COMPLETE MSG: 550 file.rar: No such file or directory.
+          if (0 <> Pos('No such file or directory', lastResponse)) then
+          begin
+            if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            begin
+              irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+            end;
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            mainpazo.errorreason := 'No such file';
+            readyerror := True;
+            exit;
+          end;
+        end;
+
+      553:
+        begin
+          //COMPLETE MSG: 553- X-DUPE: sr-kqtcc.r22
+          if (0 < Pos('X-DUPE', lastResponse)) then
+          begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            ps1.ProcessXDupeResponse(netname, channel, dir, lastResponse);
+            goto TryAgain;
+          end;
+        end;
+    end;
+
+    Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [fPassiveSlot.site.Name, lastResponse]);
+    irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [fPassiveSlot.site.Name, lastResponse]));
+    readyerror := True;
+    mainpazo.errorreason := 'PASV/CPSV failed on ' + fPassiveSlot.site.Name;
+    Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+    exit;
+  end;
+
+  try
+    ParsePASVString(fPassiveSlot.lastResponse, host, port);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, '[EXCEPTION] Taskrace ParsePASVString: %s', [e.Message]);
+      readyerror := True;
+      exit;
+    end;
+  end;
+
+
+  if not fActiveSlot.Send('PORT %s,%d,%d', [ReplaceText(host, '.', ','), port div 256, port mod 256]) then
+    goto TryAgain;
+  if not fActiveSlot.Read('PORT') then
+    goto TryAgain;
+
+  lastResponseCode := fActiveSlot.lastResponseCode;
+  lastResponse := fActiveSlot.lastResponse;
 
   if ((lastResponseCode = 500) and (0 <> Pos('You need to use a client supporting PRET', lastResponse))) then
   begin
-    irc_AddINFO('[iNFO] PRET needed for: ' + sdst.Name);
-    sdst.site.sw := sswDrftpd;
+    irc_AddINFO('[iNFO] PRET needed for: ' + fActiveSlot.Name);
+    fActiveSlot.site.sw := sswDrftpd;
     goto TryAgain;
   end;
 
+  if ((lastResponseCode < 100) Or (lastResponseCode >= 300)) then
+  begin
+    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fActiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    goto TryAgain;
+  end;
 
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
     goto TryAgain;
 
+  if fNeedsImmediateRETR then
+  begin
+    if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
+      goto TryAgain;
+  end;
+
   if not sdst.Read('STOR') then
   begin
     sdst.Quit;
+    if fNeedsImmediateRETR then
+      ssrc.DestroySocket(False);
+
     goto TryAgain;
   end;
 
@@ -1642,6 +1676,58 @@ begin
   // 2xx Positive Completion reply
   if ( (lastResponseCode <> 150) AND ( (lastResponseCode < 100) OR (lastResponseCode > 299) ) ) then
   begin
+
+    if fNeedsImmediateRETR then
+    begin
+
+      //STOR produced an error, but RETR has already been sent to the source site. We need to ABOR that.
+
+      if not ssrc.Send('ABOR') then
+        ssrc.DestroySocket(False);
+
+      rss := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
+
+      //there may be any kind or amount of responses coming after sending ABOR. Read until 'ABOR command successful'.
+      repeat
+        ssrc.Read('ABOR', False, True, 1000);
+        if ssrc.error <> '' then
+        begin
+          ssrc.DestroySocket(False);
+          rss := True;
+          break;
+        end;
+
+        if ssrc.lastResponseCode = 150 then
+          rss := True;
+
+        //response code should be 226, might also be 225
+        //glFTPd: ABOR command successful.
+        //glFTPd: Abort successful
+        //DrFTPD: ABOR command successful
+        //ioFTPD: ABOR command successful.
+        //RaidenFTPD: Abort successful.
+        until ((ssrc.lastResponseCode > 199) and (ssrc.lastResponseCode < 300) and
+          ((ssrc.lastResponse.Contains('ABOR')) or (ssrc.lastResponse.Contains('Abort successful'))));
+
+      if ssrc.site.sw = sswDrftpd then
+      begin
+        //drftpd sometimes sends 150 response even after "ABOR command successful". So wait for that a bit.
+        if not rss then
+          ssrc.Read('ABOR', False, True, 10);
+
+        //ok and sometimes the ABOR command destroys the session for drftpd (following commands do not send a response -> timeout)
+        //send a command and see if there is a response. if not, invoke DestroySocket.
+        if not ssrc.Send('NOOP') then
+        begin
+          ssrc.DestroySocket(False);
+        end
+        else if not ssrc.Read('NOOP', False, True, 20) then
+        begin
+          Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + ssrc.Name);
+          ssrc.DestroySocket(False);
+        end;
+      end;
+    end;
 
     case lastResponseCode of
       400:
@@ -1973,10 +2059,11 @@ begin
       exit;
   end;
 
-  TryAgain_RETR:
-
-  if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
-    goto TryAgain;
+  if not fNeedsImmediateRETR then
+  begin
+    if not ssrc.Send('RETR %s', [ssrc.TranslateFilename(filename)]) then
+      goto TryAgain;
+  end;
 
   if not ssrc.Read('RETR') then
   begin
@@ -1984,7 +2071,6 @@ begin
     sdst.Quit;
     goto TryAgain;
   end;
-
 
   lastResponseCode := ssrc.lastResponseCode;
   lastResponse := ssrc.lastResponse;
@@ -2111,7 +2197,7 @@ begin
             if not ssrc.Read('SITE TAGLINE') then
               goto TryAgain;
 
-            goto TryAgain_RETR;
+            goto TryAgain;
           end;
 
           //COMPLETE MSG: 553 Permission Denied: not allowed to download from this directory!
