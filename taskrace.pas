@@ -65,7 +65,6 @@ type
     filesize: Int64;
     isSfv, IsNfo: Boolean;
     isSample, isProof, isCovers, isSubs: Boolean;
-    dontRemoveOtherSources: boolean;
     dst: TWaitTask;
     constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
     function Execute(slot: Pointer): boolean; override;
@@ -2796,15 +2795,15 @@ begin
     ( (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) or
     (0 < Pos('CRC-Check: BAD!', sdst.lastResponse)) or
     (0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
-    (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)) ) ) then
+    (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)) or
+    (0 < Pos('NFO-File: DUPE!', sdst.lastResponse)) ) ) then
   begin
     brokentransfer:
     Debug(dpSpam, c_section, 'Broken transfer event!');
-    DontRemoveOtherSources := True;
 
     if (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) then
     begin
-      DontRemoveOtherSources := False;
+      //do nothing
     end;
 
     if 0 < Pos('CRC-Check: BAD!', sdst.lastResponse) then
@@ -2830,6 +2829,15 @@ begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
+      end;
+      ps2.SetFileError(netname, channel, dir, filename);
+    end;
+
+    if 0 < Pos('NFO-File: DUPE!', sdst.lastResponse) then
+    begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
