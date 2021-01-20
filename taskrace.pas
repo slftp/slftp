@@ -1045,7 +1045,7 @@ end;
 
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
-  TryAgain, brokentransfer;
+  TryAgain;
 var
   ssrc, sdst, fPassiveSlot, fActiveSlot: TSiteSlot;
   RequireSSL, fUseReverseFXP, fNeedsImmediateRETR: boolean;
@@ -2796,9 +2796,8 @@ begin
     (0 < Pos('CRC-Check: BAD!', sdst.lastResponse)) or
     (0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
     (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)) or
-    (0 < Pos('NFO-File: DUPE!', sdst.lastResponse)) ) ) then
+    (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
   begin
-    brokentransfer:
     Debug(dpSpam, c_section, 'Broken transfer event!');
 
     if (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) then
