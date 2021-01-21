@@ -2792,20 +2792,20 @@ begin
 
   //this is a very fucked-up case, we'll try again.
   if ( (mainpazo.rls <> nil) and (FileSendByMe) and
-    ( (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) or
-    (0 < Pos('CRC-Check: BAD!', sdst.lastResponse)) or
-    (0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse)) or
-    (0 < Pos('0byte-file: Not allowed', sdst.lastResponse)) or
-    (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
+    ( (sdst.lastResponse.Contains('CRC-Check: SFV first')) or
+      (sdst.lastResponse.Contains('CRC-Check: BAD!')) or
+      (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
+      (sdst.lastResponse.Contains('0byte-file: Not allowed')) or
+      (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
 
-    if (0 < Pos('CRC-Check: SFV first', sdst.lastResponse)) then
+    if sdst.lastResponse.Contains('CRC-Check: SFV first') then
     begin
       //do nothing
     end;
 
-    if 0 < Pos('CRC-Check: BAD!', sdst.lastResponse) then
+    if sdst.lastResponse.Contains('CRC-Check: BAD!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
@@ -2814,7 +2814,7 @@ begin
       Inc(ps2.badcrcevents);
     end;
 
-    if 0 < Pos('0byte-file: Not allowed', sdst.lastResponse) then
+    if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
@@ -2823,7 +2823,7 @@ begin
       Inc(ps2.badcrcevents);
     end;
 
-    if 0 < Pos('CRC-Check: Not in sfv!', sdst.lastResponse) then
+    if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
@@ -2832,7 +2832,7 @@ begin
       ps2.SetFileError(netname, channel, dir, filename);
     end;
 
-    if 0 < Pos('NFO-File: DUPE!', sdst.lastResponse) then
+    if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
