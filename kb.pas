@@ -48,7 +48,7 @@ uses
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
