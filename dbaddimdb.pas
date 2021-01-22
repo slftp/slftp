@@ -4,6 +4,28 @@ interface
 
 uses Classes, SysUtils, Contnrs, Generics.Collections, IniFiles, irc, SyncObjs, SynCommons, mORMot, dbhandler, mORMotSQLite3;
 
+type
+  { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
+  TMapLanguageCountry = class
+  private
+    FLanguage: String; //< language
+    FCountryCode: String; //< country code (for backward compatibility of the existing file, not really needed at the moment)
+    FCountry: String; //< country name
+  public
+    { Creates a class with the given information }
+    constructor Create(const aLanguage, aCountryCode, aCountry: String);
+
+    { Returns the Countryname for a given Language
+      @param(aLanguage Name of Language)
+      @returns(Countryname @br @note(empty string if Language does not exist)) }
+    class function GetCountrynameByLanguage(const aLanguage: String): String;
+
+    property Language: String read FLanguage;
+    property CountryCode: String read FCountryCode;
+    property Country: String read FCountry;
+  end;
+
+
 var
   imdb_remove_words_list: TStringList; //< contains the lines which should be used to remove scene taggings to get the pure moviename
   ImdbDatabase: TSQLRestClientDB; //< Rest Client for all database interactions
@@ -106,7 +128,10 @@ TIMDbBoomData = class(TSQLRecordNoCase)
     //...
   end;
 
-
+{ Checks if Country should be excluded (doesn't exist in slftp.imdbcountries file)
+  @param(aCountryname Name of Country to be checked)
+  @returns(@true if no entry exists in file (exclude), @false otherwise) }
+function ExcludeCountry(const aCountryname: String): Boolean;
 /// an easy way to create a database model for client and server
 function CreateIMDBModel: TSQLModel;
 { Removes IMDbData from Database based on the IMDbId
@@ -217,10 +242,32 @@ var
 
   rx_imdbid: TFLRE;
   rx_captures: TFLREMultiCaptures;
+  glLanguageCountryMappingList: TObjectList<TMapLanguageCountry>;
 
 const
   IMDBREPLACEFILENAME = 'slftp.imdbreplace';
   section = 'dbaddimdb';
+
+{ TMapLanguageCountry }
+
+constructor TMapLanguageCountry.Create(const aLanguage, aCountryCode, aCountry: String);
+begin
+  FLanguage := aLanguage;
+  FCountryCode := aCountryCode;
+  FCountry := aCountry;
+end;
+
+class function TMapLanguageCountry.GetCountrynameByLanguage(const aLanguage: String): String;
+var
+  fItem: TMapLanguageCountry;
+begin
+  Result := '';
+  for fItem in glLanguageCountryMappingList do
+  begin
+    if fItem.FLanguage = aLanguage then
+      Exit(fItem.Country);
+  end;
+end;
 
 function CreateIMDBModel: TSQLModel;
 begin
@@ -239,8 +286,6 @@ var
   fYear, fCnt: Integer;
   fReleaseNameSplitted: TStringList;
 begin
-  imdb_remove_words_list := TStringList.Create;
-  imdb_remove_words_list.LoadFromFile(IMDBREPLACEFILENAME);
   Result := aReleasename;
 
   fReleaseNameSplitted := TStringList.Create();
@@ -293,6 +338,57 @@ begin
   Result := Result.Replace('_', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
 
   Debug(dpError, section, Format('[getMovieNameWithoutSceneTags] before: %s - after: %s', [aReleasename, Result]));
+end;
+
+{ Converts the special characters in a moviename into scene-notation
+  @param(aInput MovieName)
+  @returns(Moviename in clean scene notation) }
+function InternationalToAsciiScene(const aInput: String): String;
+begin
+  Result := aInput;
+
+  // remove possible whitespace
+  Result := Result.Replace(' ', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  // remove scene delimiters
+  Result := Result.Replace('.', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('_', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  // change special characters
+  Result := Result.Replace('ÿ', 'y', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('ü', 'ue', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('ö', 'oe', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('ï', 'i', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('ë', 'e', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('ä', 'ae', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('À', 'a', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Á', 'a', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Â', 'a', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ã', 'a', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Å', 'a', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Æ', 'ae', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ç', 'c', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('È', 'e', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('É', 'e', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ê', 'e', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ì', 'i', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Í', 'i', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Î', 'i', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ð', 'd', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ñ', 'n', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ò', 'o', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ó', 'o', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ô', 'o', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Õ', 'o', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ø', 'o', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Œ', 'oe', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ù', 'u', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ú', 'u', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Û', 'u', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Ý', 'y', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  //Result := Result.Replace('Þ', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('Š', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('C', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+
+  Debug(dpError, section, Format('[InternationalToAsciiScene] before: %s - after: %s', [aInput, Result]));
 end;
 
 function DeleteIMDbDataWithImdbId(const aIMDbId: String): Boolean;
@@ -476,7 +572,7 @@ begin
       Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Start Adding Data: %s', [aReleaseName]));
       TIMDbDataRec := TIMDbData.Create;
       TIMDbDataRec.IMDbID := aImdbData.imdb_id;
-      TIMDbDataRec.IMDbTitle := aImdbData.imdb_origtitle;
+      TIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
 
       TIMDbDataRec.IMDbTitleExtras := '';
       TIMDbDataRec.IMDbYear :=  aImdbData.imdb_year;
@@ -530,7 +626,7 @@ begin
       begin
         if ImdbDatabase.Add(TIMDbDataRec,true)=0 then
         Begin
-          Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_SaveImdbData : Error adding the data for Release: %s', [aReleaseName]));
+          Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Data is already there!', [aReleaseName, aImdbData.imdb_id]));
         end
         else
         begin
@@ -541,7 +637,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData : Data for Release: %s - Part 4!', [e.Message]));
+          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData : Data for Release: %s - %s - Error: %s!', [aReleaseName, aImdbData.imdb_id, e.Message]));
           exit;
         end;
       end;
@@ -614,7 +710,7 @@ begin
       if ((TIMDbDataRec.FillOne) AND (DaysBetween(now,TIMDbDataRec.UpdatedTime)>=config.ReadInteger(section, 'update_time_in_days', 7))) then
       begin
           TIMDbDataRec.IMDbID := aImdbData.imdb_id;
-          TIMDbDataRec.IMDbTitle := aImdbData.imdb_origtitle;
+          TIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
 
           TIMDbDataRec.IMDbTitleExtras := '';
           TIMDbDataRec.IMDbYear :=  aImdbData.imdb_year;
@@ -683,7 +779,8 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_UpdateImdbData : Data for Release: %s - Part 4!', [e.Message]));
+            Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_UpdateImdbData : Data for Release: %s - %s Error: %s!', [aReleaseName,aImdbData.imdb_id, e.Message]));
+            Exit;
           end;
       end;
     Debug(dpError, section, Format('[Info] dbaddimdb_UpdateImdbData : Data for Release: %s successful updated in Database!', [aReleaseName]));
@@ -697,7 +794,6 @@ var
 
 begin
   result := nil;
-  fImdbMovieData := TDbImdbData.Create('T123456');
   fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
   fMovieDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
@@ -710,10 +806,10 @@ begin
 
     while fMovieDataRec.FillOne do
     begin
-
+      fImdbMovieData := TDbImdbData.Create(fMovieDataRec.IMDbID);
       fImdbMovieData.imdb_id := fMovieDataRec.IMDbID;
       fImdbMovieData.imdb_year := fMovieDataRec.IMDbYear;
-      fImdbMovieData.imdb_origtitle := fMovieDataRec.IMDbTitle;
+      fImdbMovieData.imdb_origtitle := UTF8ToString(fMovieDataRec.IMDbTitle);
 
       fImdbMovieData.imdb_languages :=  fMovieDataRec.IMDbLanguages;
       fImdbMovieData.imdb_countries :=  fMovieDataRec.IMDbCountries;
@@ -912,8 +1008,16 @@ end;
 procedure dbaddimdbInit;
 var
   fDBName: String;
+  fStrList: TStringList;
+  i, j: Integer;
+  fLang, fCC, fCountry, fHelper: String;
+  fItem: TMapLanguageCountry;
+  fDupe: Boolean;
 begin
   fDBName := Trim(config.ReadString(section, 'database', 'imdb.db'));
+
+  imdb_remove_words_list := TStringList.Create;
+  imdb_remove_words_list.LoadFromFile(IMDBREPLACEFILENAME);
 
   gDbAddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
@@ -932,8 +1036,45 @@ begin
   end;
 
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
   addimdbcmd := config.ReadString(section, 'addimdbcmd', '!addimdb');
+
+  glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
+  fStrList := TStringList.Create;
+  try
+    fStrList.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
+    for i := 0 to fStrList.Count - 1 do
+    begin
+      (* ignore inifile section and comments *)
+      if fStrList.Strings[i].StartsWith('[') then
+        Continue;
+      if fStrList.Strings[i].Contains('//') then
+        Continue;
+      if fStrList.Strings[i].Contains('#') then
+        Continue;
+
+      fLang := Trim(SubString(fStrList.Strings[i], '=', 1));
+      fHelper := SubString(fStrList.Strings[i], '=', 2);
+      fCC := Trim(SubString(fHelper, ',', 1));
+      fCountry := Trim(SubString(fHelper, ',', 2));
+
+      fDupe := False;
+      for fItem in glLanguageCountryMappingList do
+      begin
+        if fItem.Language = fLang then
+        begin
+          Debug(dpError, section, Format('Ignoring language %s with country %s-%s from slftp.imdbcountries because it already exists', [fLang, fCC, fCountry]));
+          fDupe := True;
+        end;
+      end;
+
+      if fDupe then
+        Continue;
+
+      glLanguageCountryMappingList.Add(TMapLanguageCountry.Create(fLang, fCC, fCountry));
+    end;
+  finally
+    fStrList.Free;
+  end;
 end;
 
 procedure dbaddimdbUninit;
@@ -947,11 +1088,13 @@ begin
     begin
       ImdbDbModel.Free;
     end;
+    FreeAndNil(imdb_remove_words_list);
     FreeAndNil(addimdbcmd);
     FreeAndNil(imdbcountries);
     FreeAndNil(rx_imdbid);
     FreeAndNil(last_addimdb);
     FreeAndNil(gDbAddimdb_cs);
+    FreeAndNil(glLanguageCountryMappingList);
   finally
     Debug(dpSpam, section, 'Uninit ImdbDatabase');
   end;
@@ -967,6 +1110,28 @@ end;
 destructor TDbImdb.Destroy;
 begin
   inherited;
+end;
+
+function ExcludeCountry(const aCountryname: String): Boolean;
+var
+  fItem: TMapLanguageCountry;
+begin
+  Result := True;
+  for fItem in glLanguageCountryMappingList do
+     begin
+    if (fItem.Country = 'UK') or (fItem.Country = 'USA') then
+    begin
+      // to avoid matching Ukraine with UK
+      if aCountryname.StartsWith(fItem.Country, False) then
+        Exit(False);
+    end
+    else
+    begin
+      // match things like 'Canada (French title)' and 'Canada (English title)'
+      if aCountryname.StartsWith(fItem.Country, True) then
+        Exit(False);
+    end;
+  end;
 end;
 
 { TDbImdbData }
