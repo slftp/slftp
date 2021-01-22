@@ -97,6 +97,7 @@ const
     (cmd: 'rebuildslot'; hnd: IrcRebuildSlot; minparams: 2; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'recalcfreeslots'; hnd: IrcRecalcFreeslots; minparams: 1; maxparams: 1; hlpgrp: 'site'),
     (cmd: 'setdownoutofspace'; hnd: IrcSetDownOnOutOfSpace; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'reversefxp'; hnd: IrcSetReverseFxp; minparams: 1; maxparams: 3; hlpgrp: 'site'),
 
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),

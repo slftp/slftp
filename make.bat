@@ -86,7 +86,7 @@ goto :eof;
 
 :clean
 echo --- Cleaning files ---
-del /q /s *slftp*.exe *.dcu *.res
+del /q /s *slftp*.exe *.dcu
 goto :eof;
 
 :test_32
@@ -94,7 +94,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win32 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
 if errorlevel 1 (
 echo Failure reason for downloading OpenSSL is %errorlevel%
 exit /b %errorlevel%
@@ -119,8 +119,6 @@ if errorlevel 1 (
 echo Failure reason for deleting is %errorlevel%
 exit /b %errorlevel%
 )
-echo - Creating resource file -
-rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
@@ -142,7 +140,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://indy.fulgan.com/SSL/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
 if errorlevel 1 (
    echo Failure reason for downloading OpenSSL is %errorlevel%
    exit /b %errorlevel%
@@ -167,8 +165,6 @@ if errorlevel 1 (
    echo Failure reason for deleting is %errorlevel%
    exit /b %errorlevel%
 )
-echo - Creating resource file -
-rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
