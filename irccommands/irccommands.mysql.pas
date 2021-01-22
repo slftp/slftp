@@ -4,10 +4,10 @@ unit irccommands.mysql;
 interface
 
 { slftp mysql commands functions }
-function IrcSetMYSQLData(const netname, channel: string;params: string): Boolean;
-function IrcViewMYSQLValue(const netname, channel: string;params: string): Boolean;
-function IrcTweakMYSQL(const netname, channel: string;params: string): Boolean;
-function IrcMYSQLStatus(const netname, channel: string;params: string): Boolean;
+function IrcSetMYSQLData(const netname, channel, params: String): boolean;
+function IrcViewMYSQLValue(const netname, channel, params: String): boolean;
+function IrcTweakMYSQL(const netname, channel, params: String): boolean;
+function IrcMYSQLStatus(const netname, channel, params: String): boolean;
 
 implementation
 
