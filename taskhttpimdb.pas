@@ -565,8 +565,11 @@ var
 
   fHttpGetErrMsg: String;
   fRegExpr: TRegExpr;
-  fReleasenameLanguage: String;
+  fStrHelper: String;
   fReleasenameCountry: String;
+  fStringIndex1: Integer;
+  fStringIndex2: Integer;
+  i: Integer;
 
   fImdbMainPage: String;
   fImdbReleasePage: String;
@@ -582,7 +585,8 @@ var
   fIsFestival: Boolean;
   fIsWide: Boolean;
   fIsLimited: Boolean;
-  fStatusReason: String; // TODO: maybe improve to stringlist to save history if matched conditions
+  fStatusReason: String;
+  fStatusReasonList: TList<String>;
   fImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>;
   fImdbReleaseDateInfo: TIMDbReleaseDateInfo;
   fImdbReleaseDate: String;
@@ -626,6 +630,12 @@ begin
     end;
   end;
 
+  // TODO: json stuff of new layout
+  // startindex = Pos('type="application/json">', http_response);
+  // endindex = Pos('</script>', http_response, startindex);
+  // count := endindex - startindex;
+  // json := Copy(http_response, startindex + Length('type="application/json">'), count);
+
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
   begin
@@ -651,209 +661,241 @@ begin
   (* Fetch Genres *)
   THtmlIMDbParser.ParseMovieGenres(fImdbMainPage, fImdbGenre);
 
-  fStatusReason := '';
-  (* Check global STV status based on title *)
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fImdbTitleExtraInfo);
-  if fIsSTV then
-  begin
-    fStatusReason := 'STV due to title extra info: ' + fImdbTitleExtraInfo;
-  end;
 
-  (* Get IMDb releaseinfo page *)
-  if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/releaseinfo', fImdbReleasePage, fHttpGetErrMsg) then
-  begin
-    Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
-    irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
-    Result := True;
-    ready := True;
-    exit;
-  end;
+  // TODO:
+  // 1. BOM screens have highest priority for STV/Limited/Wide determination
+  // "Box Office Mojo by IMDbPro considers a movie in wide release or about to go wide when it is playing at 600 or more theaters, which generally indicates a nationwide release (the term is short for "nationwide").
+  // A movie is considered to be in limited release when playing at fewer than 600 theaters (i.e. released in one or more markets but not nationwide)."
 
-  (* Extract releaseinfo *)
-  fImdbReleaseDateInfoList := TObjectList<TIMDbReleaseDateInfo>.Create(True);
+  // 2. (fallback) /releaseinfo page info is used as fallback for STV determination in negative way -> wide = true at beginning and changed if e.g. dvd/tv
+  //    iterates through all infos to determine the final result but only determines STV as limited/wide is only done via bom screens
+
+  // 3. movie extra info have lowest priority as it might not indicate the correct info for each country
+
+  fIsSTV := False;
+  fIsLimited := False;
+  fIsWide := True;
+  fIsFestival := False;
+
+  fStatusReasonList := TList<String>.Create;
   try
-    THtmlIMDbParser.ParseReleaseDateInfo(fImdbReleasePage, fImdbReleaseDateInfoList);
+    (* Check global STV status based on title *)
+    fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fImdbTitleExtraInfo);
+    if fIsSTV then
+    begin
+      fStatusReasonList.Add(Format('STV due to title extra info: %s', [fImdbTitleExtraInfo]));
+      Debug(dpSpam, section, Format('Status from Releasename: %s', [fStatusReasonList.Last]));
+    end;
 
-        { NOTE: all that needs to be done separately for each dedicated releasename }
-        (* get language of release (should be moved later to kb? as it depends on the actual releasename) *)
-        if (ir.language <> 'English') then
-          fReleasenameLanguage := ir.language
-        else
-          fReleasenameLanguage := 'USA'; // could also be UK?
+    (* Check if it's a TV release *)
+    // if we get values for season or episode -> tv show which doesn't has any screens
+    getShowValues(FReleaseName, fTvShowname, fTvSeason, fTvEpisode);
+    if not ((fTvSeason > 0) or (fTvEpisode > 0) or (fTvSeason = Ord(tvDatedShow))
+           or (fTvSeason = Ord(tvRegularSerieWithoutSeason)) or (fTvEpisode = Ord(tvNoEpisodeTag))) then
+    begin
+      fIsSTV := True;
+      fStatusReasonList.Add(Format('STV due to being a TV show with season %d and/or episode %d', [fTvSeason, fTvEpisode]));
+      Debug(dpSpam, section, Format('Status from Releasename: %s', [fStatusReasonList.Last]));
+    end;
 
-        ir.Free; // TODO remove this
+    (* Get IMDb releaseinfo page *)
+    if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/releaseinfo', fImdbReleasePage, fHttpGetErrMsg) then
+    begin
+      Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask releaseinfo --> %s ', [fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask releaseinfo --> %s', [fHttpGetErrMsg]));
+      Result := True;
+      ready := True;
+      exit;
+    end;
 
-        fReleasenameCountry := TMapLanguageCountry.GetCountrynameByLanguage(fReleasenameLanguage);
-        Debug(dpSpam, section, Format('Release language %s maps to country %s', [fReleasenameLanguage, fReleasenameCountry]));
+    (* Extract releaseinfo *)
+    fImdbReleaseDateInfoList := TObjectList<TIMDbReleaseDateInfo>.Create(True);
+    try
+      THtmlIMDbParser.ParseReleaseDateInfo(fImdbReleasePage, fImdbReleaseDateInfoList);
 
-        for fImdbReleaseDateInfo in fImdbReleaseDateInfoList do
-        begin
-          if fImdbReleaseDateInfo.FCountry = fReleasenameCountry then
+          { NOTE: all that needs to be done separately for each dedicated releasename }
+          (* get language of release (should be moved later to kb? as it depends on the actual releasename) *)
+          if (ir.language <> 'English') then
+            fStrHelper := ir.language
+          else
+            fStrHelper := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+          fReleasenameCountry := TMapLanguageCountry.GetCountrynameByLanguage(fStrHelper);
+          Debug(dpSpam, section, Format('Release language %s maps to country %s', [ir.language, fReleasenameCountry]));
+          if fReleasenameCountry = '' then
           begin
-            fImdbReleaseDate := fImdbReleaseDateInfo.FReleaseDate;
-            fImdbRlsdateExtraInfo := fImdbReleaseDateInfo.FExtraInfo;
+            Debug(dpError, section, Format('[ERROR] No mapping for language %s to a country found', [ir.language]));
+            ready := True;
+            Result := True;
+            Exit;
+          end;
 
-            (* Fetching Cinedate *)
-            fImdbCineYear := StrToIntDef(Copy(fImdbReleaseDate, Length(fImdbReleaseDate) - 4, 4), 0);
+          // TODO: remove this in future code
+          ir.Free;
 
-            if fImdbRlsdateExtraInfo <> '' then
+          (* STV infos *)
+          for fImdbReleaseDateInfo in fImdbReleaseDateInfoList do
+          begin
+            if fImdbReleaseDateInfo.FCountry = fReleasenameCountry then
             begin
-              fRegExpr := TRegexpr.Create;
-              try
-                fRegExpr.ModifierI := True;
+              fImdbReleaseDate := fImdbReleaseDateInfo.FReleaseDate;
+              fImdbRlsdateExtraInfo := fImdbReleaseDateInfo.FExtraInfo;
 
-                (* STV infos *)
-                fRegExpr.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
-                if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
-                begin
-                  fIsSTV := True;
-                  fStatusReason := Format('STV in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, fImdbReleaseDate]);
-                  Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReason]));
-                end;
+              if fImdbRlsdateExtraInfo <> '' then
+              begin
+                fRegExpr := TRegexpr.Create;
+                try
+                  fRegExpr.ModifierI := True;
 
-                (* Festival infos *)
-                fRegExpr.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
-                if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
-                begin
-                  fIsFestival := True;
-                  fStatusReason := Format('Festival in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, fImdbReleaseDate]);
-                  Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReason]));
+                  fRegExpr.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
+                  if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
+                  begin
+                    fIsSTV := True;
+                    fStatusReasonList.Add(Format('STV in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, fImdbReleaseDate]));
+                    Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+                    Break;
+                  end;
+                finally
+                  fRegExpr.free;
                 end;
-              finally
-                fRegExpr.free;
               end;
             end;
           end;
-        end;
-        { NOTE: all that needs to be done separately for each dedicated releasename }
-  finally
-    fImdbReleaseDateInfoList.Free;
-  end;
 
-  if fIsSTV or fIsFestival then
-  begin
-    // cannot be cine
-    fImdbCineYear := 0;
-    Debug(dpSpam, section, Format('Movie with STV=%s | Festival=%s cannot have a cineyear', [BoolToStr(fIsSTV, True), BoolToStr(fIsFestival, True)]));
-  end;
+          (* Festival info is independent from STV/Limited/Wide -> screened on a festival for movie enthuastics *)
+          for fImdbReleaseDateInfo in fImdbReleaseDateInfoList do
+          begin
+            if fImdbReleaseDateInfo.FCountry = fReleasenameCountry then
+            begin
+              fImdbReleaseDate := fImdbReleaseDateInfo.FReleaseDate;
+              fImdbRlsdateExtraInfo := fImdbReleaseDateInfo.FExtraInfo;
 
+              if fImdbRlsdateExtraInfo <> '' then
+              begin
+                fRegExpr := TRegexpr.Create;
+                try
+                  fRegExpr.ModifierI := True;
 
-  (* Get Box Office Mojo main page *)
-  if not HttpGetUrl('https://www.boxofficemojo.com/title/' + FImdbTitleID + '/', fBomMainPage, fHttpGetErrMsg) then
-  begin
-    Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-    irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-    Result := True;
-    ready := True;
-    exit;
-  end;
+                  fRegExpr.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
+                  if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
+                  begin
+                    fIsFestival := True;
+                    fStatusReasonList.Add(Format('Festival in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, fImdbReleaseDate]));
+                    Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+                    Break;
+                  end;
+                finally
+                  fRegExpr.free;
+                end;
+              end;
+            end;
+          end;
 
-  (* Get links to each Country and from there the single screen counts *)
-  fBOMCountryLinks := TDictionary<String, String>.Create;
-  try
-    THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBOMCountryLinks);
+          (* Cinedate info *)
+          if not fIsSTV then
+          begin
+            // pick first entry where third row (extra info) is empty
+            for fImdbReleaseDateInfo in fImdbReleaseDateInfoList do
+            begin
+              if fImdbReleaseDateInfo.FCountry = fReleasenameCountry then
+              begin
+                fImdbReleaseDate := fImdbReleaseDateInfo.FReleaseDate;
+                fImdbRlsdateExtraInfo := fImdbReleaseDateInfo.FExtraInfo;
 
-    fBOMCountryScreens := TDictionary<String, Integer>.Create;
-    try
-      for fBOMCountryLinkPair in fBOMCountryLinks do
-      begin
-        // all links on original release page have this reference
-        if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
-        begin
-          Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-          irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-          Result := True;
-          ready := True;
-          exit;
-        end;
-
-        { NOTE: this needs to be saved }
-        fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
-      end;
-
-      { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
-      if not fBOMCountryScreens.TryGetValue(fReleasenameCountry, fBomScreensCount) then
-        fBomScreensCount := 0;
-      { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
+                if fImdbRlsdateExtraInfo = '' then
+                begin
+                  fImdbCineYear := StrToIntDef(Copy(fImdbReleaseDate, Length(fImdbReleaseDate) - 4, 4), 0);
+                  fStatusReasonList.Add(Format('Cine year for %s is %d taken from %s', [fReleasenameCountry, fImdbCineYear, fImdbReleaseDate]));
+                  Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+                  Break;
+                end;
+              end;
+            end;
+          end;
+          { NOTE: all that needs to be done separately for each dedicated releasename }
     finally
-      fBOMCountryScreens.Free;
+      fImdbReleaseDateInfoList.Free;
     end;
-  finally
-    fBOMCountryLinks.Free;
-  end;
 
 
-  (* Check if it's a TV release *)
-  getShowValues(FReleaseName, fTvShowname, fTvSeason, fTvEpisode); // if we get values for season or episode -> tv show which doesn't has any screens
-  if not ((fTvSeason > 0) or (fTvEpisode > 0) or (fTvSeason = Ord(tvDatedShow)) or (fTvSeason = Ord(tvRegularSerieWithoutSeason)) or (fTvEpisode = Ord(tvNoEpisodeTag))) then
-  begin
-    (* STV *)
-    fIsSTV := True;
-    fStatusReason := Format('STV due to being a TV show with season %d and/or episode %d', [fTvSeason, fTvEpisode]);
-    Debug(dpSpam, section, Format('Status from Releasename: %s', [fStatusReason]));
-  end;
+    (* Get Box Office Mojo main page *)
+    if not HttpGetUrl('https://www.boxofficemojo.com/title/' + FImdbTitleID + '/', fBomMainPage, fHttpGetErrMsg) then
+    begin
+      Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+      irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+      Result := True;
+      ready := True;
+      exit;
+    end;
 
+    (* Get links to each Country and from there the single screen counts *)
+    fBOMCountryLinks := TDictionary<String, String>.Create;
+    try
+      THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBOMCountryLinks);
 
-  (* Check screen count *)
-  if fReleasenameLanguage = 'English' then
-  begin
-    (* USA or UK *)
-    // TODO could be USA or UK -> get screen counts for both
+      fBOMCountryScreens := TDictionary<String, Integer>.Create;
+      try
+        for fBOMCountryLinkPair in fBOMCountryLinks do
+        begin
+          // all links on original release page have this reference
+          if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+          begin
+            Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+            Result := True;
+            ready := True;
+            exit;
+          end;
+
+          { NOTE: this needs to be saved }
+          fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+        end;
+
+        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
+        if not fBOMCountryScreens.TryGetValue(fReleasenameCountry, fBomScreensCount) then
+          fBomScreensCount := 0;
+        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
+      finally
+        fBOMCountryScreens.Free;
+      end;
+    finally
+      fBOMCountryLinks.Free;
+    end;
+
+    (* Check screen count *)
     if fBomScreensCount = 0 then
     begin
       fIsSTV := True;
       fIsLimited := False;
       fIsWide := False;
-      fStatusReason := Format('STV due to zero screens for USA and UK', []);
-      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReason]));
+      fStatusReasonList.Add(Format('STV due to screens count being zero for %s', [fReleasenameCountry]));
+      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
     end
-    else if (fBomScreensCount >= 250) or (fBomScreensCount < 500) then
+    else if (fBomScreensCount < 600) then
     begin
-      // TODO: might need to get USA and UK screens and check if USA>500 and UK>250 as this indicates wide release?
-      // better verify numbers on imdb page
+      // limited release when playing at fewer than 600 theaters
       fIsSTV := False;
       fIsLimited := True;
       fIsWide := False;
-      fStatusReason := Format('Limited due to screens %d between 250 and 500', [fBomScreensCount]);
-      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReason]));
+      fStatusReasonList.Add(Format('Limited due to screens %d < 600 for %s', [fBomScreensCount, fReleasenameCountry]));
+      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
     end
     else
     begin
+      // movie in wide release or about to go wide when it is playing at 600 or more theaters
       fIsSTV := False;
       fIsLimited := False;
       fIsWide := True;
-      fStatusReason := Format('Wide due to screens %d above 250 or 500', [fBomScreensCount]);
-      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReason]));
+      fStatusReasonList.Add(Format('Wide due to screens %d => 600 for %s', [fBomScreensCount, fReleasenameCountry]));
+      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
     end;
-  end
-  else
-  begin
-    (* others *)
-    // TODO: verify that screens>599 mean it's wide release
-    if (fBomScreensCount > 599) then
+
+    for i := 0 to fStatusReasonList.Count - 1 do
     begin
-      fIsSTV := False;
-      fIsLimited := False;
-      fIsWide := True;
-      fStatusReason := Format('Wide due to screens %d above 599', [fBomScreensCount]);
-      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReason]));
-    end
-    else if (fBomScreensCount > 0) then
-    begin
-      fIsSTV := False;
-      fIsLimited := True;
-      fIsWide := False;
-      fStatusReason := Format('Limited due to screens %d below 599', [fBomScreensCount]);
-      Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReason]));
-    end
-    else
-    begin
-      fIsSTV := True;
-      fIsLimited := False;
-      fIsWide := False;
-      // just log as some prior info should've determined the status already
-      Debug(dpSpam, section, Format('STV due to screens count being zero for country %s', [fReleasenameCountry]));
+      fStatusReason := fStatusReason + Format('%d - %s%s', [i + 1, fStatusReasonList[i], #13#10]);
     end;
+  finally
+    fStatusReasonList.Free;
   end;
 
 
