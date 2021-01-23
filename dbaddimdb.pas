@@ -17,7 +17,7 @@ type
 
     { Returns the Countryname for a given Language
       @param(aLanguage Name of Language)
-      @returns(Countryname @br @note(empty string if Language does not exist)) }
+      @returns(Countryname @br @note(empty string if Language->Country does not exist)) }
     class function GetCountrynameByLanguage(const aLanguage: String): String;
 
     property Language: String read FLanguage;
