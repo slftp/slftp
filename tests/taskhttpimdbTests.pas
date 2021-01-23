@@ -211,6 +211,10 @@ type
     procedure TestIsSTVBasedOnTitleExtraInfo2;
     procedure TestIsSTVBasedOnTitleExtraInfo3;
     procedure TestIsSTVBasedOnTitleExtraInfo4;
+    procedure TestEstimateEnglishCountryOrder1;
+    procedure TestEstimateEnglishCountryOrder2;
+    procedure TestEstimateEnglishCountryOrder3;
+    procedure TestEstimateEnglishCountryOrder4;
   end;
 
 implementation
@@ -1449,6 +1453,114 @@ begin
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
 
   CheckTrue(fIsSTV, 'STV mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder1;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt3450958_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder2;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0375568_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder3;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0455275_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('UK', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder4;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt7214470_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 initialization
