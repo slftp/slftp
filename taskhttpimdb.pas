@@ -97,6 +97,11 @@ type
       @param(aTitleExtraInfo Additional title information extracted via @link(ParseMetaTitleInformation))
       @returns(aIsSTV @True if extra info indicates that it's STV, @false otherwise) }
     class function IsSTVBasedOnTitleExtraInfo(const aTitleExtraInfo: String): Boolean;
+
+    { Checks which of the english language countries (USA or UK) is listed first in Country list on IMDb page
+      @param(aImdbCountries List of Countries from IMDb main page)
+      @returns(Abbreviation of the country names; in case none is listed it defaults to USA) }
+    class function EstimateEnglishCountryOrder(const aImdbCountries: String): String;
   end;
 
   TPazoHTTPImdbTask = class(TTask)
@@ -509,6 +514,38 @@ begin
   begin
     (* Videogame *)
     Result := True;
+  end;
+end;
+
+class function TIMDbInfoChecks.EstimateEnglishCountryOrder(const aImdbCountries: String): String;
+var
+  fStringIndex1: Integer;
+  fStringIndex2: Integer;
+begin
+  // get index to check which country is listed first
+  fStringIndex1 := aImdbCountries.IndexOf('USA');
+  // fStringIndex1 := aImdbCountries.IndexOf('United States');
+  fStringIndex2 := aImdbCountries.IndexOf('UK');
+  // fStringIndex2 := aImdbCountries.IndexOf('United Kingdom');
+
+  // pick first one with according country representation used in slftp
+  if ((fStringIndex1 <> -1) and (fStringIndex2 <> -1)) then
+  begin
+    // both are listed, take the first occurring one
+    if fStringIndex1 < fStringIndex2 then
+      Result := 'USA'
+    else
+      Result := 'UK';
+  end
+  else if (fStringIndex2 <> -1) then
+  begin
+    // only UK is listed
+    Result := 'UK';
+  end
+  else
+  begin
+    // USA is listed or used as default fallback
+    Result := 'USA';
   end;
 end;
 
