@@ -79,6 +79,16 @@ type
   { @abstract(Extracts Box Office information from boxofficemojo.com HTML page source) }
   THtmlBoxOfficeMojoParser = class
   public
+    { Checks if the given webpage lists infos for different release groups
+      @param(aPageSource Webpage HTML sourcecode)
+      @returns(@true if it lists 'By Release', @false otherwise) }
+    class function ListsOnlyReleaseGroups(const aPageSource: String): Boolean;
+
+    { Parses the release groups and links from the title overview page which are shown only if a movie e.g. had some re-releases
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aReleaseGroupLinks Release Group and link to the country information for this release group) }
+    class procedure GetGroupSpecificLinks(const aPageSource: String; out aReleaseGroupLinks: TDictionary<String, String>);
+
     { Parses countries (only includes one from slftp.imdbcountries) and links from the title overview page @br @note(Domestic gets renamed to USA, United Kingdom gets renamed to UK)
       @param(aPageSource Webpage HTML sourcecode)
       @param(aCountryLinks Countryname and link to the release information) }
@@ -441,6 +451,37 @@ end;
 
 { THtmlBoxOfficeMojoParser }
 
+class function THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(const aPageSource: String): Boolean;
+begin
+  Result := aPageSource.Contains('<h3 class="a-spacing-base">By Release</h3>');
+end;
+
+class procedure THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(const aPageSource: String; out aReleaseGroupLinks: TDictionary<String, String>);
+var
+  rr: TRegExpr;
+  fLink: String;
+  fReleaseGroup: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    // only get the matches in 'Release Group' column
+    rr.Expression := '<tr>.*?<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      repeat
+        fLink := Trim(rr.Match[1]);
+        fReleaseGroup := Trim(rr.Match[2]);
+
+        aReleaseGroupLinks.Add(fReleaseGroup, fLink);
+      until not rr.ExecNext;
+    end;
+  finally
+    rr.Free;
+  end;
+end;
+
 class procedure THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
 var
   rr: TRegExpr;
@@ -598,9 +639,11 @@ var
   fTvEpisode: Int64;
 
   fBomMainPage: String;
+  fBomGroupUrl: String;
   fBomCountryPage: String;
+  fBOMReleaseGroups: TDictionary<String, String>; // release group and link
   fBOMCountryLinks: TDictionary<String, String>; // countryname and release link
-  fBOMCountryLinkPair: TPair<String, String>;
+  fBOMReleaseGroupPair, fBOMCountryLinkPair: TPair<String, String>;
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
   fBomScreensCount: Integer;
 begin
@@ -826,6 +869,44 @@ begin
       Result := True;
       ready := True;
       exit;
+    end;
+
+    (* Check if it shows different Release Groups (e.g. has re-releases) as this needs different handling first *)
+    if THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(fBomMainPage) then
+    begin
+      fBOMReleaseGroups := TDictionary<String, String>.Create;
+      try
+        THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(fBomMainPage, fBOMReleaseGroups);
+
+        for fBOMReleaseGroupPair in fBOMReleaseGroups do
+        begin
+          fBomGroupUrl := fBOMReleaseGroupPair.Value;
+          Debug(dpSpam, section, Format('[BOM] The mainpage contains release groups - fetching %s with link %s', [fBOMReleaseGroupPair.Key, fBOMReleaseGroupPair.Value]));
+          Break;
+        end;
+      finally
+        fBOMReleaseGroups.Free;
+      end;
+
+      if fBomGroupUrl = '' then
+      begin
+        // no link found -> exit
+        // TODO: maybe implement a better way instead of full aborting...
+        Debug(dpMessage, section, Format('[FAILED] BoxOfficeMojo Release Group links not found for %s', [FImdbTitleID]));
+        irc_Adderror(Format('<c4>[FAILED]</c> BoxOfficeMojo Release Group links not found for %s', [FImdbTitleID]));
+        Result := True;
+        ready := True;
+        exit;
+      end;
+
+      if not HttpGetUrl('https://www.boxofficemojo.com' + fBomGroupUrl + '/', fBomMainPage, fHttpGetErrMsg) then
+      begin
+        Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+        irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+        Result := True;
+        ready := True;
+        exit;
+      end;
     end;
 
     (* Get links to each Country and from there the single screen counts *)
