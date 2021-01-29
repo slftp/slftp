@@ -46,9 +46,9 @@ type
 
     { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
       @param(aPageSource Webpage HTML sourcecode)
-      @param(aVotes Votes of the movie)
-      @param(aRating Rating of the movie) }
-    class procedure ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: String);
+      @param(aVotes Votes of the movie, default value is 0)
+      @param(aRating Rating of the movie, default value is 0) }
+    class procedure ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: Integer);
 
     { Parses language(s)
       @param(aPageSource Webpage HTML sourcecode)
@@ -172,7 +172,7 @@ begin
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: String);
+class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: Integer);
 type
   TRegexItem = record
     RegexString: String; // regex
@@ -205,10 +205,8 @@ const
 var
   rr: TRegExpr;
   fRegexItem: TRegexItem;
+  fVotes, fRating: String;
 begin
-  aVotes := '0';
-  aRating := '0';
-
   rr := TRegExpr.Create;
   try
     rr.ModifierI := True;
@@ -218,7 +216,7 @@ begin
       rr.Expression := fRegexItem.RegexString;
       if rr.Exec(aPageSource) then
       begin
-        aVotes := rr.Match[fRegexItem.MatchIndex];
+        fVotes := rr.Match[fRegexItem.MatchIndex];
         break;
       end;
     end;
@@ -228,7 +226,7 @@ begin
       rr.Expression := fRegexItem.RegexString;
       if rr.Exec(aPageSource) then
       begin
-        aRating := rr.Match[fRegexItem.MatchIndex];
+        fRating := rr.Match[fRegexItem.MatchIndex];
         break;
       end;
     end;
@@ -236,11 +234,13 @@ begin
     rr.Free;
   end;
 
-  aVotes := StringReplace(aVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  aVotes := StringReplace(aVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+  fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
+  fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+  aVotes := StrToIntDef(fVotes, 0);
 
-  aRating := StringReplace(aRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  aRating := StringReplace(aRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+  fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+  fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+  aRating := StrToIntDef(fRating, 0);
 end;
 
 class procedure THtmlIMDbParser.ParseMovieLanguage(const aPageSource: String; out aLanguageList: String);
@@ -617,8 +617,8 @@ var
   fImdbOriginalTitle: String;
   FImdbYear: Integer;
   fImdbTitleExtraInfo: String;
-  fImdbVotes: String;
-  fImdbRating: String;
+  fImdbVotes: Integer;
+  fImdbRating: Integer;
   fImdbLanguage: String;
   fImdbCountry: String;
   fImdbGenre: String;
@@ -988,8 +988,8 @@ begin
   imdbdata.imdb_countries.CommaText := fImdbCountry;
   imdbdata.imdb_genres.CommaText := fImdbGenre;
   imdbdata.imdb_screens := fBomScreensCount;
-  imdbdata.imdb_rating := StrToIntDef(fImdbRating, 0);
-  imdbdata.imdb_votes := StrToIntDef(fImdbVotes, 0);
+  imdbdata.imdb_rating := fImdbRating;
+  imdbdata.imdb_votes := fImdbVotes;
   imdbdata.imdb_cineyear := fImdbCineYear;
   imdbdata.imdb_ldt := fIsLimited;
   imdbdata.imdb_wide := fIsWide;
