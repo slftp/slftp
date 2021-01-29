@@ -319,7 +319,7 @@ end;
 procedure TTestTHtmlIMDbParser.TestParseNoVotesAndNoRating;
 var
   fPageSource: String;
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   // tt0816352
   fPageSource := '    <div class="star-rating-button"><button> <span class="star-rating-star no-rating"></span>' +
@@ -327,8 +327,8 @@ begin
 
   THtmlIMDbParser.ParseVotesAndRating(fPageSource, fVotes, fRating);
 
-  CheckEqualsString('0', fVotes, 'Votes mismatch');
-  CheckEqualsString('0', fRating, 'Rating mismatch');
+  CheckEquals(0, fVotes, 'Votes mismatch');
+  CheckEquals(0, fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
@@ -374,12 +374,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('226530', fVotes, 'Votes mismatch');
-  CheckEqualsString('74', fRating, 'Rating mismatch');
+  CheckTrue(226000 < fVotes, 'Votes mismatch');
+  CheckTrue(228000 > fVotes, 'Votes mismatch');
+  CheckTrue(73 < fRating, 'Rating mismatch');
+  CheckTrue(76 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieLanguage;
@@ -518,12 +520,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('471864', fVotes, 'Votes mismatch');
-  CheckEqualsString('83', fRating, 'Rating mismatch');
+  CheckTrue(470000 < fVotes, 'Votes mismatch');
+  CheckTrue(480000 > fVotes, 'Votes mismatch');
+  CheckTrue(80 < fRating, 'Rating mismatch');
+  CheckTrue(86 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseMovieLanguage;
@@ -658,12 +662,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt7214470.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('1230', fVotes, 'Votes mismatch');
-  CheckEqualsString('42', fRating, 'Rating mismatch');
+  CheckTrue(1000 < fVotes, 'Votes mismatch');
+  CheckTrue(1500 > fVotes, 'Votes mismatch');
+  CheckTrue(39 < fRating, 'Rating mismatch');
+  CheckTrue(47 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7214470.TestParseMovieLanguage;
@@ -798,12 +804,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('1041', fVotes, 'Votes mismatch');
-  CheckEqualsString('52', fRating, 'Rating mismatch');
+  CheckTrue(1000 < fVotes, 'Votes mismatch');
+  CheckTrue(1800 > fVotes, 'Votes mismatch');
+  CheckTrue(50 < fRating, 'Rating mismatch');
+  CheckTrue(58 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseMovieLanguage;
@@ -928,12 +936,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('2608', fVotes, 'Votes mismatch');
-  CheckEqualsString('77', fRating, 'Rating mismatch');
+  CheckTrue(2700 < fVotes, 'Votes mismatch');
+  CheckTrue(4000 > fVotes, 'Votes mismatch');
+  CheckTrue(74 < fRating, 'Rating mismatch');
+  CheckTrue(81 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseMovieLanguage;
@@ -1063,12 +1073,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('33054', fVotes, 'Votes mismatch');
-  CheckEqualsString('63', fRating, 'Rating mismatch');
+  CheckTrue(31000 < fVotes, 'Votes mismatch');
+  CheckTrue(39000 > fVotes, 'Votes mismatch');
+  CheckTrue(59 < fRating, 'Rating mismatch');
+  CheckTrue(68 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieLanguage;
