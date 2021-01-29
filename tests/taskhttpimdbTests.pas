@@ -164,6 +164,7 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountFrance;
@@ -182,6 +183,7 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountUK;
@@ -199,10 +201,30 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountSpain;
     procedure TestGetWidestScreensCountGermany;
+  end;
+
+  { Ghostbusters (1984) }
+  TTestTHtmlBoxOfficeMojoParser_tt0087332 = class(TTestCase)
+  private
+    FOverviewPage: String;
+    FOriginalReleasePage: String;
+    FUSAReleasePage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestListsOnlyReleaseGroups;
+    procedure TestGetGroupSpecificLinks;
+    procedure TestGetCountrySpecificLinks;
+    procedure TestGetWidestScreensCountUSA;
   end;
 
   TTestTIMDbInfoChecks = class(TTestCase)
@@ -1190,6 +1212,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1270,6 +1301,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1337,6 +1377,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1389,6 +1438,94 @@ begin
   fScreens := THtmlBoxOfficeMojoParser.GetWidestScreensCount(FGermanyReleasePage);
 
   CheckEquals(932, fScreens, 'Screens count mismatch');
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOM', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOverviewPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOMOrigRel', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOriginalReleasePage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOMREL', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FUSAReleasePage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckTrue(fOnlyReleaseGroups, 'Should lists release groups');
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetGroupSpecificLinks;
+var
+  fBOMGroupReleaseLinks: TDictionary<String, String>;
+begin
+  fBOMGroupReleaseLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(FOverviewPage, fBOMGroupReleaseLinks);
+
+    CheckEquals(6, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    CheckEqualsString('/releasegroup/gr2193641989', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2210419205', fBOMGroupReleaseLinks.Items['1985 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2160087557', fBOMGroupReleaseLinks.Items['2011 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2176864773', fBOMGroupReleaseLinks.Items['30th Anniversary Release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2260750853', fBOMGroupReleaseLinks.Items['2019 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr3449901573', fBOMGroupReleaseLinks.Items['2020 Re-release'], 'Link mismatch');
+  finally
+    fBOMGroupReleaseLinks.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetCountrySpecificLinks;
+var
+  fBOMCountryLinks: TDictionary<String, String>;
+begin
+  fBOMCountryLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOriginalReleasePage, fBOMCountryLinks);
+
+    CheckEquals(1, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEqualsString('/release/rl3696592385', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+  finally
+    fBOMCountryLinks.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetWidestScreensCountUSA;
+var
+  fScreens: Integer;
+begin
+  fScreens := THtmlBoxOfficeMojoParser.GetWidestScreensCount(FUSAReleasePage);
+
+  CheckEquals(1506, fScreens, 'Screens count mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo1;
@@ -1577,6 +1714,7 @@ initialization
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt5093026', TTestTHtmlBoxOfficeMojoParser_tt5093026.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0375568', TTestTHtmlBoxOfficeMojoParser_tt0375568.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt3450958', TTestTHtmlBoxOfficeMojoParser_tt3450958.Suite);
+    RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0087332', TTestTHtmlBoxOfficeMojoParser_tt0087332.Suite);
 
     RegisterTest('TTestTIMDbInfoChecks', TTestTIMDbInfoChecks.Suite);
   {$ELSE}
@@ -1592,6 +1730,7 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt5093026);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0375568);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt3450958);
+    TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0087332);
 
     TDUnitX.RegisterTestFixture(TTestTIMDbInfoChecks);
   {$ENDIF}
