@@ -1,4 +1,4 @@
-"""Script for downloading latest HTML pagesource"""
+﻿"""Script for downloading latest HTML pagesource"""
 
 import os
 import urllib.request
@@ -7,11 +7,16 @@ import re
 
 IMDB_MOVIE_IDS = ["tt0375568", "tt11095742",
                   "tt7214470", "tt7728344", "tt0455275", "tt3450958"]
-BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958"]
+BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958", "tt0087332"]
 BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl3947005441"},
                 {"ID": "tt5093026", "Country": "France",
                     "Link": "/release/rl4152788737"},
-                {"ID": "tt3450958", "Country": "Germany", "Link": "/release/rl1965786625"}]
+                {"ID": "tt3450958", "Country": "Germany",
+                    "Link": "/release/rl1965786625"},
+                # special case with several re-releases
+                {"ID": "tt0087332", "Country": "Original Release",
+                    "Link": "/releasegroup/gr2193641989"},
+                {"ID": "tt0087332", "Country": "USA", "Link": "/release/rl3696592385"}]
 
 
 def __save_to_file(filename, content):
@@ -38,7 +43,7 @@ def get_latest_pagesource(url) -> str:
         try:
             #content = urllib.request.urlopen(url).read().decode('utf-8')
             req = urllib.request.Request(url, headers={
-                                         'User-Agent': ' Mozilla/5.0 (Windows NT 6.1; WOW64; rv:84.0) Gecko/20100101 Firefox/84.0', "Accept-Language": "en-US,en;q=0.5"})
+                                         'User-Agent': ' Mozilla/5.0 (Windows NT 6.1; WOW64; rv:87.0) Gecko/20100101 Firefox/87.0', "Accept-Language": "en-US,en;q=0.5"})
             content = urllib.request.urlopen(req).read().decode('utf-8')
             break
         except urllib.request.HTTPError:
@@ -124,7 +129,12 @@ for item in BOM_RELEASES:
         website_country = "Domestic"
     else:
         website_country = item["Country"]
-    regex = r'<a class="a-link-normal" href="(\/release\/rl\d+).*?">(.*?)<\/a>'
+
+    if website_country != 'Original Release':
+        regex = r'<a class="a-link-normal" href="(\/release\/rl\d+).*?">(.*?)<\/a>'
+    else:
+        regex = r'<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>'
+
     match = re.findall(regex, htmlcode)
     if match:
         for url, name in match:
