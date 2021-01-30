@@ -21,9 +21,7 @@ type
   @value(sslAuthTlsTLSv1_2 AUTH TLS then ssl handshake using TLSv1.2)
   @value(sslImplicitTLSv1_2 implicit ssl handshake using TLSv1.2 after TCP connection was established)
   }
-  TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
-    sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
-    sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+  TSSLMethods = (sslNone, sslImplicitSSL, sslAuthSsl, sslAuthTLS);
 
   {
   @value(sfUnknown unknown feature flag)
@@ -655,14 +653,9 @@ begin
   Result := 'Unknown';
   case TSite(aSite).sslmethod of
     sslNone: Result := ' no encryption used';
-    sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
-    sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
-    sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
-    sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
-    sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
-    sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
-    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv1.2';
-    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv1.2 after TCP connection was established';
+    sslImplicitSSL: Result := ' Implicit SSL';
+    sslAuthSsl: Result := ' AUTH SSL';
+    sslAuthTLS: Result := ' AUTH TLS';
   end;
 end;
 
@@ -1358,12 +1351,9 @@ begin
   localport := slSocket.localPort;
 
   sslm := TSSLMethods(site.sslmethod);
-  if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
+  if sslm in [sslImplicitSSL] then
   begin
-    if sslm = sslImplicitTLSv1_2 then
-      SetSSLContext(slTLSv1_2)
-    else
-      SetSSLContext(slTLSv1);
+    SetSSLContext();
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
   end;
@@ -1378,18 +1368,11 @@ begin
     exit;
   end;
 
-  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23, sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
+  if (sslm in [sslAuthSsl, sslAuthTls]) then
   begin
-    if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
-      SetSSLContext(slSslv23);
+    SetSSLContext();
 
-    if sslm in [sslAuthTlsTLSv1] then
-      SetSSLContext(slTLSv1);
-
-    if sslm in [sslAuthTlsTLSv1_2] then
-      SetSSLContext(slTLSv1_2);
-
-    if sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1] then
+    if sslm in [sslAuthSsl] then
       tmp := 'AUTH SSL'
     else
       tmp := 'AUTH TLS';
@@ -2626,7 +2609,7 @@ end;
 
 function TSite.Getsslmethod: TSSLMethods;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1_2)));
+  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTls)));
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);

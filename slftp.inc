@@ -8,6 +8,6 @@ const
   CC_MasterK: string = 'masterpass.txt';
 
   (* libraries *)
-  lib_OpenSSL: string = '1.0.2';
+  lib_OpenSSL: string = '1.1.1';
   lib_Ncurses: string = 'ncurses 5.5.';
   lib_SQLite3: string = '3.30';

@@ -21,7 +21,6 @@ const
 
 
 type
-  TslSSLMethod = (slSSLv23, slTLSv1,slTLSv1_2);
 
   TslSocks5 = class
     enabled: Boolean;
@@ -51,7 +50,7 @@ type
     function ShouldQuit: Boolean;
     function Reuse(b: Integer): Boolean;
   protected
-    procedure SetSSLContext(m: TslSSLMethod);
+    procedure SetSSLContext();
   public
     slSocket: TslSocket;
     Host: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
@@ -267,7 +266,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
+  fSSLCTX:= slSSL_CTX_tls_client; // thx to glftpd dev for the heads up!
 //  fSSLCTX:= slssl_ctx_tlsv1_2_client;
 
   socks5:= TslSocks5.Create;
@@ -295,7 +294,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
+  fSSLCTX:= slSSL_CTX_tls_client; // thx to glftpd dev for the heads up!
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
@@ -1304,13 +1303,9 @@ begin
   Result:= True;
 end;
 
-procedure TslTCPSocket.SetSSLContext(m: TslSSLMethod);
+procedure TslTCPSocket.SetSSLContext();
 begin
-  if m = slSSLv23 then
-    fSSLCTX:= slSSL_CTX_sslv23_client;
-if m = slTLSv1 then    fSSLCTX:= slSSL_CTX_tlsv1_client;
-if m = slTLSv1_2 then    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
-
+    fSSLCTX:= slSSL_CTX_tls_client;
 end;
 
 function TslTCPSocket.connected: Boolean;
@@ -1497,7 +1492,7 @@ begin
 
   FreeCTX;
 
-  fsslctx:= slSSL_CTX_new(slTLSv1_2_server_method());
+  fsslctx:= slSSL_CTX_new(slTLS_server_method());
   if nil = fsslctx then
   begin
     error:= slSSL_LastError();

@@ -108,16 +108,12 @@ const
 
 var slssl_inited: Boolean = False;
     slssl_error: String;
-    slssl_ctx_sslv23_client: PSSL_CTX = nil;
-    slssl_ctx_tlsv1_client: PSSL_CTX = nil;
-    slssl_ctx_tlsv1_2_client: PSSL_CTX = nil;
+    slssl_ctx_tls_client: PSSL_CTX = nil;
 
 
   slRAND_Screen : procedure cdecl = nil;
-  slOpenSSL_add_all_digests : procedure cdecl = nil;
   slOpenSSL_add_all_ciphers : procedure cdecl = nil;
   slSSLeay_version: function(vertype: Integer): PAnsiChar cdecl = nil;
-  slEVP_cleanup : procedure cdecl = nil;
 
   slSSL_CTX_set_cipher_list : function(arg0: PSSL_CTX; str: PAnsiChar):Integer cdecl = nil;
   slSSL_CTX_new : function(meth: PSSL_METHOD):PSSL_CTX cdecl = nil;
@@ -134,23 +130,14 @@ var slssl_inited: Boolean = False;
   slSSL_shutdown : function(s: PSSL):Integer cdecl = nil;
   slSSL_get_error : function(s: PSSL; ret_code: Integer):Integer cdecl = nil;
 
-  slSSLv3_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv3_server_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv3_client_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv23_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv23_server_method : function:PSSL_METHOD cdecl = nil;
-  slSSLv23_client_method : function:PSSL_METHOD cdecl = nil;
-  slTLSv1_method : function:PSSL_METHOD cdecl = nil;
-  slTLSv1_server_method : function:PSSL_METHOD cdecl = nil;
-  slTLSv1_client_method : function:PSSL_METHOD cdecl = nil;
+  slTLS_method : function:PSSL_METHOD cdecl = nil;
+  slTLS_server_method : function:PSSL_METHOD cdecl = nil;
+  slTLS_client_method : function:PSSL_METHOD cdecl = nil;
 
-  slTLSv1_2_method : function:PSSL_METHOD cdecl = nil;
-  slTLSv1_2_server_method : function:PSSL_METHOD cdecl = nil;
-  slTLSv1_2_client_method : function:PSSL_METHOD cdecl = nil;
 
   slSSL_library_init: procedure cdecl = nil;
+  slSSL_crypto_init: procedure cdecl = nil;
   slENGINE_load_builtin_engines: procedure cdecl = nil;
-  slSSL_load_error_strings : procedure cdecl = nil;
   slERR_get_error: function: Cardinal cdecl = nil;
   slERR_error_string: function(e: Cardinal; buf: PAnsiChar): PAnsiChar cdecl = nil;
 
@@ -158,15 +145,6 @@ var slssl_inited: Boolean = False;
   slSSL_CTX_set_options: function(ctx: PSSL_CTX; op: Longint):Longint cdecl = nil;
   slSSL_CTX_set_mode: function(ctx: PSSL_CTX; mode: Longint): Longint cdecl = nil;
   slSSL_CTX_set_session_cache_mode: function(ctx: PSSL_CTX; mode: LongInt): Longint cdecl = nil;
-
-
-  // locking callback functions
-  slCRYPTO_set_locking_callback : procedure(cb: Pointer); cdecl = nil;
-  slCRYPTO_num_locks : function: Longint; cdecl = nil;
-  slCRYPTO_set_id_callback :  procedure(cb: Pointer); cdecl = nil;
-  slCRYPTO_set_dynlock_create_callback : procedure(cb: Pointer); cdecl = nil;
-  slCRYPTO_set_dynlock_lock_callback : procedure(cb: Pointer); cdecl = nil;
-  slCRYPTO_set_dynlock_destroy_callback : procedure(cb: Pointer); cdecl = nil;
 
 
   // pem generalashoz fuggvenyek
@@ -220,8 +198,8 @@ uses
 
 const
   {$IFDEF MSWINDOWS}
-  slSsl_libssl_name         = 'ssleay32.dll';  {Do not localize}
-  slSsl_libcrypto_name      = 'libeay32.dll';  {Do not localize}
+  slSsl_libssl_name         = 'libssl-1_1-x64.dll';  {Do not localize}
+  slSsl_libcrypto_name      = 'libcrypto-1_1-x64.dll';  {Do not localize}
   {$ELSE}
   slSsl_libssl_name         = 'libssl.so'; {Do not localize}
   slSsl_libcrypto_name      = 'libcrypto.so'; {Do not localize}
@@ -238,12 +216,8 @@ const
   OPENSSL_SSLEAY_VERSION = 0;
 
 
-  fn_EVP_cleanup = 'EVP_cleanup';  {Do not localize}
   fn_SSL_shutdown = 'SSL_shutdown';  {Do not localize}
-  fn_SSL_load_error_strings = 'SSL_load_error_strings';  {Do not localize}
   fn_RAND_screen = 'RAND_screen';  {Do not localize}
-  fn_OpenSSL_add_all_digests = 'OpenSSL_add_all_digests';  {Do not localize}
-  fn_OpenSSL_add_all_ciphers = 'OpenSSL_add_all_ciphers';  {Do not localize}
 
   fn_SSL_CTX_set_cipher_list = 'SSL_CTX_set_cipher_list';  {Do not localize}
   fn_SSL_CTX_new = 'SSL_CTX_new';  {Do not localize}
@@ -258,21 +232,13 @@ const
   fn_SSL_peek = 'SSL_peek';  {Do not localize}
   fn_SSL_write = 'SSL_write';  {Do not localize}
   fn_SSL_get_error = 'SSL_get_error';  {Do not localize}
-  fn_SSLeay_version = 'SSLeay_version';  {Do not localize}
 
-  fn_SSLv3_method = 'SSLv3_method';  {Do not localize}
-  fn_SSLv3_server_method = 'SSLv3_server_method';  {Do not localize}
-  fn_SSLv3_client_method = 'SSLv3_client_method';  {Do not localize}
-  fn_SSLv23_method = 'SSLv23_method';  {Do not localize}
-  fn_SSLv23_server_method = 'SSLv23_server_method';  {Do not localize}
-  fn_SSLv23_client_method = 'SSLv23_client_method';  {Do not localize}
-  fn_TLSv1_method = 'TLSv1_method';  {Do not localize}
-  fn_TLSv1_server_method = 'TLSv1_server_method';  {Do not localize}
-  fn_TLSv1_client_method = 'TLSv1_client_method';  {Do not localize}
+  fn_OpenSSL_version = 'OpenSSL_version';  {Do not localize}
 
-  fn_TLSv1_2_method = 'TLSv1_2_method';  {Do not localize}
-  fn_TLSv1_2_server_method = 'TLSv1_2_server_method';  {Do not localize}
-  fn_TLSv1_2_client_method = 'TLSv1_2_client_method';  {Do not localize}
+  fn_TLS_method = 'TLS_method';   {Do not localize}
+  fn_TLS_server_method = 'TLS_server_method';  {Do not localize}
+  fn_TLS_client_method = 'TLS_client_method';  {Do not localize}
+
 
 
   fn_SSL_CTX_set_default_verify_paths = 'SSL_CTX_set_default_verify_paths';  {Do not localize}
@@ -280,7 +246,8 @@ const
   fn_SSL_CTX_set_mode = 'SSL_CTX_set_mode';  {Do not localize}
   fn_SSL_CTX_set_session_cache_mode = 'SSL_CTX_set_session_cache_mode';
 
-  fn_SSL_library_init = 'SSL_library_init';
+  fn_OPENSSL_init_ssl = 'OPENSSL_init_ssl';
+  fn_OPENSSL_init_crypto = 'OPENSSL_init_crypto';
   fn_ENGINE_load_builtin_engines = 'ENGINE_load_builtin_engines';
   fn_ERR_error_string = 'ERR_error_string';
   fn_ERR_get_error = 'ERR_get_error';
@@ -311,14 +278,6 @@ const
   fn_SSL_CTX_use_certificate_chain_file = 'SSL_CTX_use_certificate_chain_file';  {Do not localize}
   fn_SSL_CTX_use_PrivateKey_file = 'SSL_CTX_use_PrivateKey_file';
   fn_SSL_CTX_check_private_key = 'SSL_CTX_check_private_key';
-
-  // locking callbacks
-  fn_CRYPTO_set_locking_callback         = 'CRYPTO_set_locking_callback';
-  fn_CRYPTO_num_locks                    = 'CRYPTO_num_locks';
-  fn_CRYPTO_set_id_callback              = 'CRYPTO_set_id_callback';
-  fn_CRYPTO_set_dynlock_create_callback  = 'CRYPTO_set_dynlock_create_callback';
-  fn_CRYPTO_set_dynlock_lock_callback    = 'CRYPTO_set_dynlock_lock_callback';
-  fn_CRYPTO_set_dynlock_destroy_callback = 'CRYPTO_set_dynlock_destroy_callback';
 
 
 function OpenSSLVersion: String;
@@ -358,196 +317,6 @@ begin
     Result:= True;
 end;
 
-{$IFDEF MSWINDOWS}
-type PslHandle = ^THandle;
-type TslCallBackLocks = array of THandle;
-var callback_locks: TslCallBackLocks =nil;
-
-function win32_dyn_create_function(filename: PAnsiChar; line: LongInt): PslHandle;
-begin
-  GetMem(Result, SizeOf(THandle));
-  if Result = nil then exit;
-  Result^:= CreateMutex(nil, False, nil);
-end;
-procedure win32_dyn_destroy_function(l: PslHandle; filename: PAnsiChar; line: LongInt);
-begin
-  if l = nil then exit;
-
-  CloseHandle(l^);
-  FreeMem(l);
-end;
-procedure win32_dyn_lock_function(mode: LongInt; l: PslHandle; filename: PAnsiChar; line: LongInt);
-begin
-  if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-    WaitForSingleObject(l^,INFINITE)
-  else
-    ReleaseMutex(l^);
-end;
-
-procedure win32_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
-begin
-  if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-    WaitForSingleObject(callback_locks[ltype],INFINITE)
-  else
-    ReleaseMutex(callback_locks[ltype]);
-end;
-procedure slSsl_Setup_Locking_Callbacks;
-var i: Integer;
-begin
-  SetLength(callback_locks, slCRYPTO_num_locks());
-  for i:= 0 to slCRYPTO_num_locks() -1 do
-    callback_locks[i]:= CreateMutex(nil, False, nil);
-
-  slCRYPTO_set_locking_callback(@win32_locking_callback);
-  (* id callback defined  ?! *)
-
-  slCRYPTO_set_dynlock_create_callback(@win32_dyn_create_function);
-  slCRYPTO_set_dynlock_lock_callback(@win32_dyn_lock_function);
-  slCRYPTO_set_dynlock_destroy_callback(@win32_dyn_destroy_function);
-
-end;
-procedure slSsl_Cleanup_Locking_Callbacks;
-var i: Integer;
-begin
-  slCRYPTO_set_dynlock_create_callback(nil);
-  slCRYPTO_set_dynlock_lock_callback(nil);
-  slCRYPTO_set_dynlock_destroy_callback(nil);
-
-  slCRYPTO_set_locking_callback(nil);
-  for i:= 0 to slCRYPTO_num_locks()-1 do
-    CloseHandle(callback_locks[i]);
-
-  SetLength(callback_locks, 0);
-end;
-{$ELSE}
-
-type
-  TslCallBackLocks = array of TPthreadMutex;
-{$IFNDEF FPC}
-  TslLockHandle = record
-    lock: TRtlCriticalSection;
-  end;
-{$ELSE}
-  TslLockHandle = record
-    lock: TPthreadMutex;
-  end;
-{$ENDIF}
-  PslLockHandle = ^TslLockHandle;
-
-var callback_locks: TslCallBackLocks =nil;
-
-function pthreads_dyn_create_function(filename: PAnsiChar; line: LongInt): PslLockHandle;
-begin
-  GetMem(Result, SizeOf(TslLockHandle));
-
-  if Result = nil then exit;
-
-{$IFDEF FPC}
-  pthread_mutex_init(@(Result^.lock),nil);
-{$ELSE}
-  pthread_mutex_init(Result^.lock,nil);
-{$ENDIF}
-
-end;
-procedure pthreads_dyn_destroy_function(l: PslLockHandle; filename: PAnsiChar; line: LongInt);
-begin
-  if l = nil then exit;
-
-  //pthread_mutex_destroy(l^.lock);
-{$IFDEF FPC}
-  pthread_mutex_destroy(@(l^.lock));
-{$ELSE}
-  pthread_mutex_destroy(l^.lock);
-{$ENDIF}
-
-  FreeMem(l);
-end;
-procedure pthreads_dyn_lock_function(mode: LongInt; l: PslLockHandle; filename: PAnsiChar; line: LongInt);
-begin
-  if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-
-    //pthread_mutex_lock(l^.lock)
-                {$IFDEF FPC}
-                pthread_mutex_lock(@(l^.lock))
-                {$ELSE}
-                pthread_mutex_lock(l^.lock)
-                {$ENDIF}
-
-  else
-    //pthread_mutex_unlock(l^.lock);
-
-                {$IFDEF FPC}
-                pthread_mutex_unlock(@(l^.lock));
-                {$ELSE}
-                pthread_mutex_unlock(l^.lock);
-                {$ENDIF}
-
-end;
-
-procedure pthreads_locking_callback(mode, ltype: Longint; filename: PAnsiChar; line: Longint); cdecl;
-begin
-  if (mode and OPENSSL_CRYPTO_LOCK > 0) then
-    //pthread_mutex_lock(callback_locks[ltype])
-
-                {$IFDEF FPC}
-                pthread_mutex_lock(@(callback_locks[ltype]))
-                {$ELSE}
-                pthread_mutex_lock(callback_locks[ltype])
-                {$ENDIF}
-
-  else
-    //pthread_mutex_unlock(callback_locks[ltype]);
-
-                {$IFDEF FPC}
-                pthread_mutex_unlock(@(callback_locks[ltype]));
-                {$ELSE}
-                pthread_mutex_unlock(callback_locks[ltype]);
-                {$ENDIF}
-
-end;
-function pthreads_thread_id(): LongWord; cdecl;
-begin
-  Result:= LongWord(pthread_self());
-end;
-procedure slSsl_Setup_Locking_Callbacks;
-var i: Integer;
-begin
-  SetLength(callback_locks, slCRYPTO_num_locks());
-  for i:= 0 to slCRYPTO_num_locks() -1 do
-{$IFDEF FPC}
-    pthread_mutex_init(@(callback_locks[i]),nil);
-{$ELSE}
-    pthread_mutex_init(callback_locks[i],nil);
-{$ENDIF}
-
-  slCRYPTO_set_locking_callback(@pthreads_locking_callback);
-  slCRYPTO_set_id_callback(@pthreads_thread_id);
-
-  slCRYPTO_set_dynlock_create_callback(@pthreads_dyn_create_function);
-  slCRYPTO_set_dynlock_lock_callback(@pthreads_dyn_lock_function);
-  slCRYPTO_set_dynlock_destroy_callback(@pthreads_dyn_destroy_function);
-end;
-procedure slSsl_Cleanup_Locking_Callbacks;
-var i: Integer;
-begin
-  slCRYPTO_set_dynlock_create_callback(nil);
-  slCRYPTO_set_dynlock_lock_callback(nil);
-  slCRYPTO_set_dynlock_destroy_callback(nil);
-  slCRYPTO_set_locking_callback(nil);
-  slCRYPTO_set_id_callback(nil);
-
-  for i:= 0 to slCRYPTO_num_locks()-1 do
-    //pthread_mutex_destroy(callback_locks[i]);
-
-                {$IFDEF FPC}
-                pthread_mutex_destroy(@(callback_locks[i]));
-                {$ELSE}
-                pthread_mutex_destroy(callback_locks[i]);
-                {$ENDIF}
-
-  SetLength(callback_locks, 0);
-end;
-{$ENDIF}
 
 procedure slSslInit;
 begin
@@ -606,13 +375,9 @@ begin
   {$ENDIF}
 {$ENDIF}
 
-  if not slSsl_LoadProc(h_libcrypto, fn_EVP_Cleanup, @slEVP_cleanup) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSL_shutdown, @slSSL_shutdown) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSL_load_error_strings, @slSSL_load_error_strings) then exit;
   slSsl_LoadProc(h_libcrypto, fn_RAND_screen, @slRAND_screen);
-  if not slSsl_LoadProc(h_libcrypto, fn_OpenSSL_add_all_digests, @slOpenssl_add_all_digests) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_OpenSSL_add_all_ciphers, @slOpenssl_add_all_ciphers) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_SSLeay_version, @slSSLeay_version) then exit;
+  if not slSsl_LoadProc(h_libcrypto, fn_OpenSSL_version, @slSSLeay_version) then exit;
 
   if not slSsl_LoadProc(h_libssl, fn_SSL_CTX_set_cipher_list, @slSSL_CTX_set_cipher_list) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSL_CTX_new, @slSSL_CTX_new) then exit;
@@ -628,23 +393,13 @@ begin
   if not slSsl_LoadProc(h_libssl, fn_SSL_write, @slSSL_write) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSL_get_error, @slSSL_get_error) then exit;
 
-  if not slSsl_LoadProc(h_libssl, fn_SSLv3_method , @slSSLv3_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv3_server_method, @slSSLv3_server_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv3_client_method, @slSSLv3_client_method) then exit;
-
-  if not slSsl_LoadProc(h_libssl, fn_SSLv23_method, @slSSLv23_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv23_server_method, @slSSLv23_server_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_SSLv23_client_method, @slSSLv23_client_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_method, @slTLSv1_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_server_method, @slTLSv1_server_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_client_method, @slTLSv1_client_method) then exit;
-
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_method, @slTLSv1_2_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_server_method, @slTLSv1_2_server_method) then exit;
-  if not slSsl_LoadProc(h_libssl, fn_TLSv1_2_client_method, @slTLSv1_2_client_method) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_TLS_method, @slTLS_method) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_TLS_server_method, @slTLS_server_method) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_TLS_client_method, @slTLS_client_method) then exit;
 
   slSsl_LoadProc(h_libcrypto, fn_ENGINE_load_builtin_engines, @slENGINE_load_builtin_engines);
-  if not slSsl_LoadProc(h_libssl, fn_SSL_library_init, @slSSL_library_init) then exit;
+  if not slSsl_LoadProc(h_libssl, fn_OPENSSL_init_ssl, @slSSL_library_init) then exit;
+  if not slSsl_LoadProc(h_libcrypto, fn_OPENSSL_init_crypto, @slSSL_crypto_init) then exit;
   if not slSsl_LoadProc(h_libcrypto, fn_ERR_error_string, @slERR_error_string) then exit;
   if not slSsl_LoadProc(h_libcrypto, fn_ERR_get_error, @slERR_get_error) then exit;
 
@@ -681,19 +436,8 @@ begin
   if not slSsl_LoadProc(h_libssl, fn_SSL_CTX_use_PrivateKey_file, @slSSL_CTX_use_PrivateKey_file) then exit;
   if not slSsl_LoadProc(h_libssl, fn_SSL_CTX_check_private_key, @slSSL_CTX_check_private_key) then exit;
 
-  // loading locking callback functions
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_num_locks, @slCRYPTO_num_locks) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_set_locking_callback, @slCRYPTO_set_locking_callback) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_set_id_callback, @slCRYPTO_set_id_callback) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_set_dynlock_create_callback, @slCRYPTO_set_dynlock_create_callback) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_set_dynlock_lock_callback, @slCRYPTO_set_dynlock_lock_callback) then exit;
-  if not slSsl_LoadProc(h_libcrypto, fn_CRYPTO_set_dynlock_destroy_callback, @slCRYPTO_set_dynlock_destroy_callback) then exit;
-
-
-
   slSSL_library_init();
-
-  slSsl_Setup_Locking_Callbacks;
+  slSSL_crypto_init();
 
   if @slENGINE_load_builtin_engines <> nil then
     slENGINE_load_builtin_engines();
@@ -704,72 +448,29 @@ begin
       cleanup before program exit, if the caller wishes to avoid memory leaks.
     }
 
-  slOpenSSL_add_all_digests();
-  slOpenSSL_add_all_ciphers();
-  slSSL_load_error_strings();
   if @slRAND_screen <> nil then
     slRAND_screen();
 
 
-//----------------- sslv23 begin
-  slSSL_CTX_sslv23_client:= slSSL_CTX_new(slSSLv23_client_method());
-  if (slSSL_CTX_sslv23_client = nil) then
+
+//----------------- tls start
+  slSSL_CTX_tls_client:= slSSL_CTX_new(slTLS_client_method());
+  if (slSSL_CTX_tls_client = nil) then
   begin
     slssl_error:= slssl_LastError();
     exit;
   end;
 
-  slSSL_CTX_set_default_verify_paths(slSSL_CTX_sslv23_client);
+  slSSL_CTX_set_default_verify_paths(slSSL_CTX_tls_client);
   if @slSSL_CTX_set_options <> nil then
-    slSSL_CTX_set_options(slSSL_CTX_sslv23_client,OPENSSL_SSL_OP_ALL);
+    slSSL_CTX_set_options(slSSL_CTX_tls_client,OPENSSL_SSL_OP_ALL);
   if @slSSL_CTX_set_mode <> nil then
-    slSSL_CTX_set_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_MODE_AUTO_RETRY);
+    slSSL_CTX_set_mode(slSSL_CTX_tls_client,OPENSSL_SSL_MODE_AUTO_RETRY);
   if @slSSL_CTX_set_session_cache_mode <> nil then
-    slSSL_CTX_set_session_cache_mode(slSSL_CTX_sslv23_client,OPENSSL_SSL_SESS_CACHE_OFF);
+    slSSL_CTX_set_session_cache_mode(slSSL_CTX_tls_client,OPENSSL_SSL_SESS_CACHE_OFF);
 
-  slSSL_CTX_set_cipher_list( slSSL_CTX_sslv23_client, slssl_default_cipher_list );
-//----------------- sslv23 end
-
-
-//----------------- tlsv1 start
-  slSSL_CTX_tlsv1_client:= slSSL_CTX_new(slTLSv1_client_method());
-  if (slSSL_CTX_tlsv1_client = nil) then
-  begin
-    slssl_error:= slssl_LastError();
-    exit;
-  end;
-
-  slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_client);
-  if @slSSL_CTX_set_options <> nil then
-    slSSL_CTX_set_options(slSSL_CTX_tlsv1_client,OPENSSL_SSL_OP_ALL);
-  if @slSSL_CTX_set_mode <> nil then
-    slSSL_CTX_set_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_MODE_AUTO_RETRY);
-  if @slSSL_CTX_set_session_cache_mode <> nil then
-    slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_client,OPENSSL_SSL_SESS_CACHE_OFF);
-
-  slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_client, slssl_default_cipher_list );
-//----------------- tlsv1 end
-
-
-
-//----------------- tlsv1_2 start
-  slSSL_CTX_tlsv1_2_client:= slSSL_CTX_new(slTLSv1_2_client_method());
-  if (slSSL_CTX_tlsv1_2_client = nil) then
-  begin
-    slssl_error:= slssl_LastError();
-    exit;
-  end;
-
-  slSSL_CTX_set_default_verify_paths(slSSL_CTX_tlsv1_2_client);
-  if @slSSL_CTX_set_options <> nil then
-    slSSL_CTX_set_options(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_OP_ALL);
-  if @slSSL_CTX_set_mode <> nil then
-    slSSL_CTX_set_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_MODE_AUTO_RETRY);
-  if @slSSL_CTX_set_session_cache_mode <> nil then
-    slSSL_CTX_set_session_cache_mode(slSSL_CTX_tlsv1_2_client,OPENSSL_SSL_SESS_CACHE_OFF);
-
-  slSSL_CTX_set_cipher_list( slSSL_CTX_tlsv1_2_client, slssl_default_cipher_list );
-//----------------- tlsv1 end
+  slSSL_CTX_set_cipher_list( slSSL_CTX_tls_client, slssl_default_cipher_list );
+//----------------- tls end
 
   slssl_error:= '';
   slssl_inited:= True;
@@ -779,28 +480,11 @@ procedure slSslUnInit;
 begin
   if not slssl_inited then exit;
 
-  if slSSL_CTX_tlsv1_client <> nil then
+  if slSSL_CTX_tls_client <> nil then
   begin
-    slSSL_CTX_free(slSSL_CTX_tlsv1_client);
-    slSSL_CTX_tlsv1_client:= nil;
+    slSSL_CTX_free(slSSL_CTX_tls_client);
+    slSSL_CTX_tls_client:= nil;
   end;
-
-  if slSSL_CTX_tlsv1_2_client <> nil then
-  begin
-    slSSL_CTX_free(slSSL_CTX_tlsv1_2_client);
-    slSSL_CTX_tlsv1_2_client:= nil;
-  end;
-
-  if slSSL_CTX_sslv23_client <> nil then
-  begin
-    slSSL_CTX_free(slSSL_CTX_sslv23_client);
-    slSSL_CTX_sslv23_client:= nil;
-  end;
-
-  if @slEVP_cleanup <> nil then
-    slEVP_cleanup();
-
-  slSsl_Cleanup_Locking_Callbacks();
 
   if h_libssl > 0 then FreeLibrary(h_libssl);
   h_libssl := 0;

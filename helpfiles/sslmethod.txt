@@ -2,13 +2,8 @@ Usage: <cmd> sitename1 sitename2 sitename3 [method]
 Changes the SSL method of the site, implicit or explicit (AUTH TLS).
 Valid methods are:
 0: no encryption used
-1: implicit ssl handshake using SSLv23 after TCP connection was established
-2: AUTH SSL then ssl handshake using SSLv23
-3: AUTH TLS then ssl handshake using SSLv23
-4: AUTH SSL then ssl handshake using TLSv1
-5: AUTH TLS then ssl handshake using TLSv1
-6: implicit ssl handshake using TLSv1 after TCP connection was established
-7: AUTH TLS then ssl handshake using TLSv12  (default)
-8: implicit ssl handshake using TLSv12 after TCP connection was established
+1: Implicit SSL
+2: AUTH SSL
+3: AUTH TLS
 
 You can use the special sitename * as a wildcard for all sites.
