@@ -54,7 +54,7 @@ implementation
 uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
-  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdOpenSSLLoader, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
 
@@ -83,6 +83,7 @@ var
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
   fOpenSSLVersion: String;
   fError: String;
+  fSslLoader: IOpenSSLLoader;
 begin
   Result := '';
 
@@ -112,19 +113,23 @@ begin
     exit;
   end;
 
-
+   //      GetOpenSSLLoader
+   //IdOpenSSLSetLibPath('.');
   // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+  //try
+  fSslLoader.OpenSSLPath := '.';
 
   {$IFDEF UNIX}
     // do not try to load sym links first
     IdOpenSSLSetLoadSymLinksFirst(False);
   {$ENDIF}
-
-  try
-    if not IdSSLOpenSSL.LoadOpenSSLLibrary then
+    try
+    if not fSslLoader.Load then
+    //if not IdSSLOpenSSL.LoadOpenSSLLibrary then
     begin
-      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+        Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad]);
+        //Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
   except
@@ -135,13 +140,14 @@ begin
     end;
   end;
 
-  fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
-  fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
-    exit;
-  end;
+  //fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
+  //fOpenSSLVersion := fSslLoader.OpenSSLVersion;
+  //fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
+  //if (fOpenSSLVersion <> lib_OpenSSL) then
+  //begin
+  //  Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+  //  exit;
+  //end;
 
   // initialize global SQLite3 object for API calls (only load from current dir)
   try
@@ -530,7 +536,7 @@ begin
     FreeAndNil(MySQLCon);
 
   try
-    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
+    //IdSSLOpenSSL.UnLoadOpenSSLLibrary;
   except
     on e: Exception do
     begin

@@ -7,7 +7,7 @@ for /f "delims=" %%a in ('where dcc64.exe') do @set CC_64=%%a
 set CC_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
+set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/Protocols/OpenSSL -Ulibs/Indy10/Protocols/OpenSSL/dynamic -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
 set UnitTestAppName="tests\slftpUnitTests.exe --exitbehavior:Continue"
 set CTESTINCLUDES=-Utests/DUnitX
 

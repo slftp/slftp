@@ -36,18 +36,18 @@ type
 implementation
 
 uses
-  debugunit, IdSSLOpenSSLHeaders, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
+  debugunit, IdSSLOpenSSLHeaders, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_evp, IdOpenSSLHeaders_evperr, IdOpenSSLHeaders_rand, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
 
 { functions for CBC de-/encryption }
 
-function BlowfishCipherWalk(aCTX: PEVP_CIPHER_CTX; aBufIn: PAnsiChar; aInSize: integer; out aOut: TBytes): boolean;
+function BlowfishCipherWalk(aCTX: PEVP_CIPHER_CTX; aBufIn: PByte; aInSize: integer; out aOut: TBytes): boolean;
 var
   fSuccess: boolean;
   fBytesLeft: integer;
-  fBufPtr: PAnsiChar;
+  fBufPtr: PByte;
   fInSize: integer;
   fTmpBuf: array[0..255] of Byte;
   fOutLen: integer;
