@@ -201,8 +201,8 @@ const
   slSsl_libssl_name         = 'libssl-1_1-x64.dll';  {Do not localize}
   slSsl_libcrypto_name      = 'libcrypto-1_1-x64.dll';  {Do not localize}
   {$ELSE}
-  slSsl_libssl_name         = 'libssl.so'; {Do not localize}
-  slSsl_libcrypto_name      = 'libcrypto.so'; {Do not localize}
+  slSsl_libssl_name         = 'libssl.so.1.1'; {Do not localize}
+  slSsl_libcrypto_name      = 'libcrypto.so.1.1'; {Do not localize}
   {$ENDIF}
 var
   h_libssl    : {$IFDEF MSWINDOWS}Int64{$ELSE}Integer{$ENDIF} = 0;
