@@ -49,7 +49,7 @@ begin
   {$ENDIF}
 
   try
-    CheckTrue(fSslLoader.Load, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + fSslLoader.FailedToLoad.CommaText);
+    CheckTrue(fSslLoader.Load, 'IdOpenSSLLoader.Load failed failed: ' + fSslLoader.FailedToLoad.CommaText);
   except
     on e: Exception do
     begin
