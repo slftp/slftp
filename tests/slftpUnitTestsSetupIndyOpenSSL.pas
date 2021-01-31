@@ -27,7 +27,7 @@ type
 implementation
 
 uses
-  SysUtils, IdSSLOpenSSL, IdSSLOpenSSLHeaders;
+  SysUtils, IdOpenSSLLoader, IdSSLOpenSSLHeaders, IdOpenSSLHeaders_crypto;
 
 { TTestIndyOpenSSL }
 
@@ -36,9 +36,12 @@ uses
 {$ELSE}
   procedure TTestIndyOpenSSL.SetUp;
 {$ENDIF}
+var
+  fSslLoader: IOpenSSLLoader;
 begin
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
   // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
+  fSslLoader.OpenSSLPath := '.';
 
   {$IFDEF UNIX}
     // do not try to load sym links first
@@ -46,7 +49,7 @@ begin
   {$ENDIF}
 
   try
-    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + IdSSLOpenSSLHeaders.WhichFailedToLoad);
+    CheckTrue(fSslLoader.Load, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + fSslLoader.FailedToLoad.CommaText);
   except
     on e: Exception do
     begin
@@ -59,10 +62,12 @@ end;
   procedure TTestIndyOpenSSL.TeardownOnce;
 {$ELSE}
   procedure TTestIndyOpenSSL.Teardown;
-{$ENDIF}
+{$ENDIF}var
+  fSslLoader: IOpenSSLLoader;
 begin
   try
-    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
+    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+    fSslLoader.Unload;
   except
     on e: Exception do
     begin
@@ -76,7 +81,7 @@ var
   fExpectedResultStr, fShortVersion: String;
   {$I slftp.inc}
 begin
-  fExpectedResultStr := IdSSLOpenSSL.OpenSSLVersion; // e.g. OpenSSL 1.0.2n  7 Dec 2017
+  fExpectedResultStr := OpenSSL_version(0); // e.g. OpenSSL 1.0.2n  7 Dec 2017
   fShortVersion := Copy(fExpectedResultStr, 9, 5);
   CheckEqualsString(lib_OpenSSL, fShortVersion, 'OpenSSL version is wrong');
   SetLength(fExpectedResultStr, 13);
