@@ -44,9 +44,9 @@ uses
   IdCTypes,
   IdGlobal,
   IdOpenSSLConsts,
-  IdOpenSSlHeaders_bio,
+  IdOpenSSLHeaders_bio,
   IdOpenSSLHeaders_obj_mac,
-  IdOpenSSlHeaders_ossl_typ;
+  IdOpenSSLHeaders_ossl_typ;
 
 const
   EVP_MAX_MD_SIZE = 64; // longest known is SHA512
