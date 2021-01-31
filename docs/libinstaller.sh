@@ -33,7 +33,7 @@ LOGFILE="/tmp/debug.log"
 #here we will download/compile
 DEVDIR="$HOME/_dev"
 
-MIRROR_OPENSSL="http://artfiles.org/openssl.org/source/old/1.0.2/"
+MIRROR_OPENSSL="http://artfiles.org/openssl.org/source/"
 # https://www.openssl.org/source/mirror.html
 
 MIRROR_SQLITE="https://www.sqlite.org/download.html"
