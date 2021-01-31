@@ -128,7 +128,7 @@ begin
     if not fSslLoader.Load then
     //if not IdSSLOpenSSL.LoadOpenSSLLibrary then
     begin
-        Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad]);
+        Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
         //Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
       exit;
     end;
