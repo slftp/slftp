@@ -94,8 +94,8 @@ testlinux64:
   image: $SLFTP_CI_IMAGE
   when: on_success
   before_script:
-    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so .
-    - cp /usr/lib/x86_64-linux-gnu/libssl.so .
+    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
+    - cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
     - mv config/* tests/
   script:
     - make test
