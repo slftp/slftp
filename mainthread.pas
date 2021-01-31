@@ -54,7 +54,7 @@ implementation
 uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
-  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdOpenSSLLoader, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdOpenSSLLoader, IdSSLOpenSSLHeaders, IdOpenSSLHeaders_crypto, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
 
@@ -140,14 +140,12 @@ begin
     end;
   end;
 
-  //fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
-  //fOpenSSLVersion := fSslLoader.OpenSSLVersion;
-  //fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
-  //if (fOpenSSLVersion <> lib_OpenSSL) then
-  //begin
-  //  Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
-  //  exit;
-  //end;
+  fOpenSSLVersion := Copy(OpenSSL_version(0), 9, 5);
+  if (fOpenSSLVersion <> lib_OpenSSL) then
+  begin
+    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+    exit;
+  end;
 
   // initialize global SQLite3 object for API calls (only load from current dir)
   try
