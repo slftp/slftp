@@ -189,6 +189,7 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -2608,8 +2609,22 @@ begin
 end;
 
 function TSite.Getsslmethod: TSSLMethods;
+var
+  fSslMethod: Integer;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTls)));
+  fSslMethod := RCInteger('sslmethod', integer(FDefaultSslMethod));
+
+  //if the site has set an old value (>3) then set it to the default
+  if fSslMethod > integer(High(TSSLMethods)) then
+  begin
+    Setsslmethod(FDefaultSslMethod);
+    irc_Addadmin(Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Debug(dpMessage, section, Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Result := FDefaultSslMethod;
+    exit;
+  end;
+
+  Result := TSSLMethods(fSslMethod);
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);
