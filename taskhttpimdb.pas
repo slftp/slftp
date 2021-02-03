@@ -70,7 +70,7 @@ type
       @param(aReleaseDateInfoList List of releasedate information) }
     class procedure ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 
-    { Parses 'Also Known As' (AKA) information for countries included in slftp.imdbcountries plus original title
+    { Parses 'Also Known As' (AKA) information for countries included in slftp.imdbcountries plus original title @br @note(Does not replace any special characters)
       @param(aPageSource Releasedate Webpage HTML sourcecode)
       @param(aAlsoKnownAsList List of AKA information) }
     class procedure ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
@@ -436,7 +436,6 @@ begin
         fTitle := Trim(rr.Match[2]);
 
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
-        // TODO: also replace special chars of a language like ø, ä, é?
 
         if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
           Continue;
@@ -707,8 +706,6 @@ begin
 
   // TODO:
   // 1. BOM screens have highest priority for STV/Limited/Wide determination
-  // "Box Office Mojo by IMDbPro considers a movie in wide release or about to go wide when it is playing at 600 or more theaters, which generally indicates a nationwide release (the term is short for "nationwide").
-  // A movie is considered to be in limited release when playing at fewer than 600 theaters (i.e. released in one or more markets but not nationwide)."
 
   // 2. (fallback) /releaseinfo page info is used as fallback for STV determination in negative way -> wide = true at beginning and changed if e.g. dvd/tv
   //    iterates through all infos to determine the final result but only determines STV as limited/wide is only done via bom screens
