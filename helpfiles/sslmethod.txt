@@ -1,5 +1,7 @@
 Usage: <cmd> sitename1 sitename2 sitename3 [method]
-Changes the SSL method of the site, implicit or explicit (AUTH TLS).
+Changes the SSL method of the site, implicit or explicit (AUTH TLS / SSL).
+The highest SSL/TLS version mutually supported between client and server will be used.
+
 Valid methods are:
 0: no encryption used
 1: Implicit SSL
