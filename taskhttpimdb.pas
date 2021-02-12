@@ -129,7 +129,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase;
 
 const
   section = 'taskhttpimdb';
@@ -600,7 +600,6 @@ end;
 
 function TPazoHTTPImdbTask.Execute(slot: Pointer): Boolean;
 var
-  ir: TImdbRelease;
   imdbdata: TDbImdbData;
 
   fHttpGetErrMsg: String;
@@ -610,6 +609,7 @@ var
   fStringIndex1: Integer;
   fStringIndex2: Integer;
   i: Integer;
+  fLanguageFromReleasename: String;
 
   fImdbMainPage: String;
   fImdbReleasePage: String;
@@ -647,30 +647,6 @@ var
   fBomScreensCount: Integer;
 begin
   Result := False;
-
-  if (FReleaseName = '') then
-  begin
-    irc_Adderror(Format('<c4>[ERROR]</c> TPazoHTTPImdbTask rls empty.', []));
-    Result := True;
-    ready := True;
-    exit;
-  end;
-
-  // TODO
-  // maybe simple use FindPazoByRls(FReleaseName) and then pazo.rls.<whatever is needed>?
-  // kb seems to not offer a function to get kb info for a given rlsname
-  try
-    ir := TImdbRelease.Create(FReleaseName, '');
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoHTTPImdbTask TImdbRelease.Create: %s ', [e.Message]));
-      irc_Adderror(Format('<c4>[EXCEPTION]</c> TPazoHTTPImdbTask TImdbRelease.Create: %s', [e.Message]));
-      Result := True;
-      ready := True;
-      exit;
-    end;
-  end;
 
   // TODO: json stuff of new layout
   // startindex = Pos('type="application/json">', http_response);
@@ -755,23 +731,21 @@ begin
 
           { NOTE: all that needs to be done separately for each dedicated releasename }
           (* get language of release (should be moved later to kb? as it depends on the actual releasename) *)
-          if (ir.language <> 'English') then
-            fStrHelper := ir.language
+          fLanguageFromReleasename := FindLanguageOnDirectory(FReleaseName);
+          if (fLanguageFromReleasename <> 'English') then
+            fStrHelper := fLanguageFromReleasename
           else
             fStrHelper := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
           fReleasenameCountry := TMapLanguageCountry.GetCountrynameByLanguage(fStrHelper);
-          Debug(dpSpam, section, Format('Release language %s maps to country %s', [ir.language, fReleasenameCountry]));
+          Debug(dpSpam, section, Format('Release language %s maps to country %s', [fLanguageFromReleasename, fReleasenameCountry]));
           if fReleasenameCountry = '' then
           begin
-            Debug(dpError, section, Format('[ERROR] No mapping for language %s to a country found', [ir.language]));
+            Debug(dpError, section, Format('[ERROR] No mapping for language %s to a country found', [fLanguageFromReleasename]));
             ready := True;
             Result := True;
             Exit;
           end;
-
-          // TODO: remove this in future code
-          ir.Free;
 
           (* STV infos *)
           for fImdbReleaseDateInfo in fImdbReleaseDateInfoList do

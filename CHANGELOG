@@ -37,11 +37,12 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      none so far
+      parse_boxofficemojo_always=0 entry was removed
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. enjoy!
+    3. update your slftp.imdbcountries file with the provided one in /config folder
+    4. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
