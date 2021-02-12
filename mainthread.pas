@@ -140,7 +140,7 @@ begin
     end;
   end;
 
-  fOpenSSLVersion := Copy(OpenSSL_version(0), 9, 5);
+  fOpenSSLVersion := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 5);
   if (fOpenSSLVersion <> lib_OpenSSL) then
   begin
     Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
