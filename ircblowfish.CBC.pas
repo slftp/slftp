@@ -36,7 +36,7 @@ type
 implementation
 
 uses
-  debugunit, IdSSLOpenSSLHeaders, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_evp, IdOpenSSLHeaders_evperr, IdOpenSSLHeaders_rand, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
+  debugunit, IdOpenSSLHeaders_blowfish, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_evp, IdOpenSSLHeaders_evperr, IdOpenSSLHeaders_rand, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
@@ -200,12 +200,8 @@ begin
 
     if (RAND_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
     begin
-      // fallback but deprecated in OpenSSL
-      if (RAND_pseudo_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
-      begin
-        Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
-        exit;
-      end;
+      Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
+      exit;
     end;
     // got an IV
     move(fRealIV[0], fInBuf[0], 8);
