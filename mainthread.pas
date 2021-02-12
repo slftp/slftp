@@ -120,10 +120,6 @@ begin
   //try
   fSslLoader.OpenSSLPath := '.';
 
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
     try
     if not fSslLoader.Load then
     //if not IdSSLOpenSSL.LoadOpenSSLLibrary then

@@ -57,10 +57,6 @@ begin
   // Tell Indy OpenSSL to load libs from current dir
   fSslLoader.OpenSSLPath := '.';
 
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
 
   try
     CheckTrue(fSslLoader.Load, 'IdOpenSSLLoader.Load failed: ' + fSslLoader.FailedToLoad.CommaText);
