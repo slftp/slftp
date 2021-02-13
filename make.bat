@@ -86,7 +86,7 @@ goto :eof;
 
 :clean
 echo --- Cleaning files ---
-del /q /s *slftp*.exe *.dcu
+del /q /s *slftp*.exe *.dcu *.res
 goto :eof;
 
 :test_32
@@ -119,6 +119,8 @@ if errorlevel 1 (
 echo Failure reason for deleting is %errorlevel%
 exit /b %errorlevel%
 )
+echo - Creating resource file -
+rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
@@ -165,6 +167,8 @@ if errorlevel 1 (
    echo Failure reason for deleting is %errorlevel%
    exit /b %errorlevel%
 )
+echo - Creating resource file -
+rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr

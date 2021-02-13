@@ -83,6 +83,7 @@ cleanuptestdir:
 	@find tests -name "*.ppu" -type f -delete
 	@find tests -name "*.o" -type f -delete
 	@rm -f tests/*.ppu tests/*.o tests/slftpUnitTests tests/*.exe
+	@rm -f tests/*.res tests/*.or
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
