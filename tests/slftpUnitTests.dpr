@@ -76,7 +76,8 @@ uses
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
-  kb.releaseinfo.MVIDTests;
+  kb.releaseinfo.MVIDTests,
+  taskhttpimdbTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -106,6 +107,7 @@ begin
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
   InitialDirlistSetup;
+  InitialDbAddImdbSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;
