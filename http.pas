@@ -14,7 +14,7 @@ implementation
 
 uses
   SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit,
-  mslproxys, IdExceptionCore;
+  mslproxys, {$IFNDEF UNICODE}IdGlobal,{$ENDIF} IdExceptionCore;
 
 const
   section = 'http';
@@ -140,7 +140,14 @@ begin
         with fIdHTTP do
         begin
           try
-            aRecvStr := Get(fEncodedUrl);
+            {$IFNDEF UNICODE}
+              // in case of utf8 response content it gets converted correctly to unicode
+              // but the string in FPC is still ansistring and thus the unicode is converted
+              // back by Indy defaults user encoding Ascii => so set UTF8 encoding explicitly
+              aRecvStr := Get(fEncodedUrl, IndyTextEncoding_UTF8);
+            {$ELSE}
+              aRecvStr := Get(fEncodedUrl);
+            {$ENDIF}
           except
             on e: EIdReadTimeout do
             begin
