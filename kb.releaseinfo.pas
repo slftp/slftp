@@ -1550,7 +1550,7 @@ begin
     Result := Result + Format('IMDB Limited: %s', [BoolToStr(imdb_ldt, True)]) + #13#10;
     Result := Result + Format('IMDB Natowide: %s', [BoolToStr(imdb_wide, True)]) + #13#10;
     Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm, True)]) + #13#10;
-    Result := Result + Format('IMDB STVS: %s', [imdb_stvs]) + #13#10;
+    Result := Result + Format('IMDB STVS: %s', [imdb_stvs]);
   except
     on e: Exception do
     begin
