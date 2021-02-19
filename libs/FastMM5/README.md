@@ -13,13 +13,13 @@ Version 5 is a complete rewrite of FastMM. It is designed from the ground up to 
 Homepage: https://github.com/pleriche/FastMM5
 
 ### Developed by
-Pierre le Riche
+Pierre le Riche, copyright 2004 - 2020, all rights reserved
 
 ### Sponsored by
 [gs-soft AG](https://www.gs-soft.com/)
 
 ### Licence
-FastMM 5 is dual-licensed.  You may choose to use it under the restrictions of the [GPL v3](https://www.gnu.org/licenses/gpl-3.0.en.html) licence at no cost to you, or you may purchase a commercial licence. A commercial licence includes all future updates. The commercial licence pricing is as follows:
+FastMM 5 is dual-licensed.  You may choose to use it under the restrictions of the GPL v3 licence at no cost to you, or you may purchase a commercial licence.  A commercial licence grants you the right to use FastMM5 in your own applications, royalty free, and without any requirement to disclose your source code nor any modifications to FastMM to any other party.  A commercial licence lasts into perpetuity, and entitles you to all future updates, free of charge.  A commercial licence is sold per developer developing applications that use FastMM, as follows:
 <table>
 <tr><td>Number Of Developers</td><td>Price (USD)</td></tr>
 <tr><td>1 developer</td><td>$99</td></tr>
@@ -28,10 +28,12 @@ FastMM 5 is dual-licensed.  You may choose to use it under the restrictions of t
 <tr><td>4 developers</td><td>$339</td></tr>
 <tr><td>5 developers</td><td>$399</td></tr>
 <tr><td>More than 5 developers</td><td>$399 + $50 per developer from the 6th onwards</td></tr>
-<tr><td>Site licence (unlimited developers)</td><td>$999</td></tr>
+<tr><td>Site licence (unlimited number of developers affiliated with the owner of the licence, i.e. employees, co-workers, interns and contractors)</td><td>$999</td></tr>
 </table>
 
-Please send an e-mail to fastmm@leriche.org to request an invoice before or after payment is made at https://www.paypal.me/fastmm (paypal@leriche.org). Support is available for users with a commercial licence via the same e-mail address.
+Please send an e-mail to fastmm@leriche.org to request an invoice before or after payment is made.  Payment may be made via PayPal at https://www.paypal.me/fastmm (paypal@leriche.org), or via bank transfer.  Bank details will be provided on the invoice.
+
+Support (via e-mail) is available for users with a commercial licence.  Enhancement requests submitted by users with a commercial licence will be prioritized.
 
 ### Usage Instructions
 Add FastMM5.pas as the first unit in your project's DPR file.  It will install itself automatically during startup, replacing the default memory manager.
@@ -48,6 +50,22 @@ The optimization strategy of the memory manager may be tuned via FastMM_SetOptim
 
 The default configuration should scale close to linearly up to between 8 and 16 threads, so for most applications there should be no need to tweak any performance settings. Beyond 16 threads you may consider increasing the number of arenas (CFastMM_...BlockArenaCount), but inspect the thread contention counts first (FastMM_...BlockThreadContentionCount), before assuming that it is necessary.
 
+
+### The following conditional defines are supported
+* FastMM_FullDebugMode (or FullDebugMode) - If defined then FastMM_EnterDebugMode will be called on startup so that the memory manager starts up in debug mode.  If FullDebugMode is defined then the FastMM_DebugLibraryStaticDependency define is also implied.
+* FastMM_FullDebugModeWhenDLLAvailable (or FullDebugModeWhenDLLAvailable) - If defined an attempt will be made to load the debug support library during startup.  If successful then FastMM_EnterDebugMode will be called so that the memory manager starts up in debug mode.
+* FastMM_DebugLibraryStaticDependency - If defined there will be a static dependency on the debug support library, FastMM_FullDebugMode.dll (32-bit) or FastMM_FullDebugMode64.dll (64-bit).  If FastMM_EnterDebugMode will be called in the startup code while and the memory manager will also be shared between an application and libraries, then it may be necessary to enable this define in order to avoid DLL unload order issues during application shutdown (typically manifesting as an access violation when attempting to report on memory leaks during shutdown).  It is a longstanding issue with Windows that it is not always able to unload DLLs in the correct order on application shutdown when DLLs are loaded dynamically during startup.  Note that while enabling this define will introduce a static dependency on the debug support library, it does not actually enter debug mode by default - FastMM_EnterDebugMode must still be called to enter debug mode, and FastMM_ExitDebugMode can be called to exit debug mode at any time.
+* FastMM_ClearLogFileOnStartup (or ClearLogFileOnStartup) - When defined FastMM_DeleteEventLogFile will be called during startup, deleting the event log file (if it exists).
+* FastMM_Align16Bytes (or Align16Bytes) - When defined FastMM_EnterMinimumAddressAlignment(maa16Bytes) will be called during startup, forcing a minimum of 16 byte alignment for memory blocks.  Note that this has no effect under 64 bit, since 16 bytes is already the minimum alignment.
+* FastMM_EnableMemoryLeakReporting (or EnableMemoryLeakReporting) - If defined then the memory leak summary and detail will be added to the set of events logged to file (FastMM_LogToFileEvents) and the leak summary will be added to the set of events displayed on-screen (FastMM_MessageBoxEvents).
+* FastMM_RequireDebuggerPresenceForLeakReporting (or RequireDebuggerPresenceForLeakReporting) - Used in conjunction with EnableMemoryLeakReporting - if the application is not running under the debugger then the EnableMemoryLeakReporting define is ignored.
+* FastMM_NoMessageBoxes (or NoMessageBoxes) - Clears the set of events that will cause a message box to be displayed (FastMM_MessageBoxEvents) on startup.
+* FastMM_ShareMM (or ShareMM) - If defined then FastMM_ShareMemoryManager will be called during startup, sharing the memory manager of the module if the memory manager of another module is not already being shared.
+* FastMM_ShareMMIfLibrary (or ShareMMIfLibrary) - If defined and the module is not a library then the ShareMM define is disabled.
+* FastMM_AttemptToUseSharedMM (or AttemptToUseSharedMM) - If defined FastMM_AttemptToUseSharedMemoryManager will be called during startup, switching to using the memory manager shared by another module (if there is a shared memory manager).
+* FastMM_NeverUninstall (or NeverUninstall) - Sets the FastMM_NeverUninstall global variable to True.  Use this if any leaked pointers should remain valid after this unit is finalized.
+* PurePascal - The assembly language code paths are disabled, and only the Pascal code paths are used.  This is normally used for debugging purposes only.
+
 ### Supported Compilers
 Delphi XE3 and later
 
@@ -60,3 +78,10 @@ Windows, 32-bit and 64-bit
 
 ##### Version 5.01
 * Enhancement: Log a stack trace for the virtual method call that lead to a "virtual method call on freed object" error
+
+##### Version 5.02
+* Backward compatibility improvement: If ReportMemoryLeaksOnShutdown = True then mmetUnexpectedMemoryLeakSummary will automatically be included in FastMM_MessageBoxEvents, and the the leak summary will thus be displayed on shutdown.
+* FastMM in debug mode will now catch all TObject virtual method calls on a freed object. Previously it only caught some commonly used ones.
+* Increase the number of virtual methods supported by TFastMM_FreedObject to 75. (There are some classes in the RTL that have more than 30 virtual methods, e.g. TStringList).
+* Add a lock timeout for FastMM_LogStateToFile and FastMM_WalkBlocks. Some severe memory corruption crashes may leave an arena locked, in which case it was previously not possible to walk blocks or dump the memory manager state to file in the crash handler.
+* Add backward compatibility support for the ClearLogFileOnStartup v4 define.

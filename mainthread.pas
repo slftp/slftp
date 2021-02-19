@@ -267,7 +267,6 @@ begin
   SpeedStatsInit;
   RanksInit;
   SpeedTestInit;
-  TaskHttpImdbInit;
   Initglobalskiplist;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
@@ -515,7 +514,6 @@ begin
   UninitmRdOHConfigFiles;
   SLLanguagesUninit;
   UnInitglobalskiplist;
-  TaskHttpImdbUnInit;
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
