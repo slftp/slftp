@@ -187,7 +187,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slSSL_CTX_tls_client; // thx to glftpd dev for the heads up!
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -214,7 +214,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slSSL_CTX_tls_client; // thx to glftpd dev for the heads up!
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
@@ -607,12 +607,6 @@ begin
   try
     setlength(er, 512);
 
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
-
     if slSocket.socket = slSocketError then
     begin
       error:= 'not connected';
@@ -724,12 +718,6 @@ begin
   Result:= False;
   try
     setlength(er, 512);
-
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
 
     if slSocket.socket = slSocketError then
     begin
@@ -1225,7 +1213,7 @@ end;
 
 procedure TslTCPSocket.SetSSLContext();
 begin
-    fSSLCTX:= slSSL_CTX_tls_client;
+  fSSLCTX := GetOpenSSLConnectionContext;
 end;
 
 function TslTCPSocket.connected: Boolean;

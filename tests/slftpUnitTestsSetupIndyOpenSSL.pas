@@ -27,15 +27,11 @@ type
 implementation
 
 uses
-  SysUtils, IdOpenSSLLoader, IdSSLOpenSSLHeaders, IdOpenSSLHeaders_crypto;
+  SysUtils, IdOpenSSLLoader, IdOpenSSLHeaders_crypto;
 
 { TTestIndyOpenSSL }
 
-{$IFDEF FPC}
-  procedure TTestIndyOpenSSL.SetUpOnce;
-{$ELSE}
-  procedure TTestIndyOpenSSL.SetUp;
-{$ENDIF}
+procedure TTestIndyOpenSSL.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
 var
   fSslLoader: IOpenSSLLoader;
 begin
@@ -51,13 +47,13 @@ begin
       {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
     end;
   end;
+
+  // check if we at least have OpenSSL 1.1.0
+  CheckTrue(Assigned(OpenSSL_version), 'OpenSSL needs to be at least OpenSSL 1.1.0');
 end;
 
-{$IFDEF FPC}
-  procedure TTestIndyOpenSSL.TeardownOnce;
-{$ELSE}
-  procedure TTestIndyOpenSSL.Teardown;
-{$ENDIF}var
+procedure TTestIndyOpenSSL.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
+var
   fSslLoader: IOpenSSLLoader;
 begin
   try
@@ -76,7 +72,7 @@ var
   fExpectedResultStr, fShortVersion: String;
   {$I slftp.inc}
 begin
-  fExpectedResultStr := OpenSSL_version(0); // e.g. OpenSSL 1.0.2n  7 Dec 2017
+  fExpectedResultStr := OpenSSL_version(OPENSSL_VERSION_CONST); // e.g. OpenSSL 1.0.2n  7 Dec 2017
   fShortVersion := Copy(fExpectedResultStr, 9, 5);
   CheckEqualsString(lib_OpenSSL, fShortVersion, 'OpenSSL version is wrong');
   SetLength(fExpectedResultStr, 13);

@@ -1119,7 +1119,7 @@ begin
     Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
     if Result <= 0 then
     begin
-      error := 'sslread failed: ' + slSSL_LastError(ssl, Result);
+      error := 'sslread failed: ' + GetLastSSLError(ssl, Result);
       if 0 < Pos('zero return', error) then
         error := 'Connection lost';
     end;
@@ -1141,7 +1141,7 @@ begin
     rc := SSL_write(ssl, PAnsiChar(@buffer), bufsize);
     if rc <= 0 then
     begin
-      error := 'sslwrite failed: ' + slSSL_LastError(ssl, rc);
+      error := 'sslwrite failed: ' + GetLastSSLError(ssl, rc);
       Result := False;
     end
     else if rc < bufsize then

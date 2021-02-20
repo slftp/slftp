@@ -2,166 +2,145 @@ unit slssl;
 
 interface
 
-uses IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_err, IdOpenSSLHeaders_crypto, IdOpenSSLHeaders_ssl, IdOpenSSLContext, IdOpenSSLLoader;
+uses
+  IdOpenSSLHeaders_ossl_typ;
 
-function OpenSSLVersion: String;
-function OpenSSLShortVersion: String;
-function slSSL_LastError(): String; overload;
-function slSSL_LastError(ssl: PSSL; ec: Integer): String; overload;
+{ Get the full OpenSSL version string including version, compiler flags, built date and platform info
+  @returns(OpenSSL version string + additional info) }
+function GetOpenSSLVersion: String;
 
-const
-  slssl_default_cipher_list = 'ALL:!EXP';
+{ Get the full OpenSSL version
+  @returns(OpenSSL version string) }
+function GetOpenSSLShortVersion: String;
 
-var slssl_inited: Boolean = False;
-    slssl_error: String;
-    slssl_ctx_tls_client: PSSL_CTX = nil;
+{ Initialize the SSL_CTX object with default settings
+  @param(aError Error message from OpenSSL in case it couldn't initialize)
+  @returns(@true on success, @false otherwise) }
+function InitOpenSSLConnectionContext(out aError: String): Boolean;
 
+{ Uninitialize the SSL_CTX object with default settings and unload }
+procedure UninitOpenSSLConnectionContext;
+
+{ Get the SSL_CTX object as framework to establish TLS/SSL connections
+  @returns(SSL_CTX object with some default configuration) }
+function GetOpenSSLConnectionContext: PSSL_CTX;
+
+{ Return string representing error result code of TLS/SSL I/O operation @br
+  @note(also checks the current thread's OpenSSL error queue)
+  @param(aSSL SSL which did the call)
+  @param(aErrCode Error code of previous OpenSSL API call)
+  @returns(String that indicates the error) }
+function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
 
 implementation
 
 uses
-{$IFDEF MSWINDOWS}
-  Windows,
-{$ENDIF}
-{$IFDEF FPC}
-  dynlibs,
-  {$IFNDEF MSWINDOWS}
-    pthreads,
-  {$ENDIF}
-{$ELSE}
-  {$IFNDEF MSWINDOWS}
-    Libc,
-  {$ENDIF}
-{$ENDIF}
-  SysUtils
-;
+  SysUtils, IdOpenSSLHeaders_err, IdOpenSSLHeaders_crypto, IdOpenSSLHeaders_ssl;
 
-{$I slftp.inc}
+//const
+//  gSSL_Default_Cipher_List = 'ALL:!EXP';
+//  gSSL_Default_Cipher_List = 'HIGH'; // probably more secure
 
-function OpenSSLVersion: String;
+var
+  gSSLContextSettings: PSSL_CTX = nil; // default SSL/TLS context used for all connections
+
+// returns the earliest error code from the thread's error queue and removes the entry
+// can be called repeatedly until there are no more error codes to return.
+function _GetEarliestOpenSSLErrorCode: String;
+var
+  fErrStr: String;
+  fErrors: Integer;
+  fErrCode: Cardinal;
 begin
-  Result:= Format('%s %s %s %s',[
+  Result := '';
+  SetLength(fErrStr, 255);
+  fErrors := 0;
+  while (true) do
+  begin
+    fErrCode := ERR_get_error();
+    if fErrCode = 0 then
+      Break;
+    ERR_error_string_n(fErrCode, @fErrStr[1], Length(fErrStr));
+    Inc(fErrors);
+
+    if Result <> '' then
+      Result := Result + ' / ';
+
+    Result := Result + fErrStr;
+  end;
+
+  if fErrors = 0 then
+    Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
+end;
+
+function GetOpenSSLVersion: String;
+begin
+  Result := Format('%s %s %s %s',[
     OpenSSL_version(OPENSSL_VERSION_CONST),
     OpenSSL_version(OPENSSL_CFLAGS),
     OpenSSL_version(OPENSSL_BUILT_ON),
     OpenSSL_version(OPENSSL_PLATFORM)]);
 end;
 
-function OpenSSLShortVersion: String;
+function GetOpenSSLShortVersion: String;
 begin
-  Result:= Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 6);
+  Result := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 6);
 end;
 
-
-procedure slSslInit;
-var
-  fSslLoader: IOpenSSLLoader;
-  fOpenSSLVersion: String;
+function InitOpenSSLConnectionContext(out aError: String): Boolean;
 begin
-  if slssl_inited then exit;
+  Result := False;
 
-  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-  fSslLoader.OpenSSLPath := '.';
-
-  try
-    if not fSslLoader.Load then
-    begin
-      slssl_error := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
-      exit;
-    end;
-  except
-    on e: Exception do
-    begin
-      slssl_error := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
-      exit;
-    end;
-  end;
-
-  fOpenSSLVersion := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
+  gSSLContextSettings := SSL_CTX_new(TLS_client_method());
+  if (gSSLContextSettings = nil) then
   begin
-    slssl_error := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+    aError := _GetEarliestOpenSSLErrorCode;
     exit;
   end;
 
+  SSL_CTX_set_default_verify_paths(gSSLContextSettings);
+  SSL_CTX_set_options(gSSLContextSettings, SSL_OP_ALL);
+  SSL_CTX_set_mode(gSSLContextSettings, SSL_MODE_AUTO_RETRY);
+  SSL_CTX_set_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF);
+  //SSL_CTX_set_cipher_list(gSSLContextSettings, gSSL_Default_Cipher_List);
 
-  slSSL_CTX_tls_client:= SSL_CTX_new(TLS_client_method());
-  if (slSSL_CTX_tls_client = nil) then
-  begin
-    slssl_error:= slssl_LastError();
-    exit;
-  end;
-
-  SSL_CTX_set_default_verify_paths(slSSL_CTX_tls_client);
-  SSL_CTX_set_options(slSSL_CTX_tls_client,SSL_OP_ALL);
-  SSL_CTX_set_mode(slSSL_CTX_tls_client, SSL_MODE_AUTO_RETRY);
-  SSL_CTX_set_mode(slSSL_CTX_tls_client, SSL_SESS_CACHE_OFF);
-  SSL_CTX_set_cipher_list(slSSL_CTX_tls_client, slssl_default_cipher_list);
-
-  slssl_error:= '';
-  slssl_inited:= True;
+  Result := True;
 end;
 
-procedure slSslUnInit;
+procedure UninitOpenSSLConnectionContext;
 begin
-  if not slssl_inited then exit;
-
-  if slSSL_CTX_tls_client <> nil then
+  if gSSLContextSettings <> nil then
   begin
-    SSL_CTX_free(slSSL_CTX_tls_client);
-    slSSL_CTX_tls_client:= nil;
+    SSL_CTX_free(gSSLContextSettings);
   end;
-
-  IdOpenSSLLoader.GetOpenSSLLoader().Unload();
-
-  slssl_inited:= False;
 end;
 
-function slSSL_LastError(): String;
+function GetOpenSSLConnectionContext: PSSL_CTX;
+begin
+  Result := gSSLContextSettings;
+end;
+
+function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
 var
-  s: String;
-  db: Integer;
-  i: Cardinal;
+  fErrorCode: Integer;
 begin
-  Result := '';
-  SetLength(s, 255);
-  db := 0;
-  while (true) do
-  begin
-    i := ERR_get_error();
-    if i = 0 then
-      Break;
-    ERR_error_string(i, @s[1]);
-    inc(db);
-
-    if Result <> '' then
-      Result := Result + ' / ';
-
-    Result := Result + s;
-  end;
-
-  if db = 0 then
-    Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
-end;
-function slSSL_LastError(ssl: PSSL; ec: Integer): String;
-begin
-  ec := SSL_get_error(ssl, ec);
-  case ec of
+  fErrorCode := SSL_get_error(aSSL, aErrCode);
+  case fErrorCode of
     SSL_ERROR_NONE: Result := 'no error';
-    SSL_ERROR_SSL: Result := 'ssl error';
-    SSL_ERROR_SYSCALL: Result := 'syscall error';
-    SSL_ERROR_WANT_CONNECT: Result := 'want connect';
+    SSL_ERROR_ZERO_RETURN: Result := 'zero return';
     SSL_ERROR_WANT_READ: Result := 'want read';
     SSL_ERROR_WANT_WRITE: Result := 'want write';
+    SSL_ERROR_WANT_CONNECT: Result := 'want connect';
+    SSL_ERROR_WANT_ACCEPT: Result := 'want accept';
     SSL_ERROR_WANT_X509_LOOKUP: Result := 'x509 lookup wanted';
-    SSL_ERROR_ZERO_RETURN: Result := 'zero return';
+    SSL_ERROR_WANT_ASYNC: Result := 'want async';
+    SSL_ERROR_WANT_ASYNC_JOB: Result := 'want async job';
+    SSL_ERROR_WANT_CLIENT_HELLO_CB: Result := 'want client hello callback';
+    SSL_ERROR_SYSCALL: Result := 'syscall error';
+    SSL_ERROR_SSL: Result := 'ssl error';
   else
     Result := 'unknown error';
   end;
 end;
 
-initialization
-  slSslInit;
-finalization
-  slSslUninit;
 end.
