@@ -12,14 +12,9 @@ type
 
   {
   @value(sslNone no encryption used)
-  @value(sslImplicitSSLv23 implicit ssl handshake using SSLv23 after TCP connection was established)
-  @value(sslAuthSslSSLv23 AUTH SSL then ssl handshake using SSLv23)
-  @value(sslAuthTLSSSLv23 AUTH TLS then ssl handshake using SSLv23)
-  @value(sslAuthSslTLSv1 AUTH SSL then ssl handshake using TLSv1)
-  @value(sslAuthTlsTLSv1 AUTH TLS then ssl handshake using TLSv1)
-  @value(sslImplicitTLSv1 implicit ssl handshake using TLSv1 after TCP connection was established)
-  @value(sslAuthTlsTLSv1_2 AUTH TLS then ssl handshake using TLSv1.2)
-  @value(sslImplicitTLSv1_2 implicit ssl handshake using TLSv1.2 after TCP connection was established)
+  @value(sslImplicitSSL Implicit SSL)
+  @value(sslAuthSsl AUTH SSL)
+  @value(sslAuthTLS AUTH TLS)
   }
   TSSLMethods = (sslNone, sslImplicitSSL, sslAuthSsl, sslAuthTLS);
 
