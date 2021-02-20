@@ -99,7 +99,7 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for TVMAZE is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"https://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
 end;
 
@@ -114,7 +114,7 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for TVMAZE is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"https://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
 end;
 
