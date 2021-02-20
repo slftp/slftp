@@ -54,7 +54,7 @@ implementation
 uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
-  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdOpenSSLLoader, IdOpenSSLHeaders_crypto, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
 
@@ -81,9 +81,7 @@ end;
 function Main_Init: String;
 var
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
-  fOpenSSLVersion: String;
   fError: String;
-  fSslLoader: IOpenSSLLoader;
 begin
   Result := '';
 
@@ -93,54 +91,12 @@ begin
     exit;
   end;
 
-
   if not slssl_inited then
   begin
-    Result := 'Could not load OpenSSL!' + #10#13;
-    {$IFDEF MSWINDOWS}
-      Result := Result + 'Install it from:' + #13#10 + 'http://www.slproweb.com/products/Win32OpenSSL.html';
-    {$ELSE}
-      Result := Result + 'Try to copy the libssl.so and libcrypto.so libs into slftp dir!';
-    {$ENDIF}
-    exit;
-  end;
-
-  fOpenSSLVersion := slssl.OpenSSLShortVersion;
-  SetLength(fOpenSSLVersion, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL %s is not supported! OpenSSL %s needed.', [slssl.OpenSSLShortVersion, lib_OpenSSL]);
-    exit;
-  end;
-
-   //      GetOpenSSLLoader
-   //IdOpenSSLSetLibPath('.');
-  // Tell Indy OpenSSL to load libs from current dir
-  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-  //try
-  fSslLoader.OpenSSLPath := '.';
-
-    try
-    if not fSslLoader.Load then
-    //if not IdSSLOpenSSL.LoadOpenSSLLibrary then
-    begin
-        Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
-        //Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
-      exit;
-    end;
-  except
-    on e: Exception do
-    begin
-      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
-      exit;
-    end;
-  end;
-
-  fOpenSSLVersion := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
-    exit;
+    if slssl_error = '' then
+      Result := 'Failed to load OpenSSL'
+    else
+      Result := slssl_error;
   end;
 
   // initialize global SQLite3 object for API calls (only load from current dir)
