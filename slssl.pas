@@ -99,9 +99,10 @@ begin
   end;
 
   SSL_CTX_set_default_verify_paths(gSSLContextSettings);
-  SSL_CTX_set_options(gSSLContextSettings, SSL_OP_ALL);
+  //SSL_CTX_set_options(gSSLContextSettings, SSL_OP_ALL);
   SSL_CTX_set_mode(gSSLContextSettings, SSL_MODE_AUTO_RETRY);
-  SSL_CTX_set_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF);
+  //SSL_CTX_set_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF);
+  //SSL_CTX_set_session_cache_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF); // probably better for 1.1.1 if needed at all
   //SSL_CTX_set_cipher_list(gSSLContextSettings, gSSL_Default_Cipher_List);
 
   Result := True;
