@@ -177,7 +177,7 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   d: TDirList;
-  aktdir: String;
+  aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
   numerrors: integer;
   tname: String;
@@ -305,8 +305,9 @@ begin
     ps1.midnightdone := True;
   end;
 
+  fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   // Trying to get the dirlist
-  if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir) then
+  if not s.Dirlist(fAbsoluteDir) then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
@@ -319,10 +320,77 @@ begin
 
       550:
         begin
-          if ( (0 <> Pos('FileNotFound', s.lastResponse)) OR (0 <> Pos('File not found', s.lastResponse)) OR (0 <> Pos('No such file or directory', s.lastResponse)) ) then
+          if ( s.lastResponse.Contains('FileNotFound') OR s.lastResponse.Contains('File not found')
+            OR s.lastResponse.Contains('No such file or directory') OR s.lastResponse.Contains('Directory not found')) then
           begin
-            // INFO: This might have to be improved in the future. Right now it's used to avoid getting stuck slots on drftpd
-            s.DestroySocket(False);
+            Debug(dpMessage, c_section, '<- ' + s.lastResponse + ' ' + tname);
+
+            try
+              d := ps1.dirlist.FindDirlist(dir);
+            except
+              on e: Exception do
+                Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
+            end;
+            if (d = nil) Or d.need_mkdir then
+            begin
+              //we're too early, mkdir is not done yet ... the site is slow?
+              //continue to create a new dirlist task below
+              Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
+            end
+            else
+            begin
+              //fix drftpd messed up working directory by reconnect
+              if s.site.sw = sswDrftpd then
+              begin
+                s.Quit;
+                if not s.ReLogin(0, False, 'TPazoDirlistTask') then
+                begin
+                  mainpazo.errorreason := 'Site ' + s.site.Name + ' is offline';
+                  readyerror := True;
+                  Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+                  exit;
+                end;
+
+                if not s.Cwd(fAbsoluteDir) then
+                begin
+                  irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dir ' + fAbsoluteDir + ' on ' + site1 + ' does not exist']));
+                  if (dir = '') then
+                  begin
+                    ps1.MarkSiteAsFailed('cant cwd (dirlist)');
+                  end;
+                  readyerror := True;
+                  mainpazo.errorreason := 'cant cwd (dirlist)';
+                  Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+                  exit;
+                end;
+
+                //this should have fixed our drftpd slot, retry
+                goto TryAgain;
+              end;
+
+              if (dir = '') then
+              begin
+                ps1.MarkSiteAsFailed('No such directory (dirlist)');
+              end
+              else
+              begin
+                //avoid flood of "550 No such file or directory." for subdirs
+                irc_Adderror(Format('<c4>[DIRLIST SUBDIR]</c> [%s]: %s %s', [tname, dir, s.lastResponse]));
+                begin
+                  d.need_mkdir := True;
+                  d.error := True;
+                end;
+              end;
+
+              readyerror := True;
+
+              //no more dirlist
+              exit;
+            end;
+          end
+          else
+          begin
+            Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -754,6 +822,8 @@ begin
   // 2xx Positive Completion reply
   if ( (s.lastResponseCode <> 257) AND ( (s.lastResponseCode < 100) OR (s.lastResponseCode > 299) ) ) then
   begin
+
+    failure := True;
 
     case s.lastResponseCode of
 
