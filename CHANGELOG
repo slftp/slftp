@@ -56,6 +56,7 @@
     {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
     {^} New code for IMDb and Box Office Mojo website parsing
     {^} Slightly improved behaviour for STV/Wide/Limited determination
+    {^} Less unnecessary 'tell your developer' messages to the admin channel
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
