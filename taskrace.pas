@@ -1143,6 +1143,30 @@ var
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
   end;
 
+  procedure _handleErrorRETR();
+  begin
+    if (
+      ( (lastResponseCode = 550) AND (
+        (0 < Pos('No such file or directory', lastResponse)) or (0 < Pos('Unable to load your own user file', lastResponse)) or
+        (0 < Pos('File not found', lastResponse)) or (0 < Pos('File unavailable', lastResponse)) ) )
+      OR
+      ( (lastResponseCode = 426) AND (
+        (0 < Pos('File has been deleted on the master', lastResponse)) or (0 < Pos('is being deleted', lastResponse)) or
+        (0 < Pos('found in any root', lastResponse)) or (0 < Pos('Transfer was aborted', lastResponse)) or
+        (0 < Pos('Slave is offline', lastResponse)) ) )
+    ) then
+    begin
+      if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+      begin
+        irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+      end;
+    end
+    else
+    begin
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    end;
+  end;
+
 begin
   Result := False;
   ssrc := slot1;
@@ -1368,44 +1392,34 @@ begin
           goto TryAgain;
         end;
       426:
-      begin
-        //426- Accept timed out
-        if (0 <> Pos('Accept timed out', lastResponse)) then
         begin
-          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-          goto TryAgain;
+          //426- Accept timed out
+          if (0 <> Pos('Accept timed out', lastResponse)) then
+          begin
+            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            goto TryAgain;
+          end;
         end;
-      end;
       530:
-      begin
-        //530 - Not logged in.
+        begin
+          //530 - Not logged in.
 
-        //530 No transfer-slave(s) available
-        if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
+          //530 No transfer-slave(s) available
+          if (0 <> Pos('No transfer-slave(s) available', lastResponse)) then
           begin
             _setOutOfSpace(ssrc, 'No transfer-slave(s) available');
             exit;
           end;
 
-
-        Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-        ssrc.Quit;
-        goto TryAgain;
-      end;
-      550:
-        begin
-          if (0 <> Pos('File unavailable', lastResponse)) then
-          begin
-            Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            readyerror := True;
-            exit;
-          end;
+          Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+          ssrc.Quit;
+          goto TryAgain;
         end;
       end;
 
-      Debug(dpError, c_section, 'TPazoRaceTask unhandled PRET RETR response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]);
-      irc_Addadmin(Format('TPazoRaceTask unhandled PRET RETR response, tell your developer about it! %s: %s', [ssrc.site.Name, lastResponse]));
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+      _handleErrorRETR();
       readyerror := True;
       mainpazo.errorreason := 'PRET RETR failed on ' + site1;
       Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1489,8 +1503,8 @@ begin
         end;
       end;
 
-      Debug(dpError, c_section, 'TPazoRaceTask unhandled PRET STOR response, tell your developer about it! %s: %s', [sdst.site.Name, lastResponse]);
-      irc_Addadmin(Format('TPazoRaceTask unhandled PRET STOR response, tell your developer about it! %s: %s', [sdst.site.Name, lastResponse]));
+      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
       readyerror := True;
       mainpazo.errorreason := 'PRET STOR failed on ' + site2;
       Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1673,8 +1687,9 @@ begin
         end;
     end;
 
-    Debug(dpError, c_section, 'TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [fPassiveSlot.site.Name, lastResponse]);
-    irc_Addadmin(Format('TPazoRaceTask unhandled response, tell your developer about it! %s: %s', [fPassiveSlot.site.Name, lastResponse]));
+
+    Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
     readyerror := True;
     mainpazo.errorreason := 'PASV/CPSV failed on ' + fPassiveSlot.site.Name;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2118,8 +2133,8 @@ begin
         end;
       end;
 
-      Debug(dpError, c_section, 'TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]);
-      irc_Addadmin(Format('TPazoRaceTask unhandled STOR response, tell your developer about it! %s: (%s) %s', [sdst.site.Name, tname, lastResponse]));
+      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
 
       mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
       sdst.DestroySocket(False);
@@ -2330,29 +2345,7 @@ begin
     end;
 
 
-    if (
-      ( (lastResponseCode = 550) AND (
-        (0 < Pos('No such file or directory', lastResponse)) or (0 < Pos('Unable to load your own user file', lastResponse)) or
-        (0 < Pos('File not found', lastResponse)) or (0 < Pos('File unavailable', lastResponse)) ) )
-      OR
-      ( (lastResponseCode = 426) AND (
-        (0 < Pos('File has been deleted on the master', lastResponse)) or (0 < Pos('is being deleted', lastResponse)) or
-        (0 < Pos('found in any root', lastResponse)) or (0 < Pos('Transfer was aborted', lastResponse)) or
-        (0 < Pos('Slave is offline', lastResponse)) ) )
-    ) then
-    begin
-      if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
-      begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
-      end;
-      Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    end
-    else
-    begin
-      //irc_Adderror(ssrc.todotask, '<c4>[ERROR]</c> unhandled error after RETR %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-      Debug(dpError, c_section, 'TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]);
-      irc_Addadmin(Format('TPazoRaceTask unhandled RETR response, tell your developer about it! %s: (%s) %s', [ssrc.site.Name, tname, lastResponse]));
-    end;
+    _handleErrorRETR();
 
 
     // ilyenkor a dst szalon a legjobb ha lezarjuk a geci a socketet mert az ABOR meg a sok szar amugy sem hasznalhato.
@@ -2608,8 +2601,9 @@ begin
         end;
       end;
 
-    Debug(dpError, c_section, 'TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]);
-    irc_Addadmin(Format('TPazoRaceTask unhandled src response after transferring, tell your developer about it! %s: (%s) %s', [ssrc.Name, tname, lastResponse]));
+
+    Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
 
     mainpazo.errorreason := 'ssrc WAIT: Unhandled error response';
     readyerror := True;
@@ -2836,8 +2830,9 @@ begin
         end;
       end;
 
-    Debug(dpError, c_section, 'TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]);
-    irc_Addadmin(Format('TPazoRaceTask unhandled dst response after transferring, tell your developer about it! %s: (%s) %s', [sdst.Name, tname, lastResponse]));
+    Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
+    irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+
     mainpazo.errorreason := 'sdst WAIT: Unhandled error response';
     readyerror := True;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
