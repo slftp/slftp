@@ -44,6 +44,8 @@ program slftp;
 
 uses
   FastMM5,
+  SysUtils,
+  commandlineutil,
   console;
 
 {$APPTYPE CONSOLE}
@@ -51,6 +53,24 @@ uses
 // allow more user mode address space
 {$SetPEFlags $20}
 
+var
+  fBinaryFilename, fCmdLine: String;
+  i: Integer;
+
 begin
+  fBinaryFilename := ExtractFileName(ParamStr(0));
+  if ParamCount <> 0 then
+  begin
+    // execute command line util
+    for i := 1 to ParamCount do
+    begin
+      fCmdLine := fCmdLine + ParamStr(i) + ' ';
+    end;
+    fCmdLine := fCmdLine.Trim;
+
+    ParseCommandLine(fBinaryFilename, fCmdLine);
+    Exit;
+  end;
+
   ConsoleStart;
 end.
