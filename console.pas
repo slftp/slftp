@@ -413,6 +413,8 @@ end;
 
 procedure ConsoleStart;
 begin
+  slConsoleInit;
+
   app := TMySlApp.Create;
   with app do
   begin
@@ -434,6 +436,8 @@ begin
       end;
     end;
   end;
+
+  slConsoleUninit;
 end;
 
 procedure Console_SiteStat(const allsites, upsites, downsites, unknown: Cardinal);
