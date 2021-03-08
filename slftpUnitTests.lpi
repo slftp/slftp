@@ -52,12 +52,6 @@
         <SyntaxMode Value="Delphi"/>
       </SyntaxOptions>
     </Parsing>
-    <Other>
-      <CustomOptions Value="-dUNITTESTING"/>
-      <OtherDefines Count="1">
-        <Define0 Value="UNITTESTING"/>
-      </OtherDefines>
-    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">
