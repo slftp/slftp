@@ -103,6 +103,7 @@ This file describes what the purpose is of the several files of slFtp.
 - mirktrade_(fish|mircryption).mrc
   Loader MiRC script for the precatcher
 - cryptconf(.exe)
+  NOTE 2021: old tool binaryname, now integrated into slftp as command line utility
   utility for encrypting/decrypting the config files,
-  if you need to tweak something, you probably dont, so dont touch unless
+  if you need to tweak something, you probably don't, so don't touch unless
   you know what you are doing!

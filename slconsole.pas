@@ -64,6 +64,11 @@ type
   function NCurses_version: String;
 {$ENDIF}
 
+{ Initializes the @link(slScreen) variable with a Windows or Unix screen }
+procedure slConsoleInit;
+{ Resets the video, clears the screen and frees the @link(slScreen) variable }
+procedure slConsoleUnInit;
+
 var
   slScreen : TslScreen = nil;
 
@@ -211,11 +216,9 @@ end;
 
 procedure slConsoleUnInit;
 begin
+  slscreen.normvideo;
+  slscreen.clrscr;
   FreeAndNil(slScreen);
-  {
-  slScreen.Free;
-  slScreen := nil;
-  }
 end;
 
 { TslScreen }
@@ -1072,11 +1075,4 @@ begin
 end;
 {$ENDIF}
 
-
-{$IFNDEF UNITTESTING}
-  initialization
-    slConsoleInit;
-  finalization
-    slConsoleUninit;
-{$ENDIF}
 end.
