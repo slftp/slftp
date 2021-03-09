@@ -3,7 +3,7 @@ SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
 CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/mORMot/* -Fulibs/ZeosLib/*
-CTESTINCLUDES = -dUNITTESTING -Futests/* -Futests/fptest/*
+CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gs -gw3
 # flag for heaptrace output
 # see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
