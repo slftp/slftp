@@ -164,6 +164,7 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountFrance;
@@ -182,6 +183,7 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountUK;
@@ -199,10 +201,30 @@ type
       procedure SetUp; override;
     {$ENDIF}
   published
+    procedure TestListsOnlyReleaseGroups;
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
     procedure TestGetWidestScreensCountSpain;
     procedure TestGetWidestScreensCountGermany;
+  end;
+
+  { Ghostbusters (1984) }
+  TTestTHtmlBoxOfficeMojoParser_tt0087332 = class(TTestCase)
+  private
+    FOverviewPage: String;
+    FOriginalReleasePage: String;
+    FUSAReleasePage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestListsOnlyReleaseGroups;
+    procedure TestGetGroupSpecificLinks;
+    procedure TestGetCountrySpecificLinks;
+    procedure TestGetWidestScreensCountUSA;
   end;
 
   TTestTIMDbInfoChecks = class(TTestCase)
@@ -211,6 +233,10 @@ type
     procedure TestIsSTVBasedOnTitleExtraInfo2;
     procedure TestIsSTVBasedOnTitleExtraInfo3;
     procedure TestIsSTVBasedOnTitleExtraInfo4;
+    procedure TestEstimateEnglishCountryOrder1;
+    procedure TestEstimateEnglishCountryOrder2;
+    procedure TestEstimateEnglishCountryOrder3;
+    procedure TestEstimateEnglishCountryOrder4;
   end;
 
 implementation
@@ -293,7 +319,7 @@ end;
 procedure TTestTHtmlIMDbParser.TestParseNoVotesAndNoRating;
 var
   fPageSource: String;
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   // tt0816352
   fPageSource := '    <div class="star-rating-button"><button> <span class="star-rating-star no-rating"></span>' +
@@ -301,8 +327,8 @@ begin
 
   THtmlIMDbParser.ParseVotesAndRating(fPageSource, fVotes, fRating);
 
-  CheckEqualsString('0', fVotes, 'Votes mismatch');
-  CheckEqualsString('0', fRating, 'Rating mismatch');
+  CheckEquals(0, fVotes, 'Votes mismatch');
+  CheckEquals(0, fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
@@ -348,12 +374,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('226530', fVotes, 'Votes mismatch');
-  CheckEqualsString('74', fRating, 'Rating mismatch');
+  CheckTrue(226000 < fVotes, 'Votes mismatch');
+  CheckTrue(228000 > fVotes, 'Votes mismatch');
+  CheckTrue(73 < fRating, 'Rating mismatch');
+  CheckTrue(76 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieLanguage;
@@ -492,12 +520,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('471864', fVotes, 'Votes mismatch');
-  CheckEqualsString('83', fRating, 'Rating mismatch');
+  CheckTrue(470000 < fVotes, 'Votes mismatch');
+  CheckTrue(480000 > fVotes, 'Votes mismatch');
+  CheckTrue(80 < fRating, 'Rating mismatch');
+  CheckTrue(86 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseMovieLanguage;
@@ -632,12 +662,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt7214470.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('1230', fVotes, 'Votes mismatch');
-  CheckEqualsString('42', fRating, 'Rating mismatch');
+  CheckTrue(1000 < fVotes, 'Votes mismatch');
+  CheckTrue(1500 > fVotes, 'Votes mismatch');
+  CheckTrue(39 < fRating, 'Rating mismatch');
+  CheckTrue(47 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7214470.TestParseMovieLanguage;
@@ -772,12 +804,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('1041', fVotes, 'Votes mismatch');
-  CheckEqualsString('52', fRating, 'Rating mismatch');
+  CheckTrue(1000 < fVotes, 'Votes mismatch');
+  CheckTrue(1800 > fVotes, 'Votes mismatch');
+  CheckTrue(50 < fRating, 'Rating mismatch');
+  CheckTrue(58 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseMovieLanguage;
@@ -902,12 +936,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('2608', fVotes, 'Votes mismatch');
-  CheckEqualsString('77', fRating, 'Rating mismatch');
+  CheckTrue(2700 < fVotes, 'Votes mismatch');
+  CheckTrue(4000 > fVotes, 'Votes mismatch');
+  CheckTrue(74 < fRating, 'Rating mismatch');
+  CheckTrue(81 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseMovieLanguage;
@@ -1037,12 +1073,14 @@ end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseVotesAndRating;
 var
-  fVotes, fRating: String;
+  fVotes, fRating: Integer;
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckEqualsString('33054', fVotes, 'Votes mismatch');
-  CheckEqualsString('63', fRating, 'Rating mismatch');
+  CheckTrue(31000 < fVotes, 'Votes mismatch');
+  CheckTrue(39000 > fVotes, 'Votes mismatch');
+  CheckTrue(59 < fRating, 'Rating mismatch');
+  CheckTrue(68 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieLanguage;
@@ -1186,6 +1224,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1266,6 +1313,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1333,6 +1389,15 @@ begin
   end;
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckFalse(fOnlyReleaseGroups, 'Should not lists release groups');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.TestGetCountrySpecificLinks;
 var
   fBOMCountryLinks: TDictionary<String, String>;
@@ -1385,6 +1450,94 @@ begin
   fScreens := THtmlBoxOfficeMojoParser.GetWidestScreensCount(FGermanyReleasePage);
 
   CheckEquals(932, fScreens, 'Screens count mismatch');
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOM', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOverviewPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOMOrigRel', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOriginalReleasePage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0087332_BOMREL', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FUSAReleasePage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckTrue(fOnlyReleaseGroups, 'Should lists release groups');
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetGroupSpecificLinks;
+var
+  fBOMGroupReleaseLinks: TDictionary<String, String>;
+begin
+  fBOMGroupReleaseLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(FOverviewPage, fBOMGroupReleaseLinks);
+
+    CheckEquals(6, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    CheckEqualsString('/releasegroup/gr2193641989', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2210419205', fBOMGroupReleaseLinks.Items['1985 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2160087557', fBOMGroupReleaseLinks.Items['2011 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2176864773', fBOMGroupReleaseLinks.Items['30th Anniversary Release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2260750853', fBOMGroupReleaseLinks.Items['2019 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr3449901573', fBOMGroupReleaseLinks.Items['2020 Re-release'], 'Link mismatch');
+  finally
+    fBOMGroupReleaseLinks.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetCountrySpecificLinks;
+var
+  fBOMCountryLinks: TDictionary<String, String>;
+begin
+  fBOMCountryLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOriginalReleasePage, fBOMCountryLinks);
+
+    CheckEquals(1, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEqualsString('/release/rl3696592385', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+  finally
+    fBOMCountryLinks.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetWidestScreensCountUSA;
+var
+  fScreens: Integer;
+begin
+  fScreens := THtmlBoxOfficeMojoParser.GetWidestScreensCount(FUSAReleasePage);
+
+  CheckEquals(1506, fScreens, 'Screens count mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo1;
@@ -1451,6 +1604,114 @@ begin
   CheckTrue(fIsSTV, 'STV mismatch');
 end;
 
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder1;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt3450958_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder2;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0375568_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder3;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt0455275_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('UK', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
+procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder4;
+var
+  fStrList: TStringList;
+  fResStream: TResourceStream;
+  fPageSource: String;
+  fImdbCountry: String;
+  fFirstListedCountry: String;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt7214470_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      fPageSource := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+
+  THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
+  fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
+
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+end;
+
 initialization
   {$IFDEF FPC}
     RegisterTest('THtmlIMDbParser', TTestTHtmlIMDbParser.Suite);
@@ -1465,6 +1726,7 @@ initialization
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt5093026', TTestTHtmlBoxOfficeMojoParser_tt5093026.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0375568', TTestTHtmlBoxOfficeMojoParser_tt0375568.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt3450958', TTestTHtmlBoxOfficeMojoParser_tt3450958.Suite);
+    RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0087332', TTestTHtmlBoxOfficeMojoParser_tt0087332.Suite);
 
     RegisterTest('TTestTIMDbInfoChecks', TTestTIMDbInfoChecks.Suite);
   {$ELSE}
@@ -1480,6 +1742,7 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt5093026);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0375568);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt3450958);
+    TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0087332);
 
     TDUnitX.RegisterTestFixture(TTestTIMDbInfoChecks);
   {$ENDIF}

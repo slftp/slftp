@@ -3,10 +3,6 @@ const
   SL_REV: string = '';
   HELP_VERSION: string = '0.5.8';
 
-  (*   CryptConf Stuff *)
-  CC_VERSION: string = '3.2.1';
-  CC_MasterK: string = 'masterpass.txt';
-
   (* libraries *)
   lib_OpenSSL: string = '1.0.2';
   lib_Ncurses: string = 'ncurses 5.5.';

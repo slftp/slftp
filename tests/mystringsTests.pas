@@ -37,6 +37,14 @@ type
     procedure TestParseSTATLine8;
     procedure TestParseSTATLine9;
     procedure TestParseSTATLine10;
+    procedure TestInternationalCharsToAsciiSceneChars1;
+    procedure TestInternationalCharsToAsciiSceneChars2;
+    procedure TestInternationalCharsToAsciiSceneChars3;
+    procedure TestInternationalCharsToAsciiSceneChars4;
+    procedure TestInternationalCharsToAsciiSceneChars5;
+    procedure TestInternationalCharsToAsciiSceneChars6;
+    procedure TestInternationalCharsToAsciiSceneChars7;
+    procedure TestInternationalCharsToAsciiSceneChars8;
   end;
 
 implementation
@@ -361,7 +369,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine2;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.09 MB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -375,7 +383,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine3;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.09 MB Ratio MiB -> GB
   fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -389,7 +397,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine4;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 MiB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -403,7 +411,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine5;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 GiB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6GiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -417,7 +425,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine6;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 MiB Ratio -> GB
   fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -431,7 +439,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine7;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // DrFTPd leech
   fStatLine := '200-      [Credits: 1.1TB] [Ratio: 1:0.0]';
@@ -445,7 +453,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine8;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // DrFTPd
   fStatLine := '200-      [Credits: 4.9TB] [Ratio: 1:3.0]';
@@ -459,7 +467,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine9;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // glftpd Credits mb -> gb
   fStatLine := '226  daydn(0.0mb) weekdn(0.0mb) monthdn(0.0mb) alup(1471.5mb) aldn(422927.2mb) credits(1476624.8mb) ratio(UL: 1:3 | DL: 1:1)';
@@ -473,7 +481,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine10;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // glftpd negative credits
   fStatLine := '[Section: DEFAULT] [Credits: -106.6MB] [Ratio: UL&DL: Unlimited]';
@@ -483,6 +491,102 @@ begin
 
   CheckEqualsString(fExpectedCredits, fCredits);
   CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars1;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt6586440/
+  fMovieName := 'Ein Lächeln nachts um vier';
+  fExpectedStr := 'Ein Laecheln nachts um vier';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars2;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt0566334/
+  fMovieName := '&quot;The Drew Carey Show&quot; Bananas: Part 2';
+  fExpectedStr := 'The Drew Carey Show Bananas Part 2';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars3;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13649700/
+  fMovieName := 'Crack: Cocaine, Corruption & Conspiracy';
+  fExpectedStr := 'Crack Cocaine Corruption Conspiracy';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars4;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt12384470/
+  fMovieName := '&quot;Cinematic Venom Presents: 1001 Movies You Must See Before You Die&quot; Whiplash';
+  fExpectedStr := 'Cinematic Venom Presents 1001 Movies You Must See Before You Die Whiplash';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars5;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13639672/
+  fMovieName := 'Matthew Bourne''s Romeo and Juliet';
+  fExpectedStr := 'Matthew Bournes Romeo and Juliet';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars6;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13649700/
+  fMovieName := '&quot;37 Grad&quot; Auf der Spur der Täter - Delikt Kinderpornografie';
+  fExpectedStr := '37 Grad Auf der Spur der Taeter Delikt Kinderpornografie';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars7;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt3450958/
+  fMovieName := 'War for the Planet of the Apes';
+  fExpectedStr := 'War for the Planet of the Apes';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars8;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt12885852/
+  fMovieName := 'Batman: Soul of the Dragon';
+  fExpectedStr := 'Batman Soul of the Dragon';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
 end;
 
 initialization
