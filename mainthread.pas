@@ -54,9 +54,9 @@ implementation
 uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
-  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
-  StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
+  StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto;
 
 {$I slftp.inc}
 
@@ -80,8 +80,9 @@ end;
 
 function Main_Init: String;
 var
+  fSslLoader: IOpenSSLLoader;
+  fOpenSSLVersion, fSSLErrorMsg: String;
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
-  fOpenSSLVersion: String;
   fError: String;
 begin
   Result := '';
@@ -92,39 +93,13 @@ begin
     exit;
   end;
 
-
-  if not slssl_inited then
-  begin
-    Result := 'Could not load OpenSSL!' + #10#13;
-    {$IFDEF MSWINDOWS}
-      Result := Result + 'Install it from:' + #13#10 + 'http://www.slproweb.com/products/Win32OpenSSL.html';
-    {$ELSE}
-      Result := Result + 'Try to copy the libssl.so and libcrypto.so libs into slftp dir!';
-    {$ENDIF}
-    exit;
-  end;
-
-  fOpenSSLVersion := slssl.OpenSSLShortVersion;
-  SetLength(fOpenSSLVersion, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL %s is not supported! OpenSSL %s needed.', [slssl.OpenSSLShortVersion, lib_OpenSSL]);
-    exit;
-  end;
-
-
-  // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
-
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
-
+  { load OpenSSL }
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+  fSslLoader.OpenSSLPath := '.';
   try
-    if not IdSSLOpenSSL.LoadOpenSSLLibrary then
+    if not fSslLoader.Load then
     begin
-      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
       exit;
     end;
   except
@@ -135,11 +110,27 @@ begin
     end;
   end;
 
-  fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
-  fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
+  // check if we at least have OpenSSL 1.1.0
+  if not Assigned(OpenSSL_version) then
+  begin
+    Result := Format('OpenSSL %s needed.', [lib_OpenSSL]);
+    exit;
+  end;
+
+  { verify that it loaded the correct OpenSSL version }
+  fOpenSSLVersion := GetOpenSSLShortVersion;
+  // remove letter from version
+  SetLength(fOpenSSLVersion, Length(fOpenSSLVersion) - 1);
   if (fOpenSSLVersion <> lib_OpenSSL) then
   begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [GetOpenSSLVersion, lib_OpenSSL]);
+    exit;
+  end;
+
+  { init default SSL/TLS connection context }
+  if not InitOpenSSLConnectionContext(fSSLErrorMsg) then
+  begin
+    Result := Format('Could not initialize default OpenSSL TLS/SSL context: %s%s', [sLineBreak, fSSLErrorMsg]);
     exit;
   end;
 
@@ -405,7 +396,7 @@ end;
 procedure Main_Run;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
-  Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));
+  Debug(dpMessage, section, Format('OpenSSL version: %s', [GetOpenSSLVersion]));
   Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
   {$IFNDEF MSWINDOWS}
     Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
@@ -472,6 +463,8 @@ begin
 end;
 
 procedure Main_Uninit;
+var
+  fSslLoader: IOpenSSLLoader;
 begin
   Debug(dpSpam, section, 'Uninit1');
   (*
@@ -526,8 +519,12 @@ begin
   if Assigned(MySQLCon) then
     FreeAndNil(MySQLCon);
 
+  { unload OpenSSL }
+  UninitOpenSSLConnectionContext;
+
   try
-    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
+    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+    fSslLoader.Unload;
   except
     on e: Exception do
     begin
