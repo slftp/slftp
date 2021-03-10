@@ -645,6 +645,8 @@ var
   fBOMReleaseGroupPair, fBOMCountryLinkPair: TPair<String, String>;
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
   fBomScreensCount: Integer;
+  fFound_LastImdb: Integer;
+  fFound: Boolean;
 begin
   Result := False;
 
@@ -653,6 +655,36 @@ begin
   // endindex = Pos('</script>', http_response, startindex);
   // count := endindex - startindex;
   // json := Copy(http_response, startindex + Length('type="application/json">'), count);
+
+  //  // exit if imdb info is already known in last_imdbdata
+    gDbAddimdb_cs.Enter;
+    try
+      fFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(FReleaseName));
+      if fFound_LastImdb = -1 then
+      begin
+        Debug(dpError, section, Format('[Info] taskhttpimdb add Release to temp Hashlist: %s - %s', [FReleaseName, getMovieNameWithoutSceneTags(FReleaseName)]));
+        last_addimdb.add(getMovieNameWithoutSceneTags(FReleaseName));
+      end;
+    finally
+      gDbAddimdb_cs.Leave;
+    end;
+
+	try
+      ffound := (fFound_LastImdb <> -1);
+      if ffound = True then
+      begin
+        Result := True;
+        ready := True;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] taskhttpimdb last_imdbdata.IndexOf: %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
+  end;
 
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
