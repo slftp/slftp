@@ -36,18 +36,18 @@ type
 implementation
 
 uses
-  debugunit, IdSSLOpenSSLHeaders, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
+  debugunit, IdOpenSSLHeaders_blowfish, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_evp, IdOpenSSLHeaders_evperr, IdOpenSSLHeaders_rand, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
 
 { functions for CBC de-/encryption }
 
-function BlowfishCipherWalk(aCTX: PEVP_CIPHER_CTX; aBufIn: PAnsiChar; aInSize: integer; out aOut: TBytes): boolean;
+function BlowfishCipherWalk(aCTX: PEVP_CIPHER_CTX; aBufIn: PByte; aInSize: integer; out aOut: TBytes): boolean;
 var
   fSuccess: boolean;
   fBytesLeft: integer;
-  fBufPtr: PAnsiChar;
+  fBufPtr: PByte;
   fInSize: integer;
   fTmpBuf: array[0..255] of Byte;
   fOutLen: integer;
@@ -200,12 +200,8 @@ begin
 
     if (RAND_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
     begin
-      // fallback but deprecated in OpenSSL
-      if (RAND_pseudo_bytes(@fRealIV[0], Length(fRealIV)) <> 1) then
-      begin
-        Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
-        exit;
-      end;
+      Debug(dpError, section, '[FiSH] Can not get random numbers for CBC encryption!');
+      exit;
     end;
     // got an IV
     move(fRealIV[0], fInBuf[0], 8);

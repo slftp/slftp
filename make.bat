@@ -7,14 +7,14 @@ for /f "delims=" %%a in ('where dcc64.exe') do @set CC_64=%%a
 set CC_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
+set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/Protocols/OpenSSL -Ulibs/Indy10/Protocols/OpenSSL/dynamic -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
 set UnitTestAppName="tests\slftpUnitTests.exe --exitbehavior:Continue"
 set CTESTINCLUDES=-Utests/DUnitX
 
 REM
 REM OpenSSL version, depending names for 32/64bit will be added later
 REM
-set OPENSSL_NAME=openssl-1.0.2u
+set OPENSSL_NAME=openssl-1.1.1i
 
 REM
 REM Inject git commit into slftp.inc if .git exists
@@ -106,8 +106,8 @@ echo Failure reason for extracting is %errorlevel%
 exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-i386-win32\libeay32.dll libeay32.dll
-copy /Y %OPENSSL_NAME%-i386-win32\ssleay32.dll ssleay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32\libcrypto-1_1.dll libcrypto-1_1.dll
+copy /Y %OPENSSL_NAME%-i386-win32\libssl-1_1.dll libssl-1_1.dll
 if errorlevel 1 (
 echo Failure reason for copying is %errorlevel%
 exit /b %errorlevel%
@@ -154,8 +154,8 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-x64_86-win64\libeay32.dll libeay32.dll /Y
-copy /Y %OPENSSL_NAME%-x64_86-win64\ssleay32.dll ssleay32.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\libcrypto-1_1-x64.dll libcrypto-1_1-x64.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\libssl-1_1-x64.dll libssl-1_1-x64.dll /Y
 if errorlevel 1 (
    echo Failure reason for copying is %errorlevel%
    exit /b %errorlevel%

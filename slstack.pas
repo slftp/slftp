@@ -5,7 +5,7 @@ interface
 
 uses
   Classes, SysUtils,
-  slssl, debugunit, mystrings,
+  slssl, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_ossl_typ, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -1116,10 +1116,10 @@ end;
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
 begin
   try
-    Result := slSSL_read(ssl, PAnsiChar(@buffer), bufsize);
+    Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
     if Result <= 0 then
     begin
-      error := 'sslread failed: ' + slSSL_LastError(ssl, Result);
+      error := 'sslread failed: ' + GetLastSSLError(ssl, Result);
       if 0 < Pos('zero return', error) then
         error := 'Connection lost';
     end;
@@ -1138,10 +1138,10 @@ var
 begin
   Result := True;
   try
-    rc := slSSL_write(ssl, PAnsiChar(@buffer), bufsize);
+    rc := SSL_write(ssl, PAnsiChar(@buffer), bufsize);
     if rc <= 0 then
     begin
-      error := 'sslwrite failed: ' + slSSL_LastError(ssl, rc);
+      error := 'sslwrite failed: ' + GetLastSSLError(ssl, rc);
       Result := False;
     end
     else if rc < bufsize then
