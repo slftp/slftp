@@ -42,11 +42,11 @@
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
     3. update your slftp.imdbcountries file with the provided one in /config folder
-    4. enjoy!
+    4. update your OpenSSL libraries to version 1.1.1
+    5. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
-    OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
@@ -57,6 +57,7 @@
     {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
     {^} New code for IMDb and Box Office Mojo website parsing
     {^} Slightly improved behaviour for STV/Wide/Limited determination
+    {^} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported)
     {^} Less unnecessary 'tell your developer' messages to the admin channel
 
 --=============================( SLFTP v1.5.7 )===================================-

@@ -60,7 +60,8 @@ uses
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
-  taskhttpimdbTests;
+  taskhttpimdbTests,
+  slsslTests;
 
 var
   filecheck: String;

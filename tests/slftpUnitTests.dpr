@@ -77,7 +77,8 @@ uses
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
-  taskhttpimdbTests;
+  taskhttpimdbTests,
+  slsslTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
