@@ -1487,26 +1487,22 @@ begin
           dbaddimdb_cs.Leave;
         end;
 
-        if pazo.rls is TIMDBRelease then
-        begin
-          ir := TIMDBRelease(pazo.rls);
-          ir.imdb_id := imdbdata.imdb_id;
-          ir.imdb_year := imdbdata.imdb_year;
-          ir.imdb_languages := imdbdata.imdb_languages;
-          ir.imdb_countries := imdbdata.imdb_countries;
-          ir.imdb_genres := imdbdata.imdb_genres;
-          ir.imdb_screens := imdbdata.imdb_screens;
-          ir.imdb_rating := imdbdata.imdb_rating;
-          ir.imdb_votes := imdbdata.imdb_votes;
-          ir.CineYear := imdbdata.imdb_cineyear;
-          ir.imdb_ldt := imdbdata.imdb_ldt;
-          ir.imdb_wide := imdbdata.imdb_wide;
-          ir.imdb_festival := imdbdata.imdb_festival;
-          ir.imdb_stvm := imdbdata.imdb_stvm;
-          ir.imdb_stvs := imdbdata.imdb_stvs;
+        imdb_id := imdbdata.imdb_id;
+        imdb_year := imdbdata.imdb_year;
+        imdb_languages := imdbdata.imdb_languages;
+        imdb_countries := imdbdata.imdb_countries;
+        imdb_genres := imdbdata.imdb_genres;
+        imdb_screens := imdbdata.imdb_screens;
+        imdb_rating := imdbdata.imdb_rating;
+        imdb_votes := imdbdata.imdb_votes;
+        CineYear := imdbdata.imdb_cineyear;
+        imdb_ldt := imdbdata.imdb_ldt;
+        imdb_wide := imdbdata.imdb_wide;
+        imdb_festival := imdbdata.imdb_festival;
+        imdb_stvm := imdbdata.imdb_stvm;
+        imdb_stvs := imdbdata.imdb_stvs;
 
-          ir.FLookupDone := True;
-        end;
+        FLookupDone := True;
       except
         on e: Exception do
         begin
