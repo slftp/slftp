@@ -1099,7 +1099,7 @@ begin
   if nomp3dirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(rlsname, section);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
@@ -1170,9 +1170,9 @@ begin
   if nonfodirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(rlsname, section);
 
-  i := last_addnfo.IndexOf(pazo.rls.rlsname);
+  i := last_addnfo.IndexOf(rlsname);
   if i <> -1 then
     exit;
 
@@ -1260,8 +1260,7 @@ begin
   if showname = '' then
     exit;
 
-  // ugly shit
-  pazo := TPazo(p);
+  pazo := FindPazoByName(rlsname, section);
 
   // check if we already have this showname in database
   try
@@ -1434,14 +1433,12 @@ var
   ps: TPazoSite;
   i, j: integer;
   imdbdata: TDbImdbData;
-  ir: TIMDBRelease;
 begin
   Result := False;
   aktualizalva := True;
 
   try
-    // ugly shit
-    pazo := TPazo(p);
+    pazo := FindPazoByName(rlsname, section);
 
     dbaddimdb_cs.Enter;
     try
@@ -1658,7 +1655,7 @@ begin
   if nomvdirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(rlsname, section);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
@@ -1666,8 +1663,6 @@ begin
     AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
     Result := True;
   end;
-
-  // aktualizalva := True;
 end;
 
 procedure TMVIDRelease.SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
