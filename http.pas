@@ -13,7 +13,7 @@ function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: Strin
 implementation
 
 uses
-  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit,
+  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdOpenSSLIOHandlerClient, IdCompressorZLib, IdSocks, configunit,
   mslproxys, {$IFNDEF UNICODE}IdGlobal,{$ENDIF} IdExceptionCore;
 
 const
@@ -31,7 +31,7 @@ label
   TryAgain;
 var
   fIdHTTP: TIdHTTP;
-  fIdSSLIOHandlerSocketOpenSSL: TIdSSLIOHandlerSocketOpenSSL;
+  fIdSSLIOHandlerSocketOpenSSL: TIdOpenSSLIOHandlerClient;
   fIdSocksInfo: TIdSocksInfo;
   fEncodedUrl: String;
   fProxyname: String;
@@ -119,9 +119,9 @@ begin
       end;
 
       // secure connection setup
-      fIdSSLIOHandlerSocketOpenSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+      fIdSSLIOHandlerSocketOpenSSL := TIdOpenSSLIOHandlerClient.Create(nil);
       // negotiate highest possible SSL version between client and server
-      fIdSSLIOHandlerSocketOpenSSL.SSLOptions.SSLVersions := [sslvSSLv23];
+      fIdSSLIOHandlerSocketOpenSSL.Options.VerifyServerCertificate := False;
 
       // set socks5 proxy if configured to use one
       if fIdSocksInfo <> nil then
