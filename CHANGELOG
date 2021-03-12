@@ -55,6 +55,7 @@
     {+} Reverse FXP can be enabled by command !reversefxp
     {+} cryptconf functionality integrated into slftp as command line utility, see 'slftp(.exe) --help' (#298)
     {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
+    {#} Fix not working pretime check retry (settings readd_attempts, readd_interval of [taskpretime])
     {^} New code for IMDb and Box Office Mojo website parsing
     {^} Slightly improved behaviour for STV/Wide/Limited determination
     {^} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported)
