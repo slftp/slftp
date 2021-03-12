@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr, typinfo,
+  Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules;
 
@@ -12,18 +12,11 @@ type
 
   {
   @value(sslNone no encryption used)
-  @value(sslImplicitSSLv23 implicit ssl handshake using SSLv23 after TCP connection was established)
-  @value(sslAuthSslSSLv23 AUTH SSL then ssl handshake using SSLv23)
-  @value(sslAuthTLSSSLv23 AUTH TLS then ssl handshake using SSLv23)
-  @value(sslAuthSslTLSv1 AUTH SSL then ssl handshake using TLSv1)
-  @value(sslAuthTlsTLSv1 AUTH TLS then ssl handshake using TLSv1)
-  @value(sslImplicitTLSv1 implicit ssl handshake using TLSv1 after TCP connection was established)
-  @value(sslAuthTlsTLSv1_2 AUTH TLS then ssl handshake using TLSv1.2)
-  @value(sslImplicitTLSv1_2 implicit ssl handshake using TLSv1.2 after TCP connection was established)
+  @value(sslImplicitSSL Implicit SSL)
+  @value(sslAuthSsl AUTH SSL)
+  @value(sslAuthTLS AUTH TLS)
   }
-  TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
-    sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
-    sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+  TSSLMethods = (sslNone, sslImplicitSSL, sslAuthSsl, sslAuthTLS);
 
   {
   @value(sfUnknown unknown feature flag)
@@ -191,6 +184,7 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -655,14 +649,9 @@ begin
   Result := 'Unknown';
   case TSite(aSite).sslmethod of
     sslNone: Result := ' no encryption used';
-    sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
-    sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
-    sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
-    sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
-    sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
-    sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
-    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv1.2';
-    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv1.2 after TCP connection was established';
+    sslImplicitSSL: Result := ' Implicit SSL';
+    sslAuthSsl: Result := ' AUTH SSL';
+    sslAuthTLS: Result := ' AUTH TLS';
   end;
 end;
 
@@ -1358,12 +1347,9 @@ begin
   localport := slSocket.localPort;
 
   sslm := TSSLMethods(site.sslmethod);
-  if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
+  if sslm in [sslImplicitSSL] then
   begin
-    if sslm = sslImplicitTLSv1_2 then
-      SetSSLContext(slTLSv1_2)
-    else
-      SetSSLContext(slTLSv1);
+    SetSSLContext();
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
   end;
@@ -1378,18 +1364,11 @@ begin
     exit;
   end;
 
-  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23, sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
+  if (sslm in [sslAuthSsl, sslAuthTls]) then
   begin
-    if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
-      SetSSLContext(slSslv23);
+    SetSSLContext();
 
-    if sslm in [sslAuthTlsTLSv1] then
-      SetSSLContext(slTLSv1);
-
-    if sslm in [sslAuthTlsTLSv1_2] then
-      SetSSLContext(slTLSv1_2);
-
-    if sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1] then
+    if sslm in [sslAuthSsl] then
       tmp := 'AUTH SSL'
     else
       tmp := 'AUTH TLS';
@@ -2625,8 +2604,22 @@ begin
 end;
 
 function TSite.Getsslmethod: TSSLMethods;
+var
+  fSslMethod: Integer;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1_2)));
+  fSslMethod := RCInteger('sslmethod', integer(FDefaultSslMethod));
+
+  //if the site has set an old value (>3) then set it to the default
+  if fSslMethod > integer(High(TSSLMethods)) then
+  begin
+    Setsslmethod(FDefaultSslMethod);
+    irc_Addadmin(Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Debug(dpMessage, section, Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Result := FDefaultSslMethod;
+    exit;
+  end;
+
+  Result := TSSLMethods(fSslMethod);
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);
