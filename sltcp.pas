@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, slssl, debugunit;
+  mslproxys, slstack, debugunit, slssl, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_err;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -21,7 +21,6 @@ const
 
 
 type
-  TslSSLMethod = (slSSLv23, slTLSv1,slTLSv1_2);
 
   TslSocks5 = class
     enabled: Boolean;
@@ -51,7 +50,7 @@ type
     function ShouldQuit: Boolean;
     function Reuse(b: Integer): Boolean;
   protected
-    procedure SetSSLContext(m: TslSSLMethod);
+    procedure SetSSLContext();
   public
     slSocket: TslSocket;
     Host: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
@@ -188,8 +187,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
-//  fSSLCTX:= slssl_ctx_tlsv1_2_client;
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -216,7 +214,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
@@ -253,9 +251,9 @@ procedure TslTCPSocket.DisconnectSSL;
 begin
   if fSSL <> nil then
   begin
-    slSSL_shutdown(fSSL);
+    SSL_shutdown(fSSL);
 
-    slSSL_free(fSSL);
+    SSL_free(fSSL);
     fSSL:= nil;
   end;
 
@@ -609,12 +607,6 @@ begin
   try
     setlength(er, 512);
 
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
-
     if slSocket.socket = slSocketError then
     begin
       error:= 'not connected';
@@ -633,20 +625,20 @@ begin
     sltcp_lock.Enter;
     try
       fSSL:= nil;
-      fssl:= slSSL_new(sslctx);
+      fssl:= SSL_new(sslctx);
     finally
       sltcp_lock.Leave;
     end;
 
     if (fSSL = nil) then
     begin
-      slERR_error_string(slERR_get_error(), @er[1]);
+      ERR_error_string(ERR_get_error(), @er[1]);
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
 
-    if slSSL_set_fd(fSSL, slSocket.socket) = 0 then
+    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
     begin
       DisconnectSSL;
       error:= 'ssl set fd returned false';
@@ -660,7 +652,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -668,12 +660,12 @@ begin
         exit;
       end;
 
-      err:= slSSL_connect(fssl);
+      err:= SSL_connect(fssl);
 
       if(err = 1) then Break;
 
-      sslerr:= slSSL_get_error(fssl, err);
-      if((sslerr = OPENSSL_SSL_ERROR_WANT_READ) or (sslerr = OPENSSL_SSL_ERROR_WANT_WRITE) or (sslerr = OPENSSL_SSL_ERROR_WANT_X509_LOOKUP)) then
+      sslerr:= SSL_get_error(fssl, err);
+      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
       begin
         if Assigned(fOnWaitingforSocket) then
           fOnWaitingforSocket(self, shouldquit);
@@ -693,7 +685,7 @@ begin
       end
       else
       begin
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -727,12 +719,6 @@ begin
   try
     setlength(er, 512);
 
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
-
     if slSocket.socket = slSocketError then
     begin
       error:= 'not connected';
@@ -750,20 +736,20 @@ begin
 
     sltcp_lock.Enter;
     try
-      fssl:= slSSL_new(sslctx);
+      fssl:= SSL_new(sslctx);
     finally
       sltcp_lock.Leave;
     end;
 
     if (fSSL = nil) then
     begin
-      slERR_error_string(slERR_get_error(), @er[1]);
+      ERR_error_string(ERR_get_error(), @er[1]);
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
 
-    if slSSL_set_fd(fSSL, slSocket.socket) = 0 then
+    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
     begin
       DisconnectSSL;
       error:= 'ssl set fd returned false';
@@ -777,7 +763,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -785,12 +771,12 @@ begin
         exit;
       end;
 
-      err:= slSSL_accept(fssl);
+      err:= SSL_accept(fssl);
 
       if(err = 1) then Break;
 
-      sslerr:= slSSL_get_error(fssl, err);
-      if((sslerr = OPENSSL_SSL_ERROR_WANT_READ) or (sslerr = OPENSSL_SSL_ERROR_WANT_WRITE) or (sslerr = OPENSSL_SSL_ERROR_WANT_X509_LOOKUP)) then
+      sslerr:= SSL_get_error(fssl, err);
+      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
       begin
         if Assigned(fOnWaitingforSocket) then
           fOnWaitingforSocket(self, shouldquit);
@@ -810,7 +796,7 @@ begin
       end
       else
       begin
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -1225,13 +1211,9 @@ begin
   Result:= True;
 end;
 
-procedure TslTCPSocket.SetSSLContext(m: TslSSLMethod);
+procedure TslTCPSocket.SetSSLContext();
 begin
-  if m = slSSLv23 then
-    fSSLCTX:= slSSL_CTX_sslv23_client;
-if m = slTLSv1 then    fSSLCTX:= slSSL_CTX_tlsv1_client;
-if m = slTLSv1_2 then    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
-
+  fSSLCTX := GetOpenSSLConnectionContext;
 end;
 
 function TslTCPSocket.connected: Boolean;
