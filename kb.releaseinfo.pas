@@ -28,15 +28,18 @@ type
   TRelease = class
   private
     FCurrentYear: Integer; //< Value of the current year (e.g. 2019)
+    FSection: String; //< sectionname
+    FRlsname: String; //< releasename
+    FGroupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
+    FRlsnameWithoutGroupname: String; //< @link(rlsname) with removed @link(groupname)
+    FIsInternal: Boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
+    FPretimeUTC: Int64; //< UTC pretime for release
+    FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
-    rlsname: String; //< releasename
-    rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
-    section: String;
+
     words: TStringList; //< list of all words which occur in @link(rlsname), firstly removes () and then replaces .-_ with whitespace
-    groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
-    internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     disks: integer;
     kb_event: TKBEventType;
     language: String; //< contains the language string which is detected from @link(rlsname)
@@ -49,10 +52,6 @@ type
     fake: boolean;
     fakereason: String;
 
-    pretime: int64; //< UTC pretime for release
-    pretimefrom: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
-
-    pretimefound: boolean;
     PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     // for fake checking
@@ -87,6 +86,13 @@ type
     class function SectionAccepted(const section: String): boolean;
 
     property CurrentYear: Integer read FCurrentYear;
+    property section: String read FSection;
+    property rlsname: String read FRlsname;
+    property groupname: String read FGroupname;
+    property RlsnameWithoutGroup: String read FRlsnameWithoutGroupname;
+    property IsInternal: Boolean read FIsInternal;
+    property Pretime: Int64 read FPretimeUTC;
+    property PretimeSource: String read FPretimeSource;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -574,7 +580,7 @@ begin
       Result := Result + '?';
     Result := Result + #13#10;
 
-    if (pretime = 0) then
+    if (Pretime = 0) then
       Result := Result + 'Pretime not found!' + #13#10
     else
       Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(pretime, False))]) + #13#10;
@@ -588,7 +594,7 @@ begin
     if language <> '' then
       Result := Result + Format('Language: %s', [language]) + #13#10;
 
-    Result := Result + Format('Internal: %s', [BoolToStr(internal, True)]) + #13#10;
+    Result := Result + Format('Internal: %s', [BoolToStr(FIsInternal, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -607,13 +613,13 @@ begin
     aktualizalva := False;
     PredOnAnySite := False;
 
-    Self.section := section;
-    Self.rlsname := rlsname;
+    FSection := section;
+    FRlsname := rlsname;
 
     if SavedPretime > -1 then
     begin
       try
-        self.pretime := SavedPretime;
+        FPretimeUTC := SavedPretime;
       except
         on e: Exception do
           irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)', [rlsname, SavedPretime, e.Message]));
@@ -641,7 +647,7 @@ begin
 
     words.DelimitedText := s;
 
-    internal := False;
+    FIsInternal := False;
 
     rrgx := TRegExpr.Create;
     try
@@ -649,26 +655,26 @@ begin
 
       rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
       if rrgx.Exec(rlsname) then
-        internal := True;
+        FIsInternal := True;
 
       // detect groupname
-      groupname := '';
+      FGroupname := '';
       rrgx.Expression := '\-([^\-]+)$';
       if rrgx.Exec(rlsname) then
       begin
-        groupname := rrgx.Match[1];
+        FGroupname := rrgx.Match[1];
       end;
     finally
       rrgx.free;
     end;
 
     // old way if groupname not found by regex
-    if (groupname = '') then
+    if (FGroupname = '') then
     begin
       if UpperCase(words.strings[words.Count - 1]) = 'INT' then
-        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
+        FGroupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
       else
-        groupname := words.strings[words.Count - 1];
+        FGroupname := words.strings[words.Count - 1];
     end;
 
     dots := 0;
@@ -688,7 +694,7 @@ begin
         Inc(vowels);
     end;
 
-    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+    FRlsnameWithoutGroupname := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     // language detection
     if (Self is TMP3Release) then
@@ -760,14 +766,14 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime := TimeStamp;
-    pretimefrom := 'Parameter';
+    FPretimeUTC := TimeStamp;
+    FPretimeSource := 'Parameter';
   end
   else
   begin
     resu := getPretime(rlsname);
-    pretime := resu.pretime;
-    pretimefrom := resu.mode;
+    FPretimeUTC := resu.pretime;
+    FPretimeSource := resu.mode;
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
@@ -922,8 +928,8 @@ begin
       exit; // did not find out the year. Sucking, useless to continue.
 
     { groupname }
-    if ((not internal) and (fYearIndex + 3 = words.Count)) then
-      groupname := words[fYearIndex + 1] + '_' + words[fYearIndex + 2]; // grpnames like XY_WEB
+    if ((not IsInternal) and (fYearIndex + 3 = words.Count)) then
+      FGroupname := words[fYearIndex + 1] + '_' + words[fYearIndex + 2]; // grpnames like XY_WEB
 
     { language }
     FMP3Language := language; // use language from TRelease ancestor
