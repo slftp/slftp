@@ -225,7 +225,7 @@ end;
 function TConditionInternal.SupplyValue(r: TPazo): boolean;
 begin
   try
-    Result := r.rls.internal;
+    Result := r.rls.IsInternal;
   except
     Result := False;
   end;
