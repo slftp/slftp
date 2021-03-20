@@ -488,7 +488,7 @@ end;
 function TConditionFake.SupplyValue(r: TPazo): boolean;
 begin
   try
-    Result := r.rls.Fake;
+    Result := r.rls.FIsFake;
   except
     Result := False;
   end;
