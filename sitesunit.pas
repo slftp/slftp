@@ -1435,7 +1435,7 @@ var
       end;
     end;
 
-    if site.sw <> sswUnknown and site.swVersion = '' then
+    if (site.sw <> sswUnknown) and (site.swVersion = '') then
       site.swVersion := ParseSiteSoftwareVersionFromString(site.sw, lastResponse);
   end;
 
