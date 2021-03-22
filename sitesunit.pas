@@ -43,8 +43,9 @@ type
   @value(sswDrftpd DrFTPD software)
   @value(sswIoftpd ioFTPD software)
   @value(sswRaidenftpd RaidenFTPD software)
+  @value(sswPureFTPd, Pure-FTPd software)
   }
-  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd);
+  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd, sswPureFTPd);
 
   {
   @abstract(data channel PROTection level)
@@ -98,7 +99,10 @@ type
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
-    procedure ProcessFeat;
+
+    { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
+      @param(aDoUpdateSiteSoftware If true, try to determine the site software version from the FEAT list.) }
+    procedure ProcessFeat(aDoUpdateSiteSoftware: boolean);
     procedure SetDownloadingFrom(const Value: boolean);
     procedure SetUploadingTo(const Value: boolean);
     procedure SetTodotask(Value: TTask);
@@ -399,6 +403,11 @@ type
     { procedure for @link(sw) property to write Site Software to inifile }
     procedure SetSw(const Value: TSiteSw);
 
+    { function for @link(swVersion) property to read Site Software version from inifile }
+    function GetSwVersion: String;
+    { procedure for @link(swVersion) property to write Site Software version to inifile }
+    procedure SetSwVersion(const Value: String);
+
     function GetRank(const section: String): integer;
     procedure SetRank(const section: String; Value: integer);
     function GetRankLock(const section: String): integer;
@@ -482,6 +491,7 @@ type
     property Ident: String read GetSiteIdent write SetSiteIdent; //< Ident reply for the site
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
+    property swVersion: String read GetSwVersion write SetSwVersion; //< FTPd software version
     property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
     property WorkingStatus: TSiteStatus read FWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
@@ -549,6 +559,11 @@ function SiteSoftWareToString(const aSitename: String): String; overload;
   @returns(FTPd software as string) }
 function SiteSoftWareToString(aSite: TSite): String; overload;
 
+{ Get the used FTPd software as string.
+  @param(aSiteSoftware @link(TSiteSw) TSiteSw enum)
+  @returns(FTPd software as string) }
+function SiteSoftWareToString(aSiteSoftware: TSiteSw): String; overload;
+
 { Get the FTPd software enum for given FTPd software name.
   @param(s FTPd software string)
   @returns(@link(TSiteSw) if existing, otherwise @link(TSiteSw.sswUnknown)) }
@@ -577,6 +592,18 @@ function sslMethodToString(aSite: TSite): String; overload;
   @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
   @param(sitespd Stringlist for permdown (PermDown) sites) }
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
+
+{ Tries to parse the @link(TSiteSw) from a given string. Returns @link(sswUnknown) if unsuccessful.
+  @param(aText Text tp parse)
+  @returns(@link(TSiteSw)) }
+function ParseSiteSoftwareFromString(aText: String): TSiteSw;
+
+{ Tries to parse the site software's version from a given string for a given @link(TSiteSw).
+  Returns an empty string if unsuccessful.
+  @param(aSiteSoftWare The @link(TSiteSw) to parse the version for)
+  @param(aText Text to parse)
+  @returns(The site software version or an empty string if unsuccessful) }
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; aText: String): String;
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
@@ -613,14 +640,20 @@ end;
 
 function SiteSoftWareToString(aSite: TSite): String;
 begin
+  Result := SiteSoftWareToString(aSite.Software);
+end;
+
+function SiteSoftWareToString(aSiteSoftware: TSiteSw): String;
+begin
   Result := 'Unknown';
 
-  case TSite(aSite).Software of
+  case aSiteSoftware of
     sswUnknown: Result := 'Unknown';
     sswGlftpd: Result := 'GlFTPD';
     sswDrftpd: Result := 'DrFTPD';
     sswIoftpd: Result := 'ioFTPD';
     sswRaidenftpd: Result := 'RaidenFTPD';
+    sswPureFTPd: Result := 'PureFTPd';
   end;
 end;
 
@@ -637,6 +670,8 @@ begin
     Result := sswIoftpd;
   if s = 'raidenftpd' then
     Result := sswRaidenftpd;
+  if s = 'pureftpd' then
+    Result := sswPureFTPd;
 end;
 
 function sslMethodToString(const aSitename: String): String;
@@ -1124,7 +1159,7 @@ begin
   Result := True;
 end;
 
-procedure TSiteSlot.ProcessFeat;
+procedure TSiteSlot.ProcessFeat(aDoUpdateSiteSoftware: boolean);
 var
   sFeatures: TArray<String>;
   feature: TSiteFeature;
@@ -1238,25 +1273,28 @@ begin
 
   site.features := features;
 
-  if (sfPRET in features) then
-  begin
-    if site.sw <> sswDrftpd then
-      site.sw := sswDrftpd;
-  end
-  else if (sfUTF8 in features) and (sfMFMT in features) then
-  begin
-    if site.sw <> sswRaidenftpd then
-      site.sw := sswRaidenftpd;
-  end
-  else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
-  begin
-    if site.sw <> sswIoftpd then
-      site.sw := sswIoftpd;
-  end
-  else if (sfCPSV in features) then
-  begin
-    if site.sw <> sswGlftpd then
-      site.sw := sswGlftpd;
+  if aDoUpdateSiteSoftware then
+    begin
+    if (sfPRET in features) then
+    begin
+      if site.sw <> sswDrftpd then
+        site.sw := sswDrftpd;
+    end
+    else if (sfUTF8 in features) and (sfMFMT in features) then
+    begin
+      if site.sw <> sswRaidenftpd then
+        site.sw := sswRaidenftpd;
+    end
+    else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
+    begin
+      if site.sw <> sswIoftpd then
+        site.sw := sswIoftpd;
+    end
+    else if (sfCPSV in features) then
+    begin
+      if site.sw <> sswGlftpd then
+        site.sw := sswGlftpd;
+    end;
   end;
 end;
 
@@ -1315,6 +1353,63 @@ begin
   Result := True;
 end;
 
+function ParseSiteSoftwareFromString(aText: String): TSiteSw;
+begin
+  Result := sswUnknown;
+
+  if aText.Contains('glFTPd') then
+    Result := sswGlftpd
+  else if aText.Contains('DrFTPD') then
+    Result := sswDrftpd
+  else if aText.Contains('ioFTPD') then
+    Result := sswIoftpd
+  else if aText.Contains('RaidenFTPD') then
+    Result := sswRaidenftpd
+  else if aText.Contains('Pure-FTPd') then
+    Result := sswPureFTPd;
+end;
+
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; aText: String): String;
+  var fTRegExpr: TRegExpr;
+begin
+  fTRegExpr := TRegExpr.Create;
+  try
+    case aSiteSoftWare of
+      sswGlftpd:
+      begin
+        //glFTPd 2.11a
+        fTRegExpr.Expression := '(glFTPd) ([0-9]\.[0-9][0-9][a-z]?)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+      end;
+      sswDrftpd:
+      begin
+        //DrFTPD 3.2.0
+        //DrFTPD 4.0.1-SNAPSHOT
+        fTRegExpr.Expression := '(DrFTPD) ([0-9]\.[0-9]\.[0-9][\-a-zA-Z]*)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+      end;
+      sswIoftpd:
+      begin
+        //ioFTPD version: 7-7-3r
+        fTRegExpr.Expression := '(ioFTPD version: )([0-9]\-[0-9]\-[0-9][a-z]?)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+        end;
+      sswRaidenftpd, sswPureFTPd:
+        //no way to find out the version.
+      else
+        raise Exception.Create('Unknown site software');
+    end;
+
+
+  finally
+    fTRegExpr.Free;
+  end;
+
+end;
+
 function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
@@ -1323,6 +1418,27 @@ var
   j: Integer;
   currentBnc, tmpBnc, tmpHost: String;
   tmpPort: Integer;
+  fDoCheckSiteSoftware: boolean;
+
+  procedure tryToGetSiteSoftwareAndVersionFromLastResponse();
+    var fSiteSoftware: TSiteSw;
+  begin
+    if fDoCheckSiteSoftware then
+    begin
+      fSiteSoftware := ParseSiteSoftwareFromString(lastResponse);
+
+      if fSiteSoftware <> sswUnknown then
+      begin
+        site.sw := fSiteSoftware;
+        site.swVersion := ''; //try to get the version below
+        fDoCheckSiteSoftware := False; //we found the site software, no need to do that again
+      end;
+    end;
+
+    if site.sw <> sswUnknown and site.swVersion = '' then
+      site.swVersion := ParseSiteSoftwareVersionFromString(site.sw, lastResponse);
+  end;
+
 begin
   Result := False;
 
@@ -1354,6 +1470,8 @@ begin
       exit;
   end;
 
+  fDoCheckSiteSoftware := (site.sw = sswUnknown) or (not site.IsUp);
+
   // banner
   if not Read('BANNER') then
     exit;
@@ -1363,6 +1481,8 @@ begin
     error := Trim(lastResponse);
     exit;
   end;
+
+  tryToGetSiteSoftwareAndVersionFromLastResponse;
 
   if (sslm in [sslAuthSsl, sslAuthTls]) then
   begin
@@ -1384,9 +1504,17 @@ begin
 
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
+
+    //After completing the negotiation of a secure connection with the server, the client must issue the PBSZ command.
+    //Pure-FTPd requires this. Other FTPDs work well without it.
+    if not Send('PBSZ 0') then
+      exit;
+    if not Read('PBSZ 0') then
+      exit;
   end;
   //else
   //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
+
 
   un := self.site.UserName;
   upw := self.site.PassWord;
@@ -1419,20 +1547,65 @@ begin
     exit;
   end;
 
+  tryToGetSiteSoftwareAndVersionFromLastResponse;
+
+  //try to determine the site software
+  if fDoCheckSiteSoftware then
+  begin
+    //try SITE VERS
+    if not Send('SITE VERS') then
+      exit;
+    if not Read('SITE VERS') then
+      exit;
+
+    tryToGetSiteSoftwareAndVersionFromLastResponse;
+
+    if fDoCheckSiteSoftware then //did not work, try something else
+    begin
+
+      //try the STAT command which is working fine for glFTPd and DrFTPD
+      if not Send('STAT') then
+        exit;
+      if not Read('STAT') then
+        exit;
+
+      if (lastResponseCode = 501) and lastResponse.Contains('Not enough parameters') then
+      begin
+        //it's very likely a ioFTPD in this case.
+
+        if not Send('SITE ioversion') then
+          exit;
+        if not Read('SITE ioversion') then
+          exit;
+
+        if lastResponse.Contains('Access denied') then //it knows the cmd 'SITE ioversion', but we don't have access
+        begin
+          site.sw := sswIoftpd;
+          site.swVersion := '';
+          fDoCheckSiteSoftware := False;
+        end
+        else
+          tryToGetSiteSoftwareAndVersionFromLastResponse;
+      end
+      else
+        tryToGetSiteSoftwareAndVersionFromLastResponse;
+    end;
+  end;
+
   if not Send('TYPE I') then
     exit;
   if not Read('TYPE I') then
     exit;
 
   // check FEAT when site comes up or we dont know the site software
-  if ((site.sw = sswUnknown) or (not site.IsUp)) then
+  if (fDoCheckSiteSoftware) then
   begin
     if not Send('FEAT') then
       exit;
     if not Read('FEAT') then
       exit;
 
-    ProcessFeat();
+    ProcessFeat(fDoCheckSiteSoftware);
   end;
 
   if not Send('SITE XDUPE 3') then
@@ -3337,6 +3510,16 @@ end;
 procedure TSite.SetSw(const Value: TSiteSw);
 begin
   WCInteger('sw', integer(Value));
+end;
+
+function TSite.GetSwVersion: String;
+begin
+  Result := RCString('swVersion', '');
+end;
+
+procedure TSite.SetSwVersion(const Value: String);
+begin
+  WCString('swVersion', Value);
 end;
 
 function TSite.GetRank(const section: String): integer;

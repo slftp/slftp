@@ -61,7 +61,8 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
-  slsslTests;
+  slsslTests,
+  sitesunitTests;
 
 var
   filecheck: String;
