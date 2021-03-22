@@ -153,7 +153,7 @@ end;
 
 initialization
   {$IFDEF FPC}
-    RegisterTest('sitesunit', TTestMyStrings.Suite);
+    RegisterTest('sitesunit', TTestSitesunit.Suite);
   {$ELSE}
     TDUnitX.RegisterTestFixture(TTestSitesunit);
   {$ENDIF}
