@@ -1549,64 +1549,18 @@ begin
 
   tryToGetSiteSoftwareAndVersionFromLastResponse;
 
-  //try to determine the site software
-  if fDoCheckSiteSoftware then
-  begin
-    //try SITE VERS
-    if not Send('SITE VERS') then
-      exit;
-    if not Read('SITE VERS') then
-      exit;
-
-    tryToGetSiteSoftwareAndVersionFromLastResponse;
-
-    if fDoCheckSiteSoftware then //did not work, try something else
-    begin
-
-      //try the STAT command which is working fine for glFTPd and DrFTPD
-      if not Send('STAT') then
-        exit;
-      if not Read('STAT') then
-        exit;
-
-      if (lastResponseCode = 501) and lastResponse.Contains('Not enough parameters') then
-      begin
-        //it's very likely a ioFTPD in this case.
-
-        if not Send('SITE ioversion') then
-          exit;
-        if not Read('SITE ioversion') then
-          exit;
-
-        if lastResponse.Contains('Access denied') then //it knows the cmd 'SITE ioversion', but we don't have access
-        begin
-          site.sw := sswIoftpd;
-          site.swVersion := '';
-          fDoCheckSiteSoftware := False;
-        end
-        else
-          tryToGetSiteSoftwareAndVersionFromLastResponse;
-      end
-      else
-        tryToGetSiteSoftwareAndVersionFromLastResponse;
-    end;
-  end;
-
   if not Send('TYPE I') then
     exit;
   if not Read('TYPE I') then
     exit;
 
   // check FEAT when site comes up or we dont know the site software
-  if (fDoCheckSiteSoftware) then
-  begin
-    if not Send('FEAT') then
-      exit;
-    if not Read('FEAT') then
-      exit;
+  if not Send('FEAT') then
+    exit;
+  if not Read('FEAT') then
+    exit;
 
-    ProcessFeat(fDoCheckSiteSoftware);
-  end;
+  ProcessFeat(fDoCheckSiteSoftware);
 
   if not Send('SITE XDUPE 3') then
     exit;
@@ -1625,6 +1579,48 @@ begin
       exit;
     if not Read('CLNT') then
       exit;
+  end;
+
+  //try to determine the site software
+  if fDoCheckSiteSoftware then
+  begin
+    //try the STAT command which is working fine for glFTPd and DrFTPD
+    if not Send('STAT') then
+      exit;
+    if not Read('STAT') then
+      exit;
+
+    if (lastResponseCode = 501) and lastResponse.Contains('Not enough parameters') then
+    begin
+      //it's very likely a ioFTPD in this case.
+
+      if not Send('SITE ioversion') then
+        exit;
+      if not Read('SITE ioversion') then
+        exit;
+
+      if lastResponse.Contains('Access denied') then //it knows the cmd 'SITE ioversion', but we don't have access
+      begin
+        site.sw := sswIoftpd;
+        site.swVersion := '';
+        fDoCheckSiteSoftware := False;
+      end
+      else
+        tryToGetSiteSoftwareAndVersionFromLastResponse;
+    end
+    else
+      tryToGetSiteSoftwareAndVersionFromLastResponse;
+  end;
+
+  if fDoCheckSiteSoftware then //did not work, try something else
+  begin
+    //try SITE VERS
+    if not Send('SITE VERS') then
+      exit;
+    if not Read('SITE VERS') then
+      exit;
+
+    tryToGetSiteSoftwareAndVersionFromLastResponse;
   end;
 
   // successful login
