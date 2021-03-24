@@ -52,7 +52,7 @@ uses
     TestInsight.DUnitX,
   {$ENDIF}
   DUnitX.Loggers.Console,
-  DUnitX.Loggers.Xml.NUnit,
+  DUnitX.Loggers.Xml.JUnit,
   DUnitX.TestFramework,
   Classes, SysUtils,
   mrdohutils,
@@ -84,17 +84,17 @@ uses
 {$SetPEFlags $20}
 
 var
-  runner : ITestRunner;
-  results : IRunResults;
-  logger : ITestLogger;
-  nunitLogger : ITestLogger;
-  filecheck: String;
+  fTestRunner: ITestRunner;
+  fResults: IRunResults;
+  fLogger: ITestLogger;
+  fJUnitLogger: ITestLogger;
+  fFilecheck: String;
 
 begin
-  filecheck := CommonFileCheck;
-  if filecheck <> '' then
+  fFilecheck := CommonFileCheck;
+  if fFilecheck <> '' then
   begin
-    System.Write(filecheck);
+    System.Write(fFilecheck);
     System.Write('Done. press <Enter> key to quit.');
     System.Readln;
     exit;
@@ -119,21 +119,21 @@ begin
     // Check command line options, will exit if invalid
     TDUnitX.CheckCommandLine;
     // Create the test runner
-    runner := TDUnitX.CreateRunner;
+    fTestRunner := TDUnitX.CreateRunner;
     // Tell the runner to use RTTI to find Fixtures
-    runner.UseRTTI := True;
+    fTestRunner.UseRTTI := True;
     // tell the runner how we will log things
     // Log to the console window
-    logger := TDUnitXConsoleLogger.Create(true);
-    runner.AddLogger(logger);
-    // Generate an NUnit compatible XML File
-    nunitLogger := TDUnitXXMLNUnitFileLogger.Create(ExtractFilePath(ParamStr(0)) + 'dunitx-results.xml');
-    runner.AddLogger(nunitLogger);
-    runner.FailsOnNoAsserts := False; //When true, Assertions must be made during tests
+    fLogger := TDUnitXConsoleLogger.Create(true);
+    fTestRunner.AddLogger(fLogger);
+    // Generate a JUnit compatible XML File
+    fJUnitLogger := TDUnitXXMLJUnitLogger.Create(ExtractFilePath(ParamStr(0)) + 'dunitx-results.xml');
+    fTestRunner.AddLogger(fJUnitLogger);
+    fTestRunner.FailsOnNoAsserts := False; //When true, Assertions must be made during tests
 
     // Run tests
-    results := runner.Execute;
-    if not results.AllPassed then
+    fResults := fTestRunner.Execute;
+    if not fResults.AllPassed then
       System.ExitCode := EXIT_ERRORS;
 
     if TDUnitX.Options.ExitBehavior = TDUnitXExitBehavior.Pause then
