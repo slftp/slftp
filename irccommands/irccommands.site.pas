@@ -1341,7 +1341,6 @@ begin
   if ((method <> '') and ((i < 0) or (i > Integer(High(TSSLMethods))))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.', [method]);
-    Result := True;
     Exit;
   end;
 

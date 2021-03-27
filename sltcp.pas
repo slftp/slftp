@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, slssl, debugunit;
+  mslproxys, slstack, debugunit, slssl, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_err;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -21,7 +21,6 @@ const
 
 
 type
-  TslSSLMethod = (slSSLv23, slTLSv1,slTLSv1_2);
 
   TslSocks5 = class
     enabled: Boolean;
@@ -51,7 +50,7 @@ type
     function ShouldQuit: Boolean;
     function Reuse(b: Integer): Boolean;
   protected
-    procedure SetSSLContext(m: TslSSLMethod);
+    procedure SetSSLContext();
   public
     slSocket: TslSocket;
     Host: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
@@ -119,95 +118,16 @@ type
     procedure Stop; virtual;
   end;
 
-
-  TslTCPServer = class; // forward
-  TslSCHThread = class; // forward
-  TCslSCHThread = class of TslSCHThread; // forward
-  TslTCPServerThread = class; // forward
-  TslOnAcceptError = function (ls: TslTCPServerThread; error: String): Boolean of object;
-  TslTCPServer = class
-  private
-    fsslctx: PSSL_CTX;
-    clientdataclass: TCslSCHThread;
-    tofree: TObjectList;
-    fOnAcceptError: TslOnAcceptError;
-    procedure ServerThreadAdd(c: TslTCPServerThread);
-    procedure ServerThreadRemove(c: TslTCPServerThread);
-    procedure FreeCTX;
-    procedure CleanUpReadyThreads;
-    procedure OnWaitingforSocket(socket: TslTCPSocket; var ShouldQuit: Boolean) ;
-  protected
-    fBindings: TStringList;
-    StackSize: Integer;
-  public
-    cs: TCriticalSection;
-    threads: TObjectList;
-    error: String;
-    backlog: Integer;
-    maxclients: Integer;
-    shouldstop: Boolean;
-    ssltimeout: Integer;
-    last_cleanup: TDateTime;
-    cleanup_interval: Integer;
-    min_seconds_in_cleanup_queue: Integer;
-    constructor Create(cc: TCslSCHThread);
-    destructor Destroy; override;
-
-    function AllConnections: Integer;
-    function BindAdd(host: String; port: Integer): Boolean; overload;
-    function BindAdd(port: Integer): Boolean; overload;
-    procedure BindDel(host: String; port: Integer); overload;
-    procedure BindDel(port: Integer); overload;
-    function Start(udp: Boolean = False): Boolean;
-    procedure Stop;
-
-    function LoadCertificate(certfile: String): Boolean; overload;
-    function LoadCertificate(certfile, keyfile: String): Boolean; overload;
-  published
-    property OnAcceptError: TslOnAcceptError read fOnAcceptError write fOnAcceptError;
-  end;
-  TslTCPServerThread = class(TThread)
-  private
-    listenSocket: TslTCPSocket;
-    fBindIp: String;
-    fBindPort: Integer;
-    error: String;
-    function AllConnections: Integer;
-    procedure FogadoResz;
-    procedure WaitingForSocket(socket: TslTCPSocket; var ShouldQuit: Boolean);
-    procedure ClientAdd(c: TslSCHThread);
-    procedure ClientRemove(c: TslSCHThread);
-    procedure MyAccept;
-  public
-    clients: TObjectList;
-    Server: TslTCPServer;
-    constructor Create(s: TslTCPServer; bindHost: String; bindPort: Integer; udp: Boolean = False);
-    procedure Execute; override;
-    destructor Destroy; override;
-  end;
-  TslSCHThread= class(TThread)
-  private
-    readytofree: TDateTime;
-  public
-    ServerThread: TslTCPServerThread;
-    Client: TslTCPSocket;
-    procedure Init; virtual;
-    procedure Cleanup; virtual;
-    procedure RealExecute; virtual; abstract;
-    procedure Execute; override;
-    constructor Create(s: TslTCPServerThread; c: TslSocket);
-    destructor Destroy; override;
-  end;
-
-
 type
   TWaitingForSocket = function(socket: TslTCPSocket): Boolean;
 
 {$IFDEF FPC}
-{$IFDEF LINUX}
-Const clib = 'c';
-function sendfile64(__out_fd:longint; __in_fd:longint; offset:Pointer; __count:size_t):ssize_t;cdecl;external clib name 'sendfile64';
-{$ENDIF}
+  {$IFDEF LINUX}
+    const
+      clib = 'c';
+
+    function sendfile64(__out_fd:longint; __in_fd:longint; offset:Pointer; __count:size_t):ssize_t; cdecl; external clib name 'sendfile64';
+  {$ENDIF}
 {$ENDIF}
 
 var
@@ -267,8 +187,7 @@ begin
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
-//  fSSLCTX:= slssl_ctx_tlsv1_2_client;
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -295,7 +214,7 @@ end;
 
   ClearSocket;
 
-  fSSLCTX:= slssl_ctx_sslv23_client; // thx to glftpd dev for the heads up!
+  fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
   socks5.username:= sok5.username;
@@ -332,9 +251,9 @@ procedure TslTCPSocket.DisconnectSSL;
 begin
   if fSSL <> nil then
   begin
-    slSSL_shutdown(fSSL);
+    SSL_shutdown(fSSL);
 
-    slSSL_free(fSSL);
+    SSL_free(fSSL);
     fSSL:= nil;
   end;
 
@@ -688,12 +607,6 @@ begin
   try
     setlength(er, 512);
 
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
-
     if slSocket.socket = slSocketError then
     begin
       error:= 'not connected';
@@ -712,20 +625,20 @@ begin
     sltcp_lock.Enter;
     try
       fSSL:= nil;
-      fssl:= slSSL_new(sslctx);
+      fssl:= SSL_new(sslctx);
     finally
       sltcp_lock.Leave;
     end;
 
     if (fSSL = nil) then
     begin
-      slERR_error_string(slERR_get_error(), @er[1]);
+      ERR_error_string(ERR_get_error(), @er[1]);
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
 
-    if slSSL_set_fd(fSSL, slSocket.socket) = 0 then
+    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
     begin
       DisconnectSSL;
       error:= 'ssl set fd returned false';
@@ -739,7 +652,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -747,12 +660,12 @@ begin
         exit;
       end;
 
-      err:= slSSL_connect(fssl);
+      err:= SSL_connect(fssl);
 
       if(err = 1) then Break;
 
-      sslerr:= slSSL_get_error(fssl, err);
-      if((sslerr = OPENSSL_SSL_ERROR_WANT_READ) or (sslerr = OPENSSL_SSL_ERROR_WANT_WRITE) or (sslerr = OPENSSL_SSL_ERROR_WANT_X509_LOOKUP)) then
+      sslerr:= SSL_get_error(fssl, err);
+      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
       begin
         if Assigned(fOnWaitingforSocket) then
           fOnWaitingforSocket(self, shouldquit);
@@ -772,7 +685,7 @@ begin
       end
       else
       begin
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -806,12 +719,6 @@ begin
   try
     setlength(er, 512);
 
-    if not slssl_inited then
-    begin
-      error:= 'ssl not available '+slssl_error;
-      exit;
-    end;
-
     if slSocket.socket = slSocketError then
     begin
       error:= 'not connected';
@@ -829,20 +736,20 @@ begin
 
     sltcp_lock.Enter;
     try
-      fssl:= slSSL_new(sslctx);
+      fssl:= SSL_new(sslctx);
     finally
       sltcp_lock.Leave;
     end;
 
     if (fSSL = nil) then
     begin
-      slERR_error_string(slERR_get_error(), @er[1]);
+      ERR_error_string(ERR_get_error(), @er[1]);
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
 
-    if slSSL_set_fd(fSSL, slSocket.socket) = 0 then
+    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
     begin
       DisconnectSSL;
       error:= 'ssl set fd returned false';
@@ -856,7 +763,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -864,12 +771,12 @@ begin
         exit;
       end;
 
-      err:= slSSL_accept(fssl);
+      err:= SSL_accept(fssl);
 
       if(err = 1) then Break;
 
-      sslerr:= slSSL_get_error(fssl, err);
-      if((sslerr = OPENSSL_SSL_ERROR_WANT_READ) or (sslerr = OPENSSL_SSL_ERROR_WANT_WRITE) or (sslerr = OPENSSL_SSL_ERROR_WANT_X509_LOOKUP)) then
+      sslerr:= SSL_get_error(fssl, err);
+      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
       begin
         if Assigned(fOnWaitingforSocket) then
           fOnWaitingforSocket(self, shouldquit);
@@ -889,7 +796,7 @@ begin
       end
       else
       begin
-        slERR_error_string(slERR_get_error(), @er[1]);
+        ERR_error_string(ERR_get_error(), @er[1]);
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -1304,521 +1211,14 @@ begin
   Result:= True;
 end;
 
-procedure TslTCPSocket.SetSSLContext(m: TslSSLMethod);
+procedure TslTCPSocket.SetSSLContext();
 begin
-  if m = slSSLv23 then
-    fSSLCTX:= slSSL_CTX_sslv23_client;
-if m = slTLSv1 then    fSSLCTX:= slSSL_CTX_tlsv1_client;
-if m = slTLSv1_2 then    fSSLCTX:= slSSL_CTX_tlsv1_2_client;
-
+  fSSLCTX := GetOpenSSLConnectionContext;
 end;
 
 function TslTCPSocket.connected: Boolean;
 begin
   Result:= slSocket.socket <> slSocketError;
-end;
-
-{ TslTCPServer }
-
-function TslTCPServer.AllConnections: Integer;
-var i: Integer;
-begin
-  Result:= 0;
-  cs.Enter;
-  try
-    for i:= 0 to threads.Count -1 do
-      inc(Result, TslTCPServerThread(threads[i]).AllConnections);
-  finally
-    cs.Leave;
-  end;
-end;
-
-
-function TslTCPServer.BindAdd(port: Integer): Boolean;
-var s: String;
-begin
-  Result:= False;
-  if ((Port < 1) or (Port > 65535)) then
-  begin
-    error:= 'port is invalid';
-    exit;
-  end;
-
-  s:= IntToStr(port);
-  if fBindings.IndexOf(s) <> -1 then
-  begin
-    error:= 'binding already added';
-    exit;
-  end;
-
-  error:= '';
-  fBindings.Add(s);
-  Result:= True;
-end;
-
-function TslTCPServer.BindAdd(host: String; port: Integer): Boolean;
-var ip: String;
-    s: String;
-begin
-  Result:= False;
-  ip:= slResolve(host, error);
-  if ip = '' then exit;
-
-  if ((Port < 1) or (Port > 65535)) then
-  begin
-    error:= 'port is invalid';
-    exit;
-  end;
-
-  s:= ip+':'+IntToStr(port);
-  if fBindings.IndexOf(s) <> -1 then
-  begin
-    error:= 'binding already added';
-    exit;
-  end;
-
-  error:= '';
-  fBindings.Add(s);
-  Result:= True;
-end;
-
-procedure TslTCPServer.BindDel(port: Integer);
-var i: Integer;
-begin
-  i:= fBindings.IndexOf( IntToStr(port) );
-  if i <> -1 then
-  begin
-    fBindings.Delete(i);
-    error:= '';
-  end else
-    error:= 'binding not found';
-end;
-
-procedure TslTCPServer.BindDel(host: String; port: Integer);
-var ip: String;
-    i: Integer;
-begin
-  ip:= slResolve(host, error);
-  if ip = '' then exit;
-
-  i:= fBindings.IndexOf(ip+':'+IntToStr(port));
-  if i <> -1 then
-  begin
-    fBindings.Delete(i);
-    error:= '';
-  end else
-    error:= 'binding not found';
-end;
-
-procedure TslTCPServer.CleanUpReadyThreads;
-var i: Integer;
-   aNow: TDateTime;
-begin
-  aNow:= Now;
-  if last_cleanup <> 0 then
-  begin
-    i:= SecondsBetween(aNow, last_cleanup);
-    // debug(dpSpam, 'cleanup interval was %d %d', [i, cleanup_interval]);
-    if (i < cleanup_interval) then exit;
-  end
-  else
-  begin
-    // debug(dpSpam, 'cleanup 1st time');
-  end;
-
-//debug(dpSpam, '------------- CLEANUP BEGIN1 -----------------');
-  last_cleanup:= aNow;
-  cs.Enter;
-  try
-    i:= 0;
-    while(i < tofree.Count)do
-    begin
-      if (SecondsBetween(aNow, TslSCHThread(tofree[i]).readytofree) > min_seconds_in_cleanup_queue) then
-        tofree.Delete(i)
-     else
-      inc(i);
-    end;
-//    debug(dpSpam, '-------------- CLEANUP END2 ------------------');
-  finally
-    cs.Leave;
-  end;
-end;
-
-constructor TslTCPServer.Create(cc: TCslSCHThread);
-begin
-  if not sltcp_inited then
-    raise Exception.Create('sltcp is not inited');
-
-  StackSize:= 128*1024; // 128 KB
-  ssltimeout:= slDefaultTimeout;
-  backlog:= slDefaultBacklog;
-  fBindings:= TStringList.Create;
-  maxclients:= -1; // unlimited
-  threads:= TObjectList.Create(False);
-  tofree:= TObjectList.Create();
-
-  clientdataclass:= cc;
-  last_cleanup:= 0;
-  cleanup_interval:= 30;
-  min_seconds_in_cleanup_queue:= 10;
-
-  cs:= TCriticalSection.Create;
-end;
-
-
-destructor TslTCPServer.Destroy;
-begin
-  Stop;
-
-  threads.Free;
-  tofree.Free;
-  fBindings.Free;
-  cs.Free;
-  FreeCTX;
-  inherited;
-end;
-
-procedure TslTCPServer.FreeCTX;
-begin
-  if fsslctx <> nil then
-  begin
-    slSSL_CTX_free(fsslctx);
-    fsslctx:= nil;
-  end;
-end;
-
-function TslTCPServer.LoadCertificate(certfile: String): Boolean;
-begin
-  Result:= LoadCertificate(certfile, certfile);
-end;
-function TslTCPServer.LoadCertificate(certfile, keyfile: String): Boolean;
-begin
-  Result:= False;
-
-  FreeCTX;
-
-  fsslctx:= slSSL_CTX_new(slTLSv1_2_server_method());
-  if nil = fsslctx then
-  begin
-    error:= slSSL_LastError();
-    FreeCTX;
-    exit;
-  end;
-
-  if (slSSL_CTX_use_certificate_chain_file(fsslctx, PAnsiChar(certfile)) <= 0) then
-  begin
-    error:= slSSL_LastError();
-    FreeCTX;
-    exit;
-  end;
-
-  if (slSSL_CTX_use_PrivateKey_file(fsslctx, PAnsiChar(keyfile), OPENSSL_SSL_FILETYPE_PEM) <=0 ) then
-  begin
-    error:= slSSL_LastError();
-    FreeCTX;
-    exit;
-  end;
-
-  if (1 <> slSSL_CTX_check_private_key(fsslctx)) then
-  begin
-    error:= slSSL_LastError();
-    FreeCTX;
-    exit;
-  end;
-
-  if @slSSL_CTX_set_session_cache_mode <> nil then
-    slSSL_CTX_set_session_cache_mode(fsslctx, OPENSSL_SSL_SESS_CACHE_OFF);
-
-  slSSL_CTX_set_cipher_list(fsslctx, 'ALL:!EXP');
-
-  Result:= True;
-end;
-
-procedure TslTCPServer.OnWaitingforSocket(socket: TslTCPSocket;
-  var ShouldQuit: Boolean);
-begin
-  ShouldQuit:= shouldstop;
-end;
-
-procedure TslTCPServer.ServerThreadAdd(c: TslTCPServerThread);
-begin
-  cs.Enter;
-  try
-    threads.Add(c);
-  finally
-    cs.Leave;
-  end;
-end;
-
-procedure TslTCPServer.ServerThreadRemove(c: TslTCPServerThread);
-begin
-  cs.Enter;
-  try
-    threads.Remove(c);
-  finally
-    cs.Leave;
-  end;
-end;
-
-function TslTCPServer.Start(udp: Boolean = False): Boolean;
-var i, j, port: Integer;
-    host: String;
-    c: TslTCPServerThread;
-begin
-  Result:= False;
-
-
-  if fBindings.Count = 0 then
-  begin
-    error:= 'no bindings added';
-    exit;
-  end;
-
-  shouldstop:= False;
-
-  for i:= 0 to fBindings.Count -1 do
-  begin
-    host:= '';
-    j:= Pos(':', fBindings[i]);
-    if 0 < j then
-    begin
-      host:= Copy(fBindings[i], 1, j-1);
-      port:= StrToInt(Copy(fBindings[i], j+1, 100));
-    end else
-      port:= StrToInt(fBindings[i]);
-    cs.Enter;
-    try
-      c:= TslTCPServerThread.Create(self, host, port, udp);
-      if c.error <> '' then
-        error:= c.error;
-    finally
-      cs.Leave;
-    end;
-  end;
-
-
-  if error = '' then Result:= True;
-end;
-
-procedure TslTCPServer.Stop;
-begin
-  shouldstop:= True;
-  while(true)do
-  begin
-    cs.Enter;
-    if threads.Count = 0 then
-    begin
-      cs.Leave;
-      Break;
-    end;
-    cs.Leave;
-    sleep(100);
-  end;
-end;
-
-
-{ TslCHThread }
-
-destructor TslSCHThread.Destroy;
-begin
-//  Debug(dpSpam, 'client thread destroy');
-  inherited;
-end;
-constructor TslSCHThread.Create(s: TslTCPServerThread; c: TslSocket);
-begin
-//debug(dpspam, 'init eleje');
-  ServerThread:= s;
-  ReadyToFree:= 0;
-  Client:= TslTCPSocket.Create;
-  Client.SetupSocket(c);
-  client.OnWaitingforSocket:= ServerThread.Server.OnWaitingforSocket;
-//debug(dpspam, 'socket copied');
-  FreeOnTerminate:= False;
-//debug(dpspam, 'tschthread start elott');
-
-{$IFDEF FPC}
-  inherited Create(False, ServerThread.Server.StackSize);
-{$ELSE}
-  inherited Create(False);
-{$ENDIF}
-end;
-
-
-procedure TslSCHThread.Init;
-begin
-  ServerThread.ClientAdd(self);
-end;
-procedure TslSCHThread.Cleanup;
-begin
-// fontos a sorrend, eloszor kiszedjuk a szart a listakbol igy a clientet utana mar nem probaljak majd elerni
-//The order is important, first of all remove that shit so the clientel then you can not and are trying to achieve from this list
-  ServerThread.ClientRemove(self);
-  Client.Free;
-end;
-procedure TslSCHThread.Execute;
-begin
-  Init;
-
-  try
-    if ((ServerThread.Server.maxclients <> -1) and (ServerThread.Server.AllConnections > ServerThread.Server.maxclients)) then
-      exit;
-
-    if ServerThread.Server.fsslctx <> nil then
-    begin
-      if not Client.AcceptSSL(ServerThread.Server.fsslctx, ServerThread.Server.ssltimeout) then
-        exit;
-    end;
-
-//debug(dpspam, 'cliendata.execute elott');
-    RealExecute();
-//debug(dpspam, 'cliendata.execute utan');
-
-  finally
-    Cleanup;
-    readytofree:= Now;
-  end;
-end;
-
-{ TslTCPServerThread }
-
-procedure TslTCPServerThread.ClientAdd(c: TslSCHThread);
-begin
-  Server.cs.Enter;
-  try
-    clients.Add(c);
-  finally
-    Server.cs.Leave;
-  end;
-end;
-
-procedure TslTCPServerThread.ClientRemove(c: TslSCHThread);
-begin
-  Server.cs.Enter;
-  try
-    clients.Remove(c);
-    server.tofree.Add(c);
-  finally
-    Server.cs.Leave;
-  end;
-end;
-
-constructor TslTCPServerThread.Create(s: TslTCPServer; bindHost: String; bindPort: Integer; udp: Boolean = False);
-begin
-
-  fBindIp:= bindHost;
-  fBindPort:= bindPort;
-  Server:= s;
-  clients:= TObjectList.Create(False);
-
-  listenSocket:= TslTCPSocket.Create;
-  listenSocket.BindHost(bindHost);
-  listenSocket.BindPort:= bindPort;
-  listenSocket.OnWaitingforSocket:= WaitingForSocket;
-
-  // kell kerni egy uj socketet
-  // Obtain a new socket
-  if not listenSocket.GetSocket(udp, True) then
-    error:= listenSocket.error
-  else
-  if not listenSocket.Listen(Server.backlog) then
-    error:= listenSocket.error;
-
-
-  FreeOnTerminate:= True;
-
-  inherited Create(False);
-end;
-
-
-destructor TslTCPServerThread.Destroy;
-begin
-//  Debug(dpError, 'TCPServerthread.Destroy');
-  Server.ServerThreadRemove(self);
-  clients.Free;
-  listenSocket.Free;
-  inherited;
-end;
-procedure TslTCPServerThread.MyAccept;
-var newSocket: TslSocket;
-begin
-  if listenSocket.Accept(newSocket) then
-    server.clientdataclass.Create(self, newSocket);
-//Debug(dpSpam, 'MyAccept end');
-end;
-procedure TslTCPServerThread.FogadoResz;
-begin
-  while(True)do
-  begin
-    if listenSocket.IsReadAble(slDefaultTimeout) then
-    begin
-      MyAccept();
-    end else
-    begin
-      if Server.shouldstop then
-      begin
-//        debug(dpError, 'server shouldstop is true');
-        break;
-      end;
-      if (listenSocket.error = 'shouldquit') then
-      begin
-//        debug(dpError, 'listensocket.error is shouldquit');
-        break;
-      end;
-      if (Assigned(Server.fOnAcceptError)) then Server.fOnAcceptError(self, listensocket.error);
-      if (Assigned(Server.fOnAcceptError)) then Server.fOnAcceptError(self, error);
-      if ((listenSocket.error <> 'timeout') and (Assigned(Server.fOnAcceptError)) and (Server.fOnAcceptError(self, listensocket.error))) then
-      begin
-//        debug(dpError, 'callback miatt kilepunk');
-        Break;
-
-      end;
-    end;
-
-    Server.CleanupReadyThreads();
-  end;
-///  Debug(dpError, 'Fogadoresz vege');
-end;
-
-procedure TslTCPServerThread.Execute;
-begin
-  if error <> '' then exit;
-
-  Server.ServerThreadAdd(self);
-
-  try
-    FogadoResz;
-  except on e: Exception do
-//    Debug(dpError, 'Exception in ServerThread: %s',[e.Message]);
-  end;
-
-  while True do
-  begin
-    Server.cs.Enter;
-    if (clients.Count = 0) then
-    begin
-      Server.cs.Leave;
-      Break;
-    end;
-    Server.cs.Leave;
-    sleep(100);
-  end;
-end;
-
-procedure TslTCPServerThread.WaitingForSocket(socket: TslTCPSocket;
-  var ShouldQuit: Boolean);
-begin
-  if Server.shouldstop then
-    ShouldQuit:= True;
-end;
-
-function TslTCPServerThread.AllConnections: Integer;
-begin
-  Server.cs.Enter;
-  try
-    Result:= clients.Count;
-  finally
-    Server.cs.Leave;
-  end;
 end;
 
 { TslTCPThread }
