@@ -52,7 +52,7 @@ uses
     TestInsight.DUnitX,
   {$ENDIF}
   DUnitX.Loggers.Console,
-  DUnitX.Loggers.Xml.JUnit,
+  DUnitX.Loggers.XML.JUnit,
   DUnitX.TestFramework,
   Classes, SysUtils,
   mrdohutils,
