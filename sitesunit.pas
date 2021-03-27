@@ -1016,7 +1016,11 @@ begin
       end;
     end;
   except
-    Result := nil;
+  on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] FindSiteByName : %s', [e.Message]));
+      Result := nil;
+    end;
   end;
 end;
 
