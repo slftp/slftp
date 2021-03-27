@@ -60,6 +60,8 @@
     {^} Slightly improved behaviour for STV/Wide/Limited determination
     {^} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported)
     {^} Less unnecessary 'tell your developer' messages to the admin channel
+    {^} Improved detection of FTPD software and version
+    {^} Send PBSZ command (Pure-FTPD requires it)
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
