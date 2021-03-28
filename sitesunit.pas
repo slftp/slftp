@@ -594,16 +594,16 @@ function sslMethodToString(aSite: TSite): String; overload;
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 
 { Tries to parse the @link(TSiteSw) from a given string. Returns @link(sswUnknown) if unsuccessful.
-  @param(aText Text tp parse)
+  @param(aText Text to parse)
   @returns(@link(TSiteSw)) }
-function ParseSiteSoftwareFromString(aText: String): TSiteSw;
+function ParseSiteSoftwareFromString(const aText: String): TSiteSw;
 
 { Tries to parse the site software's version from a given string for a given @link(TSiteSw).
   Returns an empty string if unsuccessful.
   @param(aSiteSoftWare The @link(TSiteSw) to parse the version for)
   @param(aText Text to parse)
   @returns(The site software version or an empty string if unsuccessful) }
-function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; aText: String): String;
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
@@ -1353,7 +1353,7 @@ begin
   Result := True;
 end;
 
-function ParseSiteSoftwareFromString(aText: String): TSiteSw;
+function ParseSiteSoftwareFromString(const aText: String): TSiteSw;
 begin
   Result := sswUnknown;
 
@@ -1369,9 +1369,10 @@ begin
     Result := sswPureFTPd;
 end;
 
-function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; aText: String): String;
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
   var fTRegExpr: TRegExpr;
 begin
+  Result := '';
   fTRegExpr := TRegExpr.Create;
   try
     case aSiteSoftWare of
@@ -3510,12 +3511,12 @@ end;
 
 function TSite.GetSwVersion: String;
 begin
-  Result := RCString('swVersion', '');
+  Result := RCString('swversion', '');
 end;
 
 procedure TSite.SetSwVersion(const Value: String);
 begin
-  WCString('swVersion', Value);
+  WCString('swversion', Value);
 end;
 
 function TSite.GetRank(const section: String): integer;
