@@ -48,7 +48,8 @@ procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 function IrcKillAll(const netname, channel, params: String): boolean;
 procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
-    procedure RemoveDependencies(t: TTask);
+procedure RemoveDependencies(t: TTask); overload;
+procedure RemoveDependencies(const aTaskUidText: String); overload;
 
 function RemovePazo(const pazo_id: integer): boolean;
 
@@ -1050,7 +1051,8 @@ end;
 
 procedure TQueueThread.AddTask(t: TTask);
 var
-  tname: String;
+  tname, fDependingUidText: String;
+  fDependentSite: TSite;
 begin
   try
     tname := t.Name;
@@ -1085,19 +1087,25 @@ begin
         end;
       end;
 
-    finally
-      main_lock.Leave;
-    end;
-
       try
         if t.ready and (t is TPazoMkdirTask) and (TPazoMkdirTask(t).dependentSiteName <> '') then
-          FindSiteByName('', TPazoMkdirTask(t).dependentSiteName).RemoveDependencies(t);
+        begin
+          fDependentSite := FindSiteByName('', TPazoMkdirTask(t).dependentSiteName);
+          fDependingUidText := t.UidText;
+        end;
       except
         on e: Exception do
         begin
           Debug(dpError, section, Format('[EXCEPTION] AddTask RemoveDependencies: %s', [e.Message]));
         end;
       end;
+
+    finally
+      main_lock.Leave;
+    end;
+
+    if fDependentSite <> nil then
+      fDependentSite.RemoveDependencies(fDependingUidText);
 
   except
     on e: Exception do
@@ -1319,6 +1327,11 @@ begin
 end;
 
 procedure TQueueThread.RemoveDependencies(t: TTask);
+begin
+  RemoveDependencies(t.UidText);
+end;
+
+procedure TQueueThread.RemoveDependencies(const aTaskUidText: String);
 var
   i, j: integer;
   tt: TTask;
@@ -1344,7 +1357,7 @@ begin
         if tt = nil then
           Continue;
 
-        j := tt.dependencies.IndexOf(t.UidText);
+        j := tt.dependencies.IndexOf(aTaskUidText);
         if j <> -1 then
         begin
           tt.dependencies.Delete(j);
