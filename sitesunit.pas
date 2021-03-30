@@ -565,9 +565,9 @@ function SiteSoftWareToString(aSite: TSite): String; overload;
 function SiteSoftWareToString(aSiteSoftware: TSiteSw): String; overload;
 
 { Get the FTPd software enum for given FTPd software name.
-  @param(s FTPd software string)
+  @param(aString FTPd software string)
   @returns(@link(TSiteSw) if existing, otherwise @link(TSiteSw.sswUnknown)) }
-function StringToSiteSoftWare(s: String): TSiteSw;
+function StringToSiteSoftWare(aString: String): TSiteSw;
 
 { Convert String from FTPd response into internal used @link(TSiteFeature) enum
   @param(aFeature Single FTPd FEAT response string)
@@ -592,11 +592,6 @@ function sslMethodToString(aSite: TSite): String; overload;
   @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
   @param(sitespd Stringlist for permdown (PermDown) sites) }
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
-
-{ Tries to parse the @link(TSiteSw) from a given string. Returns @link(sswUnknown) if unsuccessful.
-  @param(aText Text to parse)
-  @returns(@link(TSiteSw)) }
-function ParseSiteSoftwareFromString(const aText: String): TSiteSw;
 
 { Tries to parse the site software's version from a given string for a given @link(TSiteSw).
   Returns an empty string if unsuccessful.
@@ -657,21 +652,38 @@ begin
   end;
 end;
 
-function StringToSiteSoftWare(s: String): TSiteSw;
+function StringToSiteSoftWare(aString: String): TSiteSw;
+var
+  fLowerCaseString: String;
 begin
   Result := sswUnknown;
-  s := LowerCase(s);
+  fLowerCaseString := LowerCase(aString);
 
-  if s = 'glftpd' then
+  if fLowerCaseString = 'glftpd' then
     Result := sswGlftpd;
-  if s = 'drftpd' then
+  if fLowerCaseString = 'drftpd' then
     Result := sswDrftpd;
-  if s = 'ioftpd' then
+  if fLowerCaseString = 'ioftpd' then
     Result := sswIoftpd;
-  if s = 'raidenftpd' then
+  if fLowerCaseString = 'raidenftpd' then
     Result := sswRaidenftpd;
-  if s = 'pureftpd' then
+  if fLowerCaseString = 'pureftpd' then
     Result := sswPureFTPd;
+
+  //try to find FTPD software in FTP response messages
+  if Result = sswUnknown then
+  begin
+    if aString.Contains('glFTPd') then
+      Result := sswGlftpd
+    else if aString.Contains('DrFTPD') then
+      Result := sswDrftpd
+    else if aString.Contains('ioFTPD') then
+      Result := sswIoftpd
+    else if aString.Contains('RaidenFTPD') then
+      Result := sswRaidenftpd
+    else if aString.Contains('Pure-FTPd') then
+      Result := sswPureFTPd;
+  end;
 end;
 
 function sslMethodToString(const aSitename: String): String;
@@ -1353,22 +1365,6 @@ begin
   Result := True;
 end;
 
-function ParseSiteSoftwareFromString(const aText: String): TSiteSw;
-begin
-  Result := sswUnknown;
-
-  if aText.Contains('glFTPd') then
-    Result := sswGlftpd
-  else if aText.Contains('DrFTPD') then
-    Result := sswDrftpd
-  else if aText.Contains('ioFTPD') then
-    Result := sswIoftpd
-  else if aText.Contains('RaidenFTPD') then
-    Result := sswRaidenftpd
-  else if aText.Contains('Pure-FTPd') then
-    Result := sswPureFTPd;
-end;
-
 function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
   var fTRegExpr: TRegExpr;
 begin
@@ -1426,7 +1422,7 @@ var
   begin
     if fDoCheckSiteSoftware then
     begin
-      fSiteSoftware := ParseSiteSoftwareFromString(lastResponse);
+      fSiteSoftware := StringToSiteSoftWare(lastResponse);
 
       if fSiteSoftware <> sswUnknown then
       begin
