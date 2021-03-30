@@ -41,7 +41,7 @@ begin
     'TYPE: Image; STRUcture: File; transfer MODE: Stream' + sLineBreak +
     'No data connection';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('2.11a', fSoftwareVersion);
@@ -59,7 +59,7 @@ begin
     'TYPE: Image; STRUcture: File; transfer MODE: Stream' + sLineBreak +
     'No data connection';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('2.11', fSoftwareVersion);
@@ -78,7 +78,7 @@ begin
     'Client count is: 1337' + sLineBreak +
     'DrFTPD 3.2.0 - The Distributed FTPD';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('3.2.0', fSoftwareVersion);
@@ -97,7 +97,7 @@ begin
     'Client count is: 1337' + sLineBreak +
     'DrFTPD 4.0.1-SNAPSHOT - The Distributed FTPD';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('4.0.1-SNAPSHOT', fSoftwareVersion);
@@ -110,7 +110,7 @@ var
 begin
   fText := 'glFTPd 2.11a (Jan  3 2021) 64BiT Linux+TLS(OpenSSL 1.1.1i  8 Dec 2020)+SSP';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('2.11a', fSoftwareVersion);
@@ -123,7 +123,7 @@ var
 begin
   fText := 'ioFTPD version: 7-7-3r, OpenSSL v1.0.2n , BioNiNJA v1.0b5 Release 2018-11-13 Custom';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswIoftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
   CheckEqualsString('7-7-3r', fSoftwareVersion);
@@ -136,7 +136,7 @@ var
 begin
   fText := 'Welcome to RaidenFTPD32 FTP server';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswRaidenftpd), SiteSoftWareToString(fSiteSoftware));
 end;
 
@@ -147,7 +147,7 @@ var
 begin
   fText := '---------- Welcome to Pure-FTPd [privsep] [TLS] ----------';
 
-  fSiteSoftware := ParseSiteSoftwareFromString(fText);
+  fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEqualsString(SiteSoftWareToString(sswPureFTPd), SiteSoftWareToString(fSiteSoftware));
 end;
 
