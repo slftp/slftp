@@ -510,8 +510,10 @@ begin
   dbaddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
+  last_addimdb.OwnsObjects:= True;
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
+  last_imdbdata.OwnsObjects := True;
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
   glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
   fStrList := TStringList.Create;
