@@ -186,7 +186,13 @@ begin
       Result := True;
 
     finally
+      if fIdHTTP.Compressor <> nil then
+        fIdHTTP.Compressor.Free;
+
       fIdHTTP.Free;
+
+      if fIdSSLIOHandlerSocketOpenSSL <> nil then
+        fIdSSLIOHandlerSocketOpenSSL.Free;
     end;
   except
     on e: Exception do
