@@ -494,10 +494,12 @@ begin
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
-  if (status in [rssRealPre, rssShouldPre]) then
-    if s.max_pre_dn = 0 then exit
-  else
-    if s.max_dn = 0 then exit;
+  if ((status in [rssRealPre, rssShouldPre])) then
+  begin
+    if s.max_pre_dn = 0 then exit;
+  end
+  else if s.max_dn = 0 then
+    exit;
 
   if (not de.Directory) then
   begin
