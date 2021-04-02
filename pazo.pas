@@ -402,19 +402,28 @@ var
   i: integer;
 begin
   Result := nil;
+  kb_lock.Enter;
   try
-    i := kb_list.IndexOf(section + '-' + rlsname);
-    if i <> -1 then
-    begin
-      Result := TPazo(kb_list.Objects[i]);
+    try
+      i := kb_list.IndexOf(section + '-' + rlsname);
+      if i <> -1 then
+      begin
+        Result := TPazo(kb_list.Objects[i]);
 
-      if Result <> nil then
-        Result.lastTouch := Now();
+        if Result <> nil then
+          Result.lastTouch := Now;
 
-      exit;
+        exit;
+      end;
+    except
+     on E: Exception do
+     begin
+       Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+       Result := nil;
+     end;
     end;
-  except
-    Result := nil;
+  finally
+     kb_lock.Leave;
   end;
 end;
 
