@@ -1105,7 +1105,7 @@ begin
   if nomp3dirlistgenre then
     exit;
 
-  pazo := FindPazoByName(rlsname, section);
+  pazo := FindPazoByName(section, rlsname);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
@@ -1176,7 +1176,7 @@ begin
   if nonfodirlistgenre then
     exit;
 
-  pazo := FindPazoByName(rlsname, section);
+  pazo := FindPazoByName(section, rlsname);
 
   i := last_addnfo.IndexOf(rlsname);
   if i <> -1 then
@@ -1266,7 +1266,7 @@ begin
   if showname = '' then
     exit;
 
-  pazo := FindPazoByName(rlsname, section);
+  pazo := FindPazoByName(section, rlsname);
 
   // check if we already have this showname in database
   try
@@ -1444,7 +1444,7 @@ begin
   aktualizalva := True;
 
   try
-    pazo := FindPazoByName(rlsname, section);
+    pazo := FindPazoByName(section, rlsname);
 
     dbaddimdb_cs.Enter;
     try
@@ -1657,7 +1657,7 @@ begin
   if nomvdirlistgenre then
     exit;
 
-  pazo := FindPazoByName(rlsname, section);
+  pazo := FindPazoByName(section, rlsname);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
