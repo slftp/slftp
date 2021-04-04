@@ -42,6 +42,7 @@ procedure RemoveTN(tn: TTaskNotify);
 
 var
   tasknotifies: TObjectList;
+  FLockObject: TCriticalSection;
 
 implementation
 
@@ -85,13 +86,20 @@ end;
 procedure NotifyInit;
 begin
   tasknotifies := TObjectList.Create;
+  FLockObject := TCriticalSection.Create;
   gtnno := 0;
 end;
 
 procedure NotifyUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  tasknotifies.Free;
+  FLockObject.Enter;
+  try
+    tasknotifies.Free;
+  finally
+    FLockObject.Leave;
+  end;
+  FLockObject.Free;
   Debug(dpSpam, section, 'Uninit2');  
 end;
 
@@ -100,45 +108,63 @@ var
   i: integer;
   tn: TTaskNotify;
 begin
- for i := tasknotifies.Count - 1 downto 0 do
- begin
-   try if i < 0 then Break; except Break; end;
-   try
-     tn := TTaskNotify(tasknotifies[i]);
-     if tn.tasks.IndexOf(t) <> -1 then
-     begin
-       tn.tasks.Remove(t);
+  FLockObject.Enter;
+  try
+    for i := tasknotifies.Count - 1 downto 0 do
+    begin
+      try if i < 0 then Break; except Break; end;
+      try
+        tn := TTaskNotify(tasknotifies[i]);
+        if tn.tasks.IndexOf(t) <> -1 then
+        begin
+          tn.tasks.Remove(t);
 
-       if (t.response <> '') then
-         tn.responses.Add(TSiteResponse.Create(t.site1, t.slot1name, t.response, t.time));
+          if (t.response <> '') then
+            tn.responses.Add(TSiteResponse.Create(t.site1, t.slot1name, t.response, t.time));
 
-       if ((t.announce <> '') and (not t.readyerror)) then
-         irc_addtext(t, t.announce);
+          if ((t.announce <> '') and (not t.readyerror)) then
+            irc_addtext(t, t.announce);
 
-       if tn.tasks.Count = 0 then
-         tn.event.SetEvent;
+          if tn.tasks.Count = 0 then
+            tn.event.SetEvent;
+        end;
+      except
+        on e: Exception do begin
+          Debug(dpError, section, Format('[EXCEPTION] TaskReady: %s', [e.Message]));
+          Continue;
+        end;
+      end;
      end;
-   except
-     on e: Exception do begin
-       Debug(dpError, section, Format('[EXCEPTION] TaskReady: %s', [e.Message]));
-       Continue;
-     end;
-   end;
- end;
+  finally
+    FLockObject.Leave;
+  end;
 end;
 
 function AddNotify: TTaskNotify;
 begin
   Result := TTaskNotify.Create;
-  tasknotifies.Add(Result);
+  FLockObject.Enter;
+  try
+    tasknotifies.Add(Result);
+  finally
+    FLockObject.Leave;
+  end;
 end;
 
 procedure RemoveTN(tn: TTaskNotify);
 begin
+  FLockObject.Enter;
   try
-    tasknotifies.Remove(tn);
-  except
-    exit;
+    try
+      tasknotifies.Remove(tn);
+    except
+      on e: Exception do begin
+        Debug(dpError, section, Format('[EXCEPTION] RemoveTN: %s', [e.Message]));
+        Exit;
+      end;
+    end;
+  finally
+    FLockObject.Leave;
   end;
 end;
 
